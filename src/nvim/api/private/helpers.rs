@@ -225,7 +225,7 @@ macro_rules! api_set_error {
         $crate::api::private::helpers::api_set_error_str($err, $err_type, $fmt);
     }};
     ($err:expr, $err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
-        let err_ptr: *mut $crate::api::private::validate::Error = $err;
+        let err_ref: &mut $crate::api::private::validate::Error = $err;
         let et: $crate::api::private::validate::ErrorType = $err_type;
         let fmt_ptr: *const std::ffi::c_char =
             $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
@@ -234,8 +234,8 @@ macro_rules! api_set_error {
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let mut buf = vec![0 as std::ffi::c_char; bufsize];
             $crate::strings::vim_snprintf!(buf.as_mut_ptr(), bufsize, fmt_ptr, $($arg),+);
-            (*err_ptr).msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr()));
-            (*err_ptr).err_type = et;
+            err_ref.msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr()));
+            err_ref.err_type = et;
         }
     }};
 }
@@ -611,7 +611,7 @@ pub fn dict_set_var(
 }
 
 pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
-    unsafe {
+    {
         if buffer == 0 {
             return g_st().curbuf;
         }
@@ -655,7 +655,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo {
-    unsafe {
+    {
         if tabpage == 0 {
             return g_st().curtab;
         }
@@ -1121,7 +1121,7 @@ pub fn object_to_hl_id(
     err: &mut Error,
 ) -> i32 {
     let what = what.into_c_char_ptr();
-    unsafe {
+    {
         match obj.obj_type {
             ObjectType::ObjectTypeString => {
                 let str_ = obj.data.string();
@@ -1170,7 +1170,7 @@ pub const fn api_typename(t: ObjectType) -> &'static std::ffi::CStr {
 }
 
 pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
-    unsafe {
+    {
         let mut hl_msg = HlMessage::new();
         for i in 0..chunks.size {
             let item = chunks[i];

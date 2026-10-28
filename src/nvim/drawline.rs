@@ -280,7 +280,7 @@ fn advance_color_col(wlv: &mut Winlinevars<'_>, vcol: i32) {
 /// Used when 'cursorlineopt' contains "screenline": compute the margins between
 /// which the highlighting is used.
 fn margin_columns_win(wp: &mut WinInfoInfo, left_col: &mut i32, right_col: &mut i32) {
-    unsafe {
+    {
         let cur_col_off = win_col_off(wp);
         let width1 = wp.w_view_width - cur_col_off;
         let width2 = width1 + win_col_off2(&mut *wp);
@@ -3708,7 +3708,7 @@ fn decor_providers_setup(
     col: Colnr,
     wp: &mut WinInfoInfo,
 ) -> i32 {
-    unsafe {
+    {
         let rem_vcols = if wp.w_onebuf_opt.wo_wrap != 0 {
             let width = wp.w_view_width - win_col_off(&raw mut *wp);
             let width2 = width + win_col_off2(wp);

@@ -713,7 +713,7 @@ fn mc_ins_restore_state(saved: &McInsSaved) {
 }
 
 fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
-    unsafe {
+    {
         let cascade = mc_buf_has_cursors(curbuf_mut());
         let mut atom = CmdAtom::new();
         atom.r#type = K_AINSERT_SPAN;
@@ -1220,7 +1220,7 @@ fn mc_vsel_mark(start_lnum: Linenr, start_col: Colnr, end_lnum: Linenr, end_col:
 }
 
 pub fn mc_vsel_refresh() {
-    unsafe {
+    {
         mc_vsel_clear();
         let Some(span_cstr) = atom_visual_span() else {
             return;
@@ -1427,7 +1427,7 @@ pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
 
 fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: CursorPos) -> CursorPos {
     let keys = keys.into_c_char_ptr();
-    unsafe {
+    {
         curwin_mut().w_cursor = pos;
         curwin_mut().w_set_curswant = false;
         g_st().msg_silent += 1;

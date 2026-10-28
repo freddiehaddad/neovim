@@ -1094,7 +1094,7 @@ pub fn tv_list_free_contents(l: &mut TvList) {
 
 /// Free a list, including all items it points to.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_free(l: *mut TvList) {
+pub extern "C" fn tv_list_free(l: *mut TvList) {
     unsafe {
         if tv_st().tv_in_free_unref_items {
             return;

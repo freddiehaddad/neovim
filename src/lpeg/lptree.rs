@@ -1184,7 +1184,7 @@ pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> i32 {
 }
 
 fn createcat(l: *mut lua_State, catname: &std::ffi::CStr, catf: fn(u8) -> bool) {
-    unsafe {
+    {
         let mut buff = [0 as LpegByte; CHARSETSIZE];
         clearset(&mut buff);
         for c in 0..=u8::MAX {

@@ -1885,7 +1885,7 @@ pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
 
 /// Handle the situation of `swap_exists_action` being set.
 pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
-    unsafe {
+    {
         let mut cs: ExCleanup = ExCleanup::new();
         let old_tw = curbuf_mut().b_p_tw;
 
@@ -4972,7 +4972,7 @@ pub fn set_buflisted(on: i32) {
 
 /// Read the file for `buf` again and check if the contents changed.
 pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
-    unsafe {
+    {
         let mut differ = true;
 
         let newbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
@@ -5027,7 +5027,7 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
 
 /// Wipe out a (typically temporary) buffer.
 pub fn wipe_buffer(buf: *mut FileBuf, aucmd: bool) {
-    unsafe {
+    {
         if !aucmd {
             block_autocmds();
         }

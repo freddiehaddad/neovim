@@ -1803,7 +1803,7 @@ pub fn ns_get_hl_defs(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let link = if has_key(opts.is_set_get_highlight, KEYSET_OPTIDX_GET_HIGHLIGHT_LINK) {
             opts.link
         } else {

@@ -992,7 +992,7 @@ pub fn nvim_get_runtime(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         if opts.do_source && !nlua_is_deferred_safe() {
             api_set_error!(
                 err,
@@ -1229,7 +1229,7 @@ pub fn nvim_echo(
     opts: &mut KeyDict_echo_opts,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let mut id = integer_obj(-1);
         let mut hl_msg = parse_hl_msg(chunks, opts.err, err);
         if error_set(err) {
@@ -2478,7 +2478,7 @@ pub fn nvim_list_uis(arena: &mut Arena) -> Array {
 /// @return Array of child process ids, empty if process not found.
 // DLLEXPORT Array nvim_get_proc_children(Integer pid, Arena *arena, Error *err) FUNC_API_SINCE(4);
 pub fn nvim_get_proc_children(pid: Integer, arena: &mut Arena, err: &mut Error) -> Array {
-    unsafe {
+    {
         let mut rvobj = Array::new();
 
         if !validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid, err) {

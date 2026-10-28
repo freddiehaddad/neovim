@@ -336,7 +336,7 @@ fn do_ft_buf(
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {
-    unsafe {
+    {
         block_autocmds();
 
         let mut bufref = Bufref {

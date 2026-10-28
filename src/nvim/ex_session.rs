@@ -323,7 +323,7 @@ fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
 
 fn ses_put_fname(fd: *mut FILE, name: impl crate::strings::IntoCCharPtr, _flagp: &mut u32) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let p = ses_escape_fname(name);
         fputs(p.as_ptr(), fd) >= 0
     }

@@ -338,7 +338,7 @@ pub fn nvim_buf_get_lines(
     lstate: *mut lua_State,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         let mut rv = Array::new();
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
@@ -1030,7 +1030,7 @@ pub fn nvim_buf_get_text(
     lstate: *mut lua_State,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         let mut rv = Array::new();
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
@@ -1147,7 +1147,7 @@ pub fn nvim_buf_get_text(
 // DLLEXPORT Integer nvim_buf_get_offset(Buffer buf, Integer index, Error *err)
 //   FUNC_API_SINCE(5);
 pub fn nvim_buf_get_offset(buf: Buffer, index: Integer, err: &mut Error) -> Integer {
-    unsafe {
+    {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return 0;
         };

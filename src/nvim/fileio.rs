@@ -343,7 +343,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-pub unsafe fn fputs<S: crate::strings::IntoCCharPtr>(s: S, stream: *mut FILE) -> i32 {
+pub fn fputs<S: crate::strings::IntoCCharPtr>(s: S, stream: *mut FILE) -> i32 {
     unsafe { c_fputs(s.into_c_char_ptr(), stream) }
 }
 

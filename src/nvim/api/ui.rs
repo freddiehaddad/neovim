@@ -100,7 +100,7 @@ fn buf_pos(ui: &RemoteUI) -> usize {
 }
 
 fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
-    unsafe {
+    {
         let ui = api_ui_st()
             .connected_uis
             .get_mut(&chan_id)
@@ -515,7 +515,7 @@ pub fn nvim_ui_set_option(channel_id: u64, name: NvimString, value: Object, erro
 }
 
 fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object, err: &mut Error) {
-    unsafe {
+    {
         if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"override") {
             if value.obj_type != ObjectType::ObjectTypeBoolean {
                 api_err_exp(
@@ -1275,7 +1275,7 @@ pub fn remote_ui_raw_line(
                         }
                     }
                     ui.ncells_pending += repeat.min(2) as usize;
-                    last_hl = (*attrs.add(i));
+                    last_hl = *attrs.add(i);
                     repeat = 0;
                     was_space = *chunk.add(i) == schar_from_ascii(b' ');
                 }
@@ -1295,7 +1295,7 @@ pub fn remote_ui_raw_line(
             let count = (endcol - startcol) as usize;
             for i in 0..count {
                 remote_ui_cursor_goto(ui, row, startcol + i as Integer);
-                remote_ui_highlight_set(ui, (*attrs.add(i)));
+                remote_ui_highlight_set(ui, *attrs.add(i));
                 let mut sc_buf: [c_char; MAX_SCHAR_SIZE] = [0; MAX_SCHAR_SIZE];
                 schar_get(sc_buf.as_mut_ptr(), *chunk.add(i));
                 remote_ui_put(ui, sc_buf.as_ptr());

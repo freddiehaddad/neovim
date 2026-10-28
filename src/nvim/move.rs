@@ -60,7 +60,7 @@ struct Lineoff {
 
 /// Get the number of screen lines skipped with `wp->w_skipcol`.
 fn adjust_plines_for_skipcol(wp: &mut WinInfoInfo) -> i32 {
-    unsafe {
+    {
         if wp.w_skipcol == 0 {
             return 0;
         }
@@ -247,7 +247,7 @@ pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: i32) -> i32 {
 /// Calculates the skipcol offset for window `wp` given how many physical lines
 /// we want to scroll down.
 fn skipcol_from_plines(wp: &mut WinInfoInfo, plines_off: i32) -> i32 {
-    unsafe {
+    {
         let width1 = wp.w_view_width - win_col_off(wp);
 
         let mut skipcol: i32 = 0;
@@ -846,7 +846,7 @@ pub fn validate_cheight(wp: &mut WinInfoInfo) {
 
 /// Validate `w_wcol` and `w_virtcol` only.
 pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
-    unsafe {
+    {
         validate_virtcol(wp);
 
         if (wp.w_valid & VALID_WCOL) != 0 {
@@ -875,7 +875,7 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 /// Compute offset of a window, occupied by absolute or relative line number,
 /// fold column and sign column.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> i32 {
+pub extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> i32 {
     unsafe {
         let wp = &mut *wp;
         let num_off = if wp.w_onebuf_opt.wo_nu != 0
@@ -1121,7 +1121,7 @@ pub fn textpos2screenpos(
     ecolp: &mut i32,
     local: bool,
 ) {
-    unsafe {
+    {
         let mut scol: Colnr = 0;
         let mut ccol: Colnr = 0;
         let mut ecol: Colnr = 0;
@@ -1309,7 +1309,7 @@ pub fn f_virtcol2col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// Make sure the cursor is in the visible part of the topline after scrolling
 /// the screen with `'smoothscroll'`.
 fn cursor_correct_sms(wp: &mut WinInfoInfo) {
-    unsafe {
+    {
         if wp.w_onebuf_opt.wo_sms == 0
             || wp.w_onebuf_opt.wo_wrap == 0
             || wp.w_cursor.lnum != wp.w_topline
@@ -1450,7 +1450,7 @@ pub fn scroll_redraw(up: i32, count: Linenr) {
 
 /// Scroll a window down by `line_count` logical lines (`CTRL-Y`).
 pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool {
-    unsafe {
+    {
         let mut done: i32 = 0;
         let mut width1: i32 = 0;
         let mut width2: i32 = 0;
@@ -1585,7 +1585,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
 
 /// Scroll a window up by `line_count` logical lines (`CTRL-E`).
 pub fn scrollup(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool {
-    unsafe {
+    {
         let topline = wp.w_topline;
         let botline = wp.w_botline;
         let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
@@ -1902,7 +1902,7 @@ fn botline_forw(wp: &mut WinInfoInfo, lp: &mut Lineoff) {
 
 /// Recompute topline to put the cursor at the top of the window.
 pub fn scroll_cursor_top(wp: &mut WinInfoInfo, min_scroll: i32, always: i32) {
-    unsafe {
+    {
         let old_topline = wp.w_topline;
         let old_skipcol = wp.w_skipcol;
         let old_topfill = wp.w_topfill;
@@ -2025,7 +2025,7 @@ pub fn set_empty_rows(wp: &mut WinInfoInfo, used: i32) {
 
 /// Recompute topline to put the cursor at the bottom of the window.
 pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: i32, set_topbot: bool) {
-    unsafe {
+    {
         let mut loff = Lineoff::default();
         let old_topline = wp.w_topline;
         let old_skipcol = wp.w_skipcol;
@@ -2506,7 +2506,7 @@ fn get_scroll_overlap(dir: Direction) -> i32 {
 
 /// Scroll `count` lines with `'smoothscroll'` in direction `dir`.
 fn scroll_with_sms(dir: Direction, mut count: i32, curscount: &mut i32) -> bool {
-    unsafe {
+    {
         let prev_sms = curwin_mut().w_onebuf_opt.wo_sms;
         let prev_skipcol = curwin_mut().w_skipcol;
         let prev_topline = curwin_mut().w_topline;

@@ -1585,7 +1585,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
 }
 
 fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err: &mut Error) {
-    unsafe {
+    {
         if let Some(wp) = wp
             && wp.w_floating
         {

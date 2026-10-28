@@ -385,7 +385,7 @@ pub fn nvim_get_autocmds(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         let mut autocmd_list = ArrayBuilder::new();
         let mut pattern_filters = [std::ptr::null::<c_char>(); AUCMD_MAX_PATTERNS];
         let mut buffers = Array {
@@ -810,7 +810,7 @@ pub fn nvim_create_autocmd(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Integer {
-    unsafe {
+    {
         let mut autocmd_id: i64 = -1;
         let mut desc: *const c_char = std::ptr::null();
         let mut handler_cmd: Option<CString> = None;

@@ -3225,7 +3225,7 @@ pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn block_autocmds() {
+pub extern "C" fn block_autocmds() {
     if !is_autocmd_blocked() {
         au_st().termresponse_changed = false;
         au_st().termresponse_chan_id = 0;
@@ -3234,7 +3234,7 @@ pub unsafe extern "C" fn block_autocmds() {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn unblock_autocmds() {
+pub extern "C" fn unblock_autocmds() {
     au_st().autocmd_blocked -= 1;
 
     if !is_autocmd_blocked() && au_st().termresponse_changed && has_event(EVENT_TERMRESPONSE) {

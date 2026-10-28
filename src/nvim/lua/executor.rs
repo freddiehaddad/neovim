@@ -1178,7 +1178,7 @@ unsafe extern "C-unwind" fn nlua_ui_detach(lstate: *mut lua_State) -> i32 {
 }
 
 fn nlua_state_init(lstate: *mut lua_State) -> bool {
-    unsafe {
+    {
         lua_pushcfunction(lstate, Some(nlua_print));
         lua_setglobal(lstate, c"print");
 
@@ -1718,7 +1718,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
 }
 
 unsafe extern "C-unwind" fn nlua_nil_tostring(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         lua_pushstring(lstate, c"vim.NIL");
         1
     }
@@ -1729,7 +1729,7 @@ unsafe extern "C-unwind" fn nlua_nil_index(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         lua_pushstring(lstate, c"vim.empty_dict()");
         1
     }
@@ -1897,7 +1897,7 @@ fn nlua_exec_typval(
 ) {
     let lcmd = lcmd.into_c_char_ptr();
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if check_secure() {
             if ret_tv.is_some() {
                 ret_tv.as_deref_mut().unwrap().v_type = VarType::VarNumber;
@@ -1953,7 +1953,7 @@ pub fn nlua_exec_typval_callable(
     argvars: *mut TypVal,
     rettv: &mut TypVal,
 ) -> i32 {
-    unsafe {
+    {
         let lstate = nlua_st().global_lstate;
         nlua_pushref(lstate, lua_cb);
         push_all_typvals(lstate, argvars, argcount, false);
@@ -2376,7 +2376,7 @@ pub fn ex_luafile(eap: &mut Exarg) {
 
 pub fn nlua_exec_file(path: impl crate::strings::IntoCCharPtr) -> bool {
     let path = path.into_c_char_ptr();
-    unsafe {
+    {
         let lstate = nlua_st().global_lstate;
         if !(crate::memory::cstr_as_opt_bytes(path) == Some(b"-")) {
             lua_getglobal(lstate, c"loadfile");
@@ -2507,7 +2507,7 @@ pub fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> bool {
 }
 
 unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
         1
     }
@@ -2774,7 +2774,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
 }
 
 pub fn nlua_init_defaults() {
-    unsafe {
+    {
         let lstate = nlua_st().global_lstate;
         assert!(!lstate.is_null());
 

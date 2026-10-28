@@ -1839,7 +1839,7 @@ pub fn mouse_comp_pos(
     colp: &mut i32,
     lnump: &mut Linenr,
 ) -> bool {
-    unsafe {
+    {
         let mut col = *colp;
         let mut row = *rowp;
         let mut retval = false;

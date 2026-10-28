@@ -12357,7 +12357,7 @@ pub fn eval_vars(
                         *errormsg = gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM);
                         return None;
                     }
-                    let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d", (*sourcing_lnum_ptr()),);
+                    let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d", *sourcing_lnum_ptr(),);
                     result = strbuf.as_mut_ptr();
                 }
                 SPEC_SFLNUM => {

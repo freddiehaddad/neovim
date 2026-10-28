@@ -1390,7 +1390,7 @@ fn stl_expand(
 
 /// Build a string from the status line items in `fmt`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn build_stl_str_hl(
+pub extern "C" fn build_stl_str_hl(
     wp: *mut WinInfoInfo,
     out: CharBuf,
     fmt: *mut c_char,

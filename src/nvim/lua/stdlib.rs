@@ -87,7 +87,7 @@ use crate::lua::converter::lua_isstring;
 use crate::mpack::lmpack::luaopen_mpack;
 
 fn regex_check(lstate: *mut lua_State) -> *mut *mut Regprog {
-    unsafe { luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut Regprog>() }
+    luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut Regprog>()
 }
 
 fn regex_match(
@@ -207,7 +207,7 @@ unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn regex_tostring(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         lua_pushstring(lstate, c"<regex>");
     }
     1
@@ -774,7 +774,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
 }
 
 fn nlua_state_add_internal(lstate: *mut lua_State) {
-    unsafe {
+    {
         lua_pushcfunction(lstate, Some(nlua_getvar));
         lua_setfield(lstate, -2, c"_getvar");
 
@@ -794,7 +794,7 @@ fn nlua_state_add_internal(lstate: *mut lua_State) {
     }
 }
 
-pub unsafe extern "C-unwind" fn nlua_state_add_stdlib(lstate: *mut lua_State, is_thread: bool) {
+pub fn nlua_state_add_stdlib(lstate: *mut lua_State, is_thread: bool) {
     unsafe {
         if !is_thread {
             lua_pushcfunction(lstate, Some(nlua_stricmp));

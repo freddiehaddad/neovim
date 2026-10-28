@@ -158,7 +158,7 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_set_win(Tabpage tabpage, Window win, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
-    unsafe {
+    {
         let Some(tp) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return;
         };

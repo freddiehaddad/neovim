@@ -2672,7 +2672,7 @@ pub fn put_folds(fd: *mut FILE, wp: &mut WinInfoInfo) -> bool {
 }
 
 fn put_folds_recurse(fd: *mut FILE, gap: &[FoldEntry], off: Linenr) -> bool {
-    unsafe {
+    {
         for fp in gap {
             if !put_folds_recurse(fd, &fp.fd_nested, off + fp.fd_top) {
                 return false;
@@ -2699,7 +2699,7 @@ fn put_foldopen_recurse(
     gap: &[FoldEntry],
     off: Linenr,
 ) -> bool {
-    unsafe {
+    {
         for fp in gap {
             if fp.fd_flags != FD_LEVEL {
                 if !fp.fd_nested.is_empty() {
@@ -2739,7 +2739,7 @@ fn put_foldopen_recurse(
 }
 
 fn put_fold_open_close(fd: *mut FILE, fp: &FoldEntry, off: Linenr) -> bool {
-    unsafe {
+    {
         let mut buf = [0 as c_char; 32];
         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%d", fp.fd_top + off,);
         if fputs(buf.as_ptr(), fd) < 0 || !put_eol(fd) {

@@ -702,7 +702,7 @@ fn send_error(
     err: impl crate::strings::IntoCCharPtr,
 ) {
     let err = err.into_c_char_ptr();
-    unsafe {
+    {
         let mut e = Error::new();
         api_set_error!(&mut e, ErrorType::ErrorTypeException, c"%s", err,);
         let mut nil_obj = OBJECT_NIL;

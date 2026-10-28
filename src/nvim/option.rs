@@ -6653,7 +6653,7 @@ fn put_set_value(
     value: Object,
 ) -> bool {
     let cmd = cmd.into_c_char_ptr();
-    unsafe {
+    {
         let opt = get_option(opt_idx);
         let name = opt.fullname.as_ptr();
         let flags = opt.flags;

@@ -200,7 +200,7 @@ pub fn nvim_command(cmd: NvimString, err: &mut Error) {
 /// @return         Evaluation result or expanded object
 // DLLEXPORT Object nvim_eval(String expr, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    unsafe {
+    {
         let mut rv = nil_obj();
 
         if api_vims_st().eval_recursive == 0 {
@@ -539,7 +539,7 @@ pub fn nvim_parse_expression(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let mut pflags: i32 = 0;
         for i in 0..flags.size {
             let b = crate::memory::cstr_byte_at(flags.data, i);

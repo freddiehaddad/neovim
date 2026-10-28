@@ -3736,7 +3736,7 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
 }
 
 fn nv_zet(cap: &mut Cmdarg) {
-    unsafe {
+    {
         let mut col: Colnr = 0;
         let mut nchar = cap.nchar;
         let mut foldlevel: OptInt = -1;

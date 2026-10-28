@@ -605,7 +605,7 @@ pub fn charsize_nowrap(
 }
 
 fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
-    unsafe {
+    {
         if wp.w_view_width == 0 {
             return false;
         }
@@ -984,7 +984,7 @@ pub fn plines_win_nofill(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bo
 }
 
 pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
-    unsafe {
+    {
         let s = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, &mut *wp, lnum, s);
@@ -1153,7 +1153,7 @@ pub fn win_text_height(
     fill: Option<&mut i64>,
     max: i64,
 ) -> i64 {
-    unsafe {
+    {
         let mut width1 = wp.w_view_width - win_col_off(&raw mut *wp);
         let mut width2 = width1 + win_col_off2(wp);
         width1 = width1.max(0);

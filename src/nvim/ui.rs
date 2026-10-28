@@ -1159,7 +1159,7 @@ pub fn ui_call_suspend() {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ui_call_set_title(title: NvimString) {
+pub extern "C" fn ui_call_set_title(title: NvimString) {
     ui_call_loop!(true, c"set_title", |ui| remote_ui_set_title(ui, title));
 }
 
@@ -1178,7 +1178,7 @@ pub fn ui_call_option_set(name: NvimString, value: Object) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ui_call_chdir(path: NvimString) {
+pub extern "C" fn ui_call_chdir(path: NvimString) {
     ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path));
 }
 

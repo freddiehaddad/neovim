@@ -602,12 +602,7 @@ fn pushcapture(cs: &mut CapState) -> i32 {
     }
 }
 
-pub unsafe extern "C-unwind" fn getcaptures(
-    l: *mut lua_State,
-    s: *const c_char,
-    r: *const c_char,
-    ptop: i32,
-) -> i32 {
+pub fn getcaptures(l: *mut lua_State, s: *const c_char, r: *const c_char, ptop: i32) -> i32 {
     unsafe {
         let capture = lua_touserdata(l, caplistidx(ptop)).cast::<Capture>();
         let mut n: i32 = 0;

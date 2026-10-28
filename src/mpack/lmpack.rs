@@ -171,7 +171,7 @@ fn lmpack_isunpacker(l: *mut lua_State, index: i32) -> bool {
 }
 
 fn lmpack_pushnil(l: *mut lua_State) {
-    unsafe {
+    {
         lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME);
     }
 }

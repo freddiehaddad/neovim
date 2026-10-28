@@ -1043,7 +1043,7 @@ pub fn window_layout_locked(cmd: Cmdidx) -> bool {
 
 /// Like `window_layout_locked`, but set `err` to the (untranslated) error message when locked.
 pub fn window_layout_locked_err(cmd: Cmdidx, err: &mut Error) -> bool {
-    unsafe {
+    {
         if win_st().split_disallowed > 0 || win_st().close_disallowed > 0 {
             if win_st().close_disallowed == 0 && cmd == Cmdidx::CmdTabnew {
                 api_set_error!(
@@ -1612,7 +1612,7 @@ fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, prenu
 }
 
 pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
-    unsafe {
+    {
         let win_handle = win.handle;
         let tab = win_find_tabpage(&raw mut *win);
 
@@ -2645,7 +2645,7 @@ pub fn win_count() -> i32 {
 }
 
 pub fn make_windows(mut count: i32, vertical: bool) -> i32 {
-    unsafe {
+    {
         let mut maxcount = if vertical {
             ((OptInt::from(curwin_mut().w_width + curwin_mut().w_vsep_width)
                 - (opt_vars().p_wiw - opt_vars().p_wmw)) as i32)
@@ -5298,7 +5298,7 @@ fn may_open_tabpage() -> bool {
 }
 
 pub fn make_tabpages(maxcount: i32) -> i32 {
-    unsafe {
+    {
         let count = maxcount.min(opt_vars().p_tpm as i32);
 
         block_autocmds();
@@ -7511,7 +7511,7 @@ pub fn win_new_height(wp: &mut WinInfoInfo, mut height: i32) {
 }
 
 pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: i32) {
-    unsafe {
+    {
         let height = wp.w_view_height;
 
         if height > 0

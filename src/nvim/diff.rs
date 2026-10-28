@@ -1151,7 +1151,7 @@ fn diff_file_internal(diffio: &mut Diffio) -> bool {
     true
 }
 fn diff_file(dio: &mut Diffio) -> bool {
-    unsafe {
+    {
         let tmp_orig = dio
             .dio_orig
             .din_fname

@@ -1049,7 +1049,7 @@ unsafe extern "C-unwind" fn parser_gc(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn parser_tostring(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         lua_pushstring(lstate, c"<parser>");
         1
     }
@@ -1538,7 +1538,7 @@ unsafe extern "C-unwind" fn tree_gc(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn tree_tostring(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         lua_pushstring(lstate, c"<tree>");
         1
     }
@@ -2373,7 +2373,7 @@ unsafe extern "C-unwind" fn query_gc(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn query_tostring(lstate: *mut lua_State) -> i32 {
-    unsafe {
+    {
         lua_pushstring(lstate, c"<query>");
         1
     }
@@ -2524,8 +2524,8 @@ unsafe extern "C-unwind" fn tslua_get_minimum_language_version(lstate: *mut lua_
     }
 }
 
-pub unsafe extern "C-unwind" fn nlua_treesitter_init(lstate: *mut lua_State) {
-    unsafe {
+pub fn nlua_treesitter_init(lstate: *mut lua_State) {
+    {
         tslua_init(lstate);
 
         lua_pushcfunction(lstate, Some(tslua_push_parser));

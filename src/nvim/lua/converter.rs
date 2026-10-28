@@ -320,40 +320,29 @@ unsafe extern "C-unwind" {
 }
 
 #[inline]
-pub unsafe fn lua_pushstring<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, s: S) {
+pub fn lua_pushstring<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, s: S) {
     unsafe { c_lua_pushstring(lstate, s.into_c_char_ptr()) }
 }
 
 #[inline]
-pub unsafe fn lua_getfield<S: crate::strings::IntoCCharPtr>(
-    lstate: *mut lua_State,
-    idx: i32,
-    k: S,
-) {
+pub fn lua_getfield<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, idx: i32, k: S) {
     unsafe { c_lua_getfield(lstate, idx, k.into_c_char_ptr()) }
 }
 
 #[inline]
-pub unsafe fn lua_setfield<S: crate::strings::IntoCCharPtr>(
-    lstate: *mut lua_State,
-    idx: i32,
-    k: S,
-) {
+pub fn lua_setfield<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, idx: i32, k: S) {
     unsafe { c_lua_setfield(lstate, idx, k.into_c_char_ptr()) }
 }
 
 #[inline]
 #[allow(non_snake_case)]
-pub unsafe fn luaL_newmetatable<S: crate::strings::IntoCCharPtr>(
-    lstate: *mut lua_State,
-    tname: S,
-) -> i32 {
+pub fn luaL_newmetatable<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, tname: S) -> i32 {
     unsafe { c_luaL_newmetatable(lstate, tname.into_c_char_ptr()) }
 }
 
 #[inline]
 #[allow(non_snake_case)]
-pub unsafe fn luaL_getmetafield<S: crate::strings::IntoCCharPtr>(
+pub fn luaL_getmetafield<S: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     obj: i32,
     e: S,
@@ -363,7 +352,7 @@ pub unsafe fn luaL_getmetafield<S: crate::strings::IntoCCharPtr>(
 
 #[inline]
 #[allow(non_snake_case)]
-pub unsafe fn luaL_checkudata<S: crate::strings::IntoCCharPtr>(
+pub fn luaL_checkudata<S: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     ud: i32,
     tname: S,
@@ -373,7 +362,7 @@ pub unsafe fn luaL_checkudata<S: crate::strings::IntoCCharPtr>(
 
 #[inline]
 #[allow(non_snake_case)]
-pub unsafe fn luaL_register<S: crate::strings::IntoCCharPtr>(
+pub fn luaL_register<S: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     libname: S,
     l: *const luaL_Reg,
@@ -383,17 +372,13 @@ pub unsafe fn luaL_register<S: crate::strings::IntoCCharPtr>(
 
 #[inline]
 #[allow(non_snake_case)]
-pub unsafe fn luaL_checkstack<S: crate::strings::IntoCCharPtr>(
-    lstate: *mut lua_State,
-    sz: i32,
-    msg: S,
-) {
+pub fn luaL_checkstack<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, sz: i32, msg: S) {
     unsafe { c_luaL_checkstack(lstate, sz, msg.into_c_char_ptr()) }
 }
 
 #[cfg(feature = "vendor-bit")]
 #[inline]
-pub unsafe fn luaL_typerror<S: crate::strings::IntoCCharPtr>(
+pub fn luaL_typerror<S: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     narg: i32,
     tname: S,
@@ -403,7 +388,7 @@ pub unsafe fn luaL_typerror<S: crate::strings::IntoCCharPtr>(
 
 #[inline]
 #[allow(non_snake_case)]
-pub unsafe fn luaL_argerror<S: crate::strings::IntoCCharPtr>(
+pub fn luaL_argerror<S: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     numarg: i32,
     extramsg: S,
@@ -413,10 +398,7 @@ pub unsafe fn luaL_argerror<S: crate::strings::IntoCCharPtr>(
 
 #[inline]
 #[allow(non_snake_case)]
-pub unsafe fn luaL_loadbuffer<
-    S1: crate::strings::IntoCCharPtr,
-    S2: crate::strings::IntoCCharPtr,
->(
+pub fn luaL_loadbuffer<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     buff: S1,
     sz: usize,
@@ -426,7 +408,7 @@ pub unsafe fn luaL_loadbuffer<
 }
 
 #[inline]
-pub unsafe fn lua_getinfo<S: crate::strings::IntoCCharPtr>(
+pub fn lua_getinfo<S: crate::strings::IntoCCharPtr>(
     lstate: *mut lua_State,
     what: S,
     ar: *mut lua_Debug,
@@ -462,14 +444,14 @@ pub fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
 
 #[inline]
 pub fn lua_setglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
-    unsafe {
+    {
         lua_setfield(lstate, LUA_GLOBALSINDEX, s);
     }
 }
 
 #[inline]
 pub fn lua_getglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
-    unsafe {
+    {
         lua_getfield(lstate, LUA_GLOBALSINDEX, s.as_ptr());
     }
 }
@@ -514,7 +496,7 @@ pub fn luaL_typename(lstate: *mut lua_State, i: i32) -> *const c_char {
 #[allow(non_snake_case)]
 pub fn luaL_getmetatable(lstate: *mut lua_State, n: impl crate::strings::IntoCCharPtr) {
     let n = n.into_c_char_ptr();
-    unsafe {
+    {
         lua_getfield(lstate, LUA_REGISTRYINDEX, n);
     }
 }
@@ -523,7 +505,7 @@ pub fn luaL_getmetatable(lstate: *mut lua_State, n: impl crate::strings::IntoCCh
 #[allow(non_snake_case)]
 pub fn luaL_argcheck(lstate: *mut lua_State, cond: bool, numarg: i32, extramsg: &std::ffi::CStr) {
     if !cond {
-        unsafe {
+        {
             luaL_argerror(lstate, numarg, extramsg.as_ptr());
         }
     }
@@ -709,10 +691,7 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
 }
 
 /// Convert Lua object to Vimscript `TypVal` (`nlua_pop_typval`).
-pub unsafe extern "C-unwind" fn nlua_pop_typval(
-    lstate: *mut lua_State,
-    ret_tv: *mut TypVal,
-) -> bool {
+pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: *mut TypVal) -> bool {
     unsafe {
         let mut ret = true;
         let initial_size = lua_gettop(lstate);
@@ -1520,11 +1499,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
 }
 
 /// Convert Vimscript `TypVal` to Lua value (`nlua_push_typval`).
-pub unsafe extern "C-unwind" fn nlua_push_typval(
-    lstate: *mut lua_State,
-    tv: *mut TypVal,
-    flags: i32,
-) -> bool {
+pub fn nlua_push_typval(lstate: *mut lua_State, tv: *mut TypVal, flags: i32) -> bool {
     unsafe {
         luaconv_st().typval_conv_special = (flags & K_NLUA_PUSH_SPECIAL) != 0;
         let initial_size = lua_gettop(lstate);
@@ -1542,11 +1517,7 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
 }
 
 /// Convert given `String` to Lua string (`nlua_push_String`).
-pub unsafe extern "C-unwind" fn nlua_push_string(
-    lstate: *mut lua_State,
-    s: NvimString,
-    _flags: i32,
-) {
+pub fn nlua_push_string(lstate: *mut lua_State, s: NvimString, _flags: i32) {
     unsafe {
         let data = if s.size != 0 { s.data } else { c"".as_ptr() };
         lua_pushlstring(lstate, data, s.size);
@@ -1554,14 +1525,14 @@ pub unsafe extern "C-unwind" fn nlua_push_string(
 }
 
 /// Convert given `Integer` to Lua number (`nlua_push_Integer`).
-pub unsafe extern "C-unwind" fn nlua_push_integer(lstate: *mut lua_State, n: Integer, _flags: i32) {
+pub fn nlua_push_integer(lstate: *mut lua_State, n: Integer, _flags: i32) {
     unsafe {
         lua_pushnumber(lstate, n as lua_Number);
     }
 }
 
 /// Convert given `Float` to Lua number or typed table (`nlua_push_Float`).
-pub unsafe extern "C-unwind" fn nlua_push_float(lstate: *mut lua_State, f: Float, flags: i32) {
+pub fn nlua_push_float(lstate: *mut lua_State, f: Float, flags: i32) {
     unsafe {
         if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
             nlua_create_typed_table(lstate, 0, 1, ObjectType::ObjectTypeFloat);
@@ -1575,14 +1546,14 @@ pub unsafe extern "C-unwind" fn nlua_push_float(lstate: *mut lua_State, f: Float
 }
 
 /// Convert given `Boolean` to Lua boolean (`nlua_push_Boolean`).
-pub unsafe extern "C-unwind" fn nlua_push_boolean(lstate: *mut lua_State, b: Boolean, _flags: i32) {
+pub fn nlua_push_boolean(lstate: *mut lua_State, b: Boolean, _flags: i32) {
     unsafe {
         lua_pushboolean(lstate, i32::from(b));
     }
 }
 
 /// Convert given `Dict` to Lua table (`nlua_push_Dict`).
-pub unsafe extern "C-unwind" fn nlua_push_dict(lstate: *mut lua_State, mut dict: Dict, flags: i32) {
+pub fn nlua_push_dict(lstate: *mut lua_State, mut dict: Dict, flags: i32) {
     unsafe {
         lua_createtable(lstate, 0, dict.size as i32);
         if dict.size == 0 {
@@ -1601,7 +1572,7 @@ pub unsafe extern "C-unwind" fn nlua_push_dict(lstate: *mut lua_State, mut dict:
 }
 
 /// Convert given `Array` to Lua table (`nlua_push_Array`).
-pub unsafe extern "C-unwind" fn nlua_push_array(lstate: *mut lua_State, array: Array, flags: i32) {
+pub fn nlua_push_array(lstate: *mut lua_State, array: Array, flags: i32) {
     unsafe {
         lua_createtable(lstate, array.size as i32, 0);
         for i in 0..array.size {
@@ -1612,22 +1583,14 @@ pub unsafe extern "C-unwind" fn nlua_push_array(lstate: *mut lua_State, array: A
 }
 
 /// Convert given `ObjHandle` to Lua number (`nlua_push_handle`).
-pub unsafe extern "C-unwind" fn nlua_push_handle(
-    lstate: *mut lua_State,
-    item: ObjHandle,
-    _flags: i32,
-) {
+pub fn nlua_push_handle(lstate: *mut lua_State, item: ObjHandle, _flags: i32) {
     unsafe {
         lua_pushnumber(lstate, item as lua_Number);
     }
 }
 
 /// Convert given `Object` to Lua value (`nlua_push_Object`).
-pub unsafe extern "C-unwind" fn nlua_push_object(
-    lstate: *mut lua_State,
-    obj: *mut Object,
-    flags: i32,
-) {
+pub fn nlua_push_object(lstate: *mut lua_State, obj: *mut Object, flags: i32) {
     unsafe {
         let obj = &mut *obj;
         match obj.obj_type {
@@ -2196,7 +2159,7 @@ pub fn nlua_pop_handle(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Err
 }
 
 /// Record auxiliary values in `vim` module (`nlua_init_types`).
-pub unsafe extern "C-unwind" fn nlua_init_types(lstate: *mut lua_State) {
+pub fn nlua_init_types(lstate: *mut lua_State) {
     unsafe {
         lua_pushlstring(lstate, c"type_idx".as_ptr(), 8);
         nlua_push_type_idx(lstate);
@@ -2335,11 +2298,7 @@ pub fn nlua_pop_keydict_opt(
 }
 
 /// Push a `KeySet` struct as a Lua table (`nlua_push_keydict`).
-pub unsafe extern "C-unwind" fn nlua_push_keydict(
-    lstate: *mut lua_State,
-    value: *mut OptKeySet,
-    table: *mut KeySetLink,
-) {
+pub fn nlua_push_keydict(lstate: *mut lua_State, value: *mut OptKeySet, table: *mut KeySetLink) {
     unsafe {
         lua_createtable(lstate, 0, 0);
         let mut i = 0usize;

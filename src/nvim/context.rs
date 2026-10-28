@@ -764,7 +764,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
 }
 
 fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut WinInfoInfo {
-    unsafe {
+    {
         let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
 
         block_autocmds();

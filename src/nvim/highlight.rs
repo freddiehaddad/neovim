@@ -1221,7 +1221,7 @@ pub fn hl_get_attr_by_id(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let dic = Dict {
             size: 0,
             capacity: 0,
@@ -1415,7 +1415,7 @@ pub fn dict2hlattrs(
     base: Option<&HlAttrs>,
     err: &mut Error,
 ) -> HlAttrs {
-    unsafe {
+    {
         let mut hlattrs = HLATTRS_INIT;
         let mut fg: i32 = if let Some(base) = base {
             base.rgb_fg_color
