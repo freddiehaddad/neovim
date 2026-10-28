@@ -7979,35 +7979,33 @@ pub fn ExpandSettings(
 
 /// Escape an option value that can be used on the command-line with :set.
 pub fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
-    unsafe {
-        let buf_cstr = vim_strsave_escaped(var_arg, escape_chars);
+    let buf_cstr = vim_strsave_escaped(var_arg, escape_chars);
 
-        #[cfg(windows)]
-        {
-            let mut bytes = buf_cstr.into_bytes_with_nul();
-            let buf = bytes.as_mut_ptr().cast::<c_char>();
-            let mut var = buf;
-            while *var != NUL {
-                if *var == b'\\' as c_char
-                    && *var.add(1) == b'\\' as c_char
-                    && opt_st().EXPAND_OPTION_IDX != kOptInvalid
-                    && ((*get_option(opt_st().EXPAND_OPTION_IDX)).flags & kOptFlagExpand) != 0
-                    && vim_isfilec(*var.add(2) as u8 as c_int)
-                    && (*var.add(2) != b'\\' as c_char
-                        || (var == buf && *var.add(4) != b'\\' as c_char))
-                {
-                    let src = var.add(1);
-                    ptr::copy(src, var, crate::memory::cstr_len(src) + 1);
-                }
-                var = var.add(utfc_ptr2len(var) as usize);
+    #[cfg(windows)]
+    unsafe {
+        let mut bytes = buf_cstr.into_bytes_with_nul();
+        let buf = bytes.as_mut_ptr().cast::<c_char>();
+        let mut var = buf;
+        while *var != NUL {
+            if *var == b'\\' as c_char
+                && *var.add(1) == b'\\' as c_char
+                && opt_st().EXPAND_OPTION_IDX != kOptInvalid
+                && ((*get_option(opt_st().EXPAND_OPTION_IDX)).flags & kOptFlagExpand) != 0
+                && vim_isfilec(*var.add(2) as u8 as c_int)
+                && (*var.add(2) != b'\\' as c_char
+                    || (var == buf && *var.add(4) != b'\\' as c_char))
+            {
+                let src = var.add(1);
+                ptr::copy(src, var, crate::memory::cstr_len(src) + 1);
             }
-            let len = crate::memory::cstr_len(buf);
-            crate::memory::cstr_from_bytes(&bytes[..len])
+            var = var.add(utfc_ptr2len(var) as usize);
         }
-        #[cfg(not(windows))]
-        {
-            buf_cstr
-        }
+        let len = crate::memory::cstr_len(buf);
+        crate::memory::cstr_from_bytes(&bytes[..len])
+    }
+    #[cfg(not(windows))]
+    {
+        buf_cstr
     }
 }
 

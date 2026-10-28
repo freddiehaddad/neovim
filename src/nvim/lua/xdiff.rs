@@ -301,7 +301,7 @@ fn process_xdl_diff_opts(
     err: &mut Error,
 ) -> NluaXdiffMode {
     let mut opts = KeyDict_xdl_diff::init();
-    let mut err_param: *mut c_char = std::ptr::null_mut();
+    let mut err_param: Option<&'static std::ffi::CStr> = None;
 
     unsafe {
         nlua_pop_keydict_opt(

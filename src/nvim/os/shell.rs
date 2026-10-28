@@ -147,11 +147,7 @@ fn save_patterns(
         file.clear();
         file.reserve(num_pat as usize);
         for i in 0..(num_pat as usize) {
-            let mut v: Vec<c_char> = CStr::from_ptr(*pat.add(i))
-                .to_bytes_with_nul()
-                .iter()
-                .map(|&b| b as c_char)
-                .collect();
+            let mut v: Vec<c_char> = crate::memory::cstr_to_cchar_vec(*pat.add(i));
             backslash_halve(v.as_mut_ptr());
             file.push(crate::memory::cstr_to_cstring(v.as_ptr()));
         }

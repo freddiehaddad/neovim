@@ -3123,11 +3123,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         let mut ea: exarg_T = exarg_T::new();
         let mut cmod: cmdmod_T = cmdmod_T::new();
         let mut cmdpreview_type: c_int;
-        let mut cmdline_vec: Vec<c_char> = CStr::from_ptr(getln_st().ccline.cmdbuff)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut cmdline_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(getln_st().ccline.cmdbuff);
         let mut cmdline = cmdline_vec.as_mut_ptr();
         let mut errormsg: *const c_char = ptr::null();
         g_st().emsg_off += 1;
@@ -4621,53 +4617,51 @@ fn ccheck_abbr(c: c_int) -> c_int {
 
 /// Escape special characters in `fname`, depending on `what`.
 pub fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std::ffi::CString {
-    unsafe {
-        #[cfg(windows)]
-        let mut p = {
-            let mut buf: [c_char; 32] = [0; 32];
-            let mut j: usize = 0;
-            let chars = if what == VSE_BUFFER {
-                BUFFER_ESC_CHARS.as_ptr()
-            } else {
-                PATH_ESC_CHARS.as_ptr()
-            };
-            let mut cp = chars;
-            while *cp != NUL {
-                if (*cp != b'[' as c_char && *cp != b'{' as c_char && *cp != b'!' as c_char)
-                    || !vim_isfilec((*cp as u8) as c_int)
-                {
-                    buf[j] = *cp;
-                    j += 1;
-                }
-                cp = cp.add(1);
-            }
-            buf[j] = NUL;
-            vim_strsave_escaped(fname, buf.as_ptr())
+    #[cfg(windows)]
+    let mut p = unsafe {
+        let mut buf: [c_char; 32] = [0; 32];
+        let mut j: usize = 0;
+        let chars = if what == VSE_BUFFER {
+            BUFFER_ESC_CHARS.as_ptr()
+        } else {
+            PATH_ESC_CHARS.as_ptr()
         };
-
-        #[cfg(not(windows))]
-        let mut p = {
-            let chars = if what == VSE_SHELL {
-                SHELL_ESC_CHARS.as_ptr()
-            } else if what == VSE_BUFFER {
-                BUFFER_ESC_CHARS.as_ptr()
-            } else {
-                PATH_ESC_CHARS.as_ptr()
-            };
-            let mut res = vim_strsave_escaped(fname, chars);
-            if what == VSE_SHELL && csh_like_shell() != 0 {
-                res = vim_strsave_escaped(res.as_ptr(), c"!");
+        let mut cp = chars;
+        while *cp != NUL {
+            if (*cp != b'[' as c_char && *cp != b'{' as c_char && *cp != b'!' as c_char)
+                || !vim_isfilec((*cp as u8) as c_int)
+            {
+                buf[j] = *cp;
+                j += 1;
             }
-            res
-        };
-
-        let bytes = p.as_bytes();
-        if bytes.first() == Some(&b'>') || bytes.first() == Some(&b'+') || bytes == b"-" {
-            escape_fname_cstr(&mut p);
+            cp = cp.add(1);
         }
+        buf[j] = NUL;
+        vim_strsave_escaped(fname, buf.as_ptr())
+    };
 
-        p
+    #[cfg(not(windows))]
+    let mut p = {
+        let chars = if what == VSE_SHELL {
+            SHELL_ESC_CHARS
+        } else if what == VSE_BUFFER {
+            BUFFER_ESC_CHARS
+        } else {
+            PATH_ESC_CHARS
+        };
+        let mut res = vim_strsave_escaped(fname, chars);
+        if what == VSE_SHELL && csh_like_shell() != 0 {
+            res = vim_strsave_escaped(&res, c"!");
+        }
+        res
+    };
+
+    let bytes = p.as_bytes();
+    if bytes.first() == Some(&b'>') || bytes.first() == Some(&b'+') || bytes == b"-" {
+        escape_fname_cstr(&mut p);
     }
+
+    p
 }
 
 pub fn escape_fname_cstr(s: &mut std::ffi::CString) {

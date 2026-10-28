@@ -5015,11 +5015,7 @@ fn strip_caret_numbers_in_place(str_ptr: *mut c_char) {
 
 fn prepare_cpt_compl_funcs() {
     unsafe {
-        let mut cpt_vec: Vec<c_char> = CStr::from_ptr((*g_st().curbuf).b_p_cpt)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut cpt_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec((*g_st().curbuf).b_p_cpt);
         let cpt = cpt_vec.as_mut_ptr();
         strip_caret_numbers_in_place(cpt);
 
@@ -6914,11 +6910,7 @@ fn get_cpt_func_completion_matches(cb: &mut Callback) {
 fn cpt_compl_refresh() {
     unsafe {
         ins_compl_make_linear();
-        let mut cpt_vec: Vec<c_char> = CStr::from_ptr((*g_st().curbuf).b_p_cpt)
-            .to_bytes_with_nul()
-            .iter()
-            .map(|&b| b as c_char)
-            .collect();
+        let mut cpt_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec((*g_st().curbuf).b_p_cpt);
         let cpt = cpt_vec.as_mut_ptr();
         strip_caret_numbers_in_place(cpt);
 

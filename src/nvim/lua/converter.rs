@@ -2262,7 +2262,7 @@ pub fn nlua_pop_keydict(
     L: *mut lua_State,
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
-    err_opt: &mut *mut c_char,
+    err_opt: &mut Option<&'static std::ffi::CStr>,
     arena: &mut Arena,
     err: &mut Error,
 ) {
@@ -2273,7 +2273,7 @@ pub fn nlua_pop_keydict_opt(
     L: *mut lua_State,
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
-    err_opt: &mut *mut c_char,
+    err_opt: &mut Option<&'static std::ffi::CStr>,
     mut arena: Option<&mut Arena>,
     err: &mut Error,
 ) {
@@ -2348,9 +2348,7 @@ pub fn nlua_pop_keydict_opt(
             }
 
             if error_set(err) {
-                *err_opt = field
-                    .str
-                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                *err_opt = field.str;
                 break;
             }
         }
