@@ -2250,10 +2250,10 @@ pub fn get_keymap_str(
         }
 
         let old_curbuf = g_st().curbuf;
-        let old_curwin = *curwin.as_ptr();
+        let old_curwin = curwin_ptr();
 
         g_st().curbuf = (*wp).w_buffer;
-        *curwin.as_ptr() = wp;
+        set_curwin(wp);
         g_st().emsg_skip += 1;
         let s = eval_to_string(
             c"b:keymap_name",
@@ -2263,7 +2263,7 @@ pub fn get_keymap_str(
         let mut p: *const c_char = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
         g_st().emsg_skip -= 1;
         g_st().curbuf = old_curbuf;
-        *curwin.as_ptr() = old_curwin;
+        set_curwin(old_curwin);
         if p.is_null() || *p == NUL {
             if ((*(*wp).w_buffer).b_kmap_state & KEYMAP_LOADED) != 0 {
                 p = (*(*wp).w_buffer).b_p_keymap;

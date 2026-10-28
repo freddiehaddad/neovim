@@ -858,7 +858,7 @@ pub fn call_vim_function(
         }
 
         rettv.v_type = VarType::VAR_UNKNOWN;
-        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -2067,7 +2067,7 @@ fn eval_func(
             .collect();
         s = s_vec.as_mut_ptr();
 
-        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -3056,7 +3056,7 @@ fn call_func_rettv(
             funcname = c"".as_ptr();
         }
 
-        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -5258,7 +5258,7 @@ pub fn callback_call(
             }
         }
 
-        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -5733,7 +5733,7 @@ pub fn var2fpos(
                 coladd: wp.w_cursor.coladd,
             };
         } else if *name == b'v' as c_char && *name.add(1) == NUL {
-            if g_st().Visual.active && ptr::eq(wp, *curwin.as_ptr()) {
+            if g_st().Visual.active && ptr::eq(wp, curwin_ptr()) {
                 eval_st().VAR2FPOS_POS = pos_T {
                     lnum: g_st().Visual.start.lnum,
                     col: g_st().Visual.start.col,
@@ -5860,7 +5860,7 @@ pub fn list2fpos(
             if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                 return false;
             }
-            let cur_lnum = (**curwin.as_ptr()).w_cursor.lnum;
+            let cur_lnum = curwin_mut().w_cursor.lnum;
             n = buf_charidx_to_byteidx(
                 buf,
                 if posp.lnum == 0 {
@@ -6975,7 +6975,7 @@ pub fn eval_call_provider(
         let mut rettv = tv_initial_value();
         tv_list_ref(arguments);
 
-        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,

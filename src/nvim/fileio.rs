@@ -2467,7 +2467,7 @@ pub fn readfile(
                 if newfile || read_buffer {
                     redraw_curbuf_later(UPD_NOT_VALID);
                     diff_invalidate(g_st().curbuf);
-                    foldUpdateAll(&mut **curwin.as_ptr());
+                    foldUpdateAll(curwin_mut());
                 } else if linecnt != 0 {
                     appended_lines_mark(from, linecnt);
                 }
@@ -2683,8 +2683,8 @@ pub fn readfile(
 
                 u_clearline(&mut *g_st().curbuf);
 
-                (**curwin.as_ptr()).w_cursor.lnum = from + 1;
-                check_cursor_lnum(&mut **curwin.as_ptr());
+                curwin_mut().w_cursor.lnum = from + 1;
+                check_cursor_lnum(curwin_mut());
                 beginline(BL_WHITE | BL_FIX);
 
                 if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -2759,7 +2759,7 @@ pub fn readfile(
                             true,
                             augroup_find(c"filetypedetect"),
                             g_st().curbuf,
-                            *curwin.as_ptr(),
+                            curwin_ptr(),
                             None,
                             ptr::null_mut(),
                             false,
@@ -4007,8 +4007,8 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
             None
         };
 
-        let old_cursor = (**curwin.as_ptr()).w_cursor;
-        let old_topline = (**curwin.as_ptr()).w_topline;
+        let old_cursor = curwin_mut().w_cursor;
+        let old_topline = curwin_mut().w_topline;
 
         if opt_vars().p_ur < 0 || i64::from((*g_st().curbuf).b_ml.ml_line_count) <= opt_vars().p_ur {
             u_sync(false);
@@ -4023,10 +4023,10 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
             set_bufref(&mut bufref, savebuf);
             if !savebuf.is_null() && buf == g_st().curbuf {
                 g_st().curbuf = savebuf;
-                (**curwin.as_ptr()).w_buffer = savebuf;
+                curwin_mut().w_buffer = savebuf;
                 saved = if ml_open(&mut *g_st().curbuf) { OK } else { FAIL };
                 g_st().curbuf = buf;
-                (**curwin.as_ptr()).w_buffer = buf;
+                curwin_mut().w_buffer = buf;
             }
             if savebuf.is_null()
                 || saved == FAIL
@@ -4088,10 +4088,10 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
 
         diff_invalidate(g_st().curbuf);
 
-        (**curwin.as_ptr()).w_topline = old_topline.min((*g_st().curbuf).b_ml.ml_line_count);
-        (**curwin.as_ptr()).w_cursor = old_cursor;
-        check_cursor(*curwin.as_ptr());
-        update_topline(*curwin.as_ptr());
+        curwin_mut().w_topline = old_topline.min((*g_st().curbuf).b_ml.ml_line_count);
+        curwin_mut().w_cursor = old_cursor;
+        check_cursor(curwin_ptr());
+        update_topline(curwin_ptr());
         (*g_st().curbuf).b_keep_filetype = false;
 
         let mut tp = g_st().first_tabpage;
@@ -4102,7 +4102,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
-                if (*wp).w_buffer == (**curwin.as_ptr()).w_buffer && !foldmethodIsManual(&mut *wp) {
+                if (*wp).w_buffer == curwin_mut().w_buffer && !foldmethodIsManual(&mut *wp) {
                     foldUpdateAll(&mut *wp);
                 }
                 wp = (*wp).w_next;

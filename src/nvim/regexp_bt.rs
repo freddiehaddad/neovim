@@ -1312,7 +1312,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                 }
                                 if c == b'l' as c_int {
                                     if cur {
-                                        n = (**curwin.as_ptr()).w_cursor.lnum as u32;
+                                        n = crate::globals::curwin_mut().w_cursor.lnum as u32;
                                     }
                                     ret = regnode(RE_LNUM);
                                     if save_prev_at_start != 0 {
@@ -1320,15 +1320,15 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     }
                                 } else if c == b'c' as c_int {
                                     if cur {
-                                        n = (**curwin.as_ptr()).w_cursor.col as u32 + 1;
+                                        n = crate::globals::curwin_mut().w_cursor.col as u32 + 1;
                                     }
                                     ret = regnode(RE_COL);
                                 } else {
                                     if cur {
                                         let mut vcol: colnr_T = 0;
                                         getvvcol(
-                                            *curwin.as_ptr(),
-                                            &mut (**curwin.as_ptr()).w_cursor,
+                                            crate::globals::curwin_ptr(),
+                                            &mut crate::globals::curwin_mut().w_cursor,
                                             None,
                                             None,
                                             Some(&mut vcol),
@@ -2726,7 +2726,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 0
                             };
                             let fm =
-                                mark_get(&mut *re_st().rex.reg_buf, *curwin.as_ptr(), None, kMarkBufLocal, mark);
+                                mark_get(&mut *re_st().rex.reg_buf, crate::globals::curwin_ptr(), None, kMarkBufLocal, mark);
                             if REG_MULTI() {
                                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                                 re_st().rex.input = re_st().rex.line.add(col);
@@ -2780,7 +2780,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                         }
                         RE_VCOL => {
                             let wp = if re_st().rex.reg_win.is_null() {
-                                *curwin.as_ptr()
+                                crate::globals::curwin_ptr()
                             } else {
                                 re_st().rex.reg_win
                             };

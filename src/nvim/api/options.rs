@@ -631,7 +631,7 @@ pub fn nvim_set_option_value(
         let win = if let (kOptScopeWin, OptTarget::Win(w)) = (scope, to) {
             w
         } else {
-            *curwin.as_ptr()
+            curwin_ptr()
         };
         let varp = get_varp_from(option, buf, win);
 
@@ -841,7 +841,7 @@ pub fn nvim_get_option_info2(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+     {
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: c_int = 0;
         let mut scope: OptScope = kOptScopeGlobal;
@@ -872,7 +872,7 @@ pub fn nvim_get_option_info2(
         let win = if let (kOptScopeWin, OptTarget::Win(w)) = (scope, from) {
             w
         } else {
-            *curwin.as_ptr()
+            curwin_ptr()
         };
 
         get_option_info(name, opt_flags, buf, win, arena, err)

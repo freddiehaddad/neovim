@@ -74,7 +74,7 @@ pub fn win_new_float(
                 tp_last = lastwin_nofloating(if tp == g_st().curtab { ptr::null_mut() } else { tp });
             }
             wp = win_alloc(tp_last, false);
-            win_init(&mut *wp, &mut **curwin.as_ptr(), 0);
+            win_init(&mut *wp, curwin_mut(), 0);
             if !(*wp).w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
                 if (*wp).w_onebuf_opt.wo_wbr != empty_opt {
                     free_string_option((*wp).w_onebuf_opt.wo_wbr);
@@ -231,11 +231,11 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
         wp.w_height = fconfig.height.max(1);
 
         if fconfig.relative == kFloatRelativeCursor {
-            validate_cursor(*curwin.as_ptr());
+            validate_cursor(curwin_ptr());
             fconfig.relative = kFloatRelativeWindow;
-            fconfig.row += (**curwin.as_ptr()).w_wrow as f64;
-            fconfig.col += (**curwin.as_ptr()).w_wcol as f64;
-            fconfig.window = (**curwin.as_ptr()).handle;
+            fconfig.row += curwin_mut().w_wrow as f64;
+            fconfig.col += curwin_mut().w_wcol as f64;
+            fconfig.window = curwin_mut().handle;
         } else if fconfig.relative == kFloatRelativeMouse {
             let mut row = g_st().mouse_row;
             let mut col = g_st().mouse_col;
@@ -473,9 +473,9 @@ fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T {
 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
 pub fn win_float_anchor_preview(wp: &mut win_T) {
-    unsafe {
-        wp.w_wantline = (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_wrow;
-        wp.w_wantcol = (**curwin.as_ptr()).w_wincol + (**curwin.as_ptr()).w_wcol;
+     {
+        wp.w_wantline = curwin_mut().w_winrow + curwin_mut().w_wrow;
+        wp.w_wantcol = curwin_mut().w_wincol + curwin_mut().w_wcol;
     }
 }
 
@@ -483,8 +483,8 @@ pub fn win_float_anchor_preview(wp: &mut win_T) {
 pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_T {
     unsafe {
         let mut config = WIN_CONFIG_INIT;
-        config.col = (**curwin.as_ptr()).w_wcol as f64;
-        config.row = (**curwin.as_ptr()).w_wrow as f64;
+        config.col = curwin_mut().w_wcol as f64;
+        config.row = curwin_mut().w_wrow as f64;
         config.relative = kFloatRelativeEditor;
         config.focusable = false;
         config.mouse = true;

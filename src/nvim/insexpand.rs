@@ -816,7 +816,7 @@ fn compl_shows_dir_backward() -> bool {
 pub fn check_compl_option(dict_opt: bool) -> bool {
     unsafe {
         let empty = if dict_opt {
-            *(*g_st().curbuf).b_p_dict == NUL && *opt_vars().p_dict == NUL && (**curwin.as_ptr()).w_onebuf_opt.wo_spell == 0
+            *(*g_st().curbuf).b_p_dict == NUL && *opt_vars().p_dict == NUL && curwin_mut().w_onebuf_opt.wo_spell == 0
         } else {
             *(*g_st().curbuf).b_p_tsr == NUL
                 && *opt_vars().p_tsr == NUL
@@ -1399,13 +1399,13 @@ fn ins_compl_equal_sc(match_: &mut compl_T, str_ptr: *const c_char, len: usize) 
 }
 
 fn ins_compl_insert_bytes(p: *const c_char, mut len: c_int) {
-    unsafe {
+     {
         if len == -1 {
             len = crate::memory::cstr_len(p) as c_int;
         }
         debug_assert!(len >= 0);
         ins_bytes_len(p.cast_mut(), len as usize);
-        insexp().compl_ins_end_col = (**curwin.as_ptr()).w_cursor.col;
+        insexp().compl_ins_end_col = curwin_mut().w_cursor.col;
     }
 }
 
@@ -1429,7 +1429,7 @@ fn ins_compl_leader_len() -> usize {
 
 /// Checks if the column is within the currently inserted completion text column range.
 pub fn ins_compl_col_range_attr(lnum: linenr_T, col: c_int) -> c_int {
-    unsafe {
+     {
         let has_preinsert = ins_compl_has_preinsert() || ins_compl_preinsert_longest();
 
         if cot_fuzzy() || (!insexp().compl_hi_on_autocompl_longest && ins_compl_preinsert_longest()) {
@@ -1454,8 +1454,8 @@ pub fn ins_compl_col_range_attr(lnum: linenr_T, col: c_int) -> c_int {
         }
 
         if (lnum == insexp().compl_lnum && col >= start_col && col < MAXCOL)
-            || (lnum > insexp().compl_lnum && lnum < (**curwin.as_ptr()).w_cursor.lnum)
-            || (lnum == (**curwin.as_ptr()).w_cursor.lnum && col <= insexp().compl_ins_end_col)
+            || (lnum > insexp().compl_lnum && lnum < curwin_mut().w_cursor.lnum)
+            || (lnum == curwin_mut().w_cursor.lnum && col <= insexp().compl_ins_end_col)
         {
             return attr;
         }
@@ -1474,11 +1474,11 @@ fn ins_compl_has_multiple() -> bool {
 
 /// Returns true if the given line number falls within the range of a multi-line completion.
 pub fn ins_compl_lnum_in_range(lnum: linenr_T) -> bool {
-    unsafe {
+     {
         if !ins_compl_has_multiple() {
             return false;
         }
-        lnum >= insexp().compl_lnum && lnum <= (**curwin.as_ptr()).w_cursor.lnum
+        lnum >= insexp().compl_lnum && lnum <= curwin_mut().w_cursor.lnum
     }
 }
 
@@ -1488,7 +1488,7 @@ fn ins_compl_longest_match(match_: &mut compl_T) {
         if insexp().compl_leader.data.is_null() {
             insexp().compl_leader = copy_string(match_.cp_str, None);
 
-            let had_match = (**curwin.as_ptr()).w_cursor.col > insexp().compl_col;
+            let had_match = curwin_mut().w_cursor.col > insexp().compl_col;
             ins_compl_longest_insert(insexp().compl_leader.data);
 
             if !had_match {
@@ -1520,7 +1520,7 @@ fn ins_compl_longest_match(match_: &mut compl_T) {
             *p = NUL;
             insexp().compl_leader.size = p.offset_from(insexp().compl_leader.data) as usize;
 
-            let had_match = (**curwin.as_ptr()).w_cursor.col > insexp().compl_col;
+            let had_match = curwin_mut().w_cursor.col > insexp().compl_col;
             ins_compl_longest_insert(insexp().compl_leader.data);
 
             if !had_match {
@@ -1586,7 +1586,7 @@ pub fn ins_compl_long_shown_match() -> bool {
         let shown = compl_opt(insexp().compl_shown_idx);
         !shown.is_null()
             && !(*shown).cp_str.data.is_null()
-            && ((*shown).cp_str.size as colnr_T) > (**curwin.as_ptr()).w_cursor.col - insexp().compl_col
+            && ((*shown).cp_str.size as colnr_T) > curwin_mut().w_cursor.col - insexp().compl_col
     }
 }
 
@@ -1710,7 +1710,7 @@ fn prepend_startcol_text(dest: &mut NvimString, src: &NvimString, startcol: c_in
         let new_length = (prepend_len + src.size as c_int) as usize;
         let mut buf: Vec<c_char> = vec![0; new_length + 1];
 
-        let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
+        let line = ml_get(curwin_mut().w_cursor.lnum);
 
         ptr::copy(
             line.add(startcol as usize),
@@ -2049,8 +2049,8 @@ pub fn ins_compl_show_pum() {
 
         g_st().dollar_vcol = -1;
 
-        let col = (**curwin.as_ptr()).w_cursor.col;
-        (**curwin.as_ptr()).w_cursor.col = insexp().compl_col;
+        let col = curwin_mut().w_cursor.col;
+        curwin_mut().w_cursor.col = insexp().compl_col;
         insexp().compl_selected_item = cur;
         pum_display(
             (*arr).as_mut_ptr(),
@@ -2059,10 +2059,10 @@ pub fn ins_compl_show_pum() {
             array_changed,
             0,
         );
-        (**curwin.as_ptr()).w_cursor.col = col;
+        curwin_mut().w_cursor.col = col;
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(*curwin.as_ptr()) {
-            redrawWinline(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
+        if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_ptr()) {
+            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
         }
 
         if insexp().compl_started && insexp().compl_curr_idx != insexp().compl_shown_idx {
@@ -2112,7 +2112,7 @@ fn ins_compl_dictionaries(
         let mut dir = insexp().compl_direction;
 
         if *dict == NUL {
-            if !thesaurus && (**curwin.as_ptr()).w_onebuf_opt.wo_spell != 0 {
+            if !thesaurus && curwin_mut().w_onebuf_opt.wo_spell != 0 {
                 dict = c"spell".as_ptr().cast_mut();
             } else {
                 return;
@@ -2516,11 +2516,11 @@ pub fn ins_compl_has_preinsert() -> bool {
 }
 
 pub fn ins_compl_preinsert_effect() -> bool {
-    unsafe {
+     {
         if !ins_compl_has_preinsert() && !ins_compl_preinsert_longest() {
             return false;
         }
-        (**curwin.as_ptr()).w_cursor.col < insexp().compl_ins_end_col
+        curwin_mut().w_cursor.col < insexp().compl_ins_end_col
     }
 }
 
@@ -2531,7 +2531,7 @@ pub fn ins_compl_bs() -> c_int {
         }
 
         let mut line = get_cursor_line_ptr();
-        let mut p = line.add((**curwin.as_ptr()).w_cursor.col as usize);
+        let mut p = line.add(curwin_mut().w_cursor.col as usize);
         mb_ptr_back(line, &raw mut p);
         let p_off = p.offset_from(line);
 
@@ -2543,7 +2543,7 @@ pub fn ins_compl_bs() -> c_int {
             return K_BS;
         }
 
-        if (**curwin.as_ptr()).w_cursor.col <= insexp().compl_col + insexp().compl_length || ins_compl_need_restart() {
+        if curwin_mut().w_cursor.col <= insexp().compl_col + insexp().compl_length || ins_compl_need_restart() {
             ins_compl_restart();
         }
 
@@ -2622,8 +2622,8 @@ fn ins_compl_new_leader() {
         ins_compl_insert_bytes(insexp().compl_leader.data.add(get_compl_len() as usize), -1);
         insexp().compl_used_match = false;
 
-        let save_w_wrow = (**curwin.as_ptr()).w_wrow;
-        let save_w_leftcol = (**curwin.as_ptr()).w_leftcol;
+        let save_w_wrow = curwin_mut().w_wrow;
+        let save_w_leftcol = curwin_mut().w_leftcol;
         if insexp().compl_started {
             ins_compl_set_original_text(insexp().compl_leader.data, insexp().compl_leader.size);
             if is_cpt_func_refresh_always() {
@@ -2672,7 +2672,7 @@ fn ins_compl_new_leader() {
 
 #[inline]
 fn get_compl_len() -> c_int {
-    unsafe { ((**curwin.as_ptr()).w_cursor.col - insexp().compl_col).max(0) }
+     (curwin_mut().w_cursor.col - insexp().compl_col).max(0)
 }
 
 pub fn ins_compl_addleader(c: c_int) {
@@ -2701,7 +2701,7 @@ pub fn ins_compl_addleader(c: c_int) {
         api_clear_string(&mut insexp().compl_leader);
         insexp().compl_leader = cbuf_to_string(
             get_cursor_line_ptr().add(insexp().compl_col as usize),
-            ((**curwin.as_ptr()).w_cursor.col - insexp().compl_col) as usize,
+            (curwin_mut().w_cursor.col - insexp().compl_col) as usize,
         );
         ins_compl_new_leader();
     }
@@ -2734,7 +2734,7 @@ fn ins_compl_set_original_text(str_ptr: *const c_char, len: usize) {
 
 pub fn ins_compl_addfrommatch() {
     unsafe {
-        let len = (**curwin.as_ptr()).w_cursor.col - insexp().compl_col;
+        let len = curwin_mut().w_cursor.col - insexp().compl_col;
         let shown_idx = insexp().compl_shown_idx.unwrap();
         let shown = compl_at(shown_idx);
         let mut p = (*shown).cp_str.data;
@@ -2859,7 +2859,7 @@ fn set_ctrl_x_mode(c: c_int) -> bool {
 
 fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
     unsafe {
-        if ins_compl_preinsert_effect() && ins_compl_win_active(&mut **curwin.as_ptr()) {
+        if ins_compl_preinsert_effect() && ins_compl_win_active(curwin_mut()) {
             ins_compl_delete(false);
         }
 
@@ -2880,7 +2880,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
                 want_cindent = false;
             }
         } else if !insexp().compl_autocomplete || insexp().compl_used_match {
-            let prev_col = (**curwin.as_ptr()).w_cursor.col;
+            let prev_col = curwin_mut().w_cursor.col;
 
             if prev_col > 0 {
                 dec_cursor();
@@ -2890,7 +2890,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
                 insertchar(NUL as c_int, 0, -1);
             }
 
-            if prev_col > 0 && *get_cursor_line_ptr().add((**curwin.as_ptr()).w_cursor.col as usize) != NUL {
+            if prev_col > 0 && *get_cursor_line_ptr().add(curwin_mut().w_cursor.col as usize) != NUL {
                 inc_cursor();
             }
         }
@@ -2907,7 +2907,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             if !is_commit {
                 retval = true;
             }
-            redrawWinline(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
+            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
         }
 
         let arr = &raw const insexp().compl_match_array;
@@ -3107,7 +3107,7 @@ fn ins_compl_next_buf(mut buf: *mut buf_T, flag: c_int) -> *mut buf_T {
     unsafe {
         if flag == b'w' as c_int {
             if ptr::eq(buf, g_st().curbuf) || !win_valid(insexp().next_buf_wp) {
-                insexp().next_buf_wp = *curwin.as_ptr();
+                insexp().next_buf_wp = curwin_ptr();
             }
 
             debug_assert!(!insexp().next_buf_wp.is_null());
@@ -3119,7 +3119,7 @@ fn ins_compl_next_buf(mut buf: *mut buf_T, flag: c_int) -> *mut buf_T {
                     g_st().firstwin
                 };
                 insexp().next_buf_wp = next_wp;
-                if ptr::eq(next_wp, *curwin.as_ptr())
+                if ptr::eq(next_wp, curwin_ptr())
                     || (!(*(*next_wp).w_buffer).b_scanned && (*next_wp).w_config.focusable)
                 {
                     break;
@@ -3316,7 +3316,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
 
         let is_cpt_function = !cb.is_null();
         let use_sandbox =
-            is_cpt_function && was_set_insecurely(*curwin.as_ptr(), kOptComplete, OPT_LOCAL) != 0;
+            is_cpt_function && was_set_insecurely(curwin_ptr(), kOptComplete, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(type_);
             if (*cb).cb_type() == kCallbackNone {
@@ -3335,7 +3335,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
             c"".as_ptr().cast_mut()
         });
 
-        let pos = (**curwin.as_ptr()).w_cursor;
+        let pos = curwin_mut().w_cursor;
         g_st().textlock += 1;
         if use_sandbox {
             g_st().sandbox += 1;
@@ -3360,10 +3360,10 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         }
         g_st().textlock -= 1;
 
-        (**curwin.as_ptr()).w_cursor = pos;
-        check_cursor(*curwin.as_ptr());
-        validate_cursor(*curwin.as_ptr());
-        if !equalpos((**curwin.as_ptr()).w_cursor, pos) {
+        curwin_mut().w_cursor = pos;
+        check_cursor(curwin_ptr());
+        validate_cursor(curwin_ptr());
+        if !equalpos(curwin_mut().w_cursor, pos) {
             emsg(gettext(E_COMPLDEL));
         } else if !matchlist.is_null() {
             ins_compl_add_list(matchlist);
@@ -3502,9 +3502,9 @@ fn save_orig_extmarks() {
     unsafe {
         extmark_splice_delete(
             &mut *g_st().curbuf,
-            (**curwin.as_ptr()).w_cursor.lnum - 1,
+            curwin_mut().w_cursor.lnum - 1,
             insexp().compl_col,
-            (**curwin.as_ptr()).w_cursor.lnum - 1,
+            curwin_mut().w_cursor.lnum - 1,
             insexp().compl_col + insexp().compl_length,
             &raw mut insexp().compl_orig_extmarks,
             true,
@@ -3538,12 +3538,12 @@ fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
         insexp().compl_get_longest = compl_longest;
 
         insexp().compl_direction = FORWARD;
-        if startcol > (**curwin.as_ptr()).w_cursor.col {
-            startcol = (**curwin.as_ptr()).w_cursor.col;
+        if startcol > curwin_mut().w_cursor.col {
+            startcol = curwin_mut().w_cursor.col;
         }
         insexp().compl_col = startcol;
-        insexp().compl_lnum = (**curwin.as_ptr()).w_cursor.lnum;
-        insexp().compl_length = (**curwin.as_ptr()).w_cursor.col - startcol;
+        insexp().compl_lnum = curwin_mut().w_cursor.lnum;
+        insexp().compl_length = curwin_mut().w_cursor.col - startcol;
         insexp().compl_orig_text = cbuf_to_string(
             get_cursor_line_ptr().add(insexp().compl_col as usize),
             insexp().compl_length as usize,
@@ -3577,8 +3577,8 @@ fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
         insexp().compl_started = true;
         insexp().compl_used_match = true;
         insexp().compl_cont_status = 0;
-        let save_w_wrow = (**curwin.as_ptr()).w_wrow;
-        let save_w_leftcol = (**curwin.as_ptr()).w_leftcol;
+        let save_w_wrow = curwin_mut().w_wrow;
+        let save_w_leftcol = curwin_mut().w_leftcol;
 
         insexp().compl_curr_idx = Some(0);
         let no_select = compl_no_select || compl_longest;
@@ -3854,12 +3854,12 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
 
         if ret && (what_flag & CI_WHAT_PREINSERTED_TEXT) != 0 {
             let line = get_cursor_line_ptr();
-            let len = insexp().compl_ins_end_col - (**curwin.as_ptr()).w_cursor.col;
+            let len = insexp().compl_ins_end_col - curwin_mut().w_cursor.col;
             ret = tv_dict_add_str_len(
                 retdict,
                 c"preinserted_text",
                 if len > 0 {
-                    line.add((**curwin.as_ptr()).w_cursor.col as usize)
+                    line.add(curwin_mut().w_cursor.col as usize)
                 } else {
                     c"".as_ptr()
                 },
@@ -4246,7 +4246,7 @@ fn ins_compl_longest_insert(prefix: *const c_char) {
     unsafe {
         ins_compl_delete(false);
         ins_compl_insert_bytes(prefix.add(get_compl_len() as usize), -1);
-        insexp().compl_longest_end_col = (**curwin.as_ptr()).w_cursor.col;
+        insexp().compl_longest_end_col = curwin_mut().w_cursor.col;
         ins_redraw(false);
     }
 }
@@ -4727,7 +4727,7 @@ fn get_next_default_completion(
             }
 
             if is_nearest_active() && in_curbuf {
-                score = (st.cur_match_pos().lnum - (**curwin.as_ptr()).w_cursor.lnum).abs();
+                score = (st.cur_match_pos().lnum - curwin_mut().w_cursor.lnum).abs();
             }
 
             if ins_compl_add_infercase(
@@ -5032,15 +5032,15 @@ fn prepare_cpt_compl_funcs() {
             let cb = get_callback_if_cpt_func(p, idx).as_ptr();
             if !cb.is_null() {
                 let mut startcol: c_int = 0;
-                if !get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, Some(&mut startcol))
+                if !get_userdefined_compl_info(curwin_mut().w_cursor.col, cb, Some(&mut startcol))
                 {
                     if startcol == -3 {
                         insexp().cpt_sources_array[idx as usize].cs_refresh_always = false;
                     } else {
                         startcol = -2;
                     }
-                } else if startcol < 0 || startcol > (**curwin.as_ptr()).w_cursor.col {
-                    startcol = (**curwin.as_ptr()).w_cursor.col;
+                } else if startcol < 0 || startcol > curwin_mut().w_cursor.col {
+                    startcol = curwin_mut().w_cursor.col;
                 }
                 insexp().cpt_sources_array[idx as usize].cs_startcol = startcol;
             } else {
@@ -5325,43 +5325,43 @@ pub fn ins_compl_delete(new_leader: bool) {
 
         if ins_compl_preinsert_effect() {
             col += ins_compl_leader_len() as c_int;
-            (**curwin.as_ptr()).w_cursor.col = insexp().compl_ins_end_col;
+            curwin_mut().w_cursor.col = insexp().compl_ins_end_col;
         }
 
         let mut remaining_vec: Option<Vec<c_char>> = None;
-        if (**curwin.as_ptr()).w_cursor.lnum > insexp().compl_lnum {
-            if (**curwin.as_ptr()).w_cursor.col < get_cursor_line_len() {
+        if curwin_mut().w_cursor.lnum > insexp().compl_lnum {
+            if curwin_mut().w_cursor.col < get_cursor_line_len() {
                 let len = get_cursor_pos_len() as usize;
                 let mut v = vec![0; len + 1];
                 ptr::copy_nonoverlapping(get_cursor_pos_ptr(), v.as_mut_ptr(), len);
                 remaining_vec = Some(v);
             }
 
-            while (**curwin.as_ptr()).w_cursor.lnum > insexp().compl_lnum {
-                if !ml_delete((**curwin.as_ptr()).w_cursor.lnum) {
+            while curwin_mut().w_cursor.lnum > insexp().compl_lnum {
+                if !ml_delete(curwin_mut().w_cursor.lnum) {
                     return;
                 }
-                deleted_lines_mark((**curwin.as_ptr()).w_cursor.lnum, 1);
-                (**curwin.as_ptr()).w_cursor.lnum -= 1;
+                deleted_lines_mark(curwin_mut().w_cursor.lnum, 1);
+                curwin_mut().w_cursor.lnum -= 1;
             }
-            (**curwin.as_ptr()).w_cursor.col = get_cursor_line_len();
+            curwin_mut().w_cursor.col = get_cursor_line_len();
         }
 
-        if (**curwin.as_ptr()).w_cursor.col > col {
+        if curwin_mut().w_cursor.col > col {
             if !stop_arrow() {
                 return;
             }
             backspace_until_column(col);
-            insexp().compl_ins_end_col = (**curwin.as_ptr()).w_cursor.col;
+            insexp().compl_ins_end_col = curwin_mut().w_cursor.col;
         }
 
         if let Some(ref rem) = remaining_vec {
-            orig_col = (**curwin.as_ptr()).w_cursor.col;
+            orig_col = curwin_mut().w_cursor.col;
             ins_str(rem.as_ptr().cast_mut(), rem.len() - 1);
-            (**curwin.as_ptr()).w_cursor.col = orig_col;
+            curwin_mut().w_cursor.col = orig_col;
         }
 
-        changed_cline_bef_curs(&mut **curwin.as_ptr());
+        changed_cline_bef_curs(curwin_mut());
         set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc_lock(VAR_FIXED));
     }
 }
@@ -5391,7 +5391,7 @@ fn ins_compl_expand_multiple(str_ptr: *mut c_char) {
             ins_char_bytes(start, curr.offset_from(start) as usize);
         }
 
-        insexp().compl_ins_end_col = (**curwin.as_ptr()).w_cursor.col;
+        insexp().compl_ins_end_col = curwin_mut().w_cursor.col;
     }
 }
 
@@ -5477,7 +5477,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
             debug_assert!(!first.is_null());
             if len == crate::memory::cstr_len(first) as c_int {
                 let line = get_cursor_line_ptr();
-                let p = line.add((**curwin.as_ptr()).w_cursor.col as usize);
+                let p = line.add(curwin_mut().w_cursor.col as usize);
                 if !p.is_null() && !ascii_iswhite_or_nul(*p) {
                     let end = find_word_end(p);
                     let text_len = end.offset_from(p) as c_int;
@@ -5544,7 +5544,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
                     },
                 );
                 if (preinsert || insert_prefix) && move_cursor {
-                    (**curwin.as_ptr()).w_cursor.col -= (cp_str_len - leader_len) as colnr_T;
+                    curwin_mut().w_cursor.col -= (cp_str_len - leader_len) as colnr_T;
                 }
             }
         }
@@ -6152,7 +6152,7 @@ fn set_compl_globals(mut startcol: c_int, curs_col: colnr_T, is_cpt_compl: bool)
                 startcol = curs_col;
             }
 
-            let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
+            let line = ml_get(curwin_mut().w_cursor.lnum);
             let len = curs_col - startcol;
 
             set_compl_pattern_bytes(line.add(startcol as usize), len as usize);
@@ -6172,7 +6172,7 @@ fn get_userdefined_compl_info(
 
         let is_cpt_function = !cb.is_null();
         let use_sandbox =
-            is_cpt_function && was_set_insecurely(*curwin.as_ptr(), kOptComplete, OPT_LOCAL) != 0;
+            is_cpt_function && was_set_insecurely(curwin_ptr(), kOptComplete, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(insexp().ctrl_x_mode);
             if (*cb).cb_type() == kCallbackNone {
@@ -6195,7 +6195,7 @@ fn get_userdefined_compl_info(
         args[0].vval = crate::eval::typval::TypvalVval::Number(1);
         args[1].vval = crate::eval::typval::TypvalVval::String(c"".as_ptr().cast_mut());
 
-        let pos = (**curwin.as_ptr()).w_cursor;
+        let pos = curwin_mut().w_cursor;
         g_st().textlock += 1;
         if use_sandbox {
             g_st().sandbox += 1;
@@ -6207,10 +6207,10 @@ fn get_userdefined_compl_info(
         g_st().textlock -= 1;
 
         g_st().State = save_State;
-        (**curwin.as_ptr()).w_cursor = pos;
-        check_cursor(*curwin.as_ptr());
-        validate_cursor(*curwin.as_ptr());
-        if !equalpos((**curwin.as_ptr()).w_cursor, pos) {
+        curwin_mut().w_cursor = pos;
+        check_cursor(curwin_ptr());
+        validate_cursor(curwin_ptr());
+        if !equalpos(curwin_mut().w_cursor, pos) {
             emsg(gettext(E_COMPLDEL));
             return false;
         }
@@ -6259,7 +6259,7 @@ fn get_spell_compl_info(startcol: c_int, curs_col: colnr_T) -> bool {
             spell_expand_check_cap(insexp().compl_col);
             insexp().compl_length = curs_col - insexp().compl_col;
         }
-        let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
+        let line = ml_get(curwin_mut().w_cursor.lnum);
         set_compl_pattern_bytes(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
 
         true
@@ -6313,10 +6313,10 @@ fn ins_compl_continue_search(line: *mut c_char) {
     unsafe {
         insexp().compl_cont_status &= !CONT_INTRPT;
         if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {
-            if insexp().compl_startpos.lnum != (**curwin.as_ptr()).w_cursor.lnum {
+            if insexp().compl_startpos.lnum != curwin_mut().w_cursor.lnum {
                 insexp().compl_col = getwhitecols(line) as colnr_T;
                 insexp().compl_startpos.col = insexp().compl_col;
-                insexp().compl_startpos.lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                insexp().compl_startpos.lnum = curwin_mut().w_cursor.lnum;
                 insexp().compl_cont_status &= !CONT_SOL;
             } else {
                 if (insexp().compl_cont_status & CONT_S_IPOS) != 0 {
@@ -6326,11 +6326,11 @@ fn ins_compl_continue_search(line: *mut c_char) {
                 }
                 insexp().compl_col = insexp().compl_startpos.col;
             }
-            insexp().compl_length = (**curwin.as_ptr()).w_cursor.col - insexp().compl_col;
+            insexp().compl_length = curwin_mut().w_cursor.col - insexp().compl_col;
             if insexp().compl_length > (IOSIZE as c_int - MIN_SPACE) {
                 insexp().compl_cont_status &= !CONT_SOL;
                 insexp().compl_length = IOSIZE as c_int - MIN_SPACE;
-                insexp().compl_col = (**curwin.as_ptr()).w_cursor.col - insexp().compl_length;
+                insexp().compl_col = curwin_mut().w_cursor.col - insexp().compl_length;
             }
             insexp().compl_cont_status |= CONT_ADDING | CONT_N_ADDS;
             if insexp().compl_length < 1 {
@@ -6357,10 +6357,10 @@ fn ins_compl_start() -> bool {
             return false;
         }
 
-        let mut line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
-        let curs_col = (**curwin.as_ptr()).w_cursor.col;
+        let mut line = ml_get(curwin_mut().w_cursor.lnum);
+        let curs_col = curwin_mut().w_cursor.col;
         insexp().compl_pending = 0;
-        insexp().compl_lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        insexp().compl_lnum = curwin_mut().w_cursor.lnum;
 
         if (insexp().compl_cont_status & CONT_INTRPT) == CONT_INTRPT && insexp().compl_cont_mode == insexp().ctrl_x_mode {
             ins_compl_continue_search(line);
@@ -6375,7 +6375,7 @@ fn ins_compl_start() -> bool {
                 insexp().compl_cont_status = 0;
             }
             insexp().compl_cont_status |= CONT_N_ADDS;
-            insexp().compl_startpos = (**curwin.as_ptr()).w_cursor;
+            insexp().compl_startpos = curwin_mut().w_cursor;
             startcol = curs_col;
             insexp().compl_col = 0;
         }
@@ -6389,7 +6389,7 @@ fn ins_compl_start() -> bool {
             return false;
         }
         if line_invalid {
-            line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
+            line = ml_get(curwin_mut().w_cursor.lnum);
         }
 
         if compl_status_adding() {
@@ -6399,13 +6399,13 @@ fn ins_compl_start() -> bool {
             if ctrl_x_mode_line_or_eval() {
                 let old = (*g_st().curbuf).b_p_com;
                 (*g_st().curbuf).b_p_com = c"".as_ptr().cast_mut();
-                insexp().compl_startpos.lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                insexp().compl_startpos.lnum = curwin_mut().w_cursor.lnum;
                 insexp().compl_startpos.col = insexp().compl_col;
                 ins_eol(b'\r' as c_int);
                 (*g_st().curbuf).b_p_com = old;
                 insexp().compl_length = 0;
-                insexp().compl_col = (**curwin.as_ptr()).w_cursor.col;
-                insexp().compl_lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                insexp().compl_col = curwin_mut().w_cursor.col;
+                insexp().compl_lnum = curwin_mut().w_cursor.lnum;
             }
         } else {
             g_st().edit_submode_pre = ptr::null();
@@ -6518,7 +6518,7 @@ fn ins_compl_show_statusmsg() {
                     g_st().edit_submode_extra = match_ref_ptr;
                     g_st().edit_submode_highl = HLF_R;
                     if g_st().dollar_vcol >= 0 {
-                        curs_columns(*curwin.as_ptr(), 0);
+                        curs_columns(curwin_ptr(), 0);
                     }
                 }
             }
@@ -6562,14 +6562,14 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> bool {
             return false;
         }
 
-        insexp().compl_curr_win = *curwin.as_ptr();
-        insexp().compl_curr_buf = (**curwin.as_ptr()).w_buffer;
+        insexp().compl_curr_win = curwin_ptr();
+        insexp().compl_curr_buf = curwin_mut().w_buffer;
         insexp().compl_shown_idx = insexp().compl_curr_idx;
         insexp().compl_shows_dir = insexp().compl_direction;
         insexp().compl_num_bests = 0;
 
-        let save_w_wrow = (**curwin.as_ptr()).w_wrow;
-        let save_w_leftcol = (**curwin.as_ptr()).w_leftcol;
+        let save_w_wrow = curwin_mut().w_wrow;
+        let save_w_leftcol = curwin_mut().w_leftcol;
         let n = ins_compl_next(true, ins_compl_key2count(c), insert_match);
 
         if insexp().compl_autocomplete {
@@ -6671,12 +6671,12 @@ pub fn ins_compl_autocomplete_elapsed() -> i64 {
 }
 
 fn show_pum(prev_w_wrow: c_int, prev_w_leftcol: c_int) {
-    unsafe {
+     {
         let n = g_st().RedrawingDisabled;
         g_st().RedrawingDisabled = 0;
 
         setcursor();
-        if prev_w_wrow != (**curwin.as_ptr()).w_wrow || prev_w_leftcol != (**curwin.as_ptr()).w_leftcol {
+        if prev_w_wrow != curwin_mut().w_wrow || prev_w_leftcol != curwin_mut().w_leftcol {
             ins_compl_del_pum();
         }
 
@@ -6754,10 +6754,10 @@ pub fn free_insexpand_stuff() {
 }
 
 fn spell_back_to_badword() {
-    unsafe {
-        let mut tpos = (**curwin.as_ptr()).w_cursor;
-        insexp().spell_bad_len = spell_move_to(&mut **curwin.as_ptr(), BACKWARD, SMT_ALL, true, ptr::null_mut());
-        if (**curwin.as_ptr()).w_cursor.col != tpos.col {
+     {
+        let mut tpos = curwin_mut().w_cursor;
+        insexp().spell_bad_len = spell_move_to(curwin_mut(), BACKWARD, SMT_ALL, true, ptr::null_mut());
+        if curwin_mut().w_cursor.col != tpos.col {
             start_arrow(&raw mut tpos, true, NUL as c_int);
         }
     }
@@ -6890,7 +6890,7 @@ fn get_cpt_func_completion_matches(cb: &mut Callback) {
             return;
         }
 
-        set_compl_globals(startcol, (**curwin.as_ptr()).w_cursor.col, true);
+        set_compl_globals(startcol, curwin_mut().w_cursor.col, true);
 
         if !(*cpt_src).cs_refresh_always {
             ins_compl_insert_bytes(ins_compl_leader(), -1);
@@ -6930,15 +6930,15 @@ fn cpt_compl_refresh() {
                     remove_old_matches();
                     let mut startcol: c_int = 0;
                     let ret =
-                        get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, Some(&mut startcol));
+                        get_userdefined_compl_info(curwin_mut().w_cursor.col, cb, Some(&mut startcol));
                     if !ret {
                         if startcol == -3 {
                             insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_refresh_always = false;
                         } else {
                             startcol = -2;
                         }
-                    } else if startcol < 0 || startcol > (**curwin.as_ptr()).w_cursor.col {
-                        startcol = (**curwin.as_ptr()).w_cursor.col;
+                    } else if startcol < 0 || startcol > curwin_mut().w_cursor.col {
+                        startcol = curwin_mut().w_cursor.col;
                     }
                     insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_startcol = startcol;
                     if ret {

@@ -718,7 +718,7 @@ fn get_opt_idx(opt: *mut vimoption_T) -> OptIndex {
 
 #[inline]
 fn get_varp(p: *mut vimoption_T) -> *mut c_void {
-    unsafe { get_varp_from(p, g_st().curbuf, *curwin.as_ptr()) }
+     get_varp_from(p, g_st().curbuf, curwin_ptr())
 }
 
 pub fn set_init_tablocal() {
@@ -944,7 +944,7 @@ pub fn set_init_1(clean_arg: bool) {
         (*g_st().curbuf).b_p_fs = -1;
         (*g_st().curbuf).b_p_ul = NO_LOCAL_UNDOLEVEL;
         check_buf_options(&mut *g_st().curbuf);
-        check_win_options(&mut **curwin.as_ptr());
+        check_win_options(curwin_mut());
         check_options();
 
         last_status(false);
@@ -1036,13 +1036,13 @@ fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
         optval_free_read(opt_idx, def_val);
 
         if opt_idx == kOptScroll {
-            win_comp_scroll(&mut **curwin.as_ptr());
+            win_comp_scroll(curwin_mut());
         }
 
-        let mut flagsp = insecure_flag(*curwin.as_ptr(), opt_idx, opt_flags);
+        let mut flagsp = insecure_flag(curwin_ptr(), opt_idx, opt_flags);
         *flagsp &= !kOptFlagInsecure;
         if both {
-            flagsp = insecure_flag(*curwin.as_ptr(), opt_idx, OPT_LOCAL);
+            flagsp = insecure_flag(curwin_ptr(), opt_idx, OPT_LOCAL);
             *flagsp &= !kOptFlagInsecure;
         }
     }
@@ -2028,7 +2028,7 @@ fn do_one_set_option(
         let varp = get_varp_scope(opt, opt_flags);
 
         let mut errmsg: *const c_char = ptr::null();
-        if !validate_opt_idx(&mut **curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &mut errmsg) {
+        if !validate_opt_idx(curwin_mut(), opt_idx, opt_flags, flags, prefix, &mut errmsg) {
             return errmsg;
         }
 
@@ -2072,7 +2072,7 @@ fn do_one_set_option(
                     last_set_msg((*opt).script_ctx);
                 } else if option_has_scope(opt_idx, kOptScopeWin) {
                     last_set_msg(
-                        (**curwin.as_ptr()).w_onebuf_opt.wo_script_ctx
+                        curwin_mut().w_onebuf_opt.wo_script_ctx
                             [option_scope_idx(opt_idx, kOptScopeWin) as usize],
                     );
                 } else if option_has_scope(opt_idx, kOptScopeBuf) {
@@ -2373,13 +2373,13 @@ fn didset_options() {
         if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) {
             spell_apply_sps(sps_flags, sps_limit);
         }
-        let ws = (**curwin.as_ptr()).w_s_ptr();
+        let ws = curwin_mut().w_s_ptr();
         compile_cap_prog((*ws).b_p_spc, &mut (*ws).b_cap_prog);
         did_set_spell_option();
         let mut dummy = optset_T::new();
         did_set_cedit(&mut dummy);
         did_set_breakat(&mut dummy);
-        didset_window_options(*curwin.as_ptr(), true);
+        didset_window_options(curwin_ptr(), true);
     }
 }
 
@@ -2388,15 +2388,15 @@ fn didset_options2() {
         highlight_changed();
 
         set_chars_option(
-            *curwin.as_ptr(),
-            (**curwin.as_ptr()).w_onebuf_opt.wo_fcs,
+            curwin_ptr(),
+            curwin_mut().w_onebuf_opt.wo_fcs,
             CharsOption::kFillchars,
             true,
             None,
         );
         set_chars_option(
-            *curwin.as_ptr(),
-            (**curwin.as_ptr()).w_onebuf_opt.wo_lcs,
+            curwin_ptr(),
+            curwin_mut().w_onebuf_opt.wo_lcs,
             CharsOption::kListchars,
             true,
             None,
@@ -2617,9 +2617,9 @@ pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: c_int, mut script_ctx: sctx
                     script_ctx;
             } else if option_has_scope(opt_idx, kOptScopeWin) {
                 let win_idx = option_scope_idx(opt_idx, kOptScopeWin) as usize;
-                (**curwin.as_ptr()).w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
+                curwin_mut().w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
                 if both {
-                    (**curwin.as_ptr()).w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
+                    curwin_mut().w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
                 }
             }
         }
@@ -2924,7 +2924,7 @@ pub fn did_set_helpheight(_args: &mut optset_T) -> *const c_char {
     unsafe {
         if !(*g_st().firstwin).w_next.is_null()
             && (*g_st().curbuf).b_help
-            && OptInt::from((**curwin.as_ptr()).w_height) < opt_vars().p_hh
+            && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh
         {
             win_setheight(opt_vars().p_hh as c_int);
         }
@@ -3204,7 +3204,7 @@ pub fn validate_previewwindow(args: &mut optset_T) -> *const c_char {
             return ptr::null();
         }
         let win = args.os_win;
-        let tab = if win == *curwin.as_ptr() {
+        let tab = if win == curwin_ptr() {
             g_st().curtab
         } else {
             win_find_tabpage(win)
@@ -3493,7 +3493,7 @@ pub fn did_set_window(_args: &mut optset_T) -> *const c_char {
 /// Process the new 'winheight' value.
 pub fn did_set_winheight(_args: &mut optset_T) -> *const c_char {
     unsafe {
-        if !(*g_st().firstwin).w_next.is_null() && OptInt::from((**curwin.as_ptr()).w_height) < opt_vars().p_wh {
+        if !(*g_st().firstwin).w_next.is_null() && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh {
             win_setheight(opt_vars().p_wh as c_int);
         }
         ptr::null()
@@ -3503,7 +3503,7 @@ pub fn did_set_winheight(_args: &mut optset_T) -> *const c_char {
 /// Process the new 'winwidth' option value.
 pub fn did_set_winwidth(_args: &mut optset_T) -> *const c_char {
     unsafe {
-        if !(*g_st().firstwin).w_next.is_null() && OptInt::from((**curwin.as_ptr()).w_width) < opt_vars().p_wiw {
+        if !(*g_st().firstwin).w_next.is_null() && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw {
             win_setwidth(opt_vars().p_wiw as c_int);
         }
         ptr::null()
@@ -3832,8 +3832,8 @@ pub fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
 }
 
 pub fn check_redraw(flags: u32) {
-    unsafe {
-        check_redraw_for(g_st().curbuf, *curwin.as_ptr(), flags);
+     {
+        check_redraw_for(g_st().curbuf, curwin_ptr(), flags);
     }
 }
 
@@ -5664,7 +5664,7 @@ fn did_set_option(
             return errmsg;
         }
 
-        let ws = (**curwin.as_ptr()).w_s_ptr();
+        let ws = curwin_mut().w_s_ptr();
         if varp == (&raw mut (*g_st().curbuf).b_p_syn).cast::<c_void>() {
             do_syntax_autocmd(&mut *g_st().curbuf, args.os_value_changed);
         } else if varp == (&raw mut (*g_st().curbuf).b_p_ft).cast::<c_void>() {
@@ -5672,7 +5672,7 @@ fn did_set_option(
                 do_filetype_autocmd(&mut *g_st().curbuf, args.os_value_changed);
             }
         } else if varp == (&raw mut (*ws).b_p_spl).cast::<c_void>() {
-            do_spelllang_source(&mut **curwin.as_ptr());
+            do_spelllang_source(curwin_mut());
         }
 
         comp_col();
@@ -5681,11 +5681,11 @@ fn did_set_option(
             setmouse();
         } else if (varp == (&raw mut opt_vars().p_flp).cast::<c_void>()
             || varp == (&raw mut (*g_st().curbuf).b_p_flp).cast::<c_void>())
-            && (**curwin.as_ptr()).w_briopt_list != 0
+            && curwin_mut().w_briopt_list != 0
         {
             redraw_all_later(UPD_NOT_VALID);
         } else if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>()
-            || varp == (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_wbr).cast::<c_void>()
+            || varp == (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_wbr).cast::<c_void>()
         {
             if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>() {
                 set_winbar_all(true);
@@ -5694,11 +5694,11 @@ fn did_set_option(
             }
         }
 
-        if (**curwin.as_ptr()).w_curswant != MAXCOL
+        if curwin_mut().w_curswant != MAXCOL
             && ((*opt).flags & (kOptFlagCurswant | kOptFlagRedrAll)) != 0
             && ((*opt).flags & kOptFlagHLOnly) == 0
         {
-            (**curwin.as_ptr()).w_set_curswant = true;
+            curwin_mut().w_set_curswant = true;
         }
 
         check_redraw((*opt).flags);
@@ -5706,9 +5706,9 @@ fn did_set_option(
         if errmsg.is_null() {
             (*opt).flags |= kOptFlagWasSet;
 
-            let flagsp = insecure_flag(*curwin.as_ptr(), opt_idx, opt_flags);
+            let flagsp = insecure_flag(curwin_ptr(), opt_idx, opt_flags);
             let flagsp_local = if scope_both {
-                insecure_flag(*curwin.as_ptr(), opt_idx, OPT_LOCAL)
+                insecure_flag(curwin_ptr(), opt_idx, OPT_LOCAL)
             } else {
                 ptr::null_mut()
             };
@@ -5841,7 +5841,7 @@ fn set_option(
             os_value_changed: false,
             os_restore_chartab: false,
             os_errbuf: errbuf,
-            os_win: *curwin.as_ptr(),
+            os_win: curwin_ptr(),
             os_buf: g_st().curbuf,
         };
 
@@ -5947,7 +5947,7 @@ fn set_option(
         let value_untrusted = g_st().secure != 0
             || g_st().sandbox != 0
             || (opt_flags & OPT_MODELINE) != 0
-            || (!value_replaced && was_set_insecurely(*curwin.as_ptr(), opt_idx, opt_flags) != 0);
+            || (!value_replaced && was_set_insecurely(curwin_ptr(), opt_idx, opt_flags) != 0);
         if g_st().secure == 0 && value_untrusted {
             g_st().secure = 1;
         }
@@ -5963,7 +5963,7 @@ fn set_option(
         args.os_oldval = old_value;
         args.os_newval = value;
         args.os_buf = g_st().curbuf;
-        args.os_win = *curwin.as_ptr();
+        args.os_win = curwin_ptr();
         errmsg = did_set_option(
             &mut args,
             set_sid,
@@ -6032,15 +6032,15 @@ pub fn set_option_direct_for(
     set_sid: scid_T,
     target: OptTarget,
 ) {
-    unsafe {
+     {
         let save_curbuf = g_st().curbuf;
-        let save_curwin = *curwin.as_ptr();
+        let save_curwin = curwin_ptr();
 
         match target {
             OptTarget::Global => {}
             OptTarget::Win(win) => {
-                *curwin.as_ptr() = win;
-                g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+                set_curwin(win);
+                g_st().curbuf = curwin_mut().w_buffer;
             }
             OptTarget::Buf(buf) => {
                 g_st().curbuf = buf;
@@ -6050,7 +6050,7 @@ pub fn set_option_direct_for(
 
         set_option_direct(opt_idx, value, opt_flags, set_sid);
 
-        *curwin.as_ptr() = save_curwin;
+        set_curwin(save_curwin);
         g_st().curbuf = save_curbuf;
     }
 }
@@ -6131,7 +6131,7 @@ fn switch_option_context(
                 let OptTarget::Win(win) = from else {
                     return false;
                 };
-                if win == *curwin.as_ptr() {
+                if win == curwin_ptr() {
                     return false;
                 }
                 let mut cs = CtxSwitch::new();
@@ -6528,49 +6528,49 @@ pub fn makefoldset(fd: *mut FILE) -> bool {
             fd,
             cmd,
             kOptFoldmethod,
-            (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdm).cast(),
+            (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdm).cast(),
         )
             || !put_set(
                 fd,
                 cmd,
                 kOptFoldexpr,
-                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fde).cast(),
+                (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fde).cast(),
             )
             || !put_set(
                 fd,
                 cmd,
                 kOptFoldmarker,
-                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fmr).cast(),
+                (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fmr).cast(),
             )
             || !put_set(
                 fd,
                 cmd,
                 kOptFoldignore,
-                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdi).cast(),
+                (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdi).cast(),
             )
             || !put_set(
                 fd,
                 cmd,
                 kOptFoldlevel,
-                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdl).cast(),
+                (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdl).cast(),
             )
             || !put_set(
                 fd,
                 cmd,
                 kOptFoldminlines,
-                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fml).cast(),
+                (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fml).cast(),
             )
             || !put_set(
                 fd,
                 cmd,
                 kOptFoldnestmax,
-                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdn).cast(),
+                (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fdn).cast(),
             )
             || !put_set(
                 fd,
                 cmd,
                 kOptFoldenable,
-                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fen).cast(),
+                (&raw mut (*curwin_ptr()).w_onebuf_opt.wo_fen).cast(),
             )
         {
             return false;
@@ -6761,7 +6761,7 @@ pub fn get_varp_scope_from(
 
 /// Get pointer to option variable, depending on local or global scope.
 pub fn get_varp_scope(p: *mut vimoption_T, opt_flags: c_int) -> *mut c_void {
-    unsafe { get_varp_scope_from(p, opt_flags, g_st().curbuf, *curwin.as_ptr()) }
+     get_varp_scope_from(p, opt_flags, g_st().curbuf, curwin_ptr())
 }
 
 /// Get pointer to option variable at 'opt_idx', depending on local or global scope.
@@ -8087,7 +8087,7 @@ pub fn ExpandSettingSubtract(
         }
 
         let option_val =
-            *(get_option_varp_scope_from(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS, g_st().curbuf, *curwin.as_ptr())
+            *(get_option_varp_scope_from(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS, g_st().curbuf, curwin_ptr())
                 .cast::<*mut c_char>());
 
         let option_flags = (*get_option(opt_st().EXPAND_OPTION_IDX)).flags;
@@ -8665,7 +8665,7 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
         let mut retval = arena_dict(arena, kOptCount as usize);
         for opt_idx in 0..kOptCount {
             let opt = get_option(opt_idx);
-            let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, g_st().curbuf, *curwin.as_ptr(), arena);
+            let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, g_st().curbuf, curwin_ptr(), arena);
             put_c(&mut retval, (*opt).fullname.as_ptr(), dict_obj(opt_dict));
         }
         retval

@@ -357,9 +357,9 @@ pub fn nvim_open_win(
         'cleanup: {
             let mut wp: *mut win_T = ptr::null_mut();
             let mut tp = g_st().curtab;
-            assert!(!(*curwin.as_ptr()).is_null());
+            assert!(!(curwin_ptr()).is_null());
             let mut parent = if config.win == 0 {
-                *curwin.as_ptr()
+                curwin_ptr()
             } else {
                 ptr::null_mut()
             };
@@ -378,7 +378,7 @@ pub fn nvim_open_win(
                 tp = win_find_tabpage(parent);
             }
             if is_split {
-                if !check_split_disallowed_err(if !parent.is_null() { parent } else { *curwin.as_ptr() }, err)
+                if !check_split_disallowed_err(if !parent.is_null() { parent } else { curwin_ptr() }, err)
                 {
                     break 'cleanup;
                 }
@@ -408,7 +408,7 @@ pub fn nvim_open_win(
                 };
 
                 try_wrap(err, || {
-                    if parent.is_null() || parent == *curwin.as_ptr() {
+                    if parent.is_null() || parent == curwin_ptr() {
                         wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
                     } else {
                         let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -435,7 +435,7 @@ pub fn nvim_open_win(
                     }
                 }
             } else {
-                if (*(**curwin.as_ptr()).w_buffer).b_locked_split != 0 {
+                if (*curwin_mut().w_buffer).b_locked_split != 0 {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -487,7 +487,7 @@ pub fn nvim_open_win(
                 tp = win_find_tabpage(wp);
             }
             if !tp.is_null() && bufref_valid(Some(&bufref)) && b != (*wp).w_buffer {
-                let au_no_enter_leave = *curwin.as_ptr() != wp && !fconfig.noautocmd;
+                let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
                 if au_no_enter_leave {
                     g_st().autocmd_no_enter += 1;
                     g_st().autocmd_no_leave += 1;
@@ -656,7 +656,7 @@ fn win_config_split(
             let mut parent: *mut win_T = ptr::null_mut();
             let mut parent_tp: *mut tabpage_T = ptr::null_mut();
             if config.win == 0 {
-                parent = *curwin.as_ptr();
+                parent = curwin_ptr();
                 parent_tp = g_st().curtab;
             } else if config.win > 0 {
                 parent = find_window_by_handle(fconfig.window, err);
@@ -686,7 +686,7 @@ fn win_config_split(
             }
 
             let mut to_split_ok = false;
-            let curwin_moving_tp = win == *curwin.as_ptr() && !parent.is_null() && win_tp != parent_tp;
+            let curwin_moving_tp = win == curwin_ptr() && !parent.is_null() && win_tp != parent_tp;
 
             'restore_curwin: {
                 if curwin_moving_tp {
@@ -694,7 +694,7 @@ fn win_config_split(
                     assert!(!altwin.is_null());
                     win_goto(altwin);
 
-                    if *curwin.as_ptr() == win {
+                    if curwin_ptr() == win {
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
@@ -830,7 +830,7 @@ fn win_config_split(
                 };
 
                 try_wrap(err, || {
-                    let need_switch = !parent.is_null() && parent != *curwin.as_ptr();
+                    let need_switch = !parent.is_null() && parent != curwin_ptr();
                     let mut switchwin: CtxSwitch = CtxSwitch::new();
                     if need_switch {
                         let result = ctx_switch(
@@ -929,11 +929,11 @@ fn win_config_float_tp(
                 altwin = win_find_altwin(win, &mut *win_tp);
                 assert!(!altwin.is_null());
 
-                if *curwin.as_ptr() == win {
+                if curwin_ptr() == win {
                     curwin_moving_tp = true;
                     win_goto(altwin);
 
-                    if *curwin.as_ptr() == win {
+                    if curwin_ptr() == win {
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
@@ -1841,7 +1841,7 @@ fn parse_win_config(
                     fconfig.window = config.win;
                 }
                 if fconfig.window == 0 {
-                    fconfig.window = (**curwin.as_ptr()).handle;
+                    fconfig.window = curwin_mut().handle;
                 }
             }
 

@@ -1768,8 +1768,8 @@ pub fn func_call(
 
         if !skip_call {
             let mut funcexe = funcexe_T::new();
-            funcexe.fe_firstline = (**curwin.as_ptr()).w_cursor.lnum;
-            funcexe.fe_lastline = (**curwin.as_ptr()).w_cursor.lnum;
+            funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
+            funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
             funcexe.fe_evaluate = true;
             funcexe.fe_partial = partial;
             funcexe.fe_selfdict = selfdict;
@@ -3580,9 +3580,9 @@ fn ex_call_inner(
                     emsg(gettext(e_invrange));
                     break;
                 }
-                (**curwin.as_ptr()).w_cursor.lnum = lnum;
-                (**curwin.as_ptr()).w_cursor.col = 0;
-                (**curwin.as_ptr()).w_cursor.coladd = 0;
+                curwin_mut().w_cursor.lnum = lnum;
+                curwin_mut().w_cursor.col = 0;
+                curwin_mut().w_cursor.coladd = 0;
             }
             *arg = startarg;
 

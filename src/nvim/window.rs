@@ -1053,8 +1053,8 @@ pub fn window_layout_locked_err(cmd: cmdidx_T, err: &mut Error) -> bool {
 
 /// Check if the current window is allowed to move to a different buffer.
 pub fn check_can_set_curbuf_disabled() -> bool {
-    unsafe {
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
+     {
+        if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
             emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
             return false;
         }
@@ -1064,8 +1064,8 @@ pub fn check_can_set_curbuf_disabled() -> bool {
 
 /// Check if the current window is allowed to move to a different buffer.
 pub fn check_can_set_curbuf_forceit(forceit: c_int) -> bool {
-    unsafe {
-        if forceit == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
+     {
+        if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb != 0 {
             emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
             return false;
         }
@@ -1076,11 +1076,11 @@ pub fn check_can_set_curbuf_forceit(forceit: c_int) -> bool {
 /// Return the current window, unless in the cmdline window and "prevwin" is
 /// set, then return "prevwin".
 pub fn prevwin_curwin() -> *mut win_T {
-    unsafe {
+     {
         if is_in_cmdwin() && !g_st().prevwin.is_null() {
             g_st().prevwin
         } else {
-            *curwin.as_ptr()
+            curwin_ptr()
         }
     }
 }
@@ -1136,7 +1136,7 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
         if let Some(fname_cstr) = grab_file_name(Prenum1, &mut lnum) {
             let ptr = fname_cstr.as_ptr().cast_mut();
             let oldtab = g_st().curtab;
-            let oldwin = *curwin.as_ptr();
+            let oldwin = curwin_ptr();
             setpcmark();
 
             let mut wp: *mut win_T = ptr::null_mut();
@@ -1145,7 +1145,7 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
             }
 
             if wp.is_null() && win_split(0, 0) {
-                reset_binding(&mut **curwin.as_ptr());
+                reset_binding(curwin_mut());
                 if !do_ecmd(
                     0,
                     ptr,
@@ -1159,18 +1159,18 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
                     let old_got_int = g_st().got_int;
                     g_st().got_int = false;
 
-                    win_close(*curwin.as_ptr(), false, false);
+                    win_close(curwin_ptr(), false, false);
                     g_st().got_int = g_st().got_int || old_got_int;
 
                     goto_tabpage_win(&mut *oldtab, oldwin);
                 } else {
-                    wp = *curwin.as_ptr();
+                    wp = curwin_ptr();
                 }
             }
 
             if !wp.is_null() && nchar == b'F' as c_int && lnum >= 0 {
-                (**curwin.as_ptr()).w_cursor.lnum = lnum;
-                check_cursor_lnum(&mut **curwin.as_ptr());
+                curwin_mut().w_cursor.lnum = lnum;
+                check_cursor_lnum(curwin_mut());
                 beginline(BL_SOL | BL_FIX);
             }
         }
@@ -1205,7 +1205,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 reset_VIsual_and_resel();
 
                 if buflist_findnr(if Prenum == 0 {
-                    (**curwin.as_ptr()).w_alt_fnum
+                    curwin_mut().w_alt_fnum
                 } else {
                     Prenum
                 })
@@ -1222,7 +1222,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 if !curbuf_locked() && win_split(0, 0) {
                     buflist_getfile(
                         if Prenum == 0 {
-                            (**curwin.as_ptr()).w_alt_fnum
+                            curwin_mut().w_alt_fnum
                         } else {
                             Prenum
                         },
@@ -1318,7 +1318,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                             wp = last_focusable;
                         }
                     } else if nchar == b'W' as c_int {
-                        wp = (**curwin.as_ptr()).w_prev;
+                        wp = curwin_mut().w_prev;
                         if wp.is_null() {
                             wp = g_st().lastwin;
                         }
@@ -1329,7 +1329,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                             wp = (*wp).w_prev;
                         }
                     } else {
-                        wp = (**curwin.as_ptr()).w_next;
+                        wp = curwin_mut().w_next;
                         while !wp.is_null()
                             && (*wp).w_floating
                             && ((*wp).w_config.hide || !(*wp).w_config.focusable)
@@ -1356,18 +1356,18 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 win_goto_hor(false, Prenum1);
             }
             c if c == b'T' as c_int => {
-                if one_window(*curwin.as_ptr(), ptr::null_mut()) {
+                if one_window(curwin_ptr(), ptr::null_mut()) {
                     msg(gettext(M_ONLYONE), 0);
                 } else {
                     let oldtab = g_st().curtab;
-                    let wp = *curwin.as_ptr();
+                    let wp = curwin_ptr();
                     if !win_new_tabpage(Prenum, ptr::null_mut(), true, ptr::null_mut()).is_null()
                         && valid_tabpage(oldtab)
                     {
                         let newtab = g_st().curtab;
                         goto_tabpage_tp(oldtab, true, true);
-                        if ptr::eq(*curwin.as_ptr(), wp) {
-                            win_close(*curwin.as_ptr(), false, false);
+                        if ptr::eq(curwin_ptr(), wp) {
+                            win_close(curwin_ptr(), false, false);
                         }
                         if valid_tabpage(newtab) {
                             goto_tabpage_tp(newtab, true, true);
@@ -1412,7 +1412,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 || c == b'H' as c_int
                 || c == b'L' as c_int =>
             {
-                if one_window(*curwin.as_ptr(), ptr::null_mut()) {
+                if one_window(curwin_ptr(), ptr::null_mut()) {
                     beep_flush();
                 } else {
                     let dir = (if nchar == b'H' as c_int || nchar == b'L' as c_int {
@@ -1424,7 +1424,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     } else {
                         WSP_BOT
                     });
-                    win_splitmove(*curwin.as_ptr(), Prenum, dir);
+                    win_splitmove(curwin_ptr(), Prenum, dir);
                 }
             }
             c if c == b'=' as c_int => {
@@ -1442,10 +1442,10 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 );
             }
             c if c == b'+' as c_int => {
-                win_setheight((**curwin.as_ptr()).w_height + Prenum1);
+                win_setheight(curwin_mut().w_height + Prenum1);
             }
             c if c == b'-' as c_int => {
-                win_setheight((**curwin.as_ptr()).w_height - Prenum1);
+                win_setheight(curwin_mut().w_height - Prenum1);
             }
             c if c == Ctrl__ || c == b'_' as c_int => {
                 win_setheight(if Prenum != 0 {
@@ -1455,10 +1455,10 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 });
             }
             c if c == b'>' as c_int => {
-                win_setwidth((**curwin.as_ptr()).w_width + Prenum1);
+                win_setwidth(curwin_mut().w_width + Prenum1);
             }
             c if c == b'<' as c_int => {
-                win_setwidth((**curwin.as_ptr()).w_width - Prenum1);
+                win_setwidth(curwin_mut().w_width - Prenum1);
             }
             c if c == b'|' as c_int => {
                 win_setwidth(if Prenum != 0 { Prenum } else { g_st().Columns });
@@ -1511,7 +1511,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     false,
                     false,
                 );
-                (**curwin.as_ptr()).w_set_curswant = true;
+                curwin_mut().w_set_curswant = true;
             }
             c if c == K_KENTER || c == CAR => {
                 if bt_quickfix(g_st().curbuf) {
@@ -1564,16 +1564,16 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                         }
                     }
                     xc if xc == b'e' as c_int => {
-                        if (**curwin.as_ptr()).w_floating || !ui_has(kUIMultigrid) {
+                        if curwin_mut().w_floating || !ui_has(kUIMultigrid) {
                             beep_flush();
                             return;
                         }
                         let mut config = WIN_CONFIG_INIT;
-                        config.width = (**curwin.as_ptr()).w_width;
-                        config.height = (**curwin.as_ptr()).w_height;
+                        config.width = curwin_mut().w_width;
+                        config.height = curwin_mut().w_height;
                         config.external = true;
                         let mut err = ERROR_INIT;
-                        if win_new_float(*curwin.as_ptr(), false, config, &mut err).is_null() {
+                        if win_new_float(curwin_ptr(), false, config, &mut err).is_null() {
                             emsg(err.msg_ptr());
                             api_clear_error(&mut err);
                             beep_flush();
@@ -1641,7 +1641,7 @@ pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
             );
         }
 
-        validate_cursor(*curwin.as_ptr());
+        validate_cursor(curwin_ptr());
 
         ctx_restore(&mut switchwin);
         g_st().RedrawingDisabled -= 1;
@@ -1836,7 +1836,7 @@ pub fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
 
 pub fn ui_ext_win_viewport(wp: &mut win_T) {
     unsafe {
-        if (ptr::eq(wp, *curwin.as_ptr()) || ui_has(kUIMultigrid))
+        if (ptr::eq(wp, curwin_ptr()) || ui_has(kUIMultigrid))
             && wp.w_viewport_invalid
             && wp.w_redr_type == 0
         {
@@ -1958,7 +1958,7 @@ pub fn check_split_disallowed_err(wp: *const win_T, err: &mut Error) -> bool {
 
 pub fn win_split(size: c_int, mut flags: c_int) -> bool {
     unsafe {
-        if !check_split_disallowed(*curwin.as_ptr()) {
+        if !check_split_disallowed(curwin_ptr()) {
             return false;
         }
 
@@ -2010,10 +2010,10 @@ pub fn win_split_ins(
 
         let oldwin = if (flags & WSP_TOP) != 0 {
             g_st().firstwin
-        } else if (flags & WSP_BOT) != 0 || (**curwin.as_ptr()).w_floating {
+        } else if (flags & WSP_BOT) != 0 || curwin_mut().w_floating {
             lastwin_nofloating(ptr::null_mut())
         } else {
-            *curwin.as_ptr()
+            curwin_ptr()
         };
 
         let mut need_status: c_int = 0;
@@ -2218,7 +2218,7 @@ pub fn win_split_ins(
             }
 
             new_frame(&mut *wp);
-            win_init(&mut *wp, &mut **curwin.as_ptr(), flags);
+            win_init(&mut *wp, curwin_mut(), flags);
         } else if (*wp).w_floating {
             ui_comp_remove_grid(&mut (*wp).w_grid_alloc);
             if ui_has(kUIMultigrid) {
@@ -2319,7 +2319,7 @@ pub fn win_split_ins(
         (*wp).w_fraction = (*oldwin).w_fraction;
 
         if vertical {
-            (*wp).w_onebuf_opt.wo_scr = (**curwin.as_ptr()).w_onebuf_opt.wo_scr;
+            (*wp).w_onebuf_opt.wo_scr = curwin_mut().w_onebuf_opt.wo_scr;
 
             if need_status != 0 {
                 win_new_height(oldwin, (*oldwin).w_height - 1);
@@ -2645,11 +2645,11 @@ pub fn win_count() -> c_int {
 pub fn make_windows(mut count: c_int, vertical: bool) -> c_int {
     unsafe {
         let mut maxcount = if vertical {
-            ((OptInt::from((**curwin.as_ptr()).w_width + (**curwin.as_ptr()).w_vsep_width) - (opt_vars().p_wiw - opt_vars().p_wmw)) as c_int)
+            ((OptInt::from(curwin_mut().w_width + curwin_mut().w_vsep_width) - (opt_vars().p_wiw - opt_vars().p_wmw)) as c_int)
                 / (opt_vars().p_wmw as c_int + 1)
         } else {
             ((OptInt::from(
-                (**curwin.as_ptr()).w_height + (**curwin.as_ptr()).w_hsep_height + (**curwin.as_ptr()).w_status_height,
+                curwin_mut().w_height + curwin_mut().w_hsep_height + curwin_mut().w_status_height,
             ) - (opt_vars().p_wh - opt_vars().p_wmh)) as c_int)
                 / (opt_vars().p_wmh as c_int + STATUS_HEIGHT + global_winbar_height())
         };
@@ -2667,15 +2667,15 @@ pub fn make_windows(mut count: c_int, vertical: bool) -> c_int {
         while todo > 0 {
             if vertical {
                 if !win_split(
-                    (**curwin.as_ptr()).w_width - ((**curwin.as_ptr()).w_width - todo) / (todo + 1) - 1,
+                    curwin_mut().w_width - (curwin_mut().w_width - todo) / (todo + 1) - 1,
                     WSP_VERT | WSP_ABOVE,
                 )
                 {
                     break;
                 }
             } else if !win_split(
-                (**curwin.as_ptr()).w_height
-                    - ((**curwin.as_ptr()).w_height - todo * STATUS_HEIGHT) / (todo + 1)
+                curwin_mut().w_height
+                    - (curwin_mut().w_height - todo * STATUS_HEIGHT) / (todo + 1)
                     - STATUS_HEIGHT,
                 WSP_ABOVE,
             )
@@ -2693,12 +2693,12 @@ pub fn make_windows(mut count: c_int, vertical: bool) -> c_int {
 
 fn win_exchange(mut Prenum: c_int) {
     unsafe {
-        if (**curwin.as_ptr()).w_floating {
+        if curwin_mut().w_floating {
             emsg(e_floatexchange);
             return;
         }
 
-        if one_window(*curwin.as_ptr(), ptr::null_mut()) {
+        if one_window(curwin_ptr(), ptr::null_mut()) {
             beep_flush();
             return;
         }
@@ -2709,31 +2709,31 @@ fn win_exchange(mut Prenum: c_int) {
 
         let mut frp: *mut frame_T;
         if Prenum != 0 {
-            frp = (*(*(**curwin.as_ptr()).w_frame).fr_parent).fr_child;
+            frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
             while !frp.is_null() && {
                 Prenum -= 1;
                 Prenum > 0
             } {
                 frp = (*frp).fr_next;
             }
-        } else if !(*(**curwin.as_ptr()).w_frame).fr_next.is_null() {
-            frp = (*(**curwin.as_ptr()).w_frame).fr_next;
+        } else if !(*curwin_mut().w_frame).fr_next.is_null() {
+            frp = (*curwin_mut().w_frame).fr_next;
         } else {
-            frp = (*(**curwin.as_ptr()).w_frame).fr_prev;
+            frp = (*curwin_mut().w_frame).fr_prev;
         }
 
-        if frp.is_null() || (*frp).fr_win.is_null() || ptr::eq((*frp).fr_win, *curwin.as_ptr()) {
+        if frp.is_null() || (*frp).fr_win.is_null() || ptr::eq((*frp).fr_win, curwin_ptr()) {
             return;
         }
         let wp = (*frp).fr_win;
 
-        let wp2 = (**curwin.as_ptr()).w_prev;
-        let frp2 = (*(**curwin.as_ptr()).w_frame).fr_prev;
-        if !ptr::eq((*wp).w_prev, *curwin.as_ptr()) {
-            win_remove(*curwin.as_ptr(), ptr::null_mut());
-            frame_remove(&mut *(**curwin.as_ptr()).w_frame);
-            win_append((*wp).w_prev, *curwin.as_ptr(), ptr::null_mut());
-            frame_insert(&mut *frp, &mut *(**curwin.as_ptr()).w_frame);
+        let wp2 = curwin_mut().w_prev;
+        let frp2 = (*curwin_mut().w_frame).fr_prev;
+        if !ptr::eq((*wp).w_prev, curwin_ptr()) {
+            win_remove(curwin_ptr(), ptr::null_mut());
+            frame_remove(&mut *curwin_mut().w_frame);
+            win_append((*wp).w_prev, curwin_ptr(), ptr::null_mut());
+            frame_insert(&mut *frp, &mut *curwin_mut().w_frame);
         }
         if !ptr::eq(wp, wp2) {
             win_remove(wp, ptr::null_mut());
@@ -2745,13 +2745,13 @@ fn win_exchange(mut Prenum: c_int) {
                 frame_append(&mut *frp2, &mut *(*wp).w_frame);
             }
         }
-        std::mem::swap(&mut (**curwin.as_ptr()).w_status_height, &mut (*wp).w_status_height);
-        std::mem::swap(&mut (**curwin.as_ptr()).w_vsep_width, &mut (*wp).w_vsep_width);
-        std::mem::swap(&mut (**curwin.as_ptr()).w_hsep_height, &mut (*wp).w_hsep_height);
+        std::mem::swap(&mut curwin_mut().w_status_height, &mut (*wp).w_status_height);
+        std::mem::swap(&mut curwin_mut().w_vsep_width, &mut (*wp).w_vsep_width);
+        std::mem::swap(&mut curwin_mut().w_hsep_height, &mut (*wp).w_hsep_height);
 
-        frame_fix_height(&mut **curwin.as_ptr());
+        frame_fix_height(curwin_mut());
         frame_fix_height(&mut *wp);
-        frame_fix_width(&mut **curwin.as_ptr());
+        frame_fix_width(curwin_mut());
         frame_fix_width(&mut *wp);
 
         win_comp_pos();
@@ -2759,27 +2759,27 @@ fn win_exchange(mut Prenum: c_int) {
         if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
             reset_VIsual_and_resel();
         } else if g_st().Visual.active {
-            (*wp).w_cursor = (**curwin.as_ptr()).w_cursor;
+            (*wp).w_cursor = curwin_mut().w_cursor;
         }
 
         win_enter(wp, true);
-        redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
+        redraw_later(curwin_ptr(), UPD_NOT_VALID);
     }
 }
 
 fn win_rotate(upwards: bool, mut count: c_int) {
     unsafe {
-        if (**curwin.as_ptr()).w_floating {
+        if curwin_mut().w_floating {
             emsg(e_floatexchange);
             return;
         }
 
-        if count <= 0 || one_window(*curwin.as_ptr(), ptr::null_mut()) {
+        if count <= 0 || one_window(curwin_ptr(), ptr::null_mut()) {
             beep_flush();
             return;
         }
 
-        let mut frp = (*(*(**curwin.as_ptr()).w_frame).fr_parent).fr_child;
+        let mut frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
         while !frp.is_null() {
             if (*frp).fr_win.is_null() {
                 emsg(gettext(
@@ -2796,7 +2796,7 @@ fn win_rotate(upwards: bool, mut count: c_int) {
         while count > 0 {
             count -= 1;
             if upwards {
-                frp = (*(*(**curwin.as_ptr()).w_frame).fr_parent).fr_child;
+                frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
                 debug_assert!(!frp.is_null());
                 wp1 = (*frp).fr_win;
                 win_remove(wp1, ptr::null_mut());
@@ -2811,7 +2811,7 @@ fn win_rotate(upwards: bool, mut count: c_int) {
 
                 wp2 = (*frp).fr_win;
             } else {
-                frp = (**curwin.as_ptr()).w_frame;
+                frp = curwin_mut().w_frame;
                 while !(*frp).fr_next.is_null() {
                     frp = (*frp).fr_next;
                 }
@@ -2882,7 +2882,7 @@ pub fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> bool {
         if size == 0 && (flags & WSP_VERT) == 0 && win_valid(wp) && !(*wp).w_floating {
             win_setheight_win(height, wp, true);
             if opt_vars().p_ea != 0 {
-                win_equal(*curwin.as_ptr(), ptr::eq(*curwin.as_ptr(), wp), b'v' as c_int);
+                win_equal(curwin_ptr(), ptr::eq(curwin_ptr(), wp), b'v' as c_int);
             }
         }
 
@@ -2935,7 +2935,7 @@ pub fn win_move_after(win1: &mut win_T, win2: &mut win_T) {
             frame_append(&mut *win2.w_frame, &mut *win1.w_frame);
 
             win_comp_pos();
-            redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
+            redraw_later(curwin_ptr(), UPD_NOT_VALID);
         }
         win1.w_pos_changed = true;
         win2.w_pos_changed = true;
@@ -2977,7 +2977,7 @@ pub fn win_equal(next_curwin: *mut win_T, current: bool, mut dir: c_int) {
         }
         win_equal_rec(
             if next_curwin.is_null() {
-                *curwin.as_ptr()
+                curwin_ptr()
             } else {
                 next_curwin
             },
@@ -3334,8 +3334,8 @@ pub fn win_init_empty(wp: &mut win_T) {
 }
 
 pub fn curwin_init() {
-    unsafe {
-        win_init_empty(&mut **curwin.as_ptr());
+     {
+        win_init_empty(curwin_mut());
     }
 }
 
@@ -3346,7 +3346,7 @@ pub fn close_windows(buf: *mut buf_T, keep_curwin: bool) {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (is_ctx_win(g_st().lastwin) || !one_window(wp, ptr::null_mut())) {
             if ptr::eq((*wp).w_buffer, buf)
-                && (!keep_curwin || !ptr::eq(wp, *curwin.as_ptr()))
+                && (!keep_curwin || !ptr::eq(wp, curwin_ptr()))
                 && !(win_locked(&mut *wp) != 0 || (*(*wp).w_buffer).b_locked > 0)
             {
                 if window_layout_locked(cmdidx_T::CMD_SIZE) {
@@ -3462,7 +3462,7 @@ fn close_last_window_tabpage(
         if valid_tabpage(save_lastused) && !ptr::eq(save_lastused, g_st().curtab) {
             g_st().lastused_tabpage = save_lastused;
         }
-        entering_window(&mut **curwin.as_ptr());
+        entering_window(curwin_mut());
 
         apply_autocmds(
             EVENT_WINENTER,
@@ -3528,8 +3528,8 @@ fn win_unclose_buffer(win: *mut win_T, _bufref: &mut bufref_T) {
         if (*win).w_buffer.is_null() {
             (*win).w_buffer = g_st().firstbuf;
             (*g_st().firstbuf).b_nwindows += 1;
-            if ptr::eq(win, *curwin.as_ptr()) {
-                g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+            if ptr::eq(win, curwin_ptr()) {
+                g_st().curbuf = curwin_mut().w_buffer;
             }
             win_init_empty(&mut *win);
         }
@@ -3608,8 +3608,8 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
 
         let mut other_buffer = false;
 
-        if ptr::eq(win, *curwin.as_ptr()) {
-            leaving_window(&mut **curwin.as_ptr());
+        if ptr::eq(win, curwin_ptr()) {
+            leaving_window(curwin_mut());
 
             let wp = if (*win).w_floating {
                 win_float_find_altwin(win, ptr::null())
@@ -3671,8 +3671,8 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
         win_close_buffer(win, if free_buf { DOBUF_UNLOAD } else { 0 }, true);
 
         if win_valid(win) && (*win).w_buffer.is_null() && !(*win).w_floating && last_window(win) {
-            if (**curwin.as_ptr()).w_buffer.is_null() {
-                (**curwin.as_ptr()).w_buffer = g_st().curbuf;
+            if curwin_mut().w_buffer.is_null() {
+                curwin_mut().w_buffer = g_st().curbuf;
             }
             getout(0);
         }
@@ -3724,7 +3724,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             (*(*win).w_buffer).b_nwindows -= 1;
         }
 
-        let had_cmdline_ruler = opt_vars().p_ru != 0 && ptr::eq(win, *curwin.as_ptr()) && (*win).w_status_height == 0;
+        let had_cmdline_ruler = opt_vars().p_ru != 0 && ptr::eq(win, curwin_ptr()) && (*win).w_status_height == 0;
         let mut dir: c_int = 0;
         let mut wp = win_free_mem(win, &mut dir, ptr::null_mut());
 
@@ -3741,8 +3741,8 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
 
         let mut close_curwin = false;
 
-        if ptr::eq(win, *curwin.as_ptr()) {
-            *curwin.as_ptr() = wp;
+        if ptr::eq(win, curwin_ptr()) {
+            set_curwin(wp);
             if (*wp).w_onebuf_opt.wo_pvw != 0 || bt_quickfix((*wp).w_buffer) {
                 loop {
                     if (*wp).w_next.is_null() {
@@ -3750,34 +3750,34 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                     } else {
                         wp = (*wp).w_next;
                     }
-                    if ptr::eq(wp, *curwin.as_ptr()) {
+                    if ptr::eq(wp, curwin_ptr()) {
                         break;
                     }
                     if (*wp).w_onebuf_opt.wo_pvw == 0
                         && !bt_quickfix((*wp).w_buffer)
                         && !((*wp).w_floating && ((*wp).w_config.hide || !(*wp).w_config.focusable))
                     {
-                        *curwin.as_ptr() = wp;
+                        set_curwin(wp);
                         break;
                     }
                 }
             }
-            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+            g_st().curbuf = curwin_mut().w_buffer;
             close_curwin = true;
 
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
         }
 
         if !was_floating {
             last_status(false);
 
-            if !(**curwin.as_ptr()).w_floating
+            if !curwin_mut().w_floating
                 && opt_vars().p_ea != 0
                 && (*opt_vars().p_ead == b'b' as c_char || c_int::from(*opt_vars().p_ead as u8) == dir)
             {
                 win_equal(
-                    *curwin.as_ptr(),
-                    ptr::eq((*(**curwin.as_ptr()).w_frame).fr_parent, win_frame),
+                    curwin_ptr(),
+                    ptr::eq((*curwin_mut().w_frame).fr_parent, win_frame),
                     dir,
                 );
             } else {
@@ -3811,7 +3811,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
         }
 
         if one_window_macro()
-            && (**curwin.as_ptr()).w_locked != 0
+            && curwin_mut().w_locked != 0
             && (*g_st().curbuf).b_locked_split != 0
             && !(*g_st().first_tabpage).tp_next.is_null()
         {
@@ -3851,7 +3851,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             }
         }
 
-        (**curwin.as_ptr()).w_pos_changed = true;
+        curwin_mut().w_pos_changed = true;
         if !was_floating {
             redraw_all_later(UPD_NOT_VALID);
         }
@@ -4150,7 +4150,7 @@ pub fn win_free_all() {
             win_free_mem(g_st().firstwin, &mut dummy, ptr::null_mut());
         }
 
-        *curwin.as_ptr() = ptr::null_mut();
+        set_curwin(ptr::null_mut());
     }
 }
 
@@ -4845,7 +4845,7 @@ fn frame_minheight(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
                 m = opt_vars().p_wh as c_int + extra_height;
             } else {
                 m = opt_vars().p_wmh as c_int + extra_height;
-                if ptr::eq(topfrp.fr_win, *curwin.as_ptr()) && next_curwin.is_null() && opt_vars().p_wmh == 0 {
+                if ptr::eq(topfrp.fr_win, curwin_ptr()) && next_curwin.is_null() && opt_vars().p_wmh == 0 {
                     m += 1;
                 }
             }
@@ -4879,7 +4879,7 @@ fn frame_minwidth(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
                 m = opt_vars().p_wiw as c_int + (*topfrp.fr_win).w_vsep_width;
             } else {
                 m = opt_vars().p_wmw as c_int + (*topfrp.fr_win).w_vsep_width;
-                if opt_vars().p_wmw == 0 && ptr::eq(topfrp.fr_win, *curwin.as_ptr()) && next_curwin.is_null() {
+                if opt_vars().p_wmw == 0 && ptr::eq(topfrp.fr_win, curwin_ptr()) && next_curwin.is_null() {
                     m += 1;
                 }
             }
@@ -4905,9 +4905,9 @@ fn frame_minwidth(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
 
 pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
     unsafe {
-        let old_curwin = *curwin.as_ptr();
+        let old_curwin = curwin_ptr();
 
-        if (**curwin.as_ptr()).w_floating {
+        if curwin_mut().w_floating {
             if message != 0 && !g_st().autocmd_busy {
                 emsg(e_floatonly);
             }
@@ -4926,12 +4926,12 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
         while win_valid(wp) {
             nextwp = (*wp).w_next;
 
-            if !ptr::eq(old_curwin, *curwin.as_ptr()) && win_valid(old_curwin) {
-                *curwin.as_ptr() = old_curwin;
-                g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+            if !ptr::eq(old_curwin, curwin_ptr()) && win_valid(old_curwin) {
+                set_curwin(old_curwin);
+                g_st().curbuf = curwin_mut().w_buffer;
             }
 
-            if ptr::eq(wp, *curwin.as_ptr()) || ((*wp).w_onebuf_opt.wo_wp != 0 && !ignore_pinned) {
+            if ptr::eq(wp, curwin_ptr()) || ((*wp).w_onebuf_opt.wo_wp != 0 && !ignore_pinned) {
                 wp = nextwp;
                 continue;
             }
@@ -4976,7 +4976,7 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
             let mut has_non_pinned = false;
             let mut wp2 = g_st().firstwin;
             while !wp2.is_null() {
-                if !ptr::eq(wp2, *curwin.as_ptr()) && (*wp2).w_onebuf_opt.wo_wp == 0 {
+                if !ptr::eq(wp2, curwin_ptr()) && (*wp2).w_onebuf_opt.wo_wp == 0 {
                     has_non_pinned = true;
                     break;
                 }
@@ -4990,11 +4990,11 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
 }
 
 pub fn unuse_tabpage(tp: &mut tabpage_T) {
-    unsafe {
+     {
         tp.tp_topframe = g_st().topframe;
         tp.tp_firstwin = g_st().firstwin;
         tp.tp_lastwin = g_st().lastwin;
-        tp.tp_curwin = *curwin.as_ptr();
+        tp.tp_curwin = curwin_ptr();
         tp.tp_ch_used = opt_vars().p_ch;
     }
 }
@@ -5005,7 +5005,7 @@ pub fn use_tabpage(tp: *mut tabpage_T) {
         g_st().topframe = (*g_st().curtab).tp_topframe;
         g_st().firstwin = (*g_st().curtab).tp_firstwin;
         g_st().lastwin = (*g_st().curtab).tp_lastwin;
-        *curwin.as_ptr() = (*g_st().curtab).tp_curwin;
+        set_curwin((*g_st().curtab).tp_curwin);
         opt_vars().p_ch = (*g_st().curtab).tp_ch_used;
     }
 }
@@ -5041,24 +5041,24 @@ pub fn win_alloc_ctx_win(idx: c_int) {
 
 fn win_alloc_firstwin(oldwin: *mut win_T) -> bool {
     unsafe {
-        *curwin.as_ptr() = win_alloc(ptr::null_mut(), false);
+        set_curwin(win_alloc(ptr::null_mut(), false));
         if oldwin.is_null() {
             g_st().curbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_LISTED);
             if g_st().curbuf.is_null() {
                 return false;
             }
-            (**curwin.as_ptr()).w_buffer = g_st().curbuf;
-            (**curwin.as_ptr()).w_s_owned = None;
+            curwin_mut().w_buffer = g_st().curbuf;
+            curwin_mut().w_s_owned = None;
             (*g_st().curbuf).b_nwindows = 1;
-            (**curwin.as_ptr()).w_alist = None;
+            curwin_mut().w_alist = None;
             curwin_init();
         } else {
-            win_init(&mut **curwin.as_ptr(), &mut *oldwin, 0);
-            reset_binding(&mut **curwin.as_ptr());
+            win_init(curwin_mut(), &mut *oldwin, 0);
+            reset_binding(curwin_mut());
         }
 
-        new_frame(&mut **curwin.as_ptr());
-        g_st().topframe = (**curwin.as_ptr()).w_frame;
+        new_frame(curwin_mut());
+        g_st().topframe = curwin_mut().w_frame;
         (*g_st().topframe).fr_width = g_st().Columns;
         (*g_st().topframe).fr_height = g_st().Rows - opt_vars().p_ch as c_int - global_stl_height();
 
@@ -5167,7 +5167,7 @@ pub fn win_new_tabpage(
         let result = win_alloc_firstwin((*old_curtab).tp_curwin);
         debug_assert!(result);
         if !first.is_null() {
-            *first = *curwin.as_ptr();
+            *first = curwin_ptr();
         }
 
         if after == 1 {
@@ -5186,14 +5186,14 @@ pub fn win_new_tabpage(
             (*newtp).tp_next = (*tp).tp_next;
             (*tp).tp_next = newtp;
         }
-        (*newtp).tp_firstwin = *curwin.as_ptr();
-        (*newtp).tp_lastwin = *curwin.as_ptr();
-        (*newtp).tp_curwin = *curwin.as_ptr();
+        (*newtp).tp_firstwin = curwin_ptr();
+        (*newtp).tp_lastwin = curwin_ptr();
+        (*newtp).tp_curwin = curwin_ptr();
 
         win_init_size();
         (*g_st().firstwin).w_winrow = tabline_height();
         (*g_st().firstwin).w_prev_winrow = (*g_st().firstwin).w_winrow;
-        win_comp_scroll(&mut **curwin.as_ptr());
+        win_comp_scroll(curwin_mut());
 
         (*newtp).tp_topframe = g_st().topframe.cast();
         last_status(false);
@@ -5206,7 +5206,7 @@ pub fn win_new_tabpage(
             redraw_all_later(UPD_NOT_VALID);
             tabpage_check_windows(&mut *old_curtab);
             g_st().lastused_tabpage = old_curtab;
-            entering_window(&mut **curwin.as_ptr());
+            entering_window(curwin_mut());
 
             apply_autocmds(
                 EVENT_WINNEW,
@@ -5399,7 +5399,7 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> bool {
     unsafe {
         let tp = g_st().curtab;
 
-        leaving_window(&mut **curwin.as_ptr());
+        leaving_window(curwin_mut());
         reset_VIsual_and_resel();
         if trigger_leave_autocmds {
             if !ptr::eq(new_curbuf, g_st().curbuf) {
@@ -5437,7 +5437,7 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> bool {
         }
 
         reset_dragwin();
-        (*tp).tp_curwin = *curwin.as_ptr();
+        (*tp).tp_curwin = curwin_ptr();
         (*tp).tp_prevwin = g_st().prevwin;
         (*tp).tp_firstwin = g_st().firstwin;
         (*tp).tp_lastwin = g_st().lastwin;
@@ -5744,7 +5744,7 @@ pub fn tabpage_move(nr: c_int) {
 
 pub fn win_goto(wp: *mut win_T) {
     unsafe {
-        let owp = *curwin.as_ptr();
+        let owp = curwin_ptr();
 
         if text_or_buf_locked() {
             beep_flush();
@@ -5754,7 +5754,7 @@ pub fn win_goto(wp: *mut win_T) {
         if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
             reset_VIsual_and_resel();
         } else if g_st().Visual.active {
-            (*wp).w_cursor = (**curwin.as_ptr()).w_cursor;
+            (*wp).w_cursor = curwin_mut().w_cursor;
         }
 
         if !win_valid(wp) {
@@ -5766,8 +5766,8 @@ pub fn win_goto(wp: *mut win_T) {
         if win_valid(owp) && (*owp).w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
             redrawWinline(owp, (*owp).w_cursor.lnum);
         }
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
-            redrawWinline(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
+        if curwin_mut().w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
+            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
         }
     }
 }
@@ -5861,7 +5861,7 @@ pub fn win_vert_neighbor(
 
 fn win_goto_ver(up: bool, count: c_int) {
     unsafe {
-        let win = win_vert_neighbor(&mut *g_st().curtab, &mut **curwin.as_ptr(), up, count);
+        let win = win_vert_neighbor(&mut *g_st().curtab, curwin_mut(), up, count);
         if !win.is_null() {
             win_goto(win);
         }
@@ -5936,7 +5936,7 @@ pub fn win_horz_neighbor(
 
 fn win_goto_hor(left: bool, count: c_int) {
     unsafe {
-        let win = win_horz_neighbor(&mut *g_st().curtab, &mut **curwin.as_ptr(), left, count);
+        let win = win_horz_neighbor(&mut *g_st().curtab, curwin_mut(), left, count);
         if !win.is_null() {
             win_goto(win);
         }
@@ -5957,12 +5957,12 @@ fn win_enter_ext(wp: *mut win_T, flags: c_int) {
         let mut other_buffer = false;
         let curwin_invalid = (flags & WEE_CURWIN_INVALID) != 0;
 
-        if ptr::eq(wp, *curwin.as_ptr()) && !curwin_invalid {
+        if ptr::eq(wp, curwin_ptr()) && !curwin_invalid {
             return;
         }
 
         if !curwin_invalid {
-            leaving_window(&mut **curwin.as_ptr());
+            leaving_window(curwin_mut());
         }
 
         if !curwin_invalid && (flags & WEE_TRIGGER_LEAVE_AUTOCMDS) != 0 {
@@ -5999,22 +5999,22 @@ fn win_enter_ext(wp: *mut win_T, flags: c_int) {
         }
 
         if *opt_vars().p_spk == b'c' as c_char && !curwin_invalid {
-            update_topline(*curwin.as_ptr());
+            update_topline(curwin_ptr());
         }
 
         if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
             buf_copy_options((*wp).w_buffer, BCO_ENTER | BCO_NOHELP);
         }
         if !curwin_invalid {
-            g_st().prevwin = *curwin.as_ptr();
-            (**curwin.as_ptr()).w_redr_status = true;
+            g_st().prevwin = curwin_ptr();
+            curwin_mut().w_redr_status = true;
         }
-        *curwin.as_ptr() = wp;
+        set_curwin(wp);
         g_st().curbuf = (*wp).w_buffer;
 
-        check_cursor(*curwin.as_ptr());
-        if !virtual_active(*curwin.as_ptr()) {
-            (**curwin.as_ptr()).w_cursor.coladd = 0;
+        check_cursor(curwin_ptr());
+        if !virtual_active(curwin_ptr()) {
+            curwin_mut().w_cursor.coladd = 0;
         }
         if *opt_vars().p_spk == b'c' as c_char {
             changed_line_abv_curs();
@@ -6024,7 +6024,7 @@ fn win_enter_ext(wp: *mut win_T, flags: c_int) {
 
         update_cwd(kCdCauseWindow);
 
-        entering_window(&mut **curwin.as_ptr());
+        entering_window(curwin_mut());
         if (flags & WEE_TRIGGER_NEW_AUTOCMDS) != 0 {
             apply_autocmds(
                 EVENT_WINNEW,
@@ -6054,31 +6054,31 @@ fn win_enter_ext(wp: *mut win_T, flags: c_int) {
         }
 
         maketitle();
-        (**curwin.as_ptr()).w_redr_status = true;
+        curwin_mut().w_redr_status = true;
         g_st().redraw_tabline = true;
         if g_st().restart_edit != 0 {
-            redraw_later(*curwin.as_ptr(), UPD_VALID);
+            redraw_later(curwin_ptr(), UPD_VALID);
         }
 
-        if (**curwin.as_ptr()).w_hl_attr_normal != (**curwin.as_ptr()).w_hl_attr_normalnc {
-            redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
+        if curwin_mut().w_hl_attr_normal != curwin_mut().w_hl_attr_normalnc {
+            redraw_later(curwin_ptr(), UPD_NOT_VALID);
         }
         if !g_st().prevwin.is_null() && (*g_st().prevwin).w_hl_attr_normal != (*g_st().prevwin).w_hl_attr_normalnc {
             redraw_later(g_st().prevwin, UPD_NOT_VALID);
         }
 
-        if OptInt::from((**curwin.as_ptr()).w_height) < opt_vars().p_wh
-            && (**curwin.as_ptr()).w_onebuf_opt.wo_wfh == 0
-            && !(**curwin.as_ptr()).w_floating
+        if OptInt::from(curwin_mut().w_height) < opt_vars().p_wh
+            && curwin_mut().w_onebuf_opt.wo_wfh == 0
+            && !curwin_mut().w_floating
         {
             win_setheight(opt_vars().p_wh as c_int);
-        } else if (**curwin.as_ptr()).w_height == 0 {
+        } else if curwin_mut().w_height == 0 {
             win_setheight(1);
         }
 
-        if OptInt::from((**curwin.as_ptr()).w_width) < opt_vars().p_wiw
-            && (**curwin.as_ptr()).w_onebuf_opt.wo_wfw == 0
-            && !(**curwin.as_ptr()).w_floating
+        if OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw
+            && curwin_mut().w_onebuf_opt.wo_wfw == 0
+            && !curwin_mut().w_floating
         {
             win_setwidth(opt_vars().p_wiw as c_int);
         }
@@ -6096,7 +6096,7 @@ pub fn update_cwd(cause: CdCause) {
         if let Some(ref d) = (*g_st().curbuf).b_localdir {
             new_dir = Some(d.clone());
             scope = kCdScopeBuffer;
-        } else if let Some(ref d) = (**curwin.as_ptr()).w_localdir {
+        } else if let Some(ref d) = curwin_mut().w_localdir {
             new_dir = Some(d.clone());
             scope = kCdScopeWindow;
         } else if let Some(ref d) = (*g_st().curtab).tp_localdir {
@@ -6143,9 +6143,9 @@ pub fn update_cwd(cause: CdCause) {
 
 pub fn buf_jump_open_win(buf: *mut buf_T) -> *mut win_T {
     unsafe {
-        if ptr::eq((**curwin.as_ptr()).w_buffer, buf) {
-            win_enter(*curwin.as_ptr(), false);
-            return *curwin.as_ptr();
+        if ptr::eq(curwin_mut().w_buffer, buf) {
+            win_enter(curwin_ptr(), false);
+            return curwin_ptr();
         }
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -6176,7 +6176,7 @@ pub fn buf_jump_open_tab(buf: *mut buf_T) -> *mut win_T {
             while !wp2.is_null() {
                 if ptr::eq((*wp2).w_buffer, buf) {
                     goto_tabpage_win(&mut *tp, wp2);
-                    if !ptr::eq(*curwin.as_ptr(), wp2) {
+                    if !ptr::eq(curwin_ptr(), wp2) {
                         wp2 = ptr::null_mut();
                     }
                     return wp2;
@@ -6794,7 +6794,7 @@ pub fn may_trigger_win_scrolled_resized() {
                 let win = if win_valid_any_tab(resize_win) {
                     resize_win
                 } else {
-                    *curwin.as_ptr()
+                    curwin_ptr()
                 };
                 apply_autocmds_win(
                     EVENT_WINRESIZED,
@@ -6824,7 +6824,7 @@ pub fn may_trigger_win_scrolled_resized() {
             let win = if win_valid_any_tab(scroll_win) {
                 scroll_win
             } else {
-                *curwin.as_ptr()
+                curwin_ptr()
             };
             apply_autocmds_win(
                 EVENT_WINSCROLLED,
@@ -6936,14 +6936,14 @@ fn frame_comp_pos(topfrp: &mut frame_T, row: &mut c_int, col: &mut c_int) {
 }
 
 pub fn win_setheight(height: c_int) {
-    unsafe {
-        win_setheight_win(height, *curwin.as_ptr(), true);
+     {
+        win_setheight_win(height, curwin_ptr(), true);
     }
 }
 
 pub fn win_setheight_win(mut height: c_int, win: *mut win_T, from_top: bool) {
     unsafe {
-        let min_wmh = if ptr::eq(win, *curwin.as_ptr()) {
+        let min_wmh = if ptr::eq(win, curwin_ptr()) {
             opt_vars().p_wmh.max(1)
         } else {
             opt_vars().p_wmh
@@ -7094,14 +7094,14 @@ fn frame_setheight(curfrp: &mut frame_T, mut height: c_int, from_top: bool) {
 }
 
 pub fn win_setwidth(width: c_int) {
-    unsafe {
-        win_setwidth_win(width, *curwin.as_ptr(), true);
+     {
+        win_setwidth_win(width, curwin_ptr(), true);
     }
 }
 
 pub fn win_setwidth_win(mut width: c_int, wp: *mut win_T, from_left: bool) {
     unsafe {
-        if ptr::eq(wp, *curwin.as_ptr()) {
+        if ptr::eq(wp, curwin_ptr()) {
             width = width.max(opt_vars().p_wmw as c_int).max(1);
         } else if width < 0 {
             width = 0;
@@ -7478,7 +7478,7 @@ pub fn win_fix_scroll(resize: bool) {
                     scroll_to_fraction(&mut *wp, (*wp).w_prev_height);
                     (*wp).w_cursor = cursor;
                     (*wp).w_valid &= !VALID_WCOL;
-                } else if ptr::eq(wp, *curwin.as_ptr()) {
+                } else if ptr::eq(wp, curwin_ptr()) {
                     (*wp).w_valid &= !VALID_CROW;
                 }
 
@@ -7500,7 +7500,7 @@ pub fn win_fix_scroll(resize: bool) {
 
 fn win_fix_cursor(normal: bool) {
     unsafe {
-        let wp = *curwin.as_ptr();
+        let wp = curwin_ptr();
 
         if !(*wp).w_do_win_fix_cursor || (*(*wp).w_buffer).b_ml.ml_line_count < (*wp).w_view_height
         {
@@ -7538,7 +7538,7 @@ fn win_fix_cursor(normal: bool) {
             } else {
                 (*wp).w_fraction = if nlnum == bot { FRACTION_MULT } else { 0 };
                 scroll_to_fraction(&mut *wp, (*wp).w_prev_height);
-                validate_botline_win(*curwin.as_ptr());
+                validate_botline_win(curwin_ptr());
             }
         }
     }
@@ -7562,7 +7562,7 @@ pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
         let height = wp.w_view_height;
 
         if height > 0
-            && (wp.w_onebuf_opt.wo_scb == 0 || ptr::eq(wp, *curwin.as_ptr()))
+            && (wp.w_onebuf_opt.wo_scb == 0 || ptr::eq(wp, curwin_ptr()))
             && (height < (*wp.w_buffer).b_ml.ml_line_count || wp.w_topline > 1)
         {
             let mut lnum = wp.w_cursor.lnum.max(1);
@@ -7620,7 +7620,7 @@ pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
             set_topline(wp, lnum);
         }
 
-        if ptr::eq(wp, *curwin.as_ptr()) {
+        if ptr::eq(wp, curwin_ptr()) {
             curs_columns(wp, 0);
         }
         if prev_height > 0 {
@@ -7647,8 +7647,8 @@ pub fn win_set_inner_size(wp: &mut win_T, valid_cursor: bool) {
 
         if height != prev_height {
             if height > 0 && valid_cursor {
-                if ptr::eq(wp, *curwin.as_ptr()) && (*opt_vars().p_spk == b'c' as c_char || wp.w_floating) {
-                    validate_cursor(*curwin.as_ptr());
+                if ptr::eq(wp, curwin_ptr()) && (*opt_vars().p_spk == b'c' as c_char || wp.w_floating) {
+                    validate_cursor(curwin_ptr());
                 }
                 if wp.w_view_height != prev_height {
                     return;
@@ -7675,7 +7675,7 @@ pub fn win_set_inner_size(wp: &mut win_T, valid_cursor: bool) {
             if valid_cursor {
                 changed_line_abv_curs_win(wp);
                 invalidate_botline_win(wp);
-                if ptr::eq(wp, *curwin.as_ptr()) && (*opt_vars().p_spk == b'c' as c_char || wp.w_floating) {
+                if ptr::eq(wp, curwin_ptr()) && (*opt_vars().p_spk == b'c' as c_char || wp.w_floating) {
                     curs_columns(wp, 1);
                 }
             }
@@ -8080,7 +8080,7 @@ pub fn only_one_window() -> bool {
                 && (!((bt_help((*wp).w_buffer) && !bt_help(g_st().curbuf))
                     || (*wp).w_floating
                     || (*wp).w_onebuf_opt.wo_pvw != 0)
-                    || ptr::eq(wp, *curwin.as_ptr()))
+                    || ptr::eq(wp, curwin_ptr()))
                 && !is_ctx_win(wp)
             {
                 count += 1;
@@ -8101,7 +8101,7 @@ fn check_lnums_both(do_curwin: bool, nested: bool) {
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
-                if (do_curwin || !ptr::eq(wp, *curwin.as_ptr())) && ptr::eq((*wp).w_buffer, g_st().curbuf) {
+                if (do_curwin || !ptr::eq(wp, curwin_ptr())) && ptr::eq((*wp).w_buffer, g_st().curbuf) {
                     if !nested {
                         (*wp).w_save_cursor.w_cursor_save = (*wp).w_cursor;
                         (*wp).w_save_cursor.w_topline_save = (*wp).w_topline;
@@ -8184,8 +8184,8 @@ fn make_snapshot_rec(fr: &mut frame_T) -> Box<SnapshotFrame> {
             fr_height: fr.fr_height,
             fr_next: (!fr.fr_next.is_null()).then(|| make_snapshot_rec(&mut *fr.fr_next)),
             fr_child: (!fr.fr_child.is_null()).then(|| make_snapshot_rec(&mut *fr.fr_child)),
-            fr_win: if fr.fr_layout == FR_LEAF && ptr::eq(fr.fr_win, *curwin.as_ptr()) {
-                *curwin.as_ptr()
+            fr_win: if fr.fr_layout == FR_LEAF && ptr::eq(fr.fr_win, curwin_ptr()) {
+                curwin_ptr()
             } else {
                 ptr::null_mut()
             },

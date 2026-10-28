@@ -2101,7 +2101,7 @@ pub(super) fn reg_prev_class() -> c_int {
 pub(super) fn reg_match_visual() -> bool {
     unsafe {
         let wp = if re_st().rex.reg_win.is_null() {
-            *curwin.as_ptr()
+            curwin_ptr()
         } else {
             re_st().rex.reg_win
         };

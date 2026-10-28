@@ -104,7 +104,7 @@ fn find_win_for_curbuf() {
     unsafe {
         for wip in &(*g_st().curbuf).b_wininfo {
             if !wip.wi_win.is_null() && (*wip.wi_win).w_buffer == g_st().curbuf {
-                *curwin.as_ptr() = wip.wi_win;
+                set_curwin(wip.wi_win);
                 break;
             }
         }
@@ -113,17 +113,17 @@ fn find_win_for_curbuf() {
 
 /// Used before making a change in `buf`, which is not the current one (`change_other_buffer_prepare`).
 fn change_other_buffer_prepare(cob: &mut cob_T, buf: *mut buf_T) {
-    unsafe {
+     {
         *cob = cob_T::new();
 
         cob.cob_save_VIsual_active = c_int::from(g_st().Visual.active);
         g_st().Visual.active = false;
-        cob.cob_curwin_save = *curwin.as_ptr();
+        cob.cob_curwin_save = curwin_ptr();
         g_st().curbuf = buf;
         find_win_for_curbuf();
 
-        if (**curwin.as_ptr()).w_buffer != buf {
-            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+        if curwin_mut().w_buffer != buf {
+            g_st().curbuf = curwin_mut().w_buffer;
             ctx_switch(
                 &mut cob.cob_aco,
                 ptr::null_mut(),
@@ -137,12 +137,12 @@ fn change_other_buffer_prepare(cob: &mut cob_T, buf: *mut buf_T) {
 }
 
 fn change_other_buffer_restore(cob: &mut cob_T) {
-    unsafe {
+     {
         if cob.cob_using_aco != 0 {
             ctx_restore(&mut cob.cob_aco);
         } else {
-            *curwin.as_ptr() = cob.cob_curwin_save;
-            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+            set_curwin(cob.cob_curwin_save);
+            g_st().curbuf = curwin_mut().w_buffer;
         }
         g_st().Visual.active = cob.cob_save_VIsual_active != 0;
     }
@@ -220,8 +220,8 @@ fn set_buffer_lines(
                 {
                     let new_len = line_cstr.to_bytes().len() as c_int;
                     inserted_bytes(lnum, 0, old_len, new_len);
-                    if is_curbuf && lnum == (**curwin.as_ptr()).w_cursor.lnum {
-                        check_cursor_col(&mut **curwin.as_ptr());
+                    if is_curbuf && lnum == curwin_mut().w_cursor.lnum {
+                        check_cursor_col(curwin_mut());
                     }
                     rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
                 }
@@ -247,7 +247,7 @@ fn set_buffer_lines(
                 let mut wp = first_win_in_tab(tp);
                 while !wp.is_null() {
                     if (*wp).w_buffer == buf
-                        && ((*wp).w_buffer != g_st().curbuf || wp == *curwin.as_ptr())
+                        && ((*wp).w_buffer != g_st().curbuf || wp == curwin_ptr())
                         && (*wp).w_cursor.lnum > append_lnum
                     {
                         (*wp).w_cursor.lnum += added as linenr_T;
@@ -256,8 +256,8 @@ fn set_buffer_lines(
                 }
                 tp = (*tp).tp_next;
             }
-            check_cursor_col(&mut **curwin.as_ptr());
-            update_topline(*curwin.as_ptr());
+            check_cursor_col(curwin_mut());
+            update_topline(curwin_ptr());
         }
 
         if !is_curbuf {
@@ -341,7 +341,7 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
             }
             tp = (*tp).tp_next;
         }
-        check_cursor_col(&mut **curwin.as_ptr());
+        check_cursor_col(curwin_mut());
     }
 }
 
@@ -355,8 +355,8 @@ pub fn prompt_invoke_callback() {
 
         ml_append(lnum, c"", 0, false);
         appended_lines_mark(lnum, 1);
-        (**curwin.as_ptr()).w_cursor.lnum = lnum + 1;
-        (**curwin.as_ptr()).w_cursor.col = 0;
+        curwin_mut().w_cursor.lnum = lnum + 1;
+        curwin_mut().w_cursor.col = 0;
         (*g_st().curbuf).b_prompt_start.mark.lnum = lnum + 1;
 
         if (*g_st().curbuf).b_prompt_callback.cb_type() != kCallbackNone {
@@ -715,7 +715,7 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 }
                 tp = (*tp).tp_next;
             }
-            check_cursor_col(&mut **curwin.as_ptr());
+            check_cursor_col(curwin_mut());
             deleted_lines_mark(first, count);
             rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
         }
@@ -742,7 +742,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
             },
         );
         let lnum = if ptr::eq(buf, g_st().curbuf) {
-            (**curwin.as_ptr()).w_cursor.lnum
+            curwin_mut().w_cursor.lnum
         } else {
             buflist_findlnum(&raw mut *buf)
         };
@@ -1085,7 +1085,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
 
             let old_prompt_bytes = crate::memory::cstr_as_bytes(old_prompt);
             let old_prompt_len = old_prompt_bytes.len() as c_int;
-            let mut cursor_col = (**curwin.as_ptr()).w_cursor.col;
+            let mut cursor_col = curwin_mut().w_cursor.col;
 
             let mark_col = (*buf).b_prompt_start.mark.col;
             let prefix_matches = mark_col >= old_prompt_len
@@ -1122,9 +1122,9 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
                 cursor_col += new_prompt_len - mark_col;
             }
 
-            if (**curwin.as_ptr()).w_buffer == buf && (**curwin.as_ptr()).w_cursor.lnum == prompt_lno {
-                (**curwin.as_ptr()).w_cursor.col = cursor_col;
-                check_cursor_col(&mut **curwin.as_ptr());
+            if curwin_mut().w_buffer == buf && curwin_mut().w_cursor.lnum == prompt_lno {
+                curwin_mut().w_cursor.col = cursor_col;
+                check_cursor_col(curwin_mut());
             }
             changed_lines(buf, prompt_lno, 0, prompt_lno + 1, 0, true);
             u_clearallandblockfree(&mut *buf);

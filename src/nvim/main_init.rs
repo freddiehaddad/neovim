@@ -709,7 +709,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         setmouse();
 
-        redraw_later(*curwin.as_ptr(), UPD_VALID);
+        redraw_later(curwin_ptr(), UPD_VALID);
 
         g_st().no_wait_return += 1;
 
@@ -719,7 +719,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
 
         if params.exmode {
-            (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
         }
 
         apply_autocmds(
@@ -789,8 +789,8 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         set_reg_var(get_default_register_name());
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_diff != 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
-            update_topline(*curwin.as_ptr());
+        if curwin_mut().w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_scb != 0 {
+            update_topline(curwin_ptr());
             check_scrollbind(0, 0);
             time_msg_if_enabled(c"diff scrollbinding");
         }
@@ -2064,7 +2064,7 @@ fn create_windows(parmp: &mut mparm_T) {
             let mut done: c_int = 0;
             g_st().autocmd_no_enter += 1;
             g_st().autocmd_no_leave += 1;
-            let startup_curwin = *curwin.as_ptr();
+            let startup_curwin = curwin_ptr();
             let mut dorewind = true;
             while done < 1000 {
                 done += 1;
@@ -2072,7 +2072,7 @@ fn create_windows(parmp: &mut mparm_T) {
                     if parmp.window_layout == WIN_TABS {
                         goto_tabpage(1);
                     } else {
-                        *curwin.as_ptr() = g_st().firstwin;
+                        set_curwin(g_st().firstwin);
                     }
                 } else if parmp.window_layout == WIN_TABS {
                     if (*g_st().curtab).tp_next.is_null() {
@@ -2080,16 +2080,16 @@ fn create_windows(parmp: &mut mparm_T) {
                     }
                     goto_tabpage(0);
                 } else {
-                    if (**curwin.as_ptr()).w_next.is_null() {
+                    if curwin_mut().w_next.is_null() {
                         break;
                     }
-                    *curwin.as_ptr() = (**curwin.as_ptr()).w_next;
+                    set_curwin(curwin_mut().w_next);
                 }
                 dorewind = false;
-                g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+                g_st().curbuf = curwin_mut().w_buffer;
                 if (*g_st().curbuf).b_ml.ml_mfp.is_none() {
                     if opt_vars().p_fdls >= 0 {
-                        (**curwin.as_ptr()).w_onebuf_opt.wo_fdl = opt_vars().p_fdls;
+                        curwin_mut().w_onebuf_opt.wo_fdl = opt_vars().p_fdls;
                     }
                     g_st().swap_exists_action = SEA_DIALOG;
                     set_buflisted(1);
@@ -2103,7 +2103,7 @@ fn create_windows(parmp: &mut mparm_T) {
                             getout(1);
                         }
                         setfname(g_st().curbuf, ptr::null_mut(), ptr::null_mut(), false);
-                        (**curwin.as_ptr()).w_arg_idx = -1;
+                        curwin_mut().w_arg_idx = -1;
                         g_st().swap_exists_action = SEA_NONE;
                     } else {
                         handle_swap_exists(None);
@@ -2119,11 +2119,11 @@ fn create_windows(parmp: &mut mparm_T) {
             if parmp.window_layout == WIN_TABS {
                 goto_tabpage(1);
             } else if parmp.window_count > 1 || !win_valid(startup_curwin) {
-                *curwin.as_ptr() = g_st().firstwin;
+                set_curwin(g_st().firstwin);
             } else {
-                *curwin.as_ptr() = startup_curwin;
+                set_curwin(startup_curwin);
             }
-            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+            g_st().curbuf = curwin_mut().w_buffer;
             g_st().autocmd_no_enter -= 1;
             g_st().autocmd_no_leave -= 1;
         }
@@ -2138,16 +2138,16 @@ fn edit_buffers(parmp: &mut mparm_T) {
         g_st().autocmd_no_enter += 1;
         g_st().autocmd_no_leave += 1;
 
-        if (**curwin.as_ptr()).w_arg_idx == -1 {
-            win_close(*curwin.as_ptr(), true, false);
+        if curwin_mut().w_arg_idx == -1 {
+            win_close(curwin_ptr(), true, false);
             advance = false;
         }
 
         let mut arg_idx: c_int = 1;
         for i in 1..parmp.window_count {
-            if (**curwin.as_ptr()).w_arg_idx == -1 {
+            if curwin_mut().w_arg_idx == -1 {
                 arg_idx += 1;
-                win_close(*curwin.as_ptr(), true, false);
+                win_close(curwin_ptr(), true, false);
                 advance = false;
                 continue;
             }
@@ -2165,16 +2165,16 @@ fn edit_buffers(parmp: &mut mparm_T) {
                         set_option_value_give_err(kOptShortmess, cstr_as_obj(buf.as_ptr()), 0);
                     }
                 } else {
-                    if (**curwin.as_ptr()).w_next.is_null() {
+                    if curwin_mut().w_next.is_null() {
                         break;
                     }
-                    win_enter((**curwin.as_ptr()).w_next, false);
+                    win_enter(curwin_mut().w_next, false);
                 }
             }
             advance = true;
 
             if ptr::eq(g_st().curbuf, (*g_st().firstwin).w_buffer) || (*g_st().curbuf).b_ffname.is_null() {
-                (**curwin.as_ptr()).w_arg_idx = arg_idx;
+                curwin_mut().w_arg_idx = arg_idx;
                 g_st().swap_exists_did_quit = false;
                 let fname = if arg_idx < gargcount() {
                     alist_name(&*garglist().add(arg_idx as usize))
@@ -2188,7 +2188,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
                     None,
                     ECMD_LASTL,
                     ECMD_HIDE,
-                    *curwin.as_ptr(),
+                    curwin_ptr(),
                 );
                 if g_st().swap_exists_did_quit {
                     if g_st().got_int || only_one_window() {
@@ -2196,7 +2196,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
                         ui_call_error_exit(1);
                         getout(1);
                     }
-                    win_close(*curwin.as_ptr(), true, false);
+                    win_close(curwin_ptr(), true, false);
                     advance = false;
                 }
                 if arg_idx == gargcount() - 1 {
@@ -2223,7 +2223,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
         let mut win = if parmp.window_count > 1 {
             g_st().firstwin
         } else {
-            *curwin.as_ptr()
+            curwin_ptr()
         };
         while (*win).w_onebuf_opt.wo_pvw != 0 {
             win = (*win).w_next;
@@ -2237,18 +2237,18 @@ fn edit_buffers(parmp: &mut mparm_T) {
         g_st().autocmd_no_leave -= 1;
         time_msg_if_enabled(c"editing files in windows");
         if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
-            win_equal(*curwin.as_ptr(), false, b'b' as c_int);
+            win_equal(curwin_ptr(), false, b'b' as c_int);
         }
     }
 }
 
 fn exe_pre_commands(parmp: &mut mparm_T) {
-    unsafe {
+     {
         if parmp.pre_commands.is_empty() {
             return;
         }
 
-        (**curwin.as_ptr()).w_cursor.lnum = 0;
+        curwin_mut().w_cursor.lnum = 0;
         estack_push(ETYPE_ARGS, gettext(c"pre-vimrc command line"), 0);
         g_st().current_sctx.sc_sid = SID_CMDARG;
         for cmd in &parmp.pre_commands {
@@ -2261,10 +2261,10 @@ fn exe_pre_commands(parmp: &mut mparm_T) {
 }
 
 fn exe_commands(parmp: &mut mparm_T) {
-    unsafe {
+     {
         g_st().msg_scroll = 1;
-        if parmp.tagname.is_none() && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
-            (**curwin.as_ptr()).w_cursor.lnum = 0;
+        if parmp.tagname.is_none() && curwin_mut().w_cursor.lnum <= 1 {
+            curwin_mut().w_cursor.lnum = 0;
         }
         estack_push(ETYPE_ARGS, c"command line", 0);
         g_st().current_sctx.sc_sid = SID_CARG;
@@ -2275,8 +2275,8 @@ fn exe_commands(parmp: &mut mparm_T) {
         }
         estack_pop();
         g_st().current_sctx.sc_sid = 0;
-        if (**curwin.as_ptr()).w_cursor.lnum == 0 {
-            (**curwin.as_ptr()).w_cursor.lnum = 1;
+        if curwin_mut().w_cursor.lnum == 0 {
+            curwin_mut().w_cursor.lnum = 1;
         }
 
         g_st().msg_scroll = 0;

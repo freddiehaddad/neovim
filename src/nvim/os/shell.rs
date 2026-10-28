@@ -1181,8 +1181,8 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 && (*g_st().curbuf).b_p_bin == 0
             {
                 *output.add(off) = NUL;
-                let lnum = (**curwin.as_ptr()).w_cursor.lnum;
-                (**curwin.as_ptr()).w_cursor.lnum += 1;
+                let lnum = curwin_mut().w_cursor.lnum;
+                curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, off as c_int + 1, false);
                 let skip = off + 2;
                 output = output.add(skip);
@@ -1192,8 +1192,8 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
             } else if (*output.add(off) == CAR && (*g_st().curbuf).b_p_bin == 0) || *output.add(off) == NL
             {
                 *output.add(off) = NUL;
-                let lnum = (**curwin.as_ptr()).w_cursor.lnum;
-                (**curwin.as_ptr()).w_cursor.lnum += 1;
+                let lnum = curwin_mut().w_cursor.lnum;
+                curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, off as c_int + 1, false);
                 let skip = off + 1;
                 output = output.add(skip);
@@ -1210,10 +1210,10 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
 
         if eof {
             if remaining != 0 {
-                let lnum = (**curwin.as_ptr()).w_cursor.lnum;
-                (**curwin.as_ptr()).w_cursor.lnum += 1;
+                let lnum = curwin_mut().w_cursor.lnum;
+                curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, 0, false);
-                (*g_st().curbuf).b_no_eol_lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                (*g_st().curbuf).b_no_eol_lnum = curwin_mut().w_cursor.lnum;
                 output = output.add(remaining);
             } else {
                 (*g_st().curbuf).b_no_eol_lnum = 0;

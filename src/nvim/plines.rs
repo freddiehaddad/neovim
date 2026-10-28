@@ -154,9 +154,9 @@ pub fn win_chartabsize(wp: &mut win_T, p: *const c_char, col: colnr_T) -> c_int 
 }
 
 pub fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
-    unsafe {
+     {
         let mut csarg = CharsizeArg::new();
-        let cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, s);
+        let cstype = init_charsize_arg(&mut csarg, curwin_ptr(), 0, s);
         if cstype == kCharsizeFast {
             linesize_fast(&csarg, startvcol, MAXCOL)
         } else {
@@ -792,17 +792,17 @@ pub fn getvcol(
 }
 
 pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
-    unsafe {
-        let list_save = (**curwin.as_ptr()).w_onebuf_opt.wo_list;
+     {
+        let list_save = curwin_mut().w_onebuf_opt.wo_list;
         let mut vcol: colnr_T = 0;
 
-        (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
+        curwin_mut().w_onebuf_opt.wo_list = 0;
         if posp.coladd != 0 {
-            getvvcol(*curwin.as_ptr(), posp, None, Some(&mut vcol), None, 0);
+            getvvcol(curwin_ptr(), posp, None, Some(&mut vcol), None, 0);
         } else {
-            getvcol(&mut **curwin.as_ptr(), posp, None, Some(&mut vcol), None, 0);
+            getvcol(curwin_mut(), posp, None, Some(&mut vcol), None, 0);
         }
-        (**curwin.as_ptr()).w_onebuf_opt.wo_list = list_save;
+        curwin_mut().w_onebuf_opt.wo_list = list_save;
         vcol
     }
 }

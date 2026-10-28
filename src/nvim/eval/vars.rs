@@ -1532,7 +1532,7 @@ fn list_buf_vars(first: &mut c_int) {
 fn list_win_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &mut (*(**curwin.as_ptr()).w_vars()).dv_hashtab,
+            &mut (*curwin_mut().w_vars()).dv_hashtab,
             c"w:",
             true as c_int,
             &mut *first,
@@ -2731,7 +2731,7 @@ pub fn find_var_in_ht(
                 b'g' => (&raw mut vars_st().globvars_var).cast::<dictitem_T>(),
                 b'v' => (&raw mut vars_st().vimvars_var).cast::<dictitem_T>(),
                 b'b' => (&raw mut (*g_st().curbuf).b_bufvar).cast::<dictitem_T>(),
-                b'w' => (&raw mut (**curwin.as_ptr()).w_winvar).cast::<dictitem_T>(),
+                b'w' => (&raw mut (*curwin_ptr()).w_winvar).cast::<dictitem_T>(),
                 b't' => (&raw mut (*g_st().curtab).tp_winvar).cast::<dictitem_T>(),
                 b'l' => get_funccal_local_var(),
                 b'a' => get_funccal_args_var(),
@@ -2801,7 +2801,7 @@ fn find_var_ht_dict(
         if *name == b'b' as c_char {
             *d = (*g_st().curbuf).b_vars();
         } else if *name == b'w' as c_char {
-            *d = (**curwin.as_ptr()).w_vars();
+            *d = curwin_mut().w_vars();
         } else if *name == b't' as c_char {
             *d = (*g_st().curtab).tp_vars();
         } else if *name == b'v' as c_char {
@@ -3305,7 +3305,7 @@ fn get_var_from(
             && !win.is_null()
             && (htname != b'b' as c_int || !buf.is_null())
         {
-            let need_switch_win = !(tp == g_st().curtab && win == *curwin.as_ptr()) && !do_change_curbuf;
+            let need_switch_win = !(tp == g_st().curtab && win == curwin_ptr()) && !do_change_curbuf;
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             if !need_switch_win
                 || ctx_switch(
@@ -3574,7 +3574,7 @@ fn setwinvar(argvars: &mut [typval_T], off: usize) {
             return;
         }
 
-        let need_switch_win = !(tp == g_st().curtab && win == *curwin.as_ptr());
+        let need_switch_win = !(tp == g_st().curtab && win == curwin_ptr());
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
@@ -3843,7 +3843,7 @@ pub fn f_getwinvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 /// "getbufvar()" function.
 pub fn f_getbufvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let varname = tv_get_string_chk(&argvars[1]);
         let buf = tv_get_buf_from_arg(&mut argvars[0]);
 
@@ -3853,7 +3853,7 @@ pub fn f_getbufvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             &mut argvars[2],
             b'b' as c_int,
             g_st().curtab,
-            *curwin.as_ptr(),
+            curwin_ptr(),
             buf,
         );
     }

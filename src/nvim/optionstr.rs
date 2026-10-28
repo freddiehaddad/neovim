@@ -1801,7 +1801,7 @@ pub fn expand_set_chars_option(
     unsafe {
         let varp = args.oe_varp.cast::<*mut c_char>();
         let is_lcs =
-            ptr::eq(varp, &raw mut opt_vars().p_lcs) || ptr::eq(varp, &raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_lcs);
+            ptr::eq(varp, &raw mut opt_vars().p_lcs) || ptr::eq(varp, &raw mut (*curwin_ptr()).w_onebuf_opt.wo_lcs);
         expand_set_opt_generic(
             args,
             Some(if is_lcs {
@@ -2406,13 +2406,13 @@ pub fn expand_set_formatoptions(
 
 /// The 'guicursor' option is changed.
 pub fn did_set_guicursor(_args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let errmsg = parse_shape_opt(SHAPE_CURSOR);
         if !errmsg.is_null() {
             return errmsg;
         }
         if g_st().Visual.active {
-            redrawWinline(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
+            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
         }
         ptr::null()
     }
@@ -4213,10 +4213,10 @@ pub fn get_listchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub fn check_chars_options() -> *const c_char {
     unsafe {
-        if !set_chars_option(*curwin.as_ptr(), opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
+        if !set_chars_option(curwin_ptr(), opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
         }
-        if !set_chars_option(*curwin.as_ptr(), opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
+        if !set_chars_option(curwin_ptr(), opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
         let mut tp = g_st().first_tabpage;

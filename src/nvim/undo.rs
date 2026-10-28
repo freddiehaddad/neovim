@@ -272,8 +272,8 @@ fn undo_st() -> &'static mut UndoModuleState {
 
 /// Save the current line for both the `"u"` and `"U"` command.
 pub fn u_save_cursor() -> bool {
-    unsafe {
-        let cur = (**curwin.as_ptr()).w_cursor.lnum;
+     {
+        let cur = curwin_mut().w_cursor.lnum;
         let top = if cur > 0 { cur - 1 } else { 0 };
         let bot = cur + 1;
         u_save(top, bot)
@@ -461,9 +461,9 @@ pub fn u_savecommon(
             uhp_mut(&mut *buf, uhp).uh_getbot_entry = false;
             let origin_cursor = atom_origin_pos(buf);
             uhp_mut(&mut *buf, uhp).uh_cursor = origin_cursor;
-            if virtual_active(*curwin.as_ptr())
-                && (**curwin.as_ptr()).w_cursor.coladd > 0
-                && equalpos(origin_cursor, (**curwin.as_ptr()).w_cursor)
+            if virtual_active(curwin_ptr())
+                && curwin_mut().w_cursor.coladd > 0
+                && equalpos(origin_cursor, curwin_mut().w_cursor)
             {
                 uhp_mut(&mut *buf, uhp).uh_cursor_vcol = getviscol();
             } else {
@@ -2058,7 +2058,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
 fn u_undoredo(undo: bool, do_buf_event: bool) {
     unsafe {
         let mut newlnum: linenr_T = MAXLNUM;
-        let mut new_curpos = (**curwin.as_ptr()).w_cursor;
+        let mut new_curpos = curwin_mut().w_cursor;
         let curhead_idx = (*g_st().curbuf).b_u_curhead.unwrap();
         let curhead: *mut u_header_T = uhp_mut(&mut *g_st().curbuf, curhead_idx);
 
@@ -2150,7 +2150,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                 }
             }
 
-            check_cursor_lnum(&mut **curwin.as_ptr());
+            check_cursor_lnum(curwin_mut());
 
             if newsize != 0 {
                 for (i, line) in (*uep).ue_array.drain(..).enumerate() {
@@ -2182,8 +2182,8 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 
             if oldsize > 0 || newsize > 0 {
                 changed_lines(g_st().curbuf, top + 1, 0, bot, newsize - oldsize, do_buf_event);
-                if spell_check_window(&mut **curwin.as_ptr()) && bot <= (*g_st().curbuf).b_ml.ml_line_count {
-                    redrawWinline(*curwin.as_ptr(), bot);
+                if spell_check_window(curwin_mut()) && bot <= (*g_st().curbuf).b_ml.ml_line_count {
+                    redrawWinline(curwin_ptr(), bot);
                 }
             }
 
@@ -2216,8 +2216,8 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             buf_updates_unload(&mut *g_st().curbuf, true);
         }
 
-        (**curwin.as_ptr()).w_cursor = new_curpos;
-        check_cursor_lnum(&mut **curwin.as_ptr());
+        curwin_mut().w_cursor = new_curpos;
+        check_cursor_lnum(curwin_mut());
 
         (*curhead).uh_entries.reverse();
         (*curhead).uh_flags = new_flags;
@@ -2253,38 +2253,38 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             && (*curhead).uh_cursor.lnum >= 1
             && (*curhead).uh_cursor.lnum <= (*g_st().curbuf).b_ml.ml_line_count
         {
-            (**curwin.as_ptr()).w_cursor = (*curhead).uh_cursor;
-            if virtual_active(*curwin.as_ptr()) && (*curhead).uh_cursor_vcol >= 0 {
-                coladvance(&mut **curwin.as_ptr(), (*curhead).uh_cursor_vcol);
+            curwin_mut().w_cursor = (*curhead).uh_cursor;
+            if virtual_active(curwin_ptr()) && (*curhead).uh_cursor_vcol >= 0 {
+                coladvance(curwin_mut(), (*curhead).uh_cursor_vcol);
             }
         } else {
-            if (*curhead).uh_cursor.lnum + 1 == (**curwin.as_ptr()).w_cursor.lnum
-                && (**curwin.as_ptr()).w_cursor.lnum > 1
+            if (*curhead).uh_cursor.lnum + 1 == curwin_mut().w_cursor.lnum
+                && curwin_mut().w_cursor.lnum > 1
             {
-                (**curwin.as_ptr()).w_cursor.lnum -= 1;
+                curwin_mut().w_cursor.lnum -= 1;
             }
-            if (**curwin.as_ptr()).w_cursor.lnum <= (*g_st().curbuf).b_ml.ml_line_count {
-                if (*curhead).uh_cursor.lnum == (**curwin.as_ptr()).w_cursor.lnum {
-                    (**curwin.as_ptr()).w_cursor.col = (*curhead).uh_cursor.col;
-                    if virtual_active(*curwin.as_ptr()) && (*curhead).uh_cursor_vcol >= 0 {
-                        coladvance(&mut **curwin.as_ptr(), (*curhead).uh_cursor_vcol);
+            if curwin_mut().w_cursor.lnum <= (*g_st().curbuf).b_ml.ml_line_count {
+                if (*curhead).uh_cursor.lnum == curwin_mut().w_cursor.lnum {
+                    curwin_mut().w_cursor.col = (*curhead).uh_cursor.col;
+                    if virtual_active(curwin_ptr()) && (*curhead).uh_cursor_vcol >= 0 {
+                        coladvance(curwin_mut(), (*curhead).uh_cursor_vcol);
                     } else {
-                        (**curwin.as_ptr()).w_cursor.coladd = 0;
+                        curwin_mut().w_cursor.coladd = 0;
                     }
                 } else {
                     beginline(BL_SOL | BL_FIX);
                 }
             } else {
-                (**curwin.as_ptr()).w_cursor.col = 0;
-                (**curwin.as_ptr()).w_cursor.coladd = 0;
+                curwin_mut().w_cursor.col = 0;
+                curwin_mut().w_cursor.coladd = 0;
             }
         }
 
-        check_cursor(*curwin.as_ptr());
+        check_cursor(curwin_ptr());
 
         if !undo && (*curhead).uh_cursor_after.lnum > 0 {
-            (**curwin.as_ptr()).w_cursor = (*curhead).uh_cursor_after;
-            check_cursor(*curwin.as_ptr());
+            curwin_mut().w_cursor = (*curhead).uh_cursor_after;
+            check_cursor(curwin_ptr());
         }
 
         (*g_st().curbuf).b_u_seq_cur = (*curhead).uh_seq;
@@ -2839,7 +2839,7 @@ pub fn u_clearallandblockfree(buf: &mut buf_T) {
 }
 
 fn u_saveline(buf: &mut buf_T, lnum: linenr_T) {
-    unsafe {
+     {
         if lnum == buf.b_u_line_lnum {
             return;
         }
@@ -2848,8 +2848,8 @@ fn u_saveline(buf: &mut buf_T, lnum: linenr_T) {
         }
         u_clearline(buf);
         buf.b_u_line_lnum = lnum;
-        if (**curwin.as_ptr()).w_buffer == buf && (**curwin.as_ptr()).w_cursor.lnum == lnum {
-            buf.b_u_line_colnr = (**curwin.as_ptr()).w_cursor.col;
+        if curwin_mut().w_buffer == buf && curwin_mut().w_cursor.lnum == lnum {
+            buf.b_u_line_colnr = curwin_mut().w_cursor.col;
         } else {
             buf.b_u_line_colnr = 0;
         }
@@ -2905,12 +2905,12 @@ pub fn u_undoline() {
         (*g_st().curbuf).b_u_line_ptr = Some(oldp);
 
         let t = (*g_st().curbuf).b_u_line_colnr;
-        if (**curwin.as_ptr()).w_cursor.lnum == (*g_st().curbuf).b_u_line_lnum {
-            (*g_st().curbuf).b_u_line_colnr = (**curwin.as_ptr()).w_cursor.col;
+        if curwin_mut().w_cursor.lnum == (*g_st().curbuf).b_u_line_lnum {
+            (*g_st().curbuf).b_u_line_colnr = curwin_mut().w_cursor.col;
         }
-        (**curwin.as_ptr()).w_cursor.col = t;
-        (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_u_line_lnum;
-        check_cursor_col(&mut **curwin.as_ptr());
+        curwin_mut().w_cursor.col = t;
+        curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_u_line_lnum;
+        check_cursor_col(curwin_mut());
     }
 }
 

@@ -1206,7 +1206,7 @@ pub fn nvim_exec_autocmds(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    unsafe {
+     {
         let mut au_group = AUGROUP_ALL;
         let mut b = g_st().curbuf;
         let mut data: *mut Object = std::ptr::null_mut();
@@ -1318,7 +1318,7 @@ pub fn nvim_exec_autocmds(
                     true,
                     au_group,
                     b,
-                    *curwin.as_ptr(),
+                    curwin_ptr(),
                     None,
                     data,
                     has_buf,

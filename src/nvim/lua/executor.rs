@@ -1691,8 +1691,8 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
 
             let mut rettv: typval_T = typval_T::new();
             let mut funcexe: funcexe_T = funcexe_T::new();
-            funcexe.fe_firstline = (**curwin.as_ptr()).w_cursor.lnum;
-            funcexe.fe_lastline = (**curwin.as_ptr()).w_cursor.lnum;
+            funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
+            funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
             funcexe.fe_evaluate = true;
             let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
 
@@ -2435,7 +2435,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
         }
 
         lua_pop(lstate, 1);
-        check_cursor(*curwin.as_ptr());
+        check_cursor(curwin_ptr());
         redraw_curbuf_later(UPD_NOT_VALID);
     }
 }

@@ -1369,7 +1369,7 @@ pub fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> boo
         if row < 0
             || (*wp).w_onebuf_opt.wo_cole < 2
             || (!check_cursor
-                && ptr::eq(wp, *curwin.as_ptr())
+                && ptr::eq(wp, curwin_ptr())
                 && row + 1 == (*wp).w_cursor.lnum
                 && !conceal_cursor_line(wp))
         {

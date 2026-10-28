@@ -34,12 +34,12 @@ pub fn luaret_truthy(res: Object) -> bool {
 }
 
 fn textlock_wrap<F: FnOnce()>(f: F) {
-    unsafe {
-        let save_cursor = (**curwin.as_ptr()).w_cursor;
+     {
+        let save_cursor = curwin_mut().w_cursor;
         g_st().textlock += 1;
         f();
         g_st().textlock -= 1;
-        (**curwin.as_ptr()).w_cursor = save_cursor;
+        curwin_mut().w_cursor = save_cursor;
     }
 }
 

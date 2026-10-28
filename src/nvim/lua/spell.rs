@@ -31,17 +31,17 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
 
         let mut str_ = lua_tolstring(lstate, 1, ptr::null_mut());
 
-        let wo_spell_save = (**curwin.as_ptr()).w_onebuf_opt.wo_spell;
+        let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_spell == 0 {
-            parse_spelllang(*curwin.as_ptr());
-            (**curwin.as_ptr()).w_onebuf_opt.wo_spell = 1;
+        if curwin_mut().w_onebuf_opt.wo_spell == 0 {
+            parse_spelllang(curwin_ptr());
+            curwin_mut().w_onebuf_opt.wo_spell = 1;
         }
 
-        let w_s = (**curwin.as_ptr()).w_s_ptr();
+        let w_s = curwin_mut().w_s_ptr();
         if *(*w_s).b_p_spl == NUL {
             emsg(gettext(e_no_spell));
-            (**curwin.as_ptr()).w_onebuf_opt.wo_spell = wo_spell_save;
+            curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
             return 0;
         }
 
@@ -54,7 +54,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
         while *str_ != NUL {
             let mut attr: hlf_T = HLF_COUNT;
             let len = spell_check(
-                *curwin.as_ptr(),
+                curwin_ptr(),
                 str_.cast_mut(),
                 &mut attr,
                 Some(&mut capcol),
@@ -92,7 +92,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
             capcol -= len as c_int;
         }
 
-        (**curwin.as_ptr()).w_onebuf_opt.wo_spell = wo_spell_save;
+        curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
         1
     }
 }

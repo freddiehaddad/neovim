@@ -286,7 +286,7 @@ pub fn diff_buf_delete(buf: *mut buf_T) {
                 (*tp).tp_diff_invalid = 1;
                 if ptr::eq(tp, g_st().curtab) {
                     g_st().need_diff_redraw = true;
-                    redraw_later(*curwin.as_ptr(), UPD_VALID);
+                    redraw_later(curwin_ptr(), UPD_VALID);
                 }
             }
             tp = (*tp).tp_next;
@@ -697,19 +697,19 @@ pub fn diff_redraw(dofold: bool) {
                 continue;
             }
             redraw_later(wp, UPD_SOME_VALID);
-            if wp != *curwin.as_ptr() {
+            if wp != curwin_ptr() {
                 wp_other = wp;
             }
             if dofold && foldmethodIsDiff(&mut *wp) {
                 foldUpdateAll(&mut *wp);
             }
             let n = diff_check_fill(wp, (*wp).w_topline);
-            if (wp != *curwin.as_ptr() && (*wp).w_topfill > 0) || n > 0 {
+            if (wp != curwin_ptr() && (*wp).w_topfill > 0) || n > 0 {
                 if (*wp).w_topfill > n {
                     (*wp).w_topfill = n.max(0);
                 } else if n > 0 && n > (*wp).w_topfill {
                     (*wp).w_topfill = n;
-                    if wp == *curwin.as_ptr() {
+                    if wp == curwin_ptr() {
                         used_max_fill_curwin = true;
                     } else if !wp_other.is_null() {
                         used_max_fill_other = true;
@@ -719,11 +719,11 @@ pub fn diff_redraw(dofold: bool) {
             }
             wp = (*wp).w_next;
         }
-        if !wp_other.is_null() && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
+        if !wp_other.is_null() && curwin_mut().w_onebuf_opt.wo_scb != 0 {
             if used_max_fill_curwin {
-                diff_set_topline(&mut *wp_other, &mut **curwin.as_ptr());
+                diff_set_topline(&mut *wp_other, curwin_mut());
             } else if used_max_fill_other {
-                diff_set_topline(&mut **curwin.as_ptr(), &mut *wp_other);
+                diff_set_topline(curwin_mut(), &mut *wp_other);
             }
         }
     }
@@ -1041,7 +1041,7 @@ pub fn ex_diffupdate(eap: &mut exarg_T) {
                 dio_internal: diff_internal(),
             };
             diff_try_update(&mut diffio, idx_orig, eap);
-            (**curwin.as_ptr()).w_valid_cursor.lnum = 0;
+            curwin_mut().w_valid_cursor.lnum = 0;
         }
         if had_diffs || !(*g_st().curtab).tp_diffs.is_empty() {
             diff_redraw(true);
@@ -1257,7 +1257,7 @@ fn diff_file(dio: &mut diffio_T) -> bool {
 pub fn ex_diffpatch(eap: &mut exarg_T) {
     unsafe {
         let mut buf_vec: Vec<c_char>;
-        let old_curwin = *curwin.as_ptr();
+        let old_curwin = curwin_ptr();
         let mut newname_vec: Vec<c_char>;
         let esc_name: Option<CString>;
         #[cfg(unix)]
@@ -1388,8 +1388,8 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                     eap.cmdidx = CMD_split;
                     eap.arg = tmp_new;
                     do_exedit(eap, old_curwin);
-                    if *curwin.as_ptr() != old_curwin && win_valid(old_curwin) {
-                        diff_win_options(*curwin.as_ptr(), true);
+                    if curwin_ptr() != old_curwin && win_valid(old_curwin) {
+                        diff_win_options(curwin_ptr(), true);
                         diff_win_options(old_curwin, true);
                         if !newname.is_null() {
                             eap.arg = newname;
@@ -1412,15 +1412,15 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
 }
 pub fn ex_diffsplit(eap: &mut exarg_T) {
     unsafe {
-        let old_curwin = *curwin.as_ptr();
+        let old_curwin = curwin_ptr();
         let mut old_curbuf = bufref_T {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
         };
         set_bufref(&mut old_curbuf, g_st().curbuf);
-        validate_cursor(*curwin.as_ptr());
-        set_fraction(*curwin.as_ptr());
+        validate_cursor(curwin_ptr());
+        set_fraction(curwin_ptr());
         g_st().cmdmod.cmod_tab = 0;
         if !win_split(
             0,
@@ -1434,47 +1434,47 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
             return;
         }
         eap.cmdidx = CMD_split;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 1;
+        curwin_mut().w_onebuf_opt.wo_diff = 1;
         do_exedit(eap, old_curwin);
-        if *curwin.as_ptr() == old_curwin {
+        if curwin_ptr() == old_curwin {
             return;
         }
-        diff_win_options(*curwin.as_ptr(), true);
+        diff_win_options(curwin_ptr(), true);
         if win_valid(old_curwin) {
             diff_win_options(old_curwin, true);
             if bufref_valid(Some(&old_curbuf)) {
-                (**curwin.as_ptr()).w_cursor.lnum = diff_get_corresponding_line(
+                curwin_mut().w_cursor.lnum = diff_get_corresponding_line(
                     old_curbuf.br_buf.cast(),
                     (*old_curwin).w_cursor.lnum,
                 );
             }
         }
-        scroll_to_fraction(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_height);
+        scroll_to_fraction(curwin_mut(), curwin_mut().w_height);
     }
 }
 pub fn ex_diffthis(_eap: &mut exarg_T) {
-    unsafe {
-        diff_win_options(*curwin.as_ptr(), true);
+     {
+        diff_win_options(curwin_ptr(), true);
     }
 }
 fn set_diff_option(wp: *mut win_T, value: bool) {
     unsafe {
-        let old_curwin = *curwin.as_ptr();
-        *curwin.as_ptr() = wp;
-        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+        let old_curwin = curwin_ptr();
+        set_curwin(wp);
+        g_st().curbuf = curwin_mut().w_buffer;
         (*g_st().curbuf).b_ro_locked += 1;
         set_option_value_give_err(kOptDiff, boolean_obj(value), OPT_LOCAL);
         (*g_st().curbuf).b_ro_locked -= 1;
-        *curwin.as_ptr() = old_curwin;
-        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+        set_curwin(old_curwin);
+        g_st().curbuf = curwin_mut().w_buffer;
     }
 }
 pub fn diff_win_options(wp: *mut win_T, addbuf: bool) {
     unsafe {
-        let old_curwin = *curwin.as_ptr();
-        *curwin.as_ptr() = wp;
+        let old_curwin = curwin_ptr();
+        set_curwin(wp);
         newFoldLevel();
-        *curwin.as_ptr() = old_curwin;
+        set_curwin(old_curwin);
         if (*wp).w_onebuf_opt.wo_diff == 0 {
             (*wp).w_onebuf_opt.wo_scb_save = (*wp).w_onebuf_opt.wo_scb;
         }
@@ -1538,7 +1538,7 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
             let cond = if eap.forceit != 0 {
                 (*wp).w_onebuf_opt.wo_diff != 0
             } else {
-                wp == *curwin.as_ptr()
+                wp == curwin_ptr()
             };
             if cond {
                 set_diff_option(wp, false);
@@ -2326,9 +2326,9 @@ fn parse_diffanchors(
             (*buf).b_p_dia
         };
         let orig_curbuf = g_st().curbuf;
-        let orig_curwin = *curwin.as_ptr();
+        let orig_curwin = curwin_ptr();
         let bufwin: *mut win_T = if check_only {
-            *curwin.as_ptr()
+            curwin_ptr()
         } else {
             let mut bw = g_st().firstwin;
             while !bw.is_null() {
@@ -2351,7 +2351,7 @@ fn parse_diffanchors(
                 return false;
             }
             g_st().curbuf = buf;
-            *curwin.as_ptr() = bufwin;
+            set_curwin(bufwin);
             let mut errormsg: *const c_char = ptr::null();
             let lnum = get_address(
                 ptr::null_mut(),
@@ -2364,7 +2364,7 @@ fn parse_diffanchors(
                 &mut errormsg,
             );
             g_st().curbuf = orig_curbuf;
-            *curwin.as_ptr() = orig_curwin;
+            set_curwin(orig_curwin);
             if !errormsg.is_null() {
                 emsg(errormsg);
             }
@@ -3210,7 +3210,7 @@ pub fn diff_infold(wp: &mut win_T, lnum: linenr_T) -> bool {
     }
 }
 pub fn nv_diffgetput(put: bool, count: usize) {
-    unsafe {
+     {
         if bt_prompt(g_st().curbuf) {
             vim_beep(kOptBoFlagOperator);
             return;
@@ -3225,8 +3225,8 @@ pub fn nv_diffgetput(put: bool, count: usize) {
         }
         ea.cmdidx = if put { CMD_diffput } else { CMD_diffget };
         ea.addr_count = 0;
-        ea.line1 = (**curwin.as_ptr()).w_cursor.lnum;
-        ea.line2 = (**curwin.as_ptr()).w_cursor.lnum;
+        ea.line1 = curwin_mut().w_cursor.lnum;
+        ea.line2 = curwin_mut().w_cursor.lnum;
         ex_diffgetput(&mut ea);
     }
 }
@@ -3322,10 +3322,10 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         if eap.addr_count == 0 {
             let mut linestatus: c_int = 0;
             if eap.line1 == (*g_st().curbuf).b_ml.ml_line_count
-                && diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1, Some(&mut linestatus)) == 0
+                && diff_check_with_linestatus(curwin_mut(), eap.line1, Some(&mut linestatus)) == 0
                 && linestatus == 0
                 && (eap.line1 == 1
-                    || (diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1 - 1, Some(&mut linestatus))
+                    || (diff_check_with_linestatus(curwin_mut(), eap.line1 - 1, Some(&mut linestatus))
                         >= 0
                         && linestatus == 0))
             {
@@ -3382,7 +3382,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         if diff_st().diff_need_update {
             ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
-        check_cursor(*curwin.as_ptr());
+        check_cursor(curwin_ptr());
         changed_line_abv_curs();
         if (*g_st().curtab).tp_diffs.is_empty() {
             let mut wp = g_st().firstwin;
@@ -3538,13 +3538,13 @@ fn diffgetput(
                 }
                 if added != 0 {
                     mark_adjust(lnum, lnum + count - 1, MAXLNUM, added, kExtmarkNOOP);
-                    if (**curwin.as_ptr()).w_cursor.lnum >= lnum {
-                        if (**curwin.as_ptr()).w_cursor.lnum >= lnum + count {
-                            (**curwin.as_ptr()).w_cursor.lnum += added;
-                            (**curwin.as_ptr()).w_cursor.lnum =
-                                (**curwin.as_ptr()).w_cursor.lnum.min((*g_st().curbuf).b_ml.ml_line_count);
+                    if curwin_mut().w_cursor.lnum >= lnum {
+                        if curwin_mut().w_cursor.lnum >= lnum + count {
+                            curwin_mut().w_cursor.lnum += added;
+                            curwin_mut().w_cursor.lnum =
+                                curwin_mut().w_cursor.lnum.min((*g_st().curbuf).b_ml.ml_line_count);
                         } else if added < 0 {
-                            (**curwin.as_ptr()).w_cursor.lnum = lnum;
+                            curwin_mut().w_cursor.lnum = lnum;
                         }
                     }
                 }
@@ -3604,7 +3604,7 @@ pub fn diff_mode_buf(buf: *mut buf_T) -> bool {
 }
 pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
     unsafe {
-        let mut lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let mut lnum = curwin_mut().w_cursor.lnum;
         let idx = diff_buf_idx(g_st().curbuf, &mut *g_st().curtab);
         if idx == DB_COUNT as c_int || (*g_st().curtab).tp_diffs.is_empty() {
             return false;
@@ -3635,12 +3635,12 @@ pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
             }
         }
         lnum = lnum.min((*g_st().curbuf).b_ml.ml_line_count);
-        if lnum == (**curwin.as_ptr()).w_cursor.lnum {
+        if lnum == curwin_mut().w_cursor.lnum {
             return false;
         }
         setpcmark();
-        (**curwin.as_ptr()).w_cursor.lnum = lnum;
-        (**curwin.as_ptr()).w_cursor.col = 0;
+        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.col = 0;
         true
     }
 }
@@ -3671,10 +3671,10 @@ fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_
             }
             if dp.df_lnum[u_idx1] == lnum1
                 && dp.df_count[u_idx1] == 0
-                && dp.df_lnum[u_idx2] <= (**curwin.as_ptr()).w_cursor.lnum
-                && dp.df_lnum[u_idx2] + dp.df_count[u_idx2] > (**curwin.as_ptr()).w_cursor.lnum
+                && dp.df_lnum[u_idx2] <= curwin_mut().w_cursor.lnum
+                && dp.df_lnum[u_idx2] + dp.df_count[u_idx2] > curwin_mut().w_cursor.lnum
             {
-                return (**curwin.as_ptr()).w_cursor.lnum;
+                return curwin_mut().w_cursor.lnum;
             }
             baseline = (dp.df_lnum[u_idx1] + dp.df_count[u_idx1])
                 - (dp.df_lnum[u_idx2] + dp.df_count[u_idx2]);
@@ -3818,8 +3818,8 @@ pub(crate) fn xdiff_out(
 }
 pub fn f_diff_filler(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(*curwin.as_ptr(), tv_get_lnum(&argvars[0])).max(0) as varnumber_T);
+     {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin_ptr(), tv_get_lnum(&argvars[0])).max(0) as varnumber_T);
     }
 }
 pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
@@ -3838,12 +3838,12 @@ pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             || diff_st().diff_flags != diff_st().f_diff_hlid_prev_diff_flags
         {
             let mut linestatus: c_int = 0;
-            diff_check_with_linestatus(&mut **curwin.as_ptr(), lnum, Some(&mut linestatus));
+            diff_check_with_linestatus(curwin_mut(), lnum, Some(&mut linestatus));
             if linestatus < 0 {
                 if linestatus == -1 {
                     diff_st().f_diff_hlid_change_start = MAXCOL;
                     diff_st().f_diff_hlid_change_end = -1;
-                    if diff_find_change(&mut **curwin.as_ptr(), lnum, &mut diffline) {
+                    if diff_find_change(curwin_mut(), lnum, &mut diffline) {
                         diff_st().f_diff_hlid_hlID = HLF_ADD;
                     } else {
                         diff_st().f_diff_hlid_hlID = HLF_CHD;

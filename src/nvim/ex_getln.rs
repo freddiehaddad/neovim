@@ -465,16 +465,16 @@ fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
 }
 
 fn init_incsearch_state(s: &mut incsearch_state_T) {
-    unsafe {
-        s.winid = (**curwin.as_ptr()).handle;
-        s.match_start = (**curwin.as_ptr()).w_cursor;
+     {
+        s.winid = curwin_mut().handle;
+        s.match_start = curwin_mut().w_cursor;
         s.did_incsearch = false;
         s.incsearch_postponed = false;
         clearpos(&mut s.match_end);
-        s.save_cursor = (**curwin.as_ptr()).w_cursor;
-        s.search_start = (**curwin.as_ptr()).w_cursor;
-        save_viewstate(&mut **curwin.as_ptr(), &mut s.init_viewstate);
-        save_viewstate(&mut **curwin.as_ptr(), &mut s.old_viewstate);
+        s.save_cursor = curwin_mut().w_cursor;
+        s.search_start = curwin_mut().w_cursor;
+        save_viewstate(curwin_mut(), &mut s.init_viewstate);
+        save_viewstate(curwin_mut(), &mut s.old_viewstate);
     }
 }
 
@@ -484,7 +484,7 @@ fn set_search_match(t: &mut pos_T) {
         t.col = g_st().Search.match_endcol;
         if t.lnum > (*g_st().curbuf).b_ml.ml_line_count {
             t.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-            coladvance(&mut **curwin.as_ptr(), MAXCOL);
+            coladvance(curwin_mut(), MAXCOL);
         }
     }
 }
@@ -622,8 +622,8 @@ pub fn parse_pattern_and_range(
         *patlen = end.offset_from(p) as c_int;
 
         // Parse the address range
-        let save_cursor = (**curwin.as_ptr()).w_cursor;
-        (**curwin.as_ptr()).w_cursor = *incsearch_start;
+        let save_cursor = curwin_mut().w_cursor;
+        curwin_mut().w_cursor = *incsearch_start;
 
         parse_cmd_address(&mut ea, &raw mut dummy, true);
 
@@ -633,11 +633,11 @@ pub fn parse_pattern_and_range(
             g_st().Search.last_line = ea.line2.max(ea.line1);
         } else if *cmd == b's' as c_char && *cmd.add(1) != b'o' as c_char {
             // :s defaults to the current line
-            g_st().Search.first_line = (**curwin.as_ptr()).w_cursor.lnum;
-            g_st().Search.last_line = (**curwin.as_ptr()).w_cursor.lnum;
+            g_st().Search.first_line = curwin_mut().w_cursor.lnum;
+            g_st().Search.last_line = curwin_mut().w_cursor.lnum;
         }
 
-        (**curwin.as_ptr()).w_cursor = save_cursor;
+        curwin_mut().w_cursor = save_cursor;
         true
     }
 }
@@ -733,15 +733,15 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
 
         if g_st().Search.first_line == 0 {
             // start at the original cursor position
-            (**curwin.as_ptr()).w_cursor = s.search_start;
+            curwin_mut().w_cursor = s.search_start;
         } else if g_st().Search.first_line > (*g_st().curbuf).b_ml.ml_line_count {
             // start after the last line
-            (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-            (**curwin.as_ptr()).w_cursor.col = MAXCOL;
+            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curwin_mut().w_cursor.col = MAXCOL;
         } else {
             // start at the first line in the range
-            (**curwin.as_ptr()).w_cursor.lnum = g_st().Search.first_line;
-            (**curwin.as_ptr()).w_cursor.col = 0;
+            curwin_mut().w_cursor.lnum = g_st().Search.first_line;
+            curwin_mut().w_cursor.col = 0;
         }
 
         let mut found: c_int = 0; // do_search() result
@@ -781,12 +781,12 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
             );
             g_st().emsg_off -= 1;
             *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
-            if (**curwin.as_ptr()).w_cursor.lnum < g_st().Search.first_line
-                || (**curwin.as_ptr()).w_cursor.lnum > g_st().Search.last_line
+            if curwin_mut().w_cursor.lnum < g_st().Search.first_line
+                || curwin_mut().w_cursor.lnum > g_st().Search.last_line
             {
                 // match outside of address range
                 found = 0;
-                (**curwin.as_ptr()).w_cursor = s.search_start;
+                curwin_mut().w_cursor = s.search_start;
             }
 
             // if interrupted while searching, behave like it failed
@@ -808,17 +808,17 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
 
         // first restore the old curwin values, so the screen is
         // positioned in the same way as the actual search command
-        restore_viewstate(&mut **curwin.as_ptr(), &s.old_viewstate);
-        changed_cline_bef_curs(&mut **curwin.as_ptr());
-        update_topline(*curwin.as_ptr());
+        restore_viewstate(curwin_mut(), &s.old_viewstate);
+        changed_cline_bef_curs(curwin_mut());
+        update_topline(curwin_ptr());
 
-        let mut end_pos = (**curwin.as_ptr()).w_cursor;
+        let mut end_pos = curwin_mut().w_cursor;
         if found != 0 {
-            s.match_start = (**curwin.as_ptr()).w_cursor;
-            set_search_match(&mut (**curwin.as_ptr()).w_cursor);
-            validate_cursor(*curwin.as_ptr());
-            s.match_end = (**curwin.as_ptr()).w_cursor;
-            (**curwin.as_ptr()).w_cursor = end_pos;
+            s.match_start = curwin_mut().w_cursor;
+            set_search_match(&mut curwin_mut().w_cursor);
+            validate_cursor(curwin_ptr());
+            s.match_end = curwin_mut().w_cursor;
+            curwin_mut().w_cursor = end_pos;
             end_pos = s.match_end;
         }
 
@@ -839,14 +839,14 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
             *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
         }
 
-        validate_cursor(*curwin.as_ptr());
+        validate_cursor(curwin_ptr());
 
         // May redraw the status line to show the cursor position.
-        if opt_vars().p_ru != 0 && ((**curwin.as_ptr()).w_status_height > 0 || global_stl_height() > 0) {
-            (**curwin.as_ptr()).w_redr_status = true;
+        if opt_vars().p_ru != 0 && (curwin_mut().w_status_height > 0 || global_stl_height() > 0) {
+            curwin_mut().w_redr_status = true;
         }
 
-        redraw_later(*curwin.as_ptr(), UPD_SOME_VALID);
+        redraw_later(curwin_ptr(), UPD_SOME_VALID);
         update_screen();
         g_st().Search.hl_match = false;
         restore_last_search_pattern();
@@ -854,10 +854,10 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
         // Leave it at the end to make CTRL-R CTRL-W work.  But not when beyond the
         // end of the pattern, e.g. for ":s/pat/".
         if *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) != NUL {
-            (**curwin.as_ptr()).w_cursor = s.search_start;
+            curwin_mut().w_cursor = s.search_start;
         } else if found != 0 {
-            (**curwin.as_ptr()).w_cursor = end_pos;
-            (**curwin.as_ptr()).w_valid_cursor = end_pos; // mark as valid for cmdline_show redraw
+            curwin_mut().w_cursor = end_pos;
+            curwin_mut().w_valid_cursor = end_pos; // mark as valid for cmdline_show redraw
         }
 
         msg_starthere();
@@ -898,7 +898,7 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_
         restore_last_search_pattern();
 
         if s.did_incsearch {
-            (**curwin.as_ptr()).w_cursor = s.match_end;
+            curwin_mut().w_cursor = s.match_end;
             *c = gchar_cursor();
             if *c != NUL as c_int {
                 // If 'ignorecase' and 'smartcase' are set and the
@@ -924,7 +924,7 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_
                 if utf_char2len(*c) != utfc_ptr2len(get_cursor_pos_ptr()) {
                     let save_c = *c;
                     while utf_char2len(*c) != utfc_ptr2len(get_cursor_pos_ptr()) {
-                        (**curwin.as_ptr()).w_cursor.col += utf_char2len(*c);
+                        curwin_mut().w_cursor.col += utf_char2len(*c);
                         *c = gchar_cursor();
                         stuffcharReadbuff(*c);
                     }
@@ -941,30 +941,30 @@ fn finish_incsearch_highlighting(
     gotesc: bool,s: &mut incsearch_state_T,
     call_update_screen: bool,
 ) {
-    unsafe {
+     {
         if !s.did_incsearch {
             return;
         }
 
         s.did_incsearch = false;
         if gotesc {
-            (**curwin.as_ptr()).w_cursor = s.save_cursor;
+            curwin_mut().w_cursor = s.save_cursor;
         } else {
             if !equalpos(s.save_cursor, s.search_start) {
                 // put the '" mark at the original position
-                (**curwin.as_ptr()).w_cursor = s.save_cursor;
+                curwin_mut().w_cursor = s.save_cursor;
                 setpcmark();
             }
-            (**curwin.as_ptr()).w_cursor = s.search_start;
+            curwin_mut().w_cursor = s.search_start;
         }
-        restore_viewstate(&mut **curwin.as_ptr(), &s.old_viewstate);
+        restore_viewstate(curwin_mut(), &s.old_viewstate);
         g_st().Search.hl_match = false;
 
         // by default search all lines
         g_st().Search.first_line = 0;
         g_st().Search.last_line = MAXLNUM;
 
-        validate_cursor(*curwin.as_ptr()); // needed for TAB
+        validate_cursor(curwin_ptr()); // needed for TAB
         status_redraw_all();
         redraw_all_later(UPD_SOME_VALID);
         if call_update_screen {
@@ -1063,8 +1063,8 @@ fn command_line_enter(
             getln_st().ccline.xpc = &mut (*s).xpc;
             clear_cmdline_orig();
 
-            g_st().cmdmsg_rl = (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0
-                && *(**curwin.as_ptr()).w_onebuf_opt.wo_rlc == b's' as c_char
+            g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl != 0
+                && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char
                 && ((*s).firstc == b'/' as c_int || (*s).firstc == b'?' as c_int);
 
             msg_grid_validate();
@@ -1637,12 +1637,12 @@ fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c: c_int
 }
 
 fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
-    unsafe {
+     {
         if key == K_IGNORE || key == K_NOP {
             return -1; // get another key
         }
 
-        let display_tick_saved: disptick_T = (**curwin.as_ptr()).w_display_tick;
+        let display_tick_saved: disptick_T = curwin_mut().w_display_tick;
         s.c = key;
 
         if getln_st().ccline.cmdbuff_replaced && s.xpc.xp_numfiles > 0 {
@@ -1667,10 +1667,10 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
             } else {
                 map_execute_lua(false, false);
             }
-            if s.is_state.winid != (**curwin.as_ptr()).handle {
+            if s.is_state.winid != curwin_mut().handle {
                 init_incsearch_state(&mut s.is_state);
             }
-            if (**curwin.as_ptr()).w_display_tick > display_tick_saved && s.is_state.did_incsearch {
+            if curwin_mut().w_display_tick > display_tick_saved && s.is_state.did_incsearch {
                 may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
             }
             if getln_st().ccline.cmdbuff_replaced {
@@ -1927,7 +1927,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
         s.do_abbr = true;
 
         if wild_type == WILD_CANCEL || wild_type == WILD_APPLY {
-            if s.is_state.winid != (**curwin.as_ptr()).handle {
+            if s.is_state.winid != curwin_mut().handle {
                 init_incsearch_state(&mut s.is_state);
             }
             if g_st().KeyTyped || vpeekc() == NUL as c_int {
@@ -2012,7 +2012,7 @@ fn may_do_command_line_next_incsearch(
         }
         g_st().emsg_off += 1;
         let found = searchit(
-            *curwin.as_ptr(),
+            curwin_ptr(),
             g_st().curbuf,
             &raw mut t,
             None,
@@ -2073,17 +2073,17 @@ fn may_do_command_line_next_incsearch(
             }
 
             set_search_match(&mut s.match_end);
-            (**curwin.as_ptr()).w_cursor = s.match_start;
-            changed_cline_bef_curs(&mut **curwin.as_ptr());
-            update_topline(*curwin.as_ptr());
-            validate_cursor(*curwin.as_ptr());
+            curwin_mut().w_cursor = s.match_start;
+            changed_cline_bef_curs(curwin_mut());
+            update_topline(curwin_ptr());
+            validate_cursor(curwin_ptr());
             g_st().Search.hl_match = true;
-            save_viewstate(&mut **curwin.as_ptr(), &mut s.old_viewstate);
-            redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
+            save_viewstate(curwin_mut(), &mut s.old_viewstate);
+            redraw_later(curwin_ptr(), UPD_NOT_VALID);
             update_screen();
             g_st().Search.hl_match = false;
             redrawcmdline();
-            (**curwin.as_ptr()).w_cursor = s.match_end;
+            curwin_mut().w_cursor = s.match_end;
         } else {
             vim_beep(kOptBoFlagError);
         }
@@ -2974,14 +2974,14 @@ fn cmdpreview_open_buf() -> *mut buf_T {
 
 /// Open command preview window if it's not already open.
 fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
-    unsafe {
-        let save_curwin = *curwin.as_ptr();
+     {
+        let save_curwin = curwin_ptr();
 
         if !win_split(opt_vars().p_cwh as c_int, WSP_BOT) {
             return ptr::null_mut();
         }
 
-        let preview_win = *curwin.as_ptr();
+        let preview_win = curwin_ptr();
         let mut err = error_init();
 
         let mut tstate = TryState::new();
@@ -2999,10 +2999,10 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
             return ptr::null_mut();
         }
 
-        (**curwin.as_ptr()).w_onebuf_opt.wo_cul = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_cuc = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_spell = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_fen = 0;
+        curwin_mut().w_onebuf_opt.wo_cul = 0;
+        curwin_mut().w_onebuf_opt.wo_cuc = 0;
+        curwin_mut().w_onebuf_opt.wo_spell = 0;
+        curwin_mut().w_onebuf_opt.wo_fen = 0;
 
         win_enter(save_curwin, false);
         preview_win

@@ -416,9 +416,9 @@ pub fn msg_id_exists(id: i64) -> bool {
 }
 
 fn ui_ext_msg_set_pos(row: c_int, scrolled: bool) {
-    unsafe {
+     {
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-        let size = schar_get(buf.as_mut_ptr(), (**curwin.as_ptr()).w_p_fcs_chars.msgsep);
+        let size = schar_get(buf.as_mut_ptr(), curwin_mut().w_p_fcs_chars.msgsep);
         ui_call_msg_set_pos(
             g_st().msg_grid.handle as Integer,
             row as Integer,
@@ -1421,7 +1421,7 @@ fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
 }
 
 pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&mut MessageData>) {
-    unsafe {
+     {
         if !has_event(EVENT_PROGRESS) {
             return;
         }
@@ -1527,7 +1527,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&
             true,
             AUGROUP_ALL,
             ptr::null_mut(),
-            *curwin.as_ptr(),
+            curwin_ptr(),
             None,
             &raw mut dict_obj,
             false,
@@ -1767,7 +1767,7 @@ pub fn msg_end_prompt() {
 ///                if false, do a normal redraw
 ///                if -1, don't redraw at all
 pub fn wait_return(redraw: c_int) {
-    unsafe {
+     {
         let mut c: c_int;
         let mut had_got_int: bool;
 
@@ -1952,7 +1952,7 @@ pub fn wait_return(redraw: c_int) {
         if tmpState == MODE_SETWSIZE {
             ui_refresh();
         } else if !g_st().skip_redraw && (redraw == 1 || (g_st().msg_scrolled != 0 && redraw != -1)) {
-            redraw_later(*curwin.as_ptr(), UPD_VALID);
+            redraw_later(curwin_ptr(), UPD_VALID);
         }
     }
 }
@@ -2500,22 +2500,22 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
         let mut multispace_pos = 0usize;
         let mut trail: *const c_char = ptr::null();
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_list != 0 {
+        if curwin_mut().w_onebuf_opt.wo_list != 0 {
             list = true;
         }
 
         if list {
             // find start of trailing whitespace
-            if (**curwin.as_ptr()).w_p_lcs_chars.trail != 0 {
+            if curwin_mut().w_p_lcs_chars.trail != 0 {
                 trail = s.add(crate::memory::cstr_len(s));
                 while trail > s && ascii_iswhite(*trail.sub(1) as c_int) {
                     trail = trail.sub(1);
                 }
             }
             // find end of leading whitespace
-            if (**curwin.as_ptr()).w_p_lcs_chars.lead != 0
-                || !(**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.is_empty()
-                || (**curwin.as_ptr()).w_p_lcs_chars.leadtab1 != 0
+            if curwin_mut().w_p_lcs_chars.lead != 0
+                || !curwin_mut().w_p_lcs_chars.leadmultispace.is_empty()
+                || curwin_mut().w_p_lcs_chars.leadtab1 != 0
             {
                 lead = s;
                 while ascii_iswhite(*lead as c_int) {
@@ -2528,7 +2528,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
         }
 
         // output a space for an empty line, otherwise the line will be overwritten
-        if *s == NUL && !(list && (**curwin.as_ptr()).w_p_lcs_chars.eol != 0) {
+        if *s == NUL && !(list && curwin_mut().w_p_lcs_chars.eol != 0) {
             msg_putchar(b' ' as c_int);
         }
 
@@ -2551,11 +2551,11 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     let mut buf = [0 as c_char; MB_MAXBYTES + 1];
                     if l as usize >= MB_MAXBYTES {
                         xstrlcpy(buf.as_mut_ptr(), c"?", buf.len());
-                    } else if (**curwin.as_ptr()).w_p_lcs_chars.nbsp != 0
+                    } else if curwin_mut().w_p_lcs_chars.nbsp != 0
                         && list
                         && (utf_ptr2char(s) == 160 || utf_ptr2char(s) == 0x202f)
                     {
-                        schar_get(buf.as_mut_ptr(), (**curwin.as_ptr()).w_p_lcs_chars.nbsp);
+                        schar_get(buf.as_mut_ptr(), curwin_mut().w_p_lcs_chars.nbsp);
                     } else {
                         ptr::copy(s, buf.as_mut_ptr(), l as usize);
                         buf[l as usize] = NUL;
@@ -2583,21 +2583,21 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     } else {
                         in_multispace = false;
                     }
-                    if c == TAB && (!list || (**curwin.as_ptr()).w_p_lcs_chars.tab1 != 0) {
+                    if c == TAB && (!list || curwin_mut().w_p_lcs_chars.tab1 != 0) {
                         n_extra =
                             tabstop_padding(col, (*g_st().curbuf).b_p_ts, &(*g_st().curbuf).b_p_vts_array) - 1;
                         if !list {
                             sc = schar_from_ascii(b' ');
                             sc_extra = schar_from_ascii(b' ');
                         } else {
-                            let mut lcs_tab1 = (**curwin.as_ptr()).w_p_lcs_chars.tab1;
-                            let mut lcs_tab2 = (**curwin.as_ptr()).w_p_lcs_chars.tab2;
-                            let mut lcs_tab3 = (**curwin.as_ptr()).w_p_lcs_chars.tab3;
-                            if !lead.is_null() && s <= lead && (**curwin.as_ptr()).w_p_lcs_chars.leadtab1 != 0
+                            let mut lcs_tab1 = curwin_mut().w_p_lcs_chars.tab1;
+                            let mut lcs_tab2 = curwin_mut().w_p_lcs_chars.tab2;
+                            let mut lcs_tab3 = curwin_mut().w_p_lcs_chars.tab3;
+                            if !lead.is_null() && s <= lead && curwin_mut().w_p_lcs_chars.leadtab1 != 0
                             {
-                                lcs_tab1 = (**curwin.as_ptr()).w_p_lcs_chars.leadtab1;
-                                lcs_tab2 = (**curwin.as_ptr()).w_p_lcs_chars.leadtab2;
-                                lcs_tab3 = (**curwin.as_ptr()).w_p_lcs_chars.leadtab3;
+                                lcs_tab1 = curwin_mut().w_p_lcs_chars.leadtab1;
+                                lcs_tab2 = curwin_mut().w_p_lcs_chars.leadtab2;
+                                lcs_tab3 = curwin_mut().w_p_lcs_chars.leadtab3;
                             }
                             sc = if n_extra == 0 && lcs_tab3 != 0 {
                                 lcs_tab3
@@ -2608,10 +2608,10 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                             sc_final = lcs_tab3;
                             hl_id = HLF_0;
                         }
-                    } else if c == NUL as c_int && list && (**curwin.as_ptr()).w_p_lcs_chars.eol != 0 {
+                    } else if c == NUL as c_int && list && curwin_mut().w_p_lcs_chars.eol != 0 {
                         p_extra = c"".as_ptr();
                         n_extra = 1;
-                        sc = (**curwin.as_ptr()).w_p_lcs_chars.eol;
+                        sc = curwin_mut().w_p_lcs_chars.eol;
                         hl_id = HLF_AT;
                         s = s.sub(1);
                     } else if c != NUL as c_int && {
@@ -2633,30 +2633,30 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                         if !lead.is_null()
                             && s <= lead
                             && in_multispace
-                            && !(**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.is_empty()
+                            && !curwin_mut().w_p_lcs_chars.leadmultispace.is_empty()
                         {
-                            sc = (**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
+                            sc = curwin_mut().w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if multispace_pos >= (**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.len() {
+                            if multispace_pos >= curwin_mut().w_p_lcs_chars.leadmultispace.len() {
                                 multispace_pos = 0;
                             }
                             hl_id = HLF_0;
-                        } else if !lead.is_null() && s <= lead && (**curwin.as_ptr()).w_p_lcs_chars.lead != 0
+                        } else if !lead.is_null() && s <= lead && curwin_mut().w_p_lcs_chars.lead != 0
                         {
-                            sc = (**curwin.as_ptr()).w_p_lcs_chars.lead;
+                            sc = curwin_mut().w_p_lcs_chars.lead;
                             hl_id = HLF_0;
                         } else if !trail.is_null() && s > trail {
-                            sc = (**curwin.as_ptr()).w_p_lcs_chars.trail;
+                            sc = curwin_mut().w_p_lcs_chars.trail;
                             hl_id = HLF_0;
-                        } else if in_multispace && !(**curwin.as_ptr()).w_p_lcs_chars.multispace.is_empty() {
-                            sc = (**curwin.as_ptr()).w_p_lcs_chars.multispace.as_slice()[multispace_pos];
+                        } else if in_multispace && !curwin_mut().w_p_lcs_chars.multispace.is_empty() {
+                            sc = curwin_mut().w_p_lcs_chars.multispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if multispace_pos >= (**curwin.as_ptr()).w_p_lcs_chars.multispace.len() {
+                            if multispace_pos >= curwin_mut().w_p_lcs_chars.multispace.len() {
                                 multispace_pos = 0;
                             }
                             hl_id = HLF_0;
-                        } else if list && (**curwin.as_ptr()).w_p_lcs_chars.space != 0 {
-                            sc = (**curwin.as_ptr()).w_p_lcs_chars.space;
+                        } else if list && curwin_mut().w_p_lcs_chars.space != 0 {
+                            sc = curwin_mut().w_p_lcs_chars.space;
                             hl_id = HLF_0;
                         } else {
                             sc = schar_from_ascii(b' ');

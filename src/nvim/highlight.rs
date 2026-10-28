@@ -803,9 +803,9 @@ pub fn update_ns_hl(ns_id: c_int) {
 }
 
 pub fn win_bg_attr(wp: &mut win_T) -> c_int {
-    unsafe {
+     {
         if g_st().ns_hl_fast < 0 {
-            let local = if ptr::eq(wp, *curwin.as_ptr()) {
+            let local = if ptr::eq(wp, curwin_ptr()) {
                 wp.w_hl_attr_normal
             } else {
                 wp.w_hl_attr_normalnc
@@ -815,7 +815,7 @@ pub fn win_bg_attr(wp: &mut win_T) -> c_int {
             }
         }
 
-        if ptr::eq(wp, *curwin.as_ptr()) || hl_attr(HLF_INACTIVE as c_int) == 0 {
+        if ptr::eq(wp, curwin_ptr()) || hl_attr(HLF_INACTIVE as c_int) == 0 {
             hl_attr(HLF_NONE as c_int)
         } else {
             hl_attr(HLF_INACTIVE as c_int)
@@ -951,7 +951,7 @@ pub fn hl_invalidate_blends() {
         let blendthrough_ptr = &raw mut hl_st().blendthrough_attr_entries;
         (*blendthrough_ptr).clear();
         highlight_changed();
-        update_window_hl(&mut **curwin.as_ptr(), true);
+        update_window_hl(curwin_mut(), true);
     }
 }
 

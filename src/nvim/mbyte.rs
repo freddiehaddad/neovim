@@ -2675,7 +2675,7 @@ pub fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBoundsOff 
 
 pub fn utf_find_illegal() {
     unsafe {
-        let pos: pos_T = (**curwin.as_ptr()).w_cursor;
+        let pos: pos_T = curwin_mut().w_cursor;
         let mut vimconv = vimconv_T {
             vc_type: CONV_NONE,
             vc_factor: 1,
@@ -2688,7 +2688,7 @@ pub fn utf_find_illegal() {
             convert_setup(&mut vimconv, opt_vars().p_enc, (*g_st().curbuf).b_p_fenc);
         }
 
-        (**curwin.as_ptr()).w_cursor.coladd = 0;
+        curwin_mut().w_cursor.coladd = 0;
         'search: loop {
             let mut p = get_cursor_pos_ptr();
             if vimconv.vc_type != CONV_NONE {
@@ -2703,7 +2703,7 @@ pub fn utf_find_illegal() {
                 let mut len = utf_ptr2len(p);
                 if *p.cast::<u8>() >= 0x80 && (len == 1 || utf_char2len(utf_ptr2char(p)) != len) {
                     if vimconv.vc_type == CONV_NONE {
-                        (**curwin.as_ptr()).w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as colnr_T;
+                        curwin_mut().w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as colnr_T;
                     } else {
                         len = p.offset_from(
                             tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
@@ -2712,26 +2712,26 @@ pub fn utf_find_illegal() {
                         while *cur_p != NUL && len > 0 {
                             len -= 1;
                             let l = utf_ptr2len(cur_p);
-                            (**curwin.as_ptr()).w_cursor.col += l;
+                            curwin_mut().w_cursor.col += l;
                             cur_p = cur_p.add(l as usize);
                         }
                     }
-                    (**curwin.as_ptr()).w_set_curswant = true;
+                    curwin_mut().w_set_curswant = true;
                     break 'search;
                 }
                 p = p.add(len as usize);
             }
-            if (**curwin.as_ptr()).w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count {
-                (**curwin.as_ptr()).w_cursor = pos;
+            if curwin_mut().w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count {
+                curwin_mut().w_cursor = pos;
                 beep_flush();
                 break;
             }
-            (**curwin.as_ptr()).w_cursor.lnum += 1;
-            (**curwin.as_ptr()).w_cursor.col = 0;
+            curwin_mut().w_cursor.lnum += 1;
+            curwin_mut().w_cursor.col = 0;
         }
 
         if vimconv.vc_type != CONV_NONE && tofree.is_none() {
-            (**curwin.as_ptr()).w_cursor = pos;
+            curwin_mut().w_cursor = pos;
             beep_flush();
         }
     }
@@ -2769,8 +2769,8 @@ pub fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
 }
 
 pub fn mb_adjust_cursor() {
-    unsafe {
-        mark_mb_adjustpos(g_st().curbuf.cast(), &mut (**curwin.as_ptr()).w_cursor);
+     {
+        mark_mb_adjustpos(g_st().curbuf.cast(), &mut curwin_mut().w_cursor);
     }
 }
 

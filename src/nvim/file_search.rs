@@ -1425,7 +1425,7 @@ pub fn file_name_at_cursor(
     unsafe {
         file_name_in_line(
             get_cursor_line_ptr(),
-            (**curwin.as_ptr()).w_cursor.col,
+            curwin_mut().w_cursor.col,
             options,
             count,
             (*g_st().curbuf).b_ffname,
@@ -1537,7 +1537,7 @@ fn eval_includeexpr(ptr: *const c_char, len: usize) -> Option<std::ffi::CString>
         set_vim_var_string(VV_FNAME, ptr, len as isize);
         g_st().current_sctx = (*g_st().curbuf).b_p_script_ctx[kBufOptIncludeexpr];
 
-        let use_sandbox = was_set_insecurely(*curwin.as_ptr(), kOptIncludeexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(curwin_ptr(), kOptIncludeexpr, OPT_LOCAL) != 0;
         let mut tv: typval_T = typval_T::new();
         let mut res = None;
         if eval_expr_option_tv(&mut (*g_st().curbuf).b_p_inex, use_sandbox, &mut tv) {

@@ -1534,7 +1534,7 @@ pub fn nvim_buf_del_mark(
 
         let fm = mark_get(
             &mut *b,
-            *curwin.as_ptr(),
+            curwin_ptr(),
             None,
             kMarkAllNoResolve,
             c_int::from(*name.data.cast::<u8>()),
@@ -1637,7 +1637,7 @@ pub fn nvim_buf_get_mark(
         }
 
         let mark = c_int::from(*name.data.cast::<u8>());
-        let fm = mark_get(&mut *b, *curwin.as_ptr(), None, kMarkAllNoResolve, mark);
+        let fm = mark_get(&mut *b, curwin_ptr(), None, kMarkAllNoResolve, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
             return rv;
@@ -1840,8 +1840,8 @@ fn fix_cursor_cols(
     new_rows: linenr_T,
     new_cols_at_end_row: colnr_T,
 ) {
-    unsafe {
-        let mode_col_adj = if ptr::eq(win, *curwin.as_ptr()) && (g_st().State & MODE_INSERT) != 0 {
+     {
+        let mode_col_adj = if ptr::eq(win, curwin_ptr()) && (g_st().State & MODE_INSERT) != 0 {
             0
         } else {
             1

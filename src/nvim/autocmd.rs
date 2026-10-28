@@ -2363,8 +2363,8 @@ pub fn autocmd_register(
             if (event == EVENT_CURSORMOVED && !has_event(EVENT_CURSORMOVED))
                 || (event == EVENT_CURSORMOVEDI && !has_event(EVENT_CURSORMOVEDI))
             {
-                g_st().last_cursormoved_win = *curwin.as_ptr();
-                g_st().last_cursormoved = (**curwin.as_ptr()).w_cursor;
+                g_st().last_cursormoved_win = curwin_ptr();
+                g_st().last_cursormoved = curwin_mut().w_cursor;
             }
 
             if (event == EVENT_WINSCROLLED || event == EVENT_WINRESIZED)
@@ -2485,7 +2485,7 @@ pub fn do_doautocmd(
                 true,
                 group,
                 g_st().curbuf,
-                *curwin.as_ptr(),
+                curwin_ptr(),
                 None,
                 ptr::null_mut(),
                 false,
@@ -2528,7 +2528,7 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
             retval = if ok { OK } else { FAIL };
 
             if call_do_modelines && did_aucmd {
-                do_modelines(if is_ctx_win(*curwin.as_ptr()) { OPT_NOWIN } else { 0 });
+                do_modelines(if is_ctx_win(curwin_ptr()) { OPT_NOWIN } else { 0 });
             }
 
             ctx_restore(&mut aco);
@@ -2615,7 +2615,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
             }
             tv_dict_set_keys_readonly(&mut *v_event);
 
-            let win = *curwin.as_ptr();
+            let win = curwin_ptr();
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             apply_autocmds_group(
@@ -2677,7 +2677,7 @@ pub fn apply_autocmds(
     buf: *mut buf_T,
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
-    unsafe {
+     {
         apply_autocmds_group(
             event,
             fname,
@@ -2685,7 +2685,7 @@ pub fn apply_autocmds(
             force,
             AUGROUP_ALL,
             buf,
-            *curwin.as_ptr(),
+            curwin_ptr(),
             None,
             ptr::null_mut(),
             false,
@@ -2722,7 +2722,7 @@ pub fn apply_autocmds_exarg(
     force: bool,
     buf: *mut buf_T,eap: Option<&exarg_T>,
 ) -> bool {
-    unsafe {
+     {
         apply_autocmds_group(
             event,
             fname,
@@ -2730,7 +2730,7 @@ pub fn apply_autocmds_exarg(
             force,
             AUGROUP_ALL,
             buf,
-            *curwin.as_ptr(),
+            curwin_ptr(),
             (eap.is_some()).then(||  { eap.unwrap() }),
             ptr::null_mut(),
             false,
@@ -2746,7 +2746,7 @@ pub fn apply_autocmds_retval(
     buf: *mut buf_T,
     retval: &mut c_int,
 ) -> bool {
-    unsafe {
+     {
         if should_abort(*retval) {
             return false;
         }
@@ -2758,7 +2758,7 @@ pub fn apply_autocmds_retval(
             force,
             AUGROUP_ALL,
             buf,
-            *curwin.as_ptr(),
+            curwin_ptr(),
             None,
             ptr::null_mut(),
             false,
@@ -2844,7 +2844,7 @@ pub fn apply_autocmds_group(
 
             let mut win_ignore = false;
             if buf == g_st().curbuf && EVENT_NAMES[event as usize].event <= 0 {
-                win_ignore = event_ignored(event, (**curwin.as_ptr()).w_onebuf_opt.wo_eiw);
+                win_ignore = event_ignored(event, curwin_mut().w_onebuf_opt.wo_eiw);
             } else if !buf.is_null()
                 && EVENT_NAMES[event as usize].event <= 0
                 && (*buf).b_nwindows > 0
@@ -2990,8 +2990,8 @@ pub fn apply_autocmds_group(
 
             au_st().autocmd_winid = if !win.is_null() {
                 (*win).handle
-            } else if !(*curwin.as_ptr()).is_null() {
-                (**curwin.as_ptr()).handle
+            } else if !(curwin_ptr()).is_null() {
+                curwin_mut().handle
             } else {
                 0
             };
@@ -3165,7 +3165,7 @@ pub fn apply_autocmds_group(
 }
 
 pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
-    unsafe {
+     {
         let mut data_items = [
             KeyValuePair {
                 key: static_cstr_as_string(c"sequence"),
@@ -3189,7 +3189,7 @@ pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
             true,
             AUGROUP_ALL,
             ptr::null_mut(),
-            *curwin.as_ptr(),
+            curwin_ptr(),
             None,
             &raw mut data_obj,
             false,

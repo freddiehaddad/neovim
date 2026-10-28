@@ -2670,8 +2670,8 @@ fn vgetorpeek(advance: bool) -> c_int {
                     }
 
                     c = 0;
-                    let mut new_wcol = (**curwin.as_ptr()).w_wcol;
-                    let mut new_wrow = (**curwin.as_ptr()).w_wrow;
+                    let mut new_wcol = curwin_mut().w_wcol;
+                    let mut new_wrow = curwin_mut().w_wrow;
                     if advance
                         && g_st().typebuf.tb_len == 1
                         && *tb_buf_ptr().add(g_st().typebuf.tb_off as usize) == ESC as u8
@@ -2693,34 +2693,34 @@ fn vgetorpeek(advance: bool) -> c_int {
                             unshowmode(true);
                             mode_deleted = true;
                         }
-                        validate_cursor(*curwin.as_ptr());
-                        let old_wcol = (**curwin.as_ptr()).w_wcol;
-                        let old_wrow = (**curwin.as_ptr()).w_wrow;
+                        validate_cursor(curwin_ptr());
+                        let old_wcol = curwin_mut().w_wcol;
+                        let old_wrow = curwin_mut().w_wrow;
 
-                        if (**curwin.as_ptr()).w_cursor.col != 0 {
+                        if curwin_mut().w_cursor.col != 0 {
                             let mut col: colnr_T = 0;
-                            if (**curwin.as_ptr()).w_wcol > 0 {
+                            if curwin_mut().w_wcol > 0 {
                                 if g_st().Ins.did_ai
                                     && *skipwhite(
-                                        get_cursor_line_ptr().add((**curwin.as_ptr()).w_cursor.col as usize),
+                                        get_cursor_line_ptr().add(curwin_mut().w_cursor.col as usize),
                                     ) == NUL as c_char
                                 {
-                                    (**curwin.as_ptr()).w_wcol = 0;
+                                    curwin_mut().w_wcol = 0;
                                     let ptr = get_cursor_line_ptr();
-                                    let endptr = ptr.add((**curwin.as_ptr()).w_cursor.col as usize);
+                                    let endptr = ptr.add(curwin_mut().w_cursor.col as usize);
 
                                     let mut csarg = CharsizeArg::new();
                                     let cstype: CSType = init_charsize_arg(
                                         &mut csarg,
-                                        *curwin.as_ptr(),
-                                        (**curwin.as_ptr()).w_cursor.lnum,
+                                        curwin_ptr(),
+                                        curwin_mut().w_cursor.lnum,
                                         ptr,
                                     );
                                     let mut ci: StrCharInfo = utf_ptr2StrCharInfo(ptr);
                                     let mut vcol: c_int = 0;
                                     while ci.ptr < endptr.cast_const() {
                                         if !ascii_iswhite(ci.chr.value) {
-                                            (**curwin.as_ptr()).w_wcol = vcol;
+                                            curwin_mut().w_wcol = vcol;
                                         }
                                         let cli: ClusterInfo = utf_ClusterInfo(ci);
                                         vcol += win_charsize(
@@ -2735,34 +2735,34 @@ fn vgetorpeek(advance: bool) -> c_int {
                                         ci = cli.next;
                                     }
 
-                                    (**curwin.as_ptr()).w_wrow = (**curwin.as_ptr()).w_cline_row
-                                        + (**curwin.as_ptr()).w_wcol / (**curwin.as_ptr()).w_view_width;
-                                    (**curwin.as_ptr()).w_wcol %= (**curwin.as_ptr()).w_view_width;
-                                    (**curwin.as_ptr()).w_wcol += win_col_off(*curwin.as_ptr());
+                                    curwin_mut().w_wrow = curwin_mut().w_cline_row
+                                        + curwin_mut().w_wcol / curwin_mut().w_view_width;
+                                    curwin_mut().w_wcol %= curwin_mut().w_view_width;
+                                    curwin_mut().w_wcol += win_col_off(curwin_ptr());
                                     col = 0;
                                 } else {
-                                    (**curwin.as_ptr()).w_wcol -= 1;
-                                    col = (**curwin.as_ptr()).w_cursor.col - 1;
+                                    curwin_mut().w_wcol -= 1;
+                                    col = curwin_mut().w_cursor.col - 1;
                                 }
-                            } else if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap != 0 && (**curwin.as_ptr()).w_wrow != 0 {
-                                (**curwin.as_ptr()).w_wrow -= 1;
-                                (**curwin.as_ptr()).w_wcol = (**curwin.as_ptr()).w_view_width - 1;
-                                col = (**curwin.as_ptr()).w_cursor.col - 1;
+                            } else if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_wrow != 0 {
+                                curwin_mut().w_wrow -= 1;
+                                curwin_mut().w_wcol = curwin_mut().w_view_width - 1;
+                                col = curwin_mut().w_cursor.col - 1;
                             }
-                            if col > 0 && (**curwin.as_ptr()).w_wcol > 0 {
+                            if col > 0 && curwin_mut().w_wcol > 0 {
                                 let ptr = get_cursor_line_ptr();
                                 col -= utf_head_off(ptr, ptr.add(col as usize));
                                 if utf_ptr2cells(ptr.add(col as usize)) > 1 {
-                                    (**curwin.as_ptr()).w_wcol -= 1;
+                                    curwin_mut().w_wcol -= 1;
                                 }
                             }
                         }
                         setcursor();
                         ui_flush();
-                        new_wcol = (**curwin.as_ptr()).w_wcol;
-                        new_wrow = (**curwin.as_ptr()).w_wrow;
-                        (**curwin.as_ptr()).w_wcol = old_wcol;
-                        (**curwin.as_ptr()).w_wrow = old_wrow;
+                        new_wcol = curwin_mut().w_wcol;
+                        new_wrow = curwin_mut().w_wrow;
+                        curwin_mut().w_wcol = old_wcol;
+                        curwin_mut().w_wrow = old_wrow;
                     }
                     if c < 0 {
                         continue;
@@ -2832,10 +2832,10 @@ fn vgetorpeek(advance: bool) -> c_int {
                                 setcursor();
                                 showing_partial = true;
                             }
-                            let old_wcol = (**curwin.as_ptr()).w_wcol;
-                            let old_wrow = (**curwin.as_ptr()).w_wrow;
-                            (**curwin.as_ptr()).w_wcol = new_wcol;
-                            (**curwin.as_ptr()).w_wrow = new_wrow;
+                            let old_wcol = curwin_mut().w_wcol;
+                            let old_wrow = curwin_mut().w_wrow;
+                            curwin_mut().w_wcol = new_wcol;
+                            curwin_mut().w_wrow = new_wrow;
                             push_showcmd();
                             if g_st().typebuf.tb_len > SHOWCMD_COLS {
                                 showcmd_idx = g_st().typebuf.tb_len - SHOWCMD_COLS;
@@ -2846,8 +2846,8 @@ fn vgetorpeek(advance: bool) -> c_int {
                                 );
                                 showcmd_idx += 1;
                             }
-                            (**curwin.as_ptr()).w_wcol = old_wcol;
-                            (**curwin.as_ptr()).w_wrow = old_wrow;
+                            curwin_mut().w_wcol = old_wcol;
+                            curwin_mut().w_wrow = old_wrow;
                         }
 
                         if (g_st().State & MODE_CMDLINE) != 0

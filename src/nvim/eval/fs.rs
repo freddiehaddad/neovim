@@ -503,7 +503,7 @@ pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
             }
         } else if (*g_st().curbuf).b_localdir.is_some() {
             scope = kCdScopeBuffer;
-        } else if (**curwin.as_ptr()).w_localdir.is_some() {
+        } else if curwin_mut().w_localdir.is_some() {
             scope = kCdScopeWindow;
         } else if (*g_st().curtab).tp_localdir.is_some() {
             scope = kCdScopeTabpage;
@@ -794,7 +794,7 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
         let mut argc: usize = 0;
 
         *scope = default_scope;
-        *win = *curwin.as_ptr();
+        *win = curwin_ptr();
         *tp = g_st().curtab;
         *buf = g_st().curbuf;
 

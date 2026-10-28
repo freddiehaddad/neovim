@@ -607,7 +607,7 @@ pub fn ui_flush() {
             return;
         }
 
-        if (g_st().State & MODE_CMDLINE) == 0 && (**curwin.as_ptr()).w_floating && (**curwin.as_ptr()).w_config.hide {
+        if (g_st().State & MODE_CMDLINE) == 0 && curwin_mut().w_floating && curwin_mut().w_config.hide {
             if !ui_state().ui_flush_was_busy {
                 ui_call_busy_start();
                 ui_state().ui_flush_was_busy = true;
@@ -749,19 +749,19 @@ fn ui_cursor_is_behind_floatwin() -> bool {
             return false;
         }
 
-        let crow = (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_winrow_off + (**curwin.as_ptr()).w_wrow;
-        let ccol = (**curwin.as_ptr()).w_wincol
-            + (**curwin.as_ptr()).w_wincol_off
-            + if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
-                (**curwin.as_ptr()).w_view_width - (**curwin.as_ptr()).w_wcol - 1
+        let crow = curwin_mut().w_winrow + curwin_mut().w_winrow_off + curwin_mut().w_wrow;
+        let ccol = curwin_mut().w_wincol
+            + curwin_mut().w_wincol_off
+            + if curwin_mut().w_onebuf_opt.wo_rl != 0 {
+                curwin_mut().w_view_width - curwin_mut().w_wcol - 1
             } else {
-                (**curwin.as_ptr()).w_wcol
+                curwin_mut().w_wcol
             };
 
         let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
-        top_grid != &raw mut (**curwin.as_ptr()).w_grid_alloc
+        top_grid != &raw mut (*curwin_ptr()).w_grid_alloc
             && top_grid != &raw mut g_st().default_grid
-            && (*top_grid).zindex >= (**curwin.as_ptr()).w_grid_alloc.zindex + 50
+            && (*top_grid).zindex >= curwin_mut().w_grid_alloc.zindex + 50
     }
 }
 

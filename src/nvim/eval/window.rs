@@ -73,7 +73,7 @@ impl viewstate_T {
 pub fn win_has_winnr(wp: &mut win_T, tp: *mut tabpage_T) -> bool {
     unsafe {
         let cur = if ptr::eq(tp, g_st().curtab) {
-            *curwin.as_ptr()
+            curwin_ptr()
         } else {
             (*tp).tp_curwin
         };
@@ -102,7 +102,7 @@ pub fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
 fn win_getid(argvars: &mut [typval_T]) -> c_int {
     unsafe {
         if argvars[0].v_type == VarType::VAR_UNKNOWN {
-            return (**curwin.as_ptr()).handle;
+            return curwin_mut().handle;
         }
         let mut winnr = tv_get_number(&argvars[0]) as c_int;
         if winnr <= 0 {
@@ -223,7 +223,7 @@ pub fn find_win_by_nr(vp: &typval_T, mut tp: *mut tabpage_T) -> *mut win_T {
         }
 
         if nr == 0 {
-            return *curwin.as_ptr();
+            return curwin_ptr();
         }
 
         if tp.is_null() {
@@ -259,7 +259,7 @@ pub fn find_win_by_nr_or_id(vp: &typval_T) -> *mut win_T {
 
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
 pub fn find_tabwin(wvp: &typval_T, tvp: &typval_T) -> *mut win_T {
-    unsafe {
+     {
         let mut wp: *mut win_T = ptr::null_mut();
         let mut tp: *mut tabpage_T = ptr::null_mut();
 
@@ -277,7 +277,7 @@ pub fn find_tabwin(wvp: &typval_T, tvp: &typval_T) -> *mut win_T {
                 wp = find_win_by_nr(wvp, tp);
             }
         } else {
-            wp = *curwin.as_ptr();
+            wp = curwin_ptr();
         }
 
         wp
@@ -328,7 +328,7 @@ fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
         let mut nr: c_int = 1;
 
         let mut twin = if ptr::eq(tp, g_st().curtab) {
-            *curwin.as_ptr()
+            curwin_ptr()
         } else {
             tp.tp_curwin
         };
@@ -685,7 +685,7 @@ pub fn f_win_gotoid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
     unsafe {
         let id = tv_get_number(&argvars[0]) as c_int;
-        if (**curwin.as_ptr()).handle == id {
+        if curwin_mut().handle == id {
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
             return;
         }
@@ -797,7 +797,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     unsafe {
         let wp = find_win_by_nr_or_id(&argvars[0]);
         let targetwin = find_win_by_nr_or_id(&argvars[1]);
-        let oldwin = *curwin.as_ptr();
+        let oldwin = curwin_ptr();
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -839,11 +839,11 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             return;
         }
 
-        if *curwin.as_ptr() != targetwin {
+        if curwin_ptr() != targetwin {
             win_goto(targetwin);
         }
 
-        if *curwin.as_ptr() == targetwin && win_valid(wp) {
+        if curwin_ptr() == targetwin && win_valid(wp) {
             if win_splitmove(wp, size, flags) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }
@@ -851,7 +851,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             emsg(gettext(e_auabort));
         }
 
-        if oldwin != *curwin.as_ptr() && win_valid(oldwin) {
+        if oldwin != curwin_ptr() && win_valid(oldwin) {
             win_goto(oldwin);
         }
     }
@@ -861,7 +861,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 pub fn f_win_gettype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        let mut wp = *curwin.as_ptr();
+        let mut wp = curwin_ptr();
 
         tv_set_string(rettv, ptr::null());
         if argvars[0].v_type != VarType::VAR_UNKNOWN {
@@ -913,9 +913,9 @@ pub fn f_winbufnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `wincol()` function (`f_wincol`).
 pub fn f_wincol(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        validate_cursor(*curwin.as_ptr());
-        rettv.vval = crate::eval::typval::TypvalVval::Number(((**curwin.as_ptr()).w_wcol + 1) as varnumber_T);
+     {
+        validate_cursor(curwin_ptr());
+        rettv.vval = crate::eval::typval::TypvalVval::Number((curwin_mut().w_wcol + 1) as varnumber_T);
     }
 }
 
@@ -954,9 +954,9 @@ pub fn f_winlayout(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// `winline()` function (`f_winline`).
 pub fn f_winline(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        validate_cursor(*curwin.as_ptr());
-        rettv.vval = crate::eval::typval::TypvalVval::Number(((**curwin.as_ptr()).w_wrow + 1) as varnumber_T);
+     {
+        validate_cursor(curwin_ptr());
+        rettv.vval = crate::eval::typval::TypvalVval::Number((curwin_mut().w_wrow + 1) as varnumber_T);
     }
 }
 
@@ -1006,22 +1006,22 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         let dict = argvars[0].vval.v_dict();
         let di = tv_dict_find(dict, c"lnum", 4);
         if !di.is_null() {
-            (**curwin.as_ptr()).w_cursor.lnum = tv_get_number(&(*di).di_tv) as linenr_T;
+            curwin_mut().w_cursor.lnum = tv_get_number(&(*di).di_tv) as linenr_T;
         }
         let di = tv_dict_find(dict, c"col", 3);
         if !di.is_null() {
-            (**curwin.as_ptr()).w_cursor.col = tv_get_number(&(*di).di_tv) as colnr_T;
+            curwin_mut().w_cursor.col = tv_get_number(&(*di).di_tv) as colnr_T;
         }
         let di = tv_dict_find(dict, c"coladd", 6);
         if !di.is_null() {
-            (**curwin.as_ptr()).w_cursor.coladd = tv_get_number(&(*di).di_tv) as colnr_T;
+            curwin_mut().w_cursor.coladd = tv_get_number(&(*di).di_tv) as colnr_T;
         }
         let di = tv_dict_find(dict, c"topline", 7);
         if !di.is_null() {
-            set_topline(&mut **curwin.as_ptr(), tv_get_number(&(*di).di_tv) as linenr_T);
+            set_topline(curwin_mut(), tv_get_number(&(*di).di_tv) as linenr_T);
         }
         let mut vs = viewstate_T::default();
-        save_viewstate(&mut **curwin.as_ptr(), &mut vs);
+        save_viewstate(curwin_mut(), &mut vs);
         let di = tv_dict_find(dict, c"curswant", 8);
         if !di.is_null() {
             vs.vs_curswant = tv_get_number(&(*di).di_tv) as colnr_T;
@@ -1039,44 +1039,44 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         if !di.is_null() {
             vs.vs_skipcol = tv_get_number(&(*di).di_tv) as colnr_T;
         }
-        restore_viewstate(&mut **curwin.as_ptr(), &vs);
+        restore_viewstate(curwin_mut(), &vs);
 
-        check_cursor(*curwin.as_ptr());
-        changed_window_setting(&mut **curwin.as_ptr());
-        if (**curwin.as_ptr()).w_topline <= 0 {
-            (**curwin.as_ptr()).w_topline = 1;
+        check_cursor(curwin_ptr());
+        changed_window_setting(curwin_mut());
+        if curwin_mut().w_topline <= 0 {
+            curwin_mut().w_topline = 1;
         }
-        if (**curwin.as_ptr()).w_topline > (*g_st().curbuf).b_ml.ml_line_count {
-            (**curwin.as_ptr()).w_topline = (*g_st().curbuf).b_ml.ml_line_count;
+        if curwin_mut().w_topline > (*g_st().curbuf).b_ml.ml_line_count {
+            curwin_mut().w_topline = (*g_st().curbuf).b_ml.ml_line_count;
         }
-        check_topfill(*curwin.as_ptr(), true);
+        check_topfill(curwin_ptr(), true);
     }
 }
 
 /// `winsaveview()` function (`f_winsaveview`).
 pub fn f_winsaveview(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
+     {
         tv_dict_alloc_ret(rettv);
         let dict = rettv.vval.v_dict();
 
         tv_dict_add_nr(
             dict,
             c"lnum",
-            (**curwin.as_ptr()).w_cursor.lnum as varnumber_T,
+            curwin_mut().w_cursor.lnum as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"col",
-            (**curwin.as_ptr()).w_cursor.col as varnumber_T,
+            curwin_mut().w_cursor.col as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
             c"coladd",
-            (**curwin.as_ptr()).w_cursor.coladd as varnumber_T,
+            curwin_mut().w_cursor.coladd as varnumber_T,
         );
         update_curswant();
         let mut vs = viewstate_T::default();
-        save_viewstate(&mut **curwin.as_ptr(), &mut vs);
+        save_viewstate(curwin_mut(), &mut vs);
         tv_dict_add_nr(dict, c"curswant", vs.vs_curswant as varnumber_T);
 
         tv_dict_add_nr(dict, c"topline", vs.vs_topline as varnumber_T);

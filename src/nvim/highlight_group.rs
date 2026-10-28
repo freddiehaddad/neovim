@@ -2309,8 +2309,8 @@ pub fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -
 }
 
 pub fn syn_get_final_id(mut hl_id: c_int) -> c_int {
-    unsafe {
-        let mut ns_id = (**curwin.as_ptr()).w_ns_hl_active;
+     {
+        let mut ns_id = curwin_mut().w_ns_hl_active;
         syn_ns_get_final_id(&mut ns_id, &mut hl_id);
         hl_id
     }

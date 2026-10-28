@@ -2160,15 +2160,15 @@ fn wipe_qf_buffer(qi: &mut qf_info_T) {
         let qfbuf = buflist_findnr(qi.qf_bufnr);
         if !qfbuf.is_null() && (*qfbuf).b_nwindows == 0 {
             let mut buf_was_null = false;
-            if (**curwin.as_ptr()).w_buffer.is_null() {
-                (**curwin.as_ptr()).w_buffer = g_st().curbuf;
+            if curwin_mut().w_buffer.is_null() {
+                curwin_mut().w_buffer = g_st().curbuf;
                 buf_was_null = true;
             }
 
             close_buffer(ptr::null_mut(), qfbuf, DOBUF_WIPE, false, false, false);
             qi.qf_bufnr = INVALID_QFBUFNR;
             if buf_was_null {
-                (**curwin.as_ptr()).w_buffer = ptr::null_mut();
+                curwin_mut().w_buffer = ptr::null_mut();
             }
         }
     }
@@ -2441,12 +2441,12 @@ fn ll_get_or_alloc_list(wp: *mut win_T) -> *mut qf_info_T {
 }
 
 fn qf_cmd_get_stack(eap: &mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
-    unsafe {
+     {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
         if is_loclist_cmd(eap.cmdidx) {
-            qi = get_loc_list(*curwin.as_ptr());
+            qi = get_loc_list(curwin_ptr());
             if qi.is_null() {
                 if print_emsg {
                     emsg(gettext(e_loclist));
@@ -2463,8 +2463,8 @@ fn qf_cmd_get_or_alloc_stack(eap: &exarg_T, pwinp: *mut *mut win_T) -> *mut qf_i
     unsafe {
         let mut qi = ql_info_ptr();
         if is_loclist_cmd(eap.cmdidx) {
-            qi = ll_get_or_alloc_list(*curwin.as_ptr());
-            *pwinp = *curwin.as_ptr();
+            qi = ll_get_or_alloc_list(curwin_ptr());
+            *pwinp = curwin_ptr();
         }
         qi
     }
@@ -2882,7 +2882,7 @@ fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut boo
             win_enter(wp, true);
         } else {
             let mut flags = WSP_HELP;
-            if g_st().cmdmod.cmod_split == 0 && (**curwin.as_ptr()).w_width != g_st().Columns && (**curwin.as_ptr()).w_width < 80 {
+            if g_st().cmdmod.cmod_split == 0 && curwin_mut().w_width != g_st().Columns && curwin_mut().w_width < 80 {
                 flags |= WSP_TOP;
             }
 
@@ -2896,12 +2896,12 @@ fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut boo
 
             *opened_window = true;
 
-            if i64::from((**curwin.as_ptr()).w_height) < opt_vars().p_hh {
+            if i64::from(curwin_mut().w_height) < opt_vars().p_hh {
                 win_setheight(opt_vars().p_hh as c_int);
             }
 
             if is_ll_stack(qi) && !newwin {
-                win_set_loclist(*curwin.as_ptr(), qi);
+                win_set_loclist(curwin_ptr(), qi);
             }
         }
 
@@ -2967,9 +2967,9 @@ fn qf_open_new_file_win(ll_ref: *mut qf_info_T) -> bool {
         }
         opt_vars().p_swb = empty_string_option.as_ptr().cast::<c_char>();
         opt_vars().swb_flags = 0;
-        reset_binding(&mut **curwin.as_ptr());
+        reset_binding(curwin_mut());
         if !ll_ref.is_null() {
-            win_set_loclist(*curwin.as_ptr(), &mut *ll_ref);
+            win_set_loclist(curwin_ptr(), &mut *ll_ref);
         }
         true
     }
@@ -2989,7 +2989,7 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: *mut qf
                 win2 = (*win2).w_next;
             }
             if win.is_null() {
-                win = *curwin.as_ptr();
+                win = curwin_ptr();
                 loop {
                     if bt_normal((*win).w_buffer) {
                         break;
@@ -2999,7 +2999,7 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: *mut qf
                     } else {
                         win = (*win).w_prev;
                     }
-                    if win == *curwin.as_ptr() {
+                    if win == curwin_ptr() {
                         break;
                     }
                 }
@@ -3015,7 +3015,7 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: *mut qf
 
 fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
     unsafe {
-        let mut win = *curwin.as_ptr();
+        let mut win = curwin_ptr();
         let mut altwin: *mut win_T = ptr::null_mut();
         loop {
             if (*(*win).w_buffer).b_fnum == qf_fnum {
@@ -3035,10 +3035,10 @@ fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
                     win = g_st().prevwin;
                 } else if !altwin.is_null() {
                     win = altwin;
-                } else if !(**curwin.as_ptr()).w_prev.is_null() {
-                    win = (**curwin.as_ptr()).w_prev;
+                } else if !curwin_mut().w_prev.is_null() {
+                    win = curwin_mut().w_prev;
                 } else {
-                    win = (**curwin.as_ptr()).w_next;
+                    win = curwin_mut().w_next;
                 }
                 break;
             }
@@ -3068,7 +3068,7 @@ fn qf_jump_to_usable_window(
         let ll_ref = if newwin {
             ptr::null_mut()
         } else {
-            (**curwin.as_ptr()).w_llist_ref
+            curwin_mut().w_llist_ref
         };
         if !ll_ref.is_null() {
             usable_wp = qf_find_win_with_loclist(&*ll_ref);
@@ -3093,7 +3093,7 @@ fn qf_jump_to_usable_window(
                 return false;
             }
             *opened_window = true;
-        } else if !(**curwin.as_ptr()).w_llist_ref.is_null() {
+        } else if !curwin_mut().w_llist_ref.is_null() {
             qf_goto_win_with_ll_file(usable_wp, qf_fnum, ll_ref);
         } else {
             qf_goto_win_with_qfl_file(qf_fnum);
@@ -3134,8 +3134,8 @@ fn qf_jump_edit_buffer(
                 None,
                 1,
                 ECMD_HIDE + ECMD_SET_HELP,
-                if prev_winid == (**curwin.as_ptr()).handle {
-                    *curwin.as_ptr()
+                if prev_winid == curwin_mut().handle {
+                    curwin_ptr()
                 } else {
                     ptr::null_mut()
                 },
@@ -3145,7 +3145,7 @@ fn qf_jump_edit_buffer(
                 FAIL
             };
         } else {
-            if forceit == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 && (*g_st().curbuf).b_fnum != fnum {
+            if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb != 0 && (*g_st().curbuf).b_fnum != fnum {
                 if qi.qfl_type == QFLT_LOCATION {
                     emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
                     return FAIL;
@@ -3157,11 +3157,11 @@ fn qf_jump_edit_buffer(
                 {
                     win_goto(g_st().prevwin);
                 }
-                if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
+                if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
                     if win_split(0, 0) {
                         *opened_window = true;
                     }
-                    if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
+                    if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
                         emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
                         retval = FAIL;
                     }
@@ -3179,7 +3179,7 @@ fn qf_jump_edit_buffer(
 
         if qfl_type == QFLT_LOCATION {
             let wp = win_id2wp(prev_winid);
-            if wp.is_null() && (**curwin.as_ptr()).w_llist != qi {
+            if wp.is_null() && curwin_mut().w_llist != qi {
                 emsg(gettext(c"E924: Current window was closed"));
                 *opened_window = false;
                 return QF_ABORT;
@@ -3239,23 +3239,23 @@ fn qf_jump_goto_line(
             let mut i = qf_lnum;
             if i > 0 {
                 i = i.min((*g_st().curbuf).b_ml.ml_line_count);
-                (**curwin.as_ptr()).w_cursor.lnum = i;
+                curwin_mut().w_cursor.lnum = i;
             }
             if qf_col > 0 {
-                (**curwin.as_ptr()).w_cursor.coladd = 0;
+                curwin_mut().w_cursor.coladd = 0;
                 if qf_viscol != 0 {
-                    (**curwin.as_ptr()).w_cursor.col = qf_screen_col_to_idx(qf_col - 1);
+                    curwin_mut().w_cursor.col = qf_screen_col_to_idx(qf_col - 1);
                 } else {
-                    (**curwin.as_ptr()).w_cursor.col = qf_col - 1;
+                    curwin_mut().w_cursor.col = qf_col - 1;
                 }
-                (**curwin.as_ptr()).w_set_curswant = true;
-                check_cursor(*curwin.as_ptr());
+                curwin_mut().w_set_curswant = true;
+                check_cursor(curwin_ptr());
             } else {
                 beginline(BL_WHITE | BL_FIX);
             }
         } else {
-            let save_cursor = (**curwin.as_ptr()).w_cursor;
-            (**curwin.as_ptr()).w_cursor.lnum = 0;
+            let save_cursor = curwin_mut().w_cursor;
+            curwin_mut().w_cursor.lnum = 0;
             if do_search(
                 ptr::null_mut(),
                 b'/' as c_int,
@@ -3268,7 +3268,7 @@ fn qf_jump_goto_line(
                 None,
             ) == 0
             {
-                (**curwin.as_ptr()).w_cursor = save_cursor;
+                curwin_mut().w_cursor = save_cursor;
             }
         }
     }
@@ -3281,11 +3281,11 @@ fn qf_jump_print_msg(
     old_curbuf: *mut buf_T,
     old_lnum: linenr_T,
 ) {
-    unsafe {
+     {
         let gap = qfga_get();
 
         if g_st().msg_scrolled == 0 {
-            update_topline(*curwin.as_ptr());
+            update_topline(curwin_ptr());
             if g_st().must_redraw != 0 {
                 update_screen();
             }
@@ -3310,7 +3310,7 @@ fn qf_jump_print_msg(
         gap.push(NUL);
 
         let i = g_st().msg_scroll;
-        if g_st().curbuf == old_curbuf && (**curwin.as_ptr()).w_cursor.lnum == old_lnum {
+        if g_st().curbuf == old_curbuf && curwin_mut().w_cursor.lnum == old_lnum {
             g_st().msg_scroll = 1;
         } else if (g_st().msg_scrolled == 0 || (opt_vars().p_ch == 0 && g_st().msg_scrolled == 1)) && shortmess(kShmOverall)
         {
@@ -3330,7 +3330,7 @@ fn qf_jump_open_window(
     newwin: bool,
     opened_window: &mut bool,
 ) -> c_int {
-    unsafe {
+     {
         let qfl = qf_get_curlist(qi);
         let old_changetick = qfl.qf_changedtick;
         let old_qf_curlist = qi.qf_curlist;
@@ -3338,7 +3338,7 @@ fn qf_jump_open_window(
         let qf_type = (&qfl.qf_items)[(qf_index - 1) as usize].qf_type;
 
         if qf_type == 1
-            && (!bt_help((**curwin.as_ptr()).w_buffer) || g_st().cmdmod.cmod_tab != 0)
+            && (!bt_help(curwin_mut().w_buffer) || g_st().cmdmod.cmod_tab != 0)
             && !jump_to_help_window(qi, newwin, opened_window)
         {
             return FAIL;
@@ -3392,7 +3392,7 @@ fn qf_jump_to_buffer(
 ) -> c_int {
     unsafe {
         let old_curbuf = g_st().curbuf;
-        let old_lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let old_lnum = curwin_mut().w_cursor.lnum;
         let mut retval = OK;
         let qfl = qf_get_curlist(qi);
 
@@ -3466,7 +3466,7 @@ fn qf_jump_newwin(
             qfl.qf_index = qf_index;
 
             let print_message = !qf_win_pos_update(&mut *qi, old_qf_index);
-            let prev_winid = (**curwin.as_ptr()).handle;
+            let prev_winid = curwin_mut().handle;
             let mut opened_window = false;
             let mut retval = qf_jump_open_window(&mut *qi, qf_index, newwin, &mut opened_window);
             if retval == FAIL {
@@ -3487,7 +3487,7 @@ fn qf_jump_newwin(
                     qi = ptr::null_mut();
                 } else if retval != OK {
                     if opened_window {
-                        win_close(*curwin.as_ptr(), true, false);
+                        win_close(curwin_ptr(), true, false);
                     }
                     if (&qfl.qf_items)[(qf_index - 1) as usize].qf_fnum != 0 {
                         qf_index = old_qf_index;
@@ -3949,8 +3949,8 @@ pub fn qf_view_result(split: bool) {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
-        if is_ll_window(&**curwin.as_ptr()) {
-            qi = get_loc_list(*curwin.as_ptr());
+        if is_ll_window(curwin_mut()) {
+            qi = get_loc_list(curwin_ptr());
         }
 
         if qf_list_empty(qf_get_curlist(&mut *qi)) {
@@ -3959,12 +3959,12 @@ pub fn qf_view_result(split: bool) {
         }
 
         if split {
-            qf_jump_newwin(qi, 0, (**curwin.as_ptr()).w_cursor.lnum as c_int, 0, true);
+            qf_jump_newwin(qi, 0, curwin_mut().w_cursor.lnum as c_int, 0, true);
             do_cmdline_cmd(c"clearjumps");
             return;
         }
 
-        do_cmdline_cmd(if is_ll_window(&**curwin.as_ptr()) {
+        do_cmdline_cmd(if is_ll_window(curwin_mut()) {
             c".ll".as_ptr()
         } else {
             c".cc".as_ptr()
@@ -4033,24 +4033,24 @@ fn qf_goto_cwindow(qi: &qf_info_T, resize: bool, sz: c_int, vertsplit: bool) -> 
 }
 
 fn qf_set_cwindow_options() {
-    unsafe {
+     {
         set_option_value_give_err(kOptSwapfile, boolean_obj(false), OPT_LOCAL);
         set_option_value_give_err(kOptBuftype, cstr_as_obj(c"quickfix"), OPT_LOCAL);
         set_option_value_give_err(kOptBufhidden, cstr_as_obj(c"hide"), OPT_LOCAL);
-        reset_binding(&mut **curwin.as_ptr());
-        (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 0;
+        reset_binding(curwin_mut());
+        curwin_mut().w_onebuf_opt.wo_diff = 0;
         set_option_value_give_err(kOptFoldmethod, cstr_as_obj(c"manual"), OPT_LOCAL);
     }
 }
 
 fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
     unsafe {
-        let mut oldwin = *curwin.as_ptr();
+        let mut oldwin = curwin_ptr();
         let prevtab = g_st().curtab;
         let mut flags: c_int = 0;
 
         let qf_buf = qf_find_buf(qi);
-        let win = *curwin.as_ptr();
+        let win = curwin_ptr();
 
         if g_st().cmdmod.cmod_split == 0 {
             flags = if is_qf_stack(&*qi) { WSP_BOT } else { WSP_BELOW };
@@ -4064,14 +4064,14 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
         if !win_split(height, flags) {
             return false;
         }
-        reset_binding(&mut **curwin.as_ptr());
+        reset_binding(curwin_mut());
 
         if is_ll_stack(&*qi) {
-            (**curwin.as_ptr()).w_llist_ref = qi;
+            curwin_mut().w_llist_ref = qi;
             qi.qf_refcount += 1;
         }
 
-        if oldwin != *curwin.as_ptr() {
+        if oldwin != curwin_ptr() {
             oldwin = ptr::null_mut();
         }
         if !qf_buf.is_null() {
@@ -4107,10 +4107,10 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
             qf_set_cwindow_options();
         }
 
-        if g_st().curtab == prevtab && (**curwin.as_ptr()).w_width == g_st().Columns {
+        if g_st().curtab == prevtab && curwin_mut().w_width == g_st().Columns {
             win_setheight(height);
         }
-        (**curwin.as_ptr()).w_onebuf_opt.wo_wfh = 1;
+        curwin_mut().w_onebuf_opt.wo_wfh = 1;
         if win_valid(win) {
             g_st().prevwin = win;
         }
@@ -4158,32 +4158,32 @@ pub fn ex_copen(eap: &mut exarg_T) {
         qf_set_title_var(qfl);
         let lnum = qfl.qf_index;
 
-        qf_fill_buffer(qfl, &mut *g_st().curbuf, 0, (**curwin.as_ptr()).handle);
+        qf_fill_buffer(qfl, &mut *g_st().curbuf, 0, curwin_mut().handle);
 
         decr_quickfix_busy();
 
-        (**curwin.as_ptr()).w_cursor.lnum = lnum;
-        (**curwin.as_ptr()).w_cursor.col = 0;
-        check_cursor(*curwin.as_ptr());
-        update_topline(*curwin.as_ptr());
+        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.col = 0;
+        check_cursor(curwin_ptr());
+        update_topline(curwin_ptr());
     }
 }
 
 fn qf_win_goto(win: *mut win_T, lnum: linenr_T) {
     unsafe {
-        let old_curwin = *curwin.as_ptr();
+        let old_curwin = curwin_ptr();
 
-        *curwin.as_ptr() = win;
+        set_curwin(win);
         g_st().curbuf = (*win).w_buffer;
-        (**curwin.as_ptr()).w_cursor.lnum = lnum;
-        (**curwin.as_ptr()).w_cursor.col = 0;
-        (**curwin.as_ptr()).w_cursor.coladd = 0;
-        (**curwin.as_ptr()).w_curswant = 0;
-        update_topline(*curwin.as_ptr());
-        redraw_later(*curwin.as_ptr(), UPD_VALID);
-        (**curwin.as_ptr()).w_redr_status = true;
-        *curwin.as_ptr() = old_curwin;
-        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.col = 0;
+        curwin_mut().w_cursor.coladd = 0;
+        curwin_mut().w_curswant = 0;
+        update_topline(curwin_ptr());
+        redraw_later(curwin_ptr(), UPD_VALID);
+        curwin_mut().w_redr_status = true;
+        set_curwin(old_curwin);
+        g_st().curbuf = curwin_mut().w_buffer;
     }
 }
 
@@ -4284,21 +4284,21 @@ fn qf_find_buf(qi: &mut qf_info_T) -> *mut buf_T {
 fn qf_update_win_titlevar(qi: &mut qf_info_T) {
     unsafe {
         let qfl = qf_get_curlist(&mut *qi);
-        let save_curwin = *curwin.as_ptr();
+        let save_curwin = curwin_ptr();
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut win = tab_firstwin(&*tp);
             while !win.is_null() {
                 if is_qf_win(&*win, &*qi) {
-                    *curwin.as_ptr() = win;
+                    set_curwin(win);
                     qf_set_title_var(qfl);
                 }
                 win = (*win).w_next;
             }
             tp = (*tp).tp_next;
         }
-        *curwin.as_ptr() = save_curwin;
+        set_curwin(save_curwin);
     }
 }
 
@@ -4316,8 +4316,8 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
 
         let mut win: *mut win_T;
         if is_ll_stack(&*qi) {
-            if (**curwin.as_ptr()).w_llist == qi {
-                win = *curwin.as_ptr();
+            if curwin_mut().w_llist == qi {
+                win = curwin_ptr();
             } else {
                 win = qf_find_win_with_loclist(qi);
                 if win.is_null() {
@@ -4769,7 +4769,7 @@ pub fn ex_make(eap: &mut exarg_T) {
 
         let mut wp: *mut win_T = ptr::null_mut();
         if is_loclist_cmd(eap.cmdidx) {
-            wp = *curwin.as_ptr();
+            wp = curwin_ptr();
         }
 
         autowrite_all();
@@ -5329,7 +5329,7 @@ pub fn ex_cbelow(eap: &mut exarg_T) {
             BACKWARD
         };
 
-        let mut pos = (**curwin.as_ptr()).w_cursor;
+        let mut pos = curwin_mut().w_cursor;
         pos.col += 1;
         let errornr = qf_find_nth_adj_entry(
             qfl,
@@ -5397,7 +5397,7 @@ pub fn ex_cfile(eap: &mut exarg_T) {
         };
 
         if is_loclist_cmd(eap.cmdidx) {
-            wp = *curwin.as_ptr();
+            wp = curwin_ptr();
         }
 
         incr_quickfix_busy();
@@ -5546,7 +5546,7 @@ fn vgr_match_buflines(
             if (flags & VGR_FUZZY) == 0 {
                 while vim_regexec_multi(
                     regmatch,
-                    *curwin.as_ptr(),
+                    curwin_ptr(),
                     &raw mut *buf,
                     lnum,
                     col,
@@ -5953,7 +5953,7 @@ pub fn ex_vimgrep(eap: &mut exarg_T) {
                     decr_quickfix_busy();
 
                     if redraw_for_dummy {
-                        foldUpdateAll(&mut **curwin.as_ptr());
+                        foldUpdateAll(curwin_mut());
                     }
                 } else {
                     decr_quickfix_busy();
@@ -5969,14 +5969,14 @@ pub fn ex_vimgrep(eap: &mut exarg_T) {
 }
 
 fn restore_start_dir(dirname_start: *mut c_char) {
-    unsafe {
+     {
         let mut dirname_now = vec![0 as c_char; MAXPATHL];
 
         os_dirname(dirname_now.as_mut_ptr(), MAXPATHL);
         if crate::memory::cstr_as_bytes(dirname_start) != crate::memory::cstr_as_bytes(dirname_now.as_ptr()) {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = dirname_start;
-            ea.cmdidx = if (**curwin.as_ptr()).w_localdir.is_none() {
+            ea.cmdidx = if curwin_mut().w_localdir.is_none() {
                 CMD_cd
             } else {
                 CMD_lcd
@@ -7540,8 +7540,8 @@ pub fn ex_cexpr(eap: &mut exarg_T) {
 
 fn hgr_get_ll(new_ll: &mut bool) -> *mut qf_info_T {
     unsafe {
-        let wp = if bt_help((**curwin.as_ptr()).w_buffer) {
-            *curwin.as_ptr()
+        let wp = if bt_help(curwin_mut().w_buffer) {
+            curwin_ptr()
         } else {
             qf_find_help_win()
         };
@@ -7742,12 +7742,12 @@ pub fn ex_helpgrep(eap: &mut exarg_T) {
         decr_quickfix_busy();
 
         if eap.cmdidx == CMD_lhelpgrep {
-            if !bt_help((**curwin.as_ptr()).w_buffer) || (**curwin.as_ptr()).w_llist == qi {
+            if !bt_help(curwin_mut().w_buffer) || curwin_mut().w_llist == qi {
                 if new_qi {
                     ll_free_all(&raw mut qi);
                 }
-            } else if (**curwin.as_ptr()).w_llist.is_null() && new_qi {
-                (**curwin.as_ptr()).w_llist = qi;
+            } else if curwin_mut().w_llist.is_null() && new_qi {
+                curwin_mut().w_llist = qi;
             }
         }
     }

@@ -166,7 +166,7 @@ pub fn ex_help(eap: &mut exarg_T) {
 
         // Re-use an existing help window or open a new one.
         let mut early_ret = false;
-        if !bt_help((**curwin.as_ptr()).w_buffer) || g_st().cmdmod.cmod_tab != 0 {
+        if !bt_help(curwin_mut().w_buffer) || g_st().cmdmod.cmod_tab != 0 {
             if g_st().cmdmod.cmod_tab != 0 {
                 wp = ptr::null_mut();
             } else {
@@ -195,15 +195,15 @@ pub fn ex_help(eap: &mut exarg_T) {
 
                     let mut n = WSP_HELP;
                     if g_st().cmdmod.cmod_split == 0
-                        && (**curwin.as_ptr()).w_width != g_st().Columns
-                        && (**curwin.as_ptr()).w_width < 80
+                        && curwin_mut().w_width != g_st().Columns
+                        && curwin_mut().w_width < 80
                     {
                         n |= if opt_vars().p_sb != 0 { WSP_BOT } else { WSP_TOP };
                     }
                     if !win_split(0, n) {
                         early_ret = true;
                     } else {
-                        if ((**curwin.as_ptr()).w_height as OptInt) < opt_vars().p_hh {
+                        if (curwin_mut().w_height as OptInt) < opt_vars().p_hh {
                             win_setheight(opt_vars().p_hh as c_int);
                         }
 
@@ -219,7 +219,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                         );
 
                         if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                            (**curwin.as_ptr()).w_alt_fnum = alt_fnum;
+                            curwin_mut().w_alt_fnum = alt_fnum;
                         }
                         empty_fnum = (*g_st().curbuf).b_fnum;
                     }
@@ -248,10 +248,10 @@ pub fn ex_help(eap: &mut exarg_T) {
             }
 
             if alt_fnum != 0
-                && (**curwin.as_ptr()).w_alt_fnum == empty_fnum
+                && curwin_mut().w_alt_fnum == empty_fnum
                 && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
             {
-                (**curwin.as_ptr()).w_alt_fnum = alt_fnum;
+                curwin_mut().w_alt_fnum = alt_fnum;
             }
         }
         drop(allocated_arg);
@@ -471,19 +471,19 @@ pub fn prepare_help_buffer() {
         );
 
         (*g_st().curbuf).b_p_ts = 8;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
+        curwin_mut().w_onebuf_opt.wo_list = 0;
 
         (*g_st().curbuf).b_p_ma = 0;
         (*g_st().curbuf).b_p_bin = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_nu = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_rnu = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_arab = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_rl = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_fen = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_spell = 0;
+        curwin_mut().w_onebuf_opt.wo_nu = 0;
+        curwin_mut().w_onebuf_opt.wo_rnu = 0;
+        curwin_mut().w_onebuf_opt.wo_scb = 0;
+        curwin_mut().w_onebuf_opt.wo_crb = 0;
+        curwin_mut().w_onebuf_opt.wo_arab = 0;
+        curwin_mut().w_onebuf_opt.wo_rl = 0;
+        curwin_mut().w_onebuf_opt.wo_fen = 0;
+        curwin_mut().w_onebuf_opt.wo_diff = 0;
+        curwin_mut().w_onebuf_opt.wo_spell = 0;
 
         set_buflisted(0);
     }

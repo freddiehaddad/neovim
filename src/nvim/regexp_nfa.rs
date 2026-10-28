@@ -1235,7 +1235,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     }
                     if c == b'l' as c_int {
                         if cur {
-                            n = i64::from((**curwin.as_ptr()).w_cursor.lnum);
+                            n = i64::from(crate::globals::curwin_mut().w_cursor.lnum);
                         }
                         EMIT(if cmp == b'<' as c_int {
                             NFA_LNUM_LT
@@ -1249,7 +1249,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         }
                     } else if c == b'c' as c_int {
                         if cur {
-                            n = i64::from((**curwin.as_ptr()).w_cursor.col) + 1;
+                            n = i64::from(crate::globals::curwin_mut().w_cursor.col) + 1;
                         }
                         EMIT(if cmp == b'<' as c_int {
                             NFA_COL_LT
@@ -1262,8 +1262,8 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         if cur {
                             let mut vcol: colnr_T = 0;
                             getvvcol(
-                                *curwin.as_ptr(),
-                                &mut (**curwin.as_ptr()).w_cursor,
+                                crate::globals::curwin_ptr(),
+                                &mut crate::globals::curwin_mut().w_cursor,
                                 None,
                                 None,
                                 Some(&mut vcol),
@@ -4283,7 +4283,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                             let mut matched = false;
                             let wp = if re_st().rex.reg_win.is_null() {
-                                *curwin.as_ptr()
+                                crate::globals::curwin_ptr()
                             } else {
                                 re_st().rex.reg_win
                             };
@@ -4326,7 +4326,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         };
                         let fm = mark_get(
                             &mut *re_st().rex.reg_buf,
-                            *curwin.as_ptr(),
+                            crate::globals::curwin_ptr(),
                             None,
                             kMarkBufLocal,
                             t_st.val,

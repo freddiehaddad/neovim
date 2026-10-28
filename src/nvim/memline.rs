@@ -1414,7 +1414,7 @@ pub fn ml_recover(checkext: bool) {
             ml_delete((*g_st().curbuf).b_ml.ml_line_count);
         }
         (*g_st().curbuf).b_flags |= BF_RECOVERED;
-        check_cursor(*curwin.as_ptr());
+        check_cursor(curwin_ptr());
 
         g_st().msg_ext_skip_flush = !g_st().got_int;
         g_st().recoverymode = false;
@@ -4190,16 +4190,16 @@ pub fn goto_byte(cnt: c_int) {
         }
         let lnum = ml_find_line_or_offset(&mut *g_st().curbuf, 0, Some(&mut boff), false) as linenr_T;
         if lnum < 1 {
-            (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-            (**curwin.as_ptr()).w_curswant = MAXCOL;
-            coladvance(&mut **curwin.as_ptr(), MAXCOL);
+            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curwin_mut().w_curswant = MAXCOL;
+            coladvance(curwin_mut(), MAXCOL);
         } else {
-            (**curwin.as_ptr()).w_cursor.lnum = lnum;
-            (**curwin.as_ptr()).w_cursor.col = boff as colnr_T;
-            (**curwin.as_ptr()).w_cursor.coladd = 0;
-            (**curwin.as_ptr()).w_set_curswant = true;
+            curwin_mut().w_cursor.lnum = lnum;
+            curwin_mut().w_cursor.col = boff as colnr_T;
+            curwin_mut().w_cursor.coladd = 0;
+            curwin_mut().w_set_curswant = true;
         }
-        check_cursor(*curwin.as_ptr());
+        check_cursor(curwin_ptr());
         mb_adjust_cursor();
     }
 }

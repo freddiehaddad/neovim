@@ -434,22 +434,22 @@ pub fn pum_display(
                 ui_has(kUIPopupmenu) || ((g_st().State & MODE_CMDLINE) != 0 && ui_has(kUIWildmenu));
         }
 
-        pum().rl = (g_st().State & MODE_CMDLINE) == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0;
+        pum().rl = (g_st().State & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl != 0;
 
         let border_width = pum_border_width();
         loop {
             pum().is_visible = true;
             pum().is_drawn = true;
-            validate_cursor_col(&mut **curwin.as_ptr());
+            validate_cursor_col(curwin_mut());
             let mut above_row: c_int = 0;
-            let mut below_row = g_st().cmdline_row.max((**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_view_height);
+            let mut below_row = g_st().cmdline_row.max(curwin_mut().w_winrow + curwin_mut().w_view_height);
             if (g_st().State & MODE_CMDLINE) != 0 {
                 below_row = g_st().cmdline_row;
             }
             let target_win = if (g_st().State & MODE_CMDLINE) != 0 {
                 g_st().cmdline_win
             } else {
-                *curwin.as_ptr()
+                curwin_ptr()
             };
             pum().win_row_offset = 0;
             pum().win_col_offset = 0;
@@ -481,16 +481,16 @@ pub fn pum_display(
                     DEFAULT_GRID_HANDLE
                 };
             } else {
-                pum_win_row = (**curwin.as_ptr()).w_wrow;
-                let mut wcol = (**curwin.as_ptr()).w_wcol;
-                if (**curwin.as_ptr()).w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(*curwin.as_ptr()) {
-                    wcol -= (**curwin.as_ptr()).w_wcol_conceal_off;
+                pum_win_row = curwin_mut().w_wrow;
+                let mut wcol = curwin_mut().w_wcol;
+                if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_ptr()) {
+                    wcol -= curwin_mut().w_wcol_conceal_off;
                     if wcol < 0 {
                         wcol = 0;
                     }
                 }
                 if pum().rl {
-                    cursor_col = (**curwin.as_ptr()).w_view_width - wcol - 1;
+                    cursor_col = curwin_mut().w_view_width - wcol - 1;
                 } else {
                     cursor_col = wcol;
                 }
@@ -554,9 +554,9 @@ pub fn pum_display(
             }
 
             if !pvwin.is_null() {
-                if (*pvwin).w_winrow < (**curwin.as_ptr()).w_winrow {
+                if (*pvwin).w_winrow < curwin_mut().w_winrow {
                     above_row = (*pvwin).w_winrow + (*pvwin).w_height;
-                } else if (*pvwin).w_winrow > (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_height {
+                } else if (*pvwin).w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
                     below_row = (*pvwin).w_winrow;
                 }
             }
@@ -613,8 +613,8 @@ fn pum_compute_text_attrs(
     unsafe {
         if *text == NUL
             || (hlf != HLF_PSI && hlf != HLF_PNI)
-            || (win_hl_attr(*curwin.as_ptr(), HLF_PMSI) == win_hl_attr(*curwin.as_ptr(), HLF_PSI)
-                && win_hl_attr(*curwin.as_ptr(), HLF_PMNI) == win_hl_attr(*curwin.as_ptr(), HLF_PNI))
+            || (win_hl_attr(curwin_ptr(), HLF_PMSI) == win_hl_attr(curwin_ptr(), HLF_PSI)
+                && win_hl_attr(curwin_ptr(), HLF_PMNI) == win_hl_attr(curwin_ptr(), HLF_PNI))
         {
             return None;
         }
@@ -650,27 +650,27 @@ fn pum_compute_text_attrs(
         let is_select = hlf == HLF_PSI;
 
         while *ptr != NUL {
-            let mut new_attr = win_hl_attr(*curwin.as_ptr(), hlf);
+            let mut new_attr = win_hl_attr(curwin_ptr(), hlf);
 
             if let Some(ref positions) = match_positions {
                 if positions.contains(&char_pos) {
-                    new_attr = win_hl_attr(*curwin.as_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), hlf), new_attr);
+                    new_attr = win_hl_attr(curwin_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PMNI), new_attr);
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), hlf), new_attr);
                 }
             } else {
                 if matched_len < 0 && mb_strnicmp(ptr, leader, leader_len) == 0 {
                     matched_len = leader_len as c_int;
                 }
                 if matched_len > 0 {
-                    new_attr = win_hl_attr(*curwin.as_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), hlf), new_attr);
+                    new_attr = win_hl_attr(curwin_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PMNI), new_attr);
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), hlf), new_attr);
                     matched_len -= 1;
                 }
             }
 
-            new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PNI), new_attr);
+            new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PNI), new_attr);
 
             if user_hlattr > 0 {
                 new_attr = hl_combine_attr(new_attr, user_hlattr);
@@ -768,14 +768,14 @@ fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int {
 pub fn pum_redraw() {
     unsafe {
         let mut row: c_int = 0;
-        let attr_scroll = win_hl_attr(*curwin.as_ptr(), HLF_PSB);
-        let attr_thumb = win_hl_attr(*curwin.as_ptr(), HLF_PST);
+        let attr_scroll = win_hl_attr(curwin_ptr(), HLF_PSB);
+        let attr_thumb = win_hl_attr(curwin_ptr(), HLF_PST);
         let mut thumb_pos: c_int = 0;
         let mut thumb_height: c_int = 1;
         let fcs_trunc: schar_T = if pum().rl {
-            (**curwin.as_ptr()).w_p_fcs_chars.truncrl
+            curwin_mut().w_p_fcs_chars.truncrl
         } else {
-            (**curwin.as_ptr()).w_p_fcs_chars.trunc
+            curwin_mut().w_p_fcs_chars.trunc
         };
 
         const HLFS_NORM: [hlf_T; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
@@ -787,7 +787,7 @@ pub fn pum_redraw() {
         if pum().rl {
             col_off = pum().width - 1;
             debug_assert!((g_st().State & MODE_CMDLINE) == 0);
-            let win_end_col = (**curwin.as_ptr()).w_wincol + (**curwin.as_ptr()).w_view_width;
+            let win_end_col = curwin_mut().w_wincol + curwin_mut().w_view_width;
             if pum().col < win_end_col - 1 {
                 grid_width += 1;
                 extra_space = true;
@@ -920,10 +920,10 @@ pub fn pum_redraw() {
             let idx = i + pum().first;
             let selected = idx == pum().selected;
             let hlfs = if selected { &HLFS_SEL } else { &HLFS_NORM };
-            let trunc_attr = win_hl_attr(*curwin.as_ptr(), if selected { HLF_PSI } else { HLF_PNI });
+            let trunc_attr = win_hl_attr(curwin_ptr(), if selected { HLF_PSI } else { HLF_PNI });
             let mut hlf = hlfs[0];
-            let mut attr = win_hl_attr(*curwin.as_ptr(), hlf);
-            attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PNI), attr);
+            let mut attr = win_hl_attr(curwin_ptr(), hlf);
+            attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PNI), attr);
 
             screengrid_line_start(&raw mut g_st().pum_grid, row, 0);
 
@@ -948,8 +948,8 @@ pub fn pum_redraw() {
             for j in 0..3 {
                 let item_type = order[j];
                 hlf = hlfs[item_type as usize];
-                attr = win_hl_attr(*curwin.as_ptr(), hlf);
-                attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PNI), attr);
+                attr = win_hl_attr(curwin_ptr(), hlf);
+                attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PNI), attr);
                 orig_attr = attr;
                 if item_type < 2 {
                     attr = pum_user_attr_combine(idx, item_type, attr);
@@ -1382,7 +1382,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                 && (cur_cot_flags & (kOptCotFlagPopup | kOptCotFlagPreview)) != 0
                 && !((cur_cot_flags & kOptCotFlagPreview) != 0 && !g_st().cmdwin_buf.is_null())
             {
-                let curwin_save = *curwin.as_ptr();
+                let curwin_save = curwin_ptr();
                 let curtab_save = g_st().curtab;
 
                 if use_float {
@@ -1414,7 +1414,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                 g_st().RedrawingDisabled -= 1;
                 g_st().g_do_tagpreview = 0;
 
-                if (**curwin.as_ptr()).w_onebuf_opt.wo_pvw != 0 || (**curwin.as_ptr()).w_kind == kWinInfo {
+                if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == kWinInfo {
                     let mut res = OK;
                     if !resized
                         && (*g_st().curbuf).b_nwindows == 1
@@ -1458,14 +1458,14 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         let mut lnum: linenr_T = 0;
                         let mut max_info_width: c_int = 0;
                         pum_preview_set_text(
-                            &mut **curwin.as_ptr(),
+                            curwin_mut(),
                             (*pum().array.add(pum().selected as usize)).info_ptr(),
                             &mut lnum,
                             &mut max_info_width,
                         );
                         if repeat == 0 && !use_float {
                             lnum = lnum.min(opt_vars().p_pvh as linenr_T);
-                            if (**curwin.as_ptr()).w_height < lnum {
+                            if curwin_mut().w_height < lnum {
                                 win_setheight(lnum);
                                 resized = true;
                             }
@@ -1474,21 +1474,21 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         (*g_st().curbuf).b_changed = 0;
                         (*g_st().curbuf).b_p_ma = 0;
                         if pum().selected != prev_selected {
-                            (**curwin.as_ptr()).w_topline = 1;
-                        } else if (**curwin.as_ptr()).w_topline > (*g_st().curbuf).b_ml.ml_line_count {
-                            (**curwin.as_ptr()).w_topline = (*g_st().curbuf).b_ml.ml_line_count;
+                            curwin_mut().w_topline = 1;
+                        } else if curwin_mut().w_topline > (*g_st().curbuf).b_ml.ml_line_count {
+                            curwin_mut().w_topline = (*g_st().curbuf).b_ml.ml_line_count;
                         }
-                        (**curwin.as_ptr()).w_cursor.lnum = 1;
-                        (**curwin.as_ptr()).w_cursor.col = 0;
+                        curwin_mut().w_cursor.lnum = 1;
+                        curwin_mut().w_cursor.col = 0;
 
                         if use_float
-                            && !pum_adjust_info_position(&mut **curwin.as_ptr(), max_info_width)
+                            && !pum_adjust_info_position(curwin_mut(), max_info_width)
                             && win_valid(curwin_save)
                         {
                             win_enter(curwin_save, false);
                         }
 
-                        if (*curwin.as_ptr() != curwin_save && win_valid(curwin_save))
+                        if (curwin_ptr() != curwin_save && win_valid(curwin_save))
                             || (g_st().curtab != curtab_save && valid_tabpage(curtab_save))
                         {
                             if g_st().curtab != curtab_save && valid_tabpage(curtab_save) {
@@ -1496,17 +1496,17 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             }
 
                             if ins_compl_active() && !resized {
-                                (**curwin.as_ptr()).w_redr_status = false;
+                                curwin_mut().w_redr_status = false;
                             }
 
-                            validate_cursor(*curwin.as_ptr());
-                            redraw_later(*curwin.as_ptr(), UPD_SOME_VALID);
+                            validate_cursor(curwin_ptr());
+                            redraw_later(curwin_ptr(), UPD_SOME_VALID);
 
                             if resized && win_valid(curwin_save) {
                                 g_st().no_u_sync += 1;
                                 win_enter(curwin_save, true);
                                 g_st().no_u_sync -= 1;
-                                update_topline(*curwin.as_ptr());
+                                update_topline(curwin_ptr());
                             }
 
                             let save_pum_is_drawn = pum().is_drawn;
@@ -1824,7 +1824,7 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
         pum_compute_size();
         pum().scrollbar = 0;
         pum().height = pum().size;
-        pum().rl = (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0;
+        pum().rl = curwin_mut().w_onebuf_opt.wo_rl != 0;
         pum_position_at_mouse(20);
 
         pum().selected = -1;
@@ -1844,7 +1844,7 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
             pum().is_drawn = true;
             g_st().pum_grid.zindex = kZIndexCmdlinePopupMenu;
             pum_redraw();
-            setcursor_mayforce(&mut **curwin.as_ptr(), true);
+            setcursor_mayforce(curwin_mut(), true);
 
             let c = vgetc();
 
@@ -1908,19 +1908,19 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
 pub fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
     unsafe {
         if use_mouse_pos == 0 {
-            g_st().mouse_row = (**curwin.as_ptr()).w_grid.row_offset + (**curwin.as_ptr()).w_wrow;
-            g_st().mouse_col = (**curwin.as_ptr()).w_grid.col_offset
-                + if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
-                    (**curwin.as_ptr()).w_view_width - (**curwin.as_ptr()).w_wcol - 1
+            g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
+            g_st().mouse_col = curwin_mut().w_grid.col_offset
+                + if curwin_mut().w_onebuf_opt.wo_rl != 0 {
+                    curwin_mut().w_view_width - curwin_mut().w_wcol - 1
                 } else {
-                    (**curwin.as_ptr()).w_wcol
+                    curwin_mut().w_wcol
                 };
             if ui_has(kUIMultigrid) {
-                g_st().mouse_grid = (*(**curwin.as_ptr()).w_grid.target).handle;
-            } else if !ptr::eq((**curwin.as_ptr()).w_grid.target, &raw const g_st().default_grid) {
+                g_st().mouse_grid = (*curwin_mut().w_grid.target).handle;
+            } else if !ptr::eq(curwin_mut().w_grid.target, &raw const g_st().default_grid) {
                 g_st().mouse_grid = 0;
-                g_st().mouse_row += (**curwin.as_ptr()).w_winrow;
-                g_st().mouse_col += (**curwin.as_ptr()).w_wincol;
+                g_st().mouse_row += curwin_mut().w_winrow;
+                g_st().mouse_col += curwin_mut().w_wincol;
             }
         }
 

@@ -473,7 +473,7 @@ pub fn ex_align(eap: &mut exarg_T) {
         let mut indent: c_int = 0;
         let mut new_indent: c_int;
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
+        if curwin_mut().w_onebuf_opt.wo_rl != 0 {
             if eap.cmdidx == cmdidx_T::CMD_right as c_int {
                 eap.cmdidx = cmdidx_T::CMD_left as c_int;
             } else if eap.cmdidx == cmdidx_T::CMD_left as c_int {
@@ -482,7 +482,7 @@ pub fn ex_align(eap: &mut exarg_T) {
         }
 
         let mut width = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
-        let save_curpos = (**curwin.as_ptr()).w_cursor;
+        let save_curpos = curwin_mut().w_cursor;
         if eap.cmdidx == cmdidx_T::CMD_left as c_int {
             if width >= 0 {
                 indent = width;
@@ -492,7 +492,7 @@ pub fn ex_align(eap: &mut exarg_T) {
                 width = (*g_st().curbuf).b_p_tw as c_int;
             }
             if width == 0 && (*g_st().curbuf).b_p_wm > 0 {
-                width = (**curwin.as_ptr()).w_view_width - (*g_st().curbuf).b_p_wm as c_int;
+                width = curwin_mut().w_view_width - (*g_st().curbuf).b_p_wm as c_int;
             }
             if width <= 0 {
                 width = 80;
@@ -503,8 +503,8 @@ pub fn ex_align(eap: &mut exarg_T) {
             return;
         }
 
-        (**curwin.as_ptr()).w_cursor.lnum = eap.line1;
-        while (**curwin.as_ptr()).w_cursor.lnum <= eap.line2 {
+        curwin_mut().w_cursor.lnum = eap.line1;
+        while curwin_mut().w_cursor.lnum <= eap.line2 {
             if eap.cmdidx == cmdidx_T::CMD_left as c_int {
                 new_indent = indent;
             } else {
@@ -516,7 +516,7 @@ pub fn ex_align(eap: &mut exarg_T) {
                 }) - get_indent();
 
                 if len <= 0 {
-                    (**curwin.as_ptr()).w_cursor.lnum += 1;
+                    curwin_mut().w_cursor.lnum += 1;
                     continue;
                 }
 
@@ -546,10 +546,10 @@ pub fn ex_align(eap: &mut exarg_T) {
             }
             new_indent = new_indent.max(0);
             set_indent(new_indent, 0);
-            (**curwin.as_ptr()).w_cursor.lnum += 1;
+            curwin_mut().w_cursor.lnum += 1;
         }
         changed_lines(g_st().curbuf, eap.line1, 0, eap.line2 + 1, 0, true);
-        (**curwin.as_ptr()).w_cursor = save_curpos;
+        curwin_mut().w_cursor = save_curpos;
         beginline(BL_WHITE | BL_FIX);
     }
 }
@@ -938,7 +938,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                 changed_lines(g_st().curbuf, eap.line1, 0, eap.line2 + 1, -deleted, true);
             }
 
-            (**curwin.as_ptr()).w_cursor.lnum = eap.line1;
+            curwin_mut().w_cursor.lnum = eap.line1;
             beginline(BL_WHITE | BL_FIX);
         }
 
@@ -1149,7 +1149,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                 changed_lines(g_st().curbuf, eap.line1, 0, eap.line2 + 1, -deleted, true);
             }
 
-            (**curwin.as_ptr()).w_cursor.lnum = eap.line1;
+            curwin_mut().w_cursor.lnum = eap.line1;
             beginline(BL_WHITE | BL_FIX);
         }
 
@@ -1172,7 +1172,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
         }
 
         if dest == line1 - 1 || dest == line2 {
-            (**curwin.as_ptr()).w_cursor.lnum = if dest >= line1 {
+            curwin_mut().w_cursor.lnum = if dest >= line1 {
                 dest
             } else {
                 dest + (line2 - line1) + 1
@@ -1323,9 +1323,9 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
         );
 
         if dest >= line1 {
-            (**curwin.as_ptr()).w_cursor.lnum = dest;
+            curwin_mut().w_cursor.lnum = dest;
         } else {
-            (**curwin.as_ptr()).w_cursor.lnum = dest + (line2 - line1) + 1;
+            curwin_mut().w_cursor.lnum = dest + (line2 - line1) + 1;
         }
 
         if line1 < dest {
@@ -1358,25 +1358,25 @@ pub fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
             return;
         }
 
-        (**curwin.as_ptr()).w_cursor.lnum = n;
+        curwin_mut().w_cursor.lnum = n;
         while line1 <= line2 {
             let p = cstr_from_bytes(std::slice::from_raw_parts(
                 ml_get(line1).cast::<u8>(),
                 ml_get_len(line1) as usize,
             ));
-            ml_append((**curwin.as_ptr()).w_cursor.lnum, p.as_ptr().cast_mut(), 0, false);
+            ml_append(curwin_mut().w_cursor.lnum, p.as_ptr().cast_mut(), 0, false);
 
             if line1 == n {
-                line1 = (**curwin.as_ptr()).w_cursor.lnum;
+                line1 = curwin_mut().w_cursor.lnum;
             }
             line1 += 1;
-            if (**curwin.as_ptr()).w_cursor.lnum < line1 {
+            if curwin_mut().w_cursor.lnum < line1 {
                 line1 += 1;
             }
-            if (**curwin.as_ptr()).w_cursor.lnum < line2 {
+            if curwin_mut().w_cursor.lnum < line2 {
                 line2 += 1;
             }
-            (**curwin.as_ptr()).w_cursor.lnum += 1;
+            curwin_mut().w_cursor.lnum += 1;
         }
 
         appended_lines_mark(n, count);
@@ -1574,12 +1574,12 @@ fn do_filter(
         let save_cmod_flags = g_st().cmdmod.cmod_flags;
         g_st().cmdmod.cmod_flags &= !CMOD_LOCKMARKS;
 
-        let cursor_save = (**curwin.as_ptr()).w_cursor;
+        let cursor_save = curwin_mut().w_cursor;
         let mut linecount = line2 - line1 + 1;
-        (**curwin.as_ptr()).w_cursor.lnum = line1;
-        (**curwin.as_ptr()).w_cursor.col = 0;
+        curwin_mut().w_cursor.lnum = line1;
+        curwin_mut().w_cursor.col = 0;
         changed_line_abv_curs();
-        invalidate_botline_win(&mut **curwin.as_ptr());
+        invalidate_botline_win(curwin_mut());
 
         if do_out {
             shell_flags |= kShellOptDoOut;
@@ -1588,7 +1588,7 @@ fn do_filter(
         'filterend: {
             if !do_in && do_out && stmp == 0 {
                 shell_flags |= kShellOptRead;
-                (**curwin.as_ptr()).w_cursor.lnum = line2;
+                curwin_mut().w_cursor.lnum = line2;
             } else if do_in && !do_out && stmp == 0 {
                 shell_flags |= kShellOptWrite;
                 (*g_st().curbuf).b_op_start.lnum = line1;
@@ -1597,7 +1597,7 @@ fn do_filter(
                 shell_flags |= kShellOptRead | kShellOptWrite;
                 (*g_st().curbuf).b_op_start.lnum = line1;
                 (*g_st().curbuf).b_op_end.lnum = line2;
-                (**curwin.as_ptr()).w_cursor.lnum = line2;
+                curwin_mut().w_cursor.lnum = line2;
             } else {
                 if do_in {
                     itmp_owned = vim_tempname();
@@ -1707,7 +1707,7 @@ fn do_filter(
 
                     if (shell_flags & kShellOptRead) != 0 {
                         (*g_st().curbuf).b_op_start.lnum = line2 + 1;
-                        (*g_st().curbuf).b_op_end.lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                        (*g_st().curbuf).b_op_end.lnum = curwin_mut().w_cursor.lnum;
                         appended_lines_mark(line2, read_linecount);
                     }
 
@@ -1735,7 +1735,7 @@ fn do_filter(
                             }
                         }
 
-                        (**curwin.as_ptr()).w_cursor.lnum = line1;
+                        curwin_mut().w_cursor.lnum = line1;
                         del_lines(linecount, true);
                         if read_linecount == 0 {
                             let l = line1.min((*g_st().curbuf).b_ml.ml_line_count);
@@ -1748,10 +1748,10 @@ fn do_filter(
                             (*g_st().curbuf).b_op_end.lnum -= linecount;
                         }
                         write_lnum_adjust(-linecount);
-                        foldUpdate(*curwin.as_ptr(), (*g_st().curbuf).b_op_start.lnum, (*g_st().curbuf).b_op_end.lnum);
+                        foldUpdate(curwin_ptr(), (*g_st().curbuf).b_op_start.lnum, (*g_st().curbuf).b_op_end.lnum);
                     } else {
                         linecount = (*g_st().curbuf).b_op_end.lnum - (*g_st().curbuf).b_op_start.lnum + 1;
-                        (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_op_end.lnum;
+                        curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_op_end.lnum;
                     }
 
                     beginline(BL_WHITE | BL_FIX);
@@ -1778,7 +1778,7 @@ fn do_filter(
             }
 
             // error:
-            (**curwin.as_ptr()).w_cursor = cursor_save;
+            curwin_mut().w_cursor = cursor_save;
             g_st().no_wait_return -= 1;
             if !ui_has(kUIMessages) {
                 wait_return(0);
@@ -2022,15 +2022,15 @@ pub fn append_redir(
 }
 
 pub fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
-    unsafe {
+     {
         let mut numbuf: [c_char; 30] = [0; 30];
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_nu != 0 || use_number {
+        if curwin_mut().w_onebuf_opt.wo_nu != 0 || use_number {
             vim_snprintf!(
                 numbuf.as_mut_ptr(),
                 30,
                 c"%*d ",
-                number_width(*curwin.as_ptr()),
+                number_width(curwin_ptr()),
                 lnum,
             );
             msg_puts_hl(numbuf.as_ptr(), HLF_N + 1, false);
@@ -2092,9 +2092,9 @@ pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
         }
         (*g_st().curbuf).b_flags |= BF_NOTEDITED;
         if !xfname.is_null() && *xfname != NUL {
-            buf = buflist_new(fname, xfname, (**curwin.as_ptr()).w_cursor.lnum, 0);
+            buf = buflist_new(fname, xfname, curwin_mut().w_cursor.lnum, 0);
             if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                (**curwin.as_ptr()).w_alt_fnum = (*buf).b_fnum;
+                curwin_mut().w_alt_fnum = (*buf).b_fnum;
             }
         }
         drop(fname_cstr);
@@ -2456,9 +2456,9 @@ pub fn check_overwrite(
 pub fn ex_wnext(eap: &mut exarg_T) {
     unsafe {
         let i = if *eap.cmd.add(1) == b'n' as c_char {
-            (**curwin.as_ptr()).w_arg_idx + eap.line2 as c_int
+            curwin_mut().w_arg_idx + eap.line2 as c_int
         } else {
-            (**curwin.as_ptr()).w_arg_idx - eap.line2 as c_int
+            curwin_mut().w_arg_idx - eap.line2 as c_int
         };
         eap.line1 = 1;
         eap.line2 = (*g_st().curbuf).b_ml.ml_line_count;
@@ -2672,9 +2672,9 @@ pub fn getfile(
             }
             if !other {
                 if lnum != 0 {
-                    (**curwin.as_ptr()).w_cursor.lnum = lnum;
+                    curwin_mut().w_cursor.lnum = lnum;
                 }
-                check_cursor_lnum(&mut **curwin.as_ptr());
+                check_cursor_lnum(curwin_mut());
                 beginline(BL_SOL | BL_FIX);
                 retval = GETFILE_SAME_FILE;
             } else if do_ecmd(
@@ -2685,7 +2685,7 @@ pub fn getfile(
                 lnum,
                 (if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 })
                     + (if forceit { ECMD_FORCEIT } else { 0 }),
-                *curwin.as_ptr(),
+                curwin_ptr(),
             )
             {
                 retval = GETFILE_OPEN_OTHER;
@@ -2749,8 +2749,8 @@ pub fn do_ecmd(
         let mut did_get_winopts = false;
         let mut readfile_flags: c_int = 0;
         let mut did_inc_redrawing_disabled = false;
-        let so_ptr: *mut OptInt = if (**curwin.as_ptr()).w_onebuf_opt.wo_so >= 0 {
-            &raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_so
+        let so_ptr: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
+            &raw mut (*curwin_ptr()).w_onebuf_opt.wo_so
         } else {
             &raw mut opt_vars().p_so
         };
@@ -2799,7 +2799,7 @@ pub fn do_ecmd(
             }
 
             if !other_file && !(*g_st().curbuf).terminal.is_null() {
-                check_arg_idx(&mut **curwin.as_ptr());
+                check_arg_idx(curwin_mut());
                 maketitle();
                 retval = true;
                 break 'theend;
@@ -2835,11 +2835,11 @@ pub fn do_ecmd(
             did_set_swapcommand = set_swapcommand(command, newlnum);
 
             if other_file {
-                let prev_alt_fnum = (**curwin.as_ptr()).w_alt_fnum;
+                let prev_alt_fnum = curwin_mut().w_alt_fnum;
 
                 if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) == 0 {
                     if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                        (**curwin.as_ptr()).w_alt_fnum = (*g_st().curbuf).b_fnum;
+                        curwin_mut().w_alt_fnum = (*g_st().curbuf).b_fnum;
                     }
                     if !oldwin.is_null() {
                         buflist_altfpos(&mut *oldwin);
@@ -2860,7 +2860,7 @@ pub fn do_ecmd(
                         }
                         let newbuf = buflist_new(ffname, sfname, tlnum, BLN_LISTED | BLN_NOCURWIN);
                         if !newbuf.is_null() && (flags & ECMD_ALTBUF) != 0 {
-                            (**curwin.as_ptr()).w_alt_fnum = (*newbuf).b_fnum;
+                            curwin_mut().w_alt_fnum = (*newbuf).b_fnum;
                         }
                         break 'theend;
                     }
@@ -2876,7 +2876,7 @@ pub fn do_ecmd(
                             },
                     );
                     if !oldwin.is_null() {
-                        oldwin = *curwin.as_ptr();
+                        oldwin = curwin_ptr();
                     }
                     set_bufref(&mut old_curbuf, g_st().curbuf);
                 }
@@ -2887,8 +2887,8 @@ pub fn do_ecmd(
                     emsg(gettext(e_cannot_switch_to_a_closing_buffer));
                     break 'theend;
                 }
-                if (**curwin.as_ptr()).w_alt_fnum == (*buf).b_fnum && prev_alt_fnum != 0 {
-                    (**curwin.as_ptr()).w_alt_fnum = prev_alt_fnum;
+                if curwin_mut().w_alt_fnum == (*buf).b_fnum && prev_alt_fnum != 0 {
+                    curwin_mut().w_alt_fnum = prev_alt_fnum;
                 }
                 if (*buf).b_ml.ml_mfp.is_none() {
                     oldbuf = false;
@@ -2936,7 +2936,7 @@ pub fn do_ecmd(
                     if buf == g_st().curbuf {
                         auto_buf = true;
                     } else {
-                        let the_curwin = *curwin.as_ptr();
+                        let the_curwin = curwin_ptr();
 
                         (*the_curwin).w_locked += 1;
                         (*buf).b_locked += 1;
@@ -2947,7 +2947,7 @@ pub fn do_ecmd(
 
                         u_sync(false);
                         close_buffer(
-                            *curwin.as_ptr(),
+                            curwin_ptr(),
                             g_st().curbuf,
                             if (flags & ECMD_HIDE) != 0
                                 || (!(*g_st().curbuf).terminal.is_null()
@@ -2967,12 +2967,12 @@ pub fn do_ecmd(
                         }
                         (*buf).b_locked -= 1;
 
-                        if aborting() && !(**curwin.as_ptr()).w_buffer.is_null() {
+                        if aborting() && !curwin_mut().w_buffer.is_null() {
                             g_st().au_new_curbuf = save_au_new_curbuf;
                             break 'theend;
                         }
                         if !bufref_valid(Some(&g_st().au_new_curbuf)) {
-                            if (**curwin.as_ptr()).w_buffer.is_null() {
+                            if curwin_mut().w_buffer.is_null() {
                                 buf = g_st().lastbuf;
                             } else {
                                 delbuf_msg(new_name.take());
@@ -2983,11 +2983,11 @@ pub fn do_ecmd(
                         if buf == g_st().curbuf {
                             auto_buf = true;
                         } else {
-                            if !(**curwin.as_ptr()).w_buffer.is_null() {
-                                (*(**curwin.as_ptr()).w_buffer).b_nwindows -= 1;
+                            if !curwin_mut().w_buffer.is_null() {
+                                (*curwin_mut().w_buffer).b_nwindows -= 1;
                             }
 
-                            (**curwin.as_ptr()).w_buffer = buf;
+                            curwin_mut().w_buffer = buf;
                             g_st().curbuf = buf;
                             (*g_st().curbuf).b_nwindows += 1;
 
@@ -3006,8 +3006,8 @@ pub fn do_ecmd(
                     g_st().au_new_curbuf = save_au_new_curbuf;
                 }
 
-                (**curwin.as_ptr()).w_pcmark.lnum = 1;
-                (**curwin.as_ptr()).w_pcmark.col = 0;
+                curwin_mut().w_pcmark.lnum = 1;
+                curwin_mut().w_pcmark.col = 0;
             } else {
                 if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 || !check_fname() {
                     break 'theend;
@@ -3035,10 +3035,10 @@ pub fn do_ecmd(
             (*g_st().curbuf).b_did_filetype = false;
 
             if !other_file && !oldbuf {
-                set_last_cursor(*curwin.as_ptr());
+                set_last_cursor(curwin_ptr());
                 if newlnum == ECMD_LAST || newlnum == ECMD_LASTL {
-                    newlnum = (**curwin.as_ptr()).w_cursor.lnum;
-                    solcol = (**curwin.as_ptr()).w_cursor.col;
+                    newlnum = curwin_mut().w_cursor.lnum;
+                    solcol = curwin_mut().w_cursor.col;
                 }
                 buf = g_st().curbuf;
                 new_name = if !(*buf).b_fname.is_null() {
@@ -3085,7 +3085,7 @@ pub fn do_ecmd(
                 (*g_st().curbuf).b_flags &= !BF_NOTEDITED;
             }
 
-            check_arg_idx(&mut **curwin.as_ptr());
+            check_arg_idx(curwin_mut());
 
             if !auto_buf {
                 curwin_init();
@@ -3108,8 +3108,8 @@ pub fn do_ecmd(
 
                 do_autochdir();
 
-                let orig_pos = (**curwin.as_ptr()).w_cursor;
-                topline = (**curwin.as_ptr()).w_topline;
+                let orig_pos = curwin_mut().w_cursor;
+                topline = curwin_mut().w_topline;
                 if !oldbuf {
                     g_st().swap_exists_action = SEA_DIALOG;
                     (*g_st().curbuf).b_flags |= BF_CHECK_RO;
@@ -3149,19 +3149,19 @@ pub fn do_ecmd(
                     }
                     retval = au_retval == OK;
                 }
-                check_arg_idx(&mut **curwin.as_ptr());
+                check_arg_idx(curwin_mut());
 
-                if !equalpos((**curwin.as_ptr()).w_cursor, orig_pos) {
+                if !equalpos(curwin_mut().w_cursor, orig_pos) {
                     let text = get_cursor_line_ptr();
 
-                    if (**curwin.as_ptr()).w_cursor.lnum != orig_pos.lnum
-                        || (**curwin.as_ptr()).w_cursor.col != skipwhite(text).offset_from(text) as c_int
+                    if curwin_mut().w_cursor.lnum != orig_pos.lnum
+                        || curwin_mut().w_cursor.col != skipwhite(text).offset_from(text) as c_int
                     {
-                        newlnum = (**curwin.as_ptr()).w_cursor.lnum;
-                        newcol = (**curwin.as_ptr()).w_cursor.col;
+                        newlnum = curwin_mut().w_cursor.lnum;
+                        newcol = curwin_mut().w_cursor.col;
                     }
                 }
-                if (**curwin.as_ptr()).w_topline == topline {
+                if curwin_mut().w_topline == topline {
                     topline = 0;
                 }
 
@@ -3169,35 +3169,35 @@ pub fn do_ecmd(
 
                 maketitle();
                 if retval {
-                    win_float_update_preview(&mut **curwin.as_ptr());
+                    win_float_update_preview(curwin_mut());
                 }
             }
 
-            if (**curwin.as_ptr()).w_onebuf_opt.wo_diff != 0 {
+            if curwin_mut().w_onebuf_opt.wo_diff != 0 {
                 diff_buf_add(g_st().curbuf);
                 diff_invalidate(g_st().curbuf);
             }
 
             if did_get_winopts
-                && (**curwin.as_ptr()).w_onebuf_opt.wo_spell != 0
-                && *(*(**curwin.as_ptr()).w_s_ptr()).b_p_spl != NUL
+                && curwin_mut().w_onebuf_opt.wo_spell != 0
+                && *(*curwin_mut().w_s_ptr()).b_p_spl != NUL
             {
-                parse_spelllang(*curwin.as_ptr());
+                parse_spelllang(curwin_ptr());
             }
 
             if command.is_null() {
                 if newcol >= 0 {
-                    (**curwin.as_ptr()).w_cursor.lnum = newlnum;
-                    (**curwin.as_ptr()).w_cursor.col = newcol;
-                    check_cursor(*curwin.as_ptr());
+                    curwin_mut().w_cursor.lnum = newlnum;
+                    curwin_mut().w_cursor.col = newcol;
+                    check_cursor(curwin_ptr());
                 } else if newlnum > 0 {
-                    (**curwin.as_ptr()).w_cursor.lnum = newlnum;
-                    check_cursor_lnum(&mut **curwin.as_ptr());
+                    curwin_mut().w_cursor.lnum = newlnum;
+                    check_cursor_lnum(curwin_mut());
                     if solcol >= 0 && opt_vars().p_sol == 0 {
-                        (**curwin.as_ptr()).w_cursor.col = solcol;
-                        check_cursor_col(&mut **curwin.as_ptr());
-                        (**curwin.as_ptr()).w_cursor.coladd = 0;
-                        (**curwin.as_ptr()).w_set_curswant = true;
+                        curwin_mut().w_cursor.col = solcol;
+                        check_cursor_col(curwin_mut());
+                        curwin_mut().w_cursor.coladd = 0;
+                        curwin_mut().w_set_curswant = true;
                     } else {
                         beginline(BL_SOL | BL_FIX);
                     }
@@ -3246,8 +3246,8 @@ pub fn do_ecmd(
                 if topline == 0 && command.is_null() {
                     *so_ptr = 999;
                 }
-                update_topline(*curwin.as_ptr());
-                (**curwin.as_ptr()).w_scbind_pos = plines_m_win_fill(*curwin.as_ptr(), 1, (**curwin.as_ptr()).w_topline);
+                update_topline(curwin_ptr());
+                curwin_mut().w_scbind_pos = plines_m_win_fill(curwin_ptr(), 1, curwin_mut().w_topline);
                 *so_ptr = n;
                 redraw_curbuf_later(UPD_NOT_VALID);
             }
@@ -3461,8 +3461,8 @@ pub fn ex_append(eap: &mut exarg_T) {
             (*g_st().curbuf).b_op_end.col = 0;
             (*g_st().curbuf).b_op_start.col = 0;
         }
-        (**curwin.as_ptr()).w_cursor.lnum = lnum;
-        check_cursor_lnum(&mut **curwin.as_ptr());
+        curwin_mut().w_cursor.lnum = lnum;
+        check_cursor_lnum(curwin_mut());
         beginline(BL_SOL | BL_FIX);
 
         g_st().need_wait_return = false;
@@ -3498,7 +3498,7 @@ pub fn ex_change(eap: &mut exarg_T) {
             lnum -= 1;
         }
 
-        check_cursor_lnum(&mut **curwin.as_ptr());
+        check_cursor_lnum(curwin_mut());
         deleted_lines_mark(eap.line1, eap.line2 - lnum);
 
         eap.line2 = eap.line1;
@@ -3518,9 +3518,9 @@ pub fn ex_z(eap: &mut exarg_T) {
         if eap.forceit != 0 {
             bigness = (g_st().Rows - 1) as i64;
         } else if g_st().firstwin == g_st().lastwin {
-            bigness = (**curwin.as_ptr()).w_onebuf_opt.wo_scr * 2;
+            bigness = curwin_mut().w_onebuf_opt.wo_scr * 2;
         } else {
-            bigness = ((**curwin.as_ptr()).w_view_height - 3) as i64;
+            bigness = (curwin_mut().w_view_height - 3) as i64;
         }
         bigness = bigness.max(1);
 
@@ -3627,9 +3627,9 @@ pub fn ex_z(eap: &mut exarg_T) {
             }
         }
 
-        if (**curwin.as_ptr()).w_cursor.lnum != curs {
-            (**curwin.as_ptr()).w_cursor.lnum = curs;
-            (**curwin.as_ptr()).w_cursor.col = 0;
+        if curwin_mut().w_cursor.lnum != curs {
+            curwin_mut().w_cursor.lnum = curs;
+            curwin_mut().w_cursor.col = 0;
         }
     }
 }
@@ -3684,7 +3684,7 @@ fn sub_joining_lines(
             if eap.skip != 0 {
                 return true;
             }
-            (**curwin.as_ptr()).w_cursor.lnum = eap.line1;
+            curwin_mut().w_cursor.lnum = eap.line1;
             if *cmd == b'l' as c_char {
                 eap.flags = EXFLAG_LIST;
             } else if *cmd == b'#' as c_char {
@@ -3930,7 +3930,7 @@ fn do_sub(
             subresults: Vec::new(),
             lines_needed: 0,
         };
-        let old_cursor = (**curwin.as_ptr()).w_cursor;
+        let old_cursor = curwin_mut().w_cursor;
 
         let mut did_save = false;
 
@@ -4018,7 +4018,7 @@ fn do_sub(
             let sub_cstr = old_sub_cstr.clone();
             sub = sub_cstr.as_ptr().cast_mut();
             sub_owned = Some(sub_cstr);
-            endcolumn = (**curwin.as_ptr()).w_curswant == MAXCOL;
+            endcolumn = curwin_mut().w_curswant == MAXCOL;
         }
 
         if !sub.is_null() && sub_joining_lines(eap, pat, sub, cmd, cmdpreview_ns <= 0, keeppatterns)
@@ -4120,11 +4120,11 @@ fn do_sub(
             && !aborting()
             && (cmdpreview_ns <= 0
                 || preview_lines.lines_needed <= opt_vars().p_cwh as linenr_T
-                || lnum <= (**curwin.as_ptr()).w_botline)
+                || lnum <= curwin_mut().w_botline)
         {
             let mut nmatch = vim_regexec_multi(
                 &mut regmatch,
-                *curwin.as_ptr(),
+                curwin_ptr(),
                 g_st().curbuf,
                 lnum,
                 0,
@@ -4179,7 +4179,7 @@ fn do_sub(
                         );
                     }
 
-                    (**curwin.as_ptr()).w_cursor.lnum = lnum;
+                    curwin_mut().w_cursor.lnum = lnum;
                     do_again = false;
 
                     'skip: {
@@ -4218,9 +4218,9 @@ fn do_sub(
                         if excmds_st().subflags.do_ask && cmdpreview_ns <= 0 {
                             let mut typed: c_int = 0;
                             let save_State = g_st().State;
-                            (**curwin.as_ptr()).w_cursor.col = regmatch.startpos[0].col;
+                            curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
-                            if (**curwin.as_ptr()).w_onebuf_opt.wo_crb != 0 {
+                            if curwin_mut().w_onebuf_opt.wo_crb != 0 {
                                 do_check_cursorbind();
                             }
 
@@ -4232,9 +4232,9 @@ fn do_sub(
                                 let mut orig_line = SubBuf::new();
                                 let mut len_change: c_int = 0;
                                 let save_p_lz = opt_vars().p_lz;
-                                let save_p_fen = (**curwin.as_ptr()).w_onebuf_opt.wo_fen;
+                                let save_p_fen = curwin_mut().w_onebuf_opt.wo_fen;
 
-                                (**curwin.as_ptr()).w_onebuf_opt.wo_fen = 0;
+                                curwin_mut().w_onebuf_opt.wo_fen = 0;
                                 let temp = g_st().RedrawingDisabled;
                                 g_st().RedrawingDisabled = 0;
 
@@ -4251,7 +4251,7 @@ fn do_sub(
                                         new_start.size + (sub_firstline.size - copycol as usize);
 
                                     len_change = new_line_size as c_int - orig_line.size as c_int;
-                                    (**curwin.as_ptr()).w_cursor.col += len_change;
+                                    curwin_mut().w_cursor.col += len_change;
                                     crate::memline::ml_replace_len(
                                         lnum,
                                         new_line.as_ptr().cast_mut(),
@@ -4268,14 +4268,14 @@ fn do_sub(
                                 }
                                 g_st().Search.hl_match = true;
 
-                                update_topline(*curwin.as_ptr());
-                                validate_cursor(*curwin.as_ptr());
-                                redraw_later(*curwin.as_ptr(), UPD_SOME_VALID);
+                                update_topline(curwin_ptr());
+                                validate_cursor(curwin_ptr());
+                                redraw_later(curwin_ptr(), UPD_SOME_VALID);
                                 show_cursor_info_later(true);
                                 update_screen();
-                                redraw_later(*curwin.as_ptr(), UPD_SOME_VALID);
+                                redraw_later(curwin_ptr(), UPD_SOME_VALID);
 
-                                (**curwin.as_ptr()).w_onebuf_opt.wo_fen = save_p_fen;
+                                curwin_mut().w_onebuf_opt.wo_fen = save_p_fen;
 
                                 let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                                 let p_fmt = gettext(
@@ -4350,7 +4350,7 @@ fn do_sub(
                             }
                         }
 
-                        (**curwin.as_ptr()).w_cursor.col = regmatch.startpos[0].col;
+                        curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
                         if nmatch > (*g_st().curbuf).b_ml.ml_line_count - sub_firstlnum + 1 {
                             nmatch = (*g_st().curbuf).b_ml.ml_line_count - sub_firstlnum + 1;
@@ -4473,7 +4473,7 @@ fn do_sub(
                             g_st().sub_nsubs += 1;
                             did_sub = true;
 
-                            (**curwin.as_ptr()).w_cursor.col = 0;
+                            curwin_mut().w_cursor.col = 0;
 
                             copycol = regmatch.endpos[0].col;
 
@@ -4531,7 +4531,7 @@ fn do_sub(
                                         sub_firstlnum += 1;
                                         lnum += 1;
                                         line2 += 1;
-                                        (**curwin.as_ptr()).w_cursor.lnum += 1;
+                                        curwin_mut().w_cursor.lnum += 1;
                                         n = new_start.size - plen as usize;
                                         ptr::copy(p1.add(1), new_start.data(), n + 1);
                                         new_start.size = n;
@@ -4586,7 +4586,7 @@ fn do_sub(
                         || {
                             nmatch = vim_regexec_multi(
                                 &mut regmatch,
-                                *curwin.as_ptr(),
+                                curwin_ptr(),
                                 g_st().curbuf,
                                 sub_firstlnum,
                                 matchcol,
@@ -4664,7 +4664,7 @@ fn do_sub(
                         if nmatch == -1 && !lastone {
                             nmatch = vim_regexec_multi(
                                 &mut regmatch,
-                                *curwin.as_ptr(),
+                                curwin_ptr(),
                                 g_st().curbuf,
                                 sub_firstlnum,
                                 matchcol,
@@ -4715,7 +4715,7 @@ fn do_sub(
         drop(sub_firstline);
 
         if excmds_st().subflags.do_count {
-            (**curwin.as_ptr()).w_cursor = old_cursor;
+            curwin_mut().w_cursor = old_cursor;
         }
 
         if g_st().sub_nsubs > start_nsubs {
@@ -4729,7 +4729,7 @@ fn do_sub(
             if g_st().global_busy == 0 {
                 if !excmds_st().subflags.do_ask {
                     if endcolumn {
-                        coladvance(&mut **curwin.as_ptr(), MAXCOL);
+                        coladvance(curwin_mut(), MAXCOL);
                     } else {
                         beginline(BL_WHITE | BL_FIX);
                     }
@@ -4746,7 +4746,7 @@ fn do_sub(
             }
             if excmds_st().subflags.do_print {
                 print_line(
-                    (**curwin.as_ptr()).w_cursor.lnum,
+                    curwin_mut().w_cursor.lnum,
                     excmds_st().subflags.do_number,
                     excmds_st().subflags.do_list,
                     true,
@@ -4764,8 +4764,8 @@ fn do_sub(
             }
         }
 
-        if excmds_st().subflags.do_ask && hasAnyFolding(&mut **curwin.as_ptr()) != 0 {
-            changed_window_setting(&mut **curwin.as_ptr());
+        if excmds_st().subflags.do_ask && hasAnyFolding(curwin_mut()) != 0 {
+            changed_window_setting(curwin_mut());
         }
 
         vim_regfree(regmatch.regprog);
@@ -4860,8 +4860,8 @@ pub fn do_sub_msg(count_only: bool) -> bool {
 
 fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
     unsafe {
-        (**curwin.as_ptr()).w_cursor.lnum = lnum;
-        (**curwin.as_ptr()).w_cursor.col = 0;
+        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.col = 0;
         if *cmd == NUL || *cmd == b'\n' as c_char {
             do_cmdline(
                 c"p",
@@ -4957,10 +4957,10 @@ pub fn ex_global(eap: &mut exarg_T) {
         }
 
         if g_st().global_busy != 0 {
-            lnum = (**curwin.as_ptr()).w_cursor.lnum;
+            lnum = curwin_mut().w_cursor.lnum;
             let matched = vim_regexec_multi(
                 &mut regmatch,
-                *curwin.as_ptr(),
+                curwin_ptr(),
                 g_st().curbuf,
                 lnum,
                 0,
@@ -4978,7 +4978,7 @@ pub fn ex_global(eap: &mut exarg_T) {
             while lnum <= eap.line2 && !g_st().got_int {
                 let matched = vim_regexec_multi(
                     &mut regmatch,
-                    *curwin.as_ptr(),
+                    curwin_ptr(),
                     g_st().curbuf,
                     lnum,
                     0,
@@ -5048,7 +5048,7 @@ pub fn global_exe(cmd: *mut c_char) {
         if excmds_st().global_need_beginline {
             beginline(BL_WHITE | BL_FIX);
         } else {
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
         }
 
         changed_line_abv_curs();
@@ -5074,7 +5074,7 @@ pub fn free_old_sub() {
 /// Set up for a tagpreview.
 pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
     unsafe {
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_pvw != 0 {
+        if curwin_mut().w_onebuf_opt.wo_pvw != 0 {
             return false;
         }
 
@@ -5119,11 +5119,11 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
             return false;
         }
 
-        (**curwin.as_ptr()).w_onebuf_opt.wo_pvw = 1;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_wfh = 1;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
-        (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 0;
+        curwin_mut().w_onebuf_opt.wo_pvw = 1;
+        curwin_mut().w_onebuf_opt.wo_wfh = 1;
+        curwin_mut().w_onebuf_opt.wo_scb = 0;
+        curwin_mut().w_onebuf_opt.wo_crb = 0;
+        curwin_mut().w_onebuf_opt.wo_diff = 0;
 
         set_option_direct(kOptFoldcolumn, cstr_as_obj(c"0"), 0, SID_NONE);
         true
@@ -5149,13 +5149,13 @@ fn show_sub(
 
         for curres in subresults {
             if curres.start.lnum >= old_cusr.lnum {
-                (**curwin.as_ptr()).w_cursor.lnum = curres.start.lnum;
-                (**curwin.as_ptr()).w_cursor.col = curres.start.col;
+                curwin_mut().w_cursor.lnum = curres.start.lnum;
+                curwin_mut().w_cursor.col = curres.start.col;
                 break;
             }
         }
 
-        update_topline(*curwin.as_ptr());
+        update_topline(curwin_ptr());
 
         let mut col_width: c_int = 0;
         let preview = (*opt_vars().p_icm == b's' as c_char)

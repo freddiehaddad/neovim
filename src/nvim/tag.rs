@@ -401,9 +401,9 @@ pub fn do_tag(eap: Option<&exarg_T>,
 ) {
     let tag = tag.into_c_char_ptr().cast_mut();
     unsafe {
-        let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
-        let mut tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
-        let mut tagstacklen = (**curwin.as_ptr()).w_tagstacklen;
+        let tagstack: *mut taggy_T = (&raw mut (*curwin_ptr()).w_tagstack).cast::<taggy_T>();
+        let mut tagstackidx = curwin_mut().w_tagstackidx;
+        let mut tagstacklen = curwin_mut().w_tagstacklen;
         let mut cur_match: c_int = 0;
         let mut cur_fnum = (*g_st().curbuf).b_fnum;
         let oldtagstackidx = tagstackidx;
@@ -497,14 +497,14 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         tagstacklen += 1;
                         if tagstacklen > TAGSTACKSIZE {
                             tagstacklen = TAGSTACKSIZE;
-                            (&mut (**curwin.as_ptr()).w_tagstack)[..tagstacklen as usize].rotate_left(1);
+                            (&mut curwin_mut().w_tagstack)[..tagstacklen as usize].rotate_left(1);
                             tagstackidx -= 1;
                             tagstack_clear_entry(&mut *tagstack.add(tagstackidx as usize));
                         }
 
                         (*tagstack.add(tagstackidx as usize)).tagname =
                             Some(crate::memory::cstr_to_cstring(tag));
-                        (**curwin.as_ptr()).w_tagstacklen = tagstacklen;
+                        curwin_mut().w_tagstacklen = tagstacklen;
                         save_pos = true;
                     }
 
@@ -546,17 +546,17 @@ pub fn do_tag(eap: Option<&exarg_T>,
                                 tagstackidx = oldtagstackidx;
                                 break 'end_do_tag;
                             }
-                            (**curwin.as_ptr()).w_cursor.lnum = saved_fmark.mark.lnum;
+                            curwin_mut().w_cursor.lnum = saved_fmark.mark.lnum;
                         } else {
                             setpcmark();
-                            (**curwin.as_ptr()).w_cursor.lnum = saved_fmark.mark.lnum;
+                            curwin_mut().w_cursor.lnum = saved_fmark.mark.lnum;
                         }
-                        (**curwin.as_ptr()).w_cursor.col = saved_fmark.mark.col;
-                        (**curwin.as_ptr()).w_set_curswant = true;
+                        curwin_mut().w_cursor.col = saved_fmark.mark.col;
+                        curwin_mut().w_set_curswant = true;
                         if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
                             mark_view_restore(&raw mut saved_fmark);
                         }
-                        check_cursor(*curwin.as_ptr());
+                        check_cursor(curwin_ptr());
                         if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
                             foldOpenCursor();
                         }
@@ -628,16 +628,16 @@ pub fn do_tag(eap: Option<&exarg_T>,
                 } else {
                     saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
                     if save_pos {
-                        (*tagstack.add(tagstackidx as usize)).fmark.mark = (**curwin.as_ptr()).w_cursor;
+                        (*tagstack.add(tagstackidx as usize)).fmark.mark = curwin_mut().w_cursor;
                         (*tagstack.add(tagstackidx as usize)).fmark.fnum = (*g_st().curbuf).b_fnum;
                         (*tagstack.add(tagstackidx as usize)).fmark.view =
-                            mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
+                            mark_view_make(curwin_mut(), curwin_mut().w_cursor);
                     }
 
-                    (**curwin.as_ptr()).w_tagstackidx = tagstackidx;
+                    curwin_mut().w_tagstackidx = tagstackidx;
                     if type_ != DT_SELECT && type_ != DT_JUMP {
-                        (**curwin.as_ptr()).w_tagstack[tagstackidx as usize].cur_match = cur_match;
-                        (**curwin.as_ptr()).w_tagstack[tagstackidx as usize].cur_fnum = cur_fnum;
+                        curwin_mut().w_tagstack[tagstackidx as usize].cur_match = cur_match;
+                        curwin_mut().w_tagstack[tagstackidx as usize].cur_fnum = cur_fnum;
                     }
                 }
             }
@@ -715,7 +715,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         tag_st().DO_TAG_MAX_NUM_MATCHES = MAXCOL;
                     }
 
-                    if tagstack != (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>() {
+                    if tagstack != (&raw mut (*curwin_ptr()).w_tagstack).cast::<taggy_T>() {
                         emsg(gettext(
                             E_WINDOW_UNEXPECTEDLY_CLOSE_WHILE_SEARCHING_FOR_TAGS,
                         ));
@@ -895,16 +895,16 @@ pub fn do_tag(eap: Option<&exarg_T>,
                                 .as_ref()
                                 .map_or(c"".as_ptr(), |s| s.as_ptr()),
                         );
-                    } else if use_tagstack && tagstackidx > (**curwin.as_ptr()).w_tagstacklen {
-                        tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
+                    } else if use_tagstack && tagstackidx > curwin_mut().w_tagstacklen {
+                        tagstackidx = curwin_mut().w_tagstackidx;
                     }
                 }
                 break;
             }
         }
 
-        if use_tagstack && tagstackidx <= (**curwin.as_ptr()).w_tagstacklen {
-            (**curwin.as_ptr()).w_tagstackidx = tagstackidx;
+        if use_tagstack && tagstackidx <= curwin_mut().w_tagstacklen {
+            curwin_mut().w_tagstackidx = tagstackidx;
         }
         g_st().postponed_split = 0;
         g_st().g_do_tagpreview = 0;
@@ -920,8 +920,8 @@ fn select_tag_match(eap: Option<&exarg_T>,
     name: *const c_char,
 ) {
     unsafe {
-        let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
-        let tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
+        let tagstack: *mut taggy_T = (&raw mut (*curwin_ptr()).w_tagstack).cast::<taggy_T>();
+        let tagstackidx = curwin_mut().w_tagstackidx;
 
         let mut items_tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -1091,7 +1091,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
 
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
-        set_errorlist(*curwin.as_ptr(), list, b' ' as c_int, iobuf_ptr, ptr::null_mut());
+        set_errorlist(curwin_ptr(), list, b' ' as c_int, iobuf_ptr, ptr::null_mut());
 
         tv_list_free(list);
 
@@ -1107,9 +1107,9 @@ pub fn tag_freematch() {
 /// Print the tag stack.
 pub fn do_tags(_eap: &mut exarg_T) {
     unsafe {
-        let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
-        let tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
-        let tagstacklen = (**curwin.as_ptr()).w_tagstacklen;
+        let tagstack: *mut taggy_T = (&raw mut (*curwin_ptr()).w_tagstack).cast::<taggy_T>();
+        let tagstackidx = curwin_mut().w_tagstackidx;
+        let tagstacklen = curwin_mut().w_tagstacklen;
 
         msg_puts_title(gettext(
             c"\n  # TO tag         FROM line  in file/text",
@@ -1266,12 +1266,12 @@ fn find_tagfunc_tags(
         let mut flagString = [0 as c_char; 4];
         let mut tag: *mut taggy_T = ptr::null_mut();
 
-        if (**curwin.as_ptr()).w_tagstacklen > 0 {
-            let tagstack_ptr = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
-            if (**curwin.as_ptr()).w_tagstackidx == (**curwin.as_ptr()).w_tagstacklen {
-                tag = tagstack_ptr.add(((**curwin.as_ptr()).w_tagstackidx - 1) as usize);
+        if curwin_mut().w_tagstacklen > 0 {
+            let tagstack_ptr = (&raw mut (*curwin_ptr()).w_tagstack).cast::<taggy_T>();
+            if curwin_mut().w_tagstackidx == curwin_mut().w_tagstacklen {
+                tag = tagstack_ptr.add((curwin_mut().w_tagstackidx - 1) as usize);
             } else {
-                tag = tagstack_ptr.add((**curwin.as_ptr()).w_tagstackidx as usize);
+                tag = tagstack_ptr.add(curwin_mut().w_tagstackidx as usize);
             }
         }
 
@@ -1321,7 +1321,7 @@ fn find_tagfunc_tags(
             },
         );
 
-        let save_pos = (**curwin.as_ptr()).w_cursor;
+        let save_pos = curwin_mut().w_cursor;
         let mut result = if callback_call(
             &raw mut (*g_st().curbuf).b_p_tfu,
             3,
@@ -1332,8 +1332,8 @@ fn find_tagfunc_tags(
         } else {
             FAIL
         };
-        (**curwin.as_ptr()).w_cursor = save_pos;
-        check_cursor(*curwin.as_ptr());
+        curwin_mut().w_cursor = save_pos;
+        check_cursor(curwin_ptr());
         (*d).dv_refcount -= 1;
 
         if result == FAIL {
@@ -2444,7 +2444,7 @@ pub fn free_tag_stuff() {
     unsafe {
         let tf = &raw mut tag_st().tag_fnames;
         *tf = Vec::new();
-        if !(*curwin.as_ptr()).is_null() {
+        if !(curwin_ptr()).is_null() {
             do_tag(None, ptr::null_mut(), DT_FREE, 0, 0, false);
         }
         tag_freematch();
@@ -2767,9 +2767,9 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
 
             if l_g_do_tagpreview != 0 {
                 g_st().postponed_split = 0;
-                curwin_save = *curwin.as_ptr();
+                curwin_save = curwin_ptr();
 
-                if (**curwin.as_ptr()).w_onebuf_opt.wo_pvw == 0 {
+                if curwin_mut().w_onebuf_opt.wo_pvw == 0 {
                     full_fname = FullName_save(fname, false);
                     fname = full_fname
                         .as_ref()
@@ -2804,8 +2804,8 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                     g_st().RedrawingDisabled -= 1;
                     break 'erret;
                 }
-                (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
-                (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
+                curwin_mut().w_onebuf_opt.wo_scb = 0;
+                curwin_mut().w_onebuf_opt.wo_crb = 0;
             }
 
             if keep_help {
@@ -2822,7 +2822,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
             g_st().keep_help_flag = false;
 
             if getfile_result <= 0 {
-                (**curwin.as_ptr()).w_set_curswant = true;
+                curwin_mut().w_set_curswant = true;
                 g_st().postponed_split = 0;
 
                 let save_no_hlsearch = g_st().Search.no_hlsearch;
@@ -2846,9 +2846,9 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                     opt_vars().p_ws = 1;
                     opt_vars().p_ic = 0;
                     opt_vars().p_scs = 0;
-                    let save_lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                    let save_lnum = curwin_mut().w_cursor.lnum;
 
-                    (**curwin.as_ptr()).w_cursor.lnum = if tagp.tagline > 0 {
+                    curwin_mut().w_cursor.lnum = if tagp.tagline > 0 {
                         tagp.tagline - 1
                     } else {
                         0
@@ -2929,7 +2929,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                         }
                         if found == 0 {
                             emsg(gettext(c"E434: Can't find tag pattern"));
-                            (**curwin.as_ptr()).w_cursor.lnum = save_lnum;
+                            curwin_mut().w_cursor.lnum = save_lnum;
                         } else {
                             if found == 2 || save_p_ic == 0 {
                                 msg(
@@ -2947,15 +2947,15 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                     opt_vars().p_ic = save_p_ic;
                     opt_vars().p_scs = save_p_scs;
 
-                    check_cursor(*curwin.as_ptr());
+                    check_cursor(curwin_ptr());
                 } else {
                     let save_secure = g_st().secure;
 
                     g_st().secure = 1;
                     g_st().sandbox += 1;
-                    (**curwin.as_ptr()).w_cursor.lnum = 1;
-                    (**curwin.as_ptr()).w_cursor.col = 0;
-                    (**curwin.as_ptr()).w_cursor.coladd = 0;
+                    curwin_mut().w_cursor.lnum = 1;
+                    curwin_mut().w_cursor.col = 0;
+                    curwin_mut().w_cursor.coladd = 0;
                     do_cmdline_cmd(pbuf);
                     retval = OK;
 
@@ -2976,16 +2976,16 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
 
                 if retval == OK {
                     if (*g_st().curbuf).b_help {
-                        set_topline(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
+                        set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
                     }
                     if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
                         foldOpenCursor();
                     }
                 }
 
-                if l_g_do_tagpreview != 0 && *curwin.as_ptr() != curwin_save && win_valid(curwin_save) {
-                    validate_cursor(*curwin.as_ptr());
-                    redraw_later(*curwin.as_ptr(), UPD_VALID);
+                if l_g_do_tagpreview != 0 && curwin_ptr() != curwin_save && win_valid(curwin_save) {
+                    validate_cursor(curwin_ptr());
+                    redraw_later(curwin_ptr(), UPD_VALID);
                     win_enter(curwin_save, true);
                 }
 
@@ -2993,7 +2993,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
             } else {
                 g_st().RedrawingDisabled -= 1;
                 if g_st().postponed_split != 0 {
-                    win_close(*curwin.as_ptr(), false, false);
+                    win_close(curwin_ptr(), false, false);
                     g_st().postponed_split = 0;
                 }
             }

@@ -315,13 +315,13 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     unsafe {
         assert!(ctx.buf == 0 || ctx.buf == (*g_st().curbuf).b_fnum);
         ctx.buf = (*g_st().curbuf).b_fnum;
-        ctx.pos = (**curwin.as_ptr()).w_cursor;
+        ctx.pos = curwin_mut().w_cursor;
 
         if (flags & kCtxCursor) != 0 {
-            ctx.curswant = if (**curwin.as_ptr()).w_set_curswant {
+            ctx.curswant = if curwin_mut().w_set_curswant {
                 -1
             } else {
-                (**curwin.as_ptr()).w_curswant
+                curwin_mut().w_curswant
             };
         }
 
@@ -415,12 +415,12 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
     unsafe {
         if (flags & kCtxCursor) != 0 {
             assert!(handle_get_buffer(ctx.buf) == g_st().curbuf);
-            (**curwin.as_ptr()).w_cursor = ctx.pos;
+            curwin_mut().w_cursor = ctx.pos;
             if ctx.curswant >= 0 {
-                (**curwin.as_ptr()).w_curswant = ctx.curswant;
-                (**curwin.as_ptr()).w_set_curswant = false;
+                curwin_mut().w_curswant = ctx.curswant;
+                curwin_mut().w_set_curswant = false;
             } else {
-                (**curwin.as_ptr()).w_set_curswant = true;
+                curwin_mut().w_set_curswant = true;
             }
         }
 
@@ -650,7 +650,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *m
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
-        if ((cs.cs_flags & kCtxKeepDirs) != 0 || *curwin.as_ptr() != wp)
+        if ((cs.cs_flags & kCtxKeepDirs) != 0 || curwin_ptr() != wp)
             && os_dirname(cwd.as_mut_ptr(), MAXPATHL)
         {
             cs.cs_cwd = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
@@ -762,7 +762,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
         let cwp = (*vec).as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
 
         block_autocmds();
-        if *curwin.as_ptr() != cwp {
+        if curwin_ptr() != cwp {
             'win_found: {
                 let mut tp = g_st().first_tabpage;
                 while !tp.is_null() {
@@ -787,9 +787,9 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
         }
 
         (*g_st().curbuf).b_nwindows -= 1;
-        win_remove(*curwin.as_ptr(), ptr::null_mut());
+        win_remove(curwin_ptr(), ptr::null_mut());
         let map_ptr = &raw mut g_st().window_handles;
-        (*map_ptr).remove(&(**curwin.as_ptr()).handle);
+        (*map_ptr).remove(&curwin_mut().handle);
 
         (*vec).as_mut_slice()[cs.cs_ctxwin_idx as usize].cw_used = false;
 
@@ -832,12 +832,12 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
         cs.cs_did_chdir = ctx_st().CTX_DID_CHDIR;
         ctx_st().CTX_DID_CHDIR = false;
         if cs.cs_mode == kCtxSwitchDirs {
-            wp = *curwin.as_ptr();
+            wp = curwin_ptr();
         }
 
         if !buf.is_null() {
             if buf == g_st().curbuf {
-                wp = *curwin.as_ptr();
+                wp = curwin_ptr();
             } else {
                 let mut wp2 = g_st().firstwin;
                 while !wp2.is_null() {
@@ -858,14 +858,14 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             ctx_dirs_save(cs, wp, if tp.is_null() { g_st().curtab } else { tp }, buf);
         }
 
-        cs.cs_curwin = (**curwin.as_ptr()).handle;
-        cs.cs_curwin_xtab = !win_valid(*curwin.as_ptr());
+        cs.cs_curwin = curwin_mut().handle;
+        cs.cs_curwin_xtab = !win_valid(curwin_ptr());
         cs.cs_prevwin = if g_st().prevwin.is_null() {
             0
         } else {
             (*g_st().prevwin).handle
         };
-        cs.cs_same_win = wp == *curwin.as_ptr();
+        cs.cs_same_win = wp == curwin_ptr();
         if bt_prompt(g_st().curbuf) {
             cs.cs_prompt_insert = (*g_st().curbuf).b_prompt_insert;
         }
@@ -890,17 +890,17 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
         if !buf.is_null() {
             if wp.is_null() {
                 wp = ctx_win_prep(cs, buf);
-                leaving_window(&mut **curwin.as_ptr());
+                leaving_window(curwin_mut());
                 buf_copy_options(buf, BCO_ENTER | BCO_NOHELP);
-                g_st().prevwin = *curwin.as_ptr();
+                g_st().prevwin = curwin_ptr();
             }
-            assert!(wp == *curwin.as_ptr() || win_valid(wp));
+            assert!(wp == curwin_ptr() || win_valid(wp));
         } else if !win_valid(wp) {
             return false;
         }
-        *curwin.as_ptr() = wp;
-        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
-        cs.cs_new_curwin = (**curwin.as_ptr()).handle;
+        set_curwin(wp);
+        g_st().curbuf = curwin_mut().w_buffer;
+        cs.cs_new_curwin = curwin_mut().handle;
         set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.cast());
 
         if cs.cs_mode == kCtxSwitchBuf && cs.cs_new_curwin != cs.cs_curwin {
@@ -910,14 +910,14 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             ctx_st().CTX_SWITCH_DEPTH += 1;
         }
         if (flags & kCtxValidate) != 0 {
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
         }
         true
     }
 }
 
 fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut win_T) {
-    unsafe {
+     {
         let mut save_curwin = if cs.cs_curwin_xtab {
             handle_get_window(cs.cs_curwin)
         } else {
@@ -927,8 +927,8 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut win_T) {
             save_curwin = fallback;
         }
         if !save_curwin.is_null() {
-            *curwin.as_ptr() = save_curwin;
-            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+            set_curwin(save_curwin);
+            g_st().curbuf = curwin_mut().w_buffer;
         }
         g_st().prevwin = win_find_by_handle(cs.cs_prevwin);
     }
@@ -955,7 +955,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         } else if cs.cs_ctxwin_idx >= 0 {
             let cwp = ctx_win_rest(cs);
             ctx_restore_curwin(cs, g_st().firstwin);
-            entering_window(&mut **curwin.as_ptr());
+            entering_window(curwin_mut());
             if bt_prompt(g_st().curbuf) {
                 (*g_st().curbuf).b_prompt_insert = cs.cs_prompt_insert;
             }
@@ -965,20 +965,20 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             let free_dirs = (cs.cs_flags & kCtxKeepDirs) == 0;
             ctx_localdirs_restore(&mut *cs, cwp, g_st().curtab, free_dirs);
 
-            if (**curwin.as_ptr()).w_topline > (*g_st().curbuf).b_ml.ml_line_count {
-                (**curwin.as_ptr()).w_topline = (*g_st().curbuf).b_ml.ml_line_count;
-                (**curwin.as_ptr()).w_topfill = 0;
+            if curwin_mut().w_topline > (*g_st().curbuf).b_ml.ml_line_count {
+                curwin_mut().w_topline = (*g_st().curbuf).b_ml.ml_line_count;
+                curwin_mut().w_topfill = 0;
             }
         } else if cs.cs_mode == kCtxSwitchBuf {
             let saved_buf = cs.cs_new_curbuf.br_buf.cast::<buf_T>();
-            if (**curwin.as_ptr()).handle == cs.cs_new_curwin
+            if curwin_mut().handle == cs.cs_new_curwin
                 && g_st().curbuf != saved_buf
                 && bufref_valid(Some(&cs.cs_new_curbuf))
                 && (*saved_buf).b_ml.ml_mfp.is_some()
             {
                 (*g_st().curbuf).b_nwindows -= 1;
                 g_st().curbuf = saved_buf;
-                (**curwin.as_ptr()).w_buffer = g_st().curbuf;
+                curwin_mut().w_buffer = g_st().curbuf;
                 (*g_st().curbuf).b_nwindows += 1;
             }
 
@@ -989,7 +989,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             g_st().Visual.active = cs.cs_visual_active;
         }
         if cs.cs_mode == kCtxSwitchBuf {
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
             if g_st().Visual.active {
                 check_pos(&mut *g_st().curbuf, &mut g_st().Visual.start);
             }
@@ -1008,7 +1008,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             if !wp.is_null() && !equalpos(cs.cs_target_old_pos, (*wp).w_cursor) {
                 (*wp).w_redr_status = true;
             }
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
             if g_st().Visual.active {
                 check_pos(&mut *g_st().curbuf, &mut g_st().Visual.start);
             }

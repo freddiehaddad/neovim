@@ -885,6 +885,23 @@ pub fn g_st() -> &'static mut EditorState {
 
 #[unsafe(no_mangle)]
 pub static curwin: GlobalState<*mut win_T> = GlobalState::new(ptr::null_mut());
+
+#[inline]
+pub fn curwin_mut() -> &'static mut win_T {
+    unsafe { &mut **curwin.as_ptr() }
+}
+
+#[inline]
+pub fn curwin_ptr() -> *mut win_T {
+    unsafe { *curwin.as_ptr() }
+}
+
+#[inline]
+pub fn set_curwin(wp: *mut win_T) {
+    unsafe {
+        *curwin.as_ptr() = wp;
+    }
+}
 #[unsafe(no_mangle)]
 pub static starting: GlobalState<c_int> = GlobalState::new(NO_SCREEN);
 pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";

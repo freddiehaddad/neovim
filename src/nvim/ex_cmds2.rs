@@ -485,7 +485,7 @@ pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
 /// `:argdo`, `:windo`, `:bufdo`, `:tabdo`, `:cdo`, `:ldo`, `:cfdo` and `:lfdo` (`ex_listdo`).
 pub fn ex_listdo(eap: &mut exarg_T) {
     unsafe {
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0
+        if curwin_mut().w_onebuf_opt.wo_wfb != 0
             && eap.cmdidx != CMD_windo
             && eap.cmdidx != CMD_tabdo
         {
@@ -497,9 +497,9 @@ pub fn ex_listdo(eap: &mut exarg_T) {
             if win_valid(g_st().prevwin) && (*g_st().prevwin).w_onebuf_opt.wo_wfb == 0 {
                 win_goto(g_st().prevwin);
             }
-            if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
+            if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
                 win_split(0, 0);
-                if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
+                if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
                     emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
                     return;
                 }
@@ -596,10 +596,10 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                     if i == curwin_argcount() {
                         break;
                     }
-                    if (**curwin.as_ptr()).w_arg_idx != i || !editing_arg_idx(&mut **curwin.as_ptr()) {
+                    if curwin_mut().w_arg_idx != i || !editing_arg_idx(curwin_mut()) {
                         do_argfile(eap, i);
                     }
-                    if (**curwin.as_ptr()).w_arg_idx != i {
+                    if curwin_mut().w_arg_idx != i {
                         break;
                     }
                 } else if eap.cmdidx == CMD_windo {
@@ -611,7 +611,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                         !(*wp).w_floating || (!(*wp).w_config.hide && (*wp).w_config.focusable);
                     if execute {
                         win_goto(wp);
-                        if *curwin.as_ptr() != wp {
+                        if curwin_ptr() != wp {
                             break;
                         }
                     }
@@ -683,8 +683,8 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                 }
 
                 if eap.cmdidx == CMD_windo && execute {
-                    validate_cursor(*curwin.as_ptr());
-                    if (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
+                    validate_cursor(curwin_ptr());
+                    if curwin_mut().w_onebuf_opt.wo_scb != 0 {
                         do_check_scrollbind(true);
                     }
                 }
@@ -879,7 +879,7 @@ pub fn ex_drop(eap: &mut exarg_T) {
             while !wp.is_null() {
                 if (*wp).w_buffer == buf {
                     goto_tabpage_win(&mut *tp, wp);
-                    (**curwin.as_ptr()).w_arg_idx = 0;
+                    curwin_mut().w_arg_idx = 0;
                     if !bufIsChanged(&mut *g_st().curbuf) {
                         let save_ar = (*g_st().curbuf).b_p_ar;
                         (*g_st().curbuf).b_p_ar = 1;

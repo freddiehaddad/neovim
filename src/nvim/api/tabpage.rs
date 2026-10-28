@@ -305,7 +305,7 @@ pub fn nvim_open_tabpage(
         }
 
         if tabpage_win_valid(tp, wp) && (*wp).w_buffer != b {
-            let au_no_enter_leave = *curwin.as_ptr() != wp;
+            let au_no_enter_leave = curwin_ptr() != wp;
             if au_no_enter_leave {
                 g_st().autocmd_no_enter += 1;
                 g_st().autocmd_no_leave += 1;

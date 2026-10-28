@@ -382,8 +382,8 @@ pub fn search_regcomp(
             *used_pat = pat;
         }
 
-        srch().mr_pattern = if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0
-            && *(**curwin.as_ptr()).w_onebuf_opt.wo_rlc == b's' as c_char
+        srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl != 0
+            && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char
         {
             Some(reverse_text(pat))
         } else {
@@ -1270,7 +1270,7 @@ pub fn do_search(
 
         let old_off = srch().spats[0].off;
 
-        let mut pos = (**curwin.as_ptr()).w_cursor;
+        let mut pos = curwin_mut().w_cursor;
 
         if dirc == 0 {
             dirc = c_int::from(srch().spats[0].off.dir as u8);
@@ -1287,10 +1287,10 @@ pub fn do_search(
         }
 
         if dirc == b'/' as c_int {
-            if hasFolding(*curwin.as_ptr(), pos.lnum, None, &raw mut pos.lnum) {
+            if hasFolding(curwin_ptr(), pos.lnum, None, &raw mut pos.lnum) {
                 pos.col = MAXCOL - 2;
             }
-        } else if hasFolding(*curwin.as_ptr(), pos.lnum, Some(&mut pos.lnum), ptr::null_mut()) {
+        } else if hasFolding(curwin_ptr(), pos.lnum, Some(&mut pos.lnum), ptr::null_mut()) {
             pos.col = 0;
         }
 
@@ -1431,8 +1431,8 @@ pub fn do_search(
                         msgbuf = msgbuf_vec.as_mut_ptr();
                     }
 
-                    if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0
-                        && *(**curwin.as_ptr()).w_onebuf_opt.wo_rlc == b's' as c_char
+                    if curwin_mut().w_onebuf_opt.wo_rl != 0
+                        && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char
                     {
                         let rev = reverse_text(msgbuf);
                         msgbuflen = rev.as_bytes().len();
@@ -1499,7 +1499,7 @@ pub fn do_search(
             }
 
             c = i64::from(searchit(
-                *curwin.as_ptr(),
+                curwin_ptr(),
                 g_st().curbuf,
                 &raw mut pos,
                 None,
@@ -1598,7 +1598,7 @@ pub fn do_search(
                 cmdline_search_stat(
                     dirc,
                     &mut pos,
-                    &mut (**curwin.as_ptr()).w_cursor,
+                    &mut curwin_mut().w_cursor,
                     show_top_bot_msg,
                     msgbuf_vec.as_mut_ptr(),
                     msgbuflen,
@@ -1606,8 +1606,8 @@ pub fn do_search(
                         || has_offset
                         || ((opt_vars().fdo_flags & kOptFdoFlagSearch) == 0
                             && hasFolding(
-                                *curwin.as_ptr(),
-                                (**curwin.as_ptr()).w_cursor.lnum,
+                                curwin_ptr(),
+                                curwin_mut().w_cursor.lnum,
                                 None,
                                 ptr::null_mut(),
                             )),
@@ -1638,8 +1638,8 @@ pub fn do_search(
             if (options & SEARCH_MARK) != 0 {
                 setpcmark();
             }
-            (**curwin.as_ptr()).w_cursor = pos;
-            (**curwin.as_ptr()).w_set_curswant = true;
+            curwin_mut().w_cursor = pos;
+            curwin_mut().w_set_curswant = true;
         }
 
         if (options & SEARCH_KEEP) != 0 || (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 {
@@ -1755,7 +1755,7 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
         (*cap.oap).inclusive = dir != BACKWARD;
 
         let p = get_cursor_line_ptr();
-        let mut col = (**curwin.as_ptr()).w_cursor.col;
+        let mut col = curwin_mut().w_cursor.col;
         let len = get_cursor_line_len();
 
         while count > 0 {
@@ -1793,7 +1793,7 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
                 col -= utf_head_off(p, p.add(col as usize));
             }
         }
-        (**curwin.as_ptr()).w_cursor.col = col;
+        curwin_mut().w_cursor.col = col;
 
         true
     }
@@ -1934,7 +1934,7 @@ pub fn findmatchlimit(
         let skip_comments = (flags & FM_SKIPCOMM) != 0;
         let mut in_block_comment = false;
 
-        srch().findmatch_pos = (**curwin.as_ptr()).w_cursor;
+        srch().findmatch_pos = curwin_mut().w_cursor;
         srch().findmatch_pos.coladd = 0;
         let mut linep = ml_get(srch().findmatch_pos.lnum);
 
@@ -2102,7 +2102,7 @@ pub fn findmatchlimit(
             }
         }
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 && !vim_strchr(c"()[]{}<>", initc).is_null() {
+        if curwin_mut().w_onebuf_opt.wo_rl != 0 && !vim_strchr(c"()[]{}<>", initc).is_null() {
             backwards = !backwards;
         }
 
@@ -2252,7 +2252,7 @@ pub fn findmatchlimit(
                             if count > 0 {
                                 &match_pos
                             } else {
-                                &(**curwin.as_ptr()).w_cursor
+                                &curwin_mut().w_cursor
                             },
                         ) {
                             count += 1;
@@ -2465,24 +2465,24 @@ pub fn findmatchlimit(
 pub fn showmatch(c: c_int) {
     unsafe {
         let mut vcol: colnr_T = 0;
-        let so: *mut OptInt = if (**curwin.as_ptr()).w_onebuf_opt.wo_so >= 0 {
-            &raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_so
+        let so: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
+            &raw mut (*curwin_ptr()).w_onebuf_opt.wo_so
         } else {
             &raw mut opt_vars().p_so
         };
-        let siso: *mut OptInt = if (**curwin.as_ptr()).w_onebuf_opt.wo_siso >= 0 {
-            &raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_siso
+        let siso: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_siso >= 0 {
+            &raw mut (*curwin_ptr()).w_onebuf_opt.wo_siso
         } else {
             &raw mut opt_vars().p_siso
         };
 
         let mut p = (*g_st().curbuf).b_p_mps;
         while *p != NUL {
-            if utf_ptr2char(p) == c && (((**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
+            if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize + 1);
-            if utf_ptr2char(p) == c && !(((**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
+            if utf_ptr2char(p) == c && !((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -2501,13 +2501,13 @@ pub fn showmatch(c: c_int) {
             return;
         }
 
-        if (*lpos).lnum < (**curwin.as_ptr()).w_topline || (*lpos).lnum >= (**curwin.as_ptr()).w_botline {
+        if (*lpos).lnum < curwin_mut().w_topline || (*lpos).lnum >= curwin_mut().w_botline {
             return;
         }
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap == 0 {
+        if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
             getvcol(
-                &mut **curwin.as_ptr(),
+                curwin_mut(),
                 &mut *lpos,
                 None,
                 Some(&mut vcol),
@@ -2516,26 +2516,26 @@ pub fn showmatch(c: c_int) {
             );
         }
 
-        let col_visible = (**curwin.as_ptr()).w_onebuf_opt.wo_wrap != 0
-            || (vcol >= (**curwin.as_ptr()).w_leftcol && vcol < (**curwin.as_ptr()).w_leftcol + (**curwin.as_ptr()).w_view_width);
+        let col_visible = curwin_mut().w_onebuf_opt.wo_wrap != 0
+            || (vcol >= curwin_mut().w_leftcol && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
         if !col_visible {
             return;
         }
 
         let mpos = *lpos;
-        let save_cursor = (**curwin.as_ptr()).w_cursor;
+        let save_cursor = curwin_mut().w_cursor;
         let save_so = *so;
         let save_siso = *siso;
-        if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == (**curwin.as_ptr()).w_virtcol {
+        if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == curwin_mut().w_virtcol {
             g_st().dollar_vcol = -1;
         }
-        (**curwin.as_ptr()).w_virtcol += 1;
+        curwin_mut().w_virtcol += 1;
 
         let save_dollar_vcol = g_st().dollar_vcol;
         let save_state = g_st().State;
         g_st().State = MODE_SHOWMATCH;
         ui_cursor_shape();
-        (**curwin.as_ptr()).w_cursor = mpos;
+        curwin_mut().w_cursor = mpos;
         *so = 0;
         *siso = 0;
         show_cursor_info_later(false);
@@ -2549,7 +2549,7 @@ pub fn showmatch(c: c_int) {
         } else if !char_avail() {
             os_delay((opt_vars().p_mat as u64) * 100 + 9, false);
         }
-        (**curwin.as_ptr()).w_cursor = save_cursor;
+        curwin_mut().w_cursor = save_cursor;
         *so = save_so;
         *siso = save_siso;
         g_st().State = save_state;
@@ -2562,14 +2562,14 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
         let old_p_ws = opt_vars().p_ws;
         let save_VIsual = g_st().Visual.start;
 
-        if g_st().Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
+        if g_st().Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(g_st().Visual.start, curwin_mut().w_cursor) {
             dec_cursor();
         }
 
-        let skip_first_backward = forward && g_st().Visual.active && lt((**curwin.as_ptr()).w_cursor, g_st().Visual.start);
+        let skip_first_backward = forward && g_st().Visual.active && lt(curwin_mut().w_cursor, g_st().Visual.start);
 
-        let mut pos = (**curwin.as_ptr()).w_cursor;
-        let orig_pos = (**curwin.as_ptr()).w_cursor;
+        let mut pos = curwin_mut().w_cursor;
+        let orig_pos = curwin_mut().w_cursor;
         if g_st().Visual.active {
             if forward {
                 incl(&mut pos);
@@ -2582,7 +2582,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             srch().spats[srch().last_idx as usize].pat_ptr(),
             srch().spats[srch().last_idx as usize].patlen(),
             true,
-            &mut (**curwin.as_ptr()).w_cursor,
+            &mut curwin_mut().w_cursor,
             FORWARD,
         );
         if zero_width == -1 {
@@ -2613,7 +2613,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             }
 
             result = searchit(
-                *curwin.as_ptr(),
+                curwin_ptr(),
                 g_st().curbuf,
                 &raw mut pos,
                 Some(&mut end_pos),
@@ -2630,7 +2630,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             opt_vars().p_ws = old_p_ws;
 
             if i == 1 && result == 0 {
-                (**curwin.as_ptr()).w_cursor = orig_pos;
+                curwin_mut().w_cursor = orig_pos;
                 if g_st().Visual.active {
                     g_st().Visual.start = save_VIsual;
                 }
@@ -2639,8 +2639,8 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
                 if forward {
                     clearpos(&mut pos);
                 } else {
-                    pos.lnum = (*(**curwin.as_ptr()).w_buffer).b_ml.ml_line_count;
-                    pos.col = ml_get_len((*(**curwin.as_ptr()).w_buffer).b_ml.ml_line_count);
+                    pos.lnum = (*curwin_mut().w_buffer).b_ml.ml_line_count;
+                    pos.col = ml_get_len((*curwin_mut().w_buffer).b_ml.ml_line_count);
                 }
             }
         }
@@ -2651,23 +2651,23 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             g_st().Visual.start = start_pos;
         }
 
-        (**curwin.as_ptr()).w_cursor = end_pos;
+        curwin_mut().w_cursor = end_pos;
         if lt(g_st().Visual.start, end_pos) && forward {
             if skip_first_backward {
-                (**curwin.as_ptr()).w_cursor = pos;
+                curwin_mut().w_cursor = pos;
             } else {
                 dec_cursor();
             }
-        } else if g_st().Visual.active && lt((**curwin.as_ptr()).w_cursor, g_st().Visual.start) && forward {
-            (**curwin.as_ptr()).w_cursor = pos;
+        } else if g_st().Visual.active && lt(curwin_mut().w_cursor, g_st().Visual.start) && forward {
+            curwin_mut().w_cursor = pos;
         }
         g_st().Visual.active = true;
         g_st().Visual.mode = b'v' as c_int;
 
         if *opt_vars().p_sel == b'e' as c_char {
-            if forward && ltoreq(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
+            if forward && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
                 inc_cursor();
-            } else if !forward && ltoreq((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
+            } else if !forward && ltoreq(curwin_mut().w_cursor, g_st().Visual.start) {
                 inc(&mut g_st().Visual.start);
             }
         }
@@ -2692,7 +2692,7 @@ fn is_zero_width(
     cur: &mut pos_T,
     direction: Direction,
 ) -> c_int {
-    unsafe {
+     {
         let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut result: c_int = -1;
         let mut pos = pos_T {
@@ -2730,7 +2730,7 @@ fn is_zero_width(
             flag = SEARCH_START;
         }
         if searchit(
-            *curwin.as_ptr(),
+            curwin_ptr(),
             g_st().curbuf,
             &raw mut pos,
             None,
@@ -2750,7 +2750,7 @@ fn is_zero_width(
                 let start_col = regmatch.startpos[0].col;
                 nmatched = vim_regexec_multi(
                     &mut regmatch,
-                    *curwin.as_ptr(),
+                    curwin_ptr(),
                     g_st().curbuf,
                     pos.lnum,
                     start_col,
@@ -2823,7 +2823,7 @@ fn cmdline_search_stat(
         let t_ptr = (&raw mut t).cast::<c_char>();
         let mut len: usize;
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 && *(**curwin.as_ptr()).w_onebuf_opt.wo_rlc == b's' as c_char {
+        if curwin_mut().w_onebuf_opt.wo_rl != 0 && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char {
             if stat.incomplete == 1 {
                 len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
             } else if stat.cnt > maxcount && stat.cur > maxcount {
@@ -2976,7 +2976,7 @@ fn update_search_stat(
             }
             while !g_st().got_int
                 && searchit(
-                    *curwin.as_ptr(),
+                    curwin_ptr(),
                     g_st().curbuf,
                     &raw mut srch().stat_lastpos,
                     Some(&mut endpos),
@@ -3030,7 +3030,7 @@ fn update_search_stat(
 pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
     unsafe {
-        let mut pos = (**curwin.as_ptr()).w_cursor;
+        let mut pos = curwin_mut().w_cursor;
         let mut pattern: *mut c_char = ptr::null_mut();
         let mut maxcount = opt_vars().p_msc as c_int;
         let mut timeout = SEARCH_STAT_DEF_TIMEOUT;
@@ -3548,7 +3548,7 @@ pub fn find_pattern_in_path(
                     if action == ACTION_EXPAND {
                         let mut cont_s_ipos = false;
 
-                        if depth == -1 && lnum == (**curwin.as_ptr()).w_cursor.lnum {
+                        if depth == -1 && lnum == curwin_mut().w_cursor.lnum {
                             stop_fpip_loop = true;
                         } else {
                             found = true;
@@ -3703,7 +3703,7 @@ pub fn find_pattern_in_path(
                         if count <= 0 {
                             found = true;
                             if depth == -1
-                                && lnum == (**curwin.as_ptr()).w_cursor.lnum
+                                && lnum == curwin_mut().w_cursor.lnum
                                 && l_g_do_tagpreview == 0
                             {
                                 emsg(tr(c"E387: Match is on current line"));
@@ -3728,14 +3728,14 @@ pub fn find_pattern_in_path(
                                 did_show = true;
                             } else {
                                 if l_g_do_tagpreview != 0 {
-                                    curwin_save = *curwin.as_ptr();
+                                    curwin_save = curwin_ptr();
                                     prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
                                 }
                                 if action == ACTION_SPLIT {
                                     if !win_split(0, 0) {
                                         stop_fpip_loop = true;
                                     } else {
-                                        reset_binding(&mut **curwin.as_ptr());
+                                        reset_binding(curwin_mut());
                                     }
                                 }
                                 if !stop_fpip_loop {
@@ -3757,8 +3757,8 @@ pub fn find_pattern_in_path(
                                             setpcmark();
                                         }
                                         if !stop_fpip_loop {
-                                            (**curwin.as_ptr()).w_cursor.lnum = lnum;
-                                            check_cursor(*curwin.as_ptr());
+                                            curwin_mut().w_cursor.lnum = lnum;
+                                            check_cursor(curwin_ptr());
                                         }
                                     } else if !getfile_success(getfile(
                                         0,
@@ -3770,22 +3770,22 @@ pub fn find_pattern_in_path(
                                     )) {
                                         stop_fpip_loop = true;
                                     } else {
-                                        (**curwin.as_ptr()).w_cursor.lnum = files[depth as usize].lnum;
+                                        curwin_mut().w_cursor.lnum = files[depth as usize].lnum;
                                     }
                                 }
                             }
                             if !stop_fpip_loop {
                                 if action != ACTION_SHOW {
-                                    (**curwin.as_ptr()).w_cursor.col = startp.offset_from(line) as colnr_T;
-                                    (**curwin.as_ptr()).w_set_curswant = true;
+                                    curwin_mut().w_cursor.col = startp.offset_from(line) as colnr_T;
+                                    curwin_mut().w_set_curswant = true;
                                 }
 
                                 if l_g_do_tagpreview != 0
-                                    && *curwin.as_ptr() != curwin_save
+                                    && curwin_ptr() != curwin_save
                                     && win_valid(curwin_save)
                                 {
-                                    validate_cursor(*curwin.as_ptr());
-                                    redraw_later(*curwin.as_ptr(), UPD_VALID);
+                                    validate_cursor(curwin_ptr());
+                                    redraw_later(curwin_ptr(), UPD_VALID);
                                     win_enter(curwin_save, true);
                                 }
                                 stop_fpip_loop = true;

@@ -4122,8 +4122,8 @@ pub fn may_show_intro() -> bool {
         buf_is_empty(&mut *g_st().curbuf)
             && (*g_st().curbuf).b_fname.is_null()
             && (*g_st().curbuf).b_fnum == 1
-            && (**curwin.as_ptr()).handle == LOWEST_WIN_ID
-            && one_window(*curwin.as_ptr(), ptr::null_mut())
+            && curwin_mut().handle == LOWEST_WIN_ID
+            && one_window(curwin_ptr(), ptr::null_mut())
             && vim_strchr(opt_vars().p_shm, kShmIntro).is_null()
     }
 }

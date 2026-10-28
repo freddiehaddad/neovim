@@ -783,8 +783,8 @@ pub fn suggest_load_files() {
         let mut ga: Vec<u8> = Vec::new();
 
         let mut lpi: usize = 0;
-        while lpi < (*win_s(&mut **curwin.as_ptr())).b_langp.len() {
-            let lp = &(&(*win_s(&mut **curwin.as_ptr())).b_langp)[lpi];
+        while lpi < (*win_s(curwin_mut())).b_langp.len() {
+            let lp = &(&(*win_s(curwin_mut())).b_langp)[lpi];
             let slang = lp.lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
@@ -1666,7 +1666,7 @@ fn spell_reload_one(fname: *mut c_char, added_word: bool) {
         }
 
         if added_word && !didit {
-            parse_spelllang(*curwin.as_ptr());
+            parse_spelllang(curwin_ptr());
         }
     }
 }
@@ -2905,10 +2905,10 @@ fn add_fromto(
     from: *mut c_char,
     to: *mut c_char,
 ) {
-    unsafe {
+     {
         let mut word = [0 as c_char; MAXWLEN];
         spell_casefold(
-            *curwin.as_ptr(),
+            curwin_ptr(),
             from,
             crate::memory::cstr_len(from) as c_int,
             word.as_mut_ptr(),
@@ -2916,7 +2916,7 @@ fn add_fromto(
         );
         let ft_from = crate::memory::cstr_to_cstring(word.as_ptr());
         spell_casefold(
-            *curwin.as_ptr(),
+            curwin_ptr(),
             to,
             crate::memory::cstr_len(to) as c_int,
             word.as_mut_ptr(),
@@ -3807,7 +3807,7 @@ fn store_word(
             return false;
         }
 
-        spell_casefold(*curwin.as_ptr(), word, len, foldword.as_mut_ptr(), MAXWLEN as c_int);
+        spell_casefold(curwin_ptr(), word, len, foldword.as_mut_ptr(), MAXWLEN as c_int);
         let mut p = pfxlist;
         while res {
             if !need_affix || (!p.is_null() && *p != NUL) {
@@ -5241,18 +5241,18 @@ pub fn spell_add_word(
                 .as_ptr()
                 .cast_mut()
         } else {
-            if *(*win_s(&mut **curwin.as_ptr())).b_p_spf == NUL {
+            if *(*win_s(curwin_mut())).b_p_spf == NUL {
                 init_spellfile();
                 new_spf = true;
             }
 
-            if *(*win_s(&mut **curwin.as_ptr())).b_p_spf == NUL {
+            if *(*win_s(curwin_mut())).b_p_spf == NUL {
                 semsg!(gettext(e_notset), c"spellfile");
                 return;
             }
             let fnamebuf = fnamebuf_arr.as_mut_ptr();
 
-            let mut spf = (*win_s(&mut **curwin.as_ptr())).b_p_spf;
+            let mut spf = (*win_s(curwin_mut())).b_p_spf;
             let mut i: c_int = 1;
             while *spf != NUL {
                 copy_option_part(&raw mut spf, fnamebuf, MAXPATHL, c",");
@@ -5406,11 +5406,11 @@ fn init_spellfile() {
         let mut aspath = false;
         let mut lstart = (*g_st().curbuf).b_s.b_p_spl;
 
-        if *(*win_s(&mut **curwin.as_ptr())).b_p_spl == NUL || (*win_s(&mut **curwin.as_ptr())).b_langp.is_empty() {
+        if *(*win_s(curwin_mut())).b_p_spl == NUL || (*win_s(curwin_mut())).b_langp.is_empty() {
             return;
         }
 
-        let mut lend = (*win_s(&mut **curwin.as_ptr())).b_p_spl;
+        let mut lend = (*win_s(curwin_mut())).b_p_spl;
         while *lend != NUL && vim_strchr(c",._", *lend as u8 as c_int).is_null() {
             if vim_ispathsep(*lend as c_int) {
                 aspath = true;
@@ -5450,7 +5450,7 @@ fn init_spellfile() {
             lstart,
         );
 
-        let fname = (*(&(*win_s(&mut **curwin.as_ptr())).b_langp)[0].lp_slang)
+        let fname = (*(&(*win_s(curwin_mut())).b_langp)[0].lp_slang)
             .sl_fname
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());

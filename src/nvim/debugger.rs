@@ -520,7 +520,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
         p = skipwhite(p.add(4));
 
         if here {
-            bp.dbg_lnum = (**curwin.as_ptr()).w_cursor.lnum;
+            bp.dbg_lnum = curwin_mut().w_cursor.lnum;
         } else if !is_prof && (*p as u8).is_ascii_digit() {
             bp.dbg_lnum = getdigits_int32(&mut p, true, 0);
             p = skipwhite(p);

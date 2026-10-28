@@ -274,10 +274,10 @@ fn reset_xfmark(
 /// Set named mark `c` at current cursor position (`setmark`).
 pub fn setmark(c: c_int) -> bool {
     unsafe {
-        let view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_cursor);
+        let view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
         setmark_pos(
             c,
-            &mut (**curwin.as_ptr()).w_cursor,
+            &mut curwin_mut().w_cursor,
             (*g_st().curbuf).b_fnum,
             Some(&view),
         )
@@ -373,11 +373,11 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmark
         }
 
         if c == b'\'' as c_int || c == b'`' as c_int {
-            if ptr::eq(pos, &raw const (**curwin.as_ptr()).w_cursor) {
+            if ptr::eq(pos, &raw const (*curwin_ptr()).w_cursor) {
                 setpcmark();
-                (**curwin.as_ptr()).w_prev_pcmark = (**curwin.as_ptr()).w_pcmark;
+                curwin_mut().w_prev_pcmark = curwin_mut().w_pcmark;
             } else {
-                (**curwin.as_ptr()).w_pcmark = *pos;
+                curwin_mut().w_pcmark = *pos;
             }
             return true;
         }
@@ -493,42 +493,42 @@ pub fn setpcmark() {
             return;
         }
 
-        (**curwin.as_ptr()).w_prev_pcmark = (**curwin.as_ptr()).w_pcmark;
-        (**curwin.as_ptr()).w_pcmark = (**curwin.as_ptr()).w_cursor;
+        curwin_mut().w_prev_pcmark = curwin_mut().w_pcmark;
+        curwin_mut().w_pcmark = curwin_mut().w_cursor;
 
-        if (**curwin.as_ptr()).w_pcmark.lnum == 0 {
-            (**curwin.as_ptr()).w_pcmark.lnum = 1;
+        if curwin_mut().w_pcmark.lnum == 0 {
+            curwin_mut().w_pcmark.lnum = 1;
         }
 
         if (opt_vars().jop_flags & kOptJopFlagStack) != 0
-            && (**curwin.as_ptr()).w_jumplistidx < (**curwin.as_ptr()).w_jumplistlen - 1
+            && curwin_mut().w_jumplistidx < curwin_mut().w_jumplistlen - 1
         {
-            (**curwin.as_ptr()).w_jumplistlen = (**curwin.as_ptr()).w_jumplistidx + 1;
+            curwin_mut().w_jumplistlen = curwin_mut().w_jumplistidx + 1;
         }
 
-        (**curwin.as_ptr()).w_jumplistlen += 1;
-        if (**curwin.as_ptr()).w_jumplistlen > JUMPLISTSIZE {
-            (**curwin.as_ptr()).w_jumplistlen = JUMPLISTSIZE;
-            free_xfmark(&mut (**curwin.as_ptr()).w_jumplist[0]);
-            (&mut (**curwin.as_ptr()).w_jumplist)[..JUMPLISTSIZE as usize].rotate_left(1);
+        curwin_mut().w_jumplistlen += 1;
+        if curwin_mut().w_jumplistlen > JUMPLISTSIZE {
+            curwin_mut().w_jumplistlen = JUMPLISTSIZE;
+            free_xfmark(&mut curwin_mut().w_jumplist[0]);
+            (&mut curwin_mut().w_jumplist)[..JUMPLISTSIZE as usize].rotate_left(1);
         }
-        (**curwin.as_ptr()).w_jumplistidx = (**curwin.as_ptr()).w_jumplistlen;
-        let fm = &raw mut (**curwin.as_ptr()).w_jumplist[((**curwin.as_ptr()).w_jumplistlen - 1) as usize];
+        curwin_mut().w_jumplistidx = curwin_mut().w_jumplistlen;
+        let fm = &raw mut (*curwin_ptr()).w_jumplist[(curwin_mut().w_jumplistlen - 1) as usize];
 
-        let view = mark_view_make(&**curwin.as_ptr(), (**curwin.as_ptr()).w_pcmark);
-        set_xfmark(&mut *fm, (**curwin.as_ptr()).w_pcmark, (*g_st().curbuf).b_fnum, view, None);
+        let view = mark_view_make(curwin_mut(), curwin_mut().w_pcmark);
+        set_xfmark(&mut *fm, curwin_mut().w_pcmark, (*g_st().curbuf).b_fnum, view, None);
     }
 }
 
 /// Check previous context mark (`checkpcmark`).
 pub fn checkpcmark() {
-    unsafe {
-        if (**curwin.as_ptr()).w_prev_pcmark.lnum != 0
-            && (equalpos((**curwin.as_ptr()).w_pcmark, (**curwin.as_ptr()).w_cursor) || (**curwin.as_ptr()).w_pcmark.lnum == 0)
+     {
+        if curwin_mut().w_prev_pcmark.lnum != 0
+            && (equalpos(curwin_mut().w_pcmark, curwin_mut().w_cursor) || curwin_mut().w_pcmark.lnum == 0)
         {
-            (**curwin.as_ptr()).w_pcmark = (**curwin.as_ptr()).w_prev_pcmark;
+            curwin_mut().w_pcmark = curwin_mut().w_prev_pcmark;
         }
-        (**curwin.as_ptr()).w_prev_pcmark.lnum = 0;
+        curwin_mut().w_prev_pcmark.lnum = 0;
     }
 }
 
@@ -691,7 +691,7 @@ pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fma
 pub fn mark_get_motion(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mut mark: *mut fmark_T = ptr::null_mut();
-        let pos = (**curwin.as_ptr()).w_cursor;
+        let pos = curwin_mut().w_cursor;
         let slcb = g_st().listcmd_busy;
         g_st().listcmd_busy = true;
         if name == b'{' as c_int || name == b'}' as c_int {
@@ -721,7 +721,7 @@ pub fn mark_get_motion(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fm
         {
             mark = pos_to_mark(buf, None, (*win).w_cursor);
         }
-        (**curwin.as_ptr()).w_cursor = pos;
+        curwin_mut().w_cursor = pos;
         g_st().listcmd_busy = slcb;
         mark
     }
@@ -806,9 +806,9 @@ pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
             setpcmark();
         }
 
-        let prev_pos = (**curwin.as_ptr()).w_cursor;
+        let prev_pos = curwin_mut().w_cursor;
         let pos = (*fm).mark;
-        (**curwin.as_ptr()).w_cursor = (*fm).mark;
+        curwin_mut().w_cursor = (*fm).mark;
         if (flags & kMarkBeginLine) != 0 {
             beginline(BL_WHITE | BL_FIX);
         }
@@ -823,7 +823,7 @@ pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
         }
 
         if (res & kMarkSwitchedBuf) != 0 || (res & kMarkChangedCursor) != 0 {
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
         }
         res
     }
@@ -835,10 +835,10 @@ pub fn mark_view_restore(fm: *mut fmark_T) {
         if !fm.is_null() && (*fm).view.topline_offset >= 0 {
             let topline = (*fm).mark.lnum - (*fm).view.topline_offset;
             if topline >= 1 {
-                set_topline(&mut **curwin.as_ptr(), topline);
-                (**curwin.as_ptr()).w_skipcol = if (*fm).view.skipcol > 0
-                    && !hasFolding(*curwin.as_ptr(), topline, None, ptr::null_mut())
-                    && (*fm).view.skipcol < linetabsize_eol(*curwin.as_ptr(), topline)
+                set_topline(curwin_mut(), topline);
+                curwin_mut().w_skipcol = if (*fm).view.skipcol > 0
+                    && !hasFolding(curwin_ptr(), topline, None, ptr::null_mut())
+                    && (*fm).view.skipcol < linetabsize_eol(curwin_ptr(), topline)
                 {
                     (*fm).view.skipcol
                 } else {
@@ -1206,16 +1206,16 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
 /// Print the jumplist (`ex_jumps`).
 pub fn ex_jumps(_eap: &mut exarg_T) {
     unsafe {
-        cleanup_jumplist(&mut **curwin.as_ptr(), true);
+        cleanup_jumplist(curwin_mut(), true);
         msg_ext_set_kind(c"list_cmd");
         msg_puts_title(gettext(c"\n jump line  col file/text"));
         let mut i: c_int = 0;
-        while i < (**curwin.as_ptr()).w_jumplistlen && !g_st().got_int {
+        while i < curwin_mut().w_jumplistlen && !g_st().got_int {
             let idx = i as usize;
-            if (**curwin.as_ptr()).w_jumplist[idx].fmark.mark.lnum != 0 {
-                let mut name = fm_getname(&mut (**curwin.as_ptr()).w_jumplist[idx].fmark, 16);
+            if curwin_mut().w_jumplist[idx].fmark.mark.lnum != 0 {
+                let mut name = fm_getname(&mut curwin_mut().w_jumplist[idx].fmark, 16);
 
-                if name.is_none() && i == (**curwin.as_ptr()).w_jumplistidx {
+                if name.is_none() && i == curwin_mut().w_jumplistidx {
                     name = Some(c"-invalid-".to_owned());
                 }
                 let Some(name_cstr) = name else {
@@ -1231,14 +1231,14 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
                 if g_st().got_int {
                     break;
                 }
-                let indicator = if i == (**curwin.as_ptr()).w_jumplistidx {
+                let indicator = if i == curwin_mut().w_jumplistidx {
                     '>'
                 } else {
                     ' '
                 };
-                let dist = (i - (**curwin.as_ptr()).w_jumplistidx).abs();
-                let lnum = (**curwin.as_ptr()).w_jumplist[idx].fmark.mark.lnum;
-                let col = (**curwin.as_ptr()).w_jumplist[idx].fmark.mark.col;
+                let dist = (i - curwin_mut().w_jumplistidx).abs();
+                let lnum = curwin_mut().w_jumplist[idx].fmark.mark.lnum;
+                let col = curwin_mut().w_jumplist[idx].fmark.mark.col;
                 let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
                 let bytes = s.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
@@ -1252,7 +1252,7 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
                 msg_outtrans(&raw const g_st().IObuff[0], 0, false);
                 msg_outtrans(
                     name_cstr.as_ptr(),
-                    if (**curwin.as_ptr()).w_jumplist[idx].fmark.fnum == (*g_st().curbuf).b_fnum {
+                    if curwin_mut().w_jumplist[idx].fmark.fnum == (*g_st().curbuf).b_fnum {
                         HLF_D
                     } else {
                         0
@@ -1263,17 +1263,17 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
             }
             i += 1;
         }
-        if (**curwin.as_ptr()).w_jumplistidx == (**curwin.as_ptr()).w_jumplistlen {
+        if curwin_mut().w_jumplistidx == curwin_mut().w_jumplistlen {
             msg_puts(c"\n>");
         }
     }
 }
 
 pub fn ex_clearjumps(_eap: &mut exarg_T) {
-    unsafe {
-        free_jumplist(&mut **curwin.as_ptr());
-        (**curwin.as_ptr()).w_jumplistlen = 0;
-        (**curwin.as_ptr()).w_jumplistidx = 0;
+     {
+        free_jumplist(curwin_mut());
+        curwin_mut().w_jumplistlen = 0;
+        curwin_mut().w_jumplistidx = 0;
     }
 }
 
@@ -1291,12 +1291,12 @@ pub fn ex_changes(_eap: &mut exarg_T) {
                 if g_st().got_int {
                     break;
                 }
-                let indicator = if i == (**curwin.as_ptr()).w_changelistidx {
+                let indicator = if i == curwin_mut().w_changelistidx {
                     '>'
                 } else {
                     ' '
                 };
-                let dist = (i - (**curwin.as_ptr()).w_changelistidx).abs();
+                let dist = (i - curwin_mut().w_changelistidx).abs();
                 let lnum = (*g_st().curbuf).b_changelist[idx].mark.lnum;
                 let col = (*g_st().curbuf).b_changelist[idx].mark.col;
                 let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
@@ -1316,7 +1316,7 @@ pub fn ex_changes(_eap: &mut exarg_T) {
             }
             i += 1;
         }
-        if (**curwin.as_ptr()).w_changelistidx == (*g_st().curbuf).b_changelistlen {
+        if curwin_mut().w_changelistidx == (*g_st().curbuf).b_changelistlen {
             msg_puts(c"\n>");
         }
     }
@@ -1567,16 +1567,16 @@ pub fn mark_adjust_buf(
             extmark_adjust(buf, line1, line2, amount, amount_after, op);
         }
 
-        if (**curwin.as_ptr()).w_buffer == buf {
+        if curwin_mut().w_buffer == buf {
             one_adjust(
-                &mut (**curwin.as_ptr()).w_pcmark.lnum,
+                &mut curwin_mut().w_pcmark.lnum,
                 line1,
                 line2,
                 amount,
                 amount_after,
             );
             one_adjust(
-                &mut (**curwin.as_ptr()).w_prev_pcmark.lnum,
+                &mut curwin_mut().w_prev_pcmark.lnum,
                 line1,
                 line2,
                 amount,
@@ -1648,7 +1648,7 @@ pub fn mark_adjust_buf(
                         || (if by_term {
                             (*win).w_cursor.lnum < buf.b_ml.ml_line_count
                         } else {
-                            win != *curwin.as_ptr()
+                            win != curwin_ptr()
                         })
                     {
                         if (*win).w_topline >= line1 && (*win).w_topline <= line2 {
@@ -1672,7 +1672,7 @@ pub fn mark_adjust_buf(
                         && (if by_term {
                             (*win).w_cursor.lnum < buf.b_ml.ml_line_count
                         } else {
-                            win != *curwin.as_ptr()
+                            win != curwin_ptr()
                         })
                     {
                         one_adjust_cursor(
@@ -1838,7 +1838,7 @@ pub fn mark_col_adjust(
         );
 
         col_adjust(
-            &mut (**curwin.as_ptr()).w_pcmark,
+            &mut curwin_mut().w_pcmark,
             lnum,
             mincol,
             lnum_amount,
@@ -1846,7 +1846,7 @@ pub fn mark_col_adjust(
             spaces_removed,
         );
         col_adjust(
-            &mut (**curwin.as_ptr()).w_prev_pcmark,
+            &mut curwin_mut().w_prev_pcmark,
             lnum,
             mincol,
             lnum_amount,
@@ -1891,7 +1891,7 @@ pub fn mark_col_adjust(
                     }
                 }
 
-                if win != *curwin.as_ptr() {
+                if win != curwin_ptr() {
                     col_adjust(
                         &mut (*win).w_cursor,
                         lnum,
@@ -2235,7 +2235,7 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
         add_mark(
             l,
             c"''",
-            &(**curwin.as_ptr()).w_pcmark,
+            &curwin_mut().w_pcmark,
             (*g_st().curbuf).b_fnum,
             ptr::null(),
         );

@@ -188,8 +188,8 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
             ptr::null_mut(),
             kCtxNoEvents | kCtxNoDisplay,
         ) {
-            update_topline(*curwin.as_ptr());
-            validate_cursor(*curwin.as_ptr());
+            update_topline(curwin_ptr());
+            validate_cursor(curwin_ptr());
         }
         ctx_restore(&mut switchwin);
 

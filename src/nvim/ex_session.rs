@@ -440,9 +440,9 @@ fn put_view(
             return false;
         }
 
-        let save_curwin = *curwin.as_ptr();
-        *curwin.as_ptr() = wp;
-        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+        let save_curwin = curwin_ptr();
+        set_curwin(wp);
+        g_st().curbuf = curwin_mut().w_buffer;
         let f = if (*flagp & (kOptSsopFlagOptions | kOptSsopFlagLocaloptions)) != 0 {
             makeset(
                 fd,
@@ -456,8 +456,8 @@ fn put_view(
         } else {
             true
         };
-        *curwin.as_ptr() = save_curwin;
-        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+        set_curwin(save_curwin);
+        g_st().curbuf = curwin_mut().w_buffer;
         if !f {
             return false;
         }
@@ -896,7 +896,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                 } else if !(*wp).w_floating {
                     restore_size = false;
                 }
-                if ptr::eq(*curwin.as_ptr(), wp) {
+                if ptr::eq(curwin_ptr(), wp) {
                     cnr = nr;
                 }
                 wp = (*wp).w_next;
@@ -1153,7 +1153,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |= !put_view(fd, *curwin.as_ptr(), &mut *g_st().curtab, !using_vdir, &mut *flagp, -1);
+                    failed |= !put_view(fd, curwin_ptr(), &mut *g_st().curtab, !using_vdir, &mut *flagp, -1);
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;

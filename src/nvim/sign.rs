@@ -789,8 +789,8 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
         }
 
         if !buf_jump_open_win(buf).is_null() {
-            (**curwin.as_ptr()).w_cursor.lnum = lnum;
-            check_cursor_lnum(&mut **curwin.as_ptr());
+            curwin_mut().w_cursor.lnum = lnum;
+            check_cursor_lnum(curwin_mut());
             beginline(BL_WHITE);
         } else {
             if (*buf).b_fname.is_null() {
@@ -807,7 +807,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
                 None,
                 lnum,
                 if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
-                *curwin.as_ptr(),
+                curwin_ptr(),
             )
             {
                 return -1;
@@ -904,8 +904,8 @@ fn sign_unplace_cmd(
         }
 
         if id == -1 {
-            lnum = (**curwin.as_ptr()).w_cursor.lnum;
-            buf = (**curwin.as_ptr()).w_buffer;
+            lnum = curwin_mut().w_cursor.lnum;
+            buf = curwin_mut().w_buffer;
         }
 
         if !sign_unplace(buf, id.max(0), group, lnum) && lnum > 0 {
@@ -1024,7 +1024,7 @@ fn parse_sign_cmd_args(
         }
 
         if filename.is_null() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
-            *buf = (**curwin.as_ptr()).w_buffer;
+            *buf = curwin_mut().w_buffer;
         }
         true
     }

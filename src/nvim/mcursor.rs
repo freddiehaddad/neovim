@@ -289,7 +289,7 @@ fn mc_track_upd(buf: *mut buf_T, mark: &mut u32, pos: pos_T) {
 }
 
 fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
-    unsafe {
+     {
         assert!(!mc_replaying());
         set_vim_var_bool(VV_CASCADING, kBoolVarTrue);
         sb.primary = CONTEXT_INIT;
@@ -299,7 +299,7 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
         );
         sb.cursor_mark = 0;
         mc_track_upd(g_st().curbuf, &mut sb.cursor_mark, sb.primary.pos);
-        save_viewstate(&mut **curwin.as_ptr(), &mut sb.view);
+        save_viewstate(curwin_mut(), &mut sb.view);
         sb.topline_mark = 0;
         mc_track_upd(
             g_st().curbuf,
@@ -341,12 +341,12 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
             extmark_del_id(&mut *buf, mc_session_ns(), sb.topline_mark);
         }
         if buf == g_st().curbuf {
-            restore_viewstate(&mut **curwin.as_ptr(), &sb.view);
+            restore_viewstate(curwin_mut(), &sb.view);
             ctx_load(&mut sb.primary, kCtxCursor | kCtxVisual | kCtxMarks, 0);
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
             if topline_valid {
-                set_topline(&mut **curwin.as_ptr(), topline.lnum.min((*g_st().curbuf).b_ml.ml_line_count));
-                update_topline(*curwin.as_ptr());
+                set_topline(curwin_mut(), topline.lnum.min((*g_st().curbuf).b_ml.ml_line_count));
+                update_topline(curwin_ptr());
             }
         }
         ctx_free(&mut sb.primary);
@@ -413,9 +413,9 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         );
 
         if atom_type == kAInsertSpan {
-            check_pos(&mut *g_st().curbuf, &mut (**curwin.as_ptr()).w_cursor);
+            check_pos(&mut *g_st().curbuf, &mut curwin_mut().w_cursor);
         } else {
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
         }
 
         if atom_type == kAVisualSpan {
@@ -513,7 +513,7 @@ fn mc_cascade() {
         let mut mcursor_pos = INIT_POS;
         if mcursor != 0 && extmark_get_pos(g_st().curbuf, mc_ns(), mcursor, &mut mcursor_pos) {
             let mut mark = mcursor;
-            mc_mark_upd(g_st().curbuf, &mut mark, (**curwin.as_ptr()).w_cursor);
+            mc_mark_upd(g_st().curbuf, &mut mark, curwin_mut().w_cursor);
         }
 
         let mut sb = McSandbox::new();
@@ -543,12 +543,12 @@ fn mc_cascade() {
         let bufnr = sb.primary.buf;
         mc_sandbox_leave(&mut sb);
 
-        mc_cleanup(true, Some(&(**curwin.as_ptr()).w_cursor), mcursor);
+        mc_cleanup(true, Some(&curwin_mut().w_cursor), mcursor);
         if handle_get_buffer(bufnr) == g_st().curbuf
             && !(*g_st().curbuf).b_u_synced
             && let Some(nh) = (*g_st().curbuf).b_u_newhead
         {
-            uhp_mut(&mut *g_st().curbuf, nh).uh_cursor_after = (**curwin.as_ptr()).w_cursor;
+            uhp_mut(&mut *g_st().curbuf, nh).uh_cursor_after = curwin_mut().w_cursor;
         }
     }
 }
@@ -595,7 +595,7 @@ fn mc_cleanup(dedupe: bool, primary: Option<&pos_T>, keep_mark: u32) {
             }
             let dup = dedupe
                 && ctx.mark != 0
-                && ((!(*curwin.as_ptr()).is_null()
+                && ((!(curwin_ptr()).is_null()
                     && buf == g_st().curbuf
                     && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                     && ctx.mark != keep_mark)
@@ -648,8 +648,8 @@ pub fn mc_ins_cascade_start(
         mc_ins_regions_clear();
 
         if mc_st().mc_ins_span.active {
-            let mut lo = (**curwin.as_ptr()).w_cursor.lnum;
-            let mut hi = (**curwin.as_ptr()).w_cursor.lnum;
+            let mut lo = curwin_mut().w_cursor.lnum;
+            let mut hi = curwin_mut().w_cursor.lnum;
             for ctx in cursors() {
                 let mut pos = INIT_POS;
                 if mc_ctx_resolve(ctx, &mut pos) {
@@ -744,8 +744,8 @@ fn mc_region_mark_set(mark: &mut u32, pos: pos_T) {
 }
 
 fn mc_ins_preview_rebase() {
-    unsafe {
-        mc_region_mark_set(&mut mc_st().mc_ins_span.region, (**curwin.as_ptr()).w_cursor);
+     {
+        mc_region_mark_set(&mut mc_st().mc_ins_span.region, curwin_mut().w_cursor);
         mc_ins_regions_clear();
         for i in 0..cursors().len() {
             let ctx = &cursors()[i];
@@ -848,7 +848,7 @@ fn mc_ins_preview_set(new_text: &NvimString) {
     unsafe {
         let saved = mc_ins_save_state();
         let mut primary: u32 = 0;
-        mc_track_upd(g_st().curbuf, &mut primary, (**curwin.as_ptr()).w_cursor);
+        mc_track_upd(g_st().curbuf, &mut primary, curwin_mut().w_cursor);
         let save_cmod_flags = g_st().cmdmod.cmod_flags;
         g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
         set_vim_var_bool(VV_CASCADING, kBoolVarTrue);
@@ -862,9 +862,9 @@ fn mc_ins_preview_set(new_text: &NvimString) {
         }
         set_vim_var_bool(VV_CASCADING, kBoolVarFalse);
         g_st().cmdmod.cmod_flags = save_cmod_flags;
-        let mut pos = (**curwin.as_ptr()).w_cursor;
+        let mut pos = curwin_mut().w_cursor;
         if extmark_get_pos(g_st().curbuf, mc_session_ns(), primary, &mut pos) {
-            (**curwin.as_ptr()).w_cursor = pos;
+            curwin_mut().w_cursor = pos;
         }
         extmark_del_id(&mut *g_st().curbuf, mc_session_ns(), primary);
         mc_ins_restore_state(&saved);
@@ -1087,7 +1087,7 @@ fn mc_reg_gather() {
         }
 
         let mut primary = CONTEXT_INIT;
-        primary.pos = (**curwin.as_ptr()).w_cursor;
+        primary.pos = curwin_mut().w_cursor;
         primary.regs = shada_encode_regs(false, mc_st().mc_start.time);
 
         let mut order: Vec<*mut Context> = Vec::new();
@@ -1224,7 +1224,7 @@ pub fn mc_vsel_refresh() {
             cursors_mut()[i].pos = pos;
             let mut ctx = cursors()[i].clone();
             ctx_load(&mut ctx, kCtxCursor | kCtxVisual | kCtxMarks, 0);
-            check_cursor(*curwin.as_ptr());
+            check_cursor(curwin_ptr());
             g_st().Visual.active = false;
             g_st().Visual.select = false;
             nvim_feedkeys(span, cstr_as_string(c"nix"), false);
@@ -1232,7 +1232,7 @@ pub fn mc_vsel_refresh() {
                 continue;
             }
             let mut s = g_st().Visual.start;
-            let mut e = (**curwin.as_ptr()).w_cursor;
+            let mut e = curwin_mut().w_cursor;
             let r_type: c_int = if g_st().Visual.mode == b'V' as c_int {
                 kMTLineWise
             } else if g_st().Visual.mode == Ctrl_V {
@@ -1242,7 +1242,7 @@ pub fn mc_vsel_refresh() {
             };
             let mut inclusive = true;
             let mut oa = oparg_T::new();
-            g_st().virtual_op = c_int::from(virtual_active(*curwin.as_ptr()));
+            g_st().virtual_op = c_int::from(virtual_active(curwin_ptr()));
             getregionpos_prep(
                 &mut s,
                 &mut e,
@@ -1255,7 +1255,7 @@ pub fn mc_vsel_refresh() {
             if r_type == kMTLineWise {
                 mc_vsel_mark(s.lnum, 0, e.lnum, ml_get_len(e.lnum));
             } else if r_type == kMTBlockWise {
-                if (**curwin.as_ptr()).w_curswant == MAXCOL {
+                if curwin_mut().w_curswant == MAXCOL {
                     oa.end_vcol = MAXCOL;
                 }
                 for lnum in s.lnum..=e.lnum {
@@ -1276,7 +1276,7 @@ pub fn mc_vsel_refresh() {
                 g_st().curbuf,
                 mc_vcur_ns(),
                 &mut cmark,
-                (**curwin.as_ptr()).w_cursor,
+                curwin_mut().w_cursor,
                 false,
                 true,
                 true,
@@ -1338,7 +1338,7 @@ pub fn mc_ins_commit() -> bool {
             }
             let mut mark = cursors()[i].mark;
             if mark == mc_st().mc_ins_span.origin.mcursor {
-                pos = (**curwin.as_ptr()).w_cursor;
+                pos = curwin_mut().w_cursor;
             } else if pos.col > 0 {
                 dec(&mut pos);
             }
@@ -1408,8 +1408,8 @@ pub fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
 fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: pos_T) -> pos_T {
     let keys = keys.into_c_char_ptr();
     unsafe {
-        (**curwin.as_ptr()).w_cursor = pos;
-        (**curwin.as_ptr()).w_set_curswant = false;
+        curwin_mut().w_cursor = pos;
+        curwin_mut().w_set_curswant = false;
         g_st().msg_silent += 1;
         g_st().emsg_silent += 1;
         let save_cmod_flags = g_st().cmdmod.cmod_flags;
@@ -1429,7 +1429,7 @@ fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: pos_T) -> pos_T {
         g_st().cmdmod.cmod_flags = save_cmod_flags;
         g_st().emsg_silent -= 1;
         g_st().msg_silent -= 1;
-        if failed { INIT_POS } else { (**curwin.as_ptr()).w_cursor }
+        if failed { INIT_POS } else { curwin_mut().w_cursor }
     }
 }
 
@@ -1463,7 +1463,7 @@ fn mc_zq_target(
         }
         (*g_st().curbuf).b_visual_mode_eval = (*g_st().curbuf).b_visual.vi_mode;
         if !ctx.is_null() {
-            (**curwin.as_ptr()).w_cursor = step;
+            curwin_mut().w_cursor = step;
             ctx_save(&mut *ctx, kCtxVisual);
         }
         let target = (*g_st().curbuf).b_visual;
@@ -1483,7 +1483,7 @@ fn mc_zq_first(
     unsafe {
         let start = *bounds;
         let end_bound = *bounds.add(1);
-        let curswant = (**curwin.as_ptr()).w_curswant;
+        let curswant = curwin_mut().w_curswant;
         let mut before = start;
         let bof = dec(&mut before) == -1;
         step.lnum = 0;
@@ -1492,23 +1492,23 @@ fn mc_zq_first(
             opt_vars().p_ww = c"s,l,>".as_ptr().cast_mut();
             let s = mc_zq_step(keys, before);
             opt_vars().p_ww = save_ww;
-            (**curwin.as_ptr()).w_curswant = curswant;
+            curwin_mut().w_curswant = curswant;
             if ltoreq(start, s) && ltoreq(s, end_bound) {
                 *step = s;
             }
         }
-        (**curwin.as_ptr()).w_cursor = start;
-        check_cursor_col(&mut **curwin.as_ptr());
-        let from = (**curwin.as_ptr()).w_cursor;
+        curwin_mut().w_cursor = start;
+        check_cursor_col(curwin_mut());
+        let from = curwin_mut().w_cursor;
         let s = mc_zq_step(keys, from);
-        if s.lnum > from.lnum && !(**curwin.as_ptr()).w_set_curswant {
+        if s.lnum > from.lnum && !curwin_mut().w_set_curswant {
             let mut c = from;
-            getvpos(*curwin.as_ptr(), &mut c, (**curwin.as_ptr()).w_curswant);
+            getvpos(curwin_ptr(), &mut c, curwin_mut().w_curswant);
             if ltoreq(start, c) && ltoreq(c, end_bound) && (step.lnum == 0 || lt(c, *step)) {
                 *step = c;
             }
         }
-        (**curwin.as_ptr()).w_curswant = curswant;
+        curwin_mut().w_curswant = curswant;
         if step.lnum != 0 {
             return true;
         }
@@ -1542,12 +1542,12 @@ fn mc_zq_run(
     end: pos_T,
     first: pos_T,
 ) -> c_int {
-    unsafe {
+     {
         let wrap = end.lnum == MAXLNUM;
         let mut wrapped = false;
         let mut placed: c_int = 0;
         let mut step = first;
-        let curswant = (**curwin.as_ptr()).w_curswant;
+        let curswant = curwin_mut().w_curswant;
         while !g_st().got_int {
             mc_zq_target(step, search, motion_type, mc_add(g_st().curbuf, step));
             placed += 1;
@@ -1574,7 +1574,7 @@ fn mc_zq_run(
                 break;
             }
         }
-        (**curwin.as_ptr()).w_curswant = curswant;
+        curwin_mut().w_curswant = curswant;
         placed
     }
 }
@@ -1586,7 +1586,7 @@ pub fn mc_zq_start(cap: &mut cmdarg_T) {
         if g_st().Visual.active {
             atom_visual_reset();
             end_visual_mode();
-            check_cursor_col(&mut **curwin.as_ptr());
+            check_cursor_col(curwin_mut());
         }
     }
 }
@@ -1603,7 +1603,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
             || cap.cmdchar == b':' as c_int
         {
             beep_flush();
-            (**curwin.as_ptr()).w_cursor = origin;
+            curwin_mut().w_cursor = origin;
             return;
         }
         let mut primary = origin;
@@ -1632,7 +1632,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
         if blockwise {
             let [vcol0, vcol1] = &mut vcols;
             getvcols(
-                *curwin.as_ptr(),
+                curwin_ptr(),
                 &mut v.vi_start,
                 &mut v.vi_end,
                 vcol0,
@@ -1645,10 +1645,10 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
                 vcols[1]
             };
         }
-        (**curwin.as_ptr()).w_cursor = primary;
+        curwin_mut().w_cursor = primary;
         update_curswant();
         let mut view = viewstate_T::new();
-        save_viewstate(&mut **curwin.as_ptr(), &mut view);
+        save_viewstate(curwin_mut(), &mut view);
         save_search_patterns();
 
         let search = (cap.cmdchar != NUL
@@ -1695,10 +1695,10 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
                         coladd: 0,
                     },
                 ];
-                if !getvpos(*curwin.as_ptr(), &mut line[0], vcols[0]) {
+                if !getvpos(curwin_ptr(), &mut line[0], vcols[0]) {
                     line[0].col = ml_get_len(lnum);
                 } else if vcols[1] != MAXCOL {
-                    getvpos(*curwin.as_ptr(), &mut line[1], vcols[1]);
+                    getvpos(curwin_ptr(), &mut line[1], vcols[1]);
                 }
                 let mut step = INIT_POS;
                 if mc_zq_first(
@@ -1718,19 +1718,19 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
 
         drop(keys_cstr);
         restore_search_patterns();
-        restore_viewstate(&mut **curwin.as_ptr(), &view);
+        restore_viewstate(curwin_mut(), &view);
 
         if placed > 0 {
             if mc_mark_at(g_st().curbuf, primary, 0) == 0 {
                 primary = first;
-                (**curwin.as_ptr()).w_set_curswant = true;
+                curwin_mut().w_set_curswant = true;
             }
             (*g_st().curbuf).b_visual = mc_zq_target(primary, search, oap.motion_type, ptr::null_mut());
             (*g_st().curbuf).b_visual_mode_eval = (*g_st().curbuf).b_visual.vi_mode;
             set_no_hlsearch(true);
             redraw_all_later(UPD_SOME_VALID);
         }
-        (**curwin.as_ptr()).w_cursor = primary;
+        curwin_mut().w_cursor = primary;
     }
 }
 
@@ -1902,7 +1902,7 @@ pub fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
                     buf,
                     mc_last_ns(),
                     &mut primary,
-                    (**curwin.as_ptr()).w_cursor,
+                    curwin_mut().w_cursor,
                     true,
                     false,
                     false,

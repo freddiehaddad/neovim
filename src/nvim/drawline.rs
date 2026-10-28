@@ -1356,7 +1356,7 @@ pub fn win_line(
         let view_width = wp.w_view_width;
         let view_height = wp.w_view_height;
 
-        let in_curline = ptr::eq(wp, *curwin.as_ptr()) && lnum == (**curwin.as_ptr()).w_cursor.lnum;
+        let in_curline = ptr::eq(wp, curwin_ptr()) && lnum == curwin_mut().w_cursor.lnum;
         let has_fold = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
         let has_foldtext = has_fold && wp.w_onebuf_opt.wo_fdt.cb_type() != kCallbackNone;
 
@@ -1516,11 +1516,11 @@ pub fn win_line(
             let hlc = vcol_hlc(&wlv);
             advance_color_col(&mut wlv, hlc);
 
-            if g_st().Visual.active && wp.w_buffer == (**curwin.as_ptr()).w_buffer {
-                let (top, bot) = if ltoreq((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
-                    (&raw mut (**curwin.as_ptr()).w_cursor, &raw mut g_st().Visual.start)
+            if g_st().Visual.active && wp.w_buffer == curwin_mut().w_buffer {
+                let (top, bot) = if ltoreq(curwin_mut().w_cursor, g_st().Visual.start) {
+                    (&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().Visual.start)
                 } else {
-                    (&raw mut g_st().Visual.start, &raw mut (**curwin.as_ptr()).w_cursor)
+                    (&raw mut g_st().Visual.start, &raw mut (*curwin_ptr()).w_cursor)
                 };
                 lnum_in_visual_area = lnum >= (*top).lnum && lnum <= (*bot).lnum;
                 if g_st().Visual.mode == Ctrl_V {
@@ -1585,15 +1585,15 @@ pub fn win_line(
                     vi_attr = win_hl_attr(&raw mut *wp, HLF_V);
                 }
             } else if g_st().Search.hl_match
-                && ptr::eq(wp, *curwin.as_ptr())
+                && ptr::eq(wp, curwin_ptr())
                 && !has_foldtext
-                && lnum >= (**curwin.as_ptr()).w_cursor.lnum
-                && lnum <= (**curwin.as_ptr()).w_cursor.lnum + g_st().Search.match_lines
+                && lnum >= curwin_mut().w_cursor.lnum
+                && lnum <= curwin_mut().w_cursor.lnum + g_st().Search.match_lines
             {
-                if lnum == (**curwin.as_ptr()).w_cursor.lnum {
+                if lnum == curwin_mut().w_cursor.lnum {
                     getvcol(
-                        &mut **curwin.as_ptr(),
-                        &mut (**curwin.as_ptr()).w_cursor,
+                        curwin_mut(),
+                        &mut curwin_mut().w_cursor,
                         Some(&mut wlv.fromcol),
                         None,
                         None,
@@ -1602,14 +1602,14 @@ pub fn win_line(
                 } else {
                     wlv.fromcol = 0;
                 }
-                if lnum == (**curwin.as_ptr()).w_cursor.lnum + g_st().Search.match_lines {
+                if lnum == curwin_mut().w_cursor.lnum + g_st().Search.match_lines {
                     let mut pos = pos_T {
                         lnum,
                         col: g_st().Search.match_endcol,
                         coladd: 0,
                     };
                     getvcol(
-                        &mut **curwin.as_ptr(),
+                        curwin_mut(),
                         &mut pos,
                         Some(&mut wlv.tocol),
                         None,
@@ -1684,7 +1684,7 @@ pub fn win_line(
         if wp.w_onebuf_opt.wo_cul != 0
             && wp.w_p_culopt_flags != kOptCuloptFlagNumber
             && lnum == wp.w_cursorline
-            && !(ptr::eq(wp, *curwin.as_ptr()) && g_st().Visual.active)
+            && !(ptr::eq(wp, curwin_ptr()) && g_st().Visual.active)
         {
             cul_screenline = is_wrapped && (wp.w_p_culopt_flags & kOptCuloptFlagScreenline) != 0;
             if !cul_screenline {
@@ -1905,7 +1905,7 @@ pub fn win_line(
                 && (wp.w_onebuf_opt.wo_cuc != 0
                     || !wlv.color_cols.is_empty()
                     || virtual_active(&raw mut *wp)
-                    || (g_st().Visual.active && wp.w_buffer == (**curwin.as_ptr()).w_buffer)
+                    || (g_st().Visual.active && wp.w_buffer == curwin_mut().w_buffer)
                     || has_fold)
             {
                 wlv.vcol = start_vcol;
@@ -3019,7 +3019,7 @@ pub fn win_line(
                     }
 
                     if wp.w_onebuf_opt.wo_cole > 0
-                        && (!ptr::eq(wp, *curwin.as_ptr()) || lnum != wp.w_cursor.lnum || conceal_cursor_line(&raw mut *wp))
+                        && (!ptr::eq(wp, curwin_ptr()) || lnum != wp.w_cursor.lnum || conceal_cursor_line(&raw mut *wp))
                         && ((syntax_flags & HL_CONCEAL) != 0
                             || has_match_conc > 0
                             || decor_conceal > 0)
@@ -3161,7 +3161,7 @@ pub fn win_line(
                             && wlv.vcol == wlv.fromcol
                             && (g_st().Visual.mode != Ctrl_V
                                 || lnum == g_st().Visual.start.lnum
-                                || lnum == (**curwin.as_ptr()).w_cursor.lnum))
+                                || lnum == curwin_mut().w_cursor.lnum))
                             || prevcol_hl_flag)
                     {
                         let n = if wlv.col >= view_width { -1 } else { 0 };
@@ -3312,10 +3312,10 @@ pub fn win_line(
                     wlv.row += 1;
 
                     if in_curline {
-                        (**curwin.as_ptr()).w_cline_row = startrow;
-                        (**curwin.as_ptr()).w_cline_height = wlv.row - startrow;
-                        (**curwin.as_ptr()).w_cline_folded = has_fold;
-                        (**curwin.as_ptr()).w_valid |= VALID_CHEIGHT | VALID_CROW;
+                        curwin_mut().w_cline_row = startrow;
+                        curwin_mut().w_cline_height = wlv.row - startrow;
+                        curwin_mut().w_cline_folded = has_fold;
+                        curwin_mut().w_valid |= VALID_CHEIGHT | VALID_CROW;
                     }
 
                     break;

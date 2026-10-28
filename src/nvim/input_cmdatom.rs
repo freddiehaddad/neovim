@@ -473,11 +473,11 @@ pub fn atom_cmd_spec(cap: &cmdarg_T) -> CmdSpec {
 fn atom_origin() -> CmdOrigin {
     unsafe {
         let mut origin = CmdOrigin {
-            win: *curwin.as_ptr(),
-            pos: (**curwin.as_ptr()).w_cursor,
+            win: curwin_ptr(),
+            pos: curwin_mut().w_cursor,
             tick: buf_get_changedtick(&*g_st().curbuf),
             maptick: g_st().maptick,
-            mcursor: mc_mark_at(g_st().curbuf, (**curwin.as_ptr()).w_cursor, 0),
+            mcursor: mc_mark_at(g_st().curbuf, curwin_mut().w_cursor, 0),
             ..CmdOrigin::default()
         };
         set_bufref(&mut origin.buf, g_st().curbuf);
@@ -524,7 +524,7 @@ pub fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
         {
             return o.pos;
         }
-        (**curwin.as_ptr()).w_cursor
+        curwin_mut().w_cursor
     }
 }
 
@@ -1824,7 +1824,7 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
         let opaque = (keycls & kKeyOpaque) != 0;
         let synthetic = (keycls & kKeySynthetic) != 0;
         let unchanged = g_st().curbuf == (*old).origin.buf.br_buf
-            && ptr::eq((*curwin.as_ptr()).cast_const(), (*old).origin.win)
+            && ptr::eq((curwin_ptr()).cast_const(), (*old).origin.win)
             && !atom_origin_moved((*old).origin)
             && !atom_origin_changed((*old).origin)
             && g_st().Visual.active == (*old).visual.active

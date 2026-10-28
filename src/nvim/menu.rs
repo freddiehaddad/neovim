@@ -1560,12 +1560,12 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
                 {
                     g_st().Visual.mode = (*g_st().curbuf).b_visual.vi_mode;
                     tpos = (*g_st().curbuf).b_visual.vi_end;
-                    (**curwin.as_ptr()).w_cursor = (*g_st().curbuf).b_visual.vi_start;
-                    (**curwin.as_ptr()).w_curswant = (*g_st().curbuf).b_visual.vi_curswant;
+                    curwin_mut().w_cursor = (*g_st().curbuf).b_visual.vi_start;
+                    curwin_mut().w_curswant = (*g_st().curbuf).b_visual.vi_curswant;
                 } else {
                     g_st().Visual.mode = b'V' as c_int;
-                    (**curwin.as_ptr()).w_cursor.lnum = eap.line1;
-                    (**curwin.as_ptr()).w_cursor.col = 1;
+                    curwin_mut().w_cursor.lnum = eap.line1;
+                    curwin_mut().w_cursor.col = 1;
                     tpos = pos_T {
                         lnum: eap.line2,
                         col: MAXCOL,
@@ -1575,14 +1575,14 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
 
                 g_st().Visual.active = true;
                 g_st().Visual.reselect = 1;
-                check_cursor(*curwin.as_ptr());
-                g_st().Visual.start = (**curwin.as_ptr()).w_cursor;
-                (**curwin.as_ptr()).w_cursor = tpos;
+                check_cursor(curwin_ptr());
+                g_st().Visual.start = curwin_mut().w_cursor;
+                curwin_mut().w_cursor = tpos;
 
-                check_cursor(*curwin.as_ptr());
+                check_cursor(curwin_ptr());
 
                 if *opt_vars().p_sel == b'e' as c_char && gchar_cursor() != c_int::from(NUL) {
-                    (**curwin.as_ptr()).w_cursor.col += 1;
+                    curwin_mut().w_cursor.col += 1;
                 }
             }
         }

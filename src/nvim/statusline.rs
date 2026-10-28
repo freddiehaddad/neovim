@@ -348,7 +348,7 @@ pub fn win_redr_status(wp: &mut win_T) {
 
         let mut stl_curwin = ctx_saved_curwin();
         if stl_curwin.is_null() {
-            stl_curwin = *curwin.as_ptr();
+            stl_curwin = curwin_ptr();
         }
         let is_stl_curwin = ptr::eq(wp, stl_curwin);
 
@@ -515,13 +515,13 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
 
         let save_curwin = ctx_saved_curwin();
         let restore_curwin = if !save_curwin.is_null() {
-            *curwin.as_ptr()
+            curwin_ptr()
         } else {
             ptr::null_mut()
         };
         if !save_curwin.is_null() {
-            *curwin.as_ptr() = save_curwin;
-            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
+            set_curwin(save_curwin);
+            g_st().curbuf = curwin_mut().w_buffer;
         }
 
         if wp.is_null() {
@@ -553,14 +553,14 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             if row < 0 {
                 stl_st().stl_expr_entered = false;
                 if !restore_curwin.is_null() {
-                    *curwin.as_ptr() = restore_curwin;
+                    set_curwin(restore_curwin);
                     g_st().curbuf = (*restore_curwin).w_buffer;
                 }
                 return;
             }
 
             fillchar = (*wp).w_p_fcs_chars.wbr;
-            group = if wp == *curwin.as_ptr() { HLF_WBR } else { HLF_WBRNC };
+            group = if wp == curwin_ptr() { HLF_WBR } else { HLF_WBRNC };
             attr = win_hl_attr(wp, group);
             maxwidth = (*wp).w_view_width;
             stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
@@ -619,7 +619,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             } else if (*wp).w_status_height == 0 {
                 stl_st().stl_expr_entered = false;
                 if !restore_curwin.is_null() {
-                    *curwin.as_ptr() = restore_curwin;
+                    set_curwin(restore_curwin);
                     g_st().curbuf = (*restore_curwin).w_buffer;
                 }
                 return;
@@ -639,7 +639,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
         }
 
         if maxwidth > 0 {
-            let ewp = if wp.is_null() { *curwin.as_ptr() } else { wp };
+            let ewp = if wp.is_null() { curwin_ptr() } else { wp };
             let p_crb_save = (*ewp).w_onebuf_opt.wo_crb;
             (*ewp).w_onebuf_opt.wo_crb = 0;
 
@@ -736,7 +736,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
                     }
                     curgroup = -(*sp).userhl;
                 } else {
-                    let userhl = if !wp.is_null() && wp != *curwin.as_ptr() && (*wp).w_status_height != 0 {
+                    let userhl = if !wp.is_null() && wp != curwin_ptr() && (*wp).w_status_height != 0 {
                         &raw const g_st().highlight_stlnc[0]
                     } else {
                         &raw const g_st().highlight_user[0]
@@ -775,7 +775,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
         stl_st().stl_expr_entered = false;
 
         if !restore_curwin.is_null() {
-            *curwin.as_ptr() = restore_curwin;
+            set_curwin(restore_curwin);
             g_st().curbuf = (*restore_curwin).w_buffer;
         }
     }
@@ -799,8 +799,8 @@ pub fn win_redr_winbar(wp: &mut win_T) {
 
 pub fn redraw_ruler() {
     unsafe {
-        let wp = if !(**curwin.as_ptr()).w_config.hide && (**curwin.as_ptr()).w_status_height == 0 {
-            *curwin.as_ptr()
+        let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height == 0 {
+            curwin_ptr()
         } else {
             lastwin_nofloating(ptr::null_mut())
         };
@@ -834,7 +834,7 @@ pub fn redraw_ruler() {
 /// Get the character to use in a status line. Get its attributes in `*group`.
 pub fn fillchar_status(group: &mut hlf_T, wp: *mut win_T) -> schar_T {
     unsafe {
-        if wp == *curwin.as_ptr() {
+        if wp == curwin_ptr() {
             *group = HLF_S;
             (*wp).w_p_fcs_chars.stl
         } else {
@@ -874,7 +874,7 @@ fn ui_ext_tabline_update() {
             );
 
             let cwp = if tp == g_st().curtab {
-                *curwin.as_ptr()
+                curwin_ptr()
             } else {
                 (*tp).tp_curwin
             };
@@ -1003,7 +1003,7 @@ pub fn draw_tabline() {
 
                 let mut scol = col;
                 let (cwp, mut wp) = if tp == g_st().curtab {
-                    (*curwin.as_ptr(), g_st().firstwin)
+                    (curwin_ptr(), g_st().firstwin)
                 } else {
                     ((*tp).tp_curwin, (*tp).tp_firstwin)
                 };
@@ -1906,16 +1906,16 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
                             c"%d",
-                            (**curwin.as_ptr()).handle,
+                            curwin_mut().handle,
                         );
                         set_internal_string_var(c"g:actual_curwin", buf_tmp.as_mut_ptr());
 
                         let save_curbuf = g_st().curbuf;
-                        let save_curwin = *curwin.as_ptr();
+                        let save_curwin = curwin_ptr();
                         let save_VIsual_active = g_st().Visual.active;
-                        *curwin.as_ptr() = wp;
+                        set_curwin(wp);
                         g_st().curbuf = (*wp).w_buffer;
-                        if *curwin.as_ptr() != save_curwin {
+                        if curwin_ptr() != save_curwin {
                             g_st().Visual.active = false;
                         }
 
@@ -1924,7 +1924,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             .as_ref()
                             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-                        *curwin.as_ptr() = save_curwin;
+                        set_curwin(save_curwin);
                         g_st().curbuf = save_curbuf;
                         g_st().Visual.active = save_VIsual_active;
 
@@ -2599,7 +2599,7 @@ mod tests {
                 } else {
                     setfname(g_st().curbuf, ptr::null_mut(), ptr::null_mut(), true);
                 }
-                (**curwin.as_ptr()).w_cursor.lnum = 0;
+                curwin_mut().w_cursor.lnum = 0;
 
                 let fillchar = match fill {
                     None => schar_from_str(c" "),
@@ -2613,7 +2613,7 @@ mod tests {
                 let mut out_buf = [b' ' as c_char; 120];
                 let mut pat_c = CString::new(pat).unwrap().into_bytes_with_nul();
                 let cells = build_stl_str_hl(
-                    *curwin.as_ptr(),
+                    curwin_ptr(),
                     CharBuf {
                         data: out_buf.as_mut_ptr(),
                         size: out_buf.len(),

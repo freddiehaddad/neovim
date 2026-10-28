@@ -1136,7 +1136,7 @@ pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         let mut id: c_int = -1;
         let mut error = false;
         let mut conceal_char: *const c_char = ptr::null();
-        let mut win = *curwin.as_ptr();
+        let mut win = curwin_ptr();
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1198,7 +1198,7 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut prio: c_int = 10;
         let mut id: c_int = -1;
         let mut conceal_char: *const c_char = ptr::null();
-        let mut win = *curwin.as_ptr();
+        let mut win = curwin_ptr();
 
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
@@ -1236,7 +1236,7 @@ pub fn f_matcharg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
 
         if (1..=3).contains(&id) {
-            let m = get_match(&mut **curwin.as_ptr(), id);
+            let m = get_match(curwin_mut(), id);
             if !m.is_null() {
                 tv_list_append_string(rettv.vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
                 tv_list_append_string(
@@ -1281,7 +1281,7 @@ pub fn ex_match(eap: &mut exarg_T) {
         };
 
         if eap.skip == 0 {
-            match_delete(&mut **curwin.as_ptr(), id, false);
+            match_delete(curwin_mut(), id, false);
         }
 
         let arg = eap.arg;
@@ -1324,7 +1324,7 @@ pub fn ex_match(eap: &mut exarg_T) {
                     let c = *end;
                     *end = NUL;
                     match_add(
-                        &mut **curwin.as_ptr(),
+                        curwin_mut(),
                         g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         p.add(1),
                         10,

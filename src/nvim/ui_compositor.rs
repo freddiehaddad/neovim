@@ -222,8 +222,8 @@ pub fn ui_comp_put_grid(
                 insert_at -= 1;
             }
 
-            if !(*curwin.as_ptr()).is_null()
-                && l[insert_at - 1] == &raw mut (**curwin.as_ptr()).w_grid_alloc
+            if !(curwin_ptr()).is_null()
+                && l[insert_at - 1] == &raw mut (*curwin_ptr()).w_grid_alloc
                 && (*l[insert_at - 1]).zindex == grid.zindex
                 && !on_top
             {

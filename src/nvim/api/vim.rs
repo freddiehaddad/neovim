@@ -1047,7 +1047,7 @@ pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
     unsafe {
         buffer_get_line(
             (*g_st().curbuf).b_fnum,
-            Integer::from((**curwin.as_ptr()).w_cursor.lnum - 1),
+            Integer::from(curwin_mut().w_cursor.lnum - 1),
             arena,
             err,
         )
@@ -1068,7 +1068,7 @@ pub fn nvim_set_current_line(
     unsafe {
         buffer_set_line(
             (*g_st().curbuf).b_fnum,
-            Integer::from((**curwin.as_ptr()).w_cursor.lnum - 1),
+            Integer::from(curwin_mut().w_cursor.lnum - 1),
             line,
             arena,
             err,
@@ -1084,7 +1084,7 @@ pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
     unsafe {
         buffer_del_line(
             (*g_st().curbuf).b_fnum,
-            Integer::from((**curwin.as_ptr()).w_cursor.lnum - 1),
+            Integer::from(curwin_mut().w_cursor.lnum - 1),
             arena,
             err,
         );
@@ -1488,7 +1488,7 @@ pub fn nvim_list_wins(arena: &mut Arena) -> Array {
 /// @return |window-ID|
 // DLLEXPORT Window nvim_get_current_win(void) FUNC_API_SINCE(1);
 pub fn nvim_get_current_win() -> Window {
-    unsafe { (**curwin.as_ptr()).handle }
+     curwin_mut().handle
 }
 
 /// Navigates to the given window (and tabpage, implicitly).
@@ -1687,8 +1687,8 @@ pub fn nvim_open_term(
         (*internal).closed = false;
         let topts = TerminalOptions {
             data: chan,
-            width: ((**curwin.as_ptr()).w_view_width - win_col_off(*curwin.as_ptr())).max(0) as u16,
-            height: (**curwin.as_ptr()).w_view_height as u16,
+            width: (curwin_mut().w_view_width - win_col_off(curwin_ptr())).max(0) as u16,
+            height: curwin_mut().w_view_height as u16,
             force_crlf,
         };
 
@@ -2923,7 +2923,7 @@ pub fn nvim_eval_statusline(
         let mut use_bools = c_int::from(opts.use_winbar) + c_int::from(opts.use_tabline);
 
         let wp = if opts.use_tabline {
-            *curwin.as_ptr()
+            curwin_ptr()
         } else {
             find_window_by_handle(window, err)
         };
@@ -3362,14 +3362,14 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             flush_ui = true;
         }
 
-        let cwin = if !win.is_null() { win } else { *curwin.as_ptr() };
+        let cwin = if !win.is_null() { win } else { curwin_ptr() };
         if opts.cursor && ((*cwin).w_grid.target.is_null() || !(*(*cwin).w_grid.target).valid) {
             opts.flush = true;
         }
 
         if opts.flush && !g_st().cmdpreview {
-            validate_cursor(*curwin.as_ptr());
-            update_topline(*curwin.as_ptr());
+            validate_cursor(curwin_ptr());
+            update_topline(curwin_ptr());
             update_screen();
         }
 

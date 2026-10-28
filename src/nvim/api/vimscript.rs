@@ -244,7 +244,7 @@ fn call_function_impl(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+     {
         let mut rv = nil_obj();
 
         if args.size > MAX_FUNC_ARGS {
@@ -272,7 +272,7 @@ fn call_function_impl(
         api_vims_st().CALL_FUNC_RECURSIVE += 1;
 
         let mut rettv: typval_T = typval_T::new();
-        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+        let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,

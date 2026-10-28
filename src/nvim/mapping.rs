@@ -1698,7 +1698,7 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
 
         g_st().expr_map_lock += 1;
         set_vim_var_char(c);
-        let save_cursor = (**curwin.as_ptr()).w_cursor;
+        let save_cursor = curwin_mut().w_cursor;
         let save_msg_col = g_st().msg_col;
         let save_msg_row = g_st().msg_row;
         if luaref != LUA_NOREF {
@@ -1728,7 +1728,7 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
             p = eval_to_string(expr_bytes.as_mut_ptr(), false, false);
         }
         g_st().expr_map_lock -= 1;
-        (**curwin.as_ptr()).w_cursor = save_cursor;
+        curwin_mut().w_cursor = save_cursor;
         g_st().msg_col = save_msg_col;
         g_st().msg_row = save_msg_row;
 

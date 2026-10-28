@@ -650,10 +650,11 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
     }
 }
 
-pub fn find_window_by_handle(window: Window, err: &mut Error) -> *mut win_T {
+#[unsafe(no_mangle)]
+pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut win_T {
     unsafe {
         if window == 0 {
-            return *curwin.as_ptr();
+            return curwin_ptr();
         }
         let map_ptr = &raw const g_st().window_handles;
         let rv = (*map_ptr).get(&window).copied().unwrap_or(ptr::null_mut());
@@ -1525,18 +1526,18 @@ pub fn get_default_stl_hl(
     use_winbar: bool,
     stc_hl_id: c_int,
 ) -> *const c_char {
-    unsafe {
+     {
         if wp.is_null() {
             c"TabLineFill".as_ptr()
         } else if use_winbar {
-            if wp == *curwin.as_ptr() {
+            if wp == curwin_ptr() {
                 c"WinBar".as_ptr()
             } else {
                 c"WinBarNC".as_ptr()
             }
         } else if stc_hl_id > 0 {
             syn_id2name(stc_hl_id)
-        } else if wp == *curwin.as_ptr() {
+        } else if wp == curwin_ptr() {
             c"StatusLine".as_ptr()
         } else {
             c"StatusLineNC".as_ptr()
