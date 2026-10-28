@@ -1616,7 +1616,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                 let mut count = 0;
                 let mut first = true;
                 while curwin_mut().w_topline > 1 {
-                    if curwin_mut().w_topfill < win_get_fill(curwin_ptr(), curwin_mut().w_topline) {
+                    if curwin_mut().w_topfill < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline) {
                         count += 1;
                     } else {
                         count += plines_win(curwin_ptr(), curwin_mut().w_topline - 1, true);
@@ -1631,7 +1631,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                         Some(&mut curwin_mut().w_topline),
                         ptr::null_mut(),
                     );
-                    if curwin_mut().w_topfill < win_get_fill(curwin_ptr(), curwin_mut().w_topline) {
+                    if curwin_mut().w_topfill < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline) {
                         curwin_mut().w_topfill += 1;
                     } else {
                         curwin_mut().w_topline -= 1;
@@ -1670,7 +1670,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                             break;
                         }
                         curwin_mut().w_topline += 1;
-                        curwin_mut().w_topfill = win_get_fill(curwin_ptr(), curwin_mut().w_topline);
+                        curwin_mut().w_topfill = win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline);
                     }
                 }
                 check_topfill(curwin_mut(), false);
@@ -1819,7 +1819,7 @@ pub fn mouse_comp_pos(
             let filler_lines = if lnum == win.w_topline {
                 win.w_topfill
             } else {
-                win_get_fill(&raw mut *win, lnum)
+                win_get_fill(win, lnum)
             };
             let mut count = plines_win_nofill(&raw mut *win, lnum, false);
 
@@ -2042,7 +2042,7 @@ pub fn vcol2col(
     coladdp: Option<&mut colnr_T>,
 ) -> colnr_T {
     unsafe {
-        let line = ml_get_buf(wp.w_buffer, lnum);
+        let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);

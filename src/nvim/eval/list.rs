@@ -371,7 +371,7 @@ fn filter_map_list(
                 tv_list_append_owned_tv( &mut *l_ret, newtv);
             }
             if filtermap == FilterMap::Filter && rem {
-                li = tv_list_item_remove(l, li);
+                li = tv_list_item_remove(&mut *l, li);
             } else {
                 li = (*li).li_next;
             }
@@ -730,7 +730,7 @@ fn extend_list(argvars: &mut [typval_T],
                     }
                 }
             }
-            tv_list_extend(l1, l2, item);
+            tv_list_extend(unsafe { &mut *l1 }, l2, item);
         }
 
         if is_new {
@@ -852,7 +852,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 }
             }
             if !l.is_null() {
-                tv_list_insert_tv(l, arg1, item);
+                tv_list_insert_tv(&mut *l, arg1, item);
                 tv_copy(arg0, rettv);
             }
         }

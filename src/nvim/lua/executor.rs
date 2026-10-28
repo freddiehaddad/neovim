@@ -2398,8 +2398,8 @@ pub fn ex_luado(eap: &mut exarg_T) {
             }
 
             lua_pushvalue(lstate, -1);
-            let old_line = ml_get_buf(g_st().curbuf, l);
-            let old_line_len: colnr_T = ml_get_buf_len(g_st().curbuf, l);
+            let old_line = ml_get_buf(crate::globals::curbuf_mut(), l);
+            let old_line_len: colnr_T = ml_get_buf_len(crate::globals::curbuf_mut(), l);
             lua_pushstring(lstate, old_line);
             lua_pushnumber(lstate, f64::from(l));
             if nlua_pcall(lstate, 2, 1) != 0 {

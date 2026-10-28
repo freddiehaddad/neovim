@@ -478,7 +478,7 @@ fn next_search_hl(
                     && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
                 matchcol = shl.rm.startpos[0].col;
-                let ml = ml_get_buf(shl.buf, lnum).add(matchcol as usize);
+                let ml = ml_get_buf(&mut *shl.buf, lnum).add(matchcol as usize);
                 if *ml == NUL {
                     shl.lnum = 0;
                     break;
@@ -666,7 +666,7 @@ pub fn prepare_search_hl_line(
                 },
             );
 
-            *line = ml_get_buf(wp.w_buffer, lnum);
+            *line = ml_get_buf(wp.buf_mut(), lnum);
 
             if (*shl).lnum != 0 && (*shl).lnum <= lnum {
                 (*shl).startcol = if (*shl).lnum == lnum {
@@ -783,7 +783,7 @@ pub fn update_search_hl(
                     );
                     pos_inprogress = !cur.is_null() && (*cur).mit_pos_cur != 0;
 
-                    *line = ml_get_buf(wp.w_buffer, lnum);
+                    *line = ml_get_buf(wp.buf_mut(), lnum);
 
                     if (*shl).lnum == lnum {
                         (*shl).startcol = (*shl).rm.startpos[0].col;

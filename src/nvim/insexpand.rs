@@ -2062,7 +2062,7 @@ pub fn ins_compl_show_pum() {
         curwin_mut().w_cursor.col = col;
 
         if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
-            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
+            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
 
         if insexp().compl_started && insexp().compl_curr_idx != insexp().compl_shown_idx {
@@ -2907,7 +2907,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             if !is_commit {
                 retval = true;
             }
-            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
+            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
 
         let arr = &raw const insexp().compl_match_array;
@@ -4522,15 +4522,15 @@ fn ins_compl_get_next_word_or_line(
 ) -> *mut c_char {
     unsafe {
         *match_len = 0;
-        let mut ptr = ml_get_buf(&raw mut *ins_buf, cur_match_pos.lnum).add(cur_match_pos.col as usize);
-        let mut len = ml_get_buf_len(&raw mut *ins_buf, cur_match_pos.lnum) - cur_match_pos.col;
+        let mut ptr = ml_get_buf(ins_buf, cur_match_pos.lnum).add(cur_match_pos.col as usize);
+        let mut len = ml_get_buf_len(ins_buf, cur_match_pos.lnum) - cur_match_pos.col;
         if ctrl_x_mode_line_or_eval() {
             if compl_status_adding() {
                 if cur_match_pos.lnum >= ins_buf.b_ml.ml_line_count {
                     return ptr::null_mut();
                 }
-                ptr = ml_get_buf(&raw mut *ins_buf, cur_match_pos.lnum + 1);
-                len = ml_get_buf_len(&raw mut *ins_buf, cur_match_pos.lnum + 1);
+                ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
+                len = ml_get_buf_len(ins_buf, cur_match_pos.lnum + 1);
                 if opt_vars().p_paste == 0 {
                     let tmp_ptr = ptr;
                     ptr = skipwhite(tmp_ptr);
@@ -4554,7 +4554,7 @@ fn ins_compl_get_next_word_or_line(
                 if cur_match_pos.lnum < ins_buf.b_ml.ml_line_count {
                     let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                     { let n = crate::memory::xstrnlen(ptr, len as usize); ptr::copy_nonoverlapping(ptr, iobuff_ptr, n); ptr::write_bytes(iobuff_ptr.add(n), 0, len as usize - n); }
-                    ptr = ml_get_buf(&raw mut *ins_buf, cur_match_pos.lnum + 1);
+                    ptr = ml_get_buf(ins_buf, cur_match_pos.lnum + 1);
                     ptr = skipwhite(ptr);
                     tmp_ptr = find_word_start(ptr);
                     tmp_ptr = find_word_end(tmp_ptr);

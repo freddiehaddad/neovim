@@ -1586,7 +1586,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
                     if maxline < 0 {
                         if i64::from(tv_list_len(l)) > -maxline {
                             debug_assert_eq!(i64::from(tv_list_len(l)), 1 + (-maxline));
-                            tv_list_item_remove(l, tv_list_first(l));
+                            tv_list_item_remove(&mut *l, tv_list_first(l));
                         }
                     } else if i64::from(tv_list_len(l)) >= maxline {
                         debug_assert_eq!(i64::from(tv_list_len(l)), maxline);

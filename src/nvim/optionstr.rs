@@ -2402,7 +2402,7 @@ pub fn did_set_guicursor(_args: &mut optset_T) -> *const c_char {
             return errmsg;
         }
         if g_st().Visual.active {
-            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
+            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
         ptr::null()
     }

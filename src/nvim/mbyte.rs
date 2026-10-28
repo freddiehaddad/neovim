@@ -2779,7 +2779,7 @@ pub fn mb_check_adjust_col(win: &mut win_T) {
         let oldcol = win.w_cursor.col;
 
         if oldcol != 0 {
-            let p = ml_get_buf(win.w_buffer, win.w_cursor.lnum);
+            let p = ml_get_buf(win.buf_mut(), win.w_cursor.lnum);
             let len = crate::memory::cstr_len(p) as colnr_T;
 
             if len == 0 || oldcol < 0 {

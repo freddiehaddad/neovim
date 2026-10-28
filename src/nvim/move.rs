@@ -188,7 +188,7 @@ fn redraw_for_cursorline(wp: &mut win_T) {
 fn redraw_for_cursorcolumn(wp: &mut win_T) {
      {
         if (&raw mut *wp) == curwin_ptr() && wp.w_onebuf_opt.wo_cole > 0 && conceal_cursor_line( wp) {
-            redrawWinline((&raw mut *wp), wp.w_cursor.lnum);
+            redrawWinline(wp, wp.w_cursor.lnum);
         }
 
         if (wp.w_valid & VALID_VIRTCOL) != 0 {
@@ -271,13 +271,13 @@ fn use_scrolloffpad(wp: &mut win_T) -> bool {
 
 /// Return true when there are not enough real buffer lines below `lnum` to
 /// satisfy the requested `so` context.
-fn scrolloffpad_eof_pressure(wp: *mut win_T, lnum: linenr_T, so: OptInt) -> bool {
-    unsafe {
-        if !use_scrolloffpad( &mut *wp) || so <= 0 {
+fn scrolloffpad_eof_pressure(wp: &mut win_T, lnum: linenr_T, so: OptInt) -> bool {
+     {
+        if !use_scrolloffpad( wp) || so <= 0 {
             return false;
         }
 
-        i64::from(lnum) > i64::from((*wp).buf_mut().b_ml.ml_line_count) - so
+        i64::from(lnum) > i64::from(wp.buf_mut().b_ml.ml_line_count) - so
     }
 }
 
@@ -313,7 +313,7 @@ pub fn update_topline(wp: &mut win_T) {
         if g_st().mouse_dragging > 0 {
             *so_ptr = i64::from(g_st().mouse_dragging - 1);
         }
-        let eof_pressure = scrolloffpad_eof_pressure((&raw mut *wp), wp.w_cursor.lnum, *so_ptr);
+        let eof_pressure = scrolloffpad_eof_pressure(wp, wp.w_cursor.lnum, *so_ptr);
 
         let old_topline = wp.w_topline;
         let old_topfill = wp.w_topfill;
@@ -349,7 +349,7 @@ pub fn update_topline(wp: &mut win_T) {
                     }
                 }
             }
-            if !check_topline && wp.w_topfill > win_get_fill((&raw mut *wp), wp.w_topline) {
+            if !check_topline && wp.w_topfill > win_get_fill(wp, wp.w_topline) {
                 check_topline = true;
             }
 
@@ -1005,7 +1005,7 @@ pub fn curs_columns(wp: &mut win_T, may_scroll: c_int) {
         if wp.w_cursor.lnum == wp.w_topline {
             wp.w_wrow += wp.w_topfill;
         } else {
-            wp.w_wrow += win_get_fill((&raw mut *wp), wp.w_cursor.lnum);
+            wp.w_wrow += win_get_fill(wp, wp.w_cursor.lnum);
         }
 
         let mut plines: c_int = 0;
@@ -1132,7 +1132,7 @@ pub fn textpos2screenpos(
             row += if lnum == wp.w_topline {
                 wp.w_topfill
             } else {
-                win_get_fill(&raw mut *wp, lnum)
+                win_get_fill(wp, lnum)
             };
             visible_row = true;
         } else if !local || lnum < wp.w_topline {
@@ -1260,7 +1260,7 @@ pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 fn virtcol2col(wp: &mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
     unsafe {
         let offset = vcol2col(wp, lnum, vcol - 1, None);
-        let line = ml_get_buf(wp.w_buffer, lnum);
+        let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut p = line.add(offset as usize);
 
         if *p == NUL {
@@ -1475,7 +1475,7 @@ pub fn scrolldown(wp: &mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
         let mut todo = line_count;
         while todo > 0 {
             let can_fill = wp.w_topfill < wp.w_view_height - 1
-                && wp.w_topfill < win_get_fill(&raw mut *wp, wp.w_topline);
+                && wp.w_topfill < win_get_fill(wp, wp.w_topline);
             if wp.w_topline == 1 && !can_fill && (!do_sms || wp.w_skipcol < width1) {
                 break;
             }
@@ -1526,7 +1526,7 @@ pub fn scrolldown(wp: &mut win_T, line_count: linenr_T, byfold: c_int) -> bool {
             todo -= 1;
         }
 
-        if wp.w_topfill == win_get_fill(&raw mut *wp, wp.w_topline) {
+        if wp.w_topfill == win_get_fill(wp, wp.w_topline) {
             while wp.w_topline > 1 && decor_conceal_line(&raw mut *wp, wp.w_topline - 2, false) {
                 wp.w_topline -= 1;
                 wp.w_topfill = 0;
@@ -1773,7 +1773,7 @@ pub fn check_topfill(wp: &mut win_T, down: bool) {
 /// Scroll the screen one line down, without moving the cursor off the screen.
 pub fn scrolldown_clamp() {
      {
-        let can_fill = curwin_mut().w_topfill < win_get_fill(curwin_ptr(), curwin_mut().w_topline);
+        let can_fill = curwin_mut().w_topfill < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline);
 
         if curwin_mut().w_topline <= 1 && !can_fill {
             return;
@@ -1848,7 +1848,7 @@ pub fn scrollup_clamp() {
 
 fn topline_back_winheight(wp: *mut win_T, lp: &mut lineoff_T, winheight: bool) {
     {
-        if lp.fill < win_get_fill(wp, lp.lnum) {
+        if lp.fill < win_get_fill(unsafe { &mut *wp }, lp.lnum) {
             lp.fill += 1;
             lp.height = 1;
         } else {
@@ -1871,7 +1871,7 @@ fn topline_back(wp: *mut win_T, lp: &mut lineoff_T) {
 
 fn botline_forw(wp: &mut win_T, lp: &mut lineoff_T) {
      {
-        if lp.fill < win_get_fill((&raw mut *wp), lp.lnum + 1) {
+        if lp.fill < win_get_fill(wp, lp.lnum + 1) {
             lp.fill += 1;
             lp.height = 1;
         } else {
@@ -2394,7 +2394,7 @@ pub fn cursor_correct(wp: &mut win_T) {
                 above += plines_win_nofill(&raw mut *wp, topline, true);
                 hasFolding(&raw mut *wp, topline, None, &raw mut topline);
                 if topline < botline {
-                    above += win_get_fill(&raw mut *wp, topline + 1);
+                    above += win_get_fill(wp, topline + 1);
                 }
                 topline += 1;
             }
@@ -2436,7 +2436,7 @@ fn get_scroll_overlap(dir: Direction) -> c_int {
         } else {
             curwin_mut().w_topline - 1
         };
-        let fill = win_get_fill(curwin_ptr(), lnum + c_int::from(dir == BACKWARD))
+        let fill = win_get_fill(crate::globals::curwin_mut(), lnum + c_int::from(dir == BACKWARD))
             - if dir == FORWARD {
                 curwin_mut().w_filler_rows
             } else {

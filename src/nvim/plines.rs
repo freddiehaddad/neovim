@@ -127,13 +127,13 @@ pub(crate) fn win_charsize(
 
 #[inline]
 pub fn win_linetabsize(
-    wp: *mut win_T,
+    wp: &mut win_T,
     lnum: linenr_T,
     line: *mut c_char,
     len: colnr_T,
 ) -> c_int {
     let mut csarg = CharsizeArg::new();
-        let cstype = init_charsize_arg(&mut csarg, unsafe { &mut *wp }, lnum, line);
+        let cstype = init_charsize_arg(&mut csarg,  wp, lnum, line);
         if cstype == kCharsizeFast {
             linesize_fast(&csarg, 0, len)
         } else {
@@ -166,7 +166,7 @@ pub fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
 }
 
 pub fn linetabsize(wp: &mut win_T, lnum: linenr_T) -> c_int {
-    win_linetabsize(wp, lnum, ml_get_buf(wp.w_buffer, lnum), MAXCOL)
+    win_linetabsize(wp, lnum, ml_get_buf(wp.buf_mut(), lnum), MAXCOL)
 }
 
 pub fn linetabsize_eol(wp: &mut win_T, lnum: linenr_T) -> c_int {
@@ -701,7 +701,7 @@ pub fn getvcol(
     flags: c_int,
 ) {
     unsafe {
-        let line = ml_get_buf(wp.w_buffer, pos.lnum);
+        let line = ml_get_buf(wp.buf_mut(), pos.lnum);
         let end_col = pos.col;
 
         let mut csarg = CharsizeArg::new();
@@ -816,8 +816,8 @@ pub fn getvvcol(
             let mut coladd = pos.coladd;
             let mut endadd: colnr_T = 0;
 
-            let ptr_val = ml_get_buf((*wp).w_buffer, pos.lnum);
-            if pos.col < ml_get_buf_len((*wp).w_buffer, pos.lnum) {
+            let ptr_val = ml_get_buf((*wp).buf_mut(), pos.lnum);
+            if pos.col < ml_get_buf_len((*wp).buf_mut(), pos.lnum) {
                 let c = utf_ptr2char(ptr_val.add(pos.col as usize));
                 if c != TAB && vim_isprintc(c) {
                     endadd = ptr2cells(ptr_val.add(pos.col as usize)) - 1;
@@ -888,15 +888,15 @@ pub fn win_may_fill(wp: &mut win_T) -> bool {
     }
 }
 
-pub fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
-    unsafe {
-        decor_virt_lines(&mut *wp, lnum - 1, lnum, None, None, true)
-            + diff_check_fill( &mut *wp, lnum)
+pub fn win_get_fill(wp: &mut win_T, lnum: linenr_T) -> c_int {
+     {
+        decor_virt_lines(wp, lnum - 1, lnum, None, None, true)
+            + diff_check_fill( wp, lnum)
     }
 }
 
 pub fn plines_win(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) -> c_int {
-    plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(wp, lnum)
+    plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(unsafe { &mut *wp }, lnum)
 }
 
 pub fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) -> c_int {
@@ -904,7 +904,7 @@ pub fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) 
         if decor_conceal_line(wp, lnum - 1, false) {
             return 0;
         }
-        if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 || lineFolded(wp, lnum) {
+        if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 || lineFolded(&mut *wp, lnum) {
             return 1;
         }
         let lines = plines_win_nofold(&mut *wp, lnum);
@@ -918,7 +918,7 @@ pub fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) 
 
 pub fn plines_win_nofold(wp: &mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        let s = ml_get_buf(wp.w_buffer, lnum);
+        let s = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg,  &mut *wp, lnum, s);
         if *s == NUL && csarg.virt_row < 0 {
@@ -960,7 +960,7 @@ pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
             return lines + 1;
         }
 
-        let line = ml_get_buf(wp.w_buffer, lnum);
+        let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg,  &mut *wp, lnum, line);
 
@@ -1023,7 +1023,7 @@ pub fn plines_win_full(
         let filler_lines = if lnum == (*wp).w_topline {
             (*wp).w_topfill
         } else {
-            win_get_fill(wp, lnum)
+            win_get_fill(&mut *wp, lnum)
         };
 
         if decor_conceal_line(wp, lnum - 1, false) {
@@ -1052,21 +1052,21 @@ pub fn plines_m_win(
             first = next + 1;
         }
         if first == wp.buf_mut().b_ml.ml_line_count + 1 {
-            count += win_get_fill(&raw mut *wp, first);
+            count += win_get_fill(wp, first);
         }
         max.min(count)
     }
 }
 
-pub fn plines_m_win_fill(wp: *mut win_T, first: linenr_T, last: linenr_T) -> c_int {
-    unsafe {
+pub fn plines_m_win_fill(wp: &mut win_T, first: linenr_T, last: linenr_T) -> c_int {
+     {
         let mut count = last - first
             + 1
-            + decor_virt_lines(&mut *wp, first - 1, last, None, None, false);
+            + decor_virt_lines(wp, first - 1, last, None, None, false);
 
         if diffopt_filler() {
             for lnum in first..=last {
-                let n = diff_check_fill( &mut *wp, lnum);
+                let n = diff_check_fill( wp, lnum);
                 count += n.max(0);
             }
         }
@@ -1113,7 +1113,7 @@ pub fn win_text_height(
         while lnum <= *end_lnum && height_sum_nofill + height_sum_fill < max {
             let mut lnum_next = lnum;
             cur_folded = hasFolding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
-            height_sum_fill += i64::from(win_get_fill(&raw mut *wp, lnum));
+            height_sum_fill += i64::from(win_get_fill(wp, lnum));
             height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;
             cur_lnum = lnum;

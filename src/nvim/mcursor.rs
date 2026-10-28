@@ -971,14 +971,14 @@ pub fn mc_ins_cascade() {
                 mc_ins_span_flush(&ins, false);
             }
         } else if mc_region_mark_range(mc_st().mc_ins_span.region, &mut start, &mut end) {
-            let text = ml_region_text(g_st().curbuf, start, end);
+            let text = ml_region_text(crate::globals::curbuf_mut(), start, end);
             let mut update = true;
             let fp = mc_ins_region_first();
             if fp.start.id != 0 {
                 let mut frs = INIT_POS;
                 let mut fre = INIT_POS;
                 mc_region_range(fp, &mut frs, &mut fre);
-                let cur = ml_region_text(g_st().curbuf, frs, fre);
+                let cur = ml_region_text(crate::globals::curbuf_mut(), frs, fre);
                 update = cur != text;
             }
             if update && (ins_compl_active() || pum_visible()) {

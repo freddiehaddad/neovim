@@ -562,7 +562,7 @@ pub fn u_savecommon(
                     uhp_mut(buf, newhead).uh_getbot_entry = false;
                     return false;
                 }
-                uep.ue_array.push(u_save_line_buf((&raw mut *buf), top + 1 + i));
+                uep.ue_array.push(u_save_line_buf(buf, top + 1 + i));
             }
         }
 
@@ -596,7 +596,7 @@ pub fn u_compute_hash(buf: &mut buf_T, hash: *mut u8) {
     unsafe {
         let mut ctx = context_sha256_T::new();
         for lnum in 1..=buf.b_ml.ml_line_count {
-            let p = ml_get_buf(&raw mut *buf, lnum);
+            let p = ml_get_buf(buf, lnum);
             ctx.update(std::slice::from_raw_parts(p.cast::<u8>(), crate::memory::cstr_len(p) + 1));
         }
         ctx.finish_into(&mut *(hash as *mut [u8; UNDO_HASH_SIZE]));
@@ -2183,7 +2183,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             if oldsize > 0 || newsize > 0 {
                 changed_lines(curbuf_mut(), top + 1, 0, bot, newsize - oldsize, do_buf_event);
                 if spell_check_window(curwin_mut()) && bot <= curbuf_mut().b_ml.ml_line_count {
-                    redrawWinline(curwin_ptr(), bot);
+                    redrawWinline(crate::globals::curwin_mut(), bot);
                 }
             }
 
@@ -2595,7 +2595,7 @@ pub fn u_find_first_changed() {
 
         let mut lnum: linenr_T = 1;
         while lnum < curbuf_mut().b_ml.ml_line_count && lnum <= (*uep).ue_size() {
-            if crate::memory::cstr_as_bytes(ml_get_buf(g_st().curbuf, lnum)) != crate::memory::cstr_as_bytes((*uep).ue_array.as_slice()[(lnum - 1) as usize].as_ptr())
+            if crate::memory::cstr_as_bytes(ml_get_buf(crate::globals::curbuf_mut(), lnum)) != crate::memory::cstr_as_bytes((*uep).ue_array.as_slice()[(lnum - 1) as usize].as_ptr())
             {
                 clearpos(&mut uhp_mut(curbuf_mut(), nh).uh_cursor);
                 uhp_mut(curbuf_mut(), nh).uh_cursor.lnum = lnum;
@@ -2791,7 +2791,7 @@ pub fn u_forget_unchanged(buf: &mut buf_T) {
             return;
         }
         for i in 0..(*uep).ue_size() {
-            if crate::memory::cstr_as_bytes((*uep).ue_array.as_slice()[i as usize].as_ptr()) != crate::memory::cstr_as_bytes(ml_get_buf(&raw mut *buf, (*uep).ue_top + 1 + i))
+            if crate::memory::cstr_as_bytes((*uep).ue_array.as_slice()[i as usize].as_ptr()) != crate::memory::cstr_as_bytes(ml_get_buf(buf, (*uep).ue_top + 1 + i))
             {
                 return;
             }
@@ -2851,7 +2851,7 @@ fn u_saveline(buf: &mut buf_T, lnum: linenr_T) {
         } else {
             buf.b_u_line_colnr = 0;
         }
-        buf.b_u_line_ptr = Some(u_save_line_buf(&raw mut *buf, lnum));
+        buf.b_u_line_ptr = Some(u_save_line_buf(buf, lnum));
     }
 }
 
@@ -2913,10 +2913,10 @@ pub fn u_undoline() {
 }
 
 fn u_save_line(lnum: linenr_T) -> std::ffi::CString {
-    u_save_line_buf(g_st().curbuf, lnum)
+    u_save_line_buf(crate::globals::curbuf_mut(), lnum)
 }
 
-fn u_save_line_buf(buf: *mut buf_T, lnum: linenr_T) -> std::ffi::CString {
+fn u_save_line_buf(buf: &mut buf_T, lnum: linenr_T) -> std::ffi::CString {
      crate::memory::cstr_to_cstring(ml_get_buf(buf, lnum))
 }
 

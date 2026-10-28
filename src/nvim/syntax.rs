@@ -1669,13 +1669,13 @@ fn syn_current_attr(
                 if do_keywords {
                     line = syn_getcurline();
                     let cur_pos = line.offset(syn_st().current_col as isize);
-                    if vim_iswordp_buf(cur_pos, syn_st().syn_buf)
+                    if vim_iswordp_buf(cur_pos, &mut *syn_st().syn_buf)
                         && (syn_st().current_col == 0
                             || !vim_iswordp_buf(
                                 cur_pos
                                     .sub(1)
                                     .sub(utf_head_off(line, cur_pos.sub(1)) as usize),
-                                syn_st().syn_buf,
+                                &mut *syn_st().syn_buf,
                             ))
                     {
                         syn_id = check_keyword_id(
@@ -2462,7 +2462,7 @@ fn find_endpos(
                         break;
                     }
 
-                    let line_len = ml_get_buf_len(syn_st().syn_buf, startpos.lnum);
+                    let line_len = ml_get_buf_len(&mut *syn_st().syn_buf, startpos.lnum);
 
                     if pos.col <= matchcol {
                         matchcol += 1;
@@ -2572,7 +2572,7 @@ fn syn_add_end_off(
         if result.lnum > (*syn_st().syn_buf).b_ml.ml_line_count {
             col = 0;
         } else if off != 0 {
-            let base = ml_get_buf(syn_st().syn_buf, result.lnum);
+            let base = ml_get_buf(&mut *syn_st().syn_buf, result.lnum);
             let mut p = base.offset(col as isize);
             if off > 0 {
                 while off > 0 && *p != NUL {
@@ -2613,10 +2613,10 @@ fn syn_add_start_off(
         }
         if result.lnum > (*syn_st().syn_buf).b_ml.ml_line_count {
             result.lnum = (*syn_st().syn_buf).b_ml.ml_line_count;
-            col = ml_get_buf_len(syn_st().syn_buf, result.lnum);
+            col = ml_get_buf_len(&mut *syn_st().syn_buf, result.lnum);
         }
         if off != 0 {
-            let base = ml_get_buf(syn_st().syn_buf, result.lnum);
+            let base = ml_get_buf(&mut *syn_st().syn_buf, result.lnum);
             let mut p = base.offset(col as isize);
             if off > 0 {
                 while off > 0 && *p != NUL {
@@ -2637,12 +2637,12 @@ fn syn_add_start_off(
 
 #[inline]
 fn syn_getcurline() -> *mut c_char {
-    ml_get_buf(syn_st().syn_buf, syn_st().current_lnum)
+    ml_get_buf(unsafe { &mut *syn_st().syn_buf }, syn_st().current_lnum)
 }
 
 #[inline]
 fn syn_getcurline_len() -> colnr_T {
-    ml_get_buf_len(syn_st().syn_buf, syn_st().current_lnum)
+    ml_get_buf_len(unsafe { &mut *syn_st().syn_buf }, syn_st().current_lnum)
 }
 
 fn syn_regexec(
@@ -2708,7 +2708,7 @@ fn check_keyword_id(
         let mut kwlen: c_int = 0;
         loop {
             kwlen += utfc_ptr2len(kwp.offset(kwlen as isize));
-            if !vim_iswordp_buf(kwp.offset(kwlen as isize), syn_st().syn_buf) {
+            if !vim_iswordp_buf(kwp.offset(kwlen as isize), &mut *syn_st().syn_buf) {
                 break;
             }
         }

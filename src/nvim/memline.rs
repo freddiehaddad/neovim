@@ -2028,8 +2028,8 @@ pub fn ml_get(lnum: linenr_T) -> *mut c_char {
 }
 
 /// Return a pointer to a (read-only copy of a) line in `buf`.
-pub fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
-    ml_get_buf_impl(unsafe { &mut *buf }, lnum, false)
+pub fn ml_get_buf(buf: &mut buf_T, lnum: linenr_T) -> *mut c_char {
+    ml_get_buf_impl( buf, lnum, false)
 }
 
 /// Like `ml_get_buf`, but allow the line to be mutated in place.
@@ -2039,33 +2039,33 @@ pub fn ml_get_buf_mut(buf: &mut buf_T, lnum: linenr_T) -> *mut c_char {
 
 /// Return pointer to position `pos`.
 pub fn ml_get_pos(pos: &pos_T) -> *mut c_char {
-    unsafe { ml_get_buf(g_st().curbuf, pos.lnum).offset(pos.col as isize) }
+    unsafe { ml_get_buf(crate::globals::curbuf_mut(), pos.lnum).offset(pos.col as isize) }
 }
 
 /// Return length (excluding NUL) of the given line.
 pub fn ml_get_len(lnum: linenr_T) -> colnr_T {
-    ml_get_buf_len(g_st().curbuf, lnum)
+    ml_get_buf_len(crate::globals::curbuf_mut(), lnum)
 }
 
 /// Return length (excluding NUL) of the text after position `pos`.
 pub fn ml_get_pos_len(pos: &mut pos_T) -> colnr_T {
-    ml_get_buf_len(g_st().curbuf, pos.lnum) - pos.col
+    ml_get_buf_len(crate::globals::curbuf_mut(), pos.lnum) - pos.col
 }
 
 /// Return length (excluding NUL) of the given line in `buf`.
-pub fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T {
+pub fn ml_get_buf_len(buf: &mut buf_T, lnum: linenr_T) -> colnr_T {
     unsafe {
         let line = ml_get_buf(buf, lnum);
         if *line == NUL {
             return 0;
         }
-        assert!((*buf).b_ml.ml_line_textlen > 0);
-        (*buf).b_ml.ml_line_textlen - 1
+        assert!(buf.b_ml.ml_line_textlen > 0);
+        buf.b_ml.ml_line_textlen - 1
     }
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
-pub fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> Vec<u8> {
+pub fn ml_region_text(buf: &mut buf_T, start: pos_T, end: pos_T) -> Vec<u8> {
     unsafe {
         let mut sb = Vec::<u8>::new();
         for lnum in start.lnum..=end.lnum {
@@ -2726,7 +2726,7 @@ pub fn ml_replace_buf_len(
         }
 
         if !buf.update_callbacks.is_empty() {
-            let old_line = ml_get_buf((&raw mut *buf), lnum);
+            let old_line = ml_get_buf(buf, lnum);
             ml_add_deleted_len_buf( buf, old_line, -1);
         }
 
@@ -2764,9 +2764,9 @@ pub fn ml_replace_dirty_line(buf: &mut buf_T, bytes: &[c_char], clear_empty: boo
 }
 
 /// Delete line `lnum` in `buf`.
-pub fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> bool {
-    ml_flush_line(unsafe { &mut *buf }, false);
-        ml_delete_int(unsafe { &mut *buf }, lnum, if message { ML_DEL_MESSAGE } else { 0 })
+pub fn ml_delete_buf(buf: &mut buf_T, lnum: linenr_T, message: bool) -> bool {
+    ml_flush_line( buf, false);
+        ml_delete_int( buf, lnum, if message { ML_DEL_MESSAGE } else { 0 })
 }
 
 fn ml_delete_int(buf: &mut buf_T, lnum: linenr_T, flags: c_int) -> bool {

@@ -2960,7 +2960,7 @@ pub fn nvim_eval_statusline(
                 Some(&mut num_id),
             );
 
-            statuscol.foldinfo = fold_info(wp, lnum);
+            statuscol.foldinfo = fold_info(&mut *wp, lnum);
             win_update_cursorline(&mut *wp, &mut cursorline_fi);
             let use_cul = use_cursor_line_highlight(&mut *wp, lnum);
             statuscol.sign_cul_id = if use_cul { cul_id } else { 0 };

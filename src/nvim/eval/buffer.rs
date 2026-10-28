@@ -303,7 +303,7 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
 
         let to_delete = above_prompt - buf.b_p_scbk as linenr_T;
         for _ in 0..to_delete {
-            ml_delete_buf(&raw mut *buf, 1, false);
+            ml_delete_buf(buf, 1, false);
         }
         mark_adjust_buf(
             &mut *buf,
@@ -315,7 +315,7 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
             kMarkAdjustNormal,
             kExtmarkUndo,
         );
-        deleted_lines_buf(&raw mut *buf, 1, to_delete);
+        deleted_lines_buf(buf, 1, to_delete);
 
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(first_win_in_tab(unsafe { &mut *tp })) {
@@ -438,7 +438,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
 
         if !(*buf).b_prompt_append_new_line {
             let text = if lnum > 0 {
-                ml_get_buf(buf, lnum).cast_const()
+                ml_get_buf(&mut *buf, lnum).cast_const()
             } else {
                 c"".as_ptr()
             };
@@ -465,7 +465,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
                 set_buffer_lines(buf, lnum, false, &mut (*li).li_tv, &mut *rettv);
 
                 if rettv.vval.v_number() == 0 {
-                    tv_list_item_remove(l, li);
+                    tv_list_item_remove(&mut *l, li);
                     set_buffer_lines(buf, lnum, true, &mut *lines, &mut *rettv);
                 }
             } else {
@@ -862,16 +862,16 @@ fn get_buffer_lines(
             while start <= end {
                 tv_list_append_string(
                      &mut *rettv.vval.v_list(),
-                    ml_get_buf(buf, start),
-                    ml_get_buf_len(buf, start) as isize,
+                    ml_get_buf(&mut *buf, start),
+                    ml_get_buf_len(&mut *buf, start) as isize,
                 );
                 start += 1;
             }
         } else if start >= 1 && start <= (*buf).b_ml.ml_line_count {
             crate::eval::typval::tv_set_string_len(
                 &mut *rettv,
-                ml_get_buf(buf, start),
-                ml_get_buf_len(buf, start) as usize,
+                ml_get_buf(&mut *buf, start),
+                ml_get_buf_len(&mut *buf, start) as usize,
             );
         } else {
             rettv.v_type = VarType::VAR_STRING;
@@ -1056,8 +1056,8 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
 
             let prompt_lno = (*buf).b_prompt_start.mark.lnum;
             let old_prompt = buf_prompt_text(&*buf);
-            let old_line = ml_get_buf(buf, prompt_lno);
-            let old_line_len = ml_get_buf_len(buf, prompt_lno);
+            let old_line = ml_get_buf(&mut *buf, prompt_lno);
+            let old_line_len = ml_get_buf_len(&mut *buf, prompt_lno);
 
             let old_prompt_bytes = crate::memory::cstr_as_bytes(old_prompt);
             let old_prompt_len = old_prompt_bytes.len() as c_int;

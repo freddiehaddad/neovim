@@ -850,7 +850,7 @@ pub fn normalize_index(
 }
 
 pub fn buf_get_text(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     lnum: i64,
     mut start_col: i64,
     mut end_col: i64,

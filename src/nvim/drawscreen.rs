@@ -218,7 +218,7 @@ pub fn conceal_check_cursor_line() {
             return;
         }
 
-        redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
+        redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
 
         if decor_conceal_line(curwin_ptr(), curwin_mut().w_cursor.lnum - 1, true) {
             changed_window_setting(curwin_mut());
@@ -802,7 +802,7 @@ pub fn setcursor_mayforce(wp: &mut win_T, force: bool) {
             let mut row = wp.w_wrow;
             let mut col = wp.w_wcol;
             if wp.w_onebuf_opt.wo_rl != 0 {
-                let cursor = ml_get_buf(wp.w_buffer, wp.w_cursor.lnum)
+                let cursor = ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum)
                     .add(wp.w_cursor.col as usize);
                 let wide = utf_ptr2cells(cursor) == 2 && vim_isprintc(utf_ptr2char(cursor));
                 col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
@@ -831,7 +831,7 @@ pub fn show_cursor_info_later(force: bool) {
         let state = get_real_state();
         let empty_line = c_int::from(
             (g_st().State & MODE_INSERT) == 0
-                && *ml_get_buf(curwin_mut().w_buffer, curwin_mut().w_cursor.lnum) == NUL,
+                && *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) == NUL,
         );
 
         validate_virtcol(curwin_mut());
@@ -1629,7 +1629,7 @@ fn win_update(wp: &mut win_T) {
                     let mut i =
                         plines_m_win(wp, wp.w_topline, wl0.wl_lnum - 1, wp.w_view_height);
                     if wl0.wl_lnum != wp.w_topline {
-                        i += win_get_fill(&raw mut *wp, wl0.wl_lnum) - wp.w_old_topfill;
+                        i += win_get_fill(wp, wl0.wl_lnum) - wp.w_old_topfill;
                     }
                     if i != 0 && i < wp.w_view_height - 2 {
                         win_scroll_lines(wp, 0, i);
@@ -1675,7 +1675,7 @@ fn win_update(wp: &mut win_T) {
                     if wl0.wl_lnum == wp.w_topline {
                         row += wp.w_old_topfill;
                     } else {
-                        row += win_get_fill(&raw mut *wp, wp.w_topline);
+                        row += win_get_fill(wp, wp.w_topline);
                     }
                     row -= wp.w_topfill;
                     if row > 0 {
@@ -1803,7 +1803,7 @@ fn win_update(wp: &mut win_T) {
                                 pos.lnum >= g_st().Visual.start.lnum
                             } {
                                 let mut t: colnr_T = 0;
-                                pos.col = ml_get_buf_len(wp.w_buffer, pos.lnum);
+                                pos.col = ml_get_buf_len(wp.buf_mut(), pos.lnum);
                                 getvvcol(
                                     &raw mut *wp,
                                     &mut pos,
@@ -1953,11 +1953,11 @@ fn win_update(wp: &mut win_T) {
                     {
                         cursorline_fi
                     } else {
-                        fold_info(&raw mut *wp, lnum)
+                        fold_info(wp, lnum)
                     };
 
                     let concealed = decor_conceal_line(&raw mut *wp, lnum - 1, false);
-                    if concealed && win_get_fill(&raw mut *wp, lnum) == 0 {
+                    if concealed && win_get_fill(wp, lnum) == 0 {
                         let step = if foldinfo.fi_lines != 0 {
                             foldinfo.fi_lines
                         } else {
@@ -2106,7 +2106,7 @@ fn win_update(wp: &mut win_T) {
                         && lnum > wp.w_topline
                         && (opt_vars().dy_flags & (kOptDyFlagLastline | kOptDyFlagTruncate)) == 0
                         && srow + c_int::from(wl_cur.wl_size) > wp.w_view_height
-                        && win_get_fill(&raw mut *wp, lnum) == 0
+                        && win_get_fill(wp, lnum) == 0
                     {
                         row = wp.w_view_height + 1;
                     } else {
@@ -2210,7 +2210,7 @@ fn win_update(wp: &mut win_T) {
                         {
                             cursorline_fi
                         } else {
-                            fold_info(&raw mut *wp, lnum)
+                            fold_info(wp, lnum)
                         };
                         let view_height = wp.w_view_height;
                         let wl_size = c_int::from(w_lines_at(&mut *wp, idx as usize).wl_size);
@@ -2275,7 +2275,7 @@ fn win_update(wp: &mut win_T) {
                 let at_attr = hl_combine_attr(win_bg_attr(wp), win_hl_attr(&mut *wp, HLF_AT));
                 if lnum == wp.w_topline {
                     wp.w_botline = lnum + 1;
-                } else if win_get_fill(&raw mut *wp, lnum) >= wp.w_view_height - srow {
+                } else if win_get_fill(wp, lnum) >= wp.w_view_height - srow {
                     wp.w_botline = lnum;
                     wp.w_filler_rows = wp.w_view_height - srow;
                 } else if (opt_vars().dy_flags & kOptDyFlagTruncate) != 0 {
@@ -2323,7 +2323,7 @@ fn win_update(wp: &mut win_T) {
             } else {
                 if eof {
                     wp.w_botline = (*buf).b_ml.ml_line_count + 1;
-                    let j = win_get_fill(&raw mut *wp, wp.w_botline);
+                    let j = win_get_fill(wp, wp.w_botline);
                     if j > 0 && !wp.w_botfill && row < wp.w_view_height {
                         let mut zero_spv = spellvars_T::default();
                         let zero_foldinfo = foldinfo_T::new();
@@ -2644,7 +2644,7 @@ pub fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
-                redrawWinline(wp, line.min((*buf).b_ml.ml_line_count));
+                redrawWinline(&mut *wp, line.min((*buf).b_ml.ml_line_count));
                 if force && line > (*buf).b_ml.ml_line_count {
                     (*wp).w_redraw_bot = line;
                 }
@@ -2667,8 +2667,8 @@ pub fn redraw_win_range_later(wp: &mut win_T, first: linenr_T, last: linenr_T) {
     }
 }
 
-pub fn redrawWinline(wp: *mut win_T, lnum: linenr_T) {
-    redraw_win_range_later(unsafe { &mut *wp }, lnum, lnum);
+pub fn redrawWinline(wp: &mut win_T, lnum: linenr_T) {
+    redraw_win_range_later( wp, lnum, lnum);
 }
 
 pub fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
@@ -2818,7 +2818,7 @@ pub fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
             0
         };
         if wp.w_onebuf_opt.wo_cul != 0 {
-            *foldinfo = fold_info(&raw mut *wp, wp.w_cursor.lnum);
+            *foldinfo = fold_info(wp, wp.w_cursor.lnum);
             if foldinfo.fi_level != 0 && foldinfo.fi_lines > 0 {
                 wp.w_cursorline = foldinfo.fi_lnum;
             }

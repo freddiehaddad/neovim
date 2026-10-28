@@ -3221,7 +3221,7 @@ pub fn do_ecmd(
                     *so_ptr = 999;
                 }
                 update_topline(curwin_mut());
-                curwin_mut().w_scbind_pos = plines_m_win_fill(curwin_ptr(), 1, curwin_mut().w_topline);
+                curwin_mut().w_scbind_pos = plines_m_win_fill(crate::globals::curwin_mut(), 1, curwin_mut().w_topline);
                 *so_ptr = n;
                 redraw_curbuf_later(UPD_NOT_VALID);
             }
@@ -5183,8 +5183,8 @@ fn show_sub(
                     if next_linenr == (*orig_buf).b_ml.ml_line_count + 1 {
                         line = c"".as_ptr();
                     } else {
-                        line = ml_get_buf(orig_buf, next_linenr);
-                        line_size = ml_get_buf_len(orig_buf, next_linenr) + col_width + 1;
+                        line = ml_get_buf(&mut *orig_buf, next_linenr);
+                        line_size = ml_get_buf_len(&mut *orig_buf, next_linenr) + col_width + 1;
 
                         if (line_size as usize) > str_buf.len() {
                             str_buf.resize(line_size as usize, 0);

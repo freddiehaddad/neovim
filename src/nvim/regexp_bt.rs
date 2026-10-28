@@ -2345,7 +2345,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                 testval = 1;
             }
             while count < maxcount {
-                if vim_iswordp_buf(scan.cast(), re_st().rex.reg_buf)
+                if vim_iswordp_buf(scan.cast(), &mut *re_st().rex.reg_buf)
                     && (testval != 0 || !ascii_isdigit(*scan as c_int))
                 {
                     mb_ptr_adv(&raw mut scan);
@@ -2795,7 +2795,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 lnum = 1;
                             }
                             let vcol = win_linetabsize(
-                                wp,
+                                &mut *wp,
                                 lnum,
                                 re_st().rex.line.cast(),
                                 re_st().rex.input.offset_from(re_st().rex.line) as colnr_T,
@@ -2853,7 +2853,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                             }
                         }
                         KWORD => {
-                            if !vim_iswordp_buf(re_st().rex.input.cast(), re_st().rex.reg_buf) {
+                            if !vim_iswordp_buf(re_st().rex.input.cast(), &mut *re_st().rex.reg_buf) {
                                 status = RA_NOMATCH;
                             } else {
                                 ADVANCE_REGINPUT();
@@ -2861,7 +2861,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                         }
                         SKWORD => {
                             if ascii_isdigit(*re_st().rex.input as c_int)
-                                || !vim_iswordp_buf(re_st().rex.input.cast(), re_st().rex.reg_buf)
+                                || !vim_iswordp_buf(re_st().rex.input.cast(), &mut *re_st().rex.reg_buf)
                             {
                                 status = RA_NOMATCH;
                             } else {

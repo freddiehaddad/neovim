@@ -5513,7 +5513,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
             let mut total_len: usize = 0;
             if !buf.is_null() {
                 for lnum in 1..=(*buf).b_ml.ml_line_count {
-                    let mut p = ml_get_buf(buf, lnum);
+                    let mut p = ml_get_buf(&mut *buf, lnum);
                     while *p != NUL {
                         total_len += 1;
                         p = p.add(1);
@@ -5531,7 +5531,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
 
             let mut ret = Vec::with_capacity(total_len);
             for lnum in 1..=(*buf).b_ml.ml_line_count {
-                let mut p = ml_get_buf(buf, lnum);
+                let mut p = ml_get_buf(&mut *buf, lnum);
                 while *p != NUL {
                     ret.push(if *p == b'\n' as c_char { NUL } else { *p });
                     p = p.add(1);
@@ -5595,7 +5595,7 @@ pub fn buf_byteidx_to_charidx(buf: *mut buf_T, mut lnum: linenr_T, byteidx: c_in
             lnum = (*buf).b_ml.ml_line_count;
         }
 
-        let str_ptr = ml_get_buf(buf, lnum);
+        let str_ptr = ml_get_buf(&mut *buf, lnum);
 
         if *str_ptr == NUL {
             return 0;
@@ -5633,7 +5633,7 @@ pub fn buf_charidx_to_byteidx(
             lnum = (*buf).b_ml.ml_line_count;
         }
 
-        let str_ptr = ml_get_buf(buf, lnum);
+        let str_ptr = ml_get_buf(&mut *buf, lnum);
 
         let mut t = str_ptr;
         while *t != NUL {
@@ -5677,9 +5677,9 @@ pub fn var2fpos(
                 return ptr::null_mut();
             }
             let len = if charcol {
-                mb_charlen(ml_get_buf(bp, eval_st().VAR2FPOS_POS.lnum))
+                mb_charlen(ml_get_buf(&mut *bp, eval_st().VAR2FPOS_POS.lnum))
             } else {
-                ml_get_buf_len(bp, eval_st().VAR2FPOS_POS.lnum)
+                ml_get_buf_len(&mut *bp, eval_st().VAR2FPOS_POS.lnum)
             };
 
             let li = tv_list_find(l, 1);
@@ -5778,9 +5778,9 @@ pub fn var2fpos(
             } else {
                 eval_st().VAR2FPOS_POS.lnum = wp.w_cursor.lnum;
                 eval_st().VAR2FPOS_POS.col = if charcol {
-                    mb_charlen(ml_get_buf(bp, wp.w_cursor.lnum))
+                    mb_charlen(ml_get_buf(&mut *bp, wp.w_cursor.lnum))
                 } else {
-                    ml_get_buf_len(bp, wp.w_cursor.lnum)
+                    ml_get_buf_len(&mut *bp, wp.w_cursor.lnum)
                 };
             }
             return &raw mut eval_st().VAR2FPOS_POS;
@@ -7097,7 +7097,7 @@ pub fn prompt_get_input(buf: &mut buf_T) -> Option<std::ffi::CString> {
         let lnum_start = buf.b_prompt_start.mark.lnum;
         let lnum_last = buf.b_ml.ml_line_count;
 
-        let mut text = ml_get_buf(&raw mut *buf, lnum_start);
+        let mut text = ml_get_buf(buf, lnum_start);
         if (crate::memory::cstr_len(text) as c_int) >= buf.b_prompt_start.mark.col {
             text = text.add(buf.b_prompt_start.mark.col as usize);
         }
@@ -7105,7 +7105,7 @@ pub fn prompt_get_input(buf: &mut buf_T) -> Option<std::ffi::CString> {
         let mut bytes = crate::memory::cstr_as_bytes(text).to_vec();
         for i in (lnum_start + 1)..=lnum_last {
             bytes.push(b'\n');
-            bytes.extend_from_slice(crate::memory::cstr_as_bytes(ml_get_buf(&raw mut *buf, i)));
+            bytes.extend_from_slice(crate::memory::cstr_as_bytes(ml_get_buf(buf, i)));
         }
         Some(std::ffi::CString::new(bytes).unwrap_or_default())
     }

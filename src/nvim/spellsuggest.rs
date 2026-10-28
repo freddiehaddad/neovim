@@ -2537,7 +2537,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
             .sl_sugbuf
             .as_deref_mut()
             .map_or(ptr::null_mut(), |b| &raw mut *b);
-        let mut nrline = ml_get_buf(sugbuf, sfwordnr + 1);
+        let mut nrline = ml_get_buf(&mut *sugbuf, sfwordnr + 1);
         let mut orgnr: c_int = 0;
         while *nrline != NUL {
             orgnr += bytes2offset(&raw mut nrline);

@@ -1732,7 +1732,7 @@ fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: c_int) -> bool
 
 pub fn func_call(
     name: *mut c_char,
-    args: *mut typval_T,
+    args: &mut typval_T,
     partial: *mut partial_T,
     selfdict: *mut dict_T,rettv: &mut typval_T,
 ) -> bool {
@@ -1741,7 +1741,7 @@ pub fn func_call(
         let mut argc = 0;
         let mut r = false;
 
-        let list = (*args).vval.v_list();
+        let list = args.vval.v_list();
         let max_argc = MAX_FUNC_ARGS as c_int
             - if partial.is_null() {
                 0

@@ -839,9 +839,9 @@ pub fn terminal_alloc(buf: &mut buf_T, mut opts: TerminalOptions) -> *mut Termin
                 if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
                     break;
                 }
-                ml_delete_buf(&raw mut *buf, 1, false);
+                ml_delete_buf(buf, 1, false);
             }
-            deleted_lines_buf(&raw mut *buf, 1, line_count);
+            deleted_lines_buf(buf, 1, line_count);
         }
         term_ref.old_height = 1;
 
@@ -2539,7 +2539,7 @@ fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
         if scbk < term.sb_buffer.len() {
             let diff = term.sb_buffer.len() - scbk;
             for _ in 0..diff {
-                ml_delete_buf(&raw mut *buf, 1, false);
+                ml_delete_buf(buf, 1, false);
                 term.sb_buffer.pop();
             }
             mark_adjust_buf(
@@ -2552,7 +2552,7 @@ fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
                 kMarkAdjustTerm,
                 kExtmarkUndo,
             );
-            deleted_lines_buf(&raw mut *buf, 1, diff as linenr_T);
+            deleted_lines_buf(buf, 1, diff as linenr_T);
         }
 
         term.sb_size = scbk;
@@ -2582,8 +2582,8 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
         vterm_get_size(&term.vt, &mut height, &mut width);
 
         while deleted > 0 && buf.b_ml.ml_line_count > old_height {
-            ml_delete_buf(&raw mut *buf, 1, false);
-            deleted_lines_buf(&raw mut *buf, 1, 1);
+            ml_delete_buf(buf, 1, false);
+            deleted_lines_buf(buf, 1, 1);
             deleted -= 1;
         }
 
@@ -2602,8 +2602,8 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
             if buf.b_ml.ml_line_count <= max_line_count {
                 break;
             }
-            ml_delete_buf(&raw mut *buf, buf.b_ml.ml_line_count, false);
-            deleted_lines_buf(&raw mut *buf, buf.b_ml.ml_line_count, 1);
+            ml_delete_buf(buf, buf.b_ml.ml_line_count, false);
+            deleted_lines_buf(buf, buf.b_ml.ml_line_count, 1);
         }
 
         adjust_scrollback(term, buf);

@@ -1021,7 +1021,7 @@ pub fn get_spec_reg(
                 if !errmsg {
                     return false;
                 }
-                *argp = ml_get_buf(curwin_mut().w_buffer, curwin_mut().w_cursor.lnum);
+                *argp = ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum);
                 true
             }
             x if x == c_int::from(b'_') => {

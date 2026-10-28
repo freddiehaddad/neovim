@@ -10671,7 +10671,7 @@ fn ex_syncbind(_eap: &mut exarg_T) {
             let mut vt = get_vtopline(curwin_mut());
             for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_scb != 0 && !(*wp).w_buffer.is_null() {
-                    let y = plines_m_win_fill(wp, 1, (*wp).buf_mut().b_ml.ml_line_count)
+                    let y = plines_m_win_fill(&mut *wp, 1, (*wp).buf_mut().b_ml.ml_line_count)
                         - (get_scrolloff_value(curwin_mut()) as c_int);
                     vt = vt.min(y);
                 }

@@ -1572,7 +1572,7 @@ pub fn buf_write(
                         let mut s = buffer;
                         lnum = start;
                         while lnum <= end {
-                            let mut ptr = ml_get_buf(buf, lnum).sub(1);
+                            let mut ptr = ml_get_buf(&mut *buf, lnum).sub(1);
                             if write_undo_file {
                                 let line_ptr = ptr.add(1);
                                 sha_ctx.update(std::slice::from_raw_parts(

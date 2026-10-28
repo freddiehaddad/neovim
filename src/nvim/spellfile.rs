@@ -4934,8 +4934,8 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
 
         let mut write_err = false;
         for lnum in 1..=wcount {
-            let line = ml_get_buf(spellbuf, lnum);
-            let len = ml_get_buf_len(spellbuf, lnum) + 1;
+            let line = ml_get_buf(&mut *spellbuf, lnum);
+            let len = ml_get_buf_len(&mut *spellbuf, lnum) + 1;
             if fwrite(line.cast(), len as usize, 1, fd) == 0 {
                 emsg(gettext(e_write));
                 write_err = true;

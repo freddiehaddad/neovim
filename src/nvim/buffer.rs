@@ -888,7 +888,7 @@ const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
     c"E937: Attempt to delete a buffer that is in use: %s";
 
 #[inline]
-fn buf_is_changed(buf: &buf_T) -> bool {
+fn buf_is_changed(buf: &mut buf_T) -> bool {
     !bt_dontwrite(&raw const *buf) && (buf.b_changed != 0 || file_ff_differs(buf, true))
 }
 
@@ -2106,12 +2106,12 @@ fn do_buffer_ext(
                     if buf.is_null() {
                         buf = g_st().firstbuf;
                     }
-                    if buf == g_st().curbuf || buf_is_changed(&*buf) {
+                    if buf == g_st().curbuf || buf_is_changed(&mut *buf) {
                         break;
                     }
                 }
             }
-            if !buf_is_changed(&*buf) {
+            if !buf_is_changed(&mut *buf) {
                 emsg(gettext(c"E84: No modified buffer found"));
                 return false;
             }
@@ -2199,13 +2199,13 @@ fn do_buffer_ext(
                 return false;
             }
 
-            if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(&*buf) {
+            if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(&mut *buf) {
                 if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                     dialog_changed(&mut *buf, false);
                     if !bufref_valid(Some(&bufref)) {
                         return false;
                     }
-                    if buf_is_changed(&*buf) {
+                    if buf_is_changed(&mut *buf) {
                         return false;
                     }
                 } else {
@@ -2532,7 +2532,7 @@ pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
                     prevbuf,
                     if unload {
                         action
-                    } else if action == DOBUF_GOTO && !buf_hide(&*prevbuf) && !buf_is_changed(&*prevbuf)
+                    } else if action == DOBUF_GOTO && !buf_hide(&*prevbuf) && !buf_is_changed(&mut *prevbuf)
                     {
                         DOBUF_UNLOAD
                     } else {
@@ -3633,7 +3633,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
                 && vim_strchr(eap.arg, b'u' as c_int).is_null())
                 || (!vim_strchr(eap.arg, b'u' as c_int).is_null() && (*buf).b_p_bl != 0)
                 || (!vim_strchr(eap.arg, b'+' as c_int).is_null()
-                    && (((*buf).b_flags & BF_READERR) != 0 || !buf_is_changed(&*buf)))
+                    && (((*buf).b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
                 || (!vim_strchr(eap.arg, b'a' as c_int).is_null()
                     && ((*buf).b_ml.ml_mfp.is_none() || (*buf).b_nwindows == 0))
                 || (!vim_strchr(eap.arg, b'h' as c_int).is_null()
@@ -3669,7 +3669,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
 
             let changed_char = if ((*buf).b_flags & BF_READERR) != 0 {
                 b'x' as c_int
-            } else if buf_is_changed(&*buf) {
+            } else if buf_is_changed(&mut *buf) {
                 b'+' as c_int
             } else {
                 b' ' as c_int
@@ -4313,7 +4313,7 @@ pub fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
         }
 
         let mut above = wp.w_topline - 1;
-        above += win_get_fill(&raw mut *wp, wp.w_topline) - wp.w_topfill;
+        above += win_get_fill(wp, wp.w_topline) - wp.w_topfill;
         if wp.w_topline == 1 && wp.w_topfill >= 1 {
             above = 0;
         }
@@ -4990,7 +4990,7 @@ pub fn wipe_buffer(buf: *mut buf_T, aucmd: bool) {
 }
 
 pub fn buf_is_empty(buf: &mut buf_T) -> bool {
-    unsafe { buf.b_ml.ml_line_count == 1 && *ml_get_buf(&raw mut *buf, 1) == NUL }
+    unsafe { buf.b_ml.ml_line_count == 1 && *ml_get_buf(buf, 1) == NUL }
 }
 
 /// Increment `b:changedtick` value.
@@ -5045,8 +5045,8 @@ pub fn read_buffer_into(
         let mut written = 0usize;
         let mut len: usize;
         let mut lnum = start;
-        let mut lp = ml_get_buf(buf, lnum);
-        let mut lplen = ml_get_buf_len(buf, lnum) as usize;
+        let mut lp = ml_get_buf(&mut *buf, lnum);
+        let mut lplen = ml_get_buf_len(&mut *buf, lnum) as usize;
 
         loop {
             if lplen == 0 {
@@ -5078,8 +5078,8 @@ pub fn read_buffer_into(
                 if lnum > end {
                     break;
                 }
-                lp = ml_get_buf(buf, lnum);
-                lplen = ml_get_buf_len(buf, lnum) as usize;
+                lp = ml_get_buf(&mut *buf, lnum);
+                lplen = ml_get_buf_len(&mut *buf, lnum) as usize;
                 written = 0;
             } else if len > 0 {
                 written += len;

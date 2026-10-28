@@ -2067,10 +2067,10 @@ fn reg_getline_common(
         }
 
         if get_line {
-            *line = ml_get_buf(re_st().rex.reg_buf, firstlnum);
+            *line = ml_get_buf(&mut *re_st().rex.reg_buf, firstlnum);
         }
         if get_length && let Some(length) = length {
-            *length = ml_get_buf_len(re_st().rex.reg_buf, firstlnum);
+            *length = ml_get_buf_len(&mut *re_st().rex.reg_buf, firstlnum);
         }
     }
 }
@@ -2181,7 +2181,7 @@ pub(super) fn reg_match_visual() -> bool {
             re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
             re_st().rex.input = re_st().rex.line.add(col as usize);
 
-            let cols = win_linetabsize(wp, re_st().rex.reg_firstlnum + re_st().rex.lnum, re_st().rex.line.cast(), col);
+            let cols = win_linetabsize(&mut *wp, re_st().rex.reg_firstlnum + re_st().rex.lnum, re_st().rex.line.cast(), col);
             if cols < start || cols > end - colnr_T::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e') {
                 return false;
             }

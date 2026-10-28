@@ -408,7 +408,7 @@ pub fn get_indent_lnum(lnum: linenr_T) -> c_int {
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
 pub fn get_indent_buf(buf: &mut buf_T, lnum: linenr_T) -> c_int {
-    indent_size_ts(ml_get_buf(&raw mut *buf, lnum), buf.b_p_ts, &buf.b_p_vts_array)
+    indent_size_ts(ml_get_buf(buf, lnum), buf.b_p_ts, &buf.b_p_vts_array)
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).

@@ -2143,8 +2143,8 @@ pub fn free_all_marks() {
 pub fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
     unsafe {
         if lp.col > 0 || lp.coladd > 1 {
-            let p = ml_get_buf(buf, lp.lnum);
-            if *p == NUL || ml_get_buf_len(buf, lp.lnum) < lp.col {
+            let p = ml_get_buf(&mut *buf, lp.lnum);
+            if *p == NUL || ml_get_buf_len(&mut *buf, lp.lnum) < lp.col {
                 lp.col = 0;
             } else {
                 lp.col -= utf_head_off(p, p.add(lp.col as usize));

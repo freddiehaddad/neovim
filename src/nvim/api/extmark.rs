@@ -1120,7 +1120,7 @@ pub fn nvim_buf_set_extmark(
                 len = if opts.ephemeral {
                     MAXCOL as colnr_T
                 } else {
-                    ml_get_buf_len((&raw mut *b), (line as linenr_T) + 1)
+                    ml_get_buf_len(&mut *b, (line as linenr_T) + 1)
                 };
             }
 
@@ -1142,7 +1142,7 @@ pub fn nvim_buf_set_extmark(
                     len = if opts.ephemeral {
                         MAXCOL as colnr_T
                     } else {
-                        ml_get_buf_len((&raw mut *b), line2 + 1)
+                        ml_get_buf_len(&mut *b, line2 + 1)
                     };
                 } else if line2 == b.b_ml.ml_line_count {
                     len = 0;

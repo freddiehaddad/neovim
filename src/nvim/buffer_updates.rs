@@ -75,7 +75,7 @@ pub fn buf_updates_register(
             if line_count > 0 {
                 linedata = arena_array(&mut arena, line_count);
                 buf_collect_lines(
-                    &raw mut *buf,
+                    buf,
                     line_count,
                     1,
                     0,
@@ -221,7 +221,7 @@ pub fn buf_updates_send_changes(
         if num_added > 0 && !buf.update_channels.is_empty() {
             linedata = arena_array(&mut arena, num_added as usize);
             buf_collect_lines(
-                (&raw mut *buf),
+                buf,
                 num_added as usize,
                 firstline,
                 0,

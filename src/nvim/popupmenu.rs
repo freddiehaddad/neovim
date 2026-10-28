@@ -1210,7 +1210,7 @@ fn pum_preview_set_text(
             }
             let save_wrap = win.w_onebuf_opt.wo_wrap;
             win.w_onebuf_opt.wo_wrap = 0;
-            let line_width = win_linetabsize(&raw mut *win, 0, curr, MAXCOL);
+            let line_width = win_linetabsize(win, 0, curr, MAXCOL);
             win.w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
             replacement.push(string_obj(cstr_to_string(curr)));

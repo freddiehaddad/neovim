@@ -150,7 +150,7 @@ pub fn coladvance(wp: &mut win_T, wcol: colnr_T) -> bool {
 
         if wcol == MAXCOL || !rc {
             wp.w_valid &= !VALID_VIRTCOL;
-        } else if *(ml_get_buf(wp.w_buffer, wp.w_cursor.lnum)
+        } else if *(ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum)
             .add(wp.w_cursor.col as usize))
             != TAB
         {
@@ -182,8 +182,8 @@ fn coladvance2(
                 || ((get_ve_flags( &mut *wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
         );
 
-        let line = ml_get_buf(wp.w_buffer, pos.lnum);
-        let linelen = ml_get_buf_len(wp.w_buffer, pos.lnum);
+        let line = ml_get_buf(wp.buf_mut(), pos.lnum);
+        let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
 
         if wcol == MAXCOL {
             idx = linelen - 1 + one_more;
@@ -361,7 +361,7 @@ pub fn get_cursor_rel_lnum(wp: &mut win_T, lnum: linenr_T) -> linenr_T {
 pub fn check_pos(buf: &mut buf_T, pos: &mut pos_T) {
     pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count);
         if pos.col > 0 {
-            pos.col = pos.col.min(ml_get_buf_len(&raw mut *buf, pos.lnum));
+            pos.col = pos.col.min(ml_get_buf_len(buf, pos.lnum));
         }
 }
 
@@ -392,7 +392,7 @@ pub fn check_cursor_col(win: &mut win_T) {
         let oldcoladd = win.w_cursor.col + win.w_cursor.coladd;
         let cur_ve_flags = get_ve_flags( &mut *win);
 
-        let len = ml_get_buf_len(win.w_buffer, win.w_cursor.lnum);
+        let len = ml_get_buf_len(win.buf_mut(), win.w_cursor.lnum);
         if len == 0 {
             win.w_cursor.col = 0;
         } else if win.w_cursor.col >= len {
@@ -558,22 +558,22 @@ pub fn pchar_cursor(c: c_char) {
 
 /// Return pointer to cursor line (`get_cursor_line_ptr`).
 pub fn get_cursor_line_ptr() -> *mut c_char {
-     ml_get_buf(g_st().curbuf, curwin_mut().w_cursor.lnum)
+     ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
 }
 
 /// Return pointer to cursor position (`get_cursor_pos_ptr`).
 pub fn get_cursor_pos_ptr() -> *mut c_char {
-    unsafe { ml_get_buf(g_st().curbuf, curwin_mut().w_cursor.lnum).add(curwin_mut().w_cursor.col as usize) }
+    unsafe { ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum).add(curwin_mut().w_cursor.col as usize) }
 }
 
 /// Return length (excluding the NUL) of the cursor line (`get_cursor_line_len`).
 pub fn get_cursor_line_len() -> colnr_T {
-     ml_get_buf_len(g_st().curbuf, curwin_mut().w_cursor.lnum)
+     ml_get_buf_len(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
 }
 
 /// Return length (excluding the NUL) of the cursor position (`get_cursor_pos_len`).
 pub fn get_cursor_pos_len() -> colnr_T {
-     ml_get_buf_len(g_st().curbuf, curwin_mut().w_cursor.lnum) - curwin_mut().w_cursor.col
+     ml_get_buf_len(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum) - curwin_mut().w_cursor.col
 }
 
 #[cfg(test)]

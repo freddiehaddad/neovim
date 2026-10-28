@@ -3726,7 +3726,7 @@ fn move_lines(frombuf: &mut buf_T, tobuf: *mut buf_T) -> bool {
 
         g_st().curbuf = tobuf;
         for lnum in 1..=frombuf.b_ml.ml_line_count {
-            let p = crate::memory::cstr_to_cstring(ml_get_buf((&raw mut *frombuf), lnum));
+            let p = crate::memory::cstr_to_cstring(ml_get_buf(frombuf, lnum));
             if !ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) {
                 retval = false;
                 break;

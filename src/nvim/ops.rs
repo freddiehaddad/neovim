@@ -4137,13 +4137,13 @@ pub fn get_region_bytecount(
         if start_lnum == end_lnum {
             return (end_col - start_col) as bcount_t;
         }
-        let mut deleted_bytes = (ml_get_buf_len(&raw mut *buf, start_lnum) - start_col + 1) as bcount_t;
+        let mut deleted_bytes = (ml_get_buf_len(buf, start_lnum) - start_col + 1) as bcount_t;
 
         for i in 1..=(end_lnum - start_lnum - 1) {
             if start_lnum + i > max_lnum {
                 return deleted_bytes;
             }
-            deleted_bytes += (ml_get_buf_len(&raw mut *buf, start_lnum + i) + 1) as bcount_t;
+            deleted_bytes += (ml_get_buf_len(buf, start_lnum + i) + 1) as bcount_t;
         }
         if end_lnum > max_lnum {
             return deleted_bytes;

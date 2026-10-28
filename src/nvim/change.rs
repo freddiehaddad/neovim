@@ -472,7 +472,7 @@ pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
             && lnum < curbuf_mut().b_ml.ml_line_count
             && vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
         {
-            redrawWinline(curwin_ptr(), lnum + 1);
+            redrawWinline(crate::globals::curwin_mut(), lnum + 1);
         }
         buf_updates_send_changes(curbuf_mut(), lnum, 1, 1);
 
@@ -516,13 +516,13 @@ pub fn appended_lines_mark(lnum: linenr_T, count: c_int) {
 }
 
 /// Deleted `count` lines at line `lnum` in the given buffer.
-pub fn deleted_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
-    changed_lines(unsafe { &mut *buf }, lnum, 0, lnum + count, -count, true);
+pub fn deleted_lines_buf(buf: &mut buf_T, lnum: linenr_T, count: linenr_T) {
+    changed_lines( buf, lnum, 0, lnum + count, -count, true);
 }
 
 /// Deleted `count` lines at line `lnum` in the current buffer.
 pub fn deleted_lines(lnum: linenr_T, count: linenr_T) {
-    deleted_lines_buf(g_st().curbuf, lnum, count);
+    deleted_lines_buf(crate::globals::curbuf_mut(), lnum, count);
 }
 
 /// Like `deleted_lines()`, but adjust marks first.
@@ -654,7 +654,7 @@ pub fn save_file_ff(buf: &mut buf_T) {
 
 /// Return true if `'fileformat'` and/or `'fileencoding'` has a different value
 /// from when editing started.
-pub fn file_ff_differs(buf: &buf_T, ignore_empty: bool) -> bool {
+pub fn file_ff_differs(buf: &mut buf_T, ignore_empty: bool) -> bool {
     unsafe {
         if (buf.b_flags & BF_NEVERLOADED) != 0 {
             return false;
@@ -662,7 +662,7 @@ pub fn file_ff_differs(buf: &buf_T, ignore_empty: bool) -> bool {
         if ignore_empty
             && (buf.b_flags & BF_NEW) != 0
             && buf.b_ml.ml_line_count == 1
-            && *ml_get_buf((&raw const *buf).cast_mut(), 1) == NUL
+            && *ml_get_buf(buf, 1) == NUL
         {
             return false;
         }

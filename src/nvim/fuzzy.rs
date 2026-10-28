@@ -840,7 +840,7 @@ pub fn search_for_fuzzy_match(
             }
 
             if current_pos.lnum >= 1 && current_pos.lnum <= buf.b_ml.ml_line_count {
-                *ptr = ml_get_buf(&raw mut *buf, current_pos.lnum);
+                *ptr = ml_get_buf(buf, current_pos.lnum);
                 if !whole_line {
                     *ptr = (*ptr).add(current_pos.col as usize);
                 }
@@ -862,7 +862,7 @@ pub fn search_for_fuzzy_match(
                             found_new_match = true;
                             *pos = current_pos;
                             *ptr = p;
-                            *len = ml_get_buf_len(&raw mut *buf, current_pos.lnum)
+                            *len = ml_get_buf_len(buf, current_pos.lnum)
                                 - (((p as usize) - (line as usize)) as c_int);
                             break;
                         }

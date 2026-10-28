@@ -1059,8 +1059,8 @@ unsafe extern "C" fn input_cb(
             return c"".as_ptr();
         }
         let lnum = (position.row as linenr_T) + 1;
-        let line = ml_get_buf(bp, lnum);
-        let len = ml_get_buf_len(bp, lnum) as usize;
+        let line = ml_get_buf(&mut *bp, lnum);
+        let len = ml_get_buf_len(&mut *bp, lnum) as usize;
         let col = position.column as usize;
         if col > len {
             *bytes_read = 0;

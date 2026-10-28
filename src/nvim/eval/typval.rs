@@ -1024,10 +1024,10 @@ fn tv_list_item_alloc() -> *mut listitem_T {
 }
 
 /// Remove a list item from a List and free it.
-pub fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut listitem_T {
+pub fn tv_list_item_remove(l: &mut list_T, item: *mut listitem_T) -> *mut listitem_T {
     unsafe {
         let next_item = (*item).li_next;
-        tv_list_drop_items( &mut *l, item,  &mut *item);
+        tv_list_drop_items( l, item,  &mut *item);
         drop(Box::from_raw(item));
         next_item
     }
@@ -1240,11 +1240,11 @@ pub fn tv_list_insert(l: &mut list_T, ni: &mut listitem_T, item: *mut listitem_T
 }
 
 /// Insert Vimscript value into a list.
-pub fn tv_list_insert_tv(l: *mut list_T,tv: &mut typval_T, item: *mut listitem_T) {
+pub fn tv_list_insert_tv(l: &mut list_T,tv: &mut typval_T, item: *mut listitem_T) {
     unsafe {
         let ni = tv_list_item_alloc();
         tv_copy(&*tv, &mut (*ni).li_tv);
-        tv_list_insert( &mut *l,  &mut *ni, item);
+        tv_list_insert( l,  &mut *ni, item);
     }
 }
 
@@ -1518,7 +1518,7 @@ pub fn tv_list_assign_range(
 
 /// Flatten up to "maxitems" in "list", starting at "first" to depth "maxdepth".
 pub fn tv_list_flatten(
-    list: *mut list_T,
+    list: &mut list_T,
     first: *mut listitem_T,
     maxitems: i64,
     maxdepth: i64,
@@ -1529,7 +1529,7 @@ pub fn tv_list_flatten(
         }
 
         let mut item = if first.is_null() {
-            (*list).lv_first
+            list.lv_first
         } else {
             first
         };
@@ -1545,12 +1545,12 @@ pub fn tv_list_flatten(
             if (*item).li_tv.v_type == VarType::VAR_LIST {
                 let itemlist = (*item).li_tv.vval.v_list();
 
-                tv_list_drop_items( &mut *list, item,  &mut *item);
+                tv_list_drop_items( list, item,  &mut *item);
                 tv_list_extend(list, itemlist, next);
 
                 if maxdepth > 0 {
                     let sub_first = if (*item).li_prev.is_null() {
-                        (*list).lv_first
+                        list.lv_first
                     } else {
                         (*(*item).li_prev).li_next
                     };
@@ -1632,7 +1632,7 @@ fn tv_string2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 }
 
 /// Extend first list with the second.
-pub fn tv_list_extend(l1: *mut list_T, l2: *mut list_T, bef: *mut listitem_T) {
+pub fn tv_list_extend(l1: &mut list_T, l2: *mut list_T, bef: *mut listitem_T) {
     unsafe {
         let mut todo = tv_list_len_inline(l2);
         if todo == 0 {
@@ -1673,7 +1673,7 @@ pub fn tv_list_concat(l1: *mut list_T, l2: *mut list_T, tv: &mut typval_T) -> bo
         } else {
             let copy = tv_list_copy(None, l1, false, 0);
             if !copy.is_null() && !l2.is_null() {
-                tv_list_extend(copy, l2, ptr::null_mut());
+                tv_list_extend(unsafe { &mut *copy }, l2, ptr::null_mut());
             }
             copy
         };
@@ -2239,7 +2239,7 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
                 item_compare2(&prev_si, &cur_si, true, info)
             };
             if cmp == 0 {
-                li = tv_list_item_remove(l, li);
+                li = tv_list_item_remove(&mut *l, li);
             } else {
                 li = (*li).li_next;
             }
@@ -5267,7 +5267,7 @@ mod tests {
             tv_list_watch_add(&mut *l, lw2.clone());
 
             let second = (*(*l).lv_first).li_next;
-            let next_after_first = tv_list_item_remove(l, (*l).lv_first);
+            let next_after_first = tv_list_item_remove(&mut *l, (*l).lv_first);
             assert_eq!(next_after_first, second);
             assert_eq!(lw1.lw_item.get(), second);
             assert_eq!(tv_list_len_inline(l), 2);
@@ -5286,7 +5286,7 @@ mod tests {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(99),
             };
-            tv_list_insert_tv(l2, &mut tv_ins, (*l2).lv_first);
+            tv_list_insert_tv(&mut *l2, &mut tv_ins, (*l2).lv_first);
             assert_eq!(tv_list_len_inline(l2), 3);
             assert_eq!(tv_list_find_nr(l2, 0, None), 99);
             assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2, 1)), b"hello");
@@ -5311,7 +5311,7 @@ mod tests {
             assert_eq!(tv_list_len_inline(cat_tv.vval.v_list()), 6);
             tv_clear(&raw mut cat_tv);
 
-            tv_list_extend(l2, l2_copy, ptr::null_mut());
+            tv_list_extend(&mut *l2, l2_copy, ptr::null_mut());
             assert_eq!(tv_list_len_inline(l2), 6);
 
             // remove_items range

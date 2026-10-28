@@ -1591,7 +1591,7 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 selfdict = argvars[2].vval.v_dict();
             }
 
-            func_call(func, (&raw mut argvars[1]), partial, selfdict, &mut *rettv);
+            func_call(func, &mut argvars[1], partial, selfdict, &mut *rettv);
         }
 
         if owned {
@@ -1744,14 +1744,14 @@ fn get_col(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) {
         if !fp.is_null() && fnum == (*bp).b_fnum {
             if (*fp).col == MAXCOL {
                 if (*fp).lnum <= (*bp).b_ml.ml_line_count {
-                    col = ml_get_buf_len(bp, (*fp).lnum) + 1;
+                    col = ml_get_buf_len(&mut *bp, (*fp).lnum) + 1;
                 } else {
                     col = MAXCOL;
                 }
             } else {
                 col = (*fp).col + 1;
                 if virtual_active( &mut *wp) && ptr::eq(fp, &raw const (*wp).w_cursor) {
-                    let p = ml_get_buf(bp, (*wp).w_cursor.lnum).add((*wp).w_cursor.col as usize);
+                    let p = ml_get_buf(&mut *bp, (*wp).w_cursor.lnum).add((*wp).w_cursor.col as usize);
                     if (*wp).w_cursor.coladd
                         >= win_chartabsize(&mut *wp, p, (*wp).w_virtcol - (*wp).w_cursor.coladd)
                         && *p != NUL
@@ -2533,7 +2533,7 @@ fn flatten_common(argvars: &mut [typval_T], rettv: &mut typval_T, make_copy: boo
         }
 
         tv_list_flatten(
-            list,
+            unsafe { &mut *list },
             ptr::null_mut(),
             i64::from(tv_list_len(list)),
             i64::from(maxdepth),
@@ -3288,8 +3288,8 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             return false;
         }
         if p1.col == MAXCOL {
-            p1.col = ml_get_buf_len(findbuf, p1.lnum) + 1;
-        } else if p1.col < 1 || p1.col > ml_get_buf_len(findbuf, p1.lnum) + 1 {
+            p1.col = ml_get_buf_len(&mut *findbuf, p1.lnum) + 1;
+        } else if p1.col < 1 || p1.col > ml_get_buf_len(&mut *findbuf, p1.lnum) + 1 {
             semsg!(gettext(e_invalid_column_number_nr), p1.col);
             return false;
         }
@@ -3299,8 +3299,8 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             return false;
         }
         if p2.col == MAXCOL {
-            p2.col = ml_get_buf_len(findbuf, p2.lnum) + 1;
-        } else if p2.col < 1 || p2.col > ml_get_buf_len(findbuf, p2.lnum) + 1 {
+            p2.col = ml_get_buf_len(&mut *findbuf, p2.lnum) + 1;
+        } else if p2.col < 1 || p2.col > ml_get_buf_len(&mut *findbuf, p2.lnum) + 1 {
             semsg!(gettext(e_invalid_column_number_nr), p2.col);
             return false;
         }
@@ -5458,7 +5458,7 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
         {
             let ret_l = rettv.vval.v_list();
             let first = tv_list_first(ret_l);
-            tv_list_item_remove(ret_l, (*first).li_next);
+            tv_list_item_remove(&mut *ret_l, (*first).li_next);
         }
 
         drop(tofree_owned);
@@ -5611,7 +5611,7 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             regmatch.rm_ic = opt_vars().p_ic != 0;
 
             while slnum <= elnum {
-                let str_ = ml_get_buf(buf, slnum);
+                let str_ = ml_get_buf(&mut *buf, slnum);
                 get_matches_in_str(str_, &mut regmatch, &mut *retlist, slnum, submatches, true);
                 slnum += 1;
             }
@@ -6502,7 +6502,7 @@ fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
         }
         while n > 0 {
             n -= 1;
-            tv_list_extend(rettv.vval.v_list(), l, ptr::null_mut());
+            tv_list_extend(unsafe { &mut *rettv.vval.v_list() }, l, ptr::null_mut());
         }
 }
 
@@ -9163,7 +9163,7 @@ pub fn f_virtcol(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 if (*fp).col < 0 {
                     (*fp).col = 0;
                 } else {
-                    let len = ml_get_buf_len(bp, (*fp).lnum);
+                    let len = ml_get_buf_len(&mut *bp, (*fp).lnum);
                     if (*fp).col > len {
                         (*fp).col = len;
                     }

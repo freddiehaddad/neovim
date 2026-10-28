@@ -1466,10 +1466,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
             (*wp).w_cursor.lnum = lnum;
         }
 
-        let line_ptr = ml_get_buf((*wp).w_buffer, lnum);
+        let line_ptr = ml_get_buf((*wp).buf_mut(), lnum);
         let empty_line = *line_ptr == NUL;
 
-        let len = ml_get_buf_len((*wp).w_buffer, lnum);
+        let len = ml_get_buf_len((*wp).buf_mut(), lnum);
         let byteval = if (*wp).w_cursor.col > len {
             (*wp).w_cursor.col = len;
             (*wp).w_cursor.coladd = 0;

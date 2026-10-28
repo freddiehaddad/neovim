@@ -5694,10 +5694,10 @@ pub fn win_goto(wp: *mut win_T) {
         win_enter(wp, true);
 
         if win_valid(owp) && (*owp).w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
-            redrawWinline(owp, (*owp).w_cursor.lnum);
+            redrawWinline(&mut *owp, (*owp).w_cursor.lnum);
         }
         if curwin_mut().w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
-            redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
+            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
     }
 }

@@ -738,16 +738,16 @@ pub fn vim_iswordc_buf(c: c_int, buf: &mut buf_T) -> bool {
 }
 
 pub fn vim_iswordp(p: *const c_char) -> bool {
-    vim_iswordp_buf(p, g_st().curbuf)
+    vim_iswordp_buf(p, crate::globals::curbuf_mut())
 }
 
-pub fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
+pub fn vim_iswordp_buf(p: *const c_char, buf: &mut buf_T) -> bool {
     unsafe {
         let mut c = c_int::from(*p as u8);
         if utf8len_tab[c as usize] > 1 {
             c = utf_ptr2char(p);
         }
-        vim_iswordc_buf(c, &mut *buf)
+        vim_iswordc_buf(c, buf)
     }
 }
 

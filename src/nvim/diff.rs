@@ -617,7 +617,7 @@ fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
                     off_org = (&tp.tp_diffs)[dp_idx].df_count[i_org] - 1;
                 }
                 let line_org = crate::memory::cstr_to_cstring(ml_get_buf(
-                    tp.tp_diffbuf[i_org],
+                    unsafe { &mut *tp.tp_diffbuf[i_org] },
                     (&tp.tp_diffs)[dp_idx].df_lnum[i_org] + off_org,
                 ));
                 let mut i_new = i_org + 1;
@@ -635,7 +635,7 @@ fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
                     if diff_cmp(
                         line_org.as_ptr(),
                         ml_get_buf(
-                            tp.tp_diffbuf[i_new],
+                            unsafe { &mut *tp.tp_diffbuf[i_new] },
                             (&tp.tp_diffs)[dp_idx].df_lnum[i_new] + off_new,
                         ),
                     ) != 0
@@ -752,7 +752,7 @@ fn diff_write_buffer(
         }
         let mut len: usize = 0;
         for lnum in start..=end {
-            len += ml_get_buf_len(&raw mut *buf, lnum) as usize + 1;
+            len += ml_get_buf_len(buf, lnum) as usize + 1;
         }
         *backing = vec![0; len];
         let ptr = backing.as_mut_ptr();
@@ -760,7 +760,7 @@ fn diff_write_buffer(
         m.size = len as c_int;
         len = 0;
         for lnum in start..=end {
-            let mut s = ml_get_buf(&raw mut *buf, lnum);
+            let mut s = ml_get_buf(buf, lnum);
             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                 while *s != NUL {
                     let c: c_int;
@@ -2165,12 +2165,12 @@ fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
         }
         for i in 0..dp.df_count[idx1] {
             let line = crate::memory::cstr_to_cstring(ml_get_buf(
-                curtab_mut().tp_diffbuf[idx1],
+                unsafe { &mut *curtab_mut().tp_diffbuf[idx1] },
                 dp.df_lnum[idx1] + i,
             ));
             let cmp = diff_cmp(
                 line.as_ptr(),
-                ml_get_buf(curtab_mut().tp_diffbuf[idx2], dp.df_lnum[idx2] + i),
+                ml_get_buf(unsafe { &mut *curtab_mut().tp_diffbuf[idx2] }, dp.df_lnum[idx2] + i),
             );
             if cmp != 0 {
                 return false;
@@ -2563,7 +2563,7 @@ fn diff_find_change_simple(
         let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
             None
         } else {
-            Some(crate::memory::cstr_to_cstring(ml_get_buf(wp.w_buffer, lnum)))
+            Some(crate::memory::cstr_to_cstring(ml_get_buf(wp.buf_mut(), lnum)))
         };
         let line_org = line_org_owned
             .as_ref()
@@ -2579,7 +2579,7 @@ fn diff_find_change_simple(
                 if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
                     break;
                 }
-                let line_new = ml_get_buf(curtab_mut().tp_diffbuf[i], dp.df_lnum[i] + off);
+                let line_new = ml_get_buf(&mut *curtab_mut().tp_diffbuf[i], dp.df_lnum[i] + off);
                 let mut si_org: c_int = 0;
                 let mut si_new: c_int = 0;
                 while *line_org.add(si_org as usize) != NUL {
@@ -2754,7 +2754,7 @@ fn diff_refine_inline_word_highlight(
                     di += 1;
                     continue;
                 }
-                let line = ml_get_buf(curtab_mut().tp_diffbuf[idx1], start_lnum + entry1.lineoff);
+                let line = ml_get_buf(&mut *curtab_mut().tp_diffbuf[idx1], start_lnum + entry1.lineoff);
                 let gap_text = line.add(gap_start as usize);
                 let mut only_non_word = true;
                 let mut has_content = false;
@@ -2871,7 +2871,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 let mut numlines: linenr_T = 0;
                 curstr.clear();
                 for off in 0..dp_count[i] {
-                    let curline = ml_get_buf(curtab_mut().tp_diffbuf[i], dp_lnum[i] + off);
+                    let curline = ml_get_buf(&mut *curtab_mut().tp_diffbuf[i], dp_lnum[i] + off);
                     let mut in_keyword = false;
                     let mut last_white = false;
                     let mut eol_ga_len: c_int = -1;
@@ -3482,7 +3482,7 @@ fn diffgetput(
                     if nr > (*curtab_mut().tp_diffbuf[idx_from]).b_ml.ml_line_count {
                         break;
                     }
-                    let p = crate::memory::cstr_to_cstring(ml_get_buf(curtab_mut().tp_diffbuf[idx_from], nr));
+                    let p = crate::memory::cstr_to_cstring(ml_get_buf(&mut *curtab_mut().tp_diffbuf[idx_from], nr));
                     let _ = ml_append(lnum + i - 1, p.as_ptr().cast_mut(), 0, false);
                     added += 1;
                     if buf_empty && curbuf_mut().b_ml.ml_line_count == 2 {

@@ -1132,8 +1132,8 @@ pub fn spell_move_to(
         let mut decor_lnum: linenr_T = -1;
         'theend: {
             while !g_st().got_int {
-                let mut line = ml_get_buf(wp.w_buffer, lnum);
-                let mut len = ml_get_buf_len(wp.w_buffer, lnum) as usize;
+                let mut line = ml_get_buf(wp.buf_mut(), lnum);
+                let mut len = ml_get_buf_len(wp.buf_mut(), lnum) as usize;
                 if buflen < len + MAXWLEN + 2 {
                     buflen = len + MAXWLEN + 2;
                     buf_vec = vec![0; buflen];
@@ -1149,14 +1149,14 @@ pub fn spell_move_to(
                     if check_need_cap(curwin_mut(), lnum, col) {
                         capcol = col;
                     }
-                    line = ml_get_buf(wp.w_buffer, lnum);
+                    line = ml_get_buf(wp.buf_mut(), lnum);
                 }
                 let empty_line = *skipwhite(line) == NUL;
                 crate::memory::cstr_cpy(buf, line);
                 if lnum < wp.buf_mut().b_ml.ml_line_count {
                     spell_cat_line(
                         buf.add(crate::memory::cstr_len(buf)),
-                        ml_get_buf(wp.w_buffer, lnum + 1),
+                        ml_get_buf(wp.buf_mut(), lnum + 1),
                         MAXWLEN as c_int,
                     );
                 }
@@ -2196,7 +2196,7 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
         }
         let mut need_cap = false;
         let mut line: *mut c_char = if col != 0 {
-            ml_get_buf(wp.w_buffer, lnum)
+            ml_get_buf(wp.buf_mut(), lnum)
         } else {
             ptr::null_mut()
         };
@@ -2206,7 +2206,7 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
             if lnum == 1 {
                 need_cap = true;
             } else {
-                line = ml_get_buf(wp.w_buffer, lnum - 1);
+                line = ml_get_buf(wp.buf_mut(), lnum - 1);
                 if *skipwhite(line) == NUL {
                     need_cap = true;
                 } else {

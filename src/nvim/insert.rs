@@ -1654,7 +1654,7 @@ pub fn edit_unputchar() {
                 curwin_mut().w_wcol += 1;
             }
             if ins_st().pc_status == PC_STATUS_RIGHT || ins_st().pc_status == PC_STATUS_LEFT {
-                redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
+                redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
             } else {
                 grid_line_start(&raw mut (*curwin_ptr()).w_grid, ins_st().pc_row);
                 grid_line_put_schar(ins_st().pc_col, ins_st().pc_schar, ins_st().pc_attr);
@@ -1691,7 +1691,7 @@ pub fn undisplay_dollar() {
             return;
         }
         g_st().dollar_vcol = -1;
-        redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
+        redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
     }
 }
 
@@ -2071,7 +2071,7 @@ fn check_spell_redraw() {
         if g_st().spell_redraw_lnum != 0 {
             let lnum = g_st().spell_redraw_lnum;
             g_st().spell_redraw_lnum = 0;
-            redrawWinline(curwin_ptr(), lnum);
+            redrawWinline(crate::globals::curwin_mut(), lnum);
         }
     }
 }
@@ -3139,7 +3139,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                     curwin_mut().w_cursor.lnum -= 1;
 
                     if has_format_option(kFoAuto) && has_format_option(kFoWhitePar) {
-                        let ptr = ml_get_buf(g_st().curbuf, curwin_mut().w_cursor.lnum);
+                        let ptr = ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum);
                         let len = get_cursor_line_len();
                         if len > 0 && *ptr.add((len - 1) as usize) == b' ' as c_char {
                             let new_line =

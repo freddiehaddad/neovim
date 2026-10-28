@@ -2068,7 +2068,7 @@ fn do_unlet_var(
                 lp.ll_n2,
             );
         } else if !lp.ll_list.is_null() {
-            tv_list_item_remove(lp.ll_list, lp.ll_li);
+            tv_list_item_remove(&mut *lp.ll_list, lp.ll_li);
         } else {
             let d = lp.ll_dict;
             debug_assert!(!d.is_null());

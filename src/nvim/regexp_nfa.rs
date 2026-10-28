@@ -2654,7 +2654,7 @@ fn state_in_list(
 #[inline(always)]
 fn addstate(
     states: &mut [nfa_state_T],
-    l: *mut nfa_list_T,
+    l: &mut nfa_list_T,
     state: Option<usize>,subs_arg: Option<&mut regsubs_T>,
     pim: *mut nfa_pim_T,
     off_arg: c_int,
@@ -2667,7 +2667,7 @@ fn addstate(
         }
         return subs_ptr;
     };
-    addstate_idx(states.as_mut_ptr(), unsafe { &mut *l }, state_idx, subs_ptr, pim, off_arg, depth)
+    addstate_idx(states.as_mut_ptr(),  l, state_idx, subs_ptr, pim, off_arg, depth)
 }
 
 #[inline(always)]
@@ -2983,7 +2983,7 @@ fn addstate_here(
 
         let r = addstate(
             states,
-            (&raw mut *l),
+            l,
             state,
             Some(subs),
             pim,
@@ -3607,7 +3607,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
             let start_out = (&prog.state)[start_idx].out;
             addstate(
                 &mut prog.state,
-                &raw mut list[0],
+                &mut list[0],
                 start_out,
                 Some(m),
                 ptr::null_mut(),
@@ -3617,7 +3617,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
         } else {
             addstate(
                 &mut prog.state,
-                &raw mut list[0],
+                &mut list[0],
                 start,
                 Some(m),
                 ptr::null_mut(),
@@ -4050,13 +4050,13 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         }
                     }
                     NFA_KWORD => {
-                        if vim_iswordp_buf(re_st().rex.input.cast(), re_st().rex.reg_buf) {
+                        if vim_iswordp_buf(re_st().rex.input.cast(), &mut *re_st().rex.reg_buf) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
                     }
                     NFA_SKWORD => {
-                        if !ascii_isdigit(curc) && vim_iswordp_buf(re_st().rex.input.cast(), re_st().rex.reg_buf) {
+                        if !ascii_isdigit(curc) && vim_iswordp_buf(re_st().rex.input.cast(), &mut *re_st().rex.reg_buf) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4305,7 +4305,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 {
                                     lnum = 1;
                                 }
-                                let vcol = win_linetabsize(wp, lnum, re_st().rex.line.cast(), col);
+                                let vcol = win_linetabsize(&mut *wp, lnum, re_st().rex.line.cast(), col);
                                 matched = nfa_re_num_cmp(
                                     t_st.val as u64,
                                     op,
@@ -4539,7 +4539,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         let start_out = (&prog.state)[start_idx].out;
                         if addstate(
                             &mut prog.state,
-                            nextlist,
+                            &mut *nextlist,
                             start_out,
                             Some(m),
                             ptr::null_mut(),

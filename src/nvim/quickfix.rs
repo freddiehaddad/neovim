@@ -1207,8 +1207,8 @@ fn qf_get_next_buf_line(
         if buflnum > lnumlast {
             return QF_END_OF_INPUT;
         }
-        let p_buf = ml_get_buf(buf, buflnum);
-        let len = ml_get_buf_len(buf, buflnum) as usize;
+        let p_buf = ml_get_buf(unsafe { &mut *buf }, buflnum);
+        let len = ml_get_buf_len(unsafe { &mut *buf }, buflnum) as usize;
         state.source = QfInputSource::Buf {
             buf,
             buflnum: buflnum + 1,
@@ -4286,7 +4286,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
         }
 
         let old_line_count = (*buf).b_ml.ml_line_count;
-        let old_endcol = ml_get_buf_len(buf, old_line_count);
+        let old_endcol = ml_get_buf_len(&mut *buf, old_line_count);
         let old_bytecount = get_region_bytecount(&mut *buf, 1, old_line_count, 0, old_endcol);
         let mut qf_winid: c_int = 0;
 
@@ -4318,7 +4318,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
         qf_fill_buffer(qf_get_curlist(&mut *qi), &mut *buf, old_count, qf_winid);
 
         let new_line_count = (*buf).b_ml.ml_line_count;
-        let new_endcol = ml_get_buf_len(buf, new_line_count);
+        let new_endcol = ml_get_buf_len(&mut *buf, new_line_count);
         let delta = new_line_count - old_line_count;
 
         if old_count == 0 {
@@ -5536,7 +5536,7 @@ fn vgr_match_buflines(
                         } else {
                             buf.b_fnum
                         },
-                        ml_get_buf(&raw mut *buf, regmatch.startpos[0].lnum + lnum),
+                        ml_get_buf(buf, regmatch.startpos[0].lnum + lnum),
                         regmatch.startpos[0].lnum + lnum,
                         regmatch.endpos[0].lnum + lnum,
                         regmatch.startpos[0].col + 1,
@@ -5562,13 +5562,13 @@ fn vgr_match_buflines(
                     }
                     col =
                         regmatch.endpos[0].col + colnr_T::from(col == regmatch.endpos[0].col);
-                    if col > ml_get_buf_len(&raw mut *buf, lnum) {
+                    if col > ml_get_buf_len(buf, lnum) {
                         break;
                     }
                 }
             } else {
-                let str_ = ml_get_buf(&raw mut *buf, lnum);
-                let linelen = ml_get_buf_len(&raw mut *buf, lnum);
+                let str_ = ml_get_buf(buf, lnum);
+                let linelen = ml_get_buf_len(buf, lnum);
                 let mut score: c_int = 0;
                 let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 

@@ -2642,7 +2642,7 @@ pub fn find_ident_at_pos(
         let mut prevcol: c_int;
         let mut bn: c_int;
 
-        let mut ptr = ml_get_buf(wp.w_buffer, lnum);
+        let mut ptr = ml_get_buf(wp.buf_mut(), lnum);
         let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
         while i < 2 {
             col = startcol;
@@ -3115,7 +3115,7 @@ pub fn display_showcmd() {
 }
 
 pub fn get_vtopline(wp: &mut win_T) -> c_int {
-    plines_m_win_fill(&raw mut *wp, 1, wp.w_topline) - wp.w_topfill
+    plines_m_win_fill(wp, 1, wp.w_topline) - wp.w_topfill
 }
 
 pub fn do_check_scrollbind(check: bool) {
@@ -3179,7 +3179,7 @@ pub fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
                         let max_vtopline = curr_vtopline
                             + curwin_mut().w_topfill
                             + plines_m_win_fill(
-                                curwin_ptr(),
+                                crate::globals::curwin_mut(),
                                 curwin_mut().w_topline + 1,
                                 curbuf_mut().b_ml.ml_line_count,
                             );
@@ -4671,12 +4671,12 @@ fn nv_scroll(cap: &mut cmdarg_T) {
             }
         } else {
             if cap.cmdchar == b'M' as c_int {
-                let mut used = -(win_get_fill(curwin_ptr(), curwin_mut().w_topline) - curwin_mut().w_topfill);
+                let mut used = -(win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline) - curwin_mut().w_topfill);
                 validate_botline_win(curwin_mut());
                 let half = (curwin_mut().w_view_height - curwin_mut().w_empty_rows + 1) / 2;
                 n = 0;
                 while curwin_mut().w_topline + n < curbuf_mut().b_ml.ml_line_count {
-                    if n > 0 && used + win_get_fill(curwin_ptr(), curwin_mut().w_topline + n) / 2 >= half {
+                    if n > 0 && used + win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline + n) / 2 >= half {
                         n -= 1;
                         break;
                     }

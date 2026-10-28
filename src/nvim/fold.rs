@@ -278,12 +278,12 @@ fn foldLevel(lnum: linenr_T) -> c_int {
 }
 
 /// Low level function to check if a line is folded.
-pub fn lineFolded(win: *mut win_T, lnum: linenr_T) -> bool {
+pub fn lineFolded(win: &mut win_T, lnum: linenr_T) -> bool {
     fold_info(win, lnum).fi_lines != 0
 }
 
 /// Count the number of lines that are folded at line number "lnum".
-pub fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
+pub fn fold_info(win: &mut win_T, lnum: linenr_T) -> foldinfo_T {
     let mut info = foldinfo_T {
             fi_lnum: 0,
             fi_level: 0,
@@ -292,7 +292,7 @@ pub fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
         };
         let mut last: linenr_T = 0;
 
-        if hasFoldingWin(unsafe { &mut *win }, lnum, None, &mut last, false, Some(&mut info)) {
+        if hasFoldingWin( win, lnum, None, &mut last, false, Some(&mut info)) {
             info.fi_lines = last - lnum + 1;
         } else {
             info.fi_lines = 0;
@@ -1305,8 +1305,8 @@ fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: 
         let mut line_is_comment = false;
         let lnum = pos.lnum;
 
-        let line = ml_get_buf(&raw mut *buf, lnum);
-        let line_len = ml_get_buf_len(&raw mut *buf, lnum) as usize;
+        let line = ml_get_buf(buf, lnum);
+        let line_len = ml_get_buf_len(buf, lnum) as usize;
 
         if !u_save(lnum - 1, lnum + 1) {
             return;
@@ -1375,7 +1375,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
         }
 
         let cms = buf.b_p_cms;
-        let line = ml_get_buf(&raw mut *buf, lnum);
+        let line = ml_get_buf(buf, lnum);
         let marker_slice = std::slice::from_raw_parts(marker.cast::<u8>(), markerlen);
         let mut p = line;
         while *p != NUL {
@@ -1409,7 +1409,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
                 }
             }
             if u_save(lnum - 1, lnum + 1) {
-                let orig_len = ml_get_buf_len(&raw mut *buf, lnum) as usize;
+                let orig_len = ml_get_buf_len(buf, lnum) as usize;
                 let mut newline_vec = vec![0 as c_char; orig_len - len + 1];
                 let newline = newline_vec.as_mut_ptr();
                 let before_len = (p as usize) - (line as usize);
@@ -2397,7 +2397,7 @@ fn foldlevelIndent(flp: &mut fline_T) {
     unsafe {
         let lnum = flp.lnum + flp.off;
         let buf = (*flp.wp).w_buffer;
-        let s = skipwhite(ml_get_buf(buf, lnum));
+        let s = skipwhite(ml_get_buf(&mut *buf, lnum));
 
         if *s == NUL || !vim_strchr((*flp.wp).w_onebuf_opt.wo_fdi, *s as u8 as c_int).is_null() {
             flp.lvl = if lnum == 1 || lnum == (*buf).b_ml.ml_line_count {
@@ -2520,7 +2520,7 @@ fn foldlevelMarker(flp: &mut fline_T) {
         flp.start = 0;
         flp.lvl_next = flp.lvl;
 
-        let mut s = ml_get_buf((*flp.wp).w_buffer, flp.lnum + flp.off);
+        let mut s = ml_get_buf(&mut *(*flp.wp).w_buffer, flp.lnum + flp.off);
         while *s != NUL {
             let rem_bytes = crate::memory::cstr_as_bytes(s.add(1));
             if *s == cstart && rem_bytes.starts_with(start_rest) {
@@ -2782,7 +2782,7 @@ pub fn f_foldtextresult(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
         fold_st().fdt_result_entered = true;
         let lnum = tv_get_lnum(&argvars[0]).max(0);
 
-        let info = fold_info(curwin_ptr(), lnum);
+        let info = fold_info(crate::globals::curwin_mut(), lnum);
         if info.fi_lines > 0 {
             let mut vt: VirtText = Vec::new();
             let mut text_bytes =

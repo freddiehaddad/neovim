@@ -1042,7 +1042,7 @@ fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c
             if wlv.diff_hlf != 0 {
                 attr = hl_combine_attr(attr, win_hl_attr(&mut *wp, wlv.diff_hlf));
             }
-            let mut num = get_breakindent_win(wp, ml_get_buf(wp.w_buffer, wlv.lnum));
+            let mut num = get_breakindent_win(wp, ml_get_buf(wp.buf_mut(), wlv.lnum));
             if wlv.row == wlv.startrow {
                 num -= win_col_off2(wp);
                 if wlv.n_extra < 0 {
@@ -1752,10 +1752,10 @@ pub fn win_line(
 
             nextline[SPWORDLEN] = NUL;
             if lnum < wp.buf_mut().b_ml.ml_line_count {
-                let line = ml_get_buf(wp.w_buffer, lnum + 1);
+                let line = ml_get_buf(wp.buf_mut(), lnum + 1);
                 spell_cat_line(nextline_ptr.add(SPWORDLEN), line, SPWORDLEN as c_int);
             }
-            let line = ml_get_buf(wp.w_buffer, lnum);
+            let line = ml_get_buf(wp.buf_mut(), lnum);
 
             let ptr_sw = skipwhite(line);
             if *ptr_sw == NUL {
@@ -1769,7 +1769,7 @@ pub fn win_line(
                 nextlinecol = MAXCOL;
                 nextline_idx = 0;
             } else {
-                let line_len = ml_get_buf_len(wp.w_buffer, lnum);
+                let line_len = ml_get_buf_len(wp.buf_mut(), lnum);
                 if (line_len as usize) < SPWORDLEN {
                     nextlinecol = 0;
                     ptr::copy(line, nextline_ptr, line_len as usize);
@@ -1787,7 +1787,7 @@ pub fn win_line(
         }
 
         let mut line: *mut c_char = if draw_text {
-            ml_get_buf(wp.w_buffer, lnum)
+            ml_get_buf(wp.buf_mut(), lnum)
         } else {
             c"".as_ptr().cast_mut()
         };
@@ -1811,7 +1811,7 @@ pub fn win_line(
                 extra_check = true;
             }
             if wp.w_p_lcs_chars.trail != 0 {
-                trailcol = ml_get_buf_len(wp.w_buffer, lnum);
+                trailcol = ml_get_buf_len(wp.buf_mut(), lnum);
                 while trailcol > 0 && ascii_iswhite(*ptr.add((trailcol - 1) as usize)) {
                     trailcol -= 1;
                 }
@@ -1932,7 +1932,7 @@ pub fn win_line(
                 wp.w_cursor.col = linecol;
                 let len = spell_move_to(&mut *wp, FORWARD, SMT_ALL, true, &raw mut spell_hlf);
 
-                line = ml_get_buf(wp.w_buffer, lnum);
+                line = ml_get_buf(wp.buf_mut(), lnum);
                 ptr = line.add(linecol as usize);
 
                 if len == 0 || wp.w_cursor.col > linecol {
@@ -1957,7 +1957,7 @@ pub fn win_line(
             let col = ptr.offset_from(line) as c_int;
             decor_provider_end_col =
                 decor_providers_setup(endrow - startrow, start_vcol == 0, lnum, col, wp);
-            line = ml_get_buf(wp.w_buffer, lnum);
+            line = ml_get_buf(wp.buf_mut(), lnum);
             ptr = line.add(col as usize);
         }
 
@@ -2023,7 +2023,7 @@ pub fn win_line(
             if check_decor_providers && (ptr.offset_from(line) as c_int) >= decor_provider_end_col {
                 let col = ptr.offset_from(line) as c_int;
                 decor_provider_end_col = invoke_range_next(wp, lnum, col, 100);
-                line = ml_get_buf(wp.w_buffer, lnum);
+                line = ml_get_buf(wp.buf_mut(), lnum);
                 ptr = line.add(col as usize);
                 if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
                     has_decor = true;
@@ -2074,7 +2074,7 @@ pub fn win_line(
                         break;
                     }
                     if draw_text {
-                        line = ml_get_buf(wp.w_buffer, lnum);
+                        line = ml_get_buf(wp.buf_mut(), lnum);
                         ptr = line.add(v as usize);
                     }
                 } else {
@@ -2353,7 +2353,7 @@ pub fn win_line(
                     wlv.sc_extra = 0;
                     wlv.sc_final = 0;
 
-                    line = ml_get_buf(wp.w_buffer, lnum);
+                    line = ml_get_buf(wp.buf_mut(), lnum);
                     ptr = line.add(v as usize);
                 }
 
@@ -2567,7 +2567,7 @@ pub fn win_line(
                                 has_syntax = false;
                             }
 
-                            line = ml_get_buf(wp.w_buffer, lnum);
+                            line = ml_get_buf(wp.buf_mut(), lnum);
                             ptr = line.add(v as usize);
                             prev_ptr = line.offset(prev_v);
 
@@ -3755,8 +3755,8 @@ fn invoke_range_next(
     mut col_off: colnr_T,
 ) -> c_int {
     unsafe {
-        let line = ml_get_buf(wp.w_buffer, lnum);
-        let line_len = ml_get_buf_len(wp.w_buffer, lnum);
+        let line = ml_get_buf(wp.buf_mut(), lnum);
+        let line_len = ml_get_buf_len(wp.buf_mut(), lnum);
         col_off = col_off.max(1);
 
         if col_off <= line_len - begin_col {
