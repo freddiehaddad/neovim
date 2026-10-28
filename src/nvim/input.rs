@@ -478,7 +478,7 @@ fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
     }
 }
 
-fn add_num_buff(buf: *mut StuffBuf, n: c_int) {
+fn add_num_buff(buf: &mut StuffBuf, n: c_int) {
     let mut number = [0 as c_char; 32];
         let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d".as_ptr(), n);
         add_buff(buf, number.as_ptr(), numberlen as isize);
@@ -894,7 +894,7 @@ pub fn stuffcharReadbuff(c: c_int) {
 
 /// Append a number to the stuff buffer.
 pub fn stuffnumReadbuff(n: c_int) {
-    add_num_buff(&raw mut inp_st().readbuf1, n);
+    add_num_buff(&mut inp_st().readbuf1, n);
 }
 
 /// Stuff a string into the typeahead buffer.
@@ -2022,7 +2022,7 @@ fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow_number
 
                 if row >= 0 && col >= 0 {
                     let mut winnr: c_int = 1;
-                    let win = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+                    let win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
                     if win.is_null() {
                         return;
                     }

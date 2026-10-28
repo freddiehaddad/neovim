@@ -830,12 +830,12 @@ pub fn qf_init(
 fn efmpat_to_regpat(
     efmpat: *const c_char,
     mut regpat: *mut c_char,
-    efminfo: *mut efm_T,
+    efminfo: &mut efm_T,
     idx: usize,
     mut round: c_int,
 ) -> *mut c_char {
     unsafe {
-        if (*efminfo).addr[idx] != 0 {
+        if efminfo.addr[idx] != 0 {
             semsg!(
                 gettext(c"E372: Too many %%%c in format string".as_ptr()),
                 c_int::from(*efmpat),
@@ -844,9 +844,9 @@ fn efmpat_to_regpat(
         }
         if (idx != 0
             && idx < FMT_PATTERN_R
-            && !vim_strchr(c"DXOPQ".as_ptr(), c_int::from((*efminfo).prefix as u8)).is_null())
+            && !vim_strchr(c"DXOPQ".as_ptr(), c_int::from(efminfo.prefix as u8)).is_null())
             || (idx == FMT_PATTERN_R
-                && vim_strchr(c"OPQ".as_ptr(), c_int::from((*efminfo).prefix as u8)).is_null())
+                && vim_strchr(c"OPQ".as_ptr(), c_int::from(efminfo.prefix as u8)).is_null())
         {
             semsg!(
                 gettext(c"E373: Unexpected %%%c in format string".as_ptr()),
@@ -855,7 +855,7 @@ fn efmpat_to_regpat(
             return ptr::null_mut();
         }
         round += 1;
-        (*efminfo).addr[idx] = round as c_char;
+        efminfo.addr[idx] = round as c_char;
         *regpat = b'\\' as c_char;
         regpat = regpat.add(1);
         *regpat = b'(' as c_char;
@@ -950,14 +950,14 @@ fn scanf_fmt_to_regpat(
     }
 }
 
-fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: *mut efm_T) -> *const c_char {
+fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: &mut efm_T) -> *const c_char {
     unsafe {
         if !vim_strchr(c"+-".as_ptr(), c_int::from(*efmp as u8)).is_null() {
-            (*efminfo).flags = *efmp;
+            efminfo.flags = *efmp;
             efmp = efmp.add(1);
         }
         if !vim_strchr(c"DXAEWINCZGOPQ".as_ptr(), c_int::from(*efmp as u8)).is_null() {
-            (*efminfo).prefix = *efmp;
+            efminfo.prefix = *efmp;
         } else {
             semsg!(
                 gettext(c"E376: Invalid %%%c in format string prefix".as_ptr()),
@@ -1120,22 +1120,22 @@ fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
     }
 }
 
-fn qf_grow_linebuf(state: *mut qfstate_T, newsz: usize) -> *mut c_char {
-    unsafe {
-        (*state).linelen = if newsz > LINE_MAXLEN {
+fn qf_grow_linebuf(state: &mut qfstate_T, newsz: usize) -> *mut c_char {
+    {
+        state.linelen = if newsz > LINE_MAXLEN {
             LINE_MAXLEN - 1
         } else {
             newsz
         };
-        if (*state).growbuf.len() < (*state).linelen + 1 {
-            (*state).growbuf.resize((*state).linelen + 1, 0);
+        if state.growbuf.len() < state.linelen + 1 {
+            state.growbuf.resize(state.linelen + 1, 0);
         }
-        (*state).use_growbuf = true;
-        (*state).growbuf.as_mut_ptr()
+        state.use_growbuf = true;
+        state.growbuf.as_mut_ptr()
     }
 }
 
-fn qf_get_next_str_line(state: *mut qfstate_T, mut p_str: *mut c_char) -> c_int {
+fn qf_get_next_str_line(state: &mut qfstate_T, mut p_str: *mut c_char) -> c_int {
     unsafe {
         if *p_str == NUL {
             return QF_END_OF_INPUT;
@@ -1151,21 +1151,21 @@ fn qf_get_next_str_line(state: *mut qfstate_T, mut p_str: *mut c_char) -> c_int 
         let linebuf = if len > IOSIZE - 2 {
             qf_grow_linebuf(state, len)
         } else {
-            (*state).use_growbuf = false;
-            (*state).linelen = len;
+            state.use_growbuf = false;
+            state.linelen = len;
             (&raw mut g_st().IObuff).cast::<c_char>()
         };
-        ptr::copy_nonoverlapping(p_str, linebuf, (*state).linelen);
-        *linebuf.add((*state).linelen) = NUL;
+        ptr::copy_nonoverlapping(p_str, linebuf, state.linelen);
+        *linebuf.add(state.linelen) = NUL;
 
         p_str = p_str.add(len);
-        (*state).source = QfInputSource::Str(p_str);
+        state.source = QfInputSource::Str(p_str);
 
         QF_OK
     }
 }
 
-fn qf_get_next_list_line(state: *mut qfstate_T, mut p_li: *mut listitem_T) -> c_int {
+fn qf_get_next_list_line(state: &mut qfstate_T, mut p_li: *mut listitem_T) -> c_int {
     unsafe {
         while !p_li.is_null()
             && ((*p_li).li_tv.v_type != VarType::VAR_STRING
@@ -1175,7 +1175,7 @@ fn qf_get_next_list_line(state: *mut qfstate_T, mut p_li: *mut listitem_T) -> c_
         }
 
         if p_li.is_null() {
-            (*state).source = QfInputSource::List(ptr::null_mut());
+            state.source = QfInputSource::List(ptr::null_mut());
             return QF_END_OF_INPUT;
         }
 
@@ -1184,30 +1184,30 @@ fn qf_get_next_list_line(state: *mut qfstate_T, mut p_li: *mut listitem_T) -> c_
         let linebuf = if len > IOSIZE - 2 {
             qf_grow_linebuf(state, len)
         } else {
-            (*state).use_growbuf = false;
-            (*state).linelen = len;
+            state.use_growbuf = false;
+            state.linelen = len;
             (&raw mut g_st().IObuff).cast::<c_char>()
         };
 
-        xstrlcpy(linebuf, s, (*state).linelen + 1);
-        (*state).source = QfInputSource::List((*p_li).li_next);
+        xstrlcpy(linebuf, s, state.linelen + 1);
+        state.source = QfInputSource::List((*p_li).li_next);
         QF_OK
     }
 }
 
 fn qf_get_next_buf_line(
-    state: *mut qfstate_T,
+    state: &mut qfstate_T,
     buf: *mut buf_T,
     buflnum: linenr_T,
     lnumlast: linenr_T,
 ) -> c_int {
-    unsafe {
+    {
         if buflnum > lnumlast {
             return QF_END_OF_INPUT;
         }
         let p_buf = ml_get_buf(buf, buflnum);
         let len = ml_get_buf_len(buf, buflnum) as usize;
-        (*state).source = QfInputSource::Buf {
+        state.source = QfInputSource::Buf {
             buf,
             buflnum: buflnum + 1,
             lnumlast,
@@ -1216,16 +1216,16 @@ fn qf_get_next_buf_line(
         let linebuf = if len > IOSIZE - 2 {
             qf_grow_linebuf(state, len)
         } else {
-            (*state).use_growbuf = false;
-            (*state).linelen = len;
+            state.use_growbuf = false;
+            state.linelen = len;
             (&raw mut g_st().IObuff).cast::<c_char>()
         };
-        xstrlcpy(linebuf, p_buf, (*state).linelen + 1);
+        xstrlcpy(linebuf, p_buf, state.linelen + 1);
         QF_OK
     }
 }
 
-fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
+fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
     unsafe {
         let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         loop {
@@ -1240,21 +1240,21 @@ fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
         }
 
         let mut discard = false;
-        (*state).linelen = std::ffi::CStr::from_ptr(iobuff_ptr).to_bytes().len();
-        if (*state).linelen == IOSIZE - 1 && *iobuff_ptr.add((*state).linelen - 1) != NL {
-            if (*state).growbuf.len() < 2 * (IOSIZE - 1) {
-                (*state).growbuf.resize(2 * (IOSIZE - 1), 0);
+        state.linelen = std::ffi::CStr::from_ptr(iobuff_ptr).to_bytes().len();
+        if state.linelen == IOSIZE - 1 && *iobuff_ptr.add(state.linelen - 1) != NL {
+            if state.growbuf.len() < 2 * (IOSIZE - 1) {
+                state.growbuf.resize(2 * (IOSIZE - 1), 0);
             }
 
-            ptr::copy_nonoverlapping(iobuff_ptr, (*state).growbuf.as_mut_ptr(), IOSIZE - 1);
-            let mut growbuflen = (*state).linelen;
-            *(*state).growbuf.as_mut_ptr().add(growbuflen) = NUL;
+            ptr::copy_nonoverlapping(iobuff_ptr, state.growbuf.as_mut_ptr(), IOSIZE - 1);
+            let mut growbuflen = state.linelen;
+            *state.growbuf.as_mut_ptr().add(growbuflen) = NUL;
 
             loop {
                 os_set_errno(0);
-                let growbufsiz = (*state).growbuf.len();
+                let growbufsiz = state.growbuf.len();
                 if fgets(
-                    (*state).growbuf.as_mut_ptr().add(growbuflen),
+                    state.growbuf.as_mut_ptr().add(growbuflen),
                     (growbufsiz - growbuflen) as c_int,
                     fd,
                 )
@@ -1265,9 +1265,9 @@ fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
                     }
                     break;
                 }
-                (*state).linelen = std::ffi::CStr::from_ptr((*state).growbuf.as_ptr().add(growbuflen)).to_bytes().len();
-                growbuflen += (*state).linelen;
-                if *(*state).growbuf.as_ptr().add(growbuflen - 1) == NL {
+                state.linelen = std::ffi::CStr::from_ptr(state.growbuf.as_ptr().add(growbuflen)).to_bytes().len();
+                growbuflen += state.linelen;
+                if *state.growbuf.as_ptr().add(growbuflen - 1) == NL {
                     break;
                 }
                 if growbufsiz == LINE_MAXLEN {
@@ -1276,7 +1276,7 @@ fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
                 }
 
                 let new_siz = (2 * growbufsiz).min(LINE_MAXLEN);
-                (*state).growbuf.resize(new_siz, 0);
+                state.growbuf.resize(new_siz, 0);
             }
 
             if discard {
@@ -1294,36 +1294,36 @@ fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
                 }
             }
 
-            (*state).use_growbuf = true;
-            (*state).linelen = growbuflen;
+            state.use_growbuf = true;
+            state.linelen = growbuflen;
         } else {
-            (*state).use_growbuf = false;
+            state.use_growbuf = false;
         }
 
         let cur_linebuf = (*state).linebuf_ptr();
-        if (*state).vc.vc_type != CONV_NONE
+        if state.vc.vc_type != CONV_NONE
             && !cur_linebuf.is_null() && !std::ffi::CStr::from_ptr(cur_linebuf).to_bytes().is_ascii()
             && let Some(line) =
-                string_convert(&(*state).vc, cur_linebuf, &raw mut (*state).linelen)
+                string_convert(&state.vc, cur_linebuf, &raw mut state.linelen)
         {
-            if (*state).linelen < IOSIZE {
-                xstrlcpy(cur_linebuf, line.as_ptr().cast(), (*state).linelen + 1);
+            if state.linelen < IOSIZE {
+                xstrlcpy(cur_linebuf, line.as_ptr().cast(), state.linelen + 1);
             } else {
-                let cap = ((*state).linelen + 1).min(LINE_MAXLEN);
-                if (*state).growbuf.len() < cap {
-                    (*state).growbuf.resize(cap, 0);
+                let cap = (state.linelen + 1).min(LINE_MAXLEN);
+                if state.growbuf.len() < cap {
+                    state.growbuf.resize(cap, 0);
                 }
-                xstrlcpy((*state).growbuf.as_mut_ptr(), line.as_ptr().cast(), cap);
-                (*state).use_growbuf = true;
+                xstrlcpy(state.growbuf.as_mut_ptr(), line.as_ptr().cast(), cap);
+                state.use_growbuf = true;
             }
         }
         QF_OK
     }
 }
 
-fn qf_get_nextline(state: *mut qfstate_T) -> c_int {
+fn qf_get_nextline(state: &mut qfstate_T) -> c_int {
     unsafe {
-        let status = match (&*state).source {
+        let status = match state.source {
             QfInputSource::None => QF_FAIL,
             QfInputSource::File(ref fd) => qf_get_next_file_line(state, fd.as_ptr()),
             QfInputSource::Str(p_str) => qf_get_next_str_line(state, p_str),
@@ -1340,11 +1340,11 @@ fn qf_get_nextline(state: *mut qfstate_T) -> c_int {
         }
 
         let linebuf = (*state).linebuf_ptr();
-        if (*state).linelen > 0 && *linebuf.add((*state).linelen - 1) == NL {
-            *linebuf.add((*state).linelen - 1) = NUL;
+        if state.linelen > 0 && *linebuf.add(state.linelen - 1) == NL {
+            *linebuf.add(state.linelen - 1) = NUL;
             #[cfg(windows)]
-            if (*state).linelen > 1 && *linebuf.add((*state).linelen - 2) == CAR {
-                *linebuf.add((*state).linelen - 2) = NUL;
+            if state.linelen > 1 && *linebuf.add(state.linelen - 2) == CAR {
+                *linebuf.add(state.linelen - 2) = NUL;
             }
         }
 
@@ -2544,16 +2544,16 @@ fn copy_loclist(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> c_int {
         OK
 }
 
-pub fn copy_loclist_stack(from: *mut win_T, to: *mut win_T) {
+pub fn copy_loclist_stack(from: &mut win_T, to: &mut win_T) {
     unsafe {
         let qi = get_loc_list(from);
         if qi.is_null() {
             return;
         }
 
-        let to_ll = qf_alloc_stack(QFLT_LOCATION, (*from).w_onebuf_opt.wo_lhi as c_int);
-        (*to).w_llist = to_ll;
-        (*to).w_onebuf_opt.wo_lhi = i64::from((*to_ll).qf_maxcount);
+        let to_ll = qf_alloc_stack(QFLT_LOCATION, from.w_onebuf_opt.wo_lhi as c_int);
+        to.w_llist = to_ll;
+        to.w_onebuf_opt.wo_lhi = i64::from((*to_ll).qf_maxcount);
         (*to_ll).qf_listcount = (*qi).qf_listcount;
 
         for idx in 0..(*qi).qf_listcount {
@@ -2868,7 +2868,7 @@ fn win_set_loclist(wp: *mut win_T, qi: &mut qf_info_T) {
     }
 }
 
-fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: *mut bool) -> c_int {
+fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut bool) -> c_int {
     unsafe {
         let wp = if g_st().cmdmod.cmod_tab != 0 || newwin {
             ptr::null_mut()
@@ -3057,7 +3057,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
 fn qf_jump_to_usable_window(
     qf_fnum: c_int,
     newwin: bool,
-    opened_window: *mut bool,
+    opened_window: &mut bool,
 ) -> c_int {
     unsafe {
         let mut usable_wp: *mut win_T = ptr::null_mut();
@@ -3849,7 +3849,7 @@ fn qf_free(qfl: &mut qf_list_T) {
 }
 
 pub fn qf_mark_adjust(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     wp: *mut win_T,
     line1: linenr_T,
     line2: linenr_T,
@@ -3865,7 +3865,7 @@ pub fn qf_mark_adjust(
             BUF_HAS_LL_ENTRY
         };
 
-        if ((*buf).b_has_qf_entry & buf_has_flag) == 0 {
+        if (buf.b_has_qf_entry & buf_has_flag) == 0 {
             return false;
         }
         if !wp.is_null() {
@@ -3882,7 +3882,7 @@ pub fn qf_mark_adjust(
                 if g_st().got_int {
                     break;
                 }
-                if qfp.qf_fnum == (*buf).b_fnum {
+                if qfp.qf_fnum == buf.b_fnum {
                     found_one = true;
                     if qfp.qf_cleared == 0 {
                         if qfp.qf_lnum >= line1 && qfp.qf_lnum <= line2 {
@@ -6219,9 +6219,9 @@ fn get_errorlist(
 }
 
 fn qf_get_list_from_lines(
-    what: *mut dict_T,
+    what: &mut dict_T,
     di: *mut dictitem_T,
-    retdict: *mut dict_T,
+    retdict: &mut dict_T,
 ) -> c_int {
     unsafe {
         if (*di).di_tv.v_type != VarType::VAR_LIST || (*di).di_tv.vval.v_list().is_null() {
@@ -6295,7 +6295,7 @@ fn qf_getprop_qfbufnr(qi: *const qf_info_T, retdict: &mut dict_T) -> c_int {
     }
 }
 
-fn qf_getprop_keys2flags(what: *const dict_T, loclist: bool) -> c_int {
+fn qf_getprop_keys2flags(what: &dict_T, loclist: bool) -> c_int {
     let mut flags = QF_GETLIST_NONE;
 
         if !tv_dict_find(what, c"all".as_ptr(), 3).is_null() {
@@ -6384,7 +6384,7 @@ fn qf_getprop_defaults(
     qi: *mut qf_info_T,
     flags: c_int,
     locstack: bool,
-    retdict: *mut dict_T,
+    retdict: &mut dict_T,
 ) -> c_int {
     unsafe {
         let mut status = OK;
@@ -6437,7 +6437,7 @@ fn qf_getprop_defaults(
     }
 }
 
-fn qf_getprop_title(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
+fn qf_getprop_title(qfl: &mut qf_list_T, retdict: &mut dict_T) -> c_int {
     tv_dict_add_str(
             retdict,
             c"title".as_ptr(),

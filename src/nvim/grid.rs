@@ -444,8 +444,8 @@ pub fn grid_allocated(grid: &ScreenGrid) -> bool {
 }
 
 /// Clear a line in the grid starting at `off` until `width` characters are cleared (`grid_clear_line`).
-pub fn grid_clear_line(grid: *mut ScreenGrid, off: usize, width: c_int, valid: bool) {
-    unsafe {
+pub fn grid_clear_line(grid: &mut ScreenGrid, off: usize, width: c_int, valid: bool) {
+    {
         let grid = &mut *grid;
         let len = width as usize;
         grid.chars[off..off + len].fill(schar_from_ascii(b' '));
@@ -464,8 +464,8 @@ pub fn grid_invalidate(grid: *mut ScreenGrid) {
 }
 
 #[inline]
-fn grid_invalid_row(grid: *mut ScreenGrid, row: c_int) -> bool {
-    unsafe {
+fn grid_invalid_row(grid: &mut ScreenGrid, row: c_int) -> bool {
+    {
         let grid = &*grid;
         grid.attrs[grid.line_offset[row as usize]] < 0
     }
@@ -793,12 +793,12 @@ pub fn grid_clear(
 
 #[inline]
 fn grid_char_needs_redraw(
-    grid: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     col: c_int,
     off_to: usize,
     cols: c_int,
 ) -> bool {
-    unsafe {
+    {
         let grid = &*grid;
         cols > 0
             && ((g_st().linebuf_char[col as usize] != grid.chars[off_to]
@@ -1044,7 +1044,7 @@ pub fn grid_alloc(
             let row_off = new_row as usize * ngrid.cols as usize;
             ngrid.line_offset[new_row as usize] = row_off;
 
-            grid_clear_line(&raw mut ngrid, row_off, columns, valid);
+            grid_clear_line(&mut ngrid, row_off, columns, valid);
 
             if copy && new_row < grid.rows && !grid.chars.is_empty() {
                 let len = grid.cols.min(ngrid.cols) as usize;
@@ -1455,8 +1455,8 @@ pub fn grid_draw_border(
     }
 }
 
-fn linecopy(grid: *mut ScreenGrid, to: c_int, from: c_int, col: c_int, width: c_int) {
-    unsafe {
+fn linecopy(grid: &mut ScreenGrid, to: c_int, from: c_int, col: c_int, width: c_int) {
+    {
         let grid = &mut *grid;
         let off_to = (grid.line_offset[to as usize] + col as usize) as c_uint as usize;
         let off_from = (grid.line_offset[from as usize] + col as usize) as c_uint as usize;

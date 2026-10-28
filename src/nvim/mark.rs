@@ -946,15 +946,15 @@ pub fn fmarks_check_names(buf: &mut buf_T) {
     }
 }
 
-fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: *mut buf_T) {
-    unsafe {
+fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: &mut buf_T) {
+    {
         if fm.fmark.fnum == 0
             && fm
                 .fname
                 .as_ref()
                 .is_some_and(|f| path_equal(name, f.as_ptr(), kPathCmpLiteral))
         {
-            fm.fmark.fnum = (*buf).b_fnum;
+            fm.fmark.fnum = buf.b_fnum;
             fm.fname = None;
         }
     }

@@ -729,7 +729,7 @@ pub fn profile_init(si: *mut scriptitem_T) {
 }
 
 /// Save time when starting to invoke another script or function (`script_prof_save`).
-pub fn script_prof_save(tm: *mut proftime_T) {
+pub fn script_prof_save(tm: &mut proftime_T) {
     unsafe {
         if script_id_valid(g_st().current_sctx.sc_sid) {
             let si = &mut *script_item(g_st().current_sctx.sc_sid);
@@ -742,13 +742,13 @@ pub fn script_prof_save(tm: *mut proftime_T) {
             }
         }
     }
-    unsafe {
+    {
         *tm = profile_get_wait();
     }
 }
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
-pub fn script_prof_restore(tm: *const proftime_T) {
+pub fn script_prof_restore(tm: &proftime_T) {
     unsafe {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;

@@ -6284,27 +6284,27 @@ pub fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_i
     }
 }
 
-fn profile_cmd(eap: &exarg_T, cstack: *mut cstack_T, fgetline: LineGetter) {
+fn profile_cmd(eap: &exarg_T, cstack: &mut cstack_T, fgetline: LineGetter) {
     unsafe {
         if g_st().do_profiling == PROF_YES
             && (eap.skip == 0
-                || (*cstack).cs_idx == 0
-                || ((*cstack).cs_idx > 0
-                    && ((*cstack).cs_flags[((*cstack).cs_idx - 1) as usize] & CSF_ACTIVE) != 0))
+                || cstack.cs_idx == 0
+                || (cstack.cs_idx > 0
+                    && (cstack.cs_flags[(cstack.cs_idx - 1) as usize] & CSF_ACTIVE) != 0))
         {
             let mut skip = g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw;
 
             if eap.cmdidx == cmdidx_T::CMD_catch as c_int {
                 skip = !skip
-                    && !((*cstack).cs_idx >= 0
-                        && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_THROWN) != 0
-                        && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_CAUGHT) == 0);
+                    && !(cstack.cs_idx >= 0
+                        && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_THROWN) != 0
+                        && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_CAUGHT) == 0);
             } else if eap.cmdidx == cmdidx_T::CMD_else as c_int
                 || eap.cmdidx == cmdidx_T::CMD_elseif as c_int
             {
                 skip = skip
-                    || !((*cstack).cs_idx >= 0
-                        && ((*cstack).cs_flags[(*cstack).cs_idx as usize]
+                    || !(cstack.cs_idx >= 0
+                        && (cstack.cs_flags[cstack.cs_idx as usize]
                             & (CSF_ACTIVE | CSF_TRUE))
                             == 0);
             } else if eap.cmdidx == cmdidx_T::CMD_finally as c_int {

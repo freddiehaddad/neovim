@@ -1813,8 +1813,8 @@ pub fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     }
 }
 
-pub fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
-    unsafe {
+pub fn mc_on_extmark_set(buf: &mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
+    {
         if ns_id != mc_ns() {
             return;
         }
@@ -1834,7 +1834,7 @@ pub fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
             mc_lua_enable(true);
         }
         let mut ctx = CONTEXT_INIT;
-        ctx.buf = (*buf).b_fnum;
+        ctx.buf = buf.b_fnum;
         ctx.pos = pos;
         ctx.mark = id;
         cursors_mut().push(ctx);

@@ -536,7 +536,6 @@ pub fn vterm_input_write(vt: &mut VTerm, bytes: *const c_char, len: usize) -> us
 pub fn vterm_parser_set_callbacks(
     vt: &mut VTerm,
     callbacks: Option<&'static VTermParserCallbacks>,
-    _user: *mut VTermStateFull,
 ) {
     vt.parser.callbacks = callbacks;
 }

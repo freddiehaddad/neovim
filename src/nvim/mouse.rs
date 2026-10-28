@@ -406,7 +406,7 @@ fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
             return IN_UNKNOWN;
         }
 
-        let wp = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if wp.is_null() {
             return IN_UNKNOWN;
         }
@@ -842,7 +842,7 @@ pub fn do_mouse(
             let mut click_row = g_st().mouse_row;
             let mut click_col = g_st().mouse_col;
             let wp =
-                mouse_find_win_inner(&raw mut click_grid, &raw mut click_row, &raw mut click_col);
+                mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col);
             if wp.is_null() {
                 return false;
             }
@@ -1282,7 +1282,7 @@ pub fn ins_mousescroll(dir: c_int) {
             let mut grid = g_st().mouse_grid;
             let mut row = g_st().mouse_row;
             let mut col = g_st().mouse_col;
-            *curwin.as_ptr() = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+            *curwin.as_ptr() = mouse_find_win_inner(&mut grid, &mut row, &mut col);
             if (*curwin.as_ptr()).is_null() {
                 *curwin.as_ptr() = old_curwin;
                 return;
@@ -1340,7 +1340,7 @@ pub fn cmdline_mousescroll(dir: c_int) -> bool {
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
 
-        let wp = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if wp.is_null() || (*wp).w_kind != kWinInfo {
             return false;
         }
@@ -1473,7 +1473,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
             return IN_UNKNOWN;
         }
 
-        let wp = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if wp.is_null() {
             return IN_UNKNOWN;
         }
@@ -1775,7 +1775,7 @@ pub fn nv_mousescroll(cap: &mut cmdarg_T) {
             let mut grid = g_st().mouse_grid;
             let mut row = g_st().mouse_row;
             let mut col = g_st().mouse_col;
-            *curwin.as_ptr() = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+            *curwin.as_ptr() = mouse_find_win_inner(&mut grid, &mut row, &mut col);
             if (*curwin.as_ptr()).is_null() {
                 *curwin.as_ptr() = old_curwin;
                 return;
@@ -1926,9 +1926,9 @@ pub fn mouse_comp_pos(
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window inner area.
 pub fn mouse_find_win_inner(
-    gridp: *mut c_int,
-    rowp: *mut c_int,
-    colp: *mut c_int,
+    gridp: &mut c_int,
+    rowp: &mut c_int,
+    colp: &mut c_int,
 ) -> *mut win_T {
     unsafe {
         let wp_grid = mouse_find_grid_win(&mut *gridp, &mut *rowp, &mut *colp);
@@ -2144,7 +2144,7 @@ fn mouse_check_grid(vcolp: &mut colnr_T, flagsp: &mut c_int) {
         let mut click_row = g_st().mouse_row;
         let mut click_col = g_st().mouse_col;
 
-        if mouse_find_win_inner(&raw mut click_grid, &raw mut click_row, &raw mut click_col)
+        if mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col)
             != *curwin.as_ptr()
             || (**curwin.as_ptr()).w_redr_type != 0
         {
@@ -2210,7 +2210,7 @@ pub fn f_getmousepos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             varnumber_T::from(g_st().mouse_col) + 1,
         );
 
-        let wp = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if !wp.is_null() {
             let height = (*wp).w_height + (*wp).w_hsep_height + (*wp).w_status_height;
             if row < height + (*wp).w_border_adj[2] {

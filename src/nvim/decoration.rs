@@ -664,7 +664,7 @@ pub fn buf_put_decor_sh(
 }
 
 pub fn buf_decor_remove(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     row1: c_int,
     mut row2: c_int,
     col1: c_int,
@@ -673,10 +673,10 @@ pub fn buf_decor_remove(
 ) {
     unsafe {
         decor_redraw(buf, row1, row2, col1, decor);
-        if decor.is_ext() && row1 < (*buf).b_ml.ml_line_count {
+        if decor.is_ext() && row1 < buf.b_ml.ml_line_count {
             let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
-            row2 = row2.min((*buf).b_ml.ml_line_count - 1);
+            row2 = row2.min(buf.b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
                 let sh = &(&*items)[idx as usize];
                 let next = sh.next;
@@ -691,19 +691,19 @@ pub fn buf_decor_remove(
 }
 
 pub fn buf_remove_decor_sh(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     row1: c_int,
     row2: c_int,
     sh: &DecorSignHighlight,
 ) {
-    unsafe {
+    {
         if (sh.flags & kSHIsSign) != 0 && sh.text[0] != 0 {
             if buf_meta_total(&*buf, kMTMetaSignText) != 0 {
                 buf_signcols_count_range(buf, row1, row2, -1, kFalse);
             } else {
                 may_force_numberwidth_recompute(buf, true);
-                (*buf).b_signcols.count[0] = 0;
-                (*buf).b_signcols.max = 0;
+                buf.b_signcols.count[0] = 0;
+                buf.b_signcols.max = 0;
             }
         }
     }

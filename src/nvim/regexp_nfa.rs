@@ -1934,7 +1934,7 @@ fn append(mut l1: Vec<NfaOutSlot>, l2: Vec<NfaOutSlot>) -> Vec<NfaOutSlot> {
     l1
 }
 
-fn st_error(_postfix: *mut c_int, _end: *mut c_int, _p: *mut c_int) {
+fn st_error() {
     emsg(tr(c"E874: (NFA) Could not pop the stack!".as_ptr()));
 }
 
@@ -2064,7 +2064,7 @@ fn post2nfa(
         macro_rules! pop {
             ($p:ident) => {{
                 let Some(val) = stack.pop() else {
-                    st_error(postfix, end, $p);
+                    st_error();
                     return None;
                 };
                 val

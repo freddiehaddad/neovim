@@ -354,7 +354,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
                 extmark_set_pos(
                     g_st().curbuf,
                     ctx_marks_ns(),
-                    &raw mut ctx.pos_marks[i],
+                    &mut ctx.pos_marks[i],
                     p,
                     true,
                     true,

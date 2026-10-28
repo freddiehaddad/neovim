@@ -1205,7 +1205,6 @@ fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
 }
 
 fn handle_inline_virtual_text(
-    _wp: *mut win_T,
     wlv: &mut winlinevars_T,
     v: isize,
     selected: bool,
@@ -2006,9 +2005,8 @@ pub fn win_line(
 
         let mut term_attrs = [0 as c_int; TERM_ATTRS_MAX];
         if !(*wp.w_buffer).terminal.is_null() {
-            terminal_get_line_attributes(&mut *
-                (*wp.w_buffer).terminal,
-                &raw mut *wp,
+            terminal_get_line_attributes(
+                &mut *(*wp.w_buffer).terminal,
                 lnum,
                 (&raw mut term_attrs).cast::<c_int>(),
             );
@@ -2220,7 +2218,6 @@ pub fn win_line(
                         );
                         if may_have_inline_virt {
                             handle_inline_virtual_text(
-                                &raw mut *wp,
                                 &mut wlv,
                                 ptr.offset_from(line),
                                 selected,

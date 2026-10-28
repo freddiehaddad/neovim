@@ -2309,9 +2309,9 @@ fn ins_compl_files(
                         if fuzzy_match_str_in_line(
                             &raw mut ptr,
                             leader,
-                            &raw mut len,
+                            &mut len,
                             None,
-                            &raw mut score,
+                            &mut score,
                         ) {
                             let end_ptr = if ctrl_x_mode_line_or_eval() {
                                 find_line_end(ptr)

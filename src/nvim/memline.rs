@@ -3278,14 +3278,14 @@ fn ml_find_line(buf: &mut buf_T, lnum: linenr_T, action: c_int) -> *mut bhdr_T {
     }
 }
 
-fn ml_find_line_error_noblock(buf: *mut buf_T, action: c_int) -> *mut bhdr_T {
-    unsafe {
+fn ml_find_line_error_noblock(buf: &mut buf_T, action: c_int) -> *mut bhdr_T {
+    {
         if action == ML_DELETE {
             ml_lineadd(&mut *buf, 1);
         } else if action == ML_INSERT {
             ml_lineadd(&mut *buf, -1);
         }
-        (*buf).b_ml.ml_stack_top = 0;
+        buf.b_ml.ml_stack_top = 0;
         ptr::null_mut()
     }
 }
@@ -3379,8 +3379,6 @@ pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
 /// Make swapfile name out of the file name and a directory name.
 pub fn makeswapname(
     fname: *mut c_char,
-    _ffname: *mut c_char,
-    _buf: *mut buf_T,
     dir_name: *mut c_char,
 ) -> Option<std::ffi::CString> {
     unsafe {
@@ -3571,7 +3569,7 @@ fn findswapname(
         let dir_name = dir_name_vec.as_mut_ptr();
         copy_option_part(dirp, dir_name, dir_len, c",".as_ptr());
 
-        let mut fname_vec: Option<Vec<c_char>> = makeswapname(buf_fname, buf.b_ffname, buf, dir_name)
+        let mut fname_vec: Option<Vec<c_char>> = makeswapname(buf_fname, dir_name)
             .map(|cstr| cstr.into_bytes_with_nul().into_iter().map(|b| b as c_char).collect());
 
         while let Some(ref mut fvec) = fname_vec {

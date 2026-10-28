@@ -34,7 +34,7 @@ use crate::eval::userfunc::{
 use crate::eval::window::find_win_by_nr;
 use crate::eval::{
     AUTOLOAD_CHAR, DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE,
-    callback_call, clear_evalarg, eval_isnamec1, eval_st, eval_option, eval_to_string,
+    callback_call, eval_isnamec1, eval_st, eval_option, eval_to_string,
     eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
     get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide, num_modulus,
     partial_unref, set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
@@ -1241,7 +1241,7 @@ pub fn ex_let(eap: &mut exarg_T) {
                 list_win_vars(&mut first);
                 list_tab_vars(&mut first);
                 list_script_vars(&mut first);
-                list_func_vars(&raw mut first);
+                list_func_vars(&mut first);
                 list_vim_vars(&mut first);
             }
             eap.nextcmd = check_nextcmd(arg);
@@ -1295,12 +1295,11 @@ pub fn ex_let(eap: &mut exarg_T) {
             g_st().emsg_skip += 1;
         }
         let mut evalarg = evalarg_T::new();
-        fill_evalarg_from_eap(&mut evalarg, eap, eap.skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
         let eval_res = eval0(expr, &raw mut rettv, eap, &raw mut evalarg);
         if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }
-        clear_evalarg(&raw mut evalarg, eap);
 
         if eap.skip == 0 && eval_res != FAIL {
             ex_let_vars(

@@ -20,7 +20,7 @@ use crate::vterm::pen::{
     vterm_state_setpen,
 };
 use crate::vterm::screen::{
-    VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermLineInfo, VTermScreen,
+    VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermLineInfo,
     VTermStateFields,
 };
 use crate::vterm::vterm::{
@@ -2485,8 +2485,7 @@ pub fn vterm_obtain_state(vt: &mut VTerm) -> &'static mut VTermStateFull {
     unsafe {
         if vt.state.is_none() {
             vt.state = Some(vterm_state_new(vt));
-            let state = vt.state_mut_ptr();
-            vterm_parser_set_callbacks(vt, Some(&PARSER_CALLBACKS), &raw mut *state);
+            vterm_parser_set_callbacks(vt, Some(&PARSER_CALLBACKS));
         }
         &mut *vt.state_mut_ptr()
     }
@@ -2574,7 +2573,6 @@ pub fn vterm_state_reset(state: &mut VTermStateFull, hard: c_int) {
 pub fn vterm_state_set_callbacks(
     state: &mut VTermStateFull,
     callbacks: Option<&'static VTermStateCallbacks>,
-    _user: *mut VTermScreen,
 ) {
     if let Some(cbs) = callbacks {
             state.callbacks = Some(cbs);

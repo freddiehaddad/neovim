@@ -1915,7 +1915,7 @@ fn nlua_exec_typval_fmt(
         );
 }
 
-pub fn nlua_call_luaeval(str_: NvimString, arg: *mut typval_T, ret_tv: *mut typval_T) {
+pub fn nlua_call_luaeval(str_: NvimString, arg: *mut typval_T, ret_tv: &mut typval_T) {
     nlua_exec_typval_fmt(
             c"local _A=select(1,...) return (%.*s)".as_ptr(),
             str_.data,

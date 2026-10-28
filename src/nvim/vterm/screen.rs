@@ -1443,7 +1443,7 @@ pub fn vterm_obtain_screen(vt: &mut VTerm) -> &'static mut VTermScreen {
             vt.screen = screen_new(vt);
             let screen_ptr = vt.screen_mut_ptr();
             if !screen_ptr.is_null() {
-                vterm_state_set_callbacks(&mut *vt.state_mut_ptr(), Some(&STATE_CBS), screen_ptr);
+                vterm_state_set_callbacks(&mut *vt.state_mut_ptr(), Some(&STATE_CBS));
             }
         }
         &mut *vt.screen_mut_ptr()

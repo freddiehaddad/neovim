@@ -825,7 +825,7 @@ fn uc_list(name: *mut c_char, name_len: usize) {
 pub fn parse_addr_type_arg(
     value: *mut c_char,
     vallen: c_int,
-    addr_type_arg: *mut cmd_addr_T,
+    addr_type_arg: &mut cmd_addr_T,
 ) -> c_int {
     unsafe {
         for entry in &ADDR_TYPE_COMPLETE {
@@ -860,8 +860,8 @@ pub fn parse_addr_type_arg(
 pub fn parse_compl_arg(
     value: *const c_char,
     vallen: c_int,
-    complp: *mut c_int,
-    argt: *mut u32,
+    complp: &mut c_int,
+    argt: &mut u32,
     compl_arg: &mut Option<CString>,
 ) -> c_int {
     unsafe {

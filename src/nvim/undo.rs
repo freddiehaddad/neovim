@@ -2406,7 +2406,7 @@ pub fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
         let now = os_time() as time_t;
         if now - tt >= 100 {
             let mut curtime = Tm { _fields: [0; 16] };
-            os_localtime_r(&raw const tt, &raw mut curtime);
+            os_localtime_r(&tt, &raw mut curtime);
             let n = if (os_time() as time_t) - tt < 60 * 60 * 12 {
                 strftime(buf, buflen, c"%H:%M:%S".as_ptr(), &raw const curtime)
             } else {

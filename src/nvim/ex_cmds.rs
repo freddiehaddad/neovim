@@ -2420,7 +2420,7 @@ pub fn check_overwrite(
                     let mut p = opt_vars().p_dir;
                     copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",".as_ptr());
                 }
-                if let Some(swapname) = makeswapname(fname, ffname, g_st().curbuf, dir.as_mut_ptr())
+                if let Some(swapname) = makeswapname(fname, dir.as_mut_ptr())
                     && os_path_exists(swapname.as_ptr())
                 {
                     if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {

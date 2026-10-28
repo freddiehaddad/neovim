@@ -288,9 +288,8 @@ pub fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
 }
 
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
-pub fn encode_check_json_key(tv: *const typval_T) -> bool {
+pub fn encode_check_json_key(tv: &typval_T) -> bool {
     unsafe {
-        let tv = &*tv;
         if tv.v_type == VarType::VAR_STRING {
             return true;
         }

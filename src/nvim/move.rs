@@ -175,13 +175,13 @@ fn comp_botline(wp: &mut win_T) {
 }
 
 /// Redraw when `w_cline_row` changes and `'relativenumber'` or `'cursorline'` is set.
-fn redraw_for_cursorline(wp: *mut win_T) {
-    unsafe {
-        if ((*wp).w_valid & VALID_CROW) != 0 {
+fn redraw_for_cursorline(wp: &mut win_T) {
+    {
+        if (wp.w_valid & VALID_CROW) != 0 {
             return;
         }
 
-        if (*wp).w_onebuf_opt.wo_rnu != 0 || win_cursorline_standout(&*wp) {
+        if wp.w_onebuf_opt.wo_rnu != 0 || win_cursorline_standout(&*wp) {
             redraw_later(wp, UPD_VALID);
         }
     }
@@ -1858,20 +1858,20 @@ pub fn scrollup_clamp() {
     }
 }
 
-fn topline_back_winheight(wp: *mut win_T, lp: *mut lineoff_T, winheight: bool) {
-    unsafe {
-        if (*lp).fill < win_get_fill(wp, (*lp).lnum) {
-            (*lp).fill += 1;
-            (*lp).height = 1;
+fn topline_back_winheight(wp: *mut win_T, lp: &mut lineoff_T, winheight: bool) {
+    {
+        if lp.fill < win_get_fill(wp, lp.lnum) {
+            lp.fill += 1;
+            lp.height = 1;
         } else {
-            (*lp).lnum -= 1;
-            (*lp).fill = 0;
-            if (*lp).lnum < 1 {
-                (*lp).height = MAXCOL;
-            } else if hasFolding(wp, (*lp).lnum, &raw mut (*lp).lnum, ptr::null_mut()) {
-                (*lp).height = c_int::from(!decor_conceal_line(wp, (*lp).lnum - 1, false));
+            lp.lnum -= 1;
+            lp.fill = 0;
+            if lp.lnum < 1 {
+                lp.height = MAXCOL;
+            } else if hasFolding(wp, lp.lnum, &raw mut lp.lnum, ptr::null_mut()) {
+                lp.height = c_int::from(!decor_conceal_line(wp, lp.lnum - 1, false));
             } else {
-                (*lp).height = plines_win_nofill(wp, (*lp).lnum, winheight);
+                lp.height = plines_win_nofill(wp, lp.lnum, winheight);
             }
         }
     }
@@ -2045,7 +2045,7 @@ pub fn scroll_cursor_bot(wp: &mut win_T, min_scroll: c_int, set_topbot: bool) {
             loff.lnum = cln_last + 1;
             loff.fill = 0;
             loop {
-                topline_back_winheight(wp, &raw mut loff, false);
+                topline_back_winheight(wp, &mut loff, false);
                 if loff.height == MAXCOL {
                     break;
                 }
@@ -2265,7 +2265,7 @@ pub fn scroll_cursor_halfway(wp: &mut win_T, atend: bool, prefer_above: bool) {
         let mut below: c_int = 0;
         while topline > 1 {
             if do_sms {
-                topline_back_winheight(wp, &raw mut loff, false);
+                topline_back_winheight(wp, &mut loff, false);
                 if loff.height == MAXCOL {
                     break;
                 }

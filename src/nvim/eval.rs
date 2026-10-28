@@ -381,7 +381,7 @@ fn tv_list_item_tv(li: &mut listitem_T) -> *mut typval_T {
 }
 
 #[inline]
-fn tv_list_item_next(_l: *const list_T, li: *const listitem_T) -> *mut listitem_T {
+fn tv_list_item_next(li: *const listitem_T) -> *mut listitem_T {
     unsafe { (*li).li_next }
 }
 
@@ -442,10 +442,10 @@ pub fn eval_clear() {
         free_all_functions();
 }
 
-pub fn fill_evalarg_from_eap(evalarg: &mut evalarg_T, _eap: *mut exarg_T, skip: bool) {
+pub fn fill_evalarg_from_eap(evalarg: &mut evalarg_T, skip: bool) {
     *evalarg = evalarg_T {
-            eval_flags: if skip { 0 } else { EVAL_EVALUATE },
-        };
+        eval_flags: if skip { 0 } else { EVAL_EVALUATE },
+    };
 }
 
 /// Top level evaluation function, returning a boolean.
@@ -461,7 +461,7 @@ pub fn eval_to_bool(
         let mut retval = false;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, &raw mut *eap, skip);
+        fill_evalarg_from_eap(&mut evalarg, skip);
 
         if skip {
             g_st().emsg_skip += 1;
@@ -483,7 +483,6 @@ pub fn eval_to_bool(
         if skip {
             g_st().emsg_skip -= 1;
         }
-        clear_evalarg(&raw mut evalarg, &raw mut *eap);
 
         retval
 }
@@ -496,7 +495,7 @@ fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exarg_T) ->
         let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, !eap.is_null() && (*eap).skip != 0);
 
         let ret = eval1(arg, rettv, &raw mut evalarg);
         if ret == FAIL
@@ -506,7 +505,6 @@ fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exarg_T) ->
         {
             semsg!(gettext((&raw const e_invexpr2).cast()), start);
         }
-        clear_evalarg(&raw mut evalarg, eap);
         ret
     }
 }
@@ -663,7 +661,7 @@ pub fn eval_to_string_skip(
         let retval: Option<std::ffi::CString>;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, &raw mut *eap, skip);
+        fill_evalarg_from_eap(&mut evalarg, skip);
         if skip {
             g_st().emsg_skip += 1;
         }
@@ -676,7 +674,6 @@ pub fn eval_to_string_skip(
         if skip {
             g_st().emsg_skip -= 1;
         }
-        clear_evalarg(&raw mut evalarg, &raw mut *eap);
 
         retval
 }
@@ -738,7 +735,7 @@ pub fn eval_to_string_eap(
         let retval: Option<std::ffi::CString>;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, !eap.is_null() && (*eap).skip != 0);
         let r = if use_simple_function {
             eval0_simple_funccal(arg, &raw mut tv, ptr::null_mut(), &raw mut evalarg)
         } else {
@@ -832,7 +829,7 @@ pub fn eval_expr_ext(
         let mut tv = tv_initial_value();
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, !eap.is_null() && (*eap).skip != 0);
 
         let mut r = NOTDONE;
 
@@ -842,8 +839,6 @@ pub fn eval_expr_ext(
         if r == NOTDONE {
             r = eval0(arg, &raw mut tv, eap, &raw mut evalarg);
         }
-
-        clear_evalarg(&raw mut evalarg, eap);
         (r != FAIL).then_some(tv)
     }
 }
@@ -1875,12 +1870,12 @@ pub fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                 tv_clear(&raw mut tv);
                 result
             }
-            ForSource::List { list, lw } => {
+            ForSource::List { list: _, lw } => {
                 let item = lw.lw_item.get();
                 if item.is_null() {
                     return false;
                 }
-                lw.lw_item.set(tv_list_item_next(*list, item));
+                lw.lw_item.set(tv_list_item_next(item));
                 ex_let_vars(
                     arg,
                     &mut *tv_list_item_tv(&mut *item),
@@ -2117,8 +2112,6 @@ fn eval_func(
 }
 
 /// After using "evalarg" filled from "eap": free the memory.
-pub fn clear_evalarg(_evalarg: *mut evalarg_T, _eap: *mut exarg_T) {}
-
 /// Handle zero level expression.
 pub fn eval0(
     arg: *mut c_char,
@@ -5650,7 +5643,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
                 ret.push(if *s == b'\n' as c_char { NUL } else { *s });
                 s = s.add(1);
             }
-            if endnl || !tv_list_item_next(list, li).is_null() {
+            if endnl || !tv_list_item_next(li).is_null() {
                 if crlf {
                     ret.push(b'\r' as c_char);
                 }
@@ -6573,7 +6566,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
         let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, eap.skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
         if eap.skip != 0 {
             g_st().emsg_skip += 1;
@@ -6624,7 +6617,6 @@ pub fn ex_echo(eap: &mut exarg_T) {
             arg = skipwhite(arg);
         }
         eap.nextcmd = check_nextcmd(arg);
-        clear_evalarg(&raw mut evalarg, eap);
         msg_ext_set_append(false);
 
         if eap.skip != 0 {

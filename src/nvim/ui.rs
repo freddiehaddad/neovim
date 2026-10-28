@@ -524,7 +524,7 @@ pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
 }
 
 pub fn ui_line(
-    grid: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     row: c_int,
     invalid_row: bool,
     startcol: c_int,
@@ -534,7 +534,7 @@ pub fn ui_line(
     wrap: bool,
 ) {
     unsafe {
-        debug_assert!(0 <= row && row < (*grid).rows);
+        debug_assert!(0 <= row && row < grid.rows);
         let mut flags = if wrap { kLineFlagWrap } else { 0 };
         if startcol == 0 && invalid_row {
             flags |= kLineFlagInvalid;

@@ -373,7 +373,7 @@ pub fn diff_invalidate(buf: *mut buf_T) {
     }
 }
 pub fn diff_mark_adjust(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
@@ -3718,7 +3718,7 @@ pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
         n.min(dp.df_lnum[u_i] + dp.df_count[u_i])
     }
 }
-fn parse_diff_ed(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
+fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
     unsafe {
         let mut p = line;
         let f1 = getdigits_int32(&raw mut p, true, 0);
@@ -3744,23 +3744,23 @@ fn parse_diff_ed(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
             return FAIL;
         }
         if difftype == b'a' {
-            (*hunk).lnum_orig = f1 + 1;
-            (*hunk).count_orig = 0;
+            hunk.lnum_orig = f1 + 1;
+            hunk.count_orig = 0;
         } else {
-            (*hunk).lnum_orig = f1;
-            (*hunk).count_orig = l1 - f1 + 1;
+            hunk.lnum_orig = f1;
+            hunk.count_orig = l1 - f1 + 1;
         }
         if difftype == b'd' {
-            (*hunk).lnum_new = f2 + 1;
-            (*hunk).count_new = 0;
+            hunk.lnum_new = f2 + 1;
+            hunk.count_new = 0;
         } else {
-            (*hunk).lnum_new = f2;
-            (*hunk).count_new = l2 - f2 + 1;
+            hunk.lnum_new = f2;
+            hunk.count_new = l2 - f2 + 1;
         }
         OK
     }
 }
-fn parse_diff_unified(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
+fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
     unsafe {
         let mut p = line;
         if *p == b'@' as c_char
@@ -3794,10 +3794,10 @@ fn parse_diff_unified(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
                 if newline == 0 {
                     newline = 1;
                 }
-                (*hunk).lnum_orig = oldline;
-                (*hunk).count_orig = oldcount;
-                (*hunk).lnum_new = newline;
-                (*hunk).count_new = newcount;
+                hunk.lnum_orig = oldline;
+                hunk.count_orig = oldcount;
+                hunk.lnum_new = newline;
+                hunk.count_new = newcount;
                 return OK;
             }
             return FAIL;
@@ -3916,7 +3916,7 @@ mod tests {
             };
             let mut ed_line = *b"2,4c5,6\n\0";
             assert_eq!(
-                parse_diff_ed(ed_line.as_mut_ptr().cast(), &raw mut hunk),
+                parse_diff_ed(ed_line.as_mut_ptr().cast(), &mut hunk),
                 OK
             );
             assert_eq!(hunk.lnum_orig, 2);
@@ -3925,7 +3925,7 @@ mod tests {
             assert_eq!(hunk.count_new, 2);
             let mut uni_line = *b"@@ -10,3 +12,4 @@\n\0";
             assert_eq!(
-                parse_diff_unified(uni_line.as_mut_ptr().cast(), &raw mut hunk),
+                parse_diff_unified(uni_line.as_mut_ptr().cast(), &mut hunk),
                 OK
             );
             assert_eq!(hunk.lnum_orig, 10);

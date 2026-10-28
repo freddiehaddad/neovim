@@ -178,7 +178,7 @@ fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
 
 fn buf_set_sign(
     buf: *mut buf_T,
-    id: *mut u32,
+    id: &mut u32,
     group: *mut c_char,
     prio: c_int,
     lnum: linenr_T,

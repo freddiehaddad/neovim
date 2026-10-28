@@ -471,7 +471,7 @@ pub fn ns_hl_def(
     }
 }
 
-pub fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c_int {
+pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c_int {
     unsafe {
         if *ns_hl == 0 {
             return -1;

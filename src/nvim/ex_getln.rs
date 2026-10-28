@@ -653,12 +653,12 @@ pub fn parse_pattern_and_range(
 fn do_incsearch_highlighting(
     firstc: c_int,
     search_delim: &mut c_int,
-    is_state: *mut incsearch_state_T,
+    is_state: &mut incsearch_state_T,
     skiplen: &mut c_int,
     patlen: &mut c_int,
     magic: &mut bool,
 ) -> bool {
-    unsafe {
+    {
         *skiplen = 0;
         *patlen = getln_st().ccline.cmdlen;
 
@@ -681,7 +681,7 @@ fn do_incsearch_highlighting(
 
         g_st().emsg_off += 1;
         let retval = parse_pattern_and_range(
-            &mut (*is_state).search_start,
+            &mut is_state.search_start,
             search_delim,
             skiplen,
             patlen,
@@ -5336,7 +5336,7 @@ pub fn get_user_input(
                 xp_name,
                 xp_namelen,
                 &mut xp_type,
-                &raw mut argt,
+                &mut argt,
                 &mut xp_arg,
             ) == FAIL
             {

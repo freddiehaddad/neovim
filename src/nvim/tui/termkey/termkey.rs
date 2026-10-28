@@ -859,7 +859,7 @@ pub fn termkey_get_keyname(tk: &TermKey, sym: TermKeySym) -> *const c_char {
 fn termkey_lookup_keyname_format(
     tk: &TermKey,
     str_in: *const c_char,
-    sym: *mut TermKeySym,
+    sym: &mut TermKeySym,
     format: TermKeyFormat,
 ) -> *const c_char {
     unsafe {

@@ -568,17 +568,17 @@ fn charsize_fast_impl(
 }
 
 pub fn charsize_fast(
-    csarg: *mut CharsizeArg,
+    csarg: &mut CharsizeArg,
     cur: *const c_char,
     vcol: colnr_T,
     cur_char: i32,
     mb_width: c_int,
 ) -> CharSize {
-    unsafe {
+    {
         charsize_fast_impl(
-            (*csarg).win,
+            csarg.win,
             cur,
-            (*csarg).use_tabstop,
+            csarg.use_tabstop,
             vcol,
             cur_char,
             mb_width,
@@ -964,14 +964,14 @@ pub fn plines_win_nofold(wp: &mut win_T, lnum: linenr_T) -> c_int {
     }
 }
 
-pub fn plines_win_col(wp: *mut win_T, lnum: linenr_T, column: c_long) -> c_int {
+pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
     unsafe {
         let mut lines = win_get_fill(wp, lnum);
-        if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 {
+        if wp.w_onebuf_opt.wo_wrap == 0 || wp.w_view_width == 0 {
             return lines + 1;
         }
 
-        let line = ml_get_buf((*wp).w_buffer, lnum);
+        let line = ml_get_buf(wp.w_buffer, lnum);
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, wp, lnum, line);
 
@@ -999,7 +999,7 @@ pub fn plines_win_col(wp: *mut win_T, lnum: linenr_T, column: c_long) -> c_int {
             col += win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, 1).width - 1;
         }
 
-        let width = (*wp).w_view_width - win_col_off(wp);
+        let width = wp.w_view_width - win_col_off(wp);
         if width <= 0 {
             return 9999;
         }

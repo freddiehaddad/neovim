@@ -114,7 +114,7 @@ fn cstr_into_char_vec(s: std::ffi::CString) -> Vec<c_char> {
 pub fn modify_fname(
     src: *mut c_char,
     tilde_file: bool,
-    usedlen: *mut usize,
+    usedlen: &mut usize,
     fnamep: *mut *mut c_char,
     bufp: &mut Option<Vec<c_char>>,
     fnamelen: &mut usize,
@@ -772,7 +772,7 @@ pub fn f_fnamemodify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 modify_fname(
                     mods.cast_mut(),
                     false,
-                    &raw mut usedlen,
+                    &mut usedlen,
                     &raw mut fname,
                     &mut fbuf,
                     &mut len,

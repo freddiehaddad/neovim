@@ -59,7 +59,7 @@ unsafe extern "C" {
 
     #[cfg(target_os = "windows")]
     #[link_name = "_localtime64"]
-    fn win_localtime64(clock: *const time_t) -> *mut [c_int; 9];
+    fn win_localtime64(clock: &time_t) -> *mut [c_int; 9];
 }
 
 /// High-resolution monotonic clock in nanoseconds (`os_hrtime`).
@@ -129,7 +129,7 @@ pub fn os_sleep(ms: u64) {
 ///
 /// # Safety
 /// `clock` and `result` must be valid pointers.
-pub fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
+pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
     #[cfg(unix)]
     unsafe {
         let mut tz_buf = [0 as c_char; 64];

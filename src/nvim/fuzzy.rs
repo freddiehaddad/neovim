@@ -754,9 +754,9 @@ pub fn fuzzy_match_str_with_pos(
 pub fn fuzzy_match_str_in_line(
     ptr: *mut *mut c_char,
     pat: *mut c_char,
-    len: *mut c_int,
+    len: &mut c_int,
     current_pos: Option<&mut pos_T>,
-    score: *mut c_int,
+    score: &mut c_int,
 ) -> bool {
     unsafe {
         let mut str_cur = *ptr;

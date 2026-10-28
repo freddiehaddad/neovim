@@ -1053,12 +1053,12 @@ mod tests {
     }
 
     fn wantparser(vt: &mut VTerm) {
-        vterm_parser_set_callbacks(vt, Some(&PARSER_CBS), ptr::null_mut());
+        vterm_parser_set_callbacks(vt, Some(&PARSER_CBS));
     }
 
     fn wantstate(vt: &mut VTerm, opts: StateOpts) -> &'static mut VTermStateFull {
         let state = vterm_obtain_state(vt);
-            vterm_state_set_callbacks(state, Some(&STATE_CBS), ptr::null_mut());
+            vterm_state_set_callbacks(state, Some(&STATE_CBS));
             vterm_state_set_selection_callbacks(
                 state,
                 Some(&SELECTION_CBS),

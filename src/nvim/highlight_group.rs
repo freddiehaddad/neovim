@@ -1780,7 +1780,7 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bo
         let link = if ns_id == 0 {
             sgp.sg_link
         } else {
-            ns_get_hl(&raw mut ns, hl_id, true, sgp.sg_set != 0)
+            ns_get_hl(&mut ns, hl_id, true, sgp.sg_set != 0)
         };
         if link == -1 {
             return false;
@@ -1792,7 +1792,7 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bo
         let attr_id = if ns_id == 0 {
             sgp.sg_attr
         } else {
-            ns_get_hl(&raw mut ns, hl_id, false, sgp.sg_set != 0)
+            ns_get_hl(&mut ns, hl_id, false, sgp.sg_set != 0)
         };
         let attr = syn_attr2entry(attr_id);
         *hl = arena_dict(arena, HLATTRS_DICT_SIZE + 1);
@@ -2298,7 +2298,7 @@ pub fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -
         }
         let sgp = &*hl_table().add((hl_id - 1) as usize);
 
-        let attr = ns_get_hl(&raw mut ns_id, hl_id, false, sgp.sg_set != 0);
+        let attr = ns_get_hl(&mut ns_id, hl_id, false, sgp.sg_set != 0);
 
         if attr >= 0 || (*optional && ns_id > 0) {
             return attr;

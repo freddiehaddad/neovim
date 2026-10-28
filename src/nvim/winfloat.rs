@@ -241,7 +241,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
             let mut row = g_st().mouse_row;
             let mut col = g_st().mouse_col;
             let mut grid = g_st().mouse_grid;
-            let mouse_win = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
+            let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
             if !mouse_win.is_null() {
                 fconfig.relative = kFloatRelativeWindow;
                 fconfig.row += row as f64;

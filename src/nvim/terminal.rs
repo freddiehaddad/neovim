@@ -129,7 +129,7 @@ use crate::vterm::state::{
 use crate::vterm::vterm::{
     vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
 };
-use crate::window::{may_trigger_win_scrolled_resized, win_T, win_valid, winopt_T};
+use crate::window::{may_trigger_win_scrolled_resized, win_valid, winopt_T};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -1668,7 +1668,6 @@ const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
 
 pub fn terminal_get_line_attributes(
     term: &mut Terminal,
-    _wp: *mut win_T,
     linenr: c_int,
     term_attrs: *mut c_int,
 ) {
@@ -2112,8 +2111,8 @@ fn term_selection_set(
     }
 }
 
-fn convert_modifiers(key: &mut c_int, modifiers: c_int, statep: *mut VTermModifier) {
-    unsafe {
+fn convert_modifiers(key: &mut c_int, modifiers: c_int, statep: &mut VTermModifier) {
+    {
         if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 {
             *statep |= VTERM_MOD_SHIFT;
         }
@@ -2421,7 +2420,7 @@ fn refresh_terminal(term: &mut Terminal) {
         }
         let ml_before = (*buf).b_ml.ml_line_count;
 
-        let resized = refresh_size(term, buf);
+        let resized = refresh_size(term);
         refresh_scrollback(term, &mut *buf);
         refresh_screen(term, &mut *buf);
 
@@ -2522,7 +2521,7 @@ pub(crate) fn refresh_timer_cb() {
     }
 }
 
-fn refresh_size(term: &mut Terminal, _buf: *mut buf_T) -> bool {
+fn refresh_size(term: &mut Terminal) -> bool {
     unsafe {
         if !term.pending.resize || term.closed {
             return false;

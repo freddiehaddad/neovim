@@ -11,7 +11,7 @@ use crate::api::private::validate::{
 };
 use crate::eval::typval::{VarType, dict_T, tv_clear, tv_dict_find, typval_T};
 use crate::eval::userfunc::{call_func, funcexe_T};
-use crate::eval::{clear_evalarg, eval0};
+use crate::eval::{eval0};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::lua::converter::Boolean;
@@ -214,10 +214,6 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
             std::ptr::null_mut(),
             std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
         );
-        clear_evalarg(
-            std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
-            std::ptr::null_mut(),
-        );
         try_leave(&tstate, err);
 
         if !error_set(err) {
@@ -373,10 +369,6 @@ pub fn nvim_call_dict_function(
                     &mut rettv,
                     std::ptr::null_mut(),
                     std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
-                );
-                clear_evalarg(
-                    std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
-                    std::ptr::null_mut(),
                 );
                 try_leave(&tstate, err);
                 if error_set(err) {

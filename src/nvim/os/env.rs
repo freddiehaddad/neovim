@@ -1071,7 +1071,7 @@ pub fn home_replace(
             let _ = modify_fname(
                 c":p".as_ptr().cast_mut(),
                 false,
-                &raw mut usedlen,
+                &mut usedlen,
                 &raw mut homedir_env_mod,
                 &mut fbuf,
                 &mut flen,

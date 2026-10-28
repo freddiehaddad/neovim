@@ -10,7 +10,7 @@ use crate::eval::vars::{
     VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, evalarg_T, set_vim_var_list, set_vim_var_string,
 };
 use crate::eval::{
-    clear_evalarg, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
+    eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
     forinfo_T, next_for_item,
 };
 use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
@@ -834,13 +834,11 @@ pub fn ex_eval(eap: &mut exarg_T) {
     let mut tv: typval_T = typval_T::new();
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, eap.skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
         if eval0(eap.arg, &mut tv, eap, &mut evalarg) == OK {
             tv_clear(&mut tv);
         }
-
-        clear_evalarg(&mut evalarg, eap);
 }
 
 pub fn ex_if(eap: &mut exarg_T) {
@@ -980,7 +978,7 @@ pub fn ex_while(eap: &mut exarg_T) {
                 eval_to_bool(eap.arg, &mut error, eap, skip, false)
             } else {
                 let mut evalarg = evalarg_T::new();
-                fill_evalarg_from_eap(&mut evalarg, eap, skip);
+                fill_evalarg_from_eap(&mut evalarg, skip);
                 if ((*cstack).cs_lflags & CSL_HAD_LOOP) != 0 {
                     error = false;
                 } else {
@@ -1001,7 +999,6 @@ pub fn ex_while(eap: &mut exarg_T) {
                 if !res {
                     (&mut (*cstack).cs_forinfo)[idx] = None;
                 }
-                clear_evalarg(&mut evalarg, eap);
                 res
             };
 

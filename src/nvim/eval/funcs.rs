@@ -2232,7 +2232,7 @@ pub fn get_list_line(
     }
 }
 
-pub fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_off: c_int) {
+pub fn execute_common(argvars: *mut typval_T, rettv: &mut typval_T, arg_off: c_int) {
     unsafe {
         let save_msg_silent = g_st().msg_silent;
         let save_emsg_silent = g_st().emsg_silent;
@@ -3058,7 +3058,7 @@ pub fn f_getchangelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 fn getpos_both(
     argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
     getcurpos: bool,
     charcol: bool,
 ) {
@@ -6607,8 +6607,8 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         }
 }
 
-fn return_register(regname: c_int, rettv: *mut typval_T) {
-    unsafe {
+fn return_register(regname: c_int, rettv: &mut typval_T) {
+    {
         let buf = [regname as c_char, NUL];
         crate::eval::typval::tv_set_string_len(&mut *rettv, buf.as_ptr(), usize::from(buf[0] != NUL));
     }
@@ -6751,10 +6751,10 @@ fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
     }
 }
 
-fn repeat_string(str_tv: *mut typval_T, n: varnumber_T, rettv: *mut typval_T) {
+fn repeat_string(str_tv: *mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if n <= 0 {
             return;
         }
@@ -6796,7 +6796,7 @@ pub fn f_repeat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     }
 }
 
-fn reduce_list(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut typval_T) {
+fn reduce_list(argvars: *mut typval_T, expr: *mut typval_T, rettv: &mut typval_T) {
     unsafe {
         let l = (*argvars).vval.v_list();
         let called_emsg_start = g_st().called_emsg;
@@ -6830,7 +6830,7 @@ fn reduce_list(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut typval_T
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
             argv[1] = (*li).li_tv;
-            (*rettv).v_type = VarType::VAR_UNKNOWN;
+            rettv.v_type = VarType::VAR_UNKNOWN;
 
             let r = eval_expr_typval(expr, true, argv.as_mut_ptr(), 2, rettv);
             tv_clear(&raw mut argv[0]);
@@ -6843,7 +6843,7 @@ fn reduce_list(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut typval_T
     }
 }
 
-fn reduce_string(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut typval_T) {
+fn reduce_string(argvars: *mut typval_T, expr: *mut typval_T, rettv: &mut typval_T) {
     unsafe {
         let mut p = tv_get_string(argvars);
         let mut len: c_int;
@@ -6874,7 +6874,7 @@ fn reduce_string(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut typval
         while *p != NUL {
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
-            (*rettv).v_type = VarType::VAR_UNKNOWN;
+            rettv.v_type = VarType::VAR_UNKNOWN;
             len = utfc_ptr2len(p);
             crate::eval::typval::tv_set_string_len(&mut argv[1], p, len as usize);
 
@@ -6889,7 +6889,7 @@ fn reduce_string(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut typval
     }
 }
 
-fn reduce_blob(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut typval_T) {
+fn reduce_blob(argvars: *mut typval_T, expr: *mut typval_T, rettv: &mut typval_T) {
     unsafe {
         let b = (*argvars).vval.v_blob().cast::<blob_T>();
         let called_emsg_start = g_st().called_emsg;
@@ -8816,7 +8816,7 @@ pub fn f_strftime(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         };
 
         let mut curtime = Tm { _fields: [0; 16] };
-        let curtime_ptr = os_localtime_r(&raw const seconds, &raw mut curtime);
+        let curtime_ptr = os_localtime_r(&seconds, &raw mut curtime);
         if curtime_ptr.is_null() {
             crate::eval::typval::tv_set_string(rettv, gettext(c"(Invalid)".as_ptr()));
             return;

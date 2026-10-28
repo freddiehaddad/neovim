@@ -644,7 +644,7 @@ fn extend_dict(
     argvars: *mut typval_T,
     arg_errmsg: *const c_char,
     is_new: bool,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
 ) {
     unsafe {
         let mut d1 = (*argvars).vval.v_dict();
@@ -705,7 +705,7 @@ fn extend_list(
     argvars: *mut typval_T,
     arg_errmsg: *const c_char,
     is_new: bool,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
 ) {
     unsafe {
         let mut error = false;
@@ -762,7 +762,7 @@ fn extend_list(
 
 fn extend_impl(
     argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
     arg_errmsg: *const c_char,
     is_new: bool,
 ) {

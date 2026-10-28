@@ -258,7 +258,7 @@ fn ses_arglist(
     cmd: *const c_char,
     gap: &[aentry_T],
     fullname: bool,
-    flagp: &mut c_uint,
+    _flagp: &mut c_uint,
 ) -> c_int {
     if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
             return FAIL;
@@ -275,7 +275,7 @@ fn ses_arglist(
                     vim_FullName(s, buf.as_mut_ptr(), MAXPATHL, false);
                     s = buf.as_mut_ptr();
                 }
-                let fname_esc = ses_escape_fname(s, flagp);
+                let fname_esc = ses_escape_fname(s);
                 if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
                     return FAIL;
                 }
@@ -284,7 +284,7 @@ fn ses_arglist(
         OK
 }
 
-fn ses_get_fname(buf: *mut buf_T, flagp: *const c_uint) -> *mut c_char {
+fn ses_get_fname(buf: *mut buf_T, flagp: &c_uint) -> *mut c_char {
     unsafe {
         if !(*buf).b_sfname.is_null()
             && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
@@ -306,7 +306,7 @@ fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: &mut c_uint, add_eol: bool) 
         OK
 }
 
-fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
+fn ses_escape_fname(name: *mut c_char) -> CString {
     unsafe {
         let mut sname_vec: Vec<c_char> = home_replace_save(ptr::null_mut(), name)
             .into_bytes_with_nul()
@@ -326,9 +326,9 @@ fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
     }
 }
 
-fn ses_put_fname(fd: *mut FILE, name: *mut c_char, flagp: &mut c_uint) -> c_int {
+fn ses_put_fname(fd: *mut FILE, name: *mut c_char, _flagp: &mut c_uint) -> c_int {
     unsafe {
-        let p = ses_escape_fname(name, flagp);
+        let p = ses_escape_fname(name);
         if fputs(p.as_ptr(), fd) < 0 { FAIL } else { OK }
     }
 }
@@ -379,7 +379,7 @@ fn put_view(
         }
 
         if add_edit && (!did_next || (*wp).w_arg_idx_invalid) {
-            let fname_esc = ses_escape_fname(ses_get_fname((*wp).w_buffer, &raw mut *flagp), &raw mut *flagp);
+            let fname_esc = ses_escape_fname(ses_get_fname((*wp).w_buffer, flagp));
             if bt_help((*wp).w_buffer) {
                 let mut curtag: *const c_char = c"".as_ptr();
                 if 0 < (*wp).w_tagstackidx && (*wp).w_tagstackidx <= (*wp).w_tagstacklen {
@@ -664,7 +664,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                     .as_ref()
                     .map_or(dirnow, |s| s.as_ptr().cast_mut()),
             );
-            let fname_esc = ses_escape_fname(sname.as_ptr().cast_mut(), &raw mut opt_vars().ssop_flags);
+            let fname_esc = ses_escape_fname(sname.as_ptr().cast_mut());
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
                 return FAIL;
             }
@@ -741,7 +741,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                         .as_ptr(),
                     fd,
                 ) < 0
-                    || fputs(ses_get_fname(b, &raw const opt_vars().ssop_flags), fd) < 0
+                    || fputs(ses_get_fname(b, &opt_vars().ssop_flags), fd) < 0
                     || fputs(
                         c"]==]), callback = function() vim.cmd.bcd({ [==[".as_ptr(),
                         fd,

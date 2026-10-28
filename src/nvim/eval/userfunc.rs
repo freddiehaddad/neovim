@@ -29,7 +29,7 @@ use crate::eval::vars::{
 };
 use crate::eval::{
     AUTOLOAD_CHAR, EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD,
-    TFN_QUIET, VAR_DEF_SCOPE, callback_call, check_luafunc_name, clear_evalarg, eval_isnamec,
+    TFN_QUIET, VAR_DEF_SCOPE, callback_call, check_luafunc_name, eval_isnamec,
     eval_isnamec1, eval_st, eval0, eval1, fill_evalarg_from_eap, find_name_end,
     garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg,
     partial_name, partial_unref, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
@@ -1449,7 +1449,7 @@ pub fn call_user_func(
         }
 
         if do_profiling_yes {
-            script_prof_save(&raw mut wait_start);
+            script_prof_save(&mut wait_start);
         }
 
         let save_current_sctx = g_st().current_sctx;
@@ -1540,7 +1540,7 @@ pub fn call_user_func(
         estack_pop();
         g_st().current_sctx = save_current_sctx;
         if do_profiling_yes {
-            script_prof_restore(&raw const wait_start);
+            script_prof_restore(&wait_start);
         }
         if using_sandbox {
             g_st().sandbox -= 1;
@@ -3568,7 +3568,6 @@ pub fn ex_return(eap: &mut exarg_T) {
         if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }
-        clear_evalarg(&raw mut evalarg, eap);
     }
 }
 
@@ -3806,7 +3805,7 @@ pub fn ex_call(eap: &mut exarg_T) {
         let mut partial: *mut partial_T = ptr::null_mut();
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, eap.skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
         if eap.skip != 0 {
             let mut rettv: typval_T = typval_T::new();
             g_st().emsg_skip += 1;
@@ -3814,7 +3813,6 @@ pub fn ex_call(eap: &mut exarg_T) {
                 tv_clear(&raw mut rettv);
             }
             g_st().emsg_skip -= 1;
-            clear_evalarg(&raw mut evalarg, eap);
             return;
         }
 
@@ -3892,7 +3890,6 @@ pub fn ex_call(eap: &mut exarg_T) {
                 eap.nextcmd = check_nextcmd(arg);
             }
         }
-        clear_evalarg(&raw mut evalarg, eap);
 
         tv_dict_unref(fudi.fd_dict);
         drop(tofree_owned);
@@ -4249,7 +4246,7 @@ pub fn get_funccal_args_var() -> *mut dictitem_T {
     }
 }
 
-pub fn list_func_vars(first: *mut c_int) {
+pub fn list_func_vars(first: &mut c_int) {
     unsafe {
         if !uf_st().current_funccal.is_null() && (*uf_st().current_funccal).fc_l_vars.dv_refcount > 0 {
             list_hashtable_vars(

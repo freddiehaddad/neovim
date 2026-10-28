@@ -126,14 +126,14 @@ pub enum ExtmarkUndoObject {
 
 /// Records a raw mark's position in the open undo block, for `extmark_apply_undo()` to replay.
 fn extmark_push_savepos(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     mark: u64,
     undo_row: c_int,
     undo_col: colnr_T,
     redo_row: c_int,
     redo_col: colnr_T,
 ) {
-    unsafe {
+    {
         let Some(uh) = u_force_get_undo_header(&mut *buf) else {
             return;
         };
@@ -558,7 +558,7 @@ pub fn extmark_from_id(buf: &mut buf_T, ns_id: u32, id: u32) -> MTPair {
 pub fn extmark_set_pos(
     buf: *mut buf_T,
     ns_id: u32,
-    mark: *mut u32,
+    mark: &mut u32,
     pos: pos_T,
     right_gravity: bool,
     no_undo: bool,

@@ -1534,7 +1534,7 @@ fn tv_blob2items(argvars: *mut typval_T, rettv: &mut typval_T) {
 }
 
 /// "items(dict)" function.
-fn tv_dict2items(argvars: *mut typval_T, rettv: *mut typval_T) {
+fn tv_dict2items(argvars: *mut typval_T, rettv: &mut typval_T) {
     tv_dict2list(argvars, rettv, DictListType::Items);
 }
 
@@ -2297,7 +2297,7 @@ fn parse_sort_uniq_args(argvars: *mut typval_T, info: &mut sortinfo_T) -> c_int 
     }
 }
 
-fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool) {
+fn do_sort_uniq(argvars: *mut typval_T, rettv: &mut typval_T, sort: bool) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
             semsg!(
@@ -3834,7 +3834,7 @@ pub fn tv_dict_alloc_ret(ret_tv: *mut typval_T) {
         tv_dict_set_ret_inline(ret_tv, d);
 }
 
-fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictListType) {
+fn tv_dict2list(argvars: *mut typval_T, rettv: &mut typval_T, what: DictListType) {
     unsafe {
         if tv_check_for_dict_arg(argvars, 0) == FAIL {
             tv_list_alloc_ret(&mut *rettv, 0);
@@ -3873,7 +3873,7 @@ fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictListType
                     }
                 }
 
-                tv_list_append_owned_tv((*rettv).vval.v_list(), tv_item);
+                tv_list_append_owned_tv(rettv.vval.v_list(), tv_item);
             }
             hi = hi.add(1);
         }

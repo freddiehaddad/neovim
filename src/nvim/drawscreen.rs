@@ -270,7 +270,7 @@ pub fn screenclear() {
 
         for i in 0..g_st().default_grid.rows {
             grid_clear_line(
-                &raw mut g_st().default_grid,
+                &mut g_st().default_grid,
                 g_st().default_grid.line_offset[i as usize],
                 g_st().default_grid.cols,
                 true,
@@ -526,7 +526,7 @@ pub fn update_screen() -> c_int {
                 let limit = msg_scrollsize().min(g_st().msg_grid.rows);
                 for i in 0..limit {
                     grid_clear_line(
-                        &raw mut g_st().msg_grid,
+                        &mut g_st().msg_grid,
                         g_st().msg_grid.line_offset[i as usize],
                         g_st().msg_grid.cols,
                         OptInt::from(i) < opt_vars().p_ch,
@@ -541,7 +541,7 @@ pub fn update_screen() -> c_int {
                 let mut i = valid;
                 while i < g_st().Rows - (opt_vars().p_ch as c_int) {
                     grid_clear_line(
-                        &raw mut g_st().default_grid,
+                        &mut g_st().default_grid,
                         g_st().default_grid.line_offset[i as usize],
                         g_st().Columns,
                         false,

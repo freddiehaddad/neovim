@@ -3028,7 +3028,7 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
 
             if zerocmd && crate::grid::grid_allocated(&g_st().msg_grid) {
                 grid_clear_line(
-                    &raw mut g_st().msg_grid,
+                    &mut g_st().msg_grid,
                     g_st().msg_grid.line_offset[0],
                     g_st().msg_grid.cols,
                     false,
@@ -3083,7 +3083,7 @@ pub fn msg_scroll_flush() {
                 let row = i - g_st().msg_grid_pos;
                 assert!(row >= 0);
                 ui_line(
-                    &raw mut g_st().msg_grid,
+                    &mut g_st().msg_grid,
                     row,
                     false,
                     0,
@@ -3111,7 +3111,7 @@ pub fn msg_reset_scroll() {
             let limit = msg_scrollsize().min(g_st().msg_grid.rows);
             for i in 0..limit {
                 grid_clear_line(
-                    &raw mut g_st().msg_grid,
+                    &mut g_st().msg_grid,
                     g_st().msg_grid.line_offset[i as usize],
                     g_st().msg_grid.cols,
                     false,
