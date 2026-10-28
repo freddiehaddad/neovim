@@ -1397,7 +1397,6 @@ fn atom_visual_end_suffix(
     suffix: Option<std::ffi::CString>,spec: Option<&CmdSpec>,
     redoable: bool,
 ) -> bool {
-    let spec: *const CmdSpec = spec.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;
@@ -1411,7 +1410,7 @@ fn atom_visual_end_suffix(
             None
         };
         let prepped =
-            redoable && !spec.is_null() && suffix.is_some() && (replayable || (*spec).op != NUL);
+            redoable && spec.is_some() && suffix.is_some() && (replayable || spec.unwrap().op != NUL);
 
         if prepped {
             let use_redo_keys = atom_visual_redoable();
@@ -1433,7 +1432,7 @@ fn atom_visual_end_suffix(
         if !replayable {
             let emit = (atom_st().vatom.state & kVatomVoid) != 0
                 && atom_visual_typed()
-                && !spec.is_null()
+                && spec.is_some()
                 && suffix.is_some()
                 && atom_is_user_cmd();
             let mut label: Option<std::ffi::CString> = None;
@@ -1449,7 +1448,7 @@ fn atom_visual_end_suffix(
             if emit {
                 let mut staged_atom = CmdAtom::new();
                 staged_atom.r#type = kAVisual;
-                staged_atom.spec = (*spec).without_body();
+                staged_atom.spec = spec.unwrap().without_body();
                 staged_atom.keys = Some(std::ffi::CString::default());
                 staged_atom.lhs = label;
                 staged_atom.origin = origin;
@@ -1470,15 +1469,15 @@ fn atom_visual_end_suffix(
         let keys_cstr = cstr_from_bytes(&keys_bytes);
         let mut atom = CmdAtom::new();
         atom.r#type = kAVisual;
-        if !spec.is_null() {
-            atom.spec = (*spec).without_body();
+        if let Some(spec) = spec {
+            atom.spec = spec.without_body();
         }
         atom.keys = Some(keys_cstr);
         atom.origin = origin;
-        if !spec.is_null() {
+        if let Some(spec) = spec {
             let mut op_atom = CmdAtom::new();
             op_atom.r#type = kAOperator;
-            op_atom.spec = (*spec).without_body();
+            op_atom.spec = spec.without_body();
             op_atom.keys = suffix;
             op_atom.origin = (*cur_frame_ptr()).origin;
             (*v_atoms).push(op_atom);

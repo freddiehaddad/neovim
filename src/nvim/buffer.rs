@@ -949,7 +949,6 @@ pub fn get_highest_fnum() -> c_int {
 
 /// Read data from buffer for retrying.
 fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> c_int {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let silent = shortmess(kShmFileinfo);
 
@@ -968,7 +967,7 @@ fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> c_int {
             line_count,
             0,
             MAXLNUM,
-            (!eap.is_null()).then(||  { &*eap }),
+            (eap.is_some()).then(||  { eap.unwrap() }),
             flags | READ_BUFFER,
             silent,
         );
@@ -1023,7 +1022,6 @@ pub fn buf_ensure_loaded(buf: &mut buf_T) -> bool {
 /// Open current buffer, that is: open the memfile and read the file into
 /// memory.
 pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> c_int {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut flags = flags_arg;
         let mut retval = OK;
@@ -1129,7 +1127,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                 0,
                 0,
                 MAXLNUM,
-                (!eap.is_null()).then(||  { &*eap }),
+                (eap.is_some()).then(||  { eap.unwrap() }),
                 flags | READ_NEW | if read_fifo { READ_FIFO } else { 0 },
                 silent,
             );
@@ -1137,7 +1135,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             if read_fifo {
                 (*g_st().curbuf).b_p_bin = save_bin;
                 if retval == OK {
-                    retval = read_buffer(false, (!eap.is_null()).then(|| &*eap), flags);
+                    retval = read_buffer(false, eap, flags);
                 }
             }
 
@@ -1160,7 +1158,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             );
             (*g_st().curbuf).b_p_bin = save_bin;
             if retval == OK {
-                retval = read_buffer(true, (!eap.is_null()).then(||  { &*eap }), flags);
+                retval = read_buffer(true, (eap.is_some()).then(||  { eap.unwrap() }), flags);
             }
         }
 
@@ -1278,12 +1276,11 @@ pub fn set_bufref(bufref: &mut bufref_T, buf: *mut buf_T) {
 /// Return true if `bufref->br_buf` points to the same buffer as when
 /// `set_bufref()` was called and it is a valid buffer.
 pub fn bufref_valid(bufref: Option<&bufref_T>) -> bool {
-    let bufref: *const bufref_T = bufref.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
-        if (*bufref).br_buf_free_count == buf_st().buf_free_count {
+        if bufref.unwrap().br_buf_free_count == buf_st().buf_free_count {
             true
         } else {
-            buf_valid((*bufref).br_buf) && (*bufref).br_fnum == (*(*bufref).br_buf).b_fnum
+            buf_valid(bufref.unwrap().br_buf) && bufref.unwrap().br_fnum == (*bufref.unwrap().br_buf).b_fnum
         }
     }
 }
@@ -1884,8 +1881,7 @@ pub fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
 }
 
 /// Handle the situation of `swap_exists_action` being set.
-pub fn handle_swap_exists(old_curbuf: Option<&mut bufref_T>) {
-    let old_curbuf: *mut bufref_T = old_curbuf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn handle_swap_exists(mut old_curbuf: Option<&mut bufref_T>) {
     unsafe {
         let mut cs: cleanup_T = cleanup_T::new();
         let old_tw = (*g_st().curbuf).b_p_tw;
@@ -1896,16 +1892,16 @@ pub fn handle_swap_exists(old_curbuf: Option<&mut bufref_T>) {
             g_st().swap_exists_action = SEA_NONE;
             g_st().swap_exists_did_quit = true;
             close_buffer(*curwin.as_ptr(), g_st().curbuf, DOBUF_UNLOAD, false, false, true);
-            let buf = if old_curbuf.is_null()
-                || !bufref_valid((!old_curbuf.is_null()).then(||  { &*old_curbuf }))
-                || (*old_curbuf).br_buf == g_st().curbuf
+            let buf = if old_curbuf.is_none()
+                || !bufref_valid((old_curbuf.is_some()).then(||  { old_curbuf.as_deref().unwrap() }))
+                || old_curbuf.as_deref_mut().unwrap().br_buf == g_st().curbuf
             {
                 block_autocmds();
                 let b = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_CURBUF | BLN_LISTED);
                 unblock_autocmds();
                 b
             } else {
-                (*old_curbuf).br_buf
+                old_curbuf.unwrap().br_buf
             };
             if !buf.is_null() {
                 enter_buffer(buf);

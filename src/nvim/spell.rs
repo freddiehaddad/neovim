@@ -2820,10 +2820,9 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
 }
 pub fn spell_dump_compl(
     pat: *mut c_char,
-    ic: c_int,dir: Option<&mut Direction>,
+    ic: c_int,mut dir: Option<&mut Direction>,
     dumpflags_arg: c_int,
 ) {
-    let dir: *mut Direction = dir.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -2942,7 +2941,7 @@ pub fn spell_dump_compl(
                                         slang,
                                         (&raw mut word).cast(),
                                         pat,
-                                        (!dir.is_null()).then(||  { &mut *dir }),
+                                        (dir.is_some()).then(||  { dir.as_deref_mut().unwrap() }),
                                         dumpflags,
                                         flags,
                                         lnum,
@@ -2956,7 +2955,7 @@ pub fn spell_dump_compl(
                                         slang,
                                         (&raw mut word).cast(),
                                         pat,
-                                        (!dir.is_null()).then(||  { &mut *dir }),
+                                        (dir.is_some()).then(||  { dir.as_deref_mut().unwrap() }),
                                         dumpflags,
                                         flags,
                                         lnum,
@@ -2983,12 +2982,11 @@ pub fn spell_dump_compl(
 fn dump_word(
     slang: &mut slang_T,
     word: *mut c_char,
-    pat: *mut c_char,dir: Option<&mut Direction>,
+    pat: *mut c_char,mut dir: Option<&mut Direction>,
     dumpflags: c_int,
     wordflags: c_int,
     lnum: linenr_T,
 ) {
-    let dir: *mut Direction = dir.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut keepcap = false;
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -3064,24 +3062,23 @@ fn dump_word(
             std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int,
             opt_vars().p_ic != 0,
             ptr::null_mut(),
-            *dir,
+            *dir.as_deref_mut().unwrap(),
             false,
             0,
         ) == OK
         {
-            *dir = FORWARD;
+            *dir.unwrap() = FORWARD;
         }
     }
 }
 fn dump_prefixes(
     slang: &mut slang_T,
     word: *mut c_char,
-    pat: *mut c_char,dir: Option<&mut Direction>,
+    pat: *mut c_char,mut dir: Option<&mut Direction>,
     dumpflags: c_int,
     flags: c_int,
     startlnum: linenr_T,
 ) -> linenr_T {
-    let dir: *mut Direction = dir.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -3131,7 +3128,7 @@ fn dump_prefixes(
                                 slang,
                                 (&raw mut prefix).cast(),
                                 pat,
-                                (!dir.is_null()).then(||  { &mut *dir }),
+                                (dir.is_some()).then(||  { dir.as_deref_mut().unwrap() }),
                                 dumpflags,
                                 if (c & WF_RAREPFX) != 0 {
                                     flags | WF_RARE
@@ -3163,7 +3160,7 @@ fn dump_prefixes(
                                     slang,
                                     (&raw mut prefix).cast(),
                                     pat,
-                                    (!dir.is_null()).then(||  { &mut *dir }),
+                                    (dir.is_some()).then(||  { dir.as_deref_mut().unwrap() }),
                                     dumpflags,
                                     if (c & WF_RAREPFX) != 0 {
                                         flags | WF_RARE

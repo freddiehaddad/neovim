@@ -1849,10 +1849,9 @@ pub fn get_option_newval(
     argp: *mut *mut c_char,
     nextchar: c_int,
     mut op: set_op_T,
-    varp: *mut c_void,oldval_override: Option<&mut Object>,
+    varp: *mut c_void,mut oldval_override: Option<&mut Object>,
     errmsg: *mut *const c_char,
 ) -> Object {
-    let oldval_override: *mut Object = oldval_override.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         assert!(!varp.is_null());
 
@@ -1869,8 +1868,8 @@ pub fn get_option_newval(
             return get_option_value(opt_idx, OPT_GLOBAL);
         }
 
-        let oldval = if !oldval_override.is_null() {
-            *oldval_override
+        let oldval = if oldval_override.is_some() {
+            *oldval_override.as_deref_mut().unwrap()
         } else {
             let oldval_is_global = option_is_global_local(opt_idx) && (opt_flags & OPT_LOCAL) != 0;
             optval_own(
@@ -1923,7 +1922,7 @@ pub fn get_option_newval(
                     newval_num = OptInt::from(string_to_key(arg));
                     if newval_num == 0 {
                         *errmsg = e_invarg.as_ptr();
-                        if oldval_override.is_null() {
+                        if oldval_override.is_none() {
                             optval_free(oldval);
                         }
                         return newval;
@@ -1945,14 +1944,14 @@ pub fn get_option_newval(
                         || (*arg.add(i as usize) != NUL && !ascii_iswhite(*arg.add(i as usize)))
                     {
                         *errmsg = E_NUMBER_REQUIRED_AFTER_EQUAL;
-                        if oldval_override.is_null() {
+                        if oldval_override.is_none() {
                             optval_free(oldval);
                         }
                         return newval;
                     }
                 } else {
                     *errmsg = E_NUMBER_REQUIRED_AFTER_EQUAL;
-                    if oldval_override.is_null() {
+                    if oldval_override.is_none() {
                         optval_free(oldval);
                     }
                     return newval;
@@ -1982,7 +1981,7 @@ pub fn get_option_newval(
             _ => std::process::abort(),
         }
 
-        if oldval_override.is_null() {
+        if oldval_override.is_none() {
             optval_free(oldval);
         }
         newval
@@ -8405,13 +8404,16 @@ pub fn get_fileformat(buf: &buf_T) -> c_int {
 
 /// Like get_fileformat(), but override 'fileformat' with "p" for "++opt=val" argument.
 pub fn get_fileformat_force(buf: *const buf_T,eap: Option<&exarg_T>) -> c_int {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
-        let c = if !eap.is_null() && (*eap).force_ff != 0 {
-            (*eap).force_ff as u8
+        let c = if let Some(eap) = eap
+            && eap.force_ff != 0
+        {
+            eap.force_ff as u8
         } else {
-            let is_bin = if !eap.is_null() && (*eap).force_bin != 0 {
-                (*eap).force_bin == FORCE_BIN
+            let is_bin = if let Some(eap) = eap
+                && eap.force_bin != 0
+            {
+                eap.force_bin == FORCE_BIN
             } else {
                 (*buf).b_p_bin != 0
             };

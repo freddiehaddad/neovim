@@ -5606,9 +5606,8 @@ fn compute_buffer_local_count(
 }
 
 fn current_win_nr(win: *const win_T,cmdarg: Option<&exarg_T>) -> c_int {
-    let cmdarg: *const exarg_T = cmdarg.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
-        let nonnr = !cmdarg.is_null() && (*cmdarg).cmdidx != cmdidx_T::CMD_quit as c_int;
+        let nonnr = cmdarg.is_some() && cmdarg.unwrap().cmdidx != cmdidx_T::CMD_quit as c_int;
         let mut nr = 0;
 
         let mut wp = g_st().firstwin;

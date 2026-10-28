@@ -2151,9 +2151,8 @@ static SPECIAL_KEY_STRING: crate::globals::GlobalState<[c_char; MAX_KEY_NAME_LEN
 /// (`get_special_key`).
 pub fn get_special_key(
     mut c: c_int,
-    mut modifiers: c_int,data: Option<&mut keychord>,
+    mut modifiers: c_int,mut data: Option<&mut keychord>,
 ) -> *mut c_char {
-    let data: *mut keychord = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let string = (*SPECIAL_KEY_STRING.as_ptr()).as_mut_ptr();
         let mut is_ascii_ctrl = false;
@@ -2181,8 +2180,8 @@ pub fn get_special_key(
             is_ascii_ctrl = true;
         }
 
-        if !data.is_null() {
-            (*data).mods = 0;
+        if data.is_some() {
+            data.as_deref_mut().unwrap().mods = 0;
         }
 
         // translate the modifier into a string
@@ -2196,8 +2195,8 @@ pub fn get_special_key(
                 *string.add(idx) = b'-' as c_char;
                 idx += 1;
 
-                if !data.is_null() {
-                    (*data).mods |= flag;
+                if data.is_some() {
+                    data.as_deref_mut().unwrap().mods |= flag;
                 }
             }
             i += 1;
@@ -2206,12 +2205,12 @@ pub fn get_special_key(
         if table_idx < 0 {
             // unknown special key, may output t_xx
             if is_special(c) {
-                if !data.is_null() {
-                    (*data).key_alt = NvimString {
+                if data.is_some() {
+                    data.as_deref_mut().unwrap().key_alt = NvimString {
                         data: std::ptr::null_mut(),
                         size: 0,
                     };
-                    (*data).key = NvimString {
+                    data.as_deref_mut().unwrap().key = NvimString {
                         data: string.add(idx),
                         size: 4,
                     };
@@ -2229,26 +2228,26 @@ pub fn get_special_key(
                 // Not a special key, only modifiers, output directly.
                 let len = utf_char2len(c);
                 if len == 1 && vim_isprintc(c) {
-                    if !data.is_null() {
+                    if data.is_some() {
                         if (b'A' as c_int..=b'Z' as c_int).contains(&c) {
-                            (*data).key_mem = (c as u8 + 32) as c_char;
-                            (*data).key = NvimString {
-                                data: std::ptr::addr_of_mut!((*data).key_mem),
+                            data.as_deref_mut().unwrap().key_mem = (c as u8 + 32) as c_char;
+                            data.as_deref_mut().unwrap().key = NvimString {
+                                data: std::ptr::addr_of_mut!(data.as_deref_mut().unwrap().key_mem),
                                 size: 1,
                             };
                             if !is_ascii_ctrl {
-                                (*data).mods |= c_int::from(MOD_MASK_SHIFT);
+                                data.as_deref_mut().unwrap().mods |= c_int::from(MOD_MASK_SHIFT);
                             }
-                            (*data).key_alt = NvimString {
+                            data.as_deref_mut().unwrap().key_alt = NvimString {
                                 data: string.add(idx),
                                 size: len as usize,
                             };
                         } else {
-                            (*data).key_alt = NvimString {
+                            data.as_deref_mut().unwrap().key_alt = NvimString {
                                 data: std::ptr::null_mut(),
                                 size: 0,
                             };
-                            (*data).key = NvimString {
+                            data.as_deref_mut().unwrap().key = NvimString {
                                 data: string.add(idx),
                                 size: len as usize,
                             };
@@ -2258,12 +2257,12 @@ pub fn get_special_key(
                     *string.add(idx) = (c as u8) as c_char;
                     idx += 1;
                 } else if len > 1 {
-                    if !data.is_null() {
-                        (*data).key = NvimString {
+                    if data.is_some() {
+                        data.as_deref_mut().unwrap().key = NvimString {
                             data: string.add(idx),
                             size: len as usize,
                         };
-                        (*data).key_alt = NvimString {
+                        data.as_deref_mut().unwrap().key_alt = NvimString {
                             data: std::ptr::null_mut(),
                             size: 0,
                         };
@@ -2273,13 +2272,13 @@ pub fn get_special_key(
                 } else {
                     let mut s = transchar(c);
 
-                    if !data.is_null() {
-                        (*data).key_mem = (c as u8) as c_char;
-                        (*data).key = NvimString {
-                            data: std::ptr::addr_of_mut!((*data).key_mem),
+                    if data.is_some() {
+                        data.as_deref_mut().unwrap().key_mem = (c as u8) as c_char;
+                        data.as_deref_mut().unwrap().key = NvimString {
+                            data: std::ptr::addr_of_mut!(data.as_deref_mut().unwrap().key_mem),
                             size: 1,
                         };
-                        (*data).key_alt = NvimString {
+                        data.as_deref_mut().unwrap().key_alt = NvimString {
                             data: string.add(idx),
                             size: CStr::from_ptr(s).to_bytes().len(),
                         };
@@ -2301,17 +2300,17 @@ pub fn get_special_key(
                 size: s_bytes.len(),
             };
 
-            if !data.is_null() {
+            if data.is_some() {
                 if (0..=0x7f).contains(&c) {
-                    (*data).key_mem = (c as u8) as c_char;
-                    (*data).key = NvimString {
-                        data: std::ptr::addr_of_mut!((*data).key_mem),
+                    data.as_deref_mut().unwrap().key_mem = (c as u8) as c_char;
+                    data.as_deref_mut().unwrap().key = NvimString {
+                        data: std::ptr::addr_of_mut!(data.as_deref_mut().unwrap().key_mem),
                         size: 1,
                     };
-                    (*data).key_alt = s_str;
+                    data.as_deref_mut().unwrap().key_alt = s_str;
                 } else {
-                    (*data).key = s_str;
-                    (*data).key_alt = NvimString {
+                    data.as_deref_mut().unwrap().key = s_str;
+                    data.unwrap().key_alt = NvimString {
                         data: std::ptr::null_mut(),
                         size: 0,
                     };

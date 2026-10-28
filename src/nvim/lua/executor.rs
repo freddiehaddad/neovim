@@ -1969,14 +1969,13 @@ fn nlua_exec_typval(
     name: *const c_char,
     args: *mut typval_T,
     argcount: c_int,
-    special: bool,ret_tv: Option<&mut typval_T>,
+    special: bool,mut ret_tv: Option<&mut typval_T>,
 ) {
-    let ret_tv: *mut typval_T = ret_tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if check_secure() {
-            if !ret_tv.is_null() {
-                (*ret_tv).v_type = VarType::VAR_NUMBER;
-                (*ret_tv).vval = crate::eval::typval::TypvalVval::Number(0);
+            if ret_tv.is_some() {
+                ret_tv.as_deref_mut().unwrap().v_type = VarType::VAR_NUMBER;
+                ret_tv.as_deref_mut().unwrap().vval = crate::eval::typval::TypvalVval::Number(0);
             }
             return;
         }
@@ -1989,13 +1988,13 @@ fn nlua_exec_typval(
 
         push_all_typvals(lstate, args, argcount, special);
 
-        if nlua_pcall(lstate, argcount, if !ret_tv.is_null() { 1 } else { 0 }) != 0 {
+        if nlua_pcall(lstate, argcount, if ret_tv.is_some() { 1 } else { 0 }) != 0 {
             nlua_error(lstate, gettext(c"E5108: Lua: %.*s".as_ptr()));
             return;
         }
 
-        if !ret_tv.is_null() {
-            nlua_pop_typval(lstate, ret_tv);
+        if let Some(ret_tv) = ret_tv {
+            nlua_pop_typval(lstate, &raw mut *ret_tv);
         }
     }
 }
@@ -2096,7 +2095,6 @@ pub fn nlua_call_typval(
     func: *const c_char,
     argvars: *mut typval_T,rettv: Option<&mut typval_T>,
 ) {
-    let rettv: *mut typval_T = rettv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut argcount: c_int = 0;
         let mut tv = argvars;
@@ -2113,7 +2111,7 @@ pub fn nlua_call_typval(
             module,
             func,
         ) as usize;
-        nlua_exec_typval(buf.as_ptr(), len, module, argvars, argcount, false, (!rettv.is_null()).then(||  { &mut *rettv }));
+        nlua_exec_typval(buf.as_ptr(), len, module, argvars, argcount, false, (rettv.is_some()).then(||  { rettv.unwrap() }));
     }
 }
 

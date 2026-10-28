@@ -583,28 +583,27 @@ pub fn msg_multiline(
 /// @param hl_msg Message chunks
 /// @param msg_data Additional data for progress messages
 fn format_progress_message(
-    hl_msg: &HlMessage,msg_data: Option<&mut MessageData>,
+    hl_msg: &HlMessage,mut msg_data: Option<&mut MessageData>,
     updated_msg: &mut HlMessage,
 ) -> bool {
-    let msg_data: *mut MessageData = msg_data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+     {
         // progress messages are special. displayed as "title: percent% msg"
-        if (*msg_data).title.size != 0 {
+        if msg_data.as_deref_mut().unwrap().title.size != 0 {
             // this block draws the "title:" before the progress-message
             let mut hl_id = 0;
-            if (*msg_data).status.data.is_null() {
+            if msg_data.as_deref_mut().unwrap().status.data.is_null() {
                 hl_id = 0;
-            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"success") {
+            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"success") {
                 hl_id = syn_check_group(c"OkMsg".as_ptr(), 5);
-            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"failed") {
+            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"failed") {
                 hl_id = syn_check_group(c"ErrorMsg".as_ptr(), 8);
-            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"running") {
+            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"running") {
                 hl_id = syn_check_group(c"MoreMsg".as_ptr(), 7);
-            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"cancel") {
+            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data) == Some(b"cancel") {
                 hl_id = syn_check_group(c"WarningMsg".as_ptr(), 10);
             }
             updated_msg.push(HlMessageChunk {
-                text: copy_string((*msg_data).title, None),
+                text: copy_string(msg_data.as_deref_mut().unwrap().title, None),
                 hl_id,
             });
             updated_msg.push(HlMessageChunk {
@@ -612,13 +611,13 @@ fn format_progress_message(
                 hl_id: 0,
             });
         }
-        if (*msg_data).percent >= 0 {
+        if msg_data.as_deref_mut().unwrap().percent >= 0 {
             let mut percent_buf = [0 as c_char; 10];
             vim_snprintf!(
                 percent_buf.as_mut_ptr(),
                 percent_buf.len(),
                 c"%3ld%% ".as_ptr(),
-                (*msg_data).percent as c_long,
+                msg_data.unwrap().percent as c_long,
             );
             let percent = cstr_to_string(percent_buf.as_ptr());
             let hl_id = syn_check_group(c"WarningMsg".as_ptr(), 10);
@@ -647,11 +646,10 @@ pub fn msg_multihl(
     hl_msg: &mut HlMessage,
     kind: *const c_char,
     history: bool,
-    err: bool,msg_data: Option<&mut MessageData>,
+    err: bool,mut msg_data: Option<&mut MessageData>,
     needs_msg_clear: &mut bool,
     raw_for_lua_print: bool,
 ) -> MsgID {
-    let msg_data: *mut MessageData = msg_data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     if id.obj_type == ObjectType::kObjectTypeNil {
             let next_id = msg_st().msg_id_next;
             msg_st().msg_id_next += 1;
@@ -667,12 +665,12 @@ pub fn msg_multihl(
         let mut hl_msg_updated = false;
         // don't display progress message in cmd when target doesn't have cmd
         if crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress") {
-            do_autocmd_progress(id, hl_msg, (!msg_data.is_null()).then(|| unsafe { &mut *msg_data }));
+            do_autocmd_progress(id, hl_msg, msg_data.as_deref_mut());
             if (msg_st().progress_msg_target & PROGRESS_TARGET_CMD) == 0 {
                 *needs_msg_clear = true;
                 return id;
             }
-            if !msg_data.is_null() && format_progress_message(hl_msg, (!msg_data.is_null()).then(|| unsafe { &mut *msg_data }), &mut updated_msg) {
+            if msg_data.is_some() && format_progress_message(hl_msg, msg_data, &mut updated_msg) {
                 *needs_msg_clear = true;
                 hl_msg_updated = true;
             }
@@ -1353,7 +1351,6 @@ pub fn msg_with_id(
     trunc: bool,
     err: bool,
 ) -> *mut c_char {
-    let data: *mut MessageData = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let mut clear = false;
         let mut chunks = HlMessage::new();
         if !s.is_null() {
@@ -1379,7 +1376,7 @@ pub fn msg_with_id(
             kind,
             false,
             err,
-            (!data.is_null()).then(|| unsafe { &mut *data }),
+            data,
             &mut clear,
             false,
         );
@@ -1415,8 +1412,7 @@ fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
     }
 }
 
-pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,msg_data: Option<&mut MessageData>) {
-    let msg_data: *mut MessageData = msg_data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,mut msg_data: Option<&mut MessageData>) {
     unsafe {
         if !has_event(EVENT_PROGRESS) {
             return;
@@ -1463,13 +1459,13 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,msg_data: Option<&mut 
                 data: ObjectData::Array(messages),
             },
         );
-        if !msg_data.is_null() {
-            if (*msg_data).percent >= 0 {
+        if msg_data.is_some() {
+            if msg_data.as_deref_mut().unwrap().percent >= 0 {
                 put_c(
                     c"percent",
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
-                        data: ObjectData::Integer((*msg_data).percent),
+                        data: ObjectData::Integer(msg_data.as_deref_mut().unwrap().percent),
                     },
                 );
             }
@@ -1477,28 +1473,28 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,msg_data: Option<&mut 
                 c"source",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String((*msg_data).source),
+                    data: ObjectData::String(msg_data.as_deref_mut().unwrap().source),
                 },
             );
             put_c(
                 c"status",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String((*msg_data).status),
+                    data: ObjectData::String(msg_data.as_deref_mut().unwrap().status),
                 },
             );
             put_c(
                 c"title",
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String((*msg_data).title),
+                    data: ObjectData::String(msg_data.as_deref_mut().unwrap().title),
                 },
             );
             put_c(
                 c"data",
                 Object {
                     obj_type: ObjectType::kObjectTypeDict,
-                    data: ObjectData::Dict((*msg_data).data),
+                    data: ObjectData::Dict(msg_data.as_deref_mut().unwrap().data),
                 },
             );
         }
@@ -1511,8 +1507,8 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,msg_data: Option<&mut 
                     capacity: 7,
                 }),
         };
-        let fname = if !msg_data.is_null() && (*msg_data).source.size > 0 {
-            (*msg_data).source.data
+        let fname = if msg_data.is_some() && msg_data.as_deref_mut().unwrap().source.size > 0 {
+            msg_data.unwrap().source.data
         } else {
             c"".as_ptr().cast_mut()
         };
@@ -2388,19 +2384,18 @@ pub fn str2special_arena(
 pub fn str2special(
     sp: *mut *const c_char,
     replace_spaces: bool,
-    replace_others: TriState,data: Option<&mut keychord>,
+    replace_others: TriState,mut data: Option<&mut keychord>,
 ) -> *const c_char {
-    let data: *mut keychord = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let p = mb_unescape(sp);
         if !p.is_null() {
-            if !data.is_null() {
-                (*data).mods = 0;
-                (*data).key = NvimString {
+            if data.is_some() {
+                data.as_deref_mut().unwrap().mods = 0;
+                data.as_deref_mut().unwrap().key = NvimString {
                     data: p.cast_mut(),
                     size: CStr::from_ptr(p).to_bytes().len(),
                 };
-                (*data).key_alt = NvimString {
+                data.as_deref_mut().unwrap().key_alt = NvimString {
                     data: ptr::null_mut(),
                     size: 0,
                 };
@@ -2445,29 +2440,29 @@ pub fn str2special(
             || (replace_others != kFalse && c == b'<' as c_int)
             || (replace_others == kTrue && (c == b'|' as c_int || c == b'\\' as c_int))
         {
-            return get_special_key(c, modifiers, (!data.is_null()).then(||  { &mut *data }));
+            return get_special_key(c, modifiers, (data.is_some()).then(||  { data.as_deref_mut().unwrap() }));
         }
 
         let buf_ptr = (&raw mut msg_st().STR2SPECIAL_BUF).cast::<c_char>();
-        if !data.is_null() {
-            (*data).mods = 0;
+        if data.is_some() {
+            data.as_deref_mut().unwrap().mods = 0;
             if (b'A' as c_int..=b'Z' as c_int).contains(&c) {
-                (*data).key_mem = (c + 32) as c_char;
-                (*data).key = NvimString {
-                    data: &raw mut (*data).key_mem,
+                data.as_deref_mut().unwrap().key_mem = (c + 32) as c_char;
+                data.as_deref_mut().unwrap().key = NvimString {
+                    data: &raw mut data.as_deref_mut().unwrap().key_mem,
                     size: 1,
                 };
-                (*data).mods |= c_int::from(MOD_MASK_SHIFT);
-                (*data).key_alt = NvimString {
+                data.as_deref_mut().unwrap().mods |= c_int::from(MOD_MASK_SHIFT);
+                data.as_deref_mut().unwrap().key_alt = NvimString {
                     data: buf_ptr,
                     size: 1,
                 };
             } else {
-                (*data).key = NvimString {
+                data.as_deref_mut().unwrap().key = NvimString {
                     data: buf_ptr,
                     size: 1,
                 };
-                (*data).key_alt = NvimString {
+                data.unwrap().key_alt = NvimString {
                     data: ptr::null_mut(),
                     size: 0,
                 };

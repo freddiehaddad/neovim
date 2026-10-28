@@ -2706,7 +2706,6 @@ pub fn tv_dict_watcher_notify(
     key: *const c_char,
     newtv: *mut typval_T,oldtv: Option<&typval_T>,
 ) {
-    let oldtv: *const typval_T = oldtv.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut argv: [typval_T; 3] = [tv_initial_value(); 3];
 
@@ -2727,9 +2726,11 @@ pub fn tv_dict_watcher_notify(
             tv_dict_add(changes_dict, v);
         }
 
-        if !oldtv.is_null() && (*oldtv).v_type != VarType::VAR_UNKNOWN {
+        if let Some(oldtv) = oldtv
+            && oldtv.v_type != VarType::VAR_UNKNOWN
+        {
             let v = tv_dict_item_alloc_len(c"old".as_ptr(), 3);
-            tv_copy(&*oldtv, &mut (*v).di_tv);
+            tv_copy(oldtv, &mut (*v).di_tv);
             tv_dict_add(changes_dict, v);
         }
 
@@ -4011,12 +4012,11 @@ fn nothing_conv_func_end(tv: &mut typval_T, copy_id: c_int) {
 
 #[inline]
 fn nothing_conv_empty_dict(tv: Option<&mut typval_T>, dictp: *mut *mut dict_T) {
-    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         tv_dict_unref(*dictp);
         *dictp = ptr::null_mut();
-        if !tv.is_null() {
-            (*tv).v_lock = VAR_UNLOCKED;
+        if let Some(tv) = tv {
+            tv.v_lock = VAR_UNLOCKED;
         }
     }
 }
@@ -4059,10 +4059,9 @@ fn nothing_conv_real_dict_after_start(tv: Option<&mut typval_T>,
     dictp: *mut *mut dict_T,
     mpsv: &mut MPConvStackVal,
 ) -> c_int {
-    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        if !tv.is_null() {
-            (*tv).v_lock = VAR_UNLOCKED;
+        if let Some(tv) = tv {
+            tv.v_lock = VAR_UNLOCKED;
         }
         if !dictp.is_null() && (**dictp).dv_refcount > 1 {
             (**dictp).dv_refcount -= 1;

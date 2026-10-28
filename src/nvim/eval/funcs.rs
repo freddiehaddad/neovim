@@ -7358,7 +7358,6 @@ pub fn f_searchdecl(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 }
 
 fn searchpair_cmn(argvars: &mut [typval_T],match_pos: Option<&mut pos_T>) -> c_int {
-    let match_pos: *mut pos_T = match_pos.map_or(std::ptr::null_mut(), |p| &raw mut *p);
      {
         let save_p_ws = opt_vars().p_ws;
         let mut flags: c_int = 0;
@@ -7416,7 +7415,15 @@ fn searchpair_cmn(argvars: &mut [typval_T],match_pos: Option<&mut pos_T>) -> c_i
             };
 
             retval = do_searchpair(
-                spat, mpat, epat, dir, skip, flags, match_pos, lnum_stop, time_limit,
+                spat,
+                mpat,
+                epat,
+                dir,
+                skip,
+                flags,
+                match_pos.map_or(ptr::null_mut(), |p| &raw mut *p),
+                lnum_stop,
+                time_limit,
             );
         }
 

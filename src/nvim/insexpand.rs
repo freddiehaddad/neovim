@@ -1202,7 +1202,6 @@ fn ins_compl_add(
     preselect: bool,
     commit_chars: Option<std::ffi::CString>,
 ) -> c_int {
-    let user_data: *mut typval_T = user_data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let dir = if cdir == kDirectionNotSet {
             insexp().compl_direction
@@ -1264,7 +1263,7 @@ fn ins_compl_add(
             }
         }
         let cp_commit_chars = commit_chars;
-        let cp_user_data = if !user_data.is_null() {
+        let cp_user_data = if let Some(user_data) = user_data {
             *user_data
         } else {
             crate::eval::typval::tv_initial_value()

@@ -399,7 +399,6 @@ pub fn do_tag(eap: Option<&exarg_T>,
     forceit: c_int,
     verbose: bool,
 ) {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
         let mut tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
@@ -753,7 +752,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                     if type_ == DT_TAG && *tag != NUL {
                         cur_match = if count > 0 { count - 1 } else { 0 };
                     } else if type_ == DT_SELECT || (type_ == DT_JUMP && do_tag_num_matches > 1) {
-                        select_tag_match((!eap.is_null()).then(||  { &*eap }), new_tag, use_tagstack, &*do_tag_matches, name);
+                        select_tag_match((eap.is_some()).then(||  { eap.unwrap() }), new_tag, use_tagstack, &*do_tag_matches, name);
                         if use_tagstack {
                             (*tagstack.add(tagstackidx as usize)).fmark = saved_fmark;
                             tagstackidx = prevtagstackidx;
@@ -919,7 +918,6 @@ fn select_tag_match(eap: Option<&exarg_T>,
     matches: &[Vec<c_char>],
     name: *const c_char,
 ) {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
         let tagstackidx = (**curwin.as_ptr()).w_tagstackidx;
@@ -995,7 +993,7 @@ fn select_tag_match(eap: Option<&exarg_T>,
         nlua_call_excmd(
             c"vim._core.tag".as_ptr(),
             c"select_tag".as_ptr(),
-            &*eap,
+            eap.unwrap(),
             &g_st().cmdmod,
             Some(&mut extra_tv),
         );

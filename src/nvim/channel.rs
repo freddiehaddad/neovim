@@ -972,26 +972,25 @@ pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mu
     }
 }
 
-fn channel_callback_call(chan: &mut Channel,reader: Option<&mut CallbackReader>) {
-    let reader: *mut CallbackReader = reader.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+fn channel_callback_call(chan: &mut Channel,mut reader: Option<&mut CallbackReader>) {
+     {
 
         let mut argv: [typval_T; 4] = [typval_T::new(); 4];
         argv[0].v_type = VarType::VAR_NUMBER;
         argv[0].v_lock = VAR_UNLOCKED;
         argv[0].vval = TypvalVval::Number(chan.id as varnumber_T);
 
-        let cb: *mut Callback = if !reader.is_null() {
-            let l = buffer_to_tv_list((*reader).buffer.as_ptr(), (*reader).buffer.len());
+        let cb: *mut Callback = if reader.is_some() {
+            let l = buffer_to_tv_list(reader.as_deref_mut().unwrap().buffer.as_ptr(), reader.as_deref_mut().unwrap().buffer.len());
             argv[1].v_type = VarType::VAR_LIST;
             argv[1].v_lock = VAR_UNLOCKED;
             argv[1].vval = TypvalVval::List(l);
             tv_list_ref(l);
-            (*reader).buffer = Vec::new();
-            argv[2].vval = TypvalVval::String((*reader)
+            reader.as_deref_mut().unwrap().buffer = Vec::new();
+            argv[2].vval = TypvalVval::String(reader.as_deref_mut().unwrap()
                     .reader_type
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()));
-            &raw mut (*reader).cb
+            &raw mut reader.as_deref_mut().unwrap().cb
         } else {
             argv[1].v_type = VarType::VAR_NUMBER;
             argv[1].v_lock = VAR_UNLOCKED;
@@ -1009,7 +1008,7 @@ fn channel_callback_call(chan: &mut Channel,reader: Option<&mut CallbackReader>)
             tv_clear(&raw mut rettv);
         }
 
-        if !reader.is_null() {
+        if reader.is_some() {
             tv_list_unref(argv[1].vval.v_list());
         }
     }

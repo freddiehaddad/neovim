@@ -362,9 +362,8 @@ fn do_markset_autocmd(c: c_char, pos: &pos_T, buf: *mut buf_T) {
 
 /// Set named mark `c` to position `pos` (`setmark_pos`).
 pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmarkv_T>) -> c_int {
-    let view_pt: *const fmarkv_T = view_pt.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
-        let view = if !view_pt.is_null() {
+        let view = if let Some(view_pt) = view_pt {
             *view_pt
         } else {
             INIT_FMARKV
@@ -609,7 +608,6 @@ pub fn mark_get(
     flag: MarkGet,
     name: c_int,
 ) -> *mut fmark_T {
-    let fmp: *mut fmark_T = fmp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut fm: *mut fmark_T = ptr::null_mut();
         if ascii_isupper(name) || ascii_isdigit(name) {
@@ -629,9 +627,11 @@ pub fn mark_get(
         } else if name > 0 && name < NMARK_LOCAL_MAX {
             fm = mark_get_local(buf, win, name);
         }
-        if !fmp.is_null() && !fm.is_null() {
+        if let Some(fmp) = fmp
+            && !fm.is_null()
+        {
             *fmp = (*fm).clone();
-            return fmp;
+            return &raw mut *fmp;
         }
         fm
     }
@@ -753,17 +753,12 @@ pub fn mark_get_visual(buf: &mut buf_T, name: c_int) -> *mut fmark_T {
 }
 
 /// Wrap a `pos_T` into an `fmark_T` (`pos_to_mark`).
-pub fn pos_to_mark(buf: *mut buf_T,fmp: Option<&mut fmark_T>, pos: pos_T) -> *mut fmark_T {
-    let fmp: *mut fmark_T = fmp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn pos_to_mark(buf: *mut buf_T, fmp: Option<&mut fmark_T>, pos: pos_T) -> *mut fmark_T {
     unsafe {
-        let fm = if fmp.is_null() {
-            &raw mut mark_st().POS_TO_MARK_FMS
-        } else {
-            fmp
-        };
-        (*fm).fnum = (*buf).b_fnum;
-        (*fm).mark = pos;
-        fm
+        let fm = fmp.unwrap_or(&mut mark_st().POS_TO_MARK_FMS);
+        fm.fnum = (*buf).b_fnum;
+        fm.mark = pos;
+        &raw mut *fm
     }
 }
 

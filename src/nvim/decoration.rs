@@ -1700,10 +1700,9 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
 pub fn decor_virt_lines(
     wp: &mut win_T,
     start_row: c_int,
-    end_row: c_int,mut num_below: Option<&mut c_int>,lines: Option<&mut VirtLines>,
+    end_row: c_int,mut num_below: Option<&mut c_int>,mut lines: Option<&mut VirtLines>,
     apply_folds: bool,
 ) -> c_int {
-    let lines: *mut VirtLines = lines.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let buf = wp.w_buffer;
         if buf_meta_total(&*buf, kMTMetaLines) == 0 {
@@ -1762,8 +1761,8 @@ pub fn decor_virt_lines(
                                     *num_below.as_deref_mut().unwrap() += virt_lines.len() as c_int;
                                 }
                             }
-                            if !lines.is_null() {
-                                (*lines).extend_from_slice(virt_lines);
+                            if lines.is_some() {
+                                lines.as_deref_mut().unwrap().extend_from_slice(virt_lines);
                             }
                         }
                     }

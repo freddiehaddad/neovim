@@ -1593,27 +1593,23 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 }
 
 fn sign_place_from_dict(
-    id_tv: Option<&typval_T>,
-    group_tv: Option<&typval_T>,
-    name_tv: Option<&typval_T>,
-    buf_tv: Option<&mut typval_T>,
+    mut id_tv: Option<&typval_T>,
+    mut group_tv: Option<&typval_T>,
+    mut name_tv: Option<&typval_T>,
+    mut buf_tv: Option<&mut typval_T>,
     dict: *mut dict_T,
 ) -> c_int {
-    let mut id_tv: *const typval_T = id_tv.map_or(ptr::null(), |p| &raw const *p);
-    let mut group_tv: *const typval_T = group_tv.map_or(ptr::null(), |p| &raw const *p);
-    let mut name_tv: *const typval_T = name_tv.map_or(ptr::null(), |p| &raw const *p);
-    let mut buf_tv: *mut typval_T = buf_tv.map_or(ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut id: c_int = 0;
         let mut notanum = false;
-        if id_tv.is_null() {
+        if id_tv.is_none() {
             let di = tv_dict_find(dict, c"id".as_ptr(), -1);
             if !di.is_null() {
-                id_tv = &raw const (*di).di_tv;
+                id_tv = Some(&(*di).di_tv);
             }
         }
-        if !id_tv.is_null() {
-            id = tv_get_number_chk(&*id_tv, Some(&mut notanum)) as c_int;
+        if let Some(id_tv) = id_tv {
+            id = tv_get_number_chk(id_tv, Some(&mut notanum)) as c_int;
             if notanum {
                 return -1;
             }
@@ -1624,14 +1620,14 @@ fn sign_place_from_dict(
         }
 
         let mut group: *mut c_char = ptr::null_mut();
-        if group_tv.is_null() {
+        if group_tv.is_none() {
             let di = tv_dict_find(dict, c"group".as_ptr(), -1);
             if !di.is_null() {
-                group_tv = &raw const (*di).di_tv;
+                group_tv = Some(&(*di).di_tv);
             }
         }
-        if !group_tv.is_null() {
-            group = tv_get_string_chk(&*group_tv).cast_mut();
+        if let Some(group_tv) = group_tv {
+            group = tv_get_string_chk(group_tv).cast_mut();
             if group.is_null() {
                 return -1;
             }
@@ -1640,30 +1636,30 @@ fn sign_place_from_dict(
             }
         }
 
-        if name_tv.is_null() {
+        if name_tv.is_none() {
             let di = tv_dict_find(dict, c"name".as_ptr(), -1);
             if !di.is_null() {
-                name_tv = &raw const (*di).di_tv;
+                name_tv = Some(&(*di).di_tv);
             }
         }
-        if name_tv.is_null() {
+        let Some(name_tv) = name_tv else {
             return -1;
-        }
-        let name = tv_get_string_chk(&*name_tv).cast_mut();
+        };
+        let name = tv_get_string_chk(name_tv).cast_mut();
         if name.is_null() {
             return -1;
         }
 
-        if buf_tv.is_null() {
+        if buf_tv.is_none() {
             let di = tv_dict_find(dict, c"buffer".as_ptr(), -1);
             if !di.is_null() {
-                buf_tv = &raw mut (*di).di_tv;
+                buf_tv = Some(&mut (*di).di_tv);
             }
         }
-        if buf_tv.is_null() {
+        let Some(buf_tv) = buf_tv else {
             return -1;
-        }
-        let buf = get_buf_arg(&mut *buf_tv);
+        };
+        let buf = get_buf_arg(buf_tv);
         if buf.is_null() {
             return -1;
         }

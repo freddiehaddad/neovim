@@ -489,14 +489,13 @@ pub fn eval_to_bool(
 
 /// Call eval1() and give an error message if not done at a lower level.
 fn eval1_emsg(arg: *mut *mut c_char,rettv: &mut typval_T,eap: Option<&mut exarg_T>) -> c_int {
-    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let start = *arg;
         let did_emsg_before = g_st().did_emsg;
         let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip != 0);
 
         let ret = eval1(arg, &mut *rettv, Some(&mut evalarg));
         if ret == FAIL
@@ -674,25 +673,24 @@ pub fn eval_to_string_skip(
 }
 
 /// Skip over an expression at "*pp".
-pub fn skip_expr(pp: *mut *mut c_char,evalarg: Option<&mut evalarg_T>) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn skip_expr(pp: *mut *mut c_char,mut evalarg: Option<&mut evalarg_T>) -> c_int {
     unsafe {
-        let save_flags = if evalarg.is_null() {
+        let save_flags = if evalarg.is_none() {
             0
         } else {
-            (*evalarg).eval_flags
+            evalarg.as_deref_mut().unwrap().eval_flags
         };
 
-        if !evalarg.is_null() {
-            (*evalarg).eval_flags &= !EVAL_EVALUATE;
+        if evalarg.is_some() {
+            evalarg.as_deref_mut().unwrap().eval_flags &= !EVAL_EVALUATE;
         }
 
         *pp = skipwhite(*pp);
         let mut rettv = tv_initial_value();
         let res = eval1(pp, &mut rettv, None);
 
-        if !evalarg.is_null() {
-            (*evalarg).eval_flags = save_flags;
+        if let Some(evalarg) = evalarg {
+            evalarg.eval_flags = save_flags;
         }
 
         res
@@ -725,13 +723,12 @@ pub fn eval_to_string_eap(
     join_list: bool,eap: Option<&mut exarg_T>,
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
-    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+     {
         let mut tv = tv_initial_value();
         let retval: Option<std::ffi::CString>;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip != 0);
         let r = if use_simple_function {
             eval0_simple_funccal(arg, &mut tv, None, &mut evalarg)
         } else {
@@ -812,28 +809,26 @@ pub fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> varnumber
 
 /// Top level evaluation function.
 pub fn eval_expr(arg: *mut c_char,eap: Option<&mut exarg_T>) -> Option<typval_T> {
-    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    eval_expr_ext(arg, (!eap.is_null()).then(|| unsafe { &mut *eap }), false)
+    eval_expr_ext(arg, eap, false)
 }
 
 pub fn eval_expr_ext(
-    arg: *mut c_char,eap: Option<&mut exarg_T>,
+    arg: *mut c_char,mut eap: Option<&mut exarg_T>,
     use_simple_function: bool,
 ) -> Option<typval_T> {
-    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    unsafe {
+     {
         let mut tv = tv_initial_value();
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.as_deref_mut().unwrap().skip != 0);
 
         let mut r = NOTDONE;
 
         if use_simple_function {
-            r = eval0_simple_funccal(arg, &mut tv, (!eap.is_null()).then(||  { &mut *eap }), &mut evalarg);
+            r = eval0_simple_funccal(arg, &mut tv, (eap.is_some()).then(||  { eap.as_deref_mut().unwrap() }), &mut evalarg);
         }
         if r == NOTDONE {
-            r = eval0(arg, &mut tv, (!eap.is_null()).then(||  { &mut *eap }), &mut evalarg);
+            r = eval0(arg, &mut tv, (eap.is_some()).then(||  { eap.unwrap() }), &mut evalarg);
         }
         (r != FAIL).then_some(tv)
     }
@@ -1085,9 +1080,8 @@ fn get_lval_dict_item(
     key_end: *mut *mut c_char,
     var1: &mut typval_T,
     flags: c_int,
-    unlet: bool,rettv: Option<&mut typval_T>,
+    unlet: bool,mut rettv: Option<&mut typval_T>,
 ) -> glv_status_T {
-    let rettv: *mut typval_T = rettv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
         let p = *key_end;
@@ -1105,7 +1099,7 @@ fn get_lval_dict_item(
 
         lp.ll_di = tv_dict_find(lp.ll_dict, key, len as isize);
 
-        if !rettv.is_null() && (*lp.ll_dict).dv_scope != 0 {
+        if rettv.is_some() && (*lp.ll_dict).dv_scope != 0 {
             let prevval = if len != -1 {
                 let pv = *key.add(len as usize);
                 *key.add(len as usize) = NUL;
@@ -1114,7 +1108,7 @@ fn get_lval_dict_item(
                 0
             };
             let wrong = ((*lp.ll_dict).dv_scope == VAR_DEF_SCOPE
-                && tv_is_func(*rettv)
+                && tv_is_func(*rettv.as_deref_mut().unwrap())
                 && var_wrong_func_name(key, lp.ll_di.is_null()))
                 || !valid_varname(key);
             if len != -1 {
@@ -1128,7 +1122,7 @@ fn get_lval_dict_item(
         if !lp.ll_di.is_null()
             && tv_is_luafunc(&mut (*lp.ll_di).di_tv)
             && len == -1
-            && rettv.is_null()
+            && rettv.is_none()
         {
             semsg!((&raw const e_illvar).cast(), c"v:['lua']".as_ptr());
             return GLV_FAIL;
@@ -1259,11 +1253,10 @@ fn get_lval_list(
 
 fn get_lval_subscript(lp: &mut lval_T,
     mut p: *mut c_char,
-    name: *mut c_char,rettv: Option<&mut typval_T>,
+    name: *mut c_char,mut rettv: Option<&mut typval_T>,
     unlet: bool,
     flags: c_int,
 ) -> *mut c_char {
-    let rettv: *mut typval_T = rettv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
         let mut var1 = tv_initial_value();
@@ -1357,11 +1350,11 @@ fn get_lval_subscript(lp: &mut lval_T,
                         tv_clear(&raw mut var2);
                         return ptr::null_mut();
                     }
-                    if !rettv.is_null()
-                        && !((*rettv).v_type == VarType::VAR_LIST
-                            && !(*rettv).vval.v_list().is_null())
-                        && !((*rettv).v_type == VarType::VAR_BLOB
-                            && !(*rettv).vval.v_blob().is_null())
+                    if rettv.is_some()
+                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VAR_LIST
+                            && !rettv.as_deref_mut().unwrap().vval.v_list().is_null())
+                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VAR_BLOB
+                            && !rettv.as_deref_mut().unwrap().vval.v_blob().is_null())
                     {
                         if !quiet {
                             emsg(gettext(c"E709: [:] requires a List or Blob value".as_ptr()));
@@ -1411,7 +1404,7 @@ fn get_lval_subscript(lp: &mut lval_T,
                     &mut var1,
                     flags,
                     unlet,
-                    (!rettv.is_null()).then(||  { &mut *rettv }),
+                    (rettv.is_some()).then(||  { rettv.as_deref_mut().unwrap() }),
                 );
                 if glv_status == GLV_FAIL {
                     tv_clear(&raw mut var1);
@@ -1456,7 +1449,6 @@ pub fn get_lval(
     flags: c_int,
     fne_flags: c_int,
 ) -> *mut c_char {
-    let rettv: *mut typval_T = rettv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
 
@@ -1544,7 +1536,7 @@ pub fn get_lval(
             return p;
         }
 
-        p = get_lval_subscript(&mut *lp, p, name, (!rettv.is_null()).then(||  { &mut *rettv }), unlet, flags);
+        p = get_lval_subscript(&mut *lp, p, name, (rettv.is_some()).then(||  { rettv.unwrap() }), unlet, flags);
         if p.is_null() {
             return ptr::null_mut();
         }
@@ -2044,8 +2036,6 @@ fn eval_func(
     name_len: c_int,rettv: &mut typval_T,
     flags: c_int,basetv: Option<&mut typval_T>,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let basetv: *mut typval_T = basetv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let evaluate = (flags & EVAL_EVALUATE) != 0;
         let mut s = name;
@@ -2082,10 +2072,10 @@ fn eval_func(
             fe_evaluate: evaluate,
             fe_partial: partial.cast(),
             fe_selfdict: ptr::null_mut(),
-            fe_basetv: basetv,
+            fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
             fe_found_var: found_var,
         };
-        let mut ret = get_func_tv(s, len, &mut *rettv, arg, (!evalarg.is_null()).then(|| &mut *evalarg), &mut funcexe);
+        let mut ret = get_func_tv(s, len, &mut *rettv, arg, evalarg, &mut funcexe);
 
         drop(s_vec);
 
@@ -2107,9 +2097,8 @@ fn eval_func(
 /// After using "evalarg" filled from "eap": free the memory.
 /// Handle zero level expression.
 pub fn eval0(
-    arg: *mut c_char,rettv: &mut typval_T,eap: Option<&mut exarg_T>,evalarg: &mut evalarg_T,
+    arg: *mut c_char,rettv: &mut typval_T,mut eap: Option<&mut exarg_T>,evalarg: &mut evalarg_T,
 ) -> c_int {
-    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let did_emsg_before = g_st().did_emsg;
         let called_emsg_before = g_st().called_emsg;
@@ -2133,17 +2122,17 @@ pub fn eval0(
                 }
             }
 
-            if !eap.is_null() && !p.is_null() {
+            if eap.is_some() && !p.is_null() {
                 let nextcmd = check_nextcmd(p);
                 if !nextcmd.is_null() && *nextcmd != b'|' as c_char {
-                    (*eap).nextcmd = nextcmd;
+                    eap.as_deref_mut().unwrap().nextcmd = nextcmd;
                 }
             }
             return FAIL;
         }
 
-        if !eap.is_null() {
-            (*eap).nextcmd = check_nextcmd(p);
+        if let Some(eap) = eap {
+            eap.nextcmd = check_nextcmd(p);
         }
 
         ret
@@ -2195,12 +2184,11 @@ fn eval0_simple_funccal(
 /// Handle top level expression:
 ///      expr2 ? expr1 : expr1
 ///      expr2 ?? expr1
-pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>) -> c_int {
     unsafe {
         *rettv = typval_T::new();
 
-        if eval2(arg, rettv, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+        if eval2(arg, rettv, evalarg.as_deref_mut()) == FAIL {
             return FAIL;
         }
 
@@ -2208,13 +2196,9 @@ pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut eva
         if *p == b'?' as c_char {
             let op_falsy = *p.add(1) == b'?' as c_char;
             let mut local_evalarg = evalarg_T::new();
-            let evalarg_used = if evalarg.is_null() {
-                &raw mut local_evalarg
-            } else {
-                evalarg
-            };
-            let orig_flags = (*evalarg_used).eval_flags;
-            let evaluate = ((*evalarg_used).eval_flags & EVAL_EVALUATE) != 0;
+            let evalarg_used: &mut evalarg_T = evalarg.unwrap_or(&mut local_evalarg);
+            let orig_flags = evalarg_used.eval_flags;
+            let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
 
             let mut result = false;
             if evaluate {
@@ -2237,14 +2221,14 @@ pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut eva
                 *arg = (*arg).add(1);
             }
             *arg = skipwhite((*arg).add(1));
-            (*evalarg_used).eval_flags = if if op_falsy { !result } else { result } {
+            evalarg_used.eval_flags = if if op_falsy { !result } else { result } {
                 orig_flags
             } else {
                 orig_flags & !EVAL_EVALUATE
             };
             let mut var2 = tv_initial_value();
-            if eval1(arg, &mut var2, (!evalarg_used.is_null()).then(|| &mut *evalarg_used)) == FAIL {
-                (*evalarg_used).eval_flags = orig_flags;
+            if eval1(arg, &mut var2, Some(evalarg_used)) == FAIL {
+                evalarg_used.eval_flags = orig_flags;
                 return FAIL;
             }
             if !op_falsy || !result {
@@ -2258,21 +2242,21 @@ pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut eva
                     if evaluate && result {
                         tv_clear(rettv);
                     }
-                    (*evalarg_used).eval_flags = orig_flags;
+                    evalarg_used.eval_flags = orig_flags;
                     return FAIL;
                 }
 
                 *arg = skipwhite((*arg).add(1));
-                (*evalarg_used).eval_flags = if !result {
+                evalarg_used.eval_flags = if !result {
                     orig_flags
                 } else {
                     orig_flags & !EVAL_EVALUATE
                 };
-                if eval1(arg, &mut var2, (!evalarg_used.is_null()).then(|| &mut *evalarg_used)) == FAIL {
+                if eval1(arg, &mut var2, Some(evalarg_used)) == FAIL {
                     if evaluate && result {
                         tv_clear(rettv);
                     }
-                    (*evalarg_used).eval_flags = orig_flags;
+                    evalarg_used.eval_flags = orig_flags;
                     return FAIL;
                 }
                 if evaluate && !result {
@@ -2280,9 +2264,7 @@ pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut eva
                 }
             }
 
-            if !evalarg.is_null() {
-                (*evalarg).eval_flags = orig_flags;
-            }
+            evalarg_used.eval_flags = orig_flags;
         }
 
         OK
@@ -2290,23 +2272,18 @@ pub fn eval1(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut eva
 }
 
 /// Handle first level expression: `expr2 || expr2 || expr2`
-fn eval2(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+fn eval2(arg: *mut *mut c_char, rettv: &mut typval_T, mut evalarg: Option<&mut evalarg_T>) -> c_int {
     unsafe {
-        if eval3(arg, rettv, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+        if eval3(arg, rettv, evalarg.as_deref_mut()) == FAIL {
             return FAIL;
         }
 
         let mut p = *arg;
         if *p == b'|' as c_char && *p.add(1) == b'|' as c_char {
             let mut local_evalarg = evalarg_T::new();
-            let evalarg_used = if evalarg.is_null() {
-                &raw mut local_evalarg
-            } else {
-                evalarg
-            };
-            let orig_flags = (*evalarg_used).eval_flags;
-            let evaluate = ((*evalarg_used).eval_flags & EVAL_EVALUATE) != 0;
+            let evalarg_used: &mut evalarg_T = evalarg.unwrap_or(&mut local_evalarg);
+            let orig_flags = evalarg_used.eval_flags;
+            let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
 
             let mut result = false;
 
@@ -2323,13 +2300,13 @@ fn eval2(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
 
             while *p == b'|' as c_char && *p.add(1) == b'|' as c_char {
                 *arg = skipwhite((*arg).add(2));
-                (*evalarg_used).eval_flags = if !result {
+                evalarg_used.eval_flags = if !result {
                     orig_flags
                 } else {
                     orig_flags & !EVAL_EVALUATE
                 };
                 let mut var2 = tv_initial_value();
-                if eval3(arg, &mut var2, (!evalarg_used.is_null()).then(|| &mut *evalarg_used)) == FAIL {
+                if eval3(arg, &mut var2, Some(evalarg_used)) == FAIL {
                     return FAIL;
                 }
 
@@ -2351,9 +2328,7 @@ fn eval2(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
                 p = *arg;
             }
 
-            if !evalarg.is_null() {
-                (*evalarg).eval_flags = orig_flags;
-            }
+            evalarg_used.eval_flags = orig_flags;
         }
 
         OK
@@ -2361,23 +2336,18 @@ fn eval2(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
 }
 
 /// Handle second level expression: `expr3 && expr3 && expr3`
-fn eval3(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+fn eval3(arg: *mut *mut c_char, rettv: &mut typval_T, mut evalarg: Option<&mut evalarg_T>) -> c_int {
     unsafe {
-        if eval4(arg, rettv, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+        if eval4(arg, rettv, evalarg.as_deref_mut()) == FAIL {
             return FAIL;
         }
 
         let mut p = *arg;
         if *p == b'&' as c_char && *p.add(1) == b'&' as c_char {
             let mut local_evalarg = evalarg_T::new();
-            let evalarg_used = if evalarg.is_null() {
-                &raw mut local_evalarg
-            } else {
-                evalarg
-            };
-            let orig_flags = (*evalarg_used).eval_flags;
-            let evaluate = ((*evalarg_used).eval_flags & EVAL_EVALUATE) != 0;
+            let evalarg_used: &mut evalarg_T = evalarg.unwrap_or(&mut local_evalarg);
+            let orig_flags = evalarg_used.eval_flags;
+            let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
 
             let mut result = true;
 
@@ -2394,13 +2364,13 @@ fn eval3(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
 
             while *p == b'&' as c_char && *p.add(1) == b'&' as c_char {
                 *arg = skipwhite((*arg).add(2));
-                (*evalarg_used).eval_flags = if result {
+                evalarg_used.eval_flags = if result {
                     orig_flags
                 } else {
                     orig_flags & !EVAL_EVALUATE
                 };
                 let mut var2 = tv_initial_value();
-                if eval4(arg, &mut var2, (!evalarg_used.is_null()).then(|| &mut *evalarg_used)) == FAIL {
+                if eval4(arg, &mut var2, Some(evalarg_used)) == FAIL {
                     return FAIL;
                 }
 
@@ -2422,9 +2392,7 @@ fn eval3(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
                 p = *arg;
             }
 
-            if !evalarg.is_null() {
-                (*evalarg).eval_flags = orig_flags;
-            }
+            evalarg_used.eval_flags = orig_flags;
         }
 
         OK
@@ -2432,14 +2400,13 @@ fn eval3(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
 }
 
 /// Handle third level expression (comparisons).
-fn eval4(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+fn eval4(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>) -> c_int {
     unsafe {
         let mut var2 = tv_initial_value();
         let mut expr_type: exprtype_T = EXPR_UNKNOWN;
         let mut len: usize = 2;
 
-        if eval5(arg, rettv, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+        if eval5(arg, rettv, evalarg.as_deref_mut()) == FAIL {
             return FAIL;
         }
 
@@ -2505,11 +2472,11 @@ fn eval4(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
             }
 
             *arg = skipwhite(p.add(len));
-            if eval5(arg, &mut var2, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+            if eval5(arg, &mut var2, evalarg.as_deref_mut()) == FAIL {
                 tv_clear(rettv);
                 return FAIL;
             }
-            if !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0 {
+            if evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0) {
                 let ret = typval_compare(rettv, &mut var2, expr_type, ic);
                 tv_clear(&raw mut var2);
                 return ret;
@@ -2661,10 +2628,9 @@ fn eval_addsub_number(tv1: &mut typval_T, tv2: &mut typval_T, op: c_int) -> c_in
 }
 
 /// Handle fourth level expression: `+`, `-`, `.`, `..`
-fn eval5(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+fn eval5(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>) -> c_int {
     unsafe {
-        if eval6(arg, rettv, (!evalarg.is_null()).then(|| &mut *evalarg), false) == FAIL {
+        if eval6(arg, rettv, evalarg.as_deref_mut(), false) == FAIL {
             return FAIL;
         }
 
@@ -2675,7 +2641,7 @@ fn eval5(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
                 break;
             }
 
-            let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+            let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
             if (op != b'+' as c_int
                 || (rettv.v_type != VarType::VAR_LIST && rettv.v_type != VarType::VAR_BLOB))
                 && (op == b'.' as c_int || rettv.v_type != VarType::VAR_FLOAT)
@@ -2692,7 +2658,7 @@ fn eval5(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg
             }
             *arg = skipwhite((*arg).add(1));
             let mut var2 = tv_initial_value();
-            if eval6(arg, &mut var2, (!evalarg.is_null()).then(|| &mut *evalarg), op == b'.' as c_int) == FAIL {
+            if eval6(arg, &mut var2, evalarg.as_deref_mut(), op == b'.' as c_int) == FAIL {
                 tv_clear(rettv);
                 return FAIL;
             }
@@ -2804,12 +2770,11 @@ fn eval_multdiv_number(tv1: &mut typval_T, tv2: &mut typval_T, op: c_int) -> c_i
 
 /// Handle fifth level expression: `*`, `/`, `%`
 fn eval6(
-    arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
+    arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>,
     want_string: bool,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        if eval7(arg, rettv, (!evalarg.is_null()).then(|| &mut *evalarg), want_string) == FAIL {
+        if eval7(arg, rettv, evalarg.as_deref_mut(), want_string) == FAIL {
             return FAIL;
         }
 
@@ -2819,11 +2784,11 @@ fn eval6(
                 break;
             }
 
-            let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+            let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
             *arg = skipwhite((*arg).add(1));
             let mut var2 = tv_initial_value();
-            if eval7(arg, &mut var2, (!evalarg.is_null()).then(|| &mut *evalarg), false) == FAIL {
+            if eval7(arg, &mut var2, evalarg.as_deref_mut(), false) == FAIL {
                 return FAIL;
             }
 
@@ -2839,12 +2804,11 @@ fn eval6(
 /// Handle sixth level expression.
 fn eval7(
     arg: *mut *mut c_char,
-    rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
+    rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>,
     want_string: bool,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut ret: c_int;
 
         rettv.v_type = VarType::VAR_UNKNOWN;
@@ -2876,15 +2840,15 @@ fn eval7(
                 ret = eval_lit_string(arg, &mut *rettv, evaluate, false);
             }
             b'[' => {
-                ret = eval_list(arg, &mut *rettv, (!evalarg.is_null()).then(|| &mut *evalarg));
+                ret = eval_list(arg, &mut *rettv, evalarg.as_deref_mut());
             }
             b'#' => {
-                ret = eval_lit_dict(arg, &mut *rettv, (!evalarg.is_null()).then(|| &mut *evalarg));
+                ret = eval_lit_dict(arg, &mut *rettv, evalarg.as_deref_mut());
             }
             b'{' => {
-                ret = get_lambda_tv(arg, &mut *rettv, (!evalarg.is_null()).then(|| &mut *evalarg));
+                ret = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
                 if ret == NOTDONE {
-                    ret = eval_dict(arg, &mut *rettv, (!evalarg.is_null()).then(|| &mut *evalarg), false);
+                    ret = eval_dict(arg, &mut *rettv, evalarg.as_deref_mut(), false);
                 }
             }
             b'&' => {
@@ -2915,7 +2879,7 @@ fn eval7(
             b'(' => {
                 *arg = skipwhite((*arg).add(1));
 
-                ret = eval1(arg, &mut *rettv, (!evalarg.is_null()).then(|| &mut *evalarg));
+                ret = eval1(arg, &mut *rettv, evalarg.as_deref_mut());
                 if **arg == b')' as c_char {
                     *arg = (*arg).add(1);
                 } else if ret == OK {
@@ -2940,14 +2904,14 @@ fn eval7(
             if len <= 0 {
                 ret = FAIL;
             } else {
-                let flags = if evalarg.is_null() {
+                let flags = if evalarg.is_none() {
                     0
                 } else {
-                    (*evalarg).eval_flags
+                    evalarg.as_deref_mut().unwrap().eval_flags
                 };
                 if *skipwhite(*arg) == b'(' as c_char {
                     *arg = skipwhite(*arg);
-                    ret = eval_func(arg, (!evalarg.is_null()).then(|| &mut *evalarg), s, len, &mut *rettv, flags, None);
+                    ret = eval_func(arg, evalarg.as_deref_mut(), s, len, &mut *rettv, flags, None);
                 } else if evaluate {
                     ret = eval_variable(s, len, Some(&mut *rettv), ptr::null_mut(), true, false);
                 } else {
@@ -2970,7 +2934,7 @@ fn eval7(
         *arg = skipwhite(*arg);
 
         if ret == OK {
-            ret = handle_subscript(arg.cast(), &mut *rettv, (!evalarg.is_null()).then(|| &mut *evalarg), true);
+            ret = handle_subscript(arg.cast(), &mut *rettv, evalarg, true);
         }
 
         if ret == OK && evaluate && (end_leader as usize) > (start_leader as usize) {
@@ -3051,8 +3015,6 @@ fn call_func_rettv(
     selfdict: *mut dict_T,basetv: Option<&mut typval_T>,
     lua_funcname: *const c_char,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let basetv: *mut typval_T = basetv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut pt: *mut partial_T = ptr::null_mut();
         let mut functv = tv_initial_value();
@@ -3092,7 +3054,7 @@ fn call_func_rettv(
             fe_evaluate: evaluate,
             fe_partial: pt.cast(),
             fe_selfdict: selfdict,
-            fe_basetv: basetv,
+            fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
             fe_found_var: false,
         };
         let ret = get_func_tv(
@@ -3104,7 +3066,7 @@ fn call_func_rettv(
             },
             rettv,
             arg,
-            (!evalarg.is_null()).then(|| &mut *evalarg),
+            evalarg,
             &mut funcexe,
         );
 
@@ -3119,17 +3081,16 @@ fn call_func_rettv(
 /// Evaluate "->method()".
 fn eval_lambda(
     arg: *mut *mut c_char,
-    rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
+    rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>,
     verbose: bool,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         *arg = (*arg).add(2);
         let mut base = *rettv;
         rettv.v_type = VarType::VAR_UNKNOWN;
 
-        let mut ret = get_lambda_tv(arg, &mut *rettv, (!evalarg.is_null()).then(|| &mut *evalarg));
+        let mut ret = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
         if ret != OK {
             return FAIL;
         } else if **arg != b'(' as c_char {
@@ -3148,7 +3109,7 @@ fn eval_lambda(
         } else {
             ret = call_func_rettv(
                 arg,
-                (!evalarg.is_null()).then(|| &mut *evalarg),
+                evalarg,
                 &mut *rettv,
                 evaluate,
                 ptr::null_mut(),
@@ -3168,12 +3129,11 @@ fn eval_lambda(
 /// Evaluate "->method()" or "->v:lua.method()".
 fn eval_method(
     arg: *mut *mut c_char,
-    rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
+    rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>,
     verbose: bool,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
         *arg = (*arg).add(2);
         let mut base = *rettv;
@@ -3219,7 +3179,7 @@ fn eval_method(
                 *arg = name;
                 *paren = NUL;
                 let mut ref_tv = tv_initial_value();
-                if eval7(arg, &mut ref_tv, (!evalarg.is_null()).then(|| &mut *evalarg), false) == FAIL {
+                if eval7(arg, &mut ref_tv, evalarg.as_deref_mut(), false) == FAIL {
                     *arg = name.add(len as usize);
                     ret = FAIL;
                 } else if *skipwhite(*arg) != NUL {
@@ -3278,7 +3238,7 @@ fn eval_method(
                     }
                     ret = call_func_rettv(
                         arg,
-                        (!evalarg.is_null()).then(|| &mut *evalarg),
+                        evalarg.as_deref_mut(),
                         &mut *rettv,
                         evaluate,
                         ptr::null_mut(),
@@ -3288,7 +3248,7 @@ fn eval_method(
                 } else {
                     ret = eval_func(
                         arg,
-                        (!evalarg.is_null()).then(|| &mut *evalarg),
+                        evalarg,
                         name,
                         len,
                         &mut *rettv,
@@ -3311,12 +3271,11 @@ fn eval_method(
 
 /// Evaluate an "[expr]" or "[expr:expr]" index. Also "dict.key".
 fn eval_index(
-    arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
+    arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>,
     verbose: bool,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut empty1 = false;
         let mut empty2 = false;
         let mut range = false;
@@ -3343,7 +3302,7 @@ fn eval_index(
             *arg = skipwhite((*arg).add(1));
             if **arg == b':' as c_char {
                 empty1 = true;
-            } else if eval1(arg, &mut var1, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+            } else if eval1(arg, &mut var1, evalarg.as_deref_mut()) == FAIL {
                 return FAIL;
             } else if evaluate && !tv_check_str(&var1) {
                 tv_clear(&raw mut var1);
@@ -3355,7 +3314,7 @@ fn eval_index(
                 *arg = skipwhite((*arg).add(1));
                 if **arg == b']' as c_char {
                     empty2 = true;
-                } else if eval1(arg, &mut var2, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+                } else if eval1(arg, &mut var2, evalarg) == FAIL {
                     if !empty1 {
                         tv_clear(&raw mut var1);
                     }
@@ -3615,7 +3574,6 @@ fn eval_index_inner(rettv: &mut typval_T,
 
 /// Get an option value
 pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluate: bool) -> c_int {
-    let rettv: *mut typval_T = rettv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let working = **arg == b'+' as c_char;
         let mut opt_idx: OptIndex = 0;
@@ -3624,7 +3582,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluat
         let option_end = find_option_var_end(arg, &mut opt_idx, &mut opt_flags).cast_mut();
 
         if option_end.is_null() {
-            if !rettv.is_null() {
+            if rettv.is_some() {
                 semsg!(gettext(c"E112: Option name missing: %s".as_ptr()), *arg);
             }
             return FAIL;
@@ -3643,12 +3601,12 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluat
             let is_tty_opt = is_tty_option(*arg);
 
             if opt_idx == kOptInvalid && !is_tty_opt {
-                if !rettv.is_null() {
+                if rettv.is_some() {
                     semsg!(gettext(c"E113: Unknown option: %s".as_ptr()), *arg);
                 }
 
                 ret = FAIL;
-            } else if !rettv.is_null() {
+            } else if rettv.is_some() {
                 let value = if is_tty_opt {
                     get_tty_option(*arg)
                 } else {
@@ -3656,7 +3614,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluat
                 };
                 debug_assert!(value.obj_type != ObjectType::kObjectTypeNil);
 
-                *rettv = opt_to_tv(value, true);
+                *rettv.unwrap() = opt_to_tv(value, true);
                 optval_free(value);
             } else if working && !is_tty_opt && is_option_hidden(opt_idx) {
                 ret = FAIL;
@@ -4130,10 +4088,9 @@ pub fn partial_unref(pt: *mut partial_T) {
 }
 
 /// Allocate a variable for a List and fill it from "*arg".
-fn eval_list(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+fn eval_list(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>) -> c_int {
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut l: *mut list_T = ptr::null_mut();
 
         if evaluate {
@@ -4143,7 +4100,7 @@ fn eval_list(arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut eva
         *arg = skipwhite((*arg).add(1));
         while **arg != b']' as c_char && **arg != NUL {
             let mut tv = tv_initial_value();
-            if eval1(arg, &mut tv, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+            if eval1(arg, &mut tv, evalarg.as_deref_mut()) == FAIL {
                 if evaluate {
                     tv_list_free(l);
                 }
@@ -4727,12 +4684,11 @@ fn get_literal_key(arg: *mut *mut c_char, tv: &mut typval_T) -> c_int {
 
 /// Allocate a variable for a Dictionary and fill it from "*arg".
 fn eval_dict(
-    arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
+    arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>,
     literal: bool,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut tv = tv_initial_value();
         let mut key: *mut c_char = ptr::null_mut();
         let mut curly_expr = skipwhite((*arg).add(1));
@@ -4758,7 +4714,7 @@ fn eval_dict(
             let key_res = if literal {
                 get_literal_key(arg, &mut tvkey)
             } else {
-                eval1(arg, &mut tvkey, (!evalarg.is_null()).then(|| &mut *evalarg))
+                eval1(arg, &mut tvkey, evalarg.as_deref_mut())
             };
             if key_res == FAIL {
                 if !d.is_null() {
@@ -4789,7 +4745,7 @@ fn eval_dict(
             }
 
             *arg = skipwhite((*arg).add(1));
-            if eval1(arg, &mut tv, (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+            if eval1(arg, &mut tv, evalarg.as_deref_mut()) == FAIL {
                 tv_clear(&raw mut tvkey);
                 if !d.is_null() {
                     tv_dict_free(d);
@@ -4863,11 +4819,10 @@ fn eval_dict(
 fn eval_lit_dict(
     arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if *(*arg).add(1) == b'{' as c_char {
             *arg = (*arg).add(1);
-            eval_dict(arg, rettv, (!evalarg.is_null()).then(|| &mut *evalarg), true)
+            eval_dict(arg, rettv, evalarg, true)
         } else {
             NOTDONE
         }
@@ -5330,26 +5285,27 @@ pub fn set_ref_in_callback(
         false
 }
 
-fn set_ref_in_callback_reader(reader: &mut CallbackReader,
-    copyID: c_int,ht_stack: Option<&mut ht_stack_T>,list_stack: Option<&mut list_stack_T>,
+fn set_ref_in_callback_reader(
+    reader: &mut CallbackReader,
+    copyID: c_int,
+    ht_stack: Option<&mut ht_stack_T>,
+    list_stack: Option<&mut list_stack_T>,
 ) -> bool {
-    let ht_stack: *mut ht_stack_T = ht_stack.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let list_stack: *mut list_stack_T = list_stack.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-     {
-        if set_ref_in_callback(&mut reader.cb, copyID, ht_stack, list_stack) {
-            return true;
-        }
-
-        if !reader.self_dict.is_null() {
-            let mut tv = typval_T {
-                v_type: VarType::VAR_DICT,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Dict(reader.self_dict),
-            };
-            return set_ref_in_item(&mut tv, copyID, ht_stack, list_stack);
-        }
-        false
+    let ht_ptr = ht_stack.map_or(ptr::null_mut(), |p| &raw mut *p);
+    let list_ptr = list_stack.map_or(ptr::null_mut(), |p| &raw mut *p);
+    if set_ref_in_callback(&mut reader.cb, copyID, ht_ptr, list_ptr) {
+        return true;
     }
+
+    if !reader.self_dict.is_null() {
+        let mut tv = typval_T {
+            v_type: VarType::VAR_DICT,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::Dict(reader.self_dict),
+        };
+        return set_ref_in_item(&mut tv, copyID, ht_ptr, list_ptr);
+    }
+    false
 }
 
 pub fn find_timer_by_nr(xx: varnumber_T) -> *mut timer_T {
@@ -6344,12 +6300,11 @@ pub fn string_slice(
 
 /// Handle subscripts, `.name`, funcref calls, and `->method()`.
 pub fn handle_subscript(
-    arg: *mut *const c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
+    arg: *mut *const c_char,rettv: &mut typval_T,mut evalarg: Option<&mut evalarg_T>,
     verbose: bool,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut ret = OK;
         let mut selfdict: *mut dict_T = ptr::null_mut();
         let mut lua_funcname: *const c_char = ptr::null();
@@ -6385,7 +6340,7 @@ pub fn handle_subscript(
             if **arg == b'(' as c_char {
                 ret = call_func_rettv(
                     arg.cast(),
-                    (!evalarg.is_null()).then(|| &mut *evalarg),
+                    evalarg.as_deref_mut(),
                     rettv,
                     evaluate,
                     selfdict,
@@ -6403,9 +6358,9 @@ pub fn handle_subscript(
                 selfdict = ptr::null_mut();
             } else if **arg == b'-' as c_char {
                 if *(*arg).add(2) == b'{' as c_char {
-                    ret = eval_lambda(arg.cast(), rettv, (!evalarg.is_null()).then(|| &mut *evalarg), verbose);
+                    ret = eval_lambda(arg.cast(), rettv, evalarg.as_deref_mut(), verbose);
                 } else {
-                    ret = eval_method(arg.cast(), rettv, (!evalarg.is_null()).then(|| &mut *evalarg), verbose);
+                    ret = eval_method(arg.cast(), rettv, evalarg.as_deref_mut(), verbose);
                 }
             } else {
                 tv_dict_unref(selfdict);
@@ -6417,7 +6372,7 @@ pub fn handle_subscript(
                 } else {
                     selfdict = ptr::null_mut();
                 }
-                if eval_index(arg.cast(), rettv, (!evalarg.is_null()).then(|| &mut *evalarg), verbose) == FAIL {
+                if eval_index(arg.cast(), rettv, evalarg.as_deref_mut(), verbose) == FAIL {
                     tv_clear(rettv);
                     ret = FAIL;
                 }

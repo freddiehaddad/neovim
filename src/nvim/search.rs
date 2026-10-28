@@ -703,9 +703,8 @@ pub fn searchit(
     mut count: c_int,
     options: c_int,
     pat_use: c_int,
-    magic: bool,extra_arg: Option<&mut searchit_arg_T>,
+    magic: bool,mut extra_arg: Option<&mut searchit_arg_T>,
 ) -> c_int {
-    let extra_arg: *mut searchit_arg_T = extra_arg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut found: c_int;
         let mut lnum: linenr_T;
@@ -726,10 +725,10 @@ pub fn searchit(
         let mut tm: Option<proftime_T> = None;
         let mut timed_out: *mut c_int = ptr::null_mut();
 
-        if !extra_arg.is_null() {
-            stop_lnum = (*extra_arg).sa_stop_lnum;
-            tm = (*extra_arg).sa_tm;
-            timed_out = &raw mut (*extra_arg).sa_timed_out;
+        if extra_arg.is_some() {
+            stop_lnum = extra_arg.as_deref_mut().unwrap().sa_stop_lnum;
+            tm = extra_arg.as_deref_mut().unwrap().sa_tm;
+            timed_out = &raw mut extra_arg.as_deref_mut().unwrap().sa_timed_out;
         }
 
         if search_regcomp(
@@ -1076,8 +1075,8 @@ pub fn searchit(
                         false,
                     );
                 }
-                if !extra_arg.is_null() {
-                    (*extra_arg).sa_wrapped = 1;
+                if extra_arg.is_some() {
+                    extra_arg.as_deref_mut().unwrap().sa_wrapped = 1;
                 }
             }
             if g_st().got_int
@@ -1242,9 +1241,8 @@ pub fn do_search(
     mut patlen: usize,
     count: c_int,
     options: c_int,
-    magic: bool,sia: Option<&mut searchit_arg_T>,
+    magic: bool,mut sia: Option<&mut searchit_arg_T>,
 ) -> c_int {
-    let sia: *mut searchit_arg_T = sia.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut searchstr: *mut c_char;
         let mut searchstrlen: usize;
@@ -1520,14 +1518,14 @@ pub fn do_search(
                             })),
                 RE_LAST,
                 magic,
-                (!sia.is_null()).then(||  { &mut *sia }),
+                (sia.is_some()).then(||  { sia.as_deref_mut().unwrap() }),
             ));
 
             if !dircp.is_null() {
                 *dircp = search_delim as c_char;
             }
 
-            if !shortmess(kShmSearch) && !sia.is_null() && (*sia).sa_wrapped != 0 {
+            if !shortmess(kShmSearch) && sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
                 show_top_bot_msg = true;
             }
 
@@ -1541,7 +1539,7 @@ pub fn do_search(
             }
             retval = 1;
 
-            if !sia.is_null() && (*sia).sa_wrapped != 0 {
+            if sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
                 apply_autocmds(
                     EVENT_SEARCHWRAPPED,
                     ptr::null_mut(),

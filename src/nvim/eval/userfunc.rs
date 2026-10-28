@@ -566,9 +566,8 @@ fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
 pub fn get_lambda_tv(
     arg: *mut *mut c_char,rettv: &mut typval_T,evalarg: Option<&mut evalarg_T>,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
         let mut varargs: c_int = 0;
         let old_eval_lavars = eval_st().eval_lavars_used;
@@ -607,7 +606,7 @@ pub fn get_lambda_tv(
 
         *arg = skipwhite((*arg).add(1));
         let start = *arg;
-        ret = skip_expr(arg, (!evalarg.is_null()).then(|| &mut *evalarg));
+        ret = skip_expr(arg, evalarg);
         let end = *arg;
         if ret == FAIL {
             eval_st().eval_lavars_used = old_eval_lavars;
@@ -745,12 +744,11 @@ pub fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
 
 /// Get function arguments at `*arg` and advance it.
 fn get_func_arguments(
-    arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,
+    arg: *mut *mut c_char,mut evalarg: Option<&mut evalarg_T>,
     partial_argc: c_int,
     argvars: *mut typval_T,
     argcount: &mut c_int,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut argp = *arg;
         let mut ret = OK;
@@ -761,7 +759,7 @@ fn get_func_arguments(
             if *argp == b')' as c_char || *argp == b',' as c_char || *argp == NUL {
                 break;
             }
-            if eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), (!evalarg.is_null()).then(|| &mut *evalarg)) == FAIL {
+            if eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), evalarg.as_deref_mut()) == FAIL {
                 ret = FAIL;
                 break;
             }
@@ -789,11 +787,10 @@ pub fn get_func_tv(
     arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,
     funcexe: &mut funcexe_T,
 ) -> c_int {
-    let evalarg: *mut evalarg_T = evalarg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argcount: c_int = 0;
-        let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
+        let evaluate = evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
         let mut argp = *arg;
         let partial_argc = if funcexe.fe_partial.is_null() {
@@ -803,7 +800,7 @@ pub fn get_func_tv(
         };
         let mut ret = get_func_arguments(
             &raw mut argp,
-            (!evalarg.is_null()).then(|| &mut *evalarg),
+            evalarg,
             partial_argc,
             argvars.as_mut_ptr(),
             &mut argcount,
@@ -2168,17 +2165,16 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
 pub fn trans_function_name(
     pp: *mut *mut c_char,
     skip: bool,
-    flags: c_int,fdp: Option<&mut funcdict_T>,
+    flags: c_int,mut fdp: Option<&mut funcdict_T>,
     partial: *mut *mut partial_T,
 ) -> Option<std::ffi::CString> {
-    let fdp: *mut funcdict_T = fdp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut name: *mut c_char = ptr::null_mut();
         let mut len: c_int;
         let mut lv: lval_T = lval_T::new();
 
-        if !fdp.is_null() {
-            *fdp = funcdict_T::new();
+        if fdp.is_some() {
+            *fdp.as_deref_mut().unwrap() = funcdict_T::new();
         }
         let mut start: *const c_char = *pp;
 
@@ -2228,10 +2224,10 @@ pub fn trans_function_name(
         }
 
         if !lv.ll_tv.is_null() {
-            if !fdp.is_null() {
-                (*fdp).fd_dict = lv.ll_dict;
-                (*fdp).fd_newkey = lv.ll_newkey.take();
-                (*fdp).fd_di = lv.ll_di;
+            if fdp.is_some() {
+                fdp.as_deref_mut().unwrap().fd_dict = lv.ll_dict;
+                fdp.as_deref_mut().unwrap().fd_newkey = lv.ll_newkey.take();
+                fdp.as_deref_mut().unwrap().fd_di = lv.ll_di;
             }
             let mut res: Option<std::ffi::CString> = None;
             if (*lv.ll_tv).v_type == VarType::VAR_FUNC && !(*lv.ll_tv).vval.v_string().is_null() {
@@ -2261,7 +2257,7 @@ pub fn trans_function_name(
                 }
             } else if !skip
                 && (flags & TFN_QUIET) == 0
-                && (fdp.is_null() || lv.ll_dict.is_null() || (*fdp).fd_newkey.is_none())
+                && (fdp.is_none() || lv.ll_dict.is_null() || fdp.unwrap().fd_newkey.is_none())
             {
                 emsg(gettext(E_FUNCREF.as_ptr()));
             } else {
@@ -2440,9 +2436,8 @@ pub fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CStri
 pub fn save_function_name(
     name: *mut *mut c_char,
     skip: bool,
-    flags: c_int,fudi: Option<&mut funcdict_T>,
+    flags: c_int,mut fudi: Option<&mut funcdict_T>,
 ) -> Option<std::ffi::CString> {
-    let fudi: *mut funcdict_T = fudi.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut p = *name;
         let saved: Option<std::ffi::CString>;
@@ -2454,11 +2449,11 @@ pub fn save_function_name(
                 (*name).cast::<u8>(),
                 p.offset_from(*name) as usize,
             )));
-            if !fudi.is_null() {
-                *fudi = funcdict_T::new();
+            if fudi.is_some() {
+                *fudi.as_deref_mut().unwrap() = funcdict_T::new();
             }
         } else {
-            saved = trans_function_name(&raw mut p, skip, flags, (!fudi.is_null()).then(||  { &mut *fudi }), ptr::null_mut());
+            saved = trans_function_name(&raw mut p, skip, flags, (fudi.is_some()).then(||  { fudi.unwrap() }), ptr::null_mut());
         }
         *name = p;
         saved

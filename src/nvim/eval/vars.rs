@@ -535,11 +535,8 @@ fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
 
 #[inline]
 pub fn tv_init(tv: Option<&mut typval_T>) {
-    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    if !tv.is_null() {
-        unsafe {
-            *tv = typval_T::new();
-        }
+    if let Some(tv) = tv {
+        *tv = typval_T::new();
     }
 }
 
@@ -2531,12 +2528,11 @@ pub fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CStrin
 pub fn set_cmdarg(eap: Option<&exarg_T>,
     oldarg: Option<std::ffi::CString>,
 ) -> Option<std::ffi::CString> {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let tv = get_vim_var_tv(VV_CMDARG);
         let oldval = crate::eval::typval::tv_take_string((*tv).vval.v_string());
         (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        if eap.is_null() {
+        if eap.is_none() {
             (*tv).v_type = VarType::VAR_STRING;
             (*tv).vval = crate::eval::typval::TypvalVval::String(
                 oldarg.map_or(ptr::null_mut(), std::ffi::CString::into_raw),
@@ -2545,42 +2541,42 @@ pub fn set_cmdarg(eap: Option<&exarg_T>,
         }
 
         let mut newval: Vec<u8> = Vec::new();
-        if (*eap).force_bin == FORCE_BIN {
+        if eap.unwrap().force_bin == FORCE_BIN {
             newval.extend_from_slice(b" ++bin");
-        } else if (*eap).force_bin == FORCE_NOBIN {
+        } else if eap.unwrap().force_bin == FORCE_NOBIN {
             newval.extend_from_slice(b" ++nobin");
         }
 
-        if (*eap).read_edit != 0 {
+        if eap.unwrap().read_edit != 0 {
             newval.extend_from_slice(b" ++edit");
         }
 
-        if (*eap).force_ff != 0 {
-            let ff_str: &[u8] = if (*eap).force_ff == b'u' as c_int {
+        if eap.unwrap().force_ff != 0 {
+            let ff_str: &[u8] = if eap.unwrap().force_ff == b'u' as c_int {
                 b" ++ff=unix"
-            } else if (*eap).force_ff == b'd' as c_int {
+            } else if eap.unwrap().force_ff == b'd' as c_int {
                 b" ++ff=dos"
             } else {
                 b" ++ff=mac"
             };
             newval.extend_from_slice(ff_str);
         }
-        if (*eap).force_enc != 0 {
+        if eap.unwrap().force_enc != 0 {
             newval.extend_from_slice(b" ++enc=");
-            let enc_ptr = (*eap).cmd.add((*eap).force_enc as usize);
+            let enc_ptr = eap.unwrap().cmd.add(eap.unwrap().force_enc as usize);
             newval.extend_from_slice(CStr::from_ptr(enc_ptr).to_bytes());
         }
 
-        if (*eap).bad_char == BAD_KEEP {
+        if eap.unwrap().bad_char == BAD_KEEP {
             newval.extend_from_slice(b" ++bad=keep");
-        } else if (*eap).bad_char == BAD_DROP {
+        } else if eap.unwrap().bad_char == BAD_DROP {
             newval.extend_from_slice(b" ++bad=drop");
-        } else if (*eap).bad_char != 0 {
+        } else if eap.unwrap().bad_char != 0 {
             newval.extend_from_slice(b" ++bad=");
-            newval.push((*eap).bad_char as u8);
+            newval.push(eap.unwrap().bad_char as u8);
         }
 
-        if (*eap).mkdir_p != 0 {
+        if eap.unwrap().mkdir_p != 0 {
             newval.extend_from_slice(b" ++p");
         }
 
@@ -2624,7 +2620,6 @@ pub fn eval_variable(
     verbose: bool,
     no_autoload: bool,
 ) -> c_int {
-    let rettv: *mut typval_T = rettv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut ret = OK;
         let mut tv: *mut typval_T = ptr::null_mut();
@@ -2643,7 +2638,7 @@ pub fn eval_variable(
         }
 
         if tv.is_null() {
-            if !rettv.is_null() && verbose {
+            if rettv.is_some() && verbose {
                 semsg!(
                     gettext(c"E121: Undefined variable: %.*s".as_ptr()),
                     len,
@@ -2651,8 +2646,8 @@ pub fn eval_variable(
                 );
             }
             ret = FAIL;
-        } else if !rettv.is_null() {
-            tv_copy(&*tv, &mut *rettv);
+        } else if rettv.is_some() {
+            tv_copy(&*tv, rettv.unwrap());
         }
 
         ret

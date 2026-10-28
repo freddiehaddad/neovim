@@ -336,7 +336,6 @@ pub fn free_global_msglist() {
 }
 
 pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: *mut c_char) {
-    let cstack: *mut cstack_T = cstack.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if exeval_st().cause_abort {
             exeval_st().cause_abort = false;
@@ -353,8 +352,8 @@ pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: *mut c_char) {
 
         let messages = std::mem::take(list);
         if throw_exception(ExceptionValue::Error(messages), cmdname) != FAIL {
-            if !cstack.is_null() {
-                do_throw(cstack);
+            if let Some(cstack) = cstack {
+                do_throw(&raw mut *cstack);
             } else {
                 g_st().need_rethrow = true;
             }

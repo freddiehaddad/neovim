@@ -1433,7 +1433,6 @@ fn parse_bordertext_pos(
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
 pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &mut Error) {
-    let fconfig: *mut WinConfig = fconfig.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         const DEFAULTS_CHARS: [[&str; 8]; 6] = [
             ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
@@ -1445,10 +1444,10 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
         ];
         const DEFAULTS_SHADOW: [bool; 6] = [false, false, true, false, false, false];
 
-        let chars = &mut (*fconfig).border_chars;
-        let hl_ids = &mut (*fconfig).border_hl_ids;
-
-        (*fconfig).border = true;
+        let fconfig = fconfig.unwrap();
+        fconfig.border = true;
+        let chars = &mut fconfig.border_chars;
+        let hl_ids = &mut fconfig.border_hl_ids;
 
         if style.obj_type == ObjectType::kObjectTypeArray {
             let arr = style.data.array();
@@ -1547,9 +1546,9 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
         } else if style.obj_type == ObjectType::kObjectTypeString {
             let str_val = style.data.string();
             if str_val.size == 0 || (crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"none")) {
-                (*fconfig).border = false;
-                (*fconfig).title = false;
-                (*fconfig).footer = false;
+                fconfig.border = false;
+                fconfig.title = false;
+                fconfig.footer = false;
                 return;
             }
             for i in 0..6 {
@@ -1603,9 +1602,8 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
     border_opt: *mut c_char,
     err: &mut Error,
 ) -> bool {
-    let fconfig: *mut WinConfig = fconfig.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        if fconfig.is_null() {
+        if fconfig.is_none() {
             return false;
         }
         let opt_bytes = CStr::from_ptr(border_opt).to_bytes();
@@ -1630,7 +1628,7 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
             cstr_to_obj(border_opt)
         };
 
-        parse_border_style(style, (!fconfig.is_null()).then(||  { &mut *fconfig }), err);
+        parse_border_style(style, (fconfig.is_some()).then(||  { fconfig.unwrap() }), err);
         api_free_object(style);
         !error_set(err)
     }

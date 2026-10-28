@@ -2732,7 +2732,6 @@ pub fn do_ecmd(
     flags: c_int,
     mut oldwin: *mut win_T,
 ) -> c_int {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let other_file: bool;
         let oldbuf: bool;
@@ -2757,8 +2756,8 @@ pub fn do_ecmd(
             &raw mut opt_vars().p_so
         };
 
-        if !eap.is_null() {
-            command = (*eap).do_ecmd_cmd;
+        if let Some(eap) = eap {
+            command = eap.do_ecmd_cmd;
         }
 
         set_bufref(&mut old_curbuf, g_st().curbuf);
@@ -2819,7 +2818,7 @@ pub fn do_ecmd(
                         } else {
                             0
                         })
-                        | (if eap.is_null() { 0 } else { CCGD_EXCMD }),
+                        | (if eap.is_none() { 0 } else { CCGD_EXCMD }),
                 )
             {
                 if fnum == 0 && other_file && !ffname.is_null() {
@@ -2993,9 +2992,11 @@ pub fn do_ecmd(
                             g_st().curbuf = buf;
                             (*g_st().curbuf).b_nwindows += 1;
 
-                            if !oldbuf && !eap.is_null() {
-                                set_file_options(true, (!eap.is_null()).then(||  { &*eap }));
-                                set_forced_fenc(&*eap);
+                            if !oldbuf
+                                && let Some(eap) = eap
+                            {
+                                set_file_options(true, Some(eap));
+                                set_forced_fenc(eap);
                             }
                         }
 
@@ -3117,7 +3118,7 @@ pub fn do_ecmd(
                     if (flags & ECMD_NOWINENTER) != 0 {
                         readfile_flags |= READ_NOWINENTER;
                     }
-                    if should_abort(open_buffer(false, (!eap.is_null()).then(||  { &*eap }), readfile_flags)) {
+                    if should_abort(open_buffer(false, (eap.is_some()).then(||  { eap.unwrap() }), readfile_flags)) {
                         retval = FAIL;
                     }
 

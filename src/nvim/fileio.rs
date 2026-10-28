@@ -975,7 +975,6 @@ pub fn readfile(
     flags: c_int,
     silent: bool,
 ) -> c_int {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     #[cfg(unix)]
     let mut fname = fname;
     unsafe {
@@ -986,7 +985,7 @@ pub fn readfile(
         let read_stdin = (flags & READ_STDIN) != 0;
         let read_buffer = (flags & READ_BUFFER) != 0;
         let read_fifo = (flags & READ_FIFO) != 0;
-        let set_options = newfile || read_buffer || (!eap.is_null() && (*eap).read_edit != 0);
+        let set_options = newfile || read_buffer || (eap.is_some() && eap.unwrap().read_edit != 0);
         let mut read_buf_lnum: linenr_T = 1;
         let mut read_buf_col: colnr_T = 0;
         let mut lnum = from;
@@ -1077,7 +1076,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     ) {
                         retval = OK;
                         if aborting() {
@@ -1108,7 +1107,7 @@ pub fn readfile(
                     sfname,
                     false,
                     ptr::null_mut(),
-                    (!eap.is_null()).then(||  { &*eap }),
+                    (eap.is_some()).then(||  { eap.unwrap() }),
                 ) {
                     retval = if aborting() { FAIL } else { OK };
                     break 'theend;
@@ -1199,7 +1198,7 @@ pub fn readfile(
                 break 'theend;
             }
 
-            set_file_options(set_options, (!eap.is_null()).then(||  { &*eap }));
+            set_file_options(set_options, (eap.is_some()).then(||  { eap.unwrap() }));
 
             let check_readonly = newfile && ((*g_st().curbuf).b_flags & BF_CHECK_RO) != 0;
             if check_readonly && !g_st().readonlymode {
@@ -1265,10 +1264,10 @@ pub fn readfile(
                         }
                     }
                     check_marks_read();
-                    if !eap.is_null() {
-                        set_forced_fenc(&*eap);
+                    if let Some(eap) = eap {
+                        set_forced_fenc(eap);
                     }
-                    apply_autocmds_exarg(EVENT_BUFNEWFILE, sfname, sfname, false, g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
+                    apply_autocmds_exarg(EVENT_BUFNEWFILE, sfname, sfname, false, g_st().curbuf, eap);
                     save_file_ff(&mut *g_st().curbuf);
 
                     if !aborting() {
@@ -1382,7 +1381,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     );
                 } else if read_stdin {
                     apply_autocmds_exarg(
@@ -1391,7 +1390,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     );
                 } else if newfile {
                     apply_autocmds_exarg(
@@ -1400,7 +1399,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     );
                 } else {
                     apply_autocmds_exarg(
@@ -1409,7 +1408,7 @@ pub fn readfile(
                         sfname,
                         false,
                         ptr::null_mut(),
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     );
                 }
 
@@ -1482,17 +1481,21 @@ pub fn readfile(
 
             let mut linecnt = (*g_st().curbuf).b_ml.ml_line_count;
 
-            if !eap.is_null() && (*eap).bad_char != 0 {
-                bad_char_behavior = (*eap).bad_char;
+            if let Some(eap) = eap
+                && eap.bad_char != 0
+            {
+                bad_char_behavior = eap.bad_char;
                 if set_options {
-                    (*g_st().curbuf).b_bad_char = (*eap).bad_char;
+                    (*g_st().curbuf).b_bad_char = eap.bad_char;
                 }
             } else {
                 (*g_st().curbuf).b_bad_char = 0;
             }
 
-            if !eap.is_null() && (*eap).force_enc != 0 {
-                fenc_owned = Some(enc_canonize((*eap).cmd.add((*eap).force_enc as usize)));
+            if let Some(eap) = eap
+                && eap.force_enc != 0
+            {
+                fenc_owned = Some(enc_canonize(eap.cmd.add(eap.force_enc as usize)));
                 fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut();
                 keep_dest_enc = true;
             } else if (*g_st().curbuf).b_p_bin != 0 {
@@ -1531,8 +1534,8 @@ pub fn readfile(
 
                 if keep_fileformat {
                     keep_fileformat = false;
-                } else if !eap.is_null() && (*eap).force_ff != 0 {
-                    fileformat = get_fileformat_force(g_st().curbuf, (!eap.is_null()).then(||  { &*eap }));
+                } else if eap.is_some() && eap.unwrap().force_ff != 0 {
+                    fileformat = get_fileformat_force(g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
                     try_unix = 0;
                     try_dos = 0;
                     try_mac = 0;
@@ -1552,7 +1555,7 @@ pub fn readfile(
                 if advance_fenc {
                     advance_fenc = false;
 
-                    if !eap.is_null() && (*eap).force_enc != 0 {
+                    if eap.is_some() && eap.unwrap().force_enc != 0 {
                         notconverted = true;
                         conv_error = 0;
                         fenc_owned = None;
@@ -2716,7 +2719,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     );
                 } else if newfile || (read_buffer && !sfname.is_null()) {
                     let did_bufrp = apply_autocmds_exarg(
@@ -2725,7 +2728,7 @@ pub fn readfile(
                         sfname,
                         false,
                         g_st().curbuf,
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     );
 
                     if !(*g_st().curbuf).b_au_did_filetype && *(*g_st().curbuf).b_p_ft != NUL {
@@ -2762,7 +2765,7 @@ pub fn readfile(
                         sfname,
                         false,
                         ptr::null_mut(),
-                        (!eap.is_null()).then(||  { &*eap }),
+                        (eap.is_some()).then(||  { eap.unwrap() }),
                     );
                 }
                 if g_st().msg_scrolled == n {
@@ -2844,19 +2847,20 @@ pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
 
 /// Set default or forced 'fileformat' and 'binary'.
 pub fn set_file_options(set_options: bool,eap: Option<&exarg_T>) {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         if set_options {
-            if !eap.is_null() && (*eap).force_ff != 0 {
-                set_fileformat(get_fileformat_force(g_st().curbuf, (!eap.is_null()).then(||  { &*eap })), OPT_LOCAL);
+            if eap.is_some() && eap.unwrap().force_ff != 0 {
+                set_fileformat(get_fileformat_force(g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() })), OPT_LOCAL);
             } else if *opt_vars().p_ffs != NUL {
                 set_fileformat(default_fileformat(), OPT_LOCAL);
             }
         }
 
-        if !eap.is_null() && (*eap).force_bin != 0 {
+        if let Some(eap) = eap
+            && eap.force_bin != 0
+        {
             let oldval = (*g_st().curbuf).b_p_bin;
-            (*g_st().curbuf).b_p_bin = c_int::from((*eap).force_bin == FORCE_BIN);
+            (*g_st().curbuf).b_p_bin = c_int::from(eap.force_bin == FORCE_BIN);
             set_options_bin(oldval, (*g_st().curbuf).b_p_bin, OPT_LOCAL);
         }
     }

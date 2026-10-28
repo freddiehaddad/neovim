@@ -2568,9 +2568,8 @@ fn has_state_with_pos(
 
 #[inline]
 fn pim_equal(one: Option<&nfa_pim_T>, two: *const nfa_pim_T) -> bool {
-    let one: *const nfa_pim_T = one.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
-        let one_unused = one.is_null() || (*one).result == NFA_PIM_UNUSED;
+        let one_unused = one.is_none() || one.unwrap().result == NFA_PIM_UNUSED;
         let two_unused = two.is_null() || (*two).result == NFA_PIM_UNUSED;
         if one_unused {
             return two_unused;
@@ -2578,15 +2577,15 @@ fn pim_equal(one: Option<&nfa_pim_T>, two: *const nfa_pim_T) -> bool {
         if two_unused {
             return false;
         }
-        if (*one).state != (*two).state {
+        if one.unwrap().state != (*two).state {
             return false;
         }
         if REG_MULTI() {
-            let p1 = (*one).end.pos();
+            let p1 = one.unwrap().end.pos();
             let p2 = (*two).end.pos();
             p1.lnum == p2.lnum && p1.col == p2.col
         } else {
-            (*one).end.ptr() == (*two).end.ptr()
+            one.unwrap().end.ptr() == (*two).end.ptr()
         }
     }
 }
@@ -2666,14 +2665,14 @@ fn addstate(
     off_arg: c_int,
     depth: c_int,
 ) -> *mut regsubs_T {
-    let subs_arg: *mut regsubs_T = subs_arg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let subs_ptr = subs_arg.map_or(ptr::null_mut(), |p| &raw mut *p);
     let Some(state_idx) = state else {
-        if depth >= 5000 || subs_arg.is_null() {
+        if depth >= 5000 || subs_ptr.is_null() {
             return ptr::null_mut();
         }
-        return subs_arg;
+        return subs_ptr;
     };
-    addstate_idx(states.as_mut_ptr(), l, state_idx, subs_arg, pim, off_arg, depth)
+    addstate_idx(states.as_mut_ptr(), l, state_idx, subs_ptr, pim, off_arg, depth)
 }
 
 #[inline(always)]

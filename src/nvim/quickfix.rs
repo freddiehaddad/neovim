@@ -1475,12 +1475,11 @@ fn qf_parse_line(
 fn qf_setup_state(
     pstate: &mut qfstate_T,
     enc: *mut c_char,
-    efile: *const c_char,tv: Option<&mut typval_T>,
+    efile: *const c_char,mut tv: Option<&mut typval_T>,
     buf: *mut buf_T,
     lnumfirst: linenr_T,
     lnumlast: linenr_T,
 ) -> c_int {
-    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         pstate.vc.vc_type = CONV_NONE;
         if !enc.is_null() && *enc != NUL {
@@ -1498,11 +1497,11 @@ fn qf_setup_state(
                 return FAIL;
             };
             pstate.source = QfInputSource::File(fd);
-        } else if !tv.is_null() {
-            if (*tv).v_type == VarType::VAR_STRING {
-                pstate.source = QfInputSource::Str((*tv).vval.v_string());
-            } else if (*tv).v_type == VarType::VAR_LIST {
-                pstate.source = QfInputSource::List(tv_list_first((*tv).vval.v_list()));
+        } else if tv.is_some() {
+            if tv.as_deref_mut().unwrap().v_type == VarType::VAR_STRING {
+                pstate.source = QfInputSource::Str(tv.as_deref_mut().unwrap().vval.v_string());
+            } else if tv.as_deref_mut().unwrap().v_type == VarType::VAR_LIST {
+                pstate.source = QfInputSource::List(tv_list_first(tv.unwrap().vval.v_list()));
             }
         } else {
             pstate.source = QfInputSource::Buf {
@@ -1520,7 +1519,7 @@ fn qf_init_ext(
     qi: &mut qf_info_T,
     mut qf_idx: c_int,
     efile: *const c_char,
-    buf: *mut buf_T,tv: Option<&mut typval_T>,
+    buf: *mut buf_T,mut tv: Option<&mut typval_T>,
     errorformat: *mut c_char,
     newlist: bool,
     lnumfirst: linenr_T,
@@ -1528,7 +1527,6 @@ fn qf_init_ext(
     qf_title: *const c_char,
     enc: *mut c_char,
 ) -> c_int {
-    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut state = qfstate_T::default();
         let mut fields = qffields_T::default();
@@ -1537,7 +1535,7 @@ fn qf_init_ext(
 
         qf_st().qf_last_bufname = None;
 
-        if qf_setup_state(&mut state, enc, efile, (!tv.is_null()).then(|| &mut *tv), buf, lnumfirst, lnumlast) == FAIL {
+        if qf_setup_state(&mut state, enc, efile, tv.as_deref_mut(), buf, lnumfirst, lnumlast) == FAIL {
             if qf_idx == qi.qf_curlist {
                 qf_update_buffer(qi, old_count);
             }
@@ -1559,7 +1557,7 @@ fn qf_init_ext(
         }
 
         let efm =
-            if errorformat == opt_vars().p_efm && tv.is_null() && !buf.is_null() && *(*buf).b_p_efm != NUL {
+            if errorformat == opt_vars().p_efm && tv.is_none() && !buf.is_null() && *(*buf).b_p_efm != NUL {
                 (*buf).b_p_efm
             } else {
                 errorformat
@@ -2256,7 +2254,6 @@ fn qf_add_entry(
     user_data: Option<&typval_T>,
     valid: c_char,
 ) -> c_int {
-    let user_data: *const typval_T = user_data.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let buf: *mut buf_T;
         let mut qfp = qfline_T::new();
@@ -2298,11 +2295,13 @@ fn qf_add_entry(
         qfp.qf_col = col;
         qfp.qf_end_col = end_col;
         qfp.qf_viscol = vis_col;
-        if user_data.is_null() || (*user_data).v_type == VarType::VAR_UNKNOWN {
-            qfp.qf_user_data.v_type = VarType::VAR_UNKNOWN;
-        } else {
-            tv_copy(&*user_data, &mut qfp.qf_user_data);
+        if let Some(user_data) = user_data
+            && user_data.v_type != VarType::VAR_UNKNOWN
+        {
+            tv_copy(user_data, &mut qfp.qf_user_data);
             qfl.qf_has_user_data = true;
+        } else {
+            qfp.qf_user_data.v_type = VarType::VAR_UNKNOWN;
         }
         qfp.qf_pattern = if pattern.is_null() || *pattern == NUL {
             None
@@ -6170,9 +6169,8 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
     eidx: c_int,
     list: *mut list_T,
 ) -> c_int {
-    let qi_arg: *mut qf_info_T = qi_arg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let mut qi = qi_arg;
+        let mut qi = qi_arg.map_or(ptr::null_mut(), |p| &raw mut *p);
         if qi.is_null() {
             qi = ql_info_ptr();
             if !wp.is_null() {

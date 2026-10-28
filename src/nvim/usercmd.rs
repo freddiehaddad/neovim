@@ -238,9 +238,8 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
 pub fn find_ucmd(
     eap: &mut exarg_T,
-    p: *mut c_char,mut full: Option<&mut c_int>,xp: Option<&mut expand_T>,mut complp: Option<&mut c_int>,
+    p: *mut c_char,mut full: Option<&mut c_int>,mut xp: Option<&mut expand_T>,mut complp: Option<&mut c_int>,
 ) -> *mut c_char {
-    let xp: *mut expand_T = xp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let len = p.offset_from(eap.cmd) as c_int;
         let mut matchlen: c_int = 0;
@@ -293,14 +292,14 @@ pub fn find_ucmd(
                         if let Some(ref mut p) = complp {
             **p = uc.uc_compl;
         }
-                        if !xp.is_null() {
-                            (*xp).xp_luaref = uc.uc_compl_luaref;
-                            (*xp).xp_arg = uc
+                        if xp.is_some() {
+                            xp.as_deref_mut().unwrap().xp_luaref = uc.uc_compl_luaref;
+                            xp.as_deref_mut().unwrap().xp_arg = uc
                                 .uc_compl_arg
                                 .as_ref()
                                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                            (*xp).xp_script_ctx = uc.uc_script_ctx;
-                            (*xp).xp_script_ctx.sc_lnum += sourcing_lnum();
+                            xp.as_deref_mut().unwrap().xp_script_ctx = uc.uc_script_ctx;
+                            xp.as_deref_mut().unwrap().xp_script_ctx.sc_lnum += sourcing_lnum();
                         }
                         matchlen = k;
                         if k == len && *np == NUL {
@@ -324,8 +323,8 @@ pub fn find_ucmd(
         }
 
         if amb_local {
-            if !xp.is_null() {
-                (*xp).xp_context = EXPAND_UNSUCCESSFUL;
+            if let Some(xp) = xp {
+                xp.xp_context = EXPAND_UNSUCCESSFUL;
             }
             return ptr::null_mut();
         }

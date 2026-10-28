@@ -2502,27 +2502,26 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     }
 }
 
-fn cmd_source(fname: *mut c_char,eap: Option<&mut exarg_T>) {
-    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+fn cmd_source(fname: *mut c_char,mut eap: Option<&mut exarg_T>) {
     unsafe {
-        if *fname != NUL && !eap.is_null() && (*eap).addr_count > 0 {
+        if *fname != NUL && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
             emsg(gettext(e_norange.as_ptr()));
             return;
         }
 
-        if !eap.is_null() && *fname == NUL {
-            if (*eap).forceit != 0 {
+        if eap.is_some() && *fname == NUL {
+            if eap.as_deref_mut().unwrap().forceit != 0 {
                 emsg(gettext(e_argreq.as_ptr()));
             } else {
-                cmd_source_buffer((!eap.is_null()).then(|| &*eap), false);
+                cmd_source_buffer(eap.as_deref(), false);
             }
-        } else if !eap.is_null() && (*eap).forceit != 0 {
+        } else if eap.is_some() && eap.as_deref_mut().unwrap().forceit != 0 {
             openscript(
                 fname,
                 g_st().global_busy != 0
                     || g_st().listcmd_busy
-                    || !(*eap).nextcmd.is_null()
-                    || (*(*eap).cstack.cast::<cstack_T>()).cs_idx >= 0,
+                    || !eap.as_deref_mut().unwrap().nextcmd.is_null()
+                    || (*eap.unwrap().cstack.cast::<cstack_T>()).cs_idx >= 0,
             );
         } else if do_source(fname, false, DOSO_NONE, ptr::null_mut()) == FAIL {
             semsg!(gettext(e_notopen.as_ptr()), fname);
@@ -2640,7 +2639,6 @@ fn do_source_buffer_init(
     sp: &mut source_cookie_T,eap: Option<&exarg_T>,
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         if g_st().curbuf.is_null() {
             return None;
@@ -2669,14 +2667,14 @@ fn do_source_buffer_init(
         };
 
         sp.buflines.clear();
-        for curr_lnum in (*eap).line1..=(*eap).line2 {
+        for curr_lnum in eap.unwrap().line1..=eap.unwrap().line2 {
             sp
                 .buflines
                 .push(CStr::from_ptr(ml_get(curr_lnum)).to_owned());
         }
         sp.buf_lnum = 0;
         sp.source_from_buf_or_str = true;
-        sp.sourcing_lnum = (*eap).line1 - 1;
+        sp.sourcing_lnum = eap.unwrap().line1 - 1;
 
         Some(fname)
     }
@@ -2748,7 +2746,6 @@ fn do_source_ext(
     ex_lua: bool,
     str_ptr: *const c_char,
 ) -> c_int {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut cookie = source_cookie_T::new();
         let mut firstline: Option<std::ffi::CString> = None;
@@ -2760,7 +2757,7 @@ fn do_source_ext(
 
         let fname_exp_owned: std::ffi::CString = if fname.is_null() {
             debug_assert!(str_ptr.is_null());
-            let Some(fe) = do_source_buffer_init(&mut cookie, (!eap.is_null()).then(|| &*eap), ex_lua) else {
+            let Some(fe) = do_source_buffer_init(&mut cookie, eap, ex_lua) else {
                 return FAIL;
             };
             fe
@@ -2949,7 +2946,7 @@ fn do_source_ext(
 
             let mut ts_lua = false;
             if fname.is_null()
-                && !eap.is_null()
+                && let Some(eap) = eap
                 && !ex_lua
                 && !(crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"lua"))
                 && !(!(*g_st().curbuf).b_fname.is_null()
@@ -2957,8 +2954,8 @@ fn do_source_ext(
             {
                 let mut args_items = [
                     integer_obj(Integer::from((*g_st().curbuf).b_fnum)),
-                    integer_obj(Integer::from((*eap).line1)),
-                    integer_obj(Integer::from((*eap).line2)),
+                    integer_obj(Integer::from(eap.line1)),
+                    integer_obj(Integer::from(eap.line2)),
                 ];
                 let args = Array {
                     items: args_items.as_mut_ptr(),

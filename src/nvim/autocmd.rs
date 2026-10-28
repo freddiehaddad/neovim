@@ -2566,7 +2566,6 @@ pub fn aucmd_defer(
     group: c_int,
     buf: &mut buf_T,data: Option<&mut Object>,
 ) {
-    let data: *mut Object = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let evdata = Box::new(AutoCmdEvent {
             event,
@@ -2574,7 +2573,7 @@ pub fn aucmd_defer(
             fname_io: (!fname_io.is_null()).then(|| CStr::from_ptr(fname_io).to_owned()),
             group,
             buf: buf.b_fnum,
-            data: (!data.is_null()).then(|| copy_object(*data, None)),
+            data: (data.is_some()).then(|| copy_object(*data.unwrap(), None)),
         });
 
         multiqueue_put_event(g_st().deferred_events, Event::AutoCmdDeferred(evdata));
@@ -2721,7 +2720,6 @@ pub fn apply_autocmds_exarg(
     force: bool,
     buf: *mut buf_T,eap: Option<&exarg_T>,
 ) -> bool {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         apply_autocmds_group(
             event,
@@ -2731,7 +2729,7 @@ pub fn apply_autocmds_exarg(
             AUGROUP_ALL,
             buf,
             *curwin.as_ptr(),
-            (!eap.is_null()).then(||  { &*eap }),
+            (eap.is_some()).then(||  { eap.unwrap() }),
             ptr::null_mut(),
             false,
         )
@@ -2811,7 +2809,6 @@ pub fn apply_autocmds_group(
     data: *mut Object,
     with_buf: bool,
 ) -> bool {
-    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut retval = false;
         let mut wait_time: proftime_T = 0;
@@ -3062,9 +3059,9 @@ pub fn apply_autocmds_group(
                 patcmd.data = (!data.is_null()).then(|| *data);
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
-                let save_cmdarg = if !eap.is_null() {
-                    let s = set_cmdarg((!eap.is_null()).then(||  { &*eap }), None);
-                    set_vim_var_nr(VV_CMDBANG, varnumber_T::from((*eap).forceit));
+                let save_cmdarg = if let Some(eap) = eap {
+                    let s = set_cmdarg(Some(eap), None);
+                    set_vim_var_nr(VV_CMDBANG, varnumber_T::from(eap.forceit));
                     s
                 } else {
                     None
@@ -3091,7 +3088,7 @@ pub fn apply_autocmds_group(
                     reset_lnums();
                 }
 
-                if !eap.is_null() {
+                if eap.is_some() {
                     set_cmdarg(None, save_cmdarg);
                     set_vim_var_nr(VV_CMDBANG, save_cmdbang);
                 }
@@ -3490,10 +3487,9 @@ pub fn getnextac(
 
 fn has_autocmd_ext(
     event: event_T,
-    sfname: *mut c_char,buf: Option<&mut buf_T>,
+    sfname: *mut c_char,mut buf: Option<&mut buf_T>,
     is_full: bool,
 ) -> bool {
-    let buf: *mut buf_T = buf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if !has_event(event) {
             return false;
@@ -3524,7 +3520,7 @@ fn has_autocmd_ext(
                         c_int::from(ap.allow_dirs),
                     )
                 } else {
-                    !buf.is_null() && ap.buflocal_nr == (*buf).b_fnum
+                    buf.is_some() && ap.buflocal_nr == buf.as_deref_mut().unwrap().b_fnum
                 };
                 if matched {
                     retval = true;
@@ -3538,13 +3534,11 @@ fn has_autocmd_ext(
 }
 
 pub fn has_autocmd(event: event_T, sfname: *mut c_char,buf: Option<&mut buf_T>) -> bool {
-    let buf: *mut buf_T = buf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    has_autocmd_ext(event, sfname, (!buf.is_null()).then(|| unsafe { &mut *buf }), false)
+    has_autocmd_ext(event, sfname, buf, false)
 }
 
 pub fn has_autocmd_fullname(event: event_T, fname: *mut c_char,buf: Option<&mut buf_T>) -> bool {
-    let buf: *mut buf_T = buf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    has_autocmd_ext(event, fname, (!buf.is_null()).then(|| unsafe { &mut *buf }), true)
+    has_autocmd_ext(event, fname, buf, true)
 }
 
 pub fn expand_get_augroup_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
