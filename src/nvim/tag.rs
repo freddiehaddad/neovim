@@ -1136,7 +1136,7 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
 
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
-        set_errorlist(curwin_ptr(), list.as_ref(), b' ' as c_int, iobuf_ptr, None);
+        set_errorlist(curwin_ptr(), Some(&*list), b' ' as c_int, iobuf_ptr, None);
 
         tv_list_free(list);
 
@@ -3345,16 +3345,16 @@ pub fn get_tags(
             tv_list_append_dict(&mut *list, dict);
 
             let full_fname = tag_full_fname(&mut tp);
-            if !add_tag_field(dict.as_mut(), c"name", tp.tagname, tp.tagname_end)
+            if !add_tag_field(Some(&mut *dict), c"name", tp.tagname, tp.tagname_end)
                 || !add_tag_field(
-                    dict.as_mut(),
+                    Some(&mut *dict),
                     c"filename",
                     full_fname.as_ptr().cast_mut(),
                     ptr::null(),
                 )
-                || !add_tag_field(dict.as_mut(), c"cmd", tp.command, tp.command_end)
+                || !add_tag_field(Some(&mut *dict), c"cmd", tp.command, tp.command_end)
                 || !add_tag_field(
-                    dict.as_mut(),
+                    Some(&mut *dict),
                     c"kind",
                     tp.tagkind,
                     if !tp.tagkind.is_null() {
@@ -3401,7 +3401,7 @@ pub fn get_tags(
                                 p = p.add(1);
                             }
                             *n.add(len as usize) = NUL;
-                            if !add_tag_field(dict.as_mut(), n, s, p) {
+                            if !add_tag_field(Some(&mut *dict), n, s, p) {
                                 ret = false;
                             }
                             *n.add(len as usize) = b':' as c_char;
@@ -3425,7 +3425,7 @@ pub fn get_tags(
 }
 
 fn get_tag_details(tag: &mut Taggy, retdict: &mut TvDict) {
-    unsafe {
+    {
         tv_dict_add_str(
             retdict,
             c"tagname",

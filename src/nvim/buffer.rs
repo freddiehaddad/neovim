@@ -915,12 +915,12 @@ pub fn buf_meta_total(b: &FileBuf, m: usize) -> u32 {
 }
 
 #[inline]
-pub fn first_win_in_tab(tp: &mut TabPageInfo) -> *mut WinInfoInfo {
-    {
+pub fn first_win_in_tab(tp: &mut TabPageInfo) -> &'static mut WinInfoInfo {
+    unsafe {
         if (&raw mut *tp) == g_st().curtab {
-            g_st().firstwin
+            &mut *g_st().firstwin
         } else {
-            tp.tp_firstwin
+            &mut *tp.tp_firstwin
         }
     }
 }
@@ -3100,9 +3100,9 @@ pub fn buflist_getfile(n: c_int, mut lnum: Linenr, options: c_int, forceit: c_in
 }
 
 fn buflist_getfpos() {
-    unsafe {
+    {
         let fm = buflist_findfmark(curbuf_mut());
-        let fpos = &(*fm).mark;
+        let fpos = &fm.mark;
         curwin_mut().w_cursor.lnum = fpos.lnum;
         check_cursor_lnum(curwin_mut());
 
@@ -3116,7 +3116,7 @@ fn buflist_getfpos() {
         }
 
         if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
-            mark_view_restore(fm.as_ref());
+            mark_view_restore(Some(&*fm));
         }
     }
 }
@@ -3597,20 +3597,20 @@ pub fn get_winopts(buf: &mut FileBuf) {
 }
 
 /// Find the mark for the buffer `buf` for the current window.
-pub fn buflist_findfmark(buf: &mut FileBuf) -> *mut Fmark {
+pub fn buflist_findfmark(buf: &mut FileBuf) -> &'static mut Fmark {
     unsafe {
         let wip = find_wininfo(buf, false, false);
         if wip.is_null() {
-            &raw mut buf_st().no_position
+            &mut buf_st().no_position
         } else {
-            &raw mut (*wip).wi_mark
+            &mut (*wip).wi_mark
         }
     }
 }
 
 /// Find the lnum for the buffer `buf` for the current window.
 pub fn buflist_findlnum(buf: &mut FileBuf) -> Linenr {
-    unsafe { (*buflist_findfmark(buf)).mark.lnum }
+    buflist_findfmark(buf).mark.lnum
 }
 
 /// List all known file names (for `:files` and `:buffers` command).

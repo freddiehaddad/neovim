@@ -2938,8 +2938,8 @@ pub fn curbuf_is_changed_fn() -> bool {
     buf_is_changed_fn(curbuf_mut())
 }
 
-fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> *mut TvList {
-    unsafe {
+fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> &'static mut TvList {
+    {
         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
 
         let mut uhp = first_uhp;

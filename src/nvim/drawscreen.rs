@@ -1234,8 +1234,7 @@ fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
                     fr = (*fr).fr_next;
                 }
             } else {
-                while !(*fr).fr_next.is_null()
-                    && (*frame2win(fr)).w_winrow + (*fr).fr_height < sep_row
+                while !(*fr).fr_next.is_null() && frame2win(fr).w_winrow + (*fr).fr_height < sep_row
                 {
                     fr = (*fr).fr_next;
                 }
@@ -1275,8 +1274,7 @@ fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
                     fr = (*fr).fr_next;
                 }
             } else {
-                while !(*fr).fr_next.is_null()
-                    && (*frame2win(fr)).w_wincol + (*fr).fr_width < sep_col
+                while !(*fr).fr_next.is_null() && frame2win(fr).w_wincol + (*fr).fr_width < sep_col
                 {
                     fr = (*fr).fr_next;
                 }

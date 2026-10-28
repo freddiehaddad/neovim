@@ -766,7 +766,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             );
                             stack.push(cur);
                             tv_list_append_list(&mut *(*cur.tv).vval.v_list(), kv_pair);
-                            let last = tv_list_last(kv_pair.as_ref());
+                            let last = tv_list_last(Some(&*kv_pair));
                             cur = TVPopStackItem {
                                 tv: &mut (*last).li_tv,
                                 list_len: 0,
@@ -881,8 +881,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         match table_props.table_type {
                             ObjectType::ObjectTypeArray => {
                                 let l = tv_list_alloc(table_props.maxidx as isize);
-                                (*l).lua_table_ref = table_ref;
-                                tv_list_ref(l.as_mut());
+                                l.lua_table_ref = table_ref;
+                                tv_list_ref(Some(&mut *l));
                                 (*cur.tv).v_type = VarType::VarList;
                                 (*cur.tv).vval = crate::eval::typval::TypvalVval::List(l);
                                 cur.list_len = table_props.maxidx;
@@ -895,8 +895,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             ObjectType::ObjectTypeDict => {
                                 if table_props.string_keys_num == 0 {
                                     let d = tv_dict_alloc();
-                                    (*d).dv_refcount += 1;
-                                    (*d).lua_table_ref = table_ref;
+                                    d.dv_refcount += 1;
+                                    d.lua_table_ref = table_ref;
                                     (*cur.tv).v_type = VarType::VarDict;
                                     (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
                                 } else {
@@ -917,8 +917,8 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                         cur.list_len = table_props.string_keys_num;
                                     } else {
                                         let d = tv_dict_alloc();
-                                        (*d).dv_refcount += 1;
-                                        (*d).lua_table_ref = table_ref;
+                                        d.dv_refcount += 1;
+                                        d.lua_table_ref = table_ref;
                                         (*cur.tv).v_type = VarType::VarDict;
                                         (*cur.tv).vval = crate::eval::typval::TypvalVval::Dict(d);
                                     }

@@ -5369,8 +5369,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
         } else if cap.nchar == b'p' as c_int || cap.nchar == b'P' as c_int {
             nv_put_opt(cap, true);
         } else if cap.nchar == b'\'' as c_int || cap.nchar == b'`' as c_int {
-            let mut fm = pos_to_mark(curbuf_mut(), None, curwin_mut().w_cursor);
-            assert!(!fm.is_null());
+            let mut fm: *mut Fmark = pos_to_mark(curbuf_mut(), None, curwin_mut().w_cursor);
             let mut prev_fm = fm;
             let mut n = cap.count1;
             while n > 0 {

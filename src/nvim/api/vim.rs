@@ -1168,12 +1168,7 @@ pub fn nvim_del_var(name: NvimString, err: &mut Error) {
 /// @return         Variable value
 // DLLEXPORT Object nvim_get_vvar(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_vvar(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    dict_get_value(
-        unsafe { get_vimvar_dict().as_ref() },
-        name,
-        Some(arena),
-        err,
-    )
+    dict_get_value(Some(&*get_vimvar_dict()), name, Some(arena), err)
 }
 
 /// Sets a v: variable, if it is not readonly.
@@ -1183,7 +1178,7 @@ pub fn nvim_get_vvar(name: NvimString, arena: &mut Arena, err: &mut Error) -> Ob
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_vvar(String name, Object value, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
-    unsafe {
+    {
         dict_set_var(
             &mut *get_vimvar_dict(),
             name,

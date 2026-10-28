@@ -476,15 +476,15 @@ pub fn update_yankreg_width(reg: &mut Yankreg) {
     }
 }
 
-pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut Yankreg {
+pub fn get_yank_register(regname: c_int, mode: c_int) -> &'static mut Yankreg {
     unsafe {
         let mut reg: *mut Yankreg = ptr::null_mut();
 
         if (mode == YREG_PASTE || mode == YREG_PUT) && get_clipboard(regname, &raw mut reg, false) {
-            return reg;
+            return &mut *reg;
         } else if mode == YREG_PUT && (regname == c_int::from(b'*') || regname == c_int::from(b'+'))
         {
-            return &raw mut reg_st().empty_reg;
+            return &mut reg_st().empty_reg;
         } else if mode != YREG_YANK
             && (regname == 0
                 || regname == c_int::from(b'"')
@@ -492,7 +492,7 @@ pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut Yankreg {
                 || regname == c_int::from(b'+'))
             && !reg_st().y_previous.is_null()
         {
-            return reg_st().y_previous;
+            return &mut *reg_st().y_previous;
         }
 
         let mut i = op_reg_index(regname);
@@ -504,7 +504,7 @@ pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut Yankreg {
         if mode == YREG_YANK {
             reg_st().y_previous = reg;
         }
-        reg
+        &mut *reg
     }
 }
 
@@ -523,7 +523,7 @@ pub fn yank_register_mline(regname: c_int, reg: *mut *mut Yankreg) -> bool {
 }
 
 pub fn copy_register(name: c_int) -> Yankreg {
-    unsafe {
+    {
         let reg = &*get_yank_register(name, YREG_PASTE);
         let y_array = reg.y_array.iter().map(|&s| copy_string_global(s)).collect();
         Yankreg {
@@ -1035,7 +1035,7 @@ pub fn get_spec_reg(
 }
 
 pub fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool) -> bool {
-    unsafe {
+    {
         let literally = literally_arg || is_literal_register(regname);
 
         let reg = &*get_yank_register(regname, YREG_PASTE);
@@ -1350,7 +1350,7 @@ fn add_regtype_to_dict(reg: Option<&Yankreg>, dict: &mut TvDict, buf: *mut c_cha
 }
 
 pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
-    unsafe {
+    {
         if reg_st().textyankpost_recursive || !has_event(EVENT_TEXTYANKPOST) {
             return;
         }
@@ -1364,7 +1364,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
         for &item in &reg.y_array {
             tv_list_append_string(&mut *list, item.data, item.size as isize);
         }
-        (*list).lv_lock = VAR_FIXED;
+        list.lv_lock = VAR_FIXED;
         tv_dict_add_list(&mut *dict, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
@@ -1421,7 +1421,7 @@ fn put_do_autocmd(
     post: bool,
     dir: Direction,
 ) {
-    unsafe {
+    {
         if reg_st().put_autocmd_recursive || (regname == c_int::from(b'_') && reg.is_none()) {
             return;
         }
@@ -1451,7 +1451,7 @@ fn put_do_autocmd(
             }
         }
 
-        (*list).lv_lock = VAR_FIXED;
+        list.lv_lock = VAR_FIXED;
         tv_dict_add_list(&mut *v_event, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
@@ -1505,7 +1505,7 @@ fn put_do_autocmd(
 }
 
 pub fn op_yank(oap: &mut Oparg, message: bool) -> bool {
-    unsafe {
+    {
         if oap.regname != 0 && !valid_yank_reg(oap.regname, true) {
             beep_flush();
             return false;
@@ -2616,7 +2616,7 @@ pub fn ex_display(eap: &mut Exarg) {
 }
 
 pub fn get_reg_type(regname: c_int, reg_width: Option<&mut Colnr>) -> MotionType {
-    unsafe {
+    {
         if regname == c_int::from(b'%')
             || regname == c_int::from(b'#')
             || regname == c_int::from(b'=')
@@ -2650,7 +2650,7 @@ pub fn get_reg_type(regname: c_int, reg_width: Option<&mut Colnr>) -> MotionType
 }
 
 fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut TvList {
-    unsafe {
+    {
         let Some(s) = s else {
             return ptr::null_mut();
         };
@@ -2661,7 +2661,7 @@ fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut TvList {
 }
 
 pub fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         if regname == c_int::from(b'=') {
             if (flags & K_GREG_NO_EXPR) != 0 {
                 return None;
@@ -2717,7 +2717,7 @@ pub fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi
 }
 
 pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut TvList {
-    unsafe {
+    {
         if regname == c_int::from(b'=') {
             if (flags & K_GREG_NO_EXPR) != 0 {
                 return ptr::null_mut();

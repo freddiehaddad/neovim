@@ -134,16 +134,16 @@ fn lmpack_shallow_copy(l: *mut lua_State) {
     }
 }
 
-fn lmpack_check_unpacker(l: *mut lua_State, index: c_int) -> *mut LmpackUnpacker {
-    unsafe { luaL_checkudata(l, index, UNPACKER_META_NAME).cast::<LmpackUnpacker>() }
+fn lmpack_check_unpacker(l: *mut lua_State, index: c_int) -> &'static mut LmpackUnpacker {
+    unsafe { &mut *luaL_checkudata(l, index, UNPACKER_META_NAME).cast::<LmpackUnpacker>() }
 }
 
 fn lmpack_check_packer(l: *mut lua_State, index: c_int) -> *mut Packer {
     unsafe { luaL_checkudata(l, index, PACKER_META_NAME).cast::<Packer>() }
 }
 
-fn lmpack_check_session(l: *mut lua_State, index: c_int) -> *mut Session {
-    unsafe { luaL_checkudata(l, index, SESSION_META_NAME).cast::<Session>() }
+fn lmpack_check_session(l: *mut lua_State, index: c_int) -> &'static mut Session {
+    unsafe { &mut *luaL_checkudata(l, index, SESSION_META_NAME).cast::<Session>() }
 }
 
 fn lmpack_isnil(l: *mut lua_State, index: c_int) -> bool {
@@ -265,10 +265,10 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lmpack_unpacker_delete(l: *mut lua_State) -> c_int {
     unsafe {
         let unpacker = lmpack_check_unpacker(l, 1);
-        if (*unpacker).ext != LUA_NOREF {
-            lmpack_unref(l, (*unpacker).reg, (*unpacker).ext);
+        if unpacker.ext != LUA_NOREF {
+            lmpack_unref(l, unpacker.reg, unpacker.ext);
         }
-        luaL_unref(l, LUA_REGISTRYINDEX, (*unpacker).reg);
+        luaL_unref(l, LUA_REGISTRYINDEX, unpacker.reg);
         ptr::drop_in_place(unpacker);
         0
     }
@@ -430,7 +430,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_unpack(l: *mut lua_State) -> c_int {
         }
 
         let unpacker = lmpack_check_unpacker(l, 1);
-        (*unpacker).lstate = l;
+        unpacker.lstate = l;
 
         let mut len: usize = 0;
         let str_init = luaL_checklstring(l, 2, &mut len);
@@ -823,8 +823,8 @@ unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lmpack_session_delete(l: *mut lua_State) -> c_int {
     unsafe {
         let session = lmpack_check_session(l, 1);
-        lmpack_unref(l, (*session).reg, (*session).unpacker);
-        luaL_unref(l, LUA_REGISTRYINDEX, (*session).reg);
+        lmpack_unref(l, session.reg, session.unpacker);
+        luaL_unref(l, LUA_REGISTRYINDEX, session.reg);
         ptr::drop_in_place(session);
         0
     }
@@ -872,8 +872,8 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
         len -= offset;
 
         let mut unpacker: *mut LmpackUnpacker = ptr::null_mut();
-        if (*session).unpacker != LUA_REFNIL {
-            lmpack_geti(l, (*session).reg, (*session).unpacker);
+        if session.unpacker != LUA_REFNIL {
+            lmpack_geti(l, session.reg, session.unpacker);
             unpacker = lmpack_check_unpacker(l, -1);
             (*unpacker).lstate = l;
             rcount += 2;
@@ -881,15 +881,15 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
         }
 
         loop {
-            if (*session).unpacked.r#type == MPACK_EOF {
-                (*session).unpacked.r#type = mpack_rpc_receive(
-                    &mut (*session).session,
+            if session.unpacked.r#type == MPACK_EOF {
+                session.unpacked.r#type = mpack_rpc_receive(
+                    &mut session.session,
                     &mut str_ptr,
                     &mut len,
-                    &mut (*session).unpacked.msg,
+                    &mut session.unpacked.msg,
                 );
 
-                if unpacker.is_null() || (*session).unpacked.r#type == MPACK_EOF {
+                if unpacker.is_null() || session.unpacked.r#type == MPACK_EOF {
                     break;
                 }
             }
@@ -899,16 +899,16 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
                 break;
             }
 
-            if (*session).unpacked.method_or_error == LUA_NOREF {
-                (*session).unpacked.method_or_error = lmpack_ref(l, (*session).reg);
+            if session.unpacked.method_or_error == LUA_NOREF {
+                session.unpacked.method_or_error = lmpack_ref(l, session.reg);
             } else {
-                (*session).unpacked.args_or_result = lmpack_ref(l, (*session).reg);
+                session.unpacked.args_or_result = lmpack_ref(l, session.reg);
                 break;
             }
         }
 
-        let done = (*session).unpacked.r#type != MPACK_EOF
-            && ((*session).unpacked.args_or_result != LUA_NOREF || unpacker.is_null());
+        let done = session.unpacked.r#type != MPACK_EOF
+            && (session.unpacked.args_or_result != LUA_NOREF || unpacker.is_null());
 
         if !done {
             lua_pushnil(l);
@@ -918,14 +918,14 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
                 lua_pushnil(l);
             }
         } else {
-            match (*session).unpacked.r#type {
+            match session.unpacked.r#type {
                 MPACK_RPC_REQUEST => {
                     lua_pushstring(l, c"request");
-                    lua_pushnumber(l, lua_Number::from((*session).unpacked.msg.id));
+                    lua_pushnumber(l, lua_Number::from(session.unpacked.msg.id));
                 }
                 MPACK_RPC_RESPONSE => {
                     lua_pushstring(l, c"response");
-                    lmpack_geti(l, (*session).reg, (*session).unpacked.msg.data.i() as c_int);
+                    lmpack_geti(l, session.reg, session.unpacked.msg.data.i() as c_int);
                 }
                 MPACK_RPC_NOTIFICATION => {
                     lua_pushstring(l, c"notification");
@@ -936,15 +936,15 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
                 }
             }
 
-            (*session).unpacked.r#type = MPACK_EOF;
+            session.unpacked.r#type = MPACK_EOF;
 
             if !unpacker.is_null() {
-                lmpack_geti(l, (*session).reg, (*session).unpacked.method_or_error);
-                lmpack_geti(l, (*session).reg, (*session).unpacked.args_or_result);
-                lmpack_unref(l, (*session).reg, (*session).unpacked.method_or_error);
-                lmpack_unref(l, (*session).reg, (*session).unpacked.args_or_result);
-                (*session).unpacked.method_or_error = LUA_NOREF;
-                (*session).unpacked.args_or_result = LUA_NOREF;
+                lmpack_geti(l, session.reg, session.unpacked.method_or_error);
+                lmpack_geti(l, session.reg, session.unpacked.args_or_result);
+                lmpack_unref(l, session.reg, session.unpacked.method_or_error);
+                lmpack_unref(l, session.reg, session.unpacked.args_or_result);
+                session.unpacked.method_or_error = LUA_NOREF;
+                session.unpacked.args_or_result = LUA_NOREF;
             }
         }
 
@@ -966,14 +966,14 @@ unsafe extern "C-unwind" fn lmpack_session_request(l: *mut lua_State) -> c_int {
         let data = MpackData::Int(MpackSintmax::from(if lua_isnoneornil(l, 2) {
             LUA_NOREF
         } else {
-            lmpack_ref(l, (*session).reg)
+            lmpack_ref(l, session.reg)
         }));
 
         let mut result: c_int;
         loop {
-            result = mpack_rpc_request(&mut (*session).session, &mut b, &mut bl, data.clone());
+            result = mpack_rpc_request(&mut session.session, &mut b, &mut bl, data.clone());
             if result == MPACK_NOMEM {
-                mpack_rpc_session_grow(&mut (*session).session);
+                mpack_rpc_session_grow(&mut session.session);
             } else {
                 break;
             }
@@ -1002,7 +1002,7 @@ unsafe extern "C-unwind" fn lmpack_session_reply(l: *mut lua_State) -> c_int {
             2,
             c"invalid request id",
         );
-        let result = mpack_rpc_reply(&mut (*session).session, &mut b, &mut bl, id as MpackUint32);
+        let result = mpack_rpc_reply(&mut session.session, &mut b, &mut bl, id as MpackUint32);
         debug_assert_eq!(result, MPACK_OK);
         lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
         1
@@ -1019,7 +1019,7 @@ unsafe extern "C-unwind" fn lmpack_session_notify(l: *mut lua_State) -> c_int {
         let mut b = buf.as_mut_ptr();
         let mut bl = buf.len();
         let session = lmpack_check_session(l, 1);
-        let result = mpack_rpc_notify(&mut (*session).session, &mut b, &mut bl);
+        let result = mpack_rpc_notify(&mut session.session, &mut b, &mut bl);
         debug_assert_eq!(result, MPACK_OK);
         lua_pushlstring(l, buf.as_ptr(), buf.len() - bl);
         1

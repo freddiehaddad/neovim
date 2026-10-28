@@ -4851,8 +4851,8 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 ];
 
 #[inline]
-fn sourcing_lnum_ptr() -> *mut Linenr {
-    { &raw mut rt_st().exestack.last_mut().unwrap().es_lnum }
+fn sourcing_lnum_ptr() -> &'static mut Linenr {
+    &mut rt_st().exestack.last_mut().unwrap().es_lnum
 }
 
 fn save_dbg_stuff(dsp: &mut DbgStuff) {
@@ -5512,7 +5512,7 @@ pub fn get_loop_line(
     indent: c_int,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         let lines = &mut cp.lines;
 
         if (cp.current_line + 1) as usize >= lines.len() {
@@ -5542,7 +5542,7 @@ pub fn get_loop_line(
 /// Store a line in "gap" so that a ":while" loop can execute it again.
 fn store_loop_line(lines: &mut Vec<Wcmd>, line: impl crate::strings::IntoCCharPtr) {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         lines.push(Wcmd {
             line: crate::memory::cstr_to_cstring(line),
             lnum: *sourcing_lnum_ptr(),
@@ -10036,9 +10036,7 @@ fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut TvList {
         g_st().textlock += 1;
 
         let ctx = get_option_sctx(K_OPT_FINDFUNC);
-        if !ctx.is_null() {
-            g_st().current_sctx = *ctx;
-        }
+        g_st().current_sctx = *ctx;
 
         let cb = get_findfunc();
         let mut rettv: TypVal = TypVal::new();

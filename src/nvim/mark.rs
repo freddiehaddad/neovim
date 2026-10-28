@@ -751,11 +751,11 @@ pub fn mark_get_visual(buf: &mut FileBuf, name: c_int) -> *mut Fmark {
 }
 
 /// Wrap a `CursorPos` into an `Fmark` (`pos_to_mark`).
-pub fn pos_to_mark(buf: &FileBuf, fmp: Option<&mut Fmark>, pos: CursorPos) -> *mut Fmark {
+pub fn pos_to_mark<'a>(buf: &FileBuf, fmp: Option<&'a mut Fmark>, pos: CursorPos) -> &'a mut Fmark {
     let fm = fmp.unwrap_or(&mut mark_st().pos_to_mark_fms);
     fm.fnum = buf.b_fnum;
     fm.mark = pos;
-    &raw mut *fm
+    fm
 }
 
 fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
@@ -2155,7 +2155,7 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
 ) -> bool {
     let fname = fname.into_c_char_ptr();
     let mname = mname.into_c_char_ptr();
-    unsafe {
+    {
         if pos.lnum <= 0 {
             return true;
         }

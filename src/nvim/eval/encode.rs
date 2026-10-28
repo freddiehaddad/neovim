@@ -1918,10 +1918,10 @@ mod tests {
             let check = |chunks: &[&[u8]], expected: &[Option<&[u8]>]| {
                 let l = tv_list_alloc(0);
                 for &chunk in chunks {
-                    encode_list_write(l.as_mut(), chunk.as_ptr().cast(), chunk.len());
+                    encode_list_write(Some(&mut *l), chunk.as_ptr().cast(), chunk.len());
                 }
-                assert_eq!((*l).lv_len as usize, expected.len());
-                let mut li = (*l).lv_first;
+                assert_eq!(l.lv_len as usize, expected.len());
+                let mut li = l.lv_first;
                 for &exp in expected {
                     assert!(!li.is_null());
                     assert_eq!((*li).li_tv.v_type, VarType::VarString);

@@ -378,7 +378,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> c_int {
         }
 
         nr = 0;
-        let mut wp = first_win_in_tab(tp);
+        let mut wp: *mut WinInfoInfo = first_win_in_tab(tp);
         while !wp.is_null() {
             nr += c_int::from(win_has_winnr(&mut *wp, tp));
             if wp == twin {
@@ -446,7 +446,7 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> *mut TvDict {
 
 /// Information about a tab page as a dictionary (`get_tabpage_info`).
 fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: c_int) -> *mut TvDict {
-    unsafe {
+    {
         let dict = tv_dict_alloc();
 
         tv_dict_add_nr(&mut *dict, c"tabnr", tp_idx as Varnumber);

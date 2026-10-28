@@ -4652,15 +4652,15 @@ pub fn redrawcmd() {
 }
 
 pub fn compute_cmdrow() {
-    unsafe {
+    {
         if g_st().msg_scrolled != 0 {
             g_st().cmdline_row = g_st().rows_global - 1;
         } else {
             let wp = lastwin_nofloating(ptr::null_mut());
-            g_st().cmdline_row = (*wp).w_winrow
-                + (*wp).w_height
-                + (*wp).w_hsep_height
-                + (*wp).w_status_height
+            g_st().cmdline_row = wp.w_winrow
+                + wp.w_height
+                + wp.w_hsep_height
+                + wp.w_status_height
                 + global_stl_height();
         }
         if g_st().cmdline_row == g_st().rows_global && opt_vars().p_ch > 0 {

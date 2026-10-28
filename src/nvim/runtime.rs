@@ -551,7 +551,7 @@ fn stacktrace_push_item(
 }
 
 /// Create the stacktrace from rt_st().exestack.
-pub fn stacktrace_create() -> *mut TvList {
+pub fn stacktrace_create() -> &'static mut TvList {
     unsafe {
         let l = tv_list_alloc(rt_st().exestack.len() as isize);
 
@@ -587,14 +587,10 @@ pub fn stacktrace_create() -> *mut TvList {
 
 /// getstacktrace() function
 pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let l = stacktrace_create();
-        rettv.v_type = VarType::VarList;
-        rettv.vval = crate::eval::typval::TypvalVval::List(l);
-        if !l.is_null() {
-            (*l).lv_refcount += 1;
-        }
-    }
+    let l = stacktrace_create();
+    rettv.v_type = VarType::VarList;
+    rettv.vval = crate::eval::typval::TypvalVval::List(l);
+    l.lv_refcount += 1;
 }
 
 fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
@@ -2600,7 +2596,10 @@ fn concat_continued_line(
 }
 
 /// Create a new script item and allocate script-local vars.
-pub fn new_script_item(name: Option<std::ffi::CString>, sid_out: &mut Scid) -> *mut Scriptitem {
+pub fn new_script_item(
+    name: Option<std::ffi::CString>,
+    sid_out: &mut Scid,
+) -> &'static mut Scriptitem {
     {
         rt_st().last_current_sid += 1;
         let sid = rt_st().last_current_sid;

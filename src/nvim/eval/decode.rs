@@ -68,7 +68,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
         let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
         val_di.di_tv = val;
         tv_dict_add(&mut *dict, val_di);
-        (*dict).dv_refcount += 1;
+        dict.dv_refcount += 1;
         *rettv = TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
@@ -79,9 +79,9 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
 pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> *mut TvList {
-    unsafe {
+    {
         let list = tv_list_alloc(len);
-        tv_list_ref(list.as_mut());
+        tv_list_ref(Some(&mut *list));
         create_special_dict(
             ret_tv,
             K_MP_MAP,
@@ -927,7 +927,7 @@ pub fn json_decode_string(
                     }
                     b'[' => {
                         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-                        tv_list_ref(list.as_mut());
+                        tv_list_ref(Some(&mut *list));
                         let tv = TypVal {
                             v_type: VarType::VarList,
                             v_lock: VAR_UNLOCKED,
@@ -958,7 +958,7 @@ pub fn json_decode_string(
                             val_list = decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW);
                         } else {
                             let dict = tv_dict_alloc();
-                            (*dict).dv_refcount += 1;
+                            dict.dv_refcount += 1;
                             tv = TypVal {
                                 v_type: VarType::VarDict,
                                 v_lock: VAR_UNLOCKED,
@@ -1019,7 +1019,7 @@ pub fn json_decode_string(
 }
 
 fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
-    unsafe {
+    {
         if val <= (i64::MAX as u64) {
             *rettv = TypVal {
                 v_type: VarType::VarNumber,
@@ -1028,7 +1028,7 @@ fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
             };
         } else {
             let list = tv_list_alloc(4);
-            tv_list_ref(list.as_mut());
+            tv_list_ref(Some(&mut *list));
             create_special_dict(
                 rettv,
                 K_MP_INTEGER,
@@ -1133,7 +1133,7 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             }
             MpackTokenType::MpackTokenArray => {
                 let list = tv_list_alloc(node.tok.length as isize);
-                tv_list_ref(list.as_mut());
+                tv_list_ref(Some(&mut *list));
                 *result = TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
@@ -1183,7 +1183,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
             MpackTokenType::MpackTokenExt => {
                 let bytes = node.data[1].take_owned_bytes();
                 let list = tv_list_alloc(2);
-                tv_list_ref(list.as_mut());
+                tv_list_ref(Some(&mut *list));
                 tv_list_append_number(&mut *list, i64::from(node.tok.data.ext_type()));
                 let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
                 tv_list_append_list(&mut *list, ext_val_list);
@@ -1197,7 +1197,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     },
                 );
                 encode_list_write(
-                    ext_val_list.as_mut(),
+                    Some(&mut *ext_val_list),
                     bytes.as_ptr().cast::<c_char>(),
                     node.tok.length as usize,
                 );
@@ -1214,7 +1214,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
 
                 if can_be_dict {
                     let dict = tv_dict_alloc();
-                    (*dict).dv_refcount += 1;
+                    dict.dv_refcount += 1;
                     *result = TypVal {
                         v_type: VarType::VarDict,
                         v_lock: VAR_UNLOCKED,
@@ -1225,8 +1225,8 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                         let keylen = crate::memory::cstr_len(key);
                         let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
                         if !tv_dict_add(&mut *dict, di) {
-                            let mut todo = (*dict).dv_hashtab.ht_used;
-                            let mut hi = (*dict).dv_hashtab.array_ptr();
+                            let mut todo = dict.dv_hashtab.ht_used;
+                            let mut hi = dict.dv_hashtab.array_ptr();
                             while todo > 0 {
                                 if !hashitem_empty(&*hi) {
                                     todo -= 1;

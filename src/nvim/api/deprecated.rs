@@ -326,7 +326,7 @@ pub fn nvim_buf_set_virtual_text(
         let decor = DecorInline {
             data: DecorInlineData::Ext(DecorExt {
                 sh_idx: DECOR_ID_INVALID,
-                vt: vt.cast(),
+                vt: (&raw mut *vt).cast(),
             }),
         };
 

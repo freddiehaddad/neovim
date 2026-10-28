@@ -1829,7 +1829,7 @@ fn set_argf_var() {
                 tv_list_append_string(&mut *list, g_st().name_buff.as_ptr(), -1);
             }
         }
-        tv_list_set_lock(list.as_mut(), VAR_FIXED);
+        tv_list_set_lock(Some(&mut *list), VAR_FIXED);
         set_vim_var_list(VV_ARGF, list);
     }
 }

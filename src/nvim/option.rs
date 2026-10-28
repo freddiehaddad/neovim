@@ -1037,7 +1037,7 @@ fn change_option_default(opt_idx: OptIndex, value: Object) {
 
 /// Set an option to its default value.
 fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
-    unsafe {
+    {
         let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
         let def_val = get_option_default(opt_idx, opt_flags);
         set_option_direct(opt_idx, def_val, opt_flags, g_st().current_sctx.sc_sid);
@@ -2506,7 +2506,7 @@ pub fn was_set_insecurely(
     opt_idx: OptIndex,
     opt_flags: c_int,
 ) -> c_int {
-    unsafe {
+    {
         assert!(opt_idx != K_OPT_INVALID);
         let flagp = insecure_flag(wp, opt_idx, opt_flags);
         c_int::from((*flagp & K_OPT_FLAG_INSECURE) != 0)
@@ -2515,56 +2515,43 @@ pub fn was_set_insecurely(
 
 /// Get a pointer to the flags used for the K_OPT_FLAG_INSECURE flag of option "opt_idx".
 pub fn insecure_flag(
-    mut wp: Option<&mut WinInfoInfo>,
+    wp: Option<&mut WinInfoInfo>,
     opt_idx: OptIndex,
     opt_flags: c_int,
-) -> *mut u32 {
+) -> &'static mut u32 {
     unsafe {
         if (opt_flags & OPT_LOCAL) != 0 {
-            assert!(wp.is_some());
+            let wp: *mut WinInfoInfo = wp.unwrap();
             match opt_idx {
-                K_OPT_WRAP => {
-                    return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_wrap_flags;
-                }
-                K_OPT_STATUSLINE => {
-                    return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_stl_flags;
-                }
-                K_OPT_WINBAR => {
-                    return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_wbr_flags;
-                }
-                K_OPT_FOLDEXPR => {
-                    return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_fde_flags;
-                }
-                K_OPT_FOLDTEXT => {
-                    return &raw mut wp.as_deref_mut().unwrap().w_onebuf_opt.wo_fdt_flags;
-                }
-                K_OPT_INDENTEXPR => {
-                    return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_inde_flags;
-                }
-                K_OPT_FORMATEXPR => {
-                    return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_fex_flags;
-                }
-                K_OPT_INCLUDEEXPR => {
-                    return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_inex_flags;
-                }
-                K_OPT_COMPLETE => {
-                    return &raw mut (*wp.as_deref_mut().unwrap().w_buffer).b_p_cpt_flags;
-                }
+                K_OPT_WRAP => return &mut (*wp).w_onebuf_opt.wo_wrap_flags,
+                K_OPT_STATUSLINE => return &mut (*wp).w_onebuf_opt.wo_stl_flags,
+                K_OPT_WINBAR => return &mut (*wp).w_onebuf_opt.wo_wbr_flags,
+                K_OPT_FOLDEXPR => return &mut (*wp).w_onebuf_opt.wo_fde_flags,
+                K_OPT_FOLDTEXT => return &mut (*wp).w_onebuf_opt.wo_fdt_flags,
+                K_OPT_INDENTEXPR => return &mut (*(*wp).w_buffer).b_p_inde_flags,
+                K_OPT_FORMATEXPR => return &mut (*(*wp).w_buffer).b_p_fex_flags,
+                K_OPT_INCLUDEEXPR => return &mut (*(*wp).w_buffer).b_p_inex_flags,
+                K_OPT_COMPLETE => return &mut (*(*wp).w_buffer).b_p_cpt_flags,
                 _ => {}
             }
         } else {
             match opt_idx {
                 K_OPT_WRAP => {
-                    return &raw mut wp.as_deref_mut().unwrap().w_allbuf_opt.wo_wrap_flags;
+                    let wp: *mut WinInfoInfo = wp.unwrap();
+                    return &mut (*wp).w_allbuf_opt.wo_wrap_flags;
                 }
                 K_OPT_FOLDEXPR => {
-                    return &raw mut wp.as_deref_mut().unwrap().w_allbuf_opt.wo_fde_flags;
+                    let wp: *mut WinInfoInfo = wp.unwrap();
+                    return &mut (*wp).w_allbuf_opt.wo_fde_flags;
                 }
-                K_OPT_FOLDTEXT => return &raw mut wp.unwrap().w_allbuf_opt.wo_fdt_flags,
+                K_OPT_FOLDTEXT => {
+                    let wp: *mut WinInfoInfo = wp.unwrap();
+                    return &mut (*wp).w_allbuf_opt.wo_fdt_flags;
+                }
                 _ => {}
             }
         }
-        &raw mut get_option(opt_idx).flags
+        &mut get_option(opt_idx).flags
     }
 }
 
@@ -2693,11 +2680,9 @@ pub fn parse_winhl_opt(
 }
 
 /// Get the script context of global option at index opt_idx.
-pub fn get_option_sctx(opt_idx: OptIndex) -> *mut Sctx {
-    {
-        assert!(opt_idx != K_OPT_INVALID);
-        &raw mut get_option(opt_idx).script_ctx
-    }
+pub fn get_option_sctx(opt_idx: OptIndex) -> &'static mut Sctx {
+    assert!(opt_idx != K_OPT_INVALID);
+    &mut get_option(opt_idx).script_ctx
 }
 
 /// Set the script_ctx for an option.
@@ -8689,7 +8674,7 @@ pub fn fish_like_shell() -> bool {
 
 /// Get window or buffer local options.
 pub fn get_winbuf_options(bufopt: c_int) -> *mut TvDict {
-    unsafe {
+    {
         let d = tv_dict_alloc();
 
         for opt_idx in 0..K_OPT_COUNT {

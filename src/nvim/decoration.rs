@@ -622,9 +622,9 @@ pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     }
 }
 
-pub fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> *mut DecorVirtText {
+pub fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> &'static mut DecorVirtText {
     vt.next = (!next.is_null()).then(|| unsafe { Box::from_raw(next) });
-    Box::into_raw(Box::new(vt))
+    Box::leak(Box::new(vt))
 }
 
 pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {

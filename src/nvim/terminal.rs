@@ -741,7 +741,7 @@ fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut FileBuf) -> bool
     }
 }
 
-pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> *mut Terminal {
+pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static mut Terminal {
     unsafe {
         if opts.width == 0 {
             opts.width = 80;
@@ -834,7 +834,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> *mut Term
         }
         term_ref.old_height = 1;
 
-        term
+        term_ref
     }
 }
 

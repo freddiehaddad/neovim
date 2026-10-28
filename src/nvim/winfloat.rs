@@ -98,10 +98,10 @@ pub fn win_new_float(
             debug_assert!(!win_tp.is_null());
             if (win_tp == g_st().curtab
                 && g_st().firstwin == wp
-                && lastwin_nofloating(ptr::null_mut()) == wp)
+                && ptr::eq(lastwin_nofloating(ptr::null_mut()), wp))
                 || (win_tp != g_st().curtab
                     && (*win_tp).tp_firstwin == wp
-                    && lastwin_nofloating(win_tp) == wp)
+                    && ptr::eq(lastwin_nofloating(win_tp), wp))
             {
                 api_set_error!(
                     err,

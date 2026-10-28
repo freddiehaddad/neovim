@@ -1085,12 +1085,12 @@ pub fn check_can_set_curbuf_forceit(forceit: c_int) -> bool {
 
 /// Return the current window, unless in the cmdline window and "prevwin" is
 /// set, then return "prevwin".
-pub fn prevwin_curwin() -> *mut WinInfoInfo {
-    {
+pub fn prevwin_curwin() -> &'static mut WinInfoInfo {
+    unsafe {
         if is_in_cmdwin() && !g_st().prevwin.is_null() {
-            g_st().prevwin
+            &mut *g_st().prevwin
         } else {
-            curwin_ptr()
+            curwin_mut()
         }
     }
 }
@@ -2947,12 +2947,12 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
 }
 
 fn get_maximum_wincount(fr: &mut Frame, mut height: c_int) -> c_int {
-    unsafe {
+    {
         if fr.fr_layout != FR_COL {
             return height
                 / (opt_vars().p_wmh as c_int
                     + STATUS_HEIGHT
-                    + (*frame2win(&raw mut *fr)).w_winbar_height);
+                    + frame2win(&raw mut *fr).w_winbar_height);
         } else if global_winbar_height() != 0 {
             return height / (opt_vars().p_wmh as c_int + STATUS_HEIGHT + 1);
         }
@@ -2961,11 +2961,11 @@ fn get_maximum_wincount(fr: &mut Frame, mut height: c_int) -> c_int {
         for frp in frame_iter_ptr(fr.fr_child) {
             let wp = frame2win(frp);
             if OptInt::from(height)
-                < (opt_vars().p_wmh + OptInt::from(STATUS_HEIGHT + (*wp).w_winbar_height))
+                < (opt_vars().p_wmh + OptInt::from(STATUS_HEIGHT + wp.w_winbar_height))
             {
                 break;
             }
-            height -= opt_vars().p_wmh as c_int + STATUS_HEIGHT + (*wp).w_winbar_height;
+            height -= opt_vars().p_wmh as c_int + STATUS_HEIGHT + wp.w_winbar_height;
             total_wincount += 1;
         }
 
@@ -4201,8 +4201,8 @@ pub fn winframe_remove(
         win_st().frame_locked += 1;
 
         let topleft = frame2win((*frp_close).fr_parent);
-        let mut row = (*topleft).w_winrow;
-        let mut col = (*topleft).w_wincol;
+        let mut row = topleft.w_winrow;
+        let mut col = topleft.w_wincol;
 
         if win.w_vsep_width == 0
             && (*(*frp_close).fr_parent).fr_layout == FR_ROW
@@ -4261,8 +4261,8 @@ pub fn winframe_find_altwin(
         }
 
         let frp_close = win.w_frame;
-        let mut frp2 = win_altframe(win, tp);
-        let mut wp = frame2win(frp2);
+        let mut frp2: *mut Frame = win_altframe(win, tp);
+        let mut wp: *mut WinInfoInfo = frame2win(frp2);
 
         if (*(*frp_close).fr_parent).fr_layout == FR_COL {
             if !(*frp2).fr_win.is_null() && (*(*frp2).fr_win).w_onebuf_opt.wo_wfh != 0 {
@@ -4420,29 +4420,29 @@ pub fn winframe_restore(wp: &mut WinInfoInfo, dir: c_int, unflat_altfr: &mut Fra
 
         if !ptr::eq(unflat_altfr, (*frp).fr_prev) {
             let topleft = frame2win((*frp).fr_parent);
-            let mut row = (*topleft).w_winrow;
-            let mut col = (*topleft).w_wincol;
+            let mut row = topleft.w_winrow;
+            let mut col = topleft.w_wincol;
 
             frame_comp_pos(&mut *(*frp).fr_parent, &mut row, &mut col);
         }
     }
 }
 
-fn win_altframe(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> *mut Frame {
+fn win_altframe(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> &'static mut Frame {
     unsafe {
         debug_assert!(tp.is_null() || !ptr::eq(tp, g_st().curtab));
 
         if one_window(win, tp) {
-            return (*(*alt_tabpage()).tp_curwin).w_frame;
+            return &mut *(*(*alt_tabpage()).tp_curwin).w_frame;
         }
 
         let frp = win.w_frame;
 
         if (*frp).fr_prev.is_null() {
-            return (*frp).fr_next;
+            return &mut *(*frp).fr_next;
         }
         if (*frp).fr_next.is_null() {
-            return (*frp).fr_prev;
+            return &mut *(*frp).fr_prev;
         }
 
         let mut target_fr = (*frp).fr_next;
@@ -4472,7 +4472,7 @@ fn win_altframe(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> *mut Frame {
             target_fr = other_fr;
         }
 
-        target_fr
+        &mut *target_fr
     }
 }
 
@@ -4500,12 +4500,12 @@ fn alt_tabpage() -> *mut TabPageInfo {
     }
 }
 
-pub fn frame2win(mut frp: *mut Frame) -> *mut WinInfoInfo {
+pub fn frame2win(mut frp: *mut Frame) -> &'static mut WinInfoInfo {
     unsafe {
         while (*frp).fr_win.is_null() {
             frp = (*frp).fr_child;
         }
-        (*frp).fr_win
+        &mut *(*frp).fr_win
     }
 }
 
@@ -5129,7 +5129,7 @@ pub fn win_init_size() {
     }
 }
 
-fn alloc_tabpage() -> *mut TabPageInfo {
+fn alloc_tabpage() -> &'static mut TabPageInfo {
     unsafe {
         let tp = Box::into_raw(Box::new(TabPageInfo::new()));
         win_st().last_tp_handle += 1;
@@ -5143,7 +5143,7 @@ fn alloc_tabpage() -> *mut TabPageInfo {
         );
         (*tp).tp_ch_used = opt_vars().p_ch;
 
-        tp
+        &mut *tp
     }
 }
 
@@ -5202,7 +5202,7 @@ pub fn win_new_tabpage(
             g_st().lastwin = ptr::null_mut();
         }
 
-        (*newtp).tp_localdir = (*old_curtab).tp_localdir.clone();
+        newtp.tp_localdir = (*old_curtab).tp_localdir.clone();
 
         g_st().curtab = newtp;
 
@@ -5213,7 +5213,7 @@ pub fn win_new_tabpage(
         }
 
         if after == 1 {
-            (*newtp).tp_next = g_st().first_tabpage;
+            newtp.tp_next = g_st().first_tabpage;
             g_st().first_tabpage = newtp;
         } else {
             let mut tp = old_curtab;
@@ -5225,19 +5225,19 @@ pub fn win_new_tabpage(
                     tp = (*tp).tp_next;
                 }
             }
-            (*newtp).tp_next = (*tp).tp_next;
+            newtp.tp_next = (*tp).tp_next;
             (*tp).tp_next = newtp;
         }
-        (*newtp).tp_firstwin = curwin_ptr();
-        (*newtp).tp_lastwin = curwin_ptr();
-        (*newtp).tp_curwin = curwin_ptr();
+        newtp.tp_firstwin = curwin_ptr();
+        newtp.tp_lastwin = curwin_ptr();
+        newtp.tp_curwin = curwin_ptr();
 
         win_init_size();
         firstwin_mut().w_winrow = tabline_height();
         firstwin_mut().w_prev_winrow = firstwin_mut().w_winrow;
         win_comp_scroll(curwin_mut());
 
-        (*newtp).tp_topframe = g_st().topframe.cast();
+        newtp.tp_topframe = g_st().topframe.cast();
         last_status(false);
 
         if !curbuf_mut().terminal.is_null() {
@@ -5283,7 +5283,7 @@ pub fn win_new_tabpage(
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             let sw_ok = ctx_switch(
                 &mut switchwin,
-                (*newtp).tp_curwin,
+                newtp.tp_curwin,
                 newtp,
                 ptr::null_mut(),
                 K_CTX_NO_DISPLAY,
@@ -5859,7 +5859,7 @@ pub fn win_vert_neighbor(
                 fr = (*nfr).fr_child;
                 if (*nfr).fr_layout == FR_ROW {
                     while !(*fr).fr_next.is_null()
-                        && (*frame2win(fr)).w_wincol + (*fr).fr_width <= wp.w_wincol + wp.w_wcol
+                        && frame2win(fr).w_wincol + (*fr).fr_width <= wp.w_wincol + wp.w_wcol
                     {
                         fr = (*fr).fr_next;
                     }
@@ -5933,7 +5933,7 @@ pub fn win_horz_neighbor(
                 fr = (*nfr).fr_child;
                 if (*nfr).fr_layout == FR_COL {
                     while !(*fr).fr_next.is_null()
-                        && (*frame2win(fr)).w_winrow + (*fr).fr_height <= wp.w_winrow + wp.w_wrow
+                        && frame2win(fr).w_winrow + (*fr).fr_height <= wp.w_winrow + wp.w_wrow
                     {
                         fr = (*fr).fr_next;
                     }
@@ -6207,7 +6207,7 @@ pub fn buf_jump_open_tab(buf: *mut FileBuf) -> *mut WinInfoInfo {
     }
 }
 
-pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> *mut WinInfoInfo {
+pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> &'static mut WinInfoInfo {
     unsafe {
         let new_wp = Box::into_raw(Box::new(WinInfoInfo::new()));
 
@@ -6252,7 +6252,7 @@ pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> *mut WinInfoInfo {
         fold_init_win(&mut *new_wp);
         unblock_autocmds();
         (*new_wp).w_next_match_id = 1000;
-        new_wp
+        &mut *new_wp
     }
 }
 
@@ -6560,9 +6560,9 @@ fn make_win_info_dict(
     leftcol: c_int,
     skipcol: c_int,
 ) -> *mut TvDict {
-    unsafe {
+    {
         let d = tv_dict_alloc();
-        (*d).dv_refcount = 1;
+        d.dv_refcount = 1;
 
         let entries: [(&CStr, c_int); 6] = [
             (c"width", width),
@@ -7005,10 +7005,7 @@ fn frame_setheight(curfrp: &mut Frame, mut height: c_int, from_top: bool) {
                     room_cmdline = g_st().rows_global
                         - opt_vars().p_ch as c_int
                         - global_stl_height()
-                        - ((*wp).w_winrow
-                            + (*wp).w_height
-                            + (*wp).w_hsep_height
-                            + (*wp).w_status_height);
+                        - (wp.w_winrow + wp.w_height + wp.w_hsep_height + wp.w_status_height);
                     room_cmdline = room_cmdline.max(0);
                 }
 
@@ -7736,7 +7733,7 @@ pub fn command_height() {
     unsafe {
         let mut old_p_ch = curtab_mut().tp_ch_used as c_int;
 
-        let mut frp = (*lastwin_nofloating(ptr::null_mut())).w_frame;
+        let mut frp = lastwin_nofloating(ptr::null_mut()).w_frame;
         while (*frp).fr_width != g_st().columns_global && !(*frp).fr_parent.is_null() {
             frp = (*frp).fr_parent;
         }
@@ -8452,7 +8449,7 @@ pub fn win_ui_flush(validate: bool) {
     }
 }
 
-pub fn lastwin_nofloating(tp: *mut TabPageInfo) -> *mut WinInfoInfo {
+pub fn lastwin_nofloating(tp: *mut TabPageInfo) -> &'static mut WinInfoInfo {
     unsafe {
         debug_assert!(!ptr::eq(tp, g_st().curtab) || tp.is_null());
         let mut res = if !tp.is_null() {
@@ -8463,7 +8460,7 @@ pub fn lastwin_nofloating(tp: *mut TabPageInfo) -> *mut WinInfoInfo {
         while (*res).w_floating {
             res = (*res).w_prev;
         }
-        res
+        &mut *res
     }
 }
 

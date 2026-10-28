@@ -249,7 +249,7 @@ pub fn find_ucmd(
         let mut amb_local = false;
 
         let mut is_global = false;
-        let mut gap: &[Ucmd] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut gap: &[Ucmd] = &(*prevwin_curwin().w_buffer).b_ucmds;
         loop {
             let mut j: c_int = 0;
             while (j as usize) < gap.len() {
@@ -464,7 +464,7 @@ pub fn expand_user_command_name(idx: c_int) -> *mut c_char {
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
 pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: c_int) -> *mut c_char {
     unsafe {
-        let buf = (*prevwin_curwin()).w_buffer;
+        let buf = prevwin_curwin().w_buffer;
         let b_len = (*buf).b_ucmds.len() as c_int;
 
         if idx < b_len {
@@ -499,7 +499,7 @@ pub fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
             return (u)[idx as usize].uc_name.as_ptr().cast_mut();
         }
         if cmdidx == CMD_USER_BUF {
-            let buf = (*prevwin_curwin()).w_buffer;
+            let buf = prevwin_curwin().w_buffer;
             if (idx as usize) < (*buf).b_ucmds.len() {
                 return (&(*buf).b_ucmds)[idx as usize].uc_name.as_ptr().cast_mut();
             }
@@ -628,7 +628,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
 
         msg_ext_set_kind(c"list_cmd");
         let mut is_global = false;
-        let mut gap: &[Ucmd] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut gap: &[Ucmd] = &(*prevwin_curwin().w_buffer).b_ucmds;
         loop {
             let mut i: c_int = 0;
             while (i as usize) < gap.len() {
@@ -1971,7 +1971,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> c_int {
             let u = ucmds_mut();
             &raw mut (u)[eap.useridx as usize]
         } else {
-            &raw mut (&mut (*(*prevwin_curwin()).w_buffer).b_ucmds)[eap.useridx as usize]
+            &raw mut (&mut (*prevwin_curwin().w_buffer).b_ucmds)[eap.useridx as usize]
         };
 
         if preview {

@@ -689,11 +689,13 @@ fn get_loc_list(wp: &WinInfoInfo) -> *mut QfInfo {
 }
 
 #[inline]
-fn tab_firstwin(tp: &TabPageInfo) -> *mut WinInfoInfo {
-    if ptr::eq(tp, g_st().curtab) {
-        g_st().firstwin
-    } else {
-        tp.tp_firstwin
+fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
+    unsafe {
+        if ptr::eq(tp, g_st().curtab) {
+            &mut *g_st().firstwin
+        } else {
+            &mut *tp.tp_firstwin
+        }
     }
 }
 
@@ -801,8 +803,7 @@ pub fn qf_init(
     let efile = efile.into_c_char_ptr();
     let qf_title = qf_title.into_c_char_ptr();
     unsafe {
-        let qi = wp.map_or_else(ql_info_ptr, ll_get_or_alloc_list);
-        assert!(!qi.is_null());
+        let qi = wp.map_or_else(ql_info_ptr, |w| ll_get_or_alloc_list(w));
 
         qf_init_ext(
             &mut *qi,
@@ -2397,7 +2398,7 @@ pub fn qf_resize_stack(n: c_int) {
 }
 
 pub fn ll_resize_stack(wp: &mut WinInfoInfo, n: c_int) {
-    unsafe {
+    {
         if is_ll_window(wp) {
             qf_sync_llw_to_win(wp);
         } else {
@@ -2452,7 +2453,7 @@ fn qf_sync_win_to_llw(pwp: &mut WinInfoInfo) {
     }
 }
 
-fn qf_alloc_stack(qfltype: Qfltype, n: c_int) -> *mut QfInfo {
+fn qf_alloc_stack(qfltype: Qfltype, n: c_int) -> &'static mut QfInfo {
     unsafe {
         let qi = if qfltype == QFLT_QUICKFIX {
             &raw mut qf_st().ql_info_actual
@@ -2473,14 +2474,14 @@ fn qf_alloc_stack(qfltype: Qfltype, n: c_int) -> *mut QfInfo {
         (*qi).qf_lists.resize_with(n as usize, QfList::default);
         (*qi).qf_maxcount = n;
 
-        qi
+        &mut *qi
     }
 }
 
-fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> *mut QfInfo {
-    {
+fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> &'static mut QfInfo {
+    unsafe {
         if is_ll_window(wp) {
-            return wp.w_llist_ref;
+            return &mut *wp.w_llist_ref;
         }
 
         ll_free_all(&raw mut wp.w_llist_ref);
@@ -2489,7 +2490,7 @@ fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> *mut QfInfo {
             wp.w_llist = qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi as c_int);
         }
 
-        wp.w_llist
+        &mut *wp.w_llist
     }
 }
 
@@ -2605,18 +2606,18 @@ pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
 
         let to_ll = qf_alloc_stack(QFLT_LOCATION, from.w_onebuf_opt.wo_lhi as c_int);
         to.w_llist = to_ll;
-        to.w_onebuf_opt.wo_lhi = i64::from((*to_ll).qf_maxcount);
-        (*to_ll).qf_listcount = (*qi).qf_listcount;
+        to.w_onebuf_opt.wo_lhi = i64::from(to_ll.qf_maxcount);
+        to_ll.qf_listcount = (*qi).qf_listcount;
 
         for idx in 0..(*qi).qf_listcount {
-            (*to_ll).qf_curlist = idx;
+            to_ll.qf_curlist = idx;
             if !copy_loclist(qf_get_list(&mut *qi, idx), qf_get_list(&mut *to_ll, idx)) {
                 qf_free_all(Some(&mut *to));
                 return;
             }
         }
 
-        (*to_ll).qf_curlist = (*qi).qf_curlist;
+        to_ll.qf_curlist = (*qi).qf_curlist;
     }
 }
 
@@ -6144,54 +6145,28 @@ fn get_qfline_items(qfp: &mut Qfline, list: &mut TvList) -> bool {
     let buf = [qfp.qf_type, NUL];
     let buflen: usize = if buf[0] == NUL { 0 } else { 1 };
     let empty = c"".as_ptr();
-    if !tv_dict_add_nr(unsafe { &mut *dict }, c"bufnr", Varnumber::from(bufnum))
-        || !tv_dict_add_nr(unsafe { &mut *dict }, c"lnum", Varnumber::from(qfp.qf_lnum))
-        || !tv_dict_add_nr(
-            unsafe { &mut *dict },
-            c"end_lnum",
-            Varnumber::from(qfp.qf_end_lnum),
-        )
-        || !tv_dict_add_nr(unsafe { &mut *dict }, c"col", Varnumber::from(qfp.qf_col))
-        || !tv_dict_add_nr(
-            unsafe { &mut *dict },
-            c"end_col",
-            Varnumber::from(qfp.qf_end_col),
-        )
-        || !tv_dict_add_nr(
-            unsafe { &mut *dict },
-            c"vcol",
-            Varnumber::from(qfp.qf_viscol),
-        )
-        || !tv_dict_add_nr(unsafe { &mut *dict }, c"nr", Varnumber::from(qfp.qf_nr))
+    if !tv_dict_add_nr(&mut *dict, c"bufnr", Varnumber::from(bufnum))
+        || !tv_dict_add_nr(&mut *dict, c"lnum", Varnumber::from(qfp.qf_lnum))
+        || !tv_dict_add_nr(&mut *dict, c"end_lnum", Varnumber::from(qfp.qf_end_lnum))
+        || !tv_dict_add_nr(&mut *dict, c"col", Varnumber::from(qfp.qf_col))
+        || !tv_dict_add_nr(&mut *dict, c"end_col", Varnumber::from(qfp.qf_end_col))
+        || !tv_dict_add_nr(&mut *dict, c"vcol", Varnumber::from(qfp.qf_viscol))
+        || !tv_dict_add_nr(&mut *dict, c"nr", Varnumber::from(qfp.qf_nr))
         || !tv_dict_add_str(
-            unsafe { &mut *dict },
+            &mut *dict,
             c"module",
             qfp.qf_module.as_ref().map_or(empty, |s| s.as_ptr()),
         )
         || !tv_dict_add_str(
-            unsafe { &mut *dict },
+            &mut *dict,
             c"pattern",
             qfp.qf_pattern.as_ref().map_or(empty, |s| s.as_ptr()),
         )
-        || !tv_dict_add_str(unsafe { &mut *dict }, c"text", qfp.qf_text.as_ptr())
-        || !tv_dict_add_str_len(
-            unsafe { &mut *dict },
-            c"type",
-            buf.as_ptr(),
-            buflen as c_int,
-        )
+        || !tv_dict_add_str(&mut *dict, c"text", qfp.qf_text.as_ptr())
+        || !tv_dict_add_str_len(&mut *dict, c"type", buf.as_ptr(), buflen as c_int)
         || (qfp.qf_user_data.v_type != VarType::VarUnknown
-            && !tv_dict_add_tv(
-                unsafe { &mut *dict },
-                c"user_data",
-                9,
-                &mut qfp.qf_user_data,
-            ))
-        || !tv_dict_add_nr(
-            unsafe { &mut *dict },
-            c"valid",
-            Varnumber::from(qfp.qf_valid),
-        )
+            && !tv_dict_add_tv(&mut *dict, c"user_data", 9, &mut qfp.qf_user_data))
+        || !tv_dict_add_nr(&mut *dict, c"valid", Varnumber::from(qfp.qf_valid))
     {
         std::process::abort();
     }
@@ -6491,7 +6466,7 @@ fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &mut TvD
 }
 
 fn qf_getprop_items(qi: &mut QfInfo, qf_idx: c_int, eidx: c_int, retdict: &mut TvDict) -> bool {
-    unsafe {
+    {
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         get_errorlist(Some(&mut *qi), None, qf_idx, eidx, &mut *l);
         tv_dict_add_list(retdict, c"items", l);
@@ -6555,11 +6530,11 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
 
         let flags = qf_getprop_keys2flags(what, wp.is_some());
 
-        if !qf_stack_empty(qi.as_ref()) {
+        if !qf_stack_empty(Some(&*qi)) {
             qf_idx = qf_getprop_qfidx(&mut *qi, what);
         }
 
-        if qf_stack_empty(qi.as_ref()) || qf_idx == INVALID_QFIDX {
+        if qf_stack_empty(Some(&*qi)) || qf_idx == INVALID_QFIDX {
             return qf_getprop_defaults(qi, flags, wp.is_some(), retdict);
         }
 
@@ -6581,7 +6556,7 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
             status = tv_dict_add_nr(retdict, c"nr", Varnumber::from(qf_idx + 1));
         }
         if status && (flags & QF_GETLIST_WINID) != 0 {
-            status = tv_dict_add_nr(retdict, c"winid", Varnumber::from(qf_winid(qi.as_ref())));
+            status = tv_dict_add_nr(retdict, c"winid", Varnumber::from(qf_winid(Some(&*qi))));
         }
         if status && (flags & QF_GETLIST_ITEMS) != 0 {
             status = qf_getprop_items(&mut *qi, qf_idx, eidx, retdict);
@@ -6605,7 +6580,7 @@ fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut 
             status = qf_getprop_filewinid(wp, &*qi, retdict);
         }
         if status && (flags & QF_GETLIST_QFBUFNR) != 0 {
-            status = qf_getprop_qfbufnr(qi.as_ref(), retdict);
+            status = qf_getprop_qfbufnr(Some(&*qi), retdict);
         }
         if status && (flags & QF_GETLIST_QFTF) != 0 {
             status = qf_getprop_qftf(qfl, retdict);
@@ -7136,7 +7111,7 @@ fn qf_free_stack(mut wp: *mut WinInfoInfo, qi: &mut QfInfo) {
             qi.qf_listcount = 0;
         } else if !qfwin.is_null() {
             let new_ll = qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as c_int);
-            (*new_ll).qf_bufnr = (*qfwin).buf_mut().b_fnum;
+            new_ll.qf_bufnr = (*qfwin).buf_mut().b_fnum;
 
             ll_free_all(&raw mut (*qfwin).w_llist_ref);
 

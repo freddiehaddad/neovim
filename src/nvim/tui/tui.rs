@@ -336,8 +336,9 @@ use crate::os::pty_proc_unix as unix_termios;
 use crate::os::signal::SIGWINCH;
 
 #[inline]
-fn tui_input(tui: &mut TUIData) -> *mut TermInput {
-    &raw mut tui.input
+fn tui_input(tui: &mut TUIData) -> &'static mut TermInput {
+    let ptr: *mut TermInput = &raw mut tui.input;
+    unsafe { &mut *ptr }
 }
 
 #[inline]
@@ -351,8 +352,9 @@ fn tui_output_handle(tui: &mut TUIData) -> *mut uv_handle_t {
 }
 
 #[inline]
-fn tui_winch_handle(tui: &mut TUIData) -> *mut SignalWatcher {
-    &raw mut tui.winch_handle
+fn tui_winch_handle(tui: &mut TUIData) -> &'static mut SignalWatcher {
+    let ptr: *mut SignalWatcher = &raw mut tui.winch_handle;
+    unsafe { &mut *ptr }
 }
 
 #[inline]
@@ -1107,11 +1109,11 @@ fn terminfo_stop(tui: &mut TUIData) {
 }
 
 fn tui_terminal_start(tui: &mut TUIData) {
-    unsafe {
+    {
         tui.print_attr_id = -1;
         terminfo_start(tui);
         let input = tui_input(tui);
-        if (*input).loop_.is_null() {
+        if input.loop_.is_null() {
             tinput_init(
                 &mut *input,
                 (&raw mut g_st().main_loop).cast::<Loop>(),
@@ -1153,12 +1155,12 @@ pub fn tui_stop(tui: &mut TUIData) {
         }
 
         let input = tui_input(tui);
-        (*input).primary_device_attr = Some(PrimaryDeviceAttrAction::Stop);
+        input.primary_device_attr = Some(PrimaryDeviceAttrAction::Stop);
         terminfo_disable(tui);
 
         let wait_start = os_hrtime();
         let events = loop_queues(&mut *tui.loop_).events;
-        let rs = &mut (*input).read_stream;
+        let rs = &mut input.read_stream;
         let mut remaining: i64 = EXIT_TIMEOUT_MS;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !(ptr::read_volatile(&raw const tui.stopped)
@@ -1196,7 +1198,7 @@ pub fn tui_stop(tui: &mut TUIData) {
         tui.stopped = true;
 
         tui_terminal_stop(tui);
-        stream_set_blocking((*input).in_fd, true);
+        stream_set_blocking(input.in_fd, true);
         tinput_destroy(&mut *input);
         signal_watcher_stop(&mut *tui_winch_handle(tui));
         signal_watcher_close(&mut *tui_winch_handle(tui));
@@ -1209,7 +1211,7 @@ fn tui_stop_cb(tui: &mut TUIData) {
 }
 
 fn tui_terminal_stop(tui: &mut TUIData) {
-    unsafe {
+    {
         tinput_stop(&mut *tui_input(tui));
         terminfo_stop(tui);
     }

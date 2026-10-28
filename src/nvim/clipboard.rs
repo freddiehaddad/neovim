@@ -222,7 +222,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
 pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
-    unsafe {
+    {
         if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
             return;
         }

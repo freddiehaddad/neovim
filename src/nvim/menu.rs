@@ -1946,7 +1946,7 @@ fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
 fn menuitem_getinfo(menu: &Vimmenu, modes: c_int, dict: &mut TvDict) {
-    unsafe {
+    {
         tv_dict_add_str(dict, c"name", menu.name.as_ptr());
         tv_dict_add_str(dict, c"display", menu.dname.as_ptr());
         if let Some(ref actext) = menu.actext {

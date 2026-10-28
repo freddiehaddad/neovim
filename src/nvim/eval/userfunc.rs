@@ -512,7 +512,7 @@ fn get_lambda_name() -> NvimString {
 }
 
 /// Allocate a `UserFunc` for a function called `name`.
-fn alloc_ufunc(name: impl crate::strings::IntoCCharPtr, namelen: usize) -> *mut UserFunc {
+fn alloc_ufunc(name: impl crate::strings::IntoCCharPtr, namelen: usize) -> &'static mut UserFunc {
     let name = name.into_c_char_ptr();
     unsafe {
         let mut name_vec = Vec::with_capacity(namelen + 1);
@@ -556,7 +556,7 @@ fn alloc_ufunc(name: impl crate::strings::IntoCCharPtr, namelen: usize) -> *mut 
             (*fp).uf_name_exp = Some(std::ffi::CString::new(bytes).unwrap());
         }
 
-        fp
+        &mut *fp
     }
 }
 
@@ -634,16 +634,16 @@ pub fn get_lambda_tv(
             let newlines = vec![Some(line_cstr)];
 
             let newlines_len = newlines.len() as c_int;
-            (*fp).uf_refcount = 1;
+            fp.uf_refcount = 1;
             func_hashtab_add(&mut *fp);
-            (*fp).uf_args = newargs;
-            (*fp).uf_def_args = Vec::new();
-            (*fp).uf_lines = newlines;
+            fp.uf_args = newargs;
+            fp.uf_def_args = Vec::new();
+            fp.uf_lines = newlines;
             if !uf_st().current_funccal.is_null() && eval_lavars {
                 flags |= FC_CLOSURE;
                 register_closure(&mut *fp);
             } else {
-                (*fp).uf_scoped = ptr::null_mut();
+                fp.uf_scoped = ptr::null_mut();
             }
 
             if prof_def_func() {
@@ -652,11 +652,11 @@ pub fn get_lambda_tv(
             if g_st().sandbox != 0 {
                 flags |= FC_SANDBOX;
             }
-            (*fp).uf_varargs = 1;
-            (*fp).uf_flags = flags;
-            (*fp).uf_calls = 0;
-            (*fp).uf_script_ctx = g_st().current_sctx;
-            (*fp).uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
+            fp.uf_varargs = 1;
+            fp.uf_flags = flags;
+            fp.uf_calls = 0;
+            fp.uf_script_ctx = g_st().current_sctx;
+            fp.uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
 
             (*pt).pt_func = fp;
             (*pt).pt_refcount = 1;
@@ -4513,16 +4513,16 @@ pub fn set_ref_in_func(
 
 /// Registers a luaref as a lambda.
 pub fn register_luafunc(ref_: LuaRef) -> *mut c_char {
-    unsafe {
+    {
         let name = get_lambda_name();
         let fp = alloc_ufunc(name.data, name.size);
 
-        (*fp).uf_refcount = 1;
-        (*fp).uf_varargs = 1;
-        (*fp).uf_flags = FC_LUAREF;
-        (*fp).uf_calls = 0;
-        (*fp).uf_script_ctx = g_st().current_sctx;
-        (*fp).uf_luaref = ref_;
+        fp.uf_refcount = 1;
+        fp.uf_varargs = 1;
+        fp.uf_flags = FC_LUAREF;
+        fp.uf_calls = 0;
+        fp.uf_script_ctx = g_st().current_sctx;
+        fp.uf_luaref = ref_;
 
         func_hashtab_add(&mut *fp);
 

@@ -1836,7 +1836,7 @@ pub fn listdigraphs(use_headers: bool) {
 }
 
 fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
-    unsafe {
+    {
         let l2 = tv_list_alloc(2);
         tv_list_append_list(&mut *l, l2);
 

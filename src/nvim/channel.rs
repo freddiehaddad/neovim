@@ -781,11 +781,11 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 #[inline]
 fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut TvList {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         tv_list_append_string(&mut *l, c"", 0);
         if len > 0 {
-            encode_list_write(l.as_mut(), buf, len);
+            encode_list_write(Some(&mut *l), buf, len);
         }
         l
     }

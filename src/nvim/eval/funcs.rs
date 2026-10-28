@@ -466,7 +466,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
         funcs_st().get_func_name_intidx += 1;
         let fdef = eval_func_def_at(funcs_st().get_func_name_intidx);
-        let Some(key_cstr) = (*fdef).name else {
+        let Some(key_cstr) = fdef.name else {
             return ptr::null_mut();
         };
         let key = key_cstr.as_ptr();
@@ -474,7 +474,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
         let iobuff = g_st().iobuff.as_mut_ptr();
         ptr::copy_nonoverlapping(key, iobuff, key_len);
         *iobuff.add(key_len) = b'(' as c_char;
-        if (*fdef).max_argc == 0 {
+        if fdef.max_argc == 0 {
             *iobuff.add(key_len + 1) = b')' as c_char;
             *iobuff.add(key_len + 2) = NUL;
         } else {
@@ -4490,7 +4490,7 @@ pub fn create_environment(
 
             if pty {
                 for &ignored in PTY_IGNORED_ENV_VARS {
-                    let dv = tv_dict_find(env.as_ref(), ignored.as_ptr(), -1);
+                    let dv = tv_dict_find(Some(&*env), ignored.as_ptr(), -1);
                     if !dv.is_null() {
                         tv_dict_item_remove(&mut *env, &mut *dv);
                     }
@@ -4502,7 +4502,7 @@ pub fn create_environment(
         }
 
         if pty {
-            let dv = tv_dict_find(env.as_ref(), c"TERM", 4);
+            let dv = tv_dict_find(Some(&*env), c"TERM", 4);
             if !dv.is_null() {
                 tv_dict_item_remove(&mut *env, &mut *dv);
             }
@@ -4512,7 +4512,7 @@ pub fn create_environment(
         if set_nvim_addr {
             let nvim_addr = get_vim_var_str(VV_SEND_SERVER);
             if !crate::memory::cstr_is_empty(nvim_addr) {
-                let dv = tv_dict_find(env.as_ref(), c"NVIM", 4);
+                let dv = tv_dict_find(Some(&*env), c"NVIM", 4);
                 if !dv.is_null() {
                     tv_dict_item_remove(&mut *env, &mut *dv);
                 }
@@ -4539,7 +4539,7 @@ pub fn create_environment(
                                 namelen = mb_strup_buf(name, namebuff);
                                 name = namebuff;
                             }
-                            let dv = tv_dict_find(env.as_ref(), name, namelen as isize);
+                            let dv = tv_dict_find(Some(&*env), name, namelen as isize);
                             if !dv.is_null() {
                                 tv_dict_item_remove(&mut *env, &mut *dv);
                             }
@@ -4558,7 +4558,7 @@ pub fn create_environment(
         if pty {
             for &req in REQUIRED_ENV_VARS {
                 let len = req.to_bytes().len();
-                let dv = tv_dict_find(env.as_ref(), req.as_ptr(), len as isize);
+                let dv = tv_dict_find(Some(&*env), req.as_ptr(), len as isize);
                 if dv.is_null()
                     && let Some(env_var) = os_getenv_cstr(req.as_ptr())
                 {
@@ -4990,7 +4990,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         if busy {
             ui_busy_stop();
         }
-        tv_list_ref(rv.as_mut());
+        tv_list_ref(Some(&mut *rv));
         rettv.v_type = VarType::VarList;
         rettv.vval = crate::eval::typval::TypvalVval::List(rv);
     }
@@ -8409,11 +8409,11 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 }
 
 fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
-    unsafe {
+    {
         let list = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
         rettv.v_type = VarType::VarList;
         rettv.vval = crate::eval::typval::TypvalVval::List(list);
-        tv_list_ref(list.as_mut());
+        tv_list_ref(Some(&mut *list));
         let Some(dirs) = stdpaths_get_xdg_var(xdg) else {
             return;
         };
@@ -15042,8 +15042,8 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
     },
 ];
 
-pub fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef {
-    &raw const FUNCTIONS[idx as usize]
+pub fn eval_func_def_at(idx: c_int) -> &'static EvalFuncDef {
+    &FUNCTIONS[idx as usize]
 }
 
 #[cfg(test)]
@@ -15079,18 +15079,18 @@ mod tests {
 
     #[test]
     fn find_internal_func_hash_resolves_builtin_functions() {
-        unsafe {
+        {
             for (idx, fdef) in FUNCTIONS[..FUNCTIONS.len() - 1].iter().enumerate() {
                 let fdef_name = fdef.name.unwrap();
                 let name = fdef_name.to_bytes();
                 assert_eq!(find_internal_func_hash(name), idx as c_int);
                 assert_eq!(
                     find_internal_func(fdef_name.as_ptr()),
-                    eval_func_def_at(idx as c_int)
+                    eval_func_def_at(idx as c_int) as *const _
                 );
             }
             assert!(
-                (*eval_func_def_at((FUNCTIONS.len() - 1) as c_int))
+                eval_func_def_at((FUNCTIONS.len() - 1) as c_int)
                     .name
                     .is_none()
             );

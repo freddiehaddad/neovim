@@ -485,7 +485,7 @@ fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCha
         };
 
         let stacktrace = stacktrace_create();
-        tv_list_ref(stacktrace.as_mut());
+        tv_list_ref(Some(&mut *stacktrace));
 
         let excp = std::rc::Rc::new(Except {
             r#type,

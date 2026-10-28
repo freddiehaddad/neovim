@@ -417,15 +417,13 @@ pub fn object_to_vim_take_luaref(
                     vval: TypvalVval::Number(0),
                 };
                 object_to_vim_take_luaref(&mut *arr.items.add(i), &mut li_tv, take_luaref, _err);
-                tv_list_append_owned_tv(&mut *list, li_tv);
+                tv_list_append_owned_tv(list, li_tv);
             }
-            if !list.is_null() {
-                (*list).lv_refcount += 1;
-            }
+            list.lv_refcount += 1;
             tv_ref.v_type = VarType::VarList;
             tv_ref.vval = TypvalVval::List(list);
         },
-        ObjectType::ObjectTypeDict => unsafe {
+        ObjectType::ObjectTypeDict => {
             let mut d = obj.data.dict();
             let dict = tv_dict_alloc();
             for item in d.as_mut_slice() {
@@ -433,10 +431,10 @@ pub fn object_to_vim_take_luaref(
                 object_to_vim_take_luaref(&mut item.value, &mut di.di_tv, take_luaref, _err);
                 tv_dict_add(&mut *dict, di);
             }
-            (*dict).dv_refcount += 1;
+            dict.dv_refcount += 1;
             tv_ref.v_type = VarType::VarDict;
             tv_ref.vval = TypvalVval::Dict(dict);
-        },
+        }
         ObjectType::ObjectTypeLuaRef => {
             let mut ref_id = obj.data.luaref();
             if take_luaref {
@@ -502,7 +500,7 @@ mod tests {
 
             // Self-referencing list converts nested cycle to Nil
             let list = tv_list_alloc(1);
-            (*list).lv_refcount += 1;
+            list.lv_refcount += 1;
             let mut list_tv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: 0,
@@ -517,7 +515,7 @@ mod tests {
                 ObjectType::ObjectTypeNil
             );
             crate::api::private::helpers::api_free_object(cyc_obj);
-            (*(*list).lv_first).li_tv.v_type = VarType::VarUnknown;
+            (*list.lv_first).li_tv.v_type = VarType::VarUnknown;
             crate::eval::typval::tv_list_free(list);
         }
     }

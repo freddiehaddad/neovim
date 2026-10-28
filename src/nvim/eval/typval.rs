@@ -1021,27 +1021,24 @@ fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
 }
 
 /// Allocate an empty list.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut TvList {
-    unsafe {
-        let list = Box::into_raw(Box::new(TvList {
-            lv_first: ptr::null_mut(),
-            lv_last: ptr::null_mut(),
-            lv_watch: Vec::new(),
-            lv_idx_item: ptr::null_mut(),
-            lv_copylist: ptr::null_mut(),
-            lv_gc_idx: None,
-            lv_refcount: 0,
-            lv_len: 0,
-            lv_idx: 0,
-            lv_copy_id: 0,
-            lv_lock: 0,
-            lua_table_ref: LUA_NOREF,
-        }));
+pub fn tv_list_alloc(_len: isize) -> &'static mut TvList {
+    let list = Box::leak(Box::new(TvList {
+        lv_first: ptr::null_mut(),
+        lv_last: ptr::null_mut(),
+        lv_watch: Vec::new(),
+        lv_idx_item: ptr::null_mut(),
+        lv_copylist: ptr::null_mut(),
+        lv_gc_idx: None,
+        lv_refcount: 0,
+        lv_len: 0,
+        lv_idx: 0,
+        lv_copy_id: 0,
+        lv_lock: 0,
+        lua_table_ref: LUA_NOREF,
+    }));
 
-        gc_register_list(&mut *list);
-        list
-    }
+    gc_register_list(list);
+    list
 }
 
 /// Initialize a static list with 10 items.
@@ -1321,7 +1318,7 @@ pub fn tv_list_copy(
         }
 
         let copy = tv_list_alloc(tv_list_len_inline(orig.as_deref()) as isize);
-        tv_list_ref_inline(copy.as_mut());
+        tv_list_ref_inline(Some(&mut *copy));
         if copy_id != 0 {
             orig.as_deref_mut().unwrap().lv_copy_id = copy_id;
             orig.as_deref_mut().unwrap().lv_copylist = copy;
@@ -2723,7 +2720,7 @@ pub fn tv_dict_watcher_notify(
     oldtv: Option<&TypVal>,
 ) {
     let key = key.into_c_char_ptr();
-    unsafe {
+    {
         let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
 
         argv[0].v_type = VarType::VarDict;
@@ -2735,7 +2732,7 @@ pub fn tv_dict_watcher_notify(
         argv[2].v_lock = VAR_UNLOCKED;
         let changes_dict = tv_dict_alloc();
         argv[2].vval = crate::eval::typval::TypvalVval::Dict(changes_dict);
-        (*changes_dict).dv_refcount += 1;
+        changes_dict.dv_refcount += 1;
 
         if let Some(newtv) = newtv {
             let v = tv_dict_item_alloc_len(c"new", 3);
@@ -2850,24 +2847,22 @@ pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
 }
 
 /// Allocate an empty dictionary.
-pub fn tv_dict_alloc() -> *mut TvDict {
-    unsafe {
-        let d = Box::into_raw(Box::new(TvDict {
-            dv_lock: VAR_UNLOCKED,
-            dv_scope: VAR_NO_SCOPE,
-            dv_refcount: 0,
-            dv_copy_id: 0,
-            dv_hashtab: crate::hashtab::Hashtab::new(),
-            dv_copydict: ptr::null_mut(),
-            dv_gc_idx: None,
-            watchers: Vec::new(),
-            lua_table_ref: LUA_NOREF,
-        }));
+pub fn tv_dict_alloc() -> &'static mut TvDict {
+    let d = Box::leak(Box::new(TvDict {
+        dv_lock: VAR_UNLOCKED,
+        dv_scope: VAR_NO_SCOPE,
+        dv_refcount: 0,
+        dv_copy_id: 0,
+        dv_hashtab: crate::hashtab::Hashtab::new(),
+        dv_copydict: ptr::null_mut(),
+        dv_gc_idx: None,
+        watchers: Vec::new(),
+        lua_table_ref: LUA_NOREF,
+    }));
 
-        gc_register_dict(&mut *d);
+    gc_register_dict(d);
 
-        d
-    }
+    d
 }
 
 /// Free items contained in a dictionary.
@@ -3441,7 +3436,7 @@ pub fn tv_dict_copy(
             return ptr::null_mut();
         }
 
-        let mut copy = tv_dict_alloc();
+        let mut copy: *mut TvDict = tv_dict_alloc();
         if copy_id != 0 {
             orig.as_deref_mut().unwrap().dv_copy_id = copy_id;
             orig.as_deref_mut().unwrap().dv_copydict = copy;
@@ -3780,7 +3775,7 @@ pub fn f_list2blob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// Allocate an empty list for a return value.
 pub fn tv_list_alloc_ret(ret_tv: &mut TypVal, len: isize) -> &'static mut TvList {
-    unsafe {
+    {
         let l = tv_list_alloc(len);
         tv_list_set_ret_inline(ret_tv, l);
         ret_tv.v_lock = VAR_UNLOCKED;
@@ -3789,7 +3784,7 @@ pub fn tv_list_alloc_ret(ret_tv: &mut TypVal, len: isize) -> &'static mut TvList
 }
 
 pub fn tv_dict_alloc_lock(lock: VarLockStatus) -> &'static mut TvDict {
-    unsafe {
+    {
         let d = &mut *tv_dict_alloc();
         d.dv_lock = lock;
         d
@@ -3836,7 +3831,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
                         let sub_l = tv_list_alloc(2);
                         tv_item.v_type = VarType::VarList;
                         tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l);
-                        tv_list_ref_inline(sub_l.as_mut());
+                        tv_list_ref_inline(Some(&mut *sub_l));
                         tv_list_append_string(&mut *sub_l, key_ptr, -1);
                         tv_list_append_tv(&mut *sub_l, &mut di.di_tv);
                     }
@@ -5143,46 +5138,46 @@ mod tests {
 
             // Basic alloc, append_number, find, reverse
             let l = tv_list_alloc(0);
-            assert!(!l.is_null());
-            (*l).lv_refcount = 1;
+            l.lv_refcount = 1;
             tv_list_append_number(&mut *l, 10);
             tv_list_append_number(&mut *l, 20);
             tv_list_append_number(&mut *l, 30);
-            assert_eq!(tv_list_len_inline(l.as_ref()), 3);
+            assert_eq!(tv_list_len_inline(Some(&*l)), 3);
 
-            let item1 = tv_list_find(l.as_mut(), 1);
+            let item1 = tv_list_find(Some(&mut *l), 1);
             assert!(!item1.is_null());
             assert_eq!((*item1).li_tv.vval.v_number(), 20);
-            assert_eq!(tv_list_idx_of_item(l.as_ref(), item1), 1);
-            assert_eq!(tv_list_idx_of_item(l.as_ref(), ptr::null()), -1);
+            assert_eq!(tv_list_idx_of_item(Some(&*l), item1), 1);
+            assert_eq!(tv_list_idx_of_item(Some(&*l), ptr::null()), -1);
 
             let mut err = false;
-            assert_eq!(tv_list_find_nr(l.as_mut(), 0, Some(&mut err)), 10);
+            assert_eq!(tv_list_find_nr(Some(&mut *l), 0, Some(&mut err)), 10);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l.as_mut(), -1, Some(&mut err)), 30);
+            assert_eq!(tv_list_find_nr(Some(&mut *l), -1, Some(&mut err)), 30);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l.as_mut(), 10, Some(&mut err)), -1);
+            assert_eq!(tv_list_find_nr(Some(&mut *l), 10, Some(&mut err)), -1);
             assert!(err);
 
             tv_list_reverse(&mut *l);
-            let first = tv_list_find(l.as_mut(), 0);
+            let first = tv_list_find(Some(&mut *l), 0);
             assert_eq!((*first).li_tv.vval.v_number(), 30);
 
             // Watchers + item_remove + drop_items + remove_items
             let lw1 = std::rc::Rc::new(Listwatch {
-                lw_item: std::cell::Cell::new((*l).lv_first),
+                lw_item: std::cell::Cell::new(l.lv_first),
             });
             let lw2 = std::rc::Rc::new(Listwatch {
-                lw_item: std::cell::Cell::new((*l).lv_last),
+                lw_item: std::cell::Cell::new(l.lv_last),
             });
             tv_list_watch_add(&mut *l, lw1.clone());
             tv_list_watch_add(&mut *l, lw2.clone());
 
-            let second = (*(*l).lv_first).li_next;
-            let next_after_first = tv_list_item_remove(&mut *l, (*l).lv_first);
+            let first = l.lv_first;
+            let second = (*first).li_next;
+            let next_after_first = tv_list_item_remove(l, first);
             assert_eq!(next_after_first, second);
             assert_eq!(lw1.lw_item.get(), second);
-            assert_eq!(tv_list_len_inline(l.as_ref()), 2);
+            assert_eq!(tv_list_len_inline(Some(&*l)), 2);
 
             tv_list_watch_remove(&mut *l, &lw1);
             tv_list_watch_remove(&mut *l, &lw2);
@@ -5190,7 +5185,7 @@ mod tests {
 
             // insert, insert_tv, append_string, append_allocated_string, append_tv, append_owned_tv
             let l2 = tv_list_alloc(0);
-            (*l2).lv_refcount = 1;
+            l2.lv_refcount = 1;
             tv_list_append_string(&mut *l2, c"hello", 5);
             tv_list_append_string(&mut *l2, c"world", -1);
             let mut tv_ins = TypVal {
@@ -5198,45 +5193,50 @@ mod tests {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(99),
             };
-            tv_list_insert_tv(&mut *l2, &mut tv_ins, (*l2).lv_first);
-            assert_eq!(tv_list_len_inline(l2.as_ref()), 3);
-            assert_eq!(tv_list_find_nr(l2.as_mut(), 0, None), 99);
+            let first2 = l2.lv_first;
+            tv_list_insert_tv(l2, &mut tv_ins, first2);
+            assert_eq!(tv_list_len_inline(Some(&*l2)), 3);
+            assert_eq!(tv_list_find_nr(Some(&mut *l2), 0, None), 99);
             assert_eq!(
-                crate::memory::cstr_as_bytes(tv_list_find_str(l2.as_mut(), 1)),
+                crate::memory::cstr_as_bytes(tv_list_find_str(Some(&mut *l2), 1)),
                 b"hello"
             );
             assert_eq!(
-                crate::memory::cstr_as_bytes(tv_list_find_str(l2.as_mut(), 2)),
+                crate::memory::cstr_as_bytes(tv_list_find_str(Some(&mut *l2), 2)),
                 b"world"
             );
 
             // copy, extend, concat, join, equal
-            let l2_copy = tv_list_copy(None, l2.as_mut(), true, 0);
+            let l2_copy = tv_list_copy(None, Some(&mut *l2), true, 0);
             (*l2_copy).lv_refcount = 1;
-            assert!(tv_list_equal(l2.as_ref(), l2_copy.as_ref(), false));
+            assert!(tv_list_equal(Some(&*l2), l2_copy.as_ref(), false));
             assert!(tv_list_equal(None, None, false));
-            assert!(!tv_list_equal(l2.as_ref(), None, false));
+            assert!(!tv_list_equal(Some(&*l2), None, false));
 
             let mut joined: Vec<c_char> = Vec::new();
-            assert!(tv_list_join(&mut joined, l2.as_mut(), c", "));
+            assert!(tv_list_join(&mut joined, Some(&mut *l2), c", "));
             assert_eq!(
                 crate::memory::cstr_slice(joined.as_ptr(), joined.len()),
                 b"99, hello, world"
             );
 
             let mut cat_tv = tv_initial_value();
-            assert!(tv_list_concat(l2.as_mut(), l2_copy.as_mut(), &mut cat_tv));
+            assert!(tv_list_concat(
+                Some(&mut *l2),
+                l2_copy.as_mut(),
+                &mut cat_tv
+            ));
             assert_eq!(tv_list_len_inline(cat_tv.vval.v_list().as_ref()), 6);
             tv_clear(&mut cat_tv);
 
             tv_list_extend(&mut *l2, l2_copy.as_ref(), ptr::null_mut());
-            assert_eq!(tv_list_len_inline(l2.as_ref()), 6);
+            assert_eq!(tv_list_len_inline(Some(&*l2)), 6);
 
             // remove_items range
-            let first_item = (*l2).lv_first;
+            let first_item = l2.lv_first;
             let second_item = (*first_item).li_next;
             tv_list_remove_items(&mut *l2, first_item, &mut *second_item);
-            assert_eq!(tv_list_len_inline(l2.as_ref()), 4);
+            assert_eq!(tv_list_len_inline(Some(&*l2)), 4);
 
             tv_list_unref(l2_copy);
             tv_list_unref(l2);
@@ -5254,29 +5254,28 @@ mod tests {
             crate::globals::g_st().emsg_skip += 1;
 
             let d = tv_dict_alloc();
-            assert!(!d.is_null());
-            (*d).dv_refcount = 1;
+            d.dv_refcount = 1;
             assert!(tv_dict_add_nr(&mut *d, c"foo", 42));
             assert!(tv_dict_add_float(&mut *d, c"flt", 3.5));
             assert!(tv_dict_add_str(&mut *d, c"str", c"bar"));
             assert!(tv_dict_add_str_len(&mut *d, c"alloc", c"baz", -1));
-            assert!(tv_dict_has_key(d.as_ref(), c"foo"));
-            assert!(!tv_dict_has_key(d.as_ref(), c"missing"));
+            assert!(tv_dict_has_key(Some(&*d), c"foo"));
+            assert!(!tv_dict_has_key(Some(&*d), c"missing"));
 
-            assert_eq!(tv_dict_get_number(d.as_ref(), c"foo"), 42);
-            assert_eq!(tv_dict_get_number(d.as_ref(), c"missing"), 0);
+            assert_eq!(tv_dict_get_number(Some(&*d), c"foo"), 42);
+            assert_eq!(tv_dict_get_number(Some(&*d), c"missing"), 0);
 
             let mut numbuf = [0 as c_char; NUMBUFLEN];
             assert_eq!(
-                crate::memory::cstr_as_bytes(tv_dict_get_string(d.as_ref(), c"str")),
+                crate::memory::cstr_as_bytes(tv_dict_get_string(Some(&*d), c"str")),
                 b"bar"
             );
-            let saved = tv_dict_get_cstring(d.as_ref(), c"foo").unwrap();
+            let saved = tv_dict_get_cstring(Some(&*d), c"foo").unwrap();
             assert_eq!(saved.as_bytes(), b"42");
 
             assert_eq!(
                 crate::memory::cstr_as_bytes(tv_dict_get_string_buf_chk(
-                    d.as_ref(),
+                    Some(&*d),
                     c"missing",
                     7,
                     numbuf.as_mut_ptr(),
@@ -5286,21 +5285,21 @@ mod tests {
             );
 
             // Copy, equal, extend, readonly, clear
-            let d_copy = tv_dict_copy(None, d.as_mut(), true, 0);
+            let d_copy = tv_dict_copy(None, Some(&mut *d), true, 0);
             (*d_copy).dv_refcount = 1;
-            assert!(tv_dict_equal(d.as_ref(), d_copy.as_ref(), false));
+            assert!(tv_dict_equal(Some(&*d), d_copy.as_ref(), false));
             assert!(tv_dict_equal(None, None, false));
-            assert!(!tv_dict_equal(d.as_ref(), None, false));
+            assert!(!tv_dict_equal(Some(&*d), None, false));
 
             let d2 = tv_dict_alloc();
-            (*d2).dv_refcount = 1;
+            d2.dv_refcount = 1;
             assert!(tv_dict_add_nr(&mut *d2, c"extra", 7));
             tv_dict_extend(&mut *d, &mut *d2, c"force");
-            assert_eq!(tv_dict_get_number(d.as_ref(), c"extra"), 7);
-            assert!(!tv_dict_equal(d.as_ref(), d_copy.as_ref(), false));
+            assert_eq!(tv_dict_get_number(Some(&*d), c"extra"), 7);
+            assert!(!tv_dict_equal(Some(&*d), d_copy.as_ref(), false));
 
             tv_dict_set_keys_readonly(&mut *d2);
-            let di_extra = tv_dict_find(d2.as_ref(), c"extra", -1);
+            let di_extra = tv_dict_find(Some(&*d2), c"extra", -1);
             assert_ne!((*di_extra).di_flags & (DI_FLAGS_RO | DI_FLAGS_FIX), 0);
 
             tv_dict_clear(&mut *d_copy);
@@ -5384,16 +5383,16 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             // [&l [1], *l, *l]
             let inner = tv_list_alloc(1);
             tv_list_append_number(&mut *inner, 1);
             let outer = tv_list_alloc(3);
-            (*outer).lv_refcount = 1;
+            outer.lv_refcount = 1;
             for _ in 0..3 {
                 tv_list_append_list(&mut *outer, inner);
             }
-            assert_eq!((*inner).lv_refcount, 3);
+            assert_eq!(inner.lv_refcount, 3);
             let mut tv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
@@ -5405,11 +5404,11 @@ mod tests {
             // [&l [], *l, *l]
             let empty_inner = tv_list_alloc(0);
             let outer2 = tv_list_alloc(3);
-            (*outer2).lv_refcount = 1;
+            outer2.lv_refcount = 1;
             for _ in 0..3 {
                 tv_list_append_list(&mut *outer2, empty_inner);
             }
-            assert_eq!((*empty_inner).lv_refcount, 3);
+            assert_eq!(empty_inner.lv_refcount, 3);
             let mut tv2 = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
@@ -5425,10 +5424,10 @@ mod tests {
                     assert!(tv_dict_add_nr(&mut *d_inner, c"a", 1));
                 }
                 let outer_d = tv_list_alloc(2);
-                (*outer_d).lv_refcount = 1;
+                outer_d.lv_refcount = 1;
                 tv_list_append_dict(&mut *outer_d, d_inner);
                 tv_list_append_dict(&mut *outer_d, d_inner);
-                assert_eq!((*d_inner).dv_refcount, 2);
+                assert_eq!(d_inner.dv_refcount, 2);
                 let mut tv_d = TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,

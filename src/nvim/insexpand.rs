@@ -422,11 +422,11 @@ impl InsComplNextState {
     }
 
     #[inline]
-    fn cur_match_pos_ptr(&mut self) -> *mut CursorPos {
+    fn cur_match_pos_ptr(&mut self) -> &mut CursorPos {
         if self.cur_match_forward {
-            &raw mut self.last_match_pos
+            &mut self.last_match_pos
         } else {
-            &raw mut self.first_match_pos
+            &mut self.first_match_pos
         }
     }
 }
@@ -1665,7 +1665,7 @@ fn pum_enough_matches() -> bool {
     }
 }
 
-fn ins_compl_dict_alloc(match_: *mut Compl) -> *mut TvDict {
+fn ins_compl_dict_alloc(match_: *mut Compl) -> &'static mut TvDict {
     let dict = tv_dict_alloc_lock(VAR_FIXED);
     {
         fill_complete_info_dict(&mut *dict, match_, false);
@@ -3357,19 +3357,17 @@ pub fn set_ref_in_insexpand_funcs(copy_id: c_int) -> bool {
     }
 }
 
-fn get_insert_callback(type_: c_int) -> *mut Callback {
-    unsafe {
-        if type_ == CTRL_X_FUNCTION {
-            return &raw mut (*g_st().curbuf).b_p_cfu;
-        }
-        if type_ == CTRL_X_OMNI {
-            return &raw mut (*g_st().curbuf).b_p_ofu;
-        }
-        if curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
-            &raw mut (*g_st().curbuf).b_p_tsrfu
-        } else {
-            &raw mut opt_vars().p_tsrfu
-        }
+fn get_insert_callback(type_: c_int) -> &'static mut Callback {
+    if type_ == CTRL_X_FUNCTION {
+        return &mut curbuf_mut().b_p_cfu;
+    }
+    if type_ == CTRL_X_OMNI {
+        return &mut curbuf_mut().b_p_ofu;
+    }
+    if curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
+        &mut curbuf_mut().b_p_tsrfu
+    } else {
+        &mut opt_vars().p_tsrfu
     }
 }
 

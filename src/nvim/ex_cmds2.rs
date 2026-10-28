@@ -779,7 +779,7 @@ pub fn ex_checktime(eap: &mut Exarg) {
 }
 
 fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
-    unsafe {
+    {
         let mut len: usize = 0;
         if let Some(script) = script_get(eap, &mut len) {
             let args = tv_list_alloc(3);
@@ -793,7 +793,7 @@ fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
 }
 
 fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
-    unsafe {
+    {
         if eap.skip == 0 {
             let mut buffer = [0 as c_char; MAXPATHL];
             vim_full_name(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
@@ -808,7 +808,7 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
 }
 
 fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
-    unsafe {
+    {
         if eap.skip == 0 {
             let args = tv_list_alloc(3);
             tv_list_append_number(&mut *args, eap.line1 as Varnumber);

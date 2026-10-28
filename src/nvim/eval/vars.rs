@@ -617,8 +617,8 @@ pub fn evalvars_init() {
         let msgpack_types_dict = tv_dict_alloc();
         for (i, type_name) in MSGPACK_TYPE_NAMES.iter().enumerate() {
             let type_list = tv_list_alloc(0);
-            tv_list_set_lock(type_list.as_mut(), VAR_FIXED);
-            tv_list_ref(type_list.as_mut());
+            tv_list_set_lock(Some(&mut *type_list), VAR_FIXED);
+            tv_list_ref(Some(&mut *type_list));
             let di = tv_dict_item_alloc(type_name.as_ptr());
             di.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             di.di_tv = TypVal {
@@ -633,7 +633,7 @@ pub fn evalvars_init() {
                 std::process::abort();
             }
         }
-        (*msgpack_types_dict).dv_lock = VAR_FIXED;
+        msgpack_types_dict.dv_lock = VAR_FIXED;
 
         set_vim_var_dict(VV_MSGPACK_TYPES, msgpack_types_dict);
         set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc_lock(VAR_FIXED));
@@ -770,7 +770,7 @@ pub fn eval_charconvert(
     let fname_to = fname_to.into_c_char_ptr();
     let enc_from = enc_from.into_c_char_ptr();
     let enc_to = enc_to.into_c_char_ptr();
-    unsafe {
+    {
         let saved_sctx = g_st().current_sctx;
 
         set_vim_var_string(VV_CC_FROM, enc_from, -1);
@@ -778,9 +778,7 @@ pub fn eval_charconvert(
         set_vim_var_string(VV_FNAME_IN, fname_from, -1);
         set_vim_var_string(VV_FNAME_OUT, fname_to, -1);
         let ctx = get_option_sctx(K_OPT_CHARCONVERT);
-        if !ctx.is_null() {
-            g_st().current_sctx = *ctx;
-        }
+        g_st().current_sctx = *ctx;
 
         let mut err = false;
         let mut tv: TypVal = TypVal::new();
@@ -812,16 +810,14 @@ pub fn eval_diff(
     let origfile = origfile.into_c_char_ptr();
     let newfile = newfile.into_c_char_ptr();
     let outfile = outfile.into_c_char_ptr();
-    unsafe {
+    {
         let saved_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME_IN, origfile, -1);
         set_vim_var_string(VV_FNAME_NEW, newfile, -1);
         set_vim_var_string(VV_FNAME_OUT, outfile, -1);
 
         let ctx = get_option_sctx(K_OPT_DIFFEXPR);
-        if !ctx.is_null() {
-            g_st().current_sctx = *ctx;
-        }
+        g_st().current_sctx = *ctx;
 
         let mut tv: TypVal = TypVal::new();
         let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -844,16 +840,14 @@ pub fn eval_patch(
     let origfile = origfile.into_c_char_ptr();
     let difffile = difffile.into_c_char_ptr();
     let outfile = outfile.into_c_char_ptr();
-    unsafe {
+    {
         let saved_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME_IN, origfile, -1);
         set_vim_var_string(VV_FNAME_DIFF, difffile, -1);
         set_vim_var_string(VV_FNAME_OUT, outfile, -1);
 
         let ctx = get_option_sctx(K_OPT_PATCHEXPR);
-        if !ctx.is_null() {
-            g_st().current_sctx = *ctx;
-        }
+        g_st().current_sctx = *ctx;
 
         let mut tv: TypVal = TypVal::new();
         let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -875,7 +869,7 @@ pub fn eval_spell_expr(
 ) -> *mut TvList {
     let badword = badword.into_c_char_ptr();
     let expr = expr.into_c_char_ptr();
-    unsafe {
+    {
         let mut save_val: TypVal = TypVal::new();
         let mut rettv: TypVal = TypVal::new();
         let mut list: *mut TvList = ptr::null_mut();
@@ -888,9 +882,7 @@ pub fn eval_spell_expr(
             g_st().emsg_off += 1;
         }
         let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
-        if !ctx.is_null() {
-            g_st().current_sctx = *ctx;
-        }
+        g_st().current_sctx = *ctx;
 
         let mut r = may_call_simple_func(p, &mut rettv);
         if r == NOTDONE {
@@ -1427,7 +1419,7 @@ pub fn ex_let_vars(
                 ltv.v_type = VarType::VarList;
                 ltv.v_lock = VAR_UNLOCKED;
                 ltv.vval = crate::eval::typval::TypvalVval::List(rest_list);
-                tv_list_ref(rest_list.as_mut());
+                tv_list_ref(Some(&mut *rest_list));
 
                 arg = ex_let_one(
                     skipwhite(arg.add(1)),
@@ -2339,8 +2331,8 @@ pub fn get_globvar_ht() -> &'static mut Hashtab {
     &mut vars_st().globvardict.dv_hashtab
 }
 
-pub fn get_vimvar_dict() -> *mut TvDict {
-    &raw mut vars_st().vimvardict
+pub fn get_vimvar_dict() -> &'static mut TvDict {
+    &mut vars_st().vimvardict
 }
 
 pub fn set_vim_var_tv(idx: VimVarIndex, tv: &mut TypVal) {
@@ -2423,7 +2415,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             return hi_key;
         }
 
-        let mut ht: *const Hashtab = &raw const (*(*prevwin_curwin()).w_buffer).b_vars().dv_hashtab;
+        let mut ht: *const Hashtab = &raw const (*prevwin_curwin().w_buffer).b_vars().dv_hashtab;
         if vars_st().bdone < (*ht).ht_used {
             if vars_st().bdone == 0 {
                 vars_st().hi = (&*ht).array_ptr();

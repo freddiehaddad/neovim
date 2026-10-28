@@ -180,8 +180,8 @@ pub struct MultiQueue {
 fn multiqueue_new_inner(
     parent: *mut MultiQueue,
     notify_loop: *mut crate::event::r#loop::Loop,
-) -> *mut MultiQueue {
-    Box::into_raw(Box::new(MultiQueue {
+) -> &'static mut MultiQueue {
+    Box::leak(Box::new(MultiQueue {
         parent,
         items: VecDeque::new(),
         notify_loop,
@@ -190,7 +190,7 @@ fn multiqueue_new_inner(
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
-pub fn multiqueue_new(notify_loop: *mut crate::event::r#loop::Loop) -> *mut MultiQueue {
+pub fn multiqueue_new(notify_loop: *mut crate::event::r#loop::Loop) -> &'static mut MultiQueue {
     multiqueue_new_inner(std::ptr::null_mut(), notify_loop)
 }
 
@@ -198,7 +198,7 @@ pub fn multiqueue_new(notify_loop: *mut crate::event::r#loop::Loop) -> *mut Mult
 ///
 /// # Safety
 /// `parent` must be a valid pointer to a root `MultiQueue` (`parent->parent == NULL`).
-pub fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
+pub fn multiqueue_new_child(parent: *mut MultiQueue) -> &'static mut MultiQueue {
     let parent_ref = unsafe { &mut *parent };
     assert!(parent_ref.parent.is_null());
     parent_ref.size = parent_ref.size.wrapping_add(1);
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn parent_and_child_interleaved_ordering() {
-        unsafe {
+        {
             let parent = multiqueue_new(std::ptr::null_mut());
             let c1 = multiqueue_new_child(&mut *parent);
             let c2 = multiqueue_new_child(&mut *parent);

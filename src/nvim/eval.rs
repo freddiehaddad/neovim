@@ -5124,7 +5124,7 @@ fn string_to_list(
             len -= 1;
         }
         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        encode_list_write(list.as_mut(), str_, len);
+        encode_list_write(Some(&mut *list), str_, len);
         list
     }
 }
@@ -6312,10 +6312,10 @@ pub fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
     unsafe {
         let l = tv_list_alloc(argc as isize);
 
-        tv_list_set_lock(l.as_mut(), VAR_FIXED);
+        tv_list_set_lock(Some(&mut *l), VAR_FIXED);
         for i in 0..(argc as usize) {
             tv_list_append_string(&mut *l, (*argv.add(i)).cast_const(), -1);
-            tv_list_item_tv(&mut *tv_list_last(l.as_ref())).v_lock = VAR_FIXED;
+            tv_list_item_tv(&mut *tv_list_last(Some(&*l))).v_lock = VAR_FIXED;
         }
         set_vim_var_list(VV_ARGV, l);
     }
@@ -7083,7 +7083,7 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
 }
 
 pub fn script_host_eval(name: &std::ffi::CStr, argvars: &mut [TypVal], rettv: &mut TypVal) {
-    unsafe {
+    {
         if check_secure() {
             return;
         }

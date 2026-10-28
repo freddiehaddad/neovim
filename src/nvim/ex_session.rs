@@ -355,7 +355,7 @@ fn put_view(
             if !ses_arglist(
                 fd,
                 c"arglocal",
-                &(*alist).al_ga,
+                &alist.al_ga,
                 ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
                     || (*flagp & K_OPT_SSOP_FLAG_CURDIR) == 0
                     || tp.tp_localdir.is_some()
@@ -366,7 +366,7 @@ fn put_view(
             }
         }
 
-        let wargcount = (*crate::arglist::win_alist(&*wp)).al_ga.len() as c_int;
+        let wargcount = crate::arglist::win_alist(&*wp).al_ga.len() as c_int;
         if (*wp).w_arg_idx != current_arg_idx
             && (*wp).w_arg_idx < wargcount
             && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
