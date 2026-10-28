@@ -249,10 +249,10 @@ pub fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
         }
         let mut size = INIT_SIZE;
         let mut buf = [0 as c_char; INIT_SIZE];
-        let mut r = uv_os_getenv(name, buf.as_mut_ptr(), &raw mut size);
+        let mut r = uv_os_getenv(name, buf.as_mut_ptr(), &mut size);
         let res = if r == UV_ENOBUFS {
             let mut vec_buf = vec![0 as c_char; size + 1];
-            r = uv_os_getenv(name, vec_buf.as_mut_ptr(), &raw mut size);
+            r = uv_os_getenv(name, vec_buf.as_mut_ptr(), &mut size);
             if r != 0 || size == 0 || vec_buf[0] == NUL {
                 None
             } else {
@@ -278,10 +278,10 @@ pub fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *
         }
         {
             let mut size = bufsize;
-            let mut r = uv_os_getenv(name, buf, &raw mut size);
+            let mut r = uv_os_getenv(name, buf, &mut size);
             if r == UV_ENOBUFS {
                 let mut e = vec![0 as c_char; size];
-                r = uv_os_getenv(name, e.as_mut_ptr(), &raw mut size);
+                r = uv_os_getenv(name, e.as_mut_ptr(), &mut size);
                 if r == 0 && size != 0 && e[0] != NUL {
                     { let _d = (buf).cast::<u8>(); let _n = bufsize.min(size) - 1; if _n > 0 { std::ptr::copy_nonoverlapping((e.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 }
@@ -305,7 +305,7 @@ pub fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
         {
             let mut buf = [0 as c_char; 2];
             let mut size = buf.len();
-            let r = uv_os_getenv(name, buf.as_mut_ptr(), &raw mut size);
+            let r = uv_os_getenv(name, buf.as_mut_ptr(), &mut size);
             assert_ne!(r, UV_EINVAL);
             (r == 0 && (!nonempty || size > 0)) || r == UV_ENOBUFS
         }
@@ -475,7 +475,7 @@ fn os_uv_homedir() -> *mut c_char {
         let buf = (&raw mut env_st().HOMEDIR_BUF).cast::<c_char>();
         *buf = NUL;
         let mut homedir_size = MAXPATHL;
-        let ret_value = uv_os_homedir(buf, &raw mut homedir_size);
+        let ret_value = uv_os_homedir(buf, &mut homedir_size);
         if ret_value == 0 && homedir_size < MAXPATHL {
             return buf;
         }

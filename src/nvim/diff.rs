@@ -2194,7 +2194,7 @@ fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
         true
     }
 }
-fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int) -> bool {
+fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: &mut c_int) -> bool {
     unsafe {
         let l = utfc_ptr2len(p1);
         if l != utfc_ptr2len(p2) {
@@ -2242,7 +2242,7 @@ fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
                 p2 = skipwhite(p2);
             } else {
                 let mut l: c_int = 0;
-                if !diff_equal_char(p1, p2, &raw mut l) {
+                if !diff_equal_char(p1, p2, &mut l) {
                     break;
                 }
                 p1 = p1.add(l as usize);
@@ -2618,7 +2618,7 @@ fn diff_find_change_simple(
                         if !diff_equal_char(
                             line_org.add(si_org as usize),
                             line_new.add(si_new as usize),
-                            &raw mut l,
+                            &mut l,
                         ) {
                             break;
                         }
@@ -2654,7 +2654,7 @@ fn diff_find_change_simple(
                             p1 = p1.sub(utf_head_off(line_org, p1) as usize);
                             p2 = p2.sub(utf_head_off(line_new, p2) as usize);
                             let mut l: c_int = 0;
-                            if !diff_equal_char(p1, p2, &raw mut l) {
+                            if !diff_equal_char(p1, p2, &mut l) {
                                 break;
                             }
                             ei_org -= l;

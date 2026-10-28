@@ -3127,7 +3127,7 @@ fn set_cmd_index(
     cmd: *const c_char,
     eap: &mut exarg_T,
     xp: &mut expand_T,
-    complp: *mut c_int,
+    complp: &mut c_int,
 ) -> *const c_char {
     unsafe {
         let mut p: *const c_char;
@@ -4077,7 +4077,7 @@ fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char 
             return cmd.add(1);
         }
 
-        let mut p = set_cmd_index(cmd, &mut ea, xp, &raw mut context);
+        let mut p = set_cmd_index(cmd, &mut ea, xp, &mut context);
         if p.is_null() {
             return ptr::null();
         }

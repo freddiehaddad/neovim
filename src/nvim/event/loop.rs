@@ -171,7 +171,7 @@ unsafe extern "C" {
     pub fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
     pub fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
     pub fn uv_unref(handle: *mut uv_handle_t);
-    pub fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: *mut c_int) -> c_int;
+    pub fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: &mut c_int) -> c_int;
 
     pub fn uv_pipe(fds: *mut c_int, read_flags: c_int, write_flags: c_int) -> c_int;
     pub fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut c_void, ipc: c_int) -> c_int;
@@ -193,8 +193,8 @@ unsafe extern "C" {
     pub fn uv_tty_reset_mode() -> c_int;
     pub fn uv_tty_get_winsize(
         tty: *mut crate::event::stream::uv_tty_t,
-        width: *mut c_int,
-        height: *mut c_int,
+        width: &mut c_int,
+        height: &mut c_int,
     ) -> c_int;
     #[cfg(windows)]
     pub fn uv_tty_set_vterm_state(state: c_int);
@@ -243,7 +243,7 @@ unsafe extern "C" {
     pub fn uv_fs_req_cleanup(req: *mut c_void);
     pub fn uv_fs_get_result(req: *const c_void) -> isize;
     pub fn uv_chdir(dir: *const std::ffi::c_char) -> c_int;
-    pub fn uv_cwd(buffer: *mut std::ffi::c_char, size: *mut usize) -> c_int;
+    pub fn uv_cwd(buffer: *mut std::ffi::c_char, size: &mut usize) -> c_int;
     pub fn uv_kill(pid: c_int, signum: c_int) -> c_int;
     pub fn uv_signal_start(
         handle: *mut uv_signal_t,
@@ -302,16 +302,16 @@ unsafe extern "C" {
         options: *const crate::event::libuv_proc::uv_process_options_t,
     ) -> c_int;
     pub fn uv_process_get_pid(handle: *const crate::event::libuv_proc::uv_process_t) -> c_int;
-    pub fn uv_os_environ(envitems: *mut *mut uv_env_item_t, count: *mut c_int) -> c_int;
+    pub fn uv_os_environ(envitems: *mut *mut uv_env_item_t, count: &mut c_int) -> c_int;
     pub fn uv_os_free_environ(envitems: *mut uv_env_item_t, count: c_int);
     pub fn uv_os_getenv(
         name: *const std::ffi::c_char,
         buffer: *mut std::ffi::c_char,
-        size: *mut usize,
+        size: &mut usize,
     ) -> c_int;
     pub fn uv_os_setenv(name: *const std::ffi::c_char, value: *const std::ffi::c_char) -> c_int;
     pub fn uv_os_unsetenv(name: *const std::ffi::c_char) -> c_int;
-    pub fn uv_os_homedir(buffer: *mut std::ffi::c_char, size: *mut usize) -> c_int;
+    pub fn uv_os_homedir(buffer: *mut std::ffi::c_char, size: &mut usize) -> c_int;
     pub fn uv_os_getpid() -> c_int;
     pub fn uv_random(
         loop_: *mut c_void,
@@ -323,7 +323,7 @@ unsafe extern "C" {
     ) -> c_int;
     pub fn uv_print_all_handles(loop_: *mut uv_loop_t, stream: *mut crate::fileio::FILE);
     pub fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
-    pub fn uv_uptime(uptime: *mut f64) -> c_int;
+    pub fn uv_uptime(uptime: &mut f64) -> c_int;
     pub fn uv_sleep(msec: std::ffi::c_uint);
     pub fn uv_hrtime() -> u64;
     pub fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;

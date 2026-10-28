@@ -443,9 +443,9 @@ fn check_multiclick(
     grid: c_int,
     row: c_int,
     col: c_int,
-    skip_event: *mut bool,
+    skip_event: &mut bool,
 ) -> u8 {
-    unsafe {
+    {
         if (KE_MOUSEDOWN..=KE_MOUSERIGHT).contains(&code) {
             return 0;
         }
@@ -545,7 +545,7 @@ fn handle_mouse_event(
             g_st().mouse_grid,
             g_st().mouse_row,
             g_st().mouse_col,
-            &raw mut skip_event,
+            &mut skip_event,
         );
         if skip_event {
             return 0;
@@ -578,7 +578,7 @@ pub fn input_enqueue_mouse(
 ) {
     unsafe {
         let mut skip_event = false;
-        modifier |= check_multiclick(code, grid, row, col, &raw mut skip_event);
+        modifier |= check_multiclick(code, grid, row, col, &mut skip_event);
         if skip_event {
             return;
         }

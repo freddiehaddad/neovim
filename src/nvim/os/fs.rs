@@ -506,7 +506,7 @@ pub fn os_chdir(path: *const c_char) -> c_int {
 /// Get the name of current directory.
 pub fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
     unsafe {
-        let error_number = uv_cwd(buf, &raw mut len);
+        let error_number = uv_cwd(buf, &mut len);
         if error_number != 0 {
             xstrlcpy(buf, uv_strerror(error_number), len);
             return FAIL;

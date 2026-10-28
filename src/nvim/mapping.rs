@@ -2035,7 +2035,7 @@ pub fn check_map(
     abbr: c_int,
     mut mp_out: Option<&mut Option<&'static mapblock_T>>,
     local_ptr: *mut c_int,
-    rhs_lua: *mut c_int,
+    rhs_lua: &mut c_int,
 ) -> *mut c_char {
     unsafe {
         *rhs_lua = LUA_NOREF;

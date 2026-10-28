@@ -930,10 +930,10 @@ pub fn parse_compl_arg(
 fn uc_scan_attr(
     attr: *mut c_char,
     len: usize,
-    argt: *mut u32,
-    def: *mut c_int,
-    flags: *mut c_int,
-    complp: *mut c_int,
+    argt: &mut u32,
+    def: &mut c_int,
+    flags: &mut c_int,
+    complp: &mut c_int,
     compl_arg: &mut Option<CString>,
     addr_type_arg: *mut cmd_addr_T,
 ) -> c_int {
@@ -1216,10 +1216,10 @@ pub fn ex_command(eap: &mut exarg_T) {
             if uc_scan_attr(
                 p,
                 end.offset_from(p) as usize,
-                &raw mut argt,
-                &raw mut def,
-                &raw mut flags,
-                &raw mut context,
+                &mut argt,
+                &mut def,
+                &mut flags,
+                &mut context,
                 &mut compl_arg,
                 &raw mut addr_type_arg,
             ) == FAIL
@@ -1520,7 +1520,7 @@ fn uc_split_args(
 fn add_cmd_modifier(
     buf: *mut c_char,
     mod_str: *const c_char,
-    multi_mods: *mut bool,
+    multi_mods: &mut bool,
 ) -> usize {
     unsafe {
         let mut result = CStr::from_ptr(mod_str).to_bytes().len();
@@ -1544,40 +1544,40 @@ fn add_cmd_modifier(
 pub fn add_win_cmd_modifiers(
     buf: *mut c_char,
     cmod: &cmdmod_T,
-    multi_mods: *mut bool,
+    multi_mods: &mut bool,
 ) -> usize {
     let mut result: usize = 0;
 
-        if (cmod.cmod_split & WSP_ABOVE) != 0 {
-            result += add_cmd_modifier(buf, c"aboveleft".as_ptr(), multi_mods);
-        }
-        if (cmod.cmod_split & WSP_BELOW) != 0 {
-            result += add_cmd_modifier(buf, c"belowright".as_ptr(), multi_mods);
-        }
-        if (cmod.cmod_split & WSP_BOT) != 0 {
-            result += add_cmd_modifier(buf, c"botright".as_ptr(), multi_mods);
-        }
+    if (cmod.cmod_split & WSP_ABOVE) != 0 {
+        result += add_cmd_modifier(buf, c"aboveleft".as_ptr(), multi_mods);
+    }
+    if (cmod.cmod_split & WSP_BELOW) != 0 {
+        result += add_cmd_modifier(buf, c"belowright".as_ptr(), multi_mods);
+    }
+    if (cmod.cmod_split & WSP_BOT) != 0 {
+        result += add_cmd_modifier(buf, c"botright".as_ptr(), multi_mods);
+    }
 
-        if cmod.cmod_tab > 0 {
-            let tabnr = cmod.cmod_tab - 1;
-            if tabnr == tabpage_index(g_st().curtab) {
-                result += add_cmd_modifier(buf, c"tab".as_ptr(), multi_mods);
-            } else {
-                let s = format!("{tabnr}tab\0");
-                result += add_cmd_modifier(buf, s.as_ptr().cast::<c_char>(), multi_mods);
-            }
+    if cmod.cmod_tab > 0 {
+        let tabnr = cmod.cmod_tab - 1;
+        if tabnr == tabpage_index(g_st().curtab) {
+            result += add_cmd_modifier(buf, c"tab".as_ptr(), multi_mods);
+        } else {
+            let s = format!("{tabnr}tab\0");
+            result += add_cmd_modifier(buf, s.as_ptr().cast::<c_char>(), multi_mods);
         }
+    }
 
-        if (cmod.cmod_split & WSP_TOP) != 0 {
-            result += add_cmd_modifier(buf, c"topleft".as_ptr(), multi_mods);
-        }
-        if (cmod.cmod_split & WSP_VERT) != 0 {
-            result += add_cmd_modifier(buf, c"vertical".as_ptr(), multi_mods);
-        }
-        if (cmod.cmod_split & WSP_HOR) != 0 {
-            result += add_cmd_modifier(buf, c"horizontal".as_ptr(), multi_mods);
-        }
-        result
+    if (cmod.cmod_split & WSP_TOP) != 0 {
+        result += add_cmd_modifier(buf, c"topleft".as_ptr(), multi_mods);
+    }
+    if (cmod.cmod_split & WSP_VERT) != 0 {
+        result += add_cmd_modifier(buf, c"vertical".as_ptr(), multi_mods);
+    }
+    if (cmod.cmod_split & WSP_HOR) != 0 {
+        result += add_cmd_modifier(buf, c"horizontal".as_ptr(), multi_mods);
+    }
+    result
 }
 
 /// Generate text for the `cmod` command modifiers (`uc_mods`).
@@ -1611,7 +1611,7 @@ pub fn uc_mods(mut buf: *mut c_char, cmod: &cmdmod_T, quote: bool) -> usize {
 
         for &(flag, name) in &MOD_ENTRIES {
             if (cmod.cmod_flags & flag) != 0 {
-                result += add_cmd_modifier(buf, name.as_ptr(), &raw mut multi_mods);
+                result += add_cmd_modifier(buf, name.as_ptr(), &mut multi_mods);
             }
         }
 
@@ -1621,20 +1621,20 @@ pub fn uc_mods(mut buf: *mut c_char, cmod: &cmdmod_T, quote: bool) -> usize {
             } else {
                 c"silent"
             };
-            result += add_cmd_modifier(buf, s.as_ptr(), &raw mut multi_mods);
+            result += add_cmd_modifier(buf, s.as_ptr(), &mut multi_mods);
         }
 
         if cmod.cmod_verbose > 0 {
             let verbose_value = cmod.cmod_verbose - 1;
             if verbose_value == 1 {
-                result += add_cmd_modifier(buf, c"verbose".as_ptr(), &raw mut multi_mods);
+                result += add_cmd_modifier(buf, c"verbose".as_ptr(), &mut multi_mods);
             } else {
                 let s = format!("{verbose_value}verbose\0");
-                result += add_cmd_modifier(buf, s.as_ptr().cast::<c_char>(), &raw mut multi_mods);
+                result += add_cmd_modifier(buf, s.as_ptr().cast::<c_char>(), &mut multi_mods);
             }
         }
 
-        result += add_win_cmd_modifiers(buf, cmod, &raw mut multi_mods);
+        result += add_win_cmd_modifiers(buf, cmod, &mut multi_mods);
 
         if quote && !buf.is_null() {
             buf = buf.add(result - 2);

@@ -585,7 +585,7 @@ pub fn get_global_lstate() -> *mut lua_State {
     nlua_st().GLOBAL_LSTATE
 }
 
-fn nlua_get_error(lstate: *mut lua_State, len: *mut usize) -> *const c_char {
+fn nlua_get_error(lstate: *mut lua_State, len: &mut usize) -> *const c_char {
     unsafe {
         if lua_type(lstate, -1) != LUA_TSTRING {
             lua_getglobal(lstate, c"tostring".as_ptr());
@@ -602,7 +602,7 @@ fn nlua_get_error(lstate: *mut lua_State, len: *mut usize) -> *const c_char {
 
 pub fn nlua_error(lstate: *mut lua_State, msg: *const c_char) {
     let mut len: usize = 0;
-        let str_ = nlua_get_error(lstate, &raw mut len);
+        let str_ = nlua_get_error(lstate, &mut len);
         msg_ext_no_fast();
         semsg_multiline!(c"lua_error".as_ptr(), msg, len as c_int, str_);
         lua_pop(lstate, 1);
@@ -693,7 +693,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
             }
 
             let mut len: usize = 0;
-            let error = nlua_get_error(lstate, &raw mut len);
+            let error = nlua_get_error(lstate, &mut len);
             let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
             put_event(
                 (*queues).events,
@@ -775,7 +775,7 @@ fn nlua_luv_thread_common_cfpcall(
                 }
             }
             let mut len: usize = 0;
-            let error = nlua_get_error(lstate, &raw mut len);
+            let error = nlua_get_error(lstate, &mut len);
             let ev = Event::NluaLuvError {
                 msg: (!error.is_null()).then(|| {
                     let slice = std::slice::from_raw_parts(error.cast::<u8>(), len);
@@ -1214,7 +1214,7 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> c_int {
         }
 
         let ui_event_cb = nlua_ref_global(lstate, 3);
-        ui_add_cb(ns_id, ui_event_cb, ext_widgets.as_mut_ptr());
+        ui_add_cb(ns_id, ui_event_cb, &ext_widgets);
         g_st().ui_refresh_cmdheight = true;
         0
     }

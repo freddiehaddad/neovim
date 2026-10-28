@@ -615,7 +615,7 @@ fn peekkey(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
     let mut again = false;
 
@@ -663,9 +663,9 @@ fn peekkey_simple(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
-    unsafe {
+    {
         if tk.buffcount == 0 {
             return if tk.is_closed != 0 {
                 TERMKEY_RES_EOF
@@ -747,9 +747,9 @@ fn peekkey_simple(
 pub(crate) fn peekkey_mouse(
     tk: &TermKey,
     key: &mut TermKeyKey,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
-    unsafe {
+    {
         if tk.buffcount < 3 {
             return TERMKEY_RES_AGAIN;
         }

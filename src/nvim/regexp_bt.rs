@@ -1681,8 +1681,8 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-fn regpiece(flagp: *mut c_int) -> *mut u8 {
-    unsafe {
+fn regpiece(flagp: &mut c_int) -> *mut u8 {
+    {
         let mut flags: c_int = 0;
         let mut minval: c_int = 0;
         let mut maxval: c_int = 0;
@@ -1869,7 +1869,7 @@ fn regconcat(flagp: &mut c_int) -> *mut u8 {
                 skipchr_keepstart();
                 re_st().curchr = -1;
             } else {
-                let latest = regpiece(&raw mut flags);
+                let latest = regpiece(&mut flags);
                 if latest.is_null() || re_st().reg_toolong != 0 {
                     return ptr::null_mut();
                 }

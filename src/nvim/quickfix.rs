@@ -2779,9 +2779,9 @@ fn get_nth_valid_entry(
     qfl: &mut qf_list_T,
     mut errornr: c_int,
     dir: c_int,
-    new_qfidx: *mut c_int,
+    new_qfidx: &mut c_int,
 ) -> *mut qfline_T {
-    unsafe {
+    {
         let mut qf_ptr = qfl.cur_entry();
         let mut qf_idx = qfl.qf_index;
         let mut err: *const c_char = E_NO_MORE_ITEMS.as_ptr();
@@ -2839,7 +2839,7 @@ fn qf_get_entry(
         let mut qfidx = qfl.qf_index;
 
         if dir != 0 {
-            qf_ptr = get_nth_valid_entry(qfl, errornr, dir, &raw mut qfidx);
+            qf_ptr = get_nth_valid_entry(qfl, errornr, dir, &mut qfidx);
         } else if errornr != 0 {
             qf_ptr = get_nth_entry(qfl, errornr, &mut qfidx);
         }
@@ -3106,7 +3106,7 @@ fn qf_jump_edit_buffer(
     qf_index: c_int,
     forceit: c_int,
     prev_winid: c_int,
-    opened_window: *mut bool,
+    opened_window: &mut bool,
 ) -> c_int {
     unsafe {
         let qfl = qf_get_curlist(qi);
@@ -3318,7 +3318,7 @@ fn qf_jump_open_window(
     qi: &mut qf_info_T,
     qf_index: c_int,
     newwin: bool,
-    opened_window: *mut bool,
+    opened_window: &mut bool,
 ) -> c_int {
     unsafe {
         let qfl = qf_get_curlist(qi);
@@ -3376,7 +3376,7 @@ fn qf_jump_to_buffer(
     qf_index: c_int,
     forceit: c_int,
     prev_winid: c_int,
-    opened_window: *mut bool,
+    opened_window: &mut bool,
     openfold: c_int,
     print_message: bool,
 ) -> c_int {
@@ -3458,7 +3458,7 @@ fn qf_jump_newwin(
             let print_message = !qf_win_pos_update(&mut *qi, old_qf_index);
             let prev_winid = (**curwin.as_ptr()).handle;
             let mut opened_window = false;
-            let mut retval = qf_jump_open_window(&mut *qi, qf_index, newwin, &raw mut opened_window);
+            let mut retval = qf_jump_open_window(&mut *qi, qf_index, newwin, &mut opened_window);
             if retval == FAIL {
                 qf_index = old_qf_index;
             } else if retval == QF_ABORT {
@@ -3469,7 +3469,7 @@ fn qf_jump_newwin(
                     qf_index,
                     forceit,
                     prev_winid,
-                    &raw mut opened_window,
+                    &mut opened_window,
                     c_int::from(old_KeyTyped),
                     print_message,
                 );
@@ -3616,7 +3616,7 @@ pub fn qf_list(eap: &mut exarg_T) {
         }
         let mut idx1: c_int = 1;
         let mut idx2: c_int = -1;
-        if get_list_range(&raw mut arg, &raw mut idx1, &raw mut idx2) == FAIL || *arg != NUL {
+        if get_list_range(&raw mut arg, &mut idx1, &mut idx2) == FAIL || *arg != NUL {
             semsg!(gettext((&raw const e_trailing_arg).cast()), arg);
             return;
         }

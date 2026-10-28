@@ -2569,8 +2569,8 @@ pub fn restore_visual_mode() {
 
 fn find_is_eval_item(
     ptr: *const c_char,
-    colp: *mut c_int,
-    bnp: *mut c_int,
+    colp: &mut c_int,
+    bnp: &mut c_int,
     dir: c_int,
 ) -> bool {
     unsafe {
@@ -2673,8 +2673,8 @@ pub fn find_ident_at_pos(
                         || prevcol == 0
                         || !find_is_eval_item(
                             ptr.add(prevcol as usize),
-                            &raw mut prevcol,
-                            &raw mut bn,
+                            &mut prevcol,
+                            &mut bn,
                             BACKWARD,
                         ))
                 {
@@ -2715,7 +2715,7 @@ pub fn find_ident_at_pos(
                 mb_get_class(ptr.add(col as usize)) != 0
             }) || ((find_type & FIND_EVAL) != 0
                 && col <= startcol
-                && find_is_eval_item(ptr.add(col as usize), &raw mut col, &raw mut bn, FORWARD)))
+                && find_is_eval_item(ptr.add(col as usize), &mut col, &mut bn, FORWARD)))
         {
             col += utfc_ptr2len(ptr.add(col as usize));
         }

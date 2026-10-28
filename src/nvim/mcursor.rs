@@ -281,11 +281,11 @@ pub fn mc_replaying() -> bool {
     unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool() == kBoolVarTrue }
 }
 
-fn mc_mark_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
+fn mc_mark_upd(buf: *mut buf_T, mark: &mut u32, pos: pos_T) {
     extmark_set_pos(buf, mc_ns(), mark, pos, true, false, true);
 }
 
-fn mc_track_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
+fn mc_track_upd(buf: *mut buf_T, mark: &mut u32, pos: pos_T) {
     extmark_set_pos(buf, mc_session_ns(), mark, pos, true, true, false);
 }
 
@@ -725,7 +725,7 @@ fn mc_ctx_resolve(ctx: &Context, pos: &mut pos_T) -> bool {
             && extmark_get_pos(g_st().curbuf, mc_ns(), ctx.mark, pos)
 }
 
-fn mc_region_mark_set(mark: *mut u32, pos: pos_T) {
+fn mc_region_mark_set(mark: &mut u32, pos: pos_T) {
     unsafe {
         extmark_set(
             &mut *g_st().curbuf,
@@ -747,7 +747,7 @@ fn mc_region_mark_set(mark: *mut u32, pos: pos_T) {
 
 fn mc_ins_preview_rebase() {
     unsafe {
-        mc_region_mark_set(&raw mut mc_st().mc_ins_span.region, (**curwin.as_ptr()).w_cursor);
+        mc_region_mark_set(&mut mc_st().mc_ins_span.region, (**curwin.as_ptr()).w_cursor);
         mc_ins_regions_clear();
         for i in 0..cursors().len() {
             let ctx = &cursors()[i];

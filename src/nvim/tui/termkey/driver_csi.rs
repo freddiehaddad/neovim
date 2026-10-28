@@ -817,9 +817,9 @@ fn peekkey_csi_csi(
     introlen: usize,
     key: &mut TermKeyKey,
     force: c_int,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
-    unsafe {
+    {
         let mut csi_len: usize = 0;
         let mut nparams: usize = 16;
         let mut params = [TermKeyCsiParam::new(); 16];
@@ -894,9 +894,9 @@ fn peekkey_ss3(
     introlen: usize,
     key: &mut TermKeyKey,
     force: c_int,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
-    unsafe {
+    {
         if tk.buffcount < introlen + 1 {
             if force == 0 {
                 return TERMKEY_RES_AGAIN;
@@ -947,9 +947,9 @@ fn peekkey_ctrlstring(
     introlen: usize,
     key: &mut TermKeyKey,
     _force: c_int,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
-    unsafe {
+    {
         let mut str_end = introlen;
         let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
 
@@ -1016,7 +1016,7 @@ pub fn peekkey_csi(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
     if tk.buffcount == 0 {
             return if tk.is_closed != 0 {
@@ -1034,15 +1034,15 @@ pub fn peekkey_csi(
                     return TERMKEY_RES_NONE;
                 }
                 match tk.buffer[tk.buffstart + 1] {
-                    0x4f => peekkey_ss3(tk, 2, key, force, nbytep),
-                    0x50 | 0x5d | 0x5f => peekkey_ctrlstring(tk, 2, key, force, nbytep),
-                    0x5b => peekkey_csi_csi(tk, 2, key, force, nbytep),
+                    0x4f => peekkey_ss3(tk, 2, key, force, &mut *nbytep),
+                    0x50 | 0x5d | 0x5f => peekkey_ctrlstring(tk, 2, key, force, &mut *nbytep),
+                    0x5b => peekkey_csi_csi(tk, 2, key, force, &mut *nbytep),
                     _ => TERMKEY_RES_NONE,
                 }
             }
-            0x8f => peekkey_ss3(tk, 1, key, force, nbytep),
-            0x90 | 0x9d => peekkey_ctrlstring(tk, 1, key, force, nbytep),
-            0x9b => peekkey_csi_csi(tk, 1, key, force, nbytep),
+            0x8f => peekkey_ss3(tk, 1, key, force, &mut *nbytep),
+            0x90 | 0x9d => peekkey_ctrlstring(tk, 1, key, force, &mut *nbytep),
+            0x9b => peekkey_csi_csi(tk, 1, key, force, &mut *nbytep),
             _ => TERMKEY_RES_NONE,
         }
 }

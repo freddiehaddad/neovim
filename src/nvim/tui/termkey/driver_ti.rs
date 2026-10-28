@@ -558,9 +558,9 @@ pub fn peekkey_ti(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
-    nbytep: *mut usize,
+    nbytep: &mut usize,
 ) -> TermKeyResult {
-    unsafe {
+    {
         if tk.buffcount == 0 {
             return if tk.is_closed != 0 {
                 TERMKEY_RES_EOF
@@ -590,7 +590,7 @@ pub fn peekkey_ti(
                 tk.buffstart += pos;
                 tk.buffcount -= pos;
 
-                let mouse_result = peekkey_mouse(tk, key, nbytep);
+                let mouse_result = peekkey_mouse(tk, key, &mut *nbytep);
 
                 tk.buffstart -= pos;
                 tk.buffcount += pos;

@@ -1354,7 +1354,7 @@ pub fn tv_list_check_range_index_one(
     quiet: bool,
 ) -> *mut listitem_T {
     unsafe {
-        let li = tv_list_find_index(l, n1);
+        let li = tv_list_find_index(l, &mut *n1);
         if !li.is_null() {
             return li;
         }
@@ -1411,7 +1411,7 @@ pub fn tv_list_assign_range(
 ) -> c_int {
     unsafe {
         let mut idx1 = idx1_arg;
-        let first_li = tv_list_find_index(dest, &raw mut idx1);
+        let first_li = tv_list_find_index(dest, &mut idx1);
         let mut src_li: *mut listitem_T;
 
         let mut idx = idx1;
@@ -2472,8 +2472,8 @@ pub fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char {
     }
 }
 
-fn tv_list_find_index(l: *mut list_T, idx: *mut c_int) -> *mut listitem_T {
-    unsafe {
+fn tv_list_find_index(l: *mut list_T, idx: &mut c_int) -> *mut listitem_T {
+    {
         let mut li = tv_list_find(l, *idx);
         if !li.is_null() {
             return li;

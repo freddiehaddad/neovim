@@ -932,7 +932,7 @@ pub fn restore_vimvar(idx: c_int, save_tv: *mut typval_T) {
 }
 
 /// List Vim variables.
-fn list_vim_vars(first: *mut c_int) {
+fn list_vim_vars(first: &mut c_int) {
     list_hashtable_vars(
             &mut vars_st().vimvardict.dv_hashtab,
             c"v:".as_ptr(),
@@ -942,7 +942,7 @@ fn list_vim_vars(first: *mut c_int) {
 }
 
 /// List script-local variables, if there is a script.
-fn list_script_vars(first: *mut c_int) {
+fn list_script_vars(first: &mut c_int) {
     unsafe {
         if crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
             list_hashtable_vars(
@@ -1234,15 +1234,15 @@ pub fn ex_let(eap: &mut exarg_T) {
             if *arg == b'[' as c_char {
                 emsg(gettext(e_invarg.as_ptr()));
             } else if ends_excmd(*arg as c_int) == 0 {
-                arg = list_arg_vars(eap, arg, &raw mut first).cast_mut();
+                arg = list_arg_vars(eap, arg, &mut first).cast_mut();
             } else if eap.skip == 0 {
-                list_glob_vars(&raw mut first);
-                list_buf_vars(&raw mut first);
-                list_win_vars(&raw mut first);
-                list_tab_vars(&raw mut first);
-                list_script_vars(&raw mut first);
+                list_glob_vars(&mut first);
+                list_buf_vars(&mut first);
+                list_win_vars(&mut first);
+                list_tab_vars(&mut first);
+                list_script_vars(&mut first);
                 list_func_vars(&raw mut first);
-                list_vim_vars(&raw mut first);
+                list_vim_vars(&mut first);
             }
             eap.nextcmd = check_nextcmd(arg);
             return;
@@ -1510,7 +1510,7 @@ pub fn list_hashtable_vars(
     }
 }
 
-fn list_glob_vars(first: *mut c_int) {
+fn list_glob_vars(first: &mut c_int) {
     list_hashtable_vars(
             &mut vars_st().globvardict.dv_hashtab,
             c"".as_ptr(),
@@ -1519,7 +1519,7 @@ fn list_glob_vars(first: *mut c_int) {
         );
 }
 
-fn list_buf_vars(first: *mut c_int) {
+fn list_buf_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
             &mut (*(*g_st().curbuf).b_vars()).dv_hashtab,
@@ -1530,7 +1530,7 @@ fn list_buf_vars(first: *mut c_int) {
     }
 }
 
-fn list_win_vars(first: *mut c_int) {
+fn list_win_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
             &mut (*(**curwin.as_ptr()).w_vars()).dv_hashtab,
@@ -1541,7 +1541,7 @@ fn list_win_vars(first: *mut c_int) {
     }
 }
 
-fn list_tab_vars(first: *mut c_int) {
+fn list_tab_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
             &mut (*(*g_st().curtab).tp_vars()).dv_hashtab,
@@ -1556,7 +1556,7 @@ fn list_tab_vars(first: *mut c_int) {
 fn list_arg_vars(
     eap: &mut exarg_T,
     mut arg: *const c_char,
-    first: *mut c_int,
+    first: &mut c_int,
 ) -> *const c_char {
     unsafe {
         let mut error = false;
@@ -2931,7 +2931,7 @@ fn list_one_var(v: &mut dictitem_T, prefix: *const c_char, first: *mut c_int) {
             std::ffi::CStr::from_ptr(v.di_key.as_ptr()).to_bytes().len() as isize,
             v.di_tv.v_type,
             s.as_ptr(),
-            first,
+            &mut *first,
         );
     }
 }
@@ -2942,7 +2942,7 @@ fn list_one_var_a(
     name_len: isize,
     v_type: VarType,
     mut string: *const c_char,
-    first: *mut c_int,
+    first: &mut c_int,
 ) {
     unsafe {
         if *first != 0 {
@@ -2996,7 +2996,7 @@ pub fn before_set_vvar(
     tv: *mut typval_T,
     copy: bool,
     watched: bool,
-    type_error: *mut bool,
+    type_error: &mut bool,
 ) -> bool {
     unsafe {
         if di.di_tv.v_type == VarType::VAR_STRING {
@@ -3107,7 +3107,7 @@ pub fn set_var_const(
 
             let mut type_error = false;
             if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab)
-                && !before_set_vvar(varname, &mut *di, tv, copy, watched, &raw mut type_error)
+                && !before_set_vvar(varname, &mut *di, tv, copy, watched, &mut type_error)
             {
                 if type_error {
                     semsg!(

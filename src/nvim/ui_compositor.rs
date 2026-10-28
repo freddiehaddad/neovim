@@ -499,13 +499,13 @@ fn compose_line(
                         thru &= schar_invisible(*lbuf.add(idx + 1));
                     }
                     *abuf.add(idx) =
-                        hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &raw mut thru)
+                        hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &mut thru)
                             as sattr_T;
                     if width == 2 {
                         *abuf.add(idx + 1) = hl_blend_attrs(
                             *bg_attrs.add(idx + 1),
                             *abuf.add(idx + 1),
-                            &raw mut thru,
+                            &mut thru,
                         ) as sattr_T;
                     }
                     if thru {

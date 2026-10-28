@@ -257,7 +257,7 @@ pub fn cause_errthrow(
     multiline: bool,
     concat: bool,
     severe: bool,
-    ignore: *mut bool,
+    ignore: &mut bool,
 ) -> bool {
     unsafe {
         if g_st().suppress_errthrow {

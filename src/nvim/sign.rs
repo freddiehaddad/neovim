@@ -240,7 +240,7 @@ fn buf_set_sign(
 
 fn buf_mod_sign(
     buf: *mut buf_T,
-    id: *mut u32,
+    id: &mut u32,
     group: *mut c_char,
     prio: c_int,
     sp: *mut sign_T,
@@ -723,7 +723,7 @@ fn sign_place(
         if lnum > 0 {
             buf_set_sign(buf, id, group, prio, lnum, sp);
         } else {
-            lnum = buf_mod_sign(buf, id, group, prio, sp);
+            lnum = buf_mod_sign(buf, &mut *id, group, prio, sp);
         }
         if lnum <= 0 {
             semsg!(
@@ -941,11 +941,11 @@ fn parse_sign_cmd_args(
     cmd: c_int,
     mut arg: *mut c_char,
     name: *mut *mut c_char,
-    id: *mut c_int,
+    id: &mut c_int,
     group: *mut *mut c_char,
-    prio: *mut c_int,
+    prio: &mut c_int,
     buf: *mut *mut buf_T,
-    lnum: *mut linenr_T,
+    lnum: &mut linenr_T,
 ) -> c_int {
     unsafe {
         let arg1 = arg;
@@ -1081,11 +1081,11 @@ pub fn ex_sign(eap: &mut exarg_T) {
                 idx,
                 arg,
                 &raw mut name,
-                &raw mut id,
+                &mut id,
                 &raw mut group,
-                &raw mut prio,
+                &mut prio,
                 &raw mut buf,
-                &raw mut lnum,
+                &mut lnum,
             ) == FAIL
             {
                 return;

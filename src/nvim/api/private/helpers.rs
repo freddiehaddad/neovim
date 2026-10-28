@@ -594,7 +594,7 @@ pub fn dict_set_var(
                         &raw mut tv,
                         true,
                         watched,
-                        &raw mut type_error,
+                        &mut type_error,
                     )
                 {
                     tv_clear(&raw mut tv);
@@ -4221,7 +4221,7 @@ fn mpack_push_array(out: &mut Vec<u8>, len: usize) {
     }
 }
 
-pub fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
+pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
     let bytes = PACKED_API_METADATA.get_or_init(|| {
         let mut out = Vec::with_capacity(32768);
         out.push(0x86); // fixmap(6)
@@ -4325,11 +4325,7 @@ pub fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
 
         out.into_boxed_slice()
     });
-    if !len.is_null() {
-        unsafe {
-            *len = bytes.len();
-        }
-    }
+    *len = bytes.len();
     bytes.as_ptr()
 }
 

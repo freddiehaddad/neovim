@@ -1104,7 +1104,7 @@ fn set_gui_color(
     init: bool,
     arg: *const c_char,
     color: *mut RgbValue,
-    color_idx: *mut c_int,
+    color_idx: &mut c_int,
 ) -> bool {
     unsafe {
         if init && ((*hl_table().add(idx as usize)).sg_set & SG_GUI) != 0 {
@@ -1524,7 +1524,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         init,
                         arg.as_ptr(),
                         &raw mut (*g).sg_rgb_fg,
-                        &raw mut (*g).sg_rgb_fg_idx,
+                        &mut (*g).sg_rgb_fg_idx,
                     );
                     if is_normal_group {
                         g_st().normal_fg = (*hl_table().add(idx as usize)).sg_rgb_fg;
@@ -1536,7 +1536,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         init,
                         arg.as_ptr(),
                         &raw mut (*g).sg_rgb_bg,
-                        &raw mut (*g).sg_rgb_bg_idx,
+                        &mut (*g).sg_rgb_bg_idx,
                     );
                     if is_normal_group {
                         g_st().normal_bg = (*hl_table().add(idx as usize)).sg_rgb_bg;
@@ -1548,7 +1548,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                         init,
                         arg.as_ptr(),
                         &raw mut (*g).sg_rgb_sp,
-                        &raw mut (*g).sg_rgb_sp_idx,
+                        &mut (*g).sg_rgb_sp_idx,
                     );
                     if is_normal_group {
                         g_st().normal_sp = (*hl_table().add(idx as usize)).sg_rgb_sp;
@@ -2293,7 +2293,7 @@ pub fn syn_id2attr(hl_id: c_int) -> c_int {
 
 pub fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -> c_int {
     unsafe {
-        if syn_ns_get_final_id(&raw mut ns_id, &raw mut hl_id) {
+        if syn_ns_get_final_id(&mut ns_id, &mut hl_id) {
             *optional = false;
         }
         let sgp = &*hl_table().add((hl_id - 1) as usize);
@@ -2310,12 +2310,12 @@ pub fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -
 pub fn syn_get_final_id(mut hl_id: c_int) -> c_int {
     unsafe {
         let mut ns_id = (**curwin.as_ptr()).w_ns_hl_active;
-        syn_ns_get_final_id(&raw mut ns_id, &raw mut hl_id);
+        syn_ns_get_final_id(&mut ns_id, &mut hl_id);
         hl_id
     }
 }
 
-pub fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool {
+pub fn syn_ns_get_final_id(ns_id: &mut c_int, hl_idp: &mut c_int) -> bool {
     unsafe {
         let mut hl_id = *hl_idp;
         let mut used = false;
@@ -2442,7 +2442,7 @@ pub fn highlight_changed() {
             }
             let mut ns_id: c_int = 0;
             let mut final_id = id;
-            syn_ns_get_final_id(&raw mut ns_id, &raw mut final_id);
+            syn_ns_get_final_id(&mut ns_id, &mut final_id);
             if hlf == HLF_SNC {
                 id_SNC = final_id;
             } else if hlf == HLF_S {

@@ -987,7 +987,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 auto_format(false, true);
             }
             K_BS | Ctrl_H => {
-                s.did_backspace = ins_bs(s.c, BACKSPACE_CHAR, &raw mut s.inserted_space);
+                s.did_backspace = ins_bs(s.c, BACKSPACE_CHAR, &mut s.inserted_space);
                 auto_format(false, true);
                 if s.did_backspace {
                     may_trigger_autocomplete(s);
@@ -1001,7 +1001,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     s.count = 0;
                     return 0;
                 }
-                s.did_backspace = ins_bs(s.c, BACKSPACE_WORD, &raw mut s.inserted_space);
+                s.did_backspace = ins_bs(s.c, BACKSPACE_WORD, &mut s.inserted_space);
                 auto_format(false, true);
                 if s.did_backspace {
                     may_trigger_autocomplete(s);
@@ -1012,7 +1012,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     insert_do_complete(&raw mut *s);
                 } else {
                     s.did_backspace =
-                        ins_bs(s.c, BACKSPACE_LINE, &raw mut s.inserted_space);
+                        ins_bs(s.c, BACKSPACE_LINE, &mut s.inserted_space);
                     auto_format(false, true);
                     s.inserted_space = 0;
                     if s.did_backspace {
@@ -3080,7 +3080,7 @@ fn ins_del() {
     }
 }
 
-fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> bool {
+fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
     unsafe {
         let mut cc: c_int;
         let mut temp: c_int = 0;

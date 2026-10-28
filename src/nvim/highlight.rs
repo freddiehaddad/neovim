@@ -1075,7 +1075,7 @@ fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     }
 }
 
-pub fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut bool) -> c_int {
+pub fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: &mut bool) -> c_int {
     unsafe {
         if front_attr < 0 || back_attr < 0 {
             return front_attr;

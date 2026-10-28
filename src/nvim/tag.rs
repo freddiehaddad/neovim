@@ -1249,7 +1249,7 @@ fn tagfunc_cmd_kind(cmd: *mut c_char) -> tagcmd_T {
 fn find_tagfunc_tags(
     pat: *mut c_char,
     ga: &mut Vec<Vec<c_char>>,
-    match_count: *mut c_int,
+    match_count: &mut c_int,
     flags: c_int,
     buf_ffname: *mut c_char,
 ) -> c_int {
@@ -1652,7 +1652,7 @@ fn findtags_apply_tfu(
         let retval = find_tagfunc_tags(
             pat,
             &mut st.ga_match[0],
-            &raw mut st.match_count,
+            &mut st.match_count,
             st.flags,
             buf_ffname,
         );
@@ -1755,7 +1755,7 @@ fn findtags_hdr_parse(st: &mut findtags_state_T) -> bool {
 
 fn findtags_start_state_handler(
     st: &mut findtags_state_T,
-    sortic: *mut bool,
+    sortic: &mut bool,
     sinfo_p: *mut tagsearch_info_T,
 ) -> bool {
     unsafe {
@@ -2156,7 +2156,7 @@ fn findtags_get_all_tags(
             }
 
             if st.state == tagsearch_state_T::TS_START
-                && !findtags_start_state_handler(st, &raw mut margs.sortic, &raw mut search_info)
+                && !findtags_start_state_handler(st, &mut margs.sortic, &raw mut search_info)
             {
                 continue;
             }

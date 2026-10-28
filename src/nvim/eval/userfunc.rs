@@ -858,7 +858,7 @@ fn fname_trans_sid(
     name: *const c_char,
     fname_buf: *mut c_char,
     tofree: &mut Option<std::ffi::CString>,
-    error: *mut c_int,
+    error: &mut c_int,
 ) -> *mut c_char {
     unsafe {
         let script_name = name.add(eval_fname_script(name) as usize);

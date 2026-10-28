@@ -1656,7 +1656,7 @@ fn pum_position_at_mouse(min_width: c_int) {
         pum().win_col_offset = 0;
 
         if ui_has(kUIMultigrid) && grid == 0 {
-            mouse_find_win_outer(&raw mut grid, &raw mut row, &raw mut col);
+            mouse_find_win_outer(&mut grid, &mut row, &mut col);
         }
         if grid > 1 {
             let wp = get_win_by_grid_handle(grid);
@@ -1729,7 +1729,7 @@ fn pum_select_mouse_pos() {
         let mut col = g_st().mouse_col;
 
         if grid == 0 {
-            mouse_find_win_outer(&raw mut grid, &raw mut row, &raw mut col);
+            mouse_find_win_outer(&mut grid, &mut row, &mut col);
         }
 
         if grid == g_st().pum_grid.handle {

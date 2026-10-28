@@ -424,8 +424,8 @@ fn tv_list_uidx(l: *const list_T, mut n: c_int) -> c_int {
 }
 
 #[inline]
-fn tv_get_float_chk(tv: &typval_T, ret_f: *mut float_T) -> bool {
-    unsafe {
+fn tv_get_float_chk(tv: &typval_T, ret_f: &mut float_T) -> bool {
+    {
         if tv.v_type == VarType::VAR_FLOAT {
             *ret_f = tv.vval.v_float();
             return true;
@@ -1286,7 +1286,7 @@ fn non_zero_arg(argvars: *const typval_T) -> bool {
 pub fn float_op_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData) {
     let mut f: float_T = 0.0;
         rettv.v_type = VarType::VAR_FLOAT;
-        if tv_get_float_chk(&argvars[0], &raw mut f)
+        if tv_get_float_chk(&argvars[0], &mut f)
             && let EvalFuncData::FloatOp(func_float) = fptr
         {
             rettv.vval = crate::eval::typval::TypvalVval::Float(func_float(f));
@@ -1410,7 +1410,7 @@ pub fn f_abs(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
         if (*argvars).v_type == VarType::VAR_FLOAT {
             let mut f: float_T = 0.0;
             rettv.v_type = VarType::VAR_FLOAT;
-            if tv_get_float_chk(&*argvars, &raw mut f) {
+            if tv_get_float_chk(&*argvars, &mut f) {
                 rettv.vval = crate::eval::typval::TypvalVval::Float(f.abs());
             } else {
                 rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
@@ -1452,7 +1452,7 @@ pub fn f_atan2(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
         let mut fx: float_T = 0.0;
         let mut fy: float_T = 0.0;
         rettv.v_type = VarType::VAR_FLOAT;
-        if tv_get_float_chk(&*argvars, &raw mut fx) && tv_get_float_chk(&*argvars.add(1), &raw mut fy) {
+        if tv_get_float_chk(&*argvars, &mut fx) && tv_get_float_chk(&*argvars.add(1), &mut fy) {
             rettv.vval = crate::eval::typval::TypvalVval::Float(fx.atan2(fy));
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
@@ -2617,7 +2617,7 @@ pub fn f_float2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
     unsafe {
         let mut f: float_T = 0.0;
-        if !tv_get_float_chk(&*argvars, &raw mut f) {
+        if !tv_get_float_chk(&*argvars, &mut f) {
             return;
         }
         if f <= (-VARNUMBER_MAX as float_T) + f64::EPSILON {
@@ -2638,7 +2638,7 @@ pub fn f_fmod(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         let mut fx: float_T = 0.0;
         let mut fy: float_T = 0.0;
         rettv.v_type = VarType::VAR_FLOAT;
-        if tv_get_float_chk(&*argvars, &raw mut fx) && tv_get_float_chk(&*argvars.add(1), &raw mut fy) {
+        if tv_get_float_chk(&*argvars, &mut fx) && tv_get_float_chk(&*argvars.add(1), &mut fy) {
             rettv.vval = crate::eval::typval::TypvalVval::Float(fx % fy);
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
@@ -4594,7 +4594,7 @@ pub fn create_environment(
         if !clear_env {
             let mut envitems: *mut uv_env_item_t = ptr::null_mut();
             let mut envcount: c_int = 0;
-            if uv_os_environ(&raw mut envitems, &raw mut envcount) == 0 {
+            if uv_os_environ(&raw mut envitems, &mut envcount) == 0 {
                 for i in 0..(envcount as usize) {
                     #[cfg(windows)]
                     let mut name: *const c_char = (*envitems.add(i)).name;
@@ -6266,7 +6266,7 @@ pub fn f_pow(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
         let mut fx: float_T = 0.0;
         let mut fy: float_T = 0.0;
         rettv.v_type = VarType::VAR_FLOAT;
-        if tv_get_float_chk(&*argvars, &raw mut fx) && tv_get_float_chk(&*argvars.add(1), &raw mut fy) {
+        if tv_get_float_chk(&*argvars, &mut fx) && tv_get_float_chk(&*argvars.add(1), &mut fy) {
             rettv.vval = crate::eval::typval::TypvalVval::Float(fx.powf(fy));
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);

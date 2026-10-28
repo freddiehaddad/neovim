@@ -512,7 +512,7 @@ fn draw_virt_text_item(
                 hl_combine_attr(g_st().linebuf_attr[col as usize], virt_attr)
             } else if hl_mode == kHlModeBlend {
                 through = schar_invisible(sc);
-                hl_blend_attrs(g_st().linebuf_attr[col as usize], virt_attr, &raw mut through)
+                hl_blend_attrs(g_st().linebuf_attr[col as usize], virt_attr, &mut through)
             } else {
                 virt_attr
             };

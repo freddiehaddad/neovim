@@ -557,7 +557,7 @@ fn schedule_termrequest(term: &mut Terminal) {
     }
 }
 
-fn parse_osc8(str_: *const c_char, attr: *mut c_int) -> c_int {
+fn parse_osc8(str_: *const c_char, attr: &mut c_int) -> c_int {
     unsafe {
         let mut i: usize = 0;
         while *str_.add(i) != NUL {
@@ -2454,8 +2454,8 @@ fn refresh_terminal(term: &mut Terminal) {
     }
 }
 
-fn refresh_cursor(term: &mut Terminal, cursor_visible: *mut bool) {
-    unsafe {
+fn refresh_cursor(term: &mut Terminal, cursor_visible: &mut bool) {
+    {
         if !is_focused(term) {
             return;
         }

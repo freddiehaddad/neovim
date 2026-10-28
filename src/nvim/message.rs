@@ -1069,7 +1069,7 @@ pub fn emsg_multiline(
         g_st().emsg_severe = false;
 
         if g_st().emsg_off == 0 || !vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() {
-            if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &raw mut ignore) {
+            if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &mut ignore) {
                 if !ignore {
                     g_st().did_emsg += 1;
                 }

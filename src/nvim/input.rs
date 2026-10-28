@@ -2220,9 +2220,9 @@ fn char_iter(itp: *mut *const u8, nomap: c_int) -> c_int {
 }
 
 fn handle_mapping(
-    keylenp: *mut c_int,
+    keylenp: &mut c_int,
     timedout: *const bool,
-    mapdepth: *mut c_int,
+    mapdepth: &mut c_int,
     advance: bool,
 ) -> c_int {
     unsafe {
@@ -2636,9 +2636,9 @@ fn vgetorpeek(advance: bool) -> c_int {
                         break;
                     } else if g_st().typebuf.tb_len > 0 {
                         let result = handle_mapping(
-                            &raw mut keylen,
+                            &mut keylen,
                             &raw const timedout,
-                            &raw mut mapdepth,
+                            &mut mapdepth,
                             advance,
                         );
 

@@ -1689,7 +1689,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
 
         let mut col_from_screen: colnr_T = -1;
         let mut mouse_fold_flags: c_int = 0;
-        mouse_check_grid(&raw mut col_from_screen, &raw mut mouse_fold_flags);
+        mouse_check_grid(&mut col_from_screen, &mut mouse_fold_flags);
 
         if mouse_comp_pos(
             &mut **curwin.as_ptr(),
@@ -1931,7 +1931,7 @@ pub fn mouse_find_win_inner(
     colp: *mut c_int,
 ) -> *mut win_T {
     unsafe {
-        let wp_grid = mouse_find_grid_win(gridp, rowp, colp);
+        let wp_grid = mouse_find_grid_win(&mut *gridp, &mut *rowp, &mut *colp);
         if !wp_grid.is_null() {
             return wp_grid;
         } else if *gridp > 1 {
@@ -1980,9 +1980,9 @@ pub fn mouse_find_win_inner(
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window.
 pub fn mouse_find_win_outer(
-    gridp: *mut c_int,
-    rowp: *mut c_int,
-    colp: *mut c_int,
+    gridp: &mut c_int,
+    rowp: &mut c_int,
+    colp: &mut c_int,
 ) -> *mut win_T {
     unsafe {
         let wp = mouse_find_win_inner(gridp, rowp, colp);
@@ -1994,7 +1994,7 @@ pub fn mouse_find_win_outer(
     }
 }
 
-fn mouse_find_grid_win(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_int) -> *mut win_T {
+fn mouse_find_grid_win(gridp: &mut c_int, rowp: &mut c_int, colp: &mut c_int) -> *mut win_T {
     unsafe {
         if *gridp == g_st().msg_grid.handle {
             *rowp += g_st().msg_grid_pos;
@@ -2138,7 +2138,7 @@ fn find_longest_lnum() -> linenr_T {
 }
 
 /// Check clicked cell on its grid
-fn mouse_check_grid(vcolp: *mut colnr_T, flagsp: *mut c_int) {
+fn mouse_check_grid(vcolp: &mut colnr_T, flagsp: &mut c_int) {
     unsafe {
         let mut click_grid = g_st().mouse_grid;
         let mut click_row = g_st().mouse_row;

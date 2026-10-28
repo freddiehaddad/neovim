@@ -842,7 +842,7 @@ fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char) -> c_
         let mut st = FileInfo::new();
         let mut uptime: f64 = 0.0;
         if os_fileinfo(swap_fname, &mut st)
-            && uv_uptime(&raw mut uptime) == 0
+            && uv_uptime(&mut uptime) == 0
             && (st.stat.st_mtim.tv_sec as Timestamp) < os_time().wrapping_sub(uptime as Timestamp)
         {
             return 0;

@@ -4532,8 +4532,8 @@ fn get_next_spell_completion(lnum: linenr_T) {
 fn ins_compl_get_next_word_or_line(
     ins_buf: &mut buf_T,
     cur_match_pos: &mut pos_T,
-    match_len: *mut c_int,
-    cont_s_ipos: *mut bool,
+    match_len: &mut c_int,
+    cont_s_ipos: &mut bool,
 ) -> *mut c_char {
     unsafe {
         *match_len = 0;
@@ -4724,8 +4724,8 @@ fn get_next_default_completion(
                 ptr = ins_compl_get_next_word_or_line(
                     &mut *st.ins_buf,
                     &mut *st.cur_match_pos_ptr(),
-                    &raw mut len,
-                    &raw mut cont_s_ipos,
+                    &mut len,
+                    &mut cont_s_ipos,
                 );
             }
             if ptr.is_null() || (ins_compl_has_preinsert() && (std::ffi::CStr::from_ptr(ptr).to_bytes() == std::ffi::CStr::from_ptr(ins_compl_leader()).to_bytes()))
@@ -5410,7 +5410,7 @@ fn ins_compl_expand_multiple(str_ptr: *mut c_char) {
     }
 }
 
-fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut c_char {
+fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char {
     unsafe {
         let cpt_sources = &raw const insexp().cpt_sources_array;
         let is_cpt_completion = !(*cpt_sources).is_empty();
@@ -5523,9 +5523,9 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
 
         let cpt_sources = &raw const insexp().cpt_sources_array;
         if insert_prefix {
-            cp_str = find_common_prefix(&raw mut cp_str_len, false);
+            cp_str = find_common_prefix(&mut cp_str_len, false);
             if cp_str.is_null() {
-                cp_str = find_common_prefix(&raw mut cp_str_len, true);
+                cp_str = find_common_prefix(&mut cp_str_len, true);
                 if cp_str.is_null() {
                     let shown = compl_opt(insexp().compl_shown_idx);
                     cp_str = (*shown).cp_str.data;
@@ -5650,7 +5650,7 @@ fn find_next_completion_match(
     allow_get_expansion: bool,
     mut todo: c_int,
     advance: bool,
-    num_matches: *mut c_int,
+    num_matches: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut found_end: bool;
@@ -5783,7 +5783,7 @@ fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: bool) -
             insexp().compl_restarting = false;
         }
 
-        if find_next_completion_match(allow_get_expansion, todo, advance, &raw mut num_matches)
+        if find_next_completion_match(allow_get_expansion, todo, advance, &mut num_matches)
             == -1
         {
             return -1;
@@ -6285,9 +6285,9 @@ fn compl_get_info(
     line: *mut c_char,
     startcol: c_int,
     curs_col: colnr_T,
-    line_invalid: *mut bool,
+    line_invalid: &mut bool,
 ) -> c_int {
-    unsafe {
+    {
         if ctrl_x_mode_normal()
             || ctrl_x_mode_register()
             || ((insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0 && !thesaurus_func_complete(insexp().ctrl_x_mode))
@@ -6396,7 +6396,7 @@ fn ins_compl_start() -> c_int {
         }
 
         let mut line_invalid = false;
-        if compl_get_info(line, startcol, curs_col, &raw mut line_invalid) == FAIL {
+        if compl_get_info(line, startcol, curs_col, &mut line_invalid) == FAIL {
             if ctrl_x_mode_function() || ctrl_x_mode_omni() || thesaurus_func_complete(insexp().ctrl_x_mode)
             {
                 g_st().Ins.did_ai = save_did_ai;

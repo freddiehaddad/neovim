@@ -459,7 +459,7 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
 
         let mut cwd: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut cwdlen = MAXPATHL;
-        if uv_cwd(cwd.as_mut_ptr(), &raw mut cwdlen) == 0 {
+        if uv_cwd(cwd.as_mut_ptr(), &mut cwdlen) == 0 {
             ui_call_chdir(NvimString {
                 data: cwd.as_mut_ptr(),
                 size: cwdlen,
@@ -952,18 +952,13 @@ fn ui_cb_update_ext() {
     }
 }
 
-pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
+pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; kUIGlobalCount]) {
     unsafe {
         let mut event_cb = UIEventCallback {
             cb,
             errors: 0,
-            ext_widgets: [false; kUIGlobalCount],
+            ext_widgets: *ext_widgets,
         };
-        ptr::copy_nonoverlapping(
-            ext_widgets,
-            event_cb.ext_widgets.as_mut_ptr(),
-            kUIGlobalCount,
-        );
         if event_cb.ext_widgets[kUIMessages] {
             event_cb.ext_widgets[kUICmdline] = true;
         }

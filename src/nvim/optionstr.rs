@@ -2976,16 +2976,17 @@ pub fn did_set_spelloptions(args: &mut optset_T) -> *const c_char {
 /// Validate the 'spellsuggest' option.
 pub fn validate_spellsuggest(args: &mut optset_T) -> *const c_char {
     let mut sps: [c_int; 2] = [0, 0];
-        if spell_check_sps(
-            args.os_newval.data.string().data,
-            &raw mut sps[0],
-            &raw mut sps[1],
-        ) != OK
-        {
-            return e_invarg.as_ptr();
-        }
-        args.os_prep = OptSetPrep::Spellsuggest(sps);
-        ptr::null()
+    let [s0, s1] = &mut sps;
+    if spell_check_sps(
+        args.os_newval.data.string().data,
+        s0,
+        s1,
+    ) != OK
+    {
+        return e_invarg.as_ptr();
+    }
+    args.os_prep = OptSetPrep::Spellsuggest(sps);
+    ptr::null()
 }
 
 /// The 'spellsuggest' option is changed.

@@ -1686,11 +1686,11 @@ fn syn_current_attr(
                         syn_id = check_keyword_id(
                             line,
                             syn_st().current_col,
-                            &raw mut endcol,
-                            &raw mut flags,
+                            &mut endcol,
+                            &mut flags,
                             &mut next_list,
                             cur_si,
-                            &raw mut cchar,
+                            &mut cchar,
                         );
                         if syn_id != 0 {
                             push_current_state(KEYWORD_IDX);
@@ -2703,11 +2703,11 @@ fn syn_regexec(
 fn check_keyword_id(
     line: *mut c_char,
     startcol: c_int,
-    endcolp: *mut c_int,
-    flagsp: *mut c_int,
+    endcolp: &mut c_int,
+    flagsp: &mut c_int,
     next_listp: &mut SynIdList,
     cur_si: *mut stateitem_T,
-    ccharp: *mut c_int,
+    ccharp: &mut c_int,
 ) -> c_int {
     unsafe {
         let kwp = line.offset(startcol as isize);
@@ -3663,7 +3663,7 @@ fn get_group_name(arg: *mut c_char, name_end: *mut *mut c_char) -> *mut c_char {
 fn get_syn_options(
     mut arg: *mut c_char,
     opt: *mut syn_opt_arg_T,
-    conceal_char: *mut c_int,
+    conceal_char: &mut c_int,
     skip: c_int,
 ) -> *mut c_char {
     unsafe {
@@ -3931,7 +3931,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
                     rest = get_syn_options(
                         rest,
                         &raw mut syn_opt_arg,
-                        &raw mut conceal_char,
+                        &mut conceal_char,
                         eap.skip,
                     );
                     if rest.is_null() || ends_excmd(*rest as c_int) != 0 {
@@ -4037,7 +4037,7 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
         rest = get_syn_options(
             rest,
             &raw mut syn_opt_arg,
-            &raw mut conceal_char,
+            &mut conceal_char,
             eap.skip,
         );
 
@@ -4049,7 +4049,7 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
         rest = get_syn_options(
             rest,
             &raw mut syn_opt_arg,
-            &raw mut conceal_char,
+            &mut conceal_char,
             eap.skip,
         );
 
@@ -4126,7 +4126,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
             rest = get_syn_options(
                 rest,
                 &raw mut syn_opt_arg,
-                &raw mut conceal_char,
+                &mut conceal_char,
                 eap.skip,
             );
             if rest.is_null() || ends_excmd(*rest as c_int) != 0 {

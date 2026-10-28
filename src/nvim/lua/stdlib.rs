@@ -453,7 +453,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
                         &raw mut tv,
                         true,
                         watched,
-                        &raw mut type_error,
+                        &mut type_error,
                     )
                 {
                     tv_clear(&raw mut tv);

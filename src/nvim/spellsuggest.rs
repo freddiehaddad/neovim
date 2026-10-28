@@ -543,8 +543,8 @@ fn bytes2offset(pp: *mut *mut c_char) -> c_int {
 /// Parse 'spellsuggest' without changing suggestion state.
 pub fn spell_check_sps(
     value: *const c_char,
-    ret_flags: *mut c_int,
-    ret_limit: *mut c_int,
+    ret_flags: &mut c_int,
+    ret_limit: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut flags: c_int = 0;

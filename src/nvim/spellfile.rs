@@ -2820,7 +2820,7 @@ fn check_renumber(spin: &mut spellinfo_T) {
         }
 }
 
-fn store_afflist_add(store_afflist: *mut c_char, cntp: *mut c_int, id: c_int) -> c_int {
+fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut c_int, id: c_int) -> c_int {
     unsafe {
         if *cntp >= (MAXWLEN - 1) as c_int {
             emsg(gettext(
@@ -3083,7 +3083,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 }
 
                 if affile.af_pfxpostpone != 0 {
-                    if get_pfxlist(affile, afflist, store_afflist.as_mut_ptr(), &raw mut totlen)
+                    if get_pfxlist(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
                         == FAIL
                     {
                         retval = FAIL;
@@ -3206,7 +3206,7 @@ fn get_pfxlist(
     affile: &afffile_T,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
-    cntp: *mut c_int,
+    cntp: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
@@ -3248,7 +3248,7 @@ fn get_compflags(
                 { let _d = (key.as_mut_ptr()).cast::<u8>(); let _n = p.offset_from(prevp) as usize; if _n > 0 { std::ptr::copy_nonoverlapping((prevp).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 let key_bytes = std::ffi::CStr::from_ptr(key.as_ptr()).to_bytes();
                 if let Some(ci) = affile.af_comp.get(key_bytes)
-                    && store_afflist_add(store_afflist, cntp, ci.ci_newID) == FAIL
+                    && store_afflist_add(store_afflist, &mut *cntp, ci.ci_newID) == FAIL
                 {
                     return FAIL;
                 }
@@ -3379,7 +3379,7 @@ fn store_aff_word(
                                             affile,
                                             ae_flags,
                                             store_afflist.as_mut_ptr(),
-                                            &raw mut listlen,
+                                            &mut listlen,
                                         ) == FAIL
                                         {
                                             retval = FAIL;
@@ -3404,7 +3404,7 @@ fn store_aff_word(
                                         if j == use_pfxlen
                                             && store_afflist_add(
                                                 use_pfxlist,
-                                                &raw mut listlen,
+                                                &mut listlen,
                                                 *pfxlist.offset(i as isize) as u8 as c_int,
                                             ) == FAIL
                                         {
@@ -3449,7 +3449,7 @@ fn store_aff_word(
                                         if *use_pfxlist.offset(j as isize) == NUL
                                             && store_afflist_add(
                                                 use_pfxlist,
-                                                &raw mut listlen,
+                                                &mut listlen,
                                                 *pfxlist.offset(i as isize) as u8 as c_int,
                                             ) == FAIL
                                         {

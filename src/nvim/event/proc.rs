@@ -459,7 +459,7 @@ fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
             let mut system_buffer_size: c_int = 0;
             let err = uv_recv_buffer_size(
                 (&raw mut (*stream).s.uv).cast(),
-                &raw mut system_buffer_size,
+                &mut system_buffer_size,
             );
             if err != 0 {
                 system_buffer_size = ARENA_BLOCK_SIZE as c_int;

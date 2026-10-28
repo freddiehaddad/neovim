@@ -3033,8 +3033,8 @@ pub fn do_addsub(
 
 fn line_count_info(
     line: *const c_char,
-    wc: *mut varnumber_T,
-    cc: *mut varnumber_T,
+    wc: &mut varnumber_T,
+    cc: &mut varnumber_T,
     limit: varnumber_T,
     eol_size: c_int,
 ) -> varnumber_T {
@@ -3191,8 +3191,8 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                     if !s.is_null() {
                         byte_count_cursor += line_count_info(
                             s,
-                            &raw mut word_count_cursor,
-                            &raw mut char_count_cursor,
+                            &mut word_count_cursor,
+                            &mut char_count_cursor,
                             varnumber_T::from(len),
                             eol_size,
                         );
@@ -3210,16 +3210,16 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                     byte_count_cursor = byte_count
                         + line_count_info(
                             ml_get(lnum),
-                            &raw mut word_count_cursor,
-                            &raw mut char_count_cursor,
+                            &mut word_count_cursor,
+                            &mut char_count_cursor,
                             varnumber_T::from((**curwin.as_ptr()).w_cursor.col) + 1,
                             eol_size,
                         );
                 }
                 byte_count += line_count_info(
                     ml_get(lnum),
-                    &raw mut word_count,
-                    &raw mut char_count,
+                    &mut word_count,
+                    &mut char_count,
                     varnumber_T::from(MAXCOL),
                     eol_size,
                 );

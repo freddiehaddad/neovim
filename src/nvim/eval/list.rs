@@ -45,7 +45,7 @@ fn filter_map_one(
     expr: *mut typval_T,
     filtermap: FilterMap,
     newtv: *mut typval_T,
-    remp: *mut bool,
+    remp: &mut bool,
 ) -> c_int {
     unsafe {
         let mut retval = FAIL;

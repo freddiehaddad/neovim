@@ -554,7 +554,7 @@ unsafe extern "C" {
         ranges: *const TSRange,
         count: u32,
     ) -> bool;
-    fn ts_parser_included_ranges(self_: *const TSParser, count: *mut u32) -> *const TSRange;
+    fn ts_parser_included_ranges(self_: *const TSParser, count: &mut u32) -> *const TSRange;
     fn ts_parser_parse_string(
         self_: *mut TSParser,
         old_tree: *const TSTree,
@@ -568,12 +568,12 @@ unsafe extern "C" {
     fn ts_tree_copy(self_: *const TSTree) -> *mut TSTree;
     fn ts_tree_delete(self_: *mut TSTree);
     fn ts_tree_root_node(self_: *const TSTree) -> TSNode;
-    fn ts_tree_included_ranges(self_: *const TSTree, length: *mut u32) -> *mut TSRange;
+    fn ts_tree_included_ranges(self_: *const TSTree, length: &mut u32) -> *mut TSRange;
     fn ts_tree_edit(self_: *mut TSTree, edit: *const TSInputEdit);
     fn ts_tree_get_changed_ranges(
         old_tree: *const TSTree,
         new_tree: *const TSTree,
-        length: *mut u32,
+        length: &mut u32,
     ) -> *mut TSRange;
 
     fn ts_node_type(self_: TSNode) -> *const c_char;
@@ -612,7 +612,7 @@ unsafe extern "C" {
         language: *const TSLanguage,
         source: *const c_char,
         source_len: u32,
-        error_offset: *mut u32,
+        error_offset: &mut u32,
         error_type: *mut TSQueryError,
     ) -> *mut TSQuery;
     fn ts_query_delete(self_: *mut TSQuery);
@@ -621,17 +621,17 @@ unsafe extern "C" {
     fn ts_query_predicates_for_pattern(
         self_: *const TSQuery,
         pattern_index: u32,
-        step_count: *mut u32,
+        step_count: &mut u32,
     ) -> *const TSQueryPredicateStep;
     fn ts_query_capture_name_for_id(
         self_: *const TSQuery,
         index: u32,
-        length: *mut u32,
+        length: &mut u32,
     ) -> *const c_char;
     fn ts_query_string_value_for_id(
         self_: *const TSQuery,
         index: u32,
-        length: *mut u32,
+        length: &mut u32,
     ) -> *const c_char;
     fn ts_query_disable_capture(self_: *mut TSQuery, name: *const c_char, length: u32);
     fn ts_query_disable_pattern(self_: *mut TSQuery, pattern_index: u32);
@@ -650,7 +650,7 @@ unsafe extern "C" {
     fn ts_query_cursor_next_capture(
         self_: *mut TSQueryCursor,
         match_: *mut TSQueryMatch,
-        capture_index: *mut u32,
+        capture_index: &mut u32,
     ) -> bool;
     fn ts_query_cursor_set_max_start_depth(self_: *mut TSQueryCursor, max_start_depth: u32);
 
@@ -658,11 +658,11 @@ unsafe extern "C" {
     fn ts_language_state_count(self_: *const TSLanguage) -> u32;
     fn ts_language_field_count(self_: *const TSLanguage) -> u32;
     fn ts_language_field_name_for_id(self_: *const TSLanguage, id: TSFieldId) -> *const c_char;
-    fn ts_language_supertypes(self_: *const TSLanguage, length: *mut u32) -> *const TSSymbol;
+    fn ts_language_supertypes(self_: *const TSLanguage, length: &mut u32) -> *const TSSymbol;
     fn ts_language_subtypes(
         self_: *const TSLanguage,
         supertype: TSSymbol,
-        length: *mut u32,
+        length: &mut u32,
     ) -> *const TSSymbol;
     fn ts_language_symbol_name(self_: *const TSLanguage, symbol: TSSymbol) -> *const c_char;
     fn ts_language_symbol_type(self_: *const TSLanguage, symbol: TSSymbol) -> TSSymbolType;

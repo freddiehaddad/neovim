@@ -654,7 +654,7 @@ fn handle_bracketed_paste(
     input: &mut TermInput,
     ptr: *const c_char,
     size: usize,
-    incomplete: *mut bool,
+    incomplete: &mut bool,
 ) -> usize {
     unsafe {
         let p = &raw mut *input;
@@ -941,7 +941,7 @@ fn handle_raw_buffer(
                 }
 
                 let mut incomplete = false;
-                let consumed = handle_bracketed_paste(input, ptr, size, &raw mut incomplete);
+                let consumed = handle_bracketed_paste(input, ptr, size, &mut incomplete);
                 if incomplete {
                     assert_eq!(consumed, 0);
                     return (ptr as usize) - (data as usize);

@@ -6132,7 +6132,7 @@ fn shift_cmd_args(eap: &mut exarg_T) {
 }
 
 fn execute_cmd0(
-    retv: *mut c_int,
+    retv: &mut c_int,
     eap: &mut exarg_T,
     errormsg: *mut *const c_char,
     preview: bool,
@@ -6269,7 +6269,7 @@ pub fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_i
             let mut cstack = cstack_T::default();
             eap.cstack = (&raw mut cstack).cast();
 
-            let _ = execute_cmd0(&raw mut retv, eap, &mut errormsg, preview);
+            let _ = execute_cmd0(&mut retv, eap, &mut errormsg, preview);
         }
 
         if !errormsg.is_null() && *errormsg != NUL {
@@ -6761,7 +6761,7 @@ fn do_one_cmd(
             }
 
             let mut retv: c_int = 0;
-            if execute_cmd0(&raw mut retv, &mut ea, &mut errormsg, false) == FAIL {
+            if execute_cmd0(&mut retv, &mut ea, &mut errormsg, false) == FAIL {
                 break 'doend;
             }
 

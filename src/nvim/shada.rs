@@ -3529,7 +3529,7 @@ fn fread_len(
 fn msgpack_read_uint64(
     sd_reader: *mut FileDescriptor,
     allow_eof: bool,
-    result: *mut u64,
+    result: &mut u64,
 ) -> ShaDaReadResult {
     unsafe {
         let fpos = (*sd_reader).bytes_read;

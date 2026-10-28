@@ -1424,7 +1424,7 @@ fn find_key_item(
     src: *mut c_char,
     key: *mut c_char,
     keylen: isize,
-    itemlenp: *mut isize,
+    itemlenp: &mut isize,
 ) -> *mut c_char {
     unsafe {
         let mut p = src;
@@ -1471,7 +1471,7 @@ fn remove_key_item(
     unsafe {
         let mut itemlen: isize = 0;
         loop {
-            let mut found = find_key_item(str_arg, key, keylen, &raw mut itemlen);
+            let mut found = find_key_item(str_arg, key, keylen, &mut itemlen);
             if found.is_null() {
                 break;
             }
@@ -1480,7 +1480,7 @@ fn remove_key_item(
                 if *next == b',' as c_char {
                     next = next.add(1);
                 }
-                found = find_key_item(next, key, keylen, &raw mut itemlen);
+                found = find_key_item(next, key, keylen, &mut itemlen);
                 if found.is_null() {
                     break;
                 }
@@ -1555,7 +1555,7 @@ fn stropt_handle_keymatch(
 
                     if op == OP_ADDING || op == OP_PREPENDING {
                         let mut old_itemlen: isize = 0;
-                        let found = find_key_item(newval, item_start, keylen, &raw mut old_itemlen);
+                        let found = find_key_item(newval, item_start, keylen, &mut old_itemlen);
                         if !found.is_null() {
                             if old_itemlen == item_len
                                 && (crate::memory::cstr_prefix_bytes(found, item_len as usize) == crate::memory::cstr_prefix_bytes(item_start, item_len as usize))
@@ -1992,7 +1992,7 @@ pub fn get_option_newval(
 fn do_one_set_option(
     opt_flags: c_int,
     argp: *mut *mut c_char,
-    did_show: *mut bool,
+    did_show: &mut bool,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
@@ -2160,7 +2160,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
                     let errmsg = do_one_set_option(
                         opt_flags,
                         &raw mut arg,
-                        &raw mut did_show,
+                        &mut did_show,
                         Some(errbuf),
                     );
 
@@ -2370,7 +2370,7 @@ fn didset_options() {
 
         let mut sps_flags: c_int = 0;
         let mut sps_limit: c_int = 0;
-        if spell_check_sps(opt_vars().p_sps, &raw mut sps_flags, &raw mut sps_limit) == OK {
+        if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) == OK {
             spell_apply_sps(sps_flags, sps_limit);
         }
         let ws = (**curwin.as_ptr()).w_s_ptr();

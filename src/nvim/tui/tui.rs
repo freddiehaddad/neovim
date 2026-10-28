@@ -2551,8 +2551,8 @@ pub fn tui_guess_size(tui: &mut TUIData) {
         if tui.out_isatty
             && uv_tty_get_winsize(
                 tui_output_handle(tui).cast(),
-                &raw mut width,
-                &raw mut height,
+                &mut width,
+                &mut height,
             ) == 0
         {
             got_size = true;

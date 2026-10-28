@@ -652,11 +652,11 @@ pub fn parse_pattern_and_range(
 /// May change the last search pattern.
 fn do_incsearch_highlighting(
     firstc: c_int,
-    search_delim: *mut c_int,
+    search_delim: &mut c_int,
     is_state: *mut incsearch_state_T,
-    skiplen: *mut c_int,
-    patlen: *mut c_int,
-    magic: *mut bool,
+    skiplen: &mut c_int,
+    patlen: &mut c_int,
+    magic: &mut bool,
 ) -> bool {
     unsafe {
         *skiplen = 0;
@@ -707,11 +707,11 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
 
         if !do_incsearch_highlighting(
             firstc,
-            &raw mut search_delim,
+            &mut search_delim,
             s,
-            &raw mut skiplen,
-            &raw mut patlen,
-            &raw mut magic,
+            &mut skiplen,
+            &mut patlen,
+            &mut magic,
         ) {
             restore_last_search_pattern();
             finish_incsearch_highlighting(false, s, true);
@@ -877,7 +877,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
 /// When CTRL-L typed: add character from the match to the pattern.
 /// May set `*c` to the added character.
 /// Return `OK` when calling `command_line_not_changed`.
-fn may_add_char_to_search(firstc: c_int, c: *mut c_int, s: *mut incsearch_state_T) -> c_int {
+fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: *mut incsearch_state_T) -> c_int {
     unsafe {
         let mut skiplen: c_int = 0;
         let mut patlen: c_int = 0;
@@ -891,11 +891,11 @@ fn may_add_char_to_search(firstc: c_int, c: *mut c_int, s: *mut incsearch_state_
         // Add a character from under the cursor for 'incsearch'
         if !do_incsearch_highlighting(
             firstc,
-            &raw mut search_delim,
+            &mut search_delim,
             s,
-            &raw mut skiplen,
-            &raw mut patlen,
-            &raw mut magic,
+            &mut skiplen,
+            &mut patlen,
+            &mut magic,
         ) {
             restore_last_search_pattern();
             return FAIL;
@@ -1966,11 +1966,11 @@ fn may_do_command_line_next_incsearch(
 
         if !do_incsearch_highlighting(
             firstc,
-            &raw mut search_delim,
+            &mut search_delim,
             s,
-            &raw mut skiplen,
-            &raw mut patlen,
-            &raw mut magic,
+            &mut skiplen,
+            &mut patlen,
+            &mut magic,
         ) {
             restore_last_search_pattern();
             return OK;
@@ -2678,7 +2678,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                     Ctrl_L => {
                         if may_add_char_to_search(
                             s.firstc,
-                            &raw mut s.c,
+                            &mut s.c,
                             &raw mut s.is_state,
                         ) == OK
                         {
@@ -4986,7 +4986,7 @@ pub fn get_cmdline_firstc() -> c_int {
 }
 
 /// Get indices that specify a range within a list from a string.
-pub fn get_list_range(str: *mut *mut c_char, num1: *mut c_int, num2: *mut c_int) -> c_int {
+pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int) -> c_int {
     unsafe {
         let mut len: c_int = 0;
         let mut first = false;

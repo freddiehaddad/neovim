@@ -258,7 +258,7 @@ fn ses_arglist(
     cmd: *const c_char,
     gap: &[aentry_T],
     fullname: bool,
-    flagp: *mut c_uint,
+    flagp: &mut c_uint,
 ) -> c_int {
     if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
             return FAIL;
@@ -298,7 +298,7 @@ fn ses_get_fname(buf: *mut buf_T, flagp: *const c_uint) -> *mut c_char {
     }
 }
 
-fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: *mut c_uint, add_eol: bool) -> c_int {
+fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: &mut c_uint, add_eol: bool) -> c_int {
     let name = ses_get_fname(buf, flagp);
         if ses_put_fname(fd, name, flagp) == FAIL || (add_eol && !write_bytes(fd, b"\n")) {
             return FAIL;
@@ -326,7 +326,7 @@ fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
     }
 }
 
-fn ses_put_fname(fd: *mut FILE, name: *mut c_char, flagp: *mut c_uint) -> c_int {
+fn ses_put_fname(fd: *mut FILE, name: *mut c_char, flagp: &mut c_uint) -> c_int {
     unsafe {
         let p = ses_escape_fname(name, flagp);
         if fputs(p.as_ptr(), fd) < 0 { FAIL } else { OK }
@@ -360,7 +360,7 @@ fn put_view(
                     || (*flagp & kOptSsopFlagCurdir) == 0
                     || tp.tp_localdir.is_some()
                     || (*wp).w_localdir.is_some(),
-                &raw mut *flagp,
+                &mut *flagp,
             ) == FAIL
             {
                 return FAIL;
@@ -428,7 +428,7 @@ fn put_view(
                 && *(*alt).b_fname != NUL
                 && (*alt).b_p_bl != 0
                 && !(bt_terminal(alt) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
-                && (fputs(c"balt ".as_ptr(), fd) < 0 || ses_fname(fd, alt, &raw mut *flagp, true) == FAIL)
+                && (fputs(c"balt ".as_ptr(), fd) < 0 || ses_fname(fd, alt, &mut *flagp, true) == FAIL)
             {
                 return FAIL;
             }
@@ -524,7 +524,7 @@ fn put_view(
             && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags) || (*flagp & kOptSsopFlagCurdir) != 0)
         {
             if fputs(c"lcd ".as_ptr(), fd) < 0
-                || ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &raw mut *flagp) == FAIL
+                || ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp) == FAIL
                 || !write_bytes(fd, b"\n")
             {
                 return FAIL;
@@ -700,7 +700,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
-                    || ses_fname(fd, buf, &raw mut opt_vars().ssop_flags, true) == FAIL
+                    || ses_fname(fd, buf, &mut opt_vars().ssop_flags, true) == FAIL
                 {
                     return FAIL;
                 }
@@ -714,7 +714,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
             c"argglobal".as_ptr(),
             &(*ga_ptr).al_ga,
             (opt_vars().ssop_flags & kOptSsopFlagCurdir) == 0,
-            &raw mut opt_vars().ssop_flags,
+            &mut opt_vars().ssop_flags,
         ) == FAIL
         {
             return FAIL;
@@ -833,7 +833,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 }
                 need_tabnext = false;
                 if fputs(c"tcd ".as_ptr(), fd) < 0
-                    || ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &raw mut opt_vars().ssop_flags)
+                    || ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &mut opt_vars().ssop_flags)
                         == FAIL
                     || put_eol(fd) == FAIL
                 {
@@ -855,7 +855,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                     need_tabnext = false;
 
                     if fputs(c"edit ".as_ptr(), fd) < 0
-                        || ses_fname(fd, (*wp).w_buffer, &raw mut opt_vars().ssop_flags, true) == FAIL
+                        || ses_fname(fd, (*wp).w_buffer, &mut opt_vars().ssop_flags, true) == FAIL
                     {
                         return FAIL;
                     }
