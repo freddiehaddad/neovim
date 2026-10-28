@@ -328,17 +328,17 @@ pub fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> bool {
 pub fn undo_allowed(buf: *mut buf_T) -> bool {
     unsafe {
         if (*buf).b_p_ma == 0 {
-            emsg(gettext((&raw const e_modifiable).cast()));
+            emsg(gettext(e_modifiable.as_ptr()));
             return false;
         }
 
         if g_st().sandbox != 0 {
-            emsg(gettext((&raw const e_sandbox).cast()));
+            emsg(gettext(e_sandbox.as_ptr()));
             return false;
         }
 
         if g_st().textlock != 0 || expr_map_locked() {
-            emsg(gettext((&raw const e_textlock).cast()));
+            emsg(gettext(e_textlock.as_ptr()));
             return false;
         }
 

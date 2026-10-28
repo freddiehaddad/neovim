@@ -5319,14 +5319,13 @@ mod tests {
             assert_eq!(saved.as_bytes(), b"42");
 
             assert_eq!(
-                CStr::from_ptr(tv_dict_get_string_buf_chk(
+                crate::memory::cstr_as_bytes(tv_dict_get_string_buf_chk(
                     d,
                     c"missing".as_ptr(),
                     7,
                     numbuf.as_mut_ptr(),
                     c"def".as_ptr()
-                ))
-                .to_bytes(),
+                )),
                 b"def"
             );
 

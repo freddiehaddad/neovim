@@ -1518,7 +1518,7 @@ fn add_cmd_modifier(
     mod_str: *const c_char,
     multi_mods: &mut bool,
 ) -> usize {
-    unsafe {
+     {
         let mut result = crate::memory::cstr_len(mod_str);
         if *multi_mods {
             result += 1;
@@ -1526,9 +1526,9 @@ fn add_cmd_modifier(
 
         if !buf.is_null() {
             if *multi_mods {
-                { let d = buf; let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(buf, c" ".as_ptr());
             }
-            { let d = buf; let s = mod_str; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(buf, mod_str);
         }
 
         *multi_mods = true;

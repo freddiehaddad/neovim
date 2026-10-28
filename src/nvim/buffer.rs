@@ -3871,9 +3871,7 @@ pub fn setfname(
                 to_slash(sf_vec.as_mut_ptr().cast::<c_char>());
                 path_fix_case(sf_vec.as_mut_ptr().cast::<c_char>());
             }
-            let sf_len = CStr::from_ptr(sf_vec.as_ptr().cast::<c_char>())
-                .to_bytes()
-                .len();
+            let sf_len = crate::memory::cstr_len(sf_vec.as_ptr().cast::<c_char>());
             let sfname_cstr = cstr_from_bytes(&sf_vec[..sf_len]);
             (*buf).set_ffname(Some(ffname_cstr));
             (*buf).set_sfname(Some(sfname_cstr));

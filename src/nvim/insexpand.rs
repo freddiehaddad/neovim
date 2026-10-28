@@ -3623,7 +3623,7 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
         }
 
         if argvars[1].v_type != VAR_LIST {
-            emsg(gettext((&raw const e_invarg).cast()));
+            emsg(gettext(e_invarg.as_ptr()));
         } else {
             let startcol = tv_get_number_chk(&argvars[0], None) as colnr_T;
             if startcol > 0 {
@@ -3967,7 +3967,7 @@ pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
         if argvars[0].v_type != VAR_UNKNOWN {
             if argvars[0].v_type != VAR_LIST {
-                emsg(gettext((&raw const e_listreq).cast()));
+                emsg(gettext(e_listreq.as_ptr()));
                 return;
             }
             what_list = argvars[0].vval.v_list();
@@ -5089,7 +5089,7 @@ fn advance_cpt_sources_index_safe() -> bool {
             return true;
         }
         semsg!(
-            gettext((&raw const e_list_index_out_of_range_nr).cast()),
+            gettext(e_list_index_out_of_range_nr.as_ptr()),
             i64::from(insexp().cpt_sources_index),
         );
         false
@@ -6038,7 +6038,7 @@ fn get_normal_compl_info(
                     let mut pat_vec = [0 as c_char; 7];
                     crate::memory::cstr_cpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
                     quote_meta(pat_vec.as_mut_ptr().add(2), line.add(insexp().compl_col as usize), 1);
-                    { let d = pat_vec.as_mut_ptr(); let s = c"\\k".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cat(pat_vec.as_mut_ptr(), c"\\k".as_ptr());
                     set_compl_pattern_bytes(pat_vec.as_ptr(), crate::memory::cstr_len(pat_vec.as_ptr()));
                 } else {
                     let n = quote_meta(ptr::null_mut(), line.add(insexp().compl_col as usize), insexp().compl_length)
@@ -6201,7 +6201,7 @@ fn get_userdefined_compl_info(
             cb = get_insert_callback(insexp().ctrl_x_mode);
             if (*cb).cb_type() == kCallbackNone {
                 semsg!(
-                    gettext((&raw const e_notset).cast()),
+                    gettext(e_notset.as_ptr()),
                     if ctrl_x_mode_function() {
                         c"completefunc".as_ptr()
                     } else {

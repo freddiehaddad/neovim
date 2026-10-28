@@ -869,7 +869,7 @@ pub fn format_overflow_error(pstart: *const c_char) {
             p = p.add(1);
         }
         semsg!(
-            gettext((&raw const e_val_too_large_len).cast()),
+            gettext(e_val_too_large_len.as_ptr()),
             p.offset_from(pstart) as c_int,
             pstart,
         );
@@ -2288,7 +2288,7 @@ fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
             }
             if !(0..=1).contains(&utf16idx) {
                 semsg!(
-                    gettext((&raw const e_using_number_as_bool_nr).cast()),
+                    gettext(e_using_number_as_bool_nr.as_ptr()),
                     utf16idx,
                 );
                 return;
@@ -2430,7 +2430,7 @@ pub fn f_str2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             base = tv_get_number(&argvars[1]) as c_int;
             if !matches!(base, 2 | 8 | 10 | 16) {
-                emsg(gettext((&raw const e_invarg).cast()));
+                emsg(gettext(e_invarg.as_ptr()));
                 return;
             }
             if argvars[2].v_type != VarType::VAR_UNKNOWN && tv_get_bool(&argvars[2]) != 0
@@ -2580,7 +2580,7 @@ pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
             if !(0..=1).contains(&skipcc) {
                 semsg!(
-                    gettext((&raw const e_using_number_as_bool_nr).cast()),
+                    gettext(e_using_number_as_bool_nr.as_ptr()),
                     skipcc,
                 );
                 return;
@@ -2662,7 +2662,7 @@ pub fn f_strcharpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 }
                 if !(0..=1).contains(&skipcc) {
                     semsg!(
-                        gettext((&raw const e_using_number_as_bool_nr).cast()),
+                        gettext(e_using_number_as_bool_nr.as_ptr()),
                         skipcc,
                     );
                     return;
@@ -2958,7 +2958,7 @@ pub fn f_tr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData)
                         tp = tp.add(tolen);
                     }
                     if *tp == NUL {
-                        semsg!(gettext((&raw const e_invarg2).cast()), fromstr);
+                        semsg!(gettext(e_invarg2.as_ptr()), fromstr);
                         return;
                     }
                     break;
@@ -2976,7 +2976,7 @@ pub fn f_tr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData)
                     tp = tp.add(tolen);
                 }
                 if idx != 0 {
-                    semsg!(gettext((&raw const e_invarg2).cast()), fromstr);
+                    semsg!(gettext(e_invarg2.as_ptr()), fromstr);
                     return;
                 }
             }
@@ -3023,7 +3023,7 @@ pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 }
                 if !(0..=2).contains(&dir) {
                     semsg!(
-                        gettext((&raw const e_invarg2).cast()),
+                        gettext(e_invarg2.as_ptr()),
                         tv_get_string(&argvars[2]),
                     );
                     return;

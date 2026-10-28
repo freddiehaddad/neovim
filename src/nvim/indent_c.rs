@@ -1669,8 +1669,7 @@ pub fn get_c_indent() -> c_int {
         if cur_curpos.lnum == 1 {
             return 0;
         }
-        let mut linecopy_bytes = std::ffi::CStr::from_ptr(ml_get(cur_curpos.lnum))
-            .to_owned()
+        let mut linecopy_bytes = crate::memory::cstr_to_cstring(ml_get(cur_curpos.lnum))
             .into_bytes_with_nul();
         let linecopy = linecopy_bytes.as_mut_ptr().cast::<c_char>();
         if (g_st().State & MODE_INSERT) != 0

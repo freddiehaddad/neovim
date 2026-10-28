@@ -26,7 +26,7 @@ use crate::vterm::screen::{
 use crate::vterm::vterm::{
     vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,
 };
-use std::ffi::{CStr, c_char, c_int, c_long};
+use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 pub type VTermSelectionMask = c_int;
@@ -1598,8 +1598,7 @@ fn on_csi(
                 let val = csi_arg_or(*args, 0);
                 if val == 0 {
                     let attr =
-                        CStr::from_ptr(vterm_primary_device_attr.as_ptr().cast::<c_char>())
-                            .to_bytes();
+                        crate::memory::cstr_as_bytes(vterm_primary_device_attr.as_ptr().cast::<c_char>());
                     let mut buf = Vec::with_capacity(attr.len() + 2);
                     buf.push(b'?');
                     buf.extend_from_slice(attr);

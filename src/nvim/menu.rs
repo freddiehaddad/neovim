@@ -1215,7 +1215,7 @@ pub fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
                         menu_st().GET_MENU_NAMES_ADVANCE = true;
                     }
                 }
-                { let d = &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]; let s = c"\x01".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(&raw mut menu_st().GET_MENU_NAMES_TBUFFER[0], c"\x01".as_ptr());
                 &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]
             } else if menu_st().GET_MENU_NAMES_ADVANCE {
                 menu.en_dname

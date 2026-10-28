@@ -481,10 +481,10 @@ pub fn spell_load_file(
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
             if !silent {
-                semsg!(gettext((&raw const e_notopen).cast()), fname);
+                semsg!(gettext(e_notopen.as_ptr()), fname);
             } else if opt_vars().p_verbose > 2 {
                 verbose_enter();
-                smsg!(0, (&raw const e_notopen).cast(), fname);
+                smsg!(0, e_notopen.as_ptr(), fname);
                 verbose_leave();
             }
             if !lang.is_null() {
@@ -1737,7 +1737,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
 
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg!(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
             return None;
         }
 
@@ -2824,7 +2824,7 @@ fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut c_int, id: c_int) ->
     unsafe {
         if *cntp >= (MAXWLEN - 1) as c_int {
             emsg(gettext(
-                (&raw const e_too_many_postponed_prefixes_spell).cast(),
+                e_too_many_postponed_prefixes_spell.as_ptr(),
             ));
             return false;
         }
@@ -2948,7 +2948,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
 
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg!(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
             return false;
         }
 
@@ -3568,7 +3568,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
 
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg!(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
             return false;
         }
 
@@ -4187,7 +4187,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
 
         let fd = os_fopen(fname, c"w".as_ptr());
         if fd.is_null() {
-            semsg!(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
             return false;
         }
 
@@ -4196,7 +4196,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
             if fclose(fd) == EOF {
                 // error
             }
-            emsg(gettext((&raw const e_write).cast()));
+            emsg(gettext(e_write.as_ptr()));
             return false;
         }
 
@@ -4488,7 +4488,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
             retval = false;
         }
         if !retval {
-            emsg(gettext((&raw const e_write).cast()));
+            emsg(gettext(e_write.as_ptr()));
         }
 
         retval
@@ -4589,7 +4589,7 @@ fn put_node(
                 }
 
                 if !fd.is_null() && fputc(n.wn_byte as c_int, fd) == EOF {
-                    emsg(gettext((&raw const e_write).cast()));
+                    emsg(gettext(e_write.as_ptr()));
                     return 0;
                 }
             }
@@ -4896,7 +4896,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
     unsafe {
         let fd = os_fopen(fname, c"w".as_ptr());
         if fd.is_null() {
-            semsg!(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
             return;
         }
 
@@ -4909,7 +4909,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
         spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
 
         if fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) != 1 {
-            emsg(gettext((&raw const e_write).cast()));
+            emsg(gettext(e_write.as_ptr()));
             fclose(fd);
             return;
         }
@@ -4940,7 +4940,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
             let line = ml_get_buf(spellbuf, lnum);
             let len = ml_get_buf_len(spellbuf, lnum) + 1;
             if fwrite(line.cast(), len as usize, 1, fd) == 0 {
-                emsg(gettext((&raw const e_write).cast()));
+                emsg(gettext(e_write.as_ptr()));
                 write_err = true;
                 break;
             }
@@ -4949,7 +4949,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
 
         if !write_err {
             if fputc(0, fd) == EOF {
-                emsg(gettext((&raw const e_write).cast()));
+                emsg(gettext(e_write.as_ptr()));
             }
 
             vim_snprintf!(
@@ -5038,7 +5038,7 @@ fn mkspell(
         }
 
         if incount <= 0 {
-            emsg(gettext((&raw const e_invarg).cast()));
+            emsg(gettext(e_invarg.as_ptr()));
         } else if !vim_strchr(path_tail(wfname), b'_' as c_int).is_null() {
             emsg(gettext(
                 c"E751: Output file name must not have region name".as_ptr(),
@@ -5049,9 +5049,9 @@ fn mkspell(
                 MAXREGIONS as c_int,
             );
         } else if !over_write && os_path_exists(wfname) {
-            emsg(gettext((&raw const e_exists).cast()));
+            emsg(gettext(e_exists.as_ptr()));
         } else if os_isdir(wfname) {
-            semsg!(gettext((&raw const e_isadir2).cast()), wfname);
+            semsg!(gettext(e_isadir2.as_ptr()), wfname);
         } else {
             let fname = fname_buf.as_mut_ptr();
 
@@ -5250,7 +5250,7 @@ pub fn spell_add_word(
             }
 
             if *(*win_s(&mut **curwin.as_ptr())).b_p_spf == NUL {
-                semsg!(gettext((&raw const e_notset).cast()), c"spellfile".as_ptr());
+                semsg!(gettext(e_notset.as_ptr()), c"spellfile".as_ptr());
                 return;
             }
             let fnamebuf = fnamebuf_arr.as_mut_ptr();
@@ -5277,7 +5277,7 @@ pub fn spell_add_word(
                 buf = ptr::null_mut();
             }
             if !buf.is_null() && bufIsChanged(&mut *buf) {
-                emsg(gettext((&raw const e_bufloaded).cast()));
+                emsg(gettext(e_bufloaded.as_ptr()));
                 return;
             }
 
@@ -5355,7 +5355,7 @@ pub fn spell_add_word(
             }
 
             if fd.is_null() {
-                semsg!(gettext((&raw const e_notopen).cast()), fname);
+                semsg!(gettext(e_notopen.as_ptr()), fname);
             } else {
                 let wlen = (0..(len as usize))
                     .take_while(|&i| *word.add(i) != NUL)

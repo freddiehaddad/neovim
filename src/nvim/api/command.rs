@@ -42,7 +42,7 @@ use crate::usercmd::{
     UC_BUFFER, commands_array, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
     uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds_mut,
 };
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA, cmd_addr_T};
@@ -1278,8 +1278,7 @@ fn build_cmdline_str(
         }
 
         cmdline_buf.extend(
-            CStr::from_ptr(eap.cmd)
-                .to_bytes()
+            crate::memory::cstr_as_bytes(eap.cmd)
                 .iter()
                 .map(|&b| b as c_char),
         );

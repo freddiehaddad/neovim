@@ -63,7 +63,7 @@ use crate::window::{
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t};
-use std::ffi::{CStr, CString, c_char, c_int, c_uint, c_ulong};
+use std::ffi::{CString, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
@@ -602,7 +602,7 @@ fn diff_free(tp: &mut tabpage_T, idx: usize) {
         tp.tp_diffs.remove(idx);
 }
 fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
-    unsafe {
+     {
         let mut i_org = 0;
         while i_org < DB_COUNT {
             if !tp.tp_diffbuf[i_org].is_null() {
@@ -624,11 +624,10 @@ fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
                 if dir == BACKWARD {
                     off_org = (&tp.tp_diffs)[dp_idx].df_count[i_org] - 1;
                 }
-                let line_org = CStr::from_ptr(ml_get_buf(
+                let line_org = crate::memory::cstr_to_cstring(ml_get_buf(
                     tp.tp_diffbuf[i_org],
                     (&tp.tp_diffs)[dp_idx].df_lnum[i_org] + off_org,
-                ))
-                .to_owned();
+                ));
                 let mut i_new = i_org + 1;
                 while i_new < DB_COUNT {
                     if tp.tp_diffbuf[i_new].is_null() {
@@ -900,7 +899,7 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                     )
                     {
                         emsg(gettext(
-                            (&raw const e_failed_to_find_all_diff_anchors).cast(),
+                            e_failed_to_find_all_diff_anchors.as_ptr(),
                         ));
                         num_anchors = 0;
                         anchors = [[0; MAX_DIFF_ANCHORS]; DB_COUNT];
@@ -1157,7 +1156,7 @@ fn diff_file_internal(diffio: &mut diffio_T) -> bool {
             || diffio.dio_new.din_mmfile.size > MAX_XDIFF_SIZE
         {
             emsg(gettext(
-                (&raw const e_problem_creating_internal_diff).cast(),
+                e_problem_creating_internal_diff.as_ptr(),
             ));
             return false;
         }
@@ -1170,7 +1169,7 @@ fn diff_file_internal(diffio: &mut diffio_T) -> bool {
         ) < 0
         {
             emsg(gettext(
-                (&raw const e_problem_creating_internal_diff).cast(),
+                e_problem_creating_internal_diff.as_ptr(),
             ));
             return false;
         }
@@ -1352,15 +1351,15 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
             #[cfg(unix)]
             if dirbuf[0] != NUL {
                 if crate::os::fs::os_chdir((&raw const dirbuf).cast()) != 0 {
-                    emsg(gettext((&raw const e_prev_dir).cast()));
+                    emsg(gettext(e_prev_dir.as_ptr()));
                 }
                 shorten_fnames(1);
             }
             crate::memory::cstr_cpy(buf, tmp_new);
-            { let d = buf; let s = c".orig".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(buf, c".orig".as_ptr());
             let _ = os_remove(buf);
             crate::memory::cstr_cpy(buf, tmp_new);
-            { let d = buf; let s = c".rej".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(buf, c".rej".as_ptr());
             let _ = os_remove(buf);
             let mut file_info = FileInfo::new();
             let info_ok = os_fileinfo(tmp_new, &mut file_info);
@@ -1373,7 +1372,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
                     let fname_len = crate::memory::cstr_len((*g_st().curbuf).b_fname);
                     newname_vec = vec![0; fname_len + 5];
                     crate::memory::cstr_cpy(newname_vec.as_mut_ptr(), (*g_st().curbuf).b_fname);
-                    { let d = newname_vec.as_mut_ptr(); let s = c".new".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cat(newname_vec.as_mut_ptr(), c".new".as_ptr());
                     newname = newname_vec.as_mut_ptr();
                 }
                 g_st().cmdmod.cmod_tab = 0;
@@ -2178,11 +2177,10 @@ fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
             return false;
         }
         for i in 0..dp.df_count[idx1] {
-            let line = CStr::from_ptr(ml_get_buf(
+            let line = crate::memory::cstr_to_cstring(ml_get_buf(
                 (*g_st().curtab).tp_diffbuf[idx1],
                 dp.df_lnum[idx1] + i,
-            ))
-            .to_owned();
+            ));
             let cmp = diff_cmp(
                 line.as_ptr(),
                 ml_get_buf((*g_st().curtab).tp_diffbuf[idx2], dp.df_lnum[idx2] + i),
@@ -2341,7 +2339,7 @@ fn parse_diffanchors(
             }
             if bw.is_null() && *dia != NUL {
                 emsg(gettext(
-                    (&raw const e_diff_anchors_with_hidden_windows).cast(),
+                    e_diff_anchors_with_hidden_windows.as_ptr(),
                 ));
                 return false;
             }
@@ -2378,7 +2376,7 @@ fn parse_diffanchors(
             }
             if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > (*buf).b_ml.ml_line_count + 1)
             {
-                emsg(gettext((&raw const e_invrange).cast()));
+                emsg(gettext(e_invrange.as_ptr()));
                 return false;
             }
             if !anchors.is_null() {
@@ -2391,7 +2389,7 @@ fn parse_diffanchors(
         }
         if i == MAX_DIFF_ANCHORS && *dia != NUL {
             semsg!(
-                gettext((&raw const e_cannot_have_more_than_nr_diff_anchors).cast()),
+                gettext(e_cannot_have_more_than_nr_diff_anchors.as_ptr()),
                 MAX_DIFF_ANCHORS as c_int,
             );
             return false;
@@ -3504,8 +3502,7 @@ fn diffgetput(
                     if nr > (*(*g_st().curtab).tp_diffbuf[idx_from]).b_ml.ml_line_count {
                         break;
                     }
-                    let p = CStr::from_ptr(ml_get_buf((*g_st().curtab).tp_diffbuf[idx_from], nr))
-                        .to_owned();
+                    let p = crate::memory::cstr_to_cstring(ml_get_buf((*g_st().curtab).tp_diffbuf[idx_from], nr));
                     let _ = ml_append(lnum + i - 1, p.as_ptr().cast_mut(), 0, false);
                     added += 1;
                     if buf_empty && (*g_st().curbuf).b_ml.ml_line_count == 2 {

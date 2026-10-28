@@ -1,20 +1,9 @@
 //! Shared error messages (`src/nvim/errors.h`).
 
-use std::ffi::c_char;
-
-pub(crate) const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
-    let mut out = [0 as c_char; N];
-    let mut i = 0;
-    while i < N {
-        out[i] = b[i] as c_char;
-        i += 1;
-    }
-    out
-}
-
 macro_rules! def_err {
     ($name:ident, $s:literal) => {
-        pub static $name: [c_char; $s.len()] = bytes_to_chars($s);
+        pub static $name: &std::ffi::CStr =
+            unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked($s) };
     };
 }
 
@@ -486,15 +475,14 @@ def_err!(line_msg, b" line \0");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn error_strings_are_nul_terminated_and_match_codes() {
-        let abort = unsafe { CStr::from_ptr(e_abort.as_ptr()) };
+        let abort =  { e_abort };
         assert_eq!(&abort.to_bytes()[4..], b": Command aborted");
-        let invarg = unsafe { CStr::from_ptr(e_invarg.as_ptr()) };
+        let invarg =  { e_invarg };
         assert_eq!(&invarg.to_bytes()[4..], b": Invalid argument");
-        let lmsg = unsafe { CStr::from_ptr(line_msg.as_ptr()) };
+        let lmsg =  { line_msg };
         assert_eq!(lmsg.to_bytes(), b" line ");
         for ptr in [
             e_afterinit.as_ptr(),

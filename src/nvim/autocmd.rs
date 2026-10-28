@@ -1894,7 +1894,7 @@ pub fn do_augroup(arg: *mut c_char, del_group: bool) {
     unsafe {
         if del_group {
             if *arg == NUL {
-                emsg(tr(CStr::from_ptr((&raw const e_argreq).cast())));
+                emsg(tr(e_argreq));
             } else {
                 augroup_del(arg, -1, true);
             }
@@ -2142,7 +2142,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
             } else if *arg == b'*' as c_char || *arg == NUL || *arg == b'|' as c_char {
                 if *cmd != NUL {
                     emsg(tr(CStr::from_ptr(
-                        (&raw const e_cannot_define_autocommands_for_all_events).cast(),
+                        e_cannot_define_autocommands_for_all_events.as_ptr(),
                     )));
                 } else {
                     do_all_autocmd_events(pat, once, c_int::from(nested), cmd, forceit != 0, group);
@@ -2221,7 +2221,7 @@ pub fn do_autocmd_event(
                 if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                     semsg!(
                         tr(CStr::from_ptr(
-                            (&raw const e_buffer_nr_invalid_buffer_number).cast(),
+                            e_buffer_nr_invalid_buffer_number.as_ptr(),
                         )),
                         buflocal_nr,
                     );
@@ -2306,7 +2306,7 @@ pub fn autocmd_register(
             if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                 semsg!(
                     tr(CStr::from_ptr(
-                        (&raw const e_buffer_nr_invalid_buffer_number).cast(),
+                        e_buffer_nr_invalid_buffer_number.as_ptr(),
                     )),
                     buflocal_nr,
                 );
@@ -3861,7 +3861,7 @@ fn arg_autocmd_flag_get(
         let pat_slice = std::slice::from_raw_parts(pattern.cast::<u8>(), len as usize);
         if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(*(*cmd_ptr).add(len as usize)) {
             if *flag {
-                semsg!(tr(CStr::from_ptr((&raw const e_duparg2).cast())), pattern);
+                semsg!(tr(e_duparg2), pattern);
                 return true;
             }
             *flag = true;

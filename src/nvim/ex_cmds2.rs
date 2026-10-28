@@ -448,7 +448,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 pub fn check_fname() -> bool {
     unsafe {
         if (*g_st().curbuf).b_ffname.is_null() {
-            emsg(gettext((&raw const e_noname).cast()));
+            emsg(gettext(e_noname.as_ptr()));
             return false;
         }
         true
@@ -490,7 +490,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
             && eap.cmdidx != CMD_tabdo
         {
             if (eap.cmdidx == CMD_ldo || eap.cmdidx == CMD_lfdo) && eap.forceit == 0 {
-                emsg(gettext((&raw const e_winfixbuf_cannot_go_to_buffer).cast()));
+                emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
                 return;
             }
 
@@ -500,7 +500,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
             if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
                 win_split(0, 0);
                 if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
-                    emsg(gettext((&raw const e_winfixbuf_cannot_go_to_buffer).cast()));
+                    emsg(gettext(e_winfixbuf_cannot_go_to_buffer.as_ptr()));
                     return;
                 }
             }

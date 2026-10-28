@@ -1052,7 +1052,7 @@ pub fn ins_typebuf(
             let newoff = (MAXMAPLEN + 4) as c_int;
             let extra = addlen + newoff + (4 * (MAXMAPLEN + 4)) as c_int;
             if g_st().typebuf.tb_len > c_int::MAX - extra {
-                emsg(gettext((&raw const e_command_too_complex).cast()));
+                emsg(gettext(e_command_too_complex.as_ptr()));
                 setcursor();
                 return false;
             }
@@ -1430,7 +1430,7 @@ pub fn restore_typeahead(tp: &mut tasave_T) {
 pub fn openscript(name: *mut c_char, directly: bool) {
     unsafe {
         if inp_st().curscript + 1 == NSCRIPT as c_int {
-            emsg(gettext((&raw const e_nesting).cast()));
+            emsg(gettext(e_nesting.as_ptr()));
             return;
         }
 
@@ -1451,7 +1451,7 @@ pub fn openscript(name: *mut c_char, directly: bool) {
         let error = file_open(&mut *scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
         if error != 0 {
             semsg!(
-                gettext((&raw const e_notopen_2).cast()),
+                gettext(e_notopen_2.as_ptr()),
                 name,
                 uv_strerror(error),
             );
@@ -1903,7 +1903,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
             if allow_number {
                 allow_number = tv_dict_get_bool(d, c"number".as_ptr(), 1) != 0;
             } else if tv_dict_has_key(d, c"number".as_ptr()) {
-                semsg!(gettext((&raw const e_invarg2).cast()), c"number".as_ptr());
+                semsg!(gettext(e_invarg2.as_ptr()), c"number".as_ptr());
             }
 
             simplify = tv_dict_get_bool(d, c"simplify".as_ptr(), 1) != 0;
@@ -1915,7 +1915,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                     && crate::memory::cstr_as_bytes(cursor_str) != b"msg"
                 {
                     semsg!(
-                        gettext((&raw const e_invargNval).cast()),
+                        gettext(e_invargNval.as_ptr()),
                         c"cursor".as_ptr(),
                         cursor_str,
                     );

@@ -975,7 +975,7 @@ fn nfa_regatom() -> bool {
                 return false;
             } else if c == Magic(b'~' as c_int) {
                 let Some(prev_sub) = reg_prev_sub_ref() else {
-                    emsg(tr((&raw const e_nopresub).cast()));
+                    emsg(tr(e_nopresub.as_ptr()));
                     return false;
                 };
                 let start_ptr = prev_sub.as_ptr().cast::<u8>();
@@ -1811,7 +1811,7 @@ fn nfa_reg(paren: c_int) -> bool {
         }
 
         if re_st().nfa_reg_parse_depth >= REG_MAX_PAREN_DEPTH {
-            emsg(tr((&raw const e_command_too_complex).cast()));
+            emsg(tr(e_command_too_complex.as_ptr()));
             g_st().rc_did_emsg = true;
             return false;
         }
@@ -4764,7 +4764,7 @@ fn nfa_regexec_both(
         };
 
         if prog.is_null() || line.is_null() {
-            iemsg(tr((&raw const e_null).cast()));
+            iemsg(tr(e_null.as_ptr()));
             return finish_nfa_regexec(retval, col);
         }
 

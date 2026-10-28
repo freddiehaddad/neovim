@@ -3520,7 +3520,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
         let di_items = tv_dict_find(d, c"items".as_ptr(), -1);
         if !di_items.is_null() {
             if (*di_items).di_tv.v_type != VarType::VAR_LIST {
-                emsg(gettext((&raw const e_listreq).cast()));
+                emsg(gettext(e_listreq.as_ptr()));
                 return false;
             }
             l = (*di_items).di_tv.vval.v_list();

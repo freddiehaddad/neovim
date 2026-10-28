@@ -503,7 +503,7 @@ fn eval1_emsg(arg: *mut *mut c_char,rettv: &mut typval_T,eap: Option<&mut exarg_
             && g_st().did_emsg == did_emsg_before
             && g_st().called_emsg == called_emsg_before
         {
-            semsg!(gettext((&raw const e_invexpr2).cast()), start);
+            semsg!(gettext(e_invexpr2.as_ptr()), start);
         }
         ret
     }
@@ -605,7 +605,7 @@ fn eval_expr_string(expr: &typval_T,rettv: &mut typval_T) -> bool {
 
         if *skipwhite(s) != NUL {
             tv_clear(rettv);
-            semsg!(gettext((&raw const e_invexpr2).cast()), s);
+            semsg!(gettext(e_invexpr2.as_ptr()), s);
             return false;
         }
 
@@ -1126,7 +1126,7 @@ fn get_lval_dict_item(
             && len == -1
             && rettv.is_none()
         {
-            semsg!((&raw const e_illvar).cast(), c"v:['lua']".as_ptr());
+            semsg!(e_illvar.as_ptr(), c"v:['lua']".as_ptr());
             return GLV_FAIL;
         }
 
@@ -1134,13 +1134,13 @@ fn get_lval_dict_item(
             if lp.ll_dict == get_vimvar_dict()
                 || ptr::eq(&raw mut (*lp.ll_dict).dv_hashtab, get_funccal_args_ht())
             {
-                semsg!(gettext((&raw const e_illvar).cast()), name);
+                semsg!(gettext(e_illvar.as_ptr()), name);
                 return GLV_FAIL;
             }
 
             if *p == b'[' as c_char || *p == b'.' as c_char || unlet {
                 if !quiet {
-                    semsg!(gettext((&raw const e_dictkey).cast()), key);
+                    semsg!(gettext(e_dictkey.as_ptr()), key);
                 }
                 return GLV_FAIL;
             }
@@ -1478,7 +1478,7 @@ pub fn get_lval(
                 && *p != b'[' as c_char
                 && *p != b'.' as c_char
             {
-                semsg!(gettext((&raw const e_trailing_arg).cast()), p);
+                semsg!(gettext(e_trailing_arg.as_ptr()), p);
                 return ptr::null_mut();
             }
 
@@ -1494,7 +1494,7 @@ pub fn get_lval(
                 if !aborting() && !quiet {
                     {
                         g_st().emsg_severe = true;
-                        semsg!(gettext((&raw const e_invarg2).cast()), name);
+                        semsg!(gettext(e_invarg2.as_ptr()), name);
                     }
                     return ptr::null_mut();
                 }
@@ -1562,7 +1562,7 @@ pub fn set_var_lval(
             *endp = NUL;
             if !lp.ll_blob.is_null() {
                 if !op.is_null() && *op != b'=' as c_char {
-                    semsg!(gettext((&raw const e_letwrong).cast()), op);
+                    semsg!(gettext(e_letwrong.as_ptr()), op);
                     *endp = cc;
                     return;
                 }
@@ -1592,7 +1592,7 @@ pub fn set_var_lval(
                     if !error {
                         if !(0..=255).contains(&val) {
                             semsg!(
-                                gettext((&raw const e_invalid_value_for_blob_nr).cast()),
+                                gettext(e_invalid_value_for_blob_nr.as_ptr()),
                                 val,
                             );
                         } else {
@@ -1604,7 +1604,7 @@ pub fn set_var_lval(
                 let mut tv = tv_initial_value();
 
                 if is_const {
-                    emsg(gettext((&raw const e_cannot_mod).cast()));
+                    emsg(gettext(e_cannot_mod.as_ptr()));
                     *endp = cc;
                     return;
                 }
@@ -1671,7 +1671,7 @@ pub fn set_var_lval(
             if let Some(ref newkey) = lp.ll_newkey {
                 let newkey_ptr = newkey.as_ptr();
                 if !op.is_null() && *op != b'=' as c_char {
-                    semsg!(gettext((&raw const e_dictkey).cast()), newkey_ptr);
+                    semsg!(gettext(e_dictkey.as_ptr()), newkey_ptr);
                     return;
                 }
                 if tv_dict_wrong_func_name(&mut *(*lp.ll_tv).vval.v_dict(), rettv, newkey_ptr) != 0 {
@@ -2118,9 +2118,9 @@ pub fn eval0(
             }
             if !aborting() && g_st().did_emsg == did_emsg_before && g_st().called_emsg == called_emsg_before {
                 if end_error {
-                    semsg!(gettext((&raw const e_trailing_arg).cast()), p);
+                    semsg!(gettext(e_trailing_arg.as_ptr()), p);
                 } else {
-                    semsg!(gettext((&raw const e_invexpr2).cast()), arg);
+                    semsg!(gettext(e_invexpr2.as_ptr()), arg);
                 }
             }
 
@@ -3107,7 +3107,7 @@ fn eval_lambda(
                     emsg(gettext(E_NOWHITESPACE.as_ptr()));
                 } else {
                     semsg!(
-                        gettext((&raw const e_missingparen).cast()),
+                        gettext(e_missingparen.as_ptr()),
                         c"lambda".as_ptr(),
                     );
                 }
@@ -3172,7 +3172,7 @@ fn eval_method(
                 if lua_funcname.is_null() {
                     emsg(gettext(c"E260: Missing name after ->".as_ptr()));
                 } else {
-                    semsg!(gettext((&raw const e_invexpr2).cast()), name);
+                    semsg!(gettext(e_invexpr2.as_ptr()), name);
                 }
             }
             ret = false;
@@ -3192,7 +3192,7 @@ fn eval_method(
                     ret = false;
                 } else if *skipwhite(*arg) != NUL {
                     if verbose {
-                        semsg!(gettext((&raw const e_trailing_arg).cast()), *arg);
+                        semsg!(gettext(e_trailing_arg.as_ptr()), *arg);
                     }
                     ret = false;
                 } else if ref_tv.v_type == VarType::VAR_FUNC && !ref_tv.vval.v_string().is_null() {
@@ -3218,7 +3218,7 @@ fn eval_method(
                     }
                 } else {
                     if verbose {
-                        semsg!(gettext((&raw const e_not_callable_type_str).cast()), name);
+                        semsg!(gettext(e_not_callable_type_str.as_ptr()), name);
                     }
                     ret = false;
                 }
@@ -3229,7 +3229,7 @@ fn eval_method(
             if ret {
                 if **arg != b'(' as c_char {
                     if verbose {
-                        semsg!(gettext((&raw const e_missingparen).cast()), name);
+                        semsg!(gettext(e_missingparen.as_ptr()), name);
                     }
                     ret = false;
                 } else if ascii_iswhite(*(*arg).sub(1)) {
@@ -3392,7 +3392,7 @@ fn check_can_index(rettv: &mut typval_T, evaluate: bool, verbose: bool) -> bool 
             }
             VarType::VAR_FLOAT => {
                 if verbose {
-                    emsg(gettext((&raw const e_using_float_as_string).cast()));
+                    emsg(gettext(e_using_float_as_string.as_ptr()));
                 }
                 return false;
             }
@@ -3561,9 +3561,9 @@ fn eval_index_inner(rettv: &mut typval_T,
 
                 if item.is_null() && verbose {
                     if keylen > 0 {
-                        semsg!(gettext((&raw const e_dictkey_len).cast()), keylen, key);
+                        semsg!(gettext(e_dictkey_len.as_ptr()), keylen, key);
                     } else {
-                        semsg!(gettext((&raw const e_dictkey).cast()), key);
+                        semsg!(gettext(e_dictkey.as_ptr()), key);
                     }
                 }
                 if item.is_null() || tv_is_luafunc(&mut (*item).di_tv) {
@@ -3719,7 +3719,7 @@ fn eval_number(
             );
             if len == 0 {
                 if evaluate {
-                    semsg!(gettext((&raw const e_invexpr2).cast()), *arg);
+                    semsg!(gettext(e_invexpr2.as_ptr()), *arg);
                 }
                 return false;
             }
@@ -3777,7 +3777,7 @@ fn eval_string(
                 }
                 p = p.add(1);
                 if *p.sub(1) == b'}' as c_char && *p != b'}' as c_char {
-                    semsg!(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
+                    semsg!(gettext(e_stray_closing_curly_str.as_ptr()), *arg);
                     return false;
                 }
                 extra -= 1;
@@ -3957,7 +3957,7 @@ fn eval_lit_string(
                 } else if *p == b'}' as c_char {
                     p = p.add(1);
                     if *p != b'}' as c_char {
-                        semsg!(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
+                        semsg!(gettext(e_stray_closing_curly_str.as_ptr()), *arg);
                         return false;
                     }
                     reduce += 1;
@@ -4922,7 +4922,7 @@ pub fn tv_to_argv(
 
         if cmd_tv.v_type != VarType::VAR_LIST {
             semsg!(
-                gettext((&raw const e_invarg2).cast()),
+                gettext(e_invarg2.as_ptr()),
                 c"expected String or List".as_ptr(),
             );
             return Vec::new();
@@ -4931,7 +4931,7 @@ pub fn tv_to_argv(
         let argl = cmd_tv.vval.v_list();
         let argc = tv_list_len(argl);
         if argc == 0 {
-            emsg(gettext((&raw const e_invarg).cast()));
+            emsg(gettext(e_invarg.as_ptr()));
             return Vec::new();
         }
 
@@ -4949,7 +4949,7 @@ pub fn tv_to_argv(
                     arg0,
                 );
                 semsg!(
-                    gettext((&raw const e_invargNval).cast()),
+                    gettext(e_invargNval.as_ptr()),
                     c"cmd".as_ptr(),
                     buf.as_ptr(),
                 );
@@ -5181,7 +5181,7 @@ pub fn callback_call(
 ) -> bool {
     unsafe {
         if i64::from(eval_st().callback_depth) > opt_vars().p_mfd {
-            emsg(gettext((&raw const e_command_too_recursive).cast()));
+            emsg(gettext(e_command_too_recursive.as_ptr()));
             return false;
         }
 
@@ -5538,7 +5538,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
                     total_len += 1;
                 }
             } else {
-                semsg!(gettext((&raw const e_nobufnr).cast()), tv.vval.v_number());
+                semsg!(gettext(e_nobufnr.as_ptr()), tv.vval.v_number());
                 return None;
             }
 
@@ -5978,7 +5978,7 @@ pub fn get_name_len(
 
         len += get_id_len(arg);
         if len == 0 && verbose && **arg != NUL {
-            semsg!(gettext((&raw const e_invexpr2).cast()), *arg);
+            semsg!(gettext(e_invexpr2.as_ptr()), *arg);
         }
 
         len
@@ -6522,7 +6522,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                         && g_st().did_emsg == did_emsg_before
                         && g_st().called_emsg == called_emsg_before
                     {
-                        semsg!(gettext((&raw const e_invexpr2).cast()), p);
+                        semsg!(gettext(e_invexpr2.as_ptr()), p);
                     }
                     g_st().need_clr_eos = false;
                     break;
@@ -6728,7 +6728,7 @@ pub fn last_set_msg(script_ctx: sctx_T) {
         msg_puts(gettext(c"\n\tLast set from ".as_ptr()));
         msg_puts(p.as_ptr());
         if script_ctx.sc_lnum > 0 {
-            msg_puts(gettext((&raw const line_msg).cast()));
+            msg_puts(gettext(line_msg.as_ptr()));
             msg_outnum(script_ctx.sc_lnum);
         } else if script_is_lua(script_ctx.sc_sid) {
             msg_puts(gettext(c" (run Nvim with -V1 for more details)".as_ptr()));
@@ -6885,9 +6885,9 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
         if data.is_null() || (*data).streamtype != kChannelStreamProc || is_stopped {
             if show_error {
                 if !data.is_null() && (*data).streamtype != kChannelStreamProc {
-                    emsg(gettext((&raw const e_invchanjob).cast()));
+                    emsg(gettext(e_invchanjob.as_ptr()));
                 } else {
-                    emsg(gettext((&raw const e_invchan).cast()));
+                    emsg(gettext(e_invchan.as_ptr()));
                 }
             }
             return ptr::null_mut();
@@ -6903,7 +6903,7 @@ pub fn script_host_eval(name: *mut c_char,argvars: &mut [typval_T],rettv: &mut t
         }
 
         if argvars[0].v_type != VarType::VAR_STRING {
-            emsg(gettext((&raw const e_invarg).cast()));
+            emsg(gettext(e_invarg.as_ptr()));
             return;
         }
 
@@ -7026,7 +7026,7 @@ pub fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
 
         if throw_if_fast && !nlua_is_deferred_safe() {
             semsg!(
-                (&raw const e_fast_api_disabled).cast(),
+                e_fast_api_disabled.as_ptr(),
                 c"Vimscript function".as_ptr(),
             );
             return false;
@@ -7149,7 +7149,7 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 if typ1.v_type != typ2.v_type {
                     emsg(gettext(c"E977: Can only compare Blob with Blob".as_ptr()));
                 } else {
-                    emsg(gettext((&raw const e_invalblob).cast()));
+                    emsg(gettext(e_invalblob.as_ptr()));
                 }
                 tv_clear(typ1);
                 return false;

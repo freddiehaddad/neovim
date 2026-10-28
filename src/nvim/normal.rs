@@ -2965,7 +2965,7 @@ pub fn add_to_showcmd(c: c_int) -> bool {
             let overflow = old_len + extra_len - limit;
             ptr::copy(sc_buf.add(overflow), sc_buf, old_len - overflow + 1);
         }
-        { let d = sc_buf; let s = p; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cat(sc_buf, p);
 
         if char_avail() {
             return false;

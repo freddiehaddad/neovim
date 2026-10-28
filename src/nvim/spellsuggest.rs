@@ -707,7 +707,7 @@ pub fn spell_suggest(count: c_int) {
         'skip: {
             let w_s = (**curwin.as_ptr()).w_s_ptr();
             if *(*w_s).b_p_spl == NUL {
-                emsg(gettext((&raw const e_no_spell).cast()));
+                emsg(gettext(e_no_spell.as_ptr()));
                 break 'skip;
             }
             if g_st().Visual.active {
@@ -818,7 +818,7 @@ pub fn spell_suggest(count: c_int) {
                 let c = sug.su_badptr.offset_from(line) as c_int;
                 ptr::copy(line, p, c as usize);
                 crate::memory::cstr_cpy(p.add(c as usize), stp.st_word.as_ptr());
-                { let d = p; let s = sug.su_badptr.add(stp.st_orglen as usize); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(p, sug.su_badptr.add(stp.st_orglen as usize));
                 prep_redo(
                     false,
                     false,
@@ -1028,7 +1028,7 @@ fn spell_suggest_file(su: &mut suginfo_T, fname: *mut c_char) {
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg!(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
             return;
         }
         while !vim_fgets((&raw mut line).cast(), (MAXWLEN * 2) as c_int, fd) && !g_st().got_int {
@@ -1663,7 +1663,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                 depth += 1;
                                 udepth = depth as usize;
                                 if !try_compound && !fword_ends {
-                                    { let d = (&raw mut preword).cast::<c_char>(); let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                                    crate::memory::cstr_cat((&raw mut preword).cast::<c_char>(), c" ".as_ptr());
                                 }
                                 stack[udepth].ts_prewordlen =
                                     crate::memory::cstr_len((&raw const preword).cast()) as u8;

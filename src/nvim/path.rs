@@ -29,7 +29,7 @@ use crate::regexp::{
 };
 use crate::strings::{sort_strings, vim_snprintf, vim_strchr};
 use std::cmp::Ordering;
-#[cfg(any(windows, test))]
+#[cfg(test)]
 use std::ffi::CStr;
 use std::ffi::{c_char, c_int};
 use std::ptr;
@@ -1842,9 +1842,7 @@ pub fn fix_fname(fname: *const c_char) -> Option<std::ffi::CString> {
 
         let mut bytes = to_slash_save(fname)?.into_bytes_with_nul();
         path_fix_case(bytes.as_mut_ptr().cast::<c_char>());
-        let len = CStr::from_ptr(bytes.as_ptr().cast::<c_char>())
-            .to_bytes()
-            .len();
+        let len = crate::memory::cstr_len(bytes.as_ptr().cast::<c_char>());
         Some(cstr_from_bytes(&bytes[..len]))
     }
 }
@@ -2360,7 +2358,7 @@ mod tests {
 
     #[test]
     fn path_tail_next_component_and_invocation_tail() {
-        unsafe {
+         {
             assert!(vim_ispathsep(b'/' as c_int));
             assert_eq!(
                 crate::memory::cstr_as_bytes(path_tail(c"directory/file.txt".as_ptr())),
@@ -2411,11 +2409,10 @@ mod tests {
             assert_eq!(len, 3);
             assert_eq!(crate::memory::cstr_as_bytes(inv), b"exe a b c");
             assert_eq!(
-                CStr::from_ptr(invocation_path_tail(
+                crate::memory::cstr_as_bytes(invocation_path_tail(
                     c"directory/exe a b c".as_ptr(),
                     None
-                ))
-                .to_bytes(),
+                )),
                 b"exe a b c"
             );
 

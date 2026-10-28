@@ -1023,9 +1023,7 @@ fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
         }
         debug_assert!(g_st().Columns >= 0);
         let line = skipwhite(ml_get(mp.lnum));
-        let max_bytes = std::ffi::CStr::from_ptr(line)
-            .to_bytes()
-            .len()
+        let max_bytes = crate::memory::cstr_len(line)
             .min((g_st().Columns as usize) * 5);
 
         let mut len: c_int = 0;

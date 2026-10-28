@@ -1073,7 +1073,7 @@ pub fn no_spell_checking(wp: &mut win_T) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if wp.w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.is_empty() {
-            emsg(gettext((&raw const e_no_spell).cast()));
+            emsg(gettext(e_no_spell.as_ptr()));
             return true;
         }
         false
@@ -1248,7 +1248,7 @@ pub fn spell_move_to(
                         lnum = (*wp.w_buffer).b_ml.ml_line_count;
                         wrapped = true;
                         if !shortmess(kShmSearch) {
-                            give_warning(gettext((&raw const top_bot_msg).cast()), true, false);
+                            give_warning(gettext(top_bot_msg.as_ptr()), true, false);
                         }
                     }
                     capcol = -1;
@@ -1261,7 +1261,7 @@ pub fn spell_move_to(
                         lnum = 1;
                         wrapped = true;
                         if !shortmess(kShmSearch) {
-                            give_warning(gettext((&raw const bot_top_msg).cast()), true, false);
+                            give_warning(gettext(bot_top_msg.as_ptr()), true, false);
                         }
                     }
                     if lnum == wp.w_cursor.lnum && !found_one {
@@ -2299,7 +2299,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
                 let p = p_vec.as_mut_ptr();
                 ptr::copy(line, p, (**curwin.as_ptr()).w_cursor.col as usize);
                 crate::memory::cstr_cpy(p.add((**curwin.as_ptr()).w_cursor.col as usize), repl_to_ptr);
-                { let d = p; let s = line.add((**curwin.as_ptr()).w_cursor.col as usize + repl_from_len); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(p, line.add((**curwin.as_ptr()).w_cursor.col as usize + repl_from_len));
                 let _ = ml_replace((**curwin.as_ptr()).w_cursor.lnum, p, true);
                 inserted_bytes(
                     (**curwin.as_ptr()).w_cursor.lnum,
@@ -3017,14 +3017,14 @@ fn dump_word(
             if (flags & (WF_BANNED | WF_RARE | WF_REGION)) != 0 || keepcap {
                 let bw_ptr = (&raw mut badword).cast::<c_char>();
                 crate::memory::cstr_cpy(bw_ptr, p);
-                { let d = bw_ptr; let s = c"/".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(bw_ptr, c"/".as_ptr());
                 if keepcap {
-                    { let d = bw_ptr; let s = c"=".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cat(bw_ptr, c"=".as_ptr());
                 }
                 if (flags & WF_BANNED) != 0 {
-                    { let d = bw_ptr; let s = c"!".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cat(bw_ptr, c"!".as_ptr());
                 } else if (flags & WF_RARE) != 0 {
-                    { let d = bw_ptr; let s = c"?".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cat(bw_ptr, c"?".as_ptr());
                 }
                 if (flags & WF_REGION) != 0 {
                     for i in 0..7 {
@@ -3293,7 +3293,7 @@ pub fn compile_cap_prog(
             let re = concat_str(c"^", std::ffi::CStr::from_ptr(value));
             rp = crate::regexp::vim_regcomp_box(re.as_ptr(), RE_MAGIC);
             if rp.is_none() {
-                return (&raw const e_invarg).cast();
+                return e_invarg.as_ptr();
             }
         }
         *prog = rp;

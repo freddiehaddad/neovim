@@ -2992,9 +2992,7 @@ pub fn win_line(
                             if wp.w_onebuf_opt.wo_lbr != 0 {
                                 let p = get_extra_buf((wlv.n_extra as usize) + 1);
                                 ptr::write_bytes(p, b' ', wlv.n_extra as usize);
-                                let rem_len = CStr::from_ptr(wlv.p_extra)
-                                    .to_bytes()
-                                    .len()
+                                let rem_len = crate::memory::cstr_len(wlv.p_extra)
                                     .saturating_sub(1);
                                 ptr::copy_nonoverlapping(wlv.p_extra.add(1), p, rem_len);
                                 *p.add(wlv.n_extra as usize) = NUL;

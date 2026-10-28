@@ -2915,7 +2915,7 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
             (*win_s(&mut **curwin.as_ptr())).b_syn_isk = None;
         } else {
             if !check_isopt(arg) {
-                emsg(gettext((&raw const e_invarg).cast()));
+                emsg(gettext(e_invarg.as_ptr()));
                 return;
             }
             let isk = crate::memory::cstr_to_cstring(arg);
@@ -3047,7 +3047,7 @@ fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg!(gettext((&raw const e_nogroup).cast()), arg);
+                        semsg!(gettext(e_nogroup.as_ptr()), arg);
                         break;
                     }
                     syn_clear_one(id, syncing != 0);
@@ -3193,7 +3193,7 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg!(gettext((&raw const e_nogroup).cast()), arg);
+                        semsg!(gettext(e_nogroup.as_ptr()), arg);
                     } else {
                         syn_list_one(id, false, true);
                     }
@@ -3889,7 +3889,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
             source_runtime(eap.arg, DIP_ALL)
         };
         if !res {
-            semsg!(gettext((&raw const e_notopen).cast()), eap.arg);
+            semsg!(gettext(e_notopen.as_ptr()), eap.arg);
         }
         (*win_s(&mut **curwin.as_ptr())).b_syn_topgrp = prev_toplvl_grp;
         syn_st().current_syn_inc_tag = prev_syn_inc_tag;
@@ -4006,7 +4006,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
         if !rest.is_null() {
             eap.nextcmd = check_nextcmd(rest);
         } else {
-            semsg!(gettext((&raw const e_invarg2).cast()), arg);
+            semsg!(gettext(e_invarg2.as_ptr()), arg);
         }
 
         redraw_curbuf_later(UPD_SOME_VALID);
@@ -4090,7 +4090,7 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
         }
 
         if rest.is_null() {
-            semsg!(gettext((&raw const e_invarg2).cast()), arg);
+            semsg!(gettext(e_invarg2.as_ptr()), arg);
         }
     }
 }
@@ -4277,7 +4277,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
                     arg,
                 );
             } else if illegal || rest.is_null() {
-                semsg!(gettext((&raw const e_invarg2).cast()), arg);
+                semsg!(gettext(e_invarg2.as_ptr()), arg);
             }
         }
     }
@@ -4448,7 +4448,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
                     eap.skip != 0,
                 )
                 {
-                    semsg!(gettext((&raw const e_invarg2).cast()), rest);
+                    semsg!(gettext(e_invarg2.as_ptr()), rest);
                     break;
                 }
                 if scl_id >= 0 {
@@ -4468,7 +4468,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
             emsg(gettext(c"E400: No cluster specified".as_ptr()));
         }
         if rest.is_null() || ends_excmd(*rest as c_int) == 0 {
-            semsg!(gettext((&raw const e_invarg2).cast()), arg);
+            semsg!(gettext(e_invarg2.as_ptr()), arg);
         }
     }
 }
@@ -4770,7 +4770,7 @@ fn get_id_list(
                     id = syn_check_group(name.add(1), end.offset_from(p) as usize);
                 } else {
                     *name = b'^' as c_char;
-                    { let d = name.add(1); let s = c"$".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cat(name.add(1), c"$".as_ptr());
                     regmatch.regprog = vim_regcomp(name, RE_MAGIC);
                     if regmatch.regprog.is_null() {
                         failed = true;
@@ -5392,7 +5392,7 @@ pub fn ex_syntime(eap: &mut exarg_T) {
         } else if crate::memory::cstr_as_bytes(eap.arg) == b"report" {
             syntime_report();
         } else {
-            semsg!(gettext((&raw const e_invarg2).cast()), eap.arg);
+            semsg!(gettext(e_invarg2.as_ptr()), eap.arg);
         }
     }
 }

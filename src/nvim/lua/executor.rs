@@ -689,7 +689,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
         let status = nlua_pcall(lstate, nargs, nresult);
         let retval = if status != 0 {
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-                preserve_exit((&raw const e_outofmem).cast());
+                preserve_exit(e_outofmem.as_ptr());
             }
 
             let mut len: usize = 0;
@@ -1002,7 +1002,7 @@ unsafe extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> c_int {
         if nlua_st().IN_FAST_CALLBACK > 0 {
             return luaL_error(
                 lstate,
-                (&raw const e_fast_api_disabled).cast(),
+                e_fast_api_disabled.as_ptr(),
                 c"os.exit".as_ptr(),
             );
         }
@@ -1635,7 +1635,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             );
             return luaL_error(
                 lstate,
-                (&raw const e_fast_api_disabled).cast(),
+                e_fast_api_disabled.as_ptr(),
                 (&raw const g_st().IObuff).cast::<c_char>(),
             );
         }
@@ -1732,7 +1732,7 @@ unsafe extern "C-unwind" fn nlua_rpcrequest(lstate: *mut lua_State) -> c_int {
         if !nlua_is_deferred_safe() {
             return luaL_error(
                 lstate,
-                (&raw const e_fast_api_disabled).cast(),
+                e_fast_api_disabled.as_ptr(),
                 c"rpcrequest".as_ptr(),
             );
         }
@@ -2303,7 +2303,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
             if eap.addr_count > 0 {
                 cmd_source_buffer(Some(eap), true);
             } else {
-                emsg(gettext((&raw const e_argreq).cast()));
+                emsg(gettext(e_argreq.as_ptr()));
             }
             return;
         }

@@ -2201,7 +2201,7 @@ pub(super) fn prog_magic_wrong() -> bool {
             return false;
         };
         if UCHARAT(bt_prog.program.as_ptr()) != REGMAGIC {
-            emsg(tr((&raw const e_re_corr).cast()));
+            emsg(tr(e_re_corr.as_ptr()));
             return true;
         }
         false
@@ -2464,7 +2464,7 @@ pub fn regtilde(
                     && let Some(prev_sub) = prev_sub_ref
                 {
                     if tmpsublen > MAXCOL as usize {
-                        emsg(tr((&raw const e_resulting_text_too_long).cast()));
+                        emsg(tr(e_resulting_text_too_long.as_ptr()));
                         error = true;
                         break;
                     }
@@ -2623,7 +2623,7 @@ fn vim_regsub_both(
         let copy = (flags & REGSUB_COPY) != 0;
 
         if (source.is_null() && expr.is_null()) || dest.is_null() {
-            emsg(tr((&raw const e_null).cast()));
+            emsg(tr(e_null.as_ptr()));
             return 0;
         }
         if prog_magic_wrong() {
@@ -2947,7 +2947,7 @@ fn vim_regsub_both(
                                 }
                             } else if *s == NUL as c_char {
                                 if copy {
-                                    iemsg(tr((&raw const e_re_damg).cast()));
+                                    iemsg(tr(e_re_damg.as_ptr()));
                                 }
                                 return (dst.offset_from(dest) + 1) as c_int;
                             } else {

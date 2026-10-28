@@ -495,7 +495,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_
         let mut err = error_init();
         let preview = kind == kWinPreview;
         if preview && !win_previewpopup_config(opt_vars().p_pvp, &mut config) {
-            emsg(gettext((&raw const e_invarg).cast()));
+            emsg(gettext(e_invarg.as_ptr()));
             return ptr::null_mut();
         }
 

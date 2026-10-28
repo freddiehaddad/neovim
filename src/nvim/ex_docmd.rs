@@ -9242,8 +9242,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 let next_li = (*li).li_next;
                 if !next_li.is_null() {
                     let addr = tv_get_string(&(*next_li).li_tv);
-                    if CStr::from_ptr(addr)
-                        .to_bytes()
+                    if crate::memory::cstr_as_bytes(addr)
                         .iter()
                         .any(|b| matches!(b, b':' | b'/' | b'\\'))
                     {

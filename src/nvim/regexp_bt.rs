@@ -994,7 +994,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
-                iemsg(tr((&raw const e_internal_error_in_regexp).cast()));
+                iemsg(tr(e_internal_error_in_regexp.as_ptr()));
                 g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             } else if c == Magic(b'=' as c_int)
@@ -1036,7 +1036,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     }
                     return ret;
                 } else {
-                    emsg(tr((&raw const e_nopresub).cast()));
+                    emsg(tr(e_nopresub.as_ptr()));
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
@@ -1623,7 +1623,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 regc(NUL as c_int);
                 re_st().prevchr_len = 1;
                 if *re_st().regparse != b']' as c_char {
-                    emsg(tr((&raw const e_toomsbra).cast()));
+                    emsg(tr(e_toomsbra.as_ptr()));
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
@@ -1962,7 +1962,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
         }
 
         if re_st().bt_reg_parse_depth >= REG_MAX_PAREN_DEPTH {
-            emsg(tr((&raw const e_command_too_complex).cast()));
+            emsg(tr(e_command_too_complex.as_ptr()));
             g_st().rc_did_emsg = true;
             return ptr::null_mut();
         }
@@ -2049,7 +2049,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
                     },
                 );
             } else {
-                emsg(tr((&raw const e_trailing).cast()));
+                emsg(tr(e_trailing.as_ptr()));
             }
             g_st().rc_did_emsg = true;
             re_st().bt_reg_parse_depth -= 1;
@@ -2070,7 +2070,7 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_regprog_T>
         let mut flags: c_int = 0;
 
         if expr.is_null() {
-            iemsg(tr((&raw const e_null).cast()));
+            iemsg(tr(e_null.as_ptr()));
             g_st().rc_did_emsg = true;
             return None;
         }
@@ -2555,7 +2555,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                 }
             }
         } else {
-            iemsg(tr((&raw const e_re_corr).cast()));
+            iemsg(tr(e_re_corr.as_ptr()));
         }
 
         re_st().rex.input = scan;
@@ -3465,7 +3465,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                             status = RA_MATCH;
                         }
                         _ => {
-                            iemsg(tr((&raw const e_re_corr).cast()));
+                            iemsg(tr(e_re_corr.as_ptr()));
                             status = RA_FAIL;
                         }
                     }
@@ -3792,7 +3792,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
 
             if (*rs).is_empty() || status == RA_FAIL {
                 if scan.is_null() {
-                    iemsg(tr((&raw const e_re_corr).cast()));
+                    iemsg(tr(e_re_corr.as_ptr()));
                 }
                 return status == RA_MATCH;
             }
@@ -3898,7 +3898,7 @@ fn bt_regexec_both(
         };
 
         if prog.is_null() || line.is_null() {
-            iemsg(tr((&raw const e_null).cast()));
+            iemsg(tr(e_null.as_ptr()));
             return finish_bt_regexec(retval, col);
         }
 

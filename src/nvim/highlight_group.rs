@@ -3424,7 +3424,7 @@ mod tests {
     #[test]
     fn coloridx_to_name_handles_special_indices() {
         let mut hexbuf = [0 as c_char; 8];
-        unsafe {
+         {
             assert!(coloridx_to_name(kColorIdxNone, 0, hexbuf.as_mut_ptr()).is_null());
             assert_eq!(
                 crate::memory::cstr_as_bytes(coloridx_to_name(kColorIdxFg, 0, hexbuf.as_mut_ptr())),
@@ -3435,12 +3435,11 @@ mod tests {
                 b"bg"
             );
             assert_eq!(
-                CStr::from_ptr(coloridx_to_name(
+                crate::memory::cstr_as_bytes(coloridx_to_name(
                     kColorIdxHex,
                     0x12abef,
                     hexbuf.as_mut_ptr()
-                ))
-                .to_bytes(),
+                )),
                 b"#12abef"
             );
         }

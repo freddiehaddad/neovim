@@ -127,7 +127,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
                 tv_clear(&raw mut rettv);
-                emsg(gettext((&raw const e_noident).cast()));
+                emsg(gettext(e_noident.as_ptr()));
                 return;
             }
         }

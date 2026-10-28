@@ -380,7 +380,7 @@ fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
             }
 
             if invalid_arg {
-                semsg!(gettext((&raw const e_invexpr2).cast()), arg);
+                semsg!(gettext(e_invexpr2.as_ptr()), arg);
                 nr = 0;
             }
         } else if !win_has_winnr(&mut *twin, &raw mut *tp) {
@@ -630,7 +630,7 @@ pub fn f_tabpagenr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                         0
                     };
                 } else {
-                    semsg!(gettext((&raw const e_invexpr2).cast()), arg);
+                    semsg!(gettext(e_invexpr2.as_ptr()), arg);
                 }
             }
         } else {
@@ -819,7 +819,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             || !win_valid(targetwin)
             || (*targetwin).w_floating
         {
-            emsg(gettext((&raw const e_invalwindow).cast()));
+            emsg(gettext(e_invalwindow.as_ptr()));
             return;
         }
 
@@ -859,7 +859,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }
         } else {
-            emsg(gettext((&raw const e_auabort).cast()));
+            emsg(gettext(e_auabort.as_ptr()));
         }
 
         if oldwin != *curwin.as_ptr() && win_valid(oldwin) {

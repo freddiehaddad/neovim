@@ -293,12 +293,12 @@ pub fn os_expand_wildcards(
             } else {
                 crate::memory::cstr_cpy(command, c"(".as_ptr());
             }
-            { let d = command; let s = (*pat).add(1); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(command, (*pat).add(1));
             let mut p = command.add(crate::memory::cstr_len(command) - 1);
             if is_fish_shell {
                 *p = b';' as c_char;
                 p = p.sub(1);
-                { let d = command; let s = c" end".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(command, c" end".as_ptr());
             } else {
                 *p = b')' as c_char;
                 p = p.sub(1);
@@ -310,7 +310,7 @@ pub fn os_expand_wildcards(
                 ampersand = true;
                 *p = b' ' as c_char;
             }
-            { let d = command; let s = c">".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(command, c">".as_ptr());
         } else {
             *command = NUL;
             if shell_style == STYLE_GLOB {
@@ -321,20 +321,20 @@ pub fn os_expand_wildcards(
                 }
             }
             if shell_style == STYLE_GLOB {
-                { let d = command; let s = c"glob >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(command, c"glob >".as_ptr());
             } else if shell_style == STYLE_PRINT {
-                { let d = command; let s = c"print -N >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(command, c"print -N >".as_ptr());
             } else if shell_style == STYLE_VIMGLOB {
-                { let d = command; let s = SH_VIMGLOB_FUNC.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC.as_ptr());
             } else if shell_style == STYLE_GLOBSTAR {
-                { let d = command; let s = SH_GLOBSTAR_OPT.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = command; let s = SH_VIMGLOB_FUNC.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(command, SH_GLOBSTAR_OPT.as_ptr());
+                crate::memory::cstr_cat(command, SH_VIMGLOB_FUNC.as_ptr());
             } else {
-                { let d = command; let s = c"echo >".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(command, c"echo >".as_ptr());
             }
         }
 
-        { let d = command; let s = tempname; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+        crate::memory::cstr_cat(command, tempname);
 
         if shell_style != STYLE_BT {
             for i in 0..(num_pat as usize) {
@@ -380,7 +380,7 @@ pub fn os_expand_wildcards(
         }
 
         if ampersand {
-            { let d = command; let s = c"&".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(command, c"&".as_ptr());
         }
 
         if shell_style == STYLE_PRINT {

@@ -18,7 +18,7 @@ use crate::ui::{
     ui_line,
 };
 use crate::window::{WinConfig, win_T};
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 pub type schar_T = u32;
@@ -303,9 +303,7 @@ pub fn schar_len(sc: schar_T) -> usize {
             let idx = schar_idx(sc) as usize;
             let keys_ptr = &raw const grid_st().glyph_cache_keys;
             assert!(idx < (*keys_ptr).len());
-            CStr::from_ptr((*keys_ptr).as_ptr().add(idx))
-                .to_bytes()
-                .len()
+            crate::memory::cstr_len((*keys_ptr).as_ptr().add(idx))
         } else {
             strnlen_4((&raw const sc).cast::<u8>())
         }
@@ -1552,6 +1550,7 @@ pub fn unittest_schar_from_cluster(buf: *const c_char, firstc: &mut c_int) -> sc
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn schar_roundtrip_ascii_and_unicode() {

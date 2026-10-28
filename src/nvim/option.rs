@@ -662,10 +662,9 @@ pub fn opt_error_int(
 
 #[inline]
 fn c_str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
-    unsafe {
+     {
         needle.is_empty()
-            || CStr::from_ptr(haystack)
-                .to_bytes()
+            || crate::memory::cstr_as_bytes(haystack)
                 .windows(needle.len())
                 .any(|w| w == needle)
     }

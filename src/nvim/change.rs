@@ -1581,12 +1581,12 @@ pub fn open_line(
                 let padding = second_line_indent
                     - (newindent + crate::memory::cstr_len(leader) as c_int);
                 for _ in 0..padding {
-                    { let d = leader; let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    crate::memory::cstr_cat(leader, c" ".as_ptr());
                     less_cols -= 1;
                     newcol += 1;
                 }
             }
-            { let d = leader; let s = p_extra; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(leader, p_extra);
             p_extra = leader;
             g_st().Ins.did_ai = true;
             less_cols -= lead_len;
@@ -1605,8 +1605,7 @@ pub fn open_line(
                 let prompt = prompt_text();
                 let prompt_len = crate::memory::cstr_len(prompt);
 
-                if CStr::from_ptr(prompt_line)
-                    .to_bytes()
+                if crate::memory::cstr_as_bytes(prompt_line)
                     .starts_with(crate::memory::cstr_as_bytes(prompt))
                 {
                     let rem_len = crate::memory::cstr_len(prompt_line.add(prompt_len)) + 1;

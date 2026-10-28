@@ -323,6 +323,16 @@ pub fn cstr_ncpy(dst: *mut c_char, src: *const c_char, len: usize) {
     }
 }
 
+/// Append NUL-terminated C string `src` (including trailing NUL) to the end of `dst`.
+#[inline]
+pub fn cstr_cat(dst: *mut c_char, src: *const c_char) {
+    unsafe {
+        let dlen = cstr_len(dst);
+        let slen = CStr::from_ptr(src).to_bytes_with_nul().len();
+        std::ptr::copy_nonoverlapping(src, dst.add(dlen), slen);
+    }
+}
+
 /// View a NUL-terminated C string as a byte slice, returning `b""` if null.
 #[inline]
 pub fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {

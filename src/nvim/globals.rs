@@ -44,7 +44,6 @@ pub(crate) const DFLT_ROWS: c_int = 24;
 pub(crate) const DFLT_COLS: c_int = 80;
 pub(crate) const PROF_NONE: c_int = 0;
 
-use crate::errors::bytes_to_chars;
 use crate::event::r#loop::Loop;
 
 #[repr(transparent)]
@@ -889,7 +888,7 @@ pub static curwin: GlobalState<*mut win_T> = GlobalState::new(ptr::null_mut());
 #[unsafe(no_mangle)]
 pub static starting: GlobalState<c_int> = GlobalState::new(NO_SCREEN);
 pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";
-pub static no_lines_msg: [c_char; 23] = bytes_to_chars(b"--No lines in buffer--\0");
+pub const no_lines_msg: &std::ffi::CStr = c"--No lines in buffer--";
 #[unsafe(no_mangle)]
 pub static display_tick: GlobalState<disptick_T> = GlobalState::new(0);
 #[inline]

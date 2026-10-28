@@ -224,8 +224,7 @@ pub fn server_start(addr: *const c_char) -> c_int {
             return 1;
         }
 
-        let isname = !CStr::from_ptr(addr)
-            .to_bytes()
+        let isname = !crate::memory::cstr_as_bytes(addr)
             .iter()
             .any(|b| matches!(b, b':' | b'/' | b'\\'));
         let addr_gen = if isname {

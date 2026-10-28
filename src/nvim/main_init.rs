@@ -2357,7 +2357,7 @@ fn do_user_initialization() -> bool {
         {
             if os_path_exists(user_vimrc_ptr) {
                 semsg!(
-                    (&raw const e_conflicting_configs).cast(),
+                    e_conflicting_configs.as_ptr(),
                     init_lua_ptr,
                     user_vimrc_ptr,
                 );
@@ -2423,7 +2423,7 @@ fn do_user_initialization() -> bool {
                 {
                     if os_path_exists(init_vim.as_ptr().cast()) {
                         semsg!(
-                            (&raw const e_conflicting_configs).cast(),
+                            e_conflicting_configs.as_ptr(),
                             init_lua.as_ptr(),
                             init_vim.as_ptr(),
                         );
@@ -2493,7 +2493,7 @@ fn source_startup_scripts(parmp: &mparm_T) {
             )
             {
                 semsg!(
-                    gettext((&raw const e_cannot_read_from_str_2).cast()),
+                    gettext(e_cannot_read_from_str_2.as_ptr()),
                     use_vimrc.as_ptr(),
                 );
             }

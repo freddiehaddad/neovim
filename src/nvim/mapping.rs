@@ -545,8 +545,7 @@ fn set_maparg_rhs(
             mapargs.orig_rhs_len = orig_rhs_len;
             let orig_slice = std::slice::from_raw_parts(orig_rhs.cast::<u8>(), orig_rhs_len);
             mapargs.orig_rhs = Some(CString::new(orig_slice).unwrap());
-            if CStr::from_ptr(orig_rhs)
-                .to_bytes()
+            if crate::memory::cstr_as_bytes(orig_rhs)
                 .eq_ignore_ascii_case(b"<nop>")
             {
                 mapargs.rhs = Some(CString::default());

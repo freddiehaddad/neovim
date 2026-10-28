@@ -174,7 +174,7 @@ pub fn gargcount() -> c_int {
 fn check_arglist_locked() -> bool {
     if arglist_st().arglist_locked {
             emsg(gettext(
-                (&raw const e_cannot_change_arglist_recursively).cast(),
+                e_cannot_change_arglist_recursively.as_ptr(),
             ));
             return false;
         }
@@ -419,7 +419,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
 
             vim_regfree(regmatch.regprog);
             if !didone {
-                semsg!(gettext((&raw const e_nomatch2).cast()), orig_p);
+                semsg!(gettext(e_nomatch2.as_ptr()), orig_p);
             }
         }
     }
@@ -456,7 +456,7 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
             );
             drop(new_ga);
             if !i || exp_files.is_empty() {
-                emsg(gettext((&raw const e_nomatch).cast()));
+                emsg(gettext(e_nomatch.as_ptr()));
                 return false;
             }
 
@@ -826,12 +826,12 @@ pub fn ex_argdelete(eap: &mut exarg_T) {
             }
             let n = eap.line2 - eap.line1 + 1;
             if *eap.arg != NUL {
-                emsg(gettext((&raw const e_invarg).cast()));
+                emsg(gettext(e_invarg.as_ptr()));
                 return;
             }
             if n <= 0 {
                 if eap.line1 != 1 || eap.line2 != 0 {
-                    emsg(gettext((&raw const e_invrange).cast()));
+                    emsg(gettext(e_invrange.as_ptr()));
                 }
                 return;
             }

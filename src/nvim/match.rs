@@ -174,7 +174,7 @@ fn match_add(
         if !pat.is_null() {
             regprog = vim_regcomp(pat, RE_MAGIC);
             if regprog.is_null() {
-                semsg!(gettext((&raw const e_invarg2).cast()), pat);
+                semsg!(gettext(e_invarg2.as_ptr()), pat);
                 return -1;
             }
         }
@@ -927,7 +927,7 @@ fn matchadd_dict_arg(
 ) -> bool {
     unsafe {
         if tv.v_type != VarType::VAR_DICT {
-            emsg(gettext((&raw const e_dictreq).cast()));
+            emsg(gettext(e_dictreq.as_ptr()));
             return false;
         }
 
@@ -943,7 +943,7 @@ fn matchadd_dict_arg(
 
         *win = find_win_by_nr_or_id(&(*di).di_tv);
         if (*win).is_null() {
-            emsg(gettext((&raw const e_invalwindow).cast()));
+            emsg(gettext(e_invalwindow.as_ptr()));
             return false;
         }
 
@@ -1027,7 +1027,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         if argvars[0].v_type != VarType::VAR_LIST {
-            emsg(gettext((&raw const e_listreq).cast()));
+            emsg(gettext(e_listreq.as_ptr()));
             return;
         }
         if win.is_null() {
@@ -1184,7 +1184,7 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         if argvars[1].v_type != VarType::VAR_LIST {
             semsg!(
-                gettext((&raw const e_listarg).cast()),
+                gettext(e_listarg.as_ptr()),
                 c"matchaddpos()".as_ptr(),
             );
             return;
@@ -1277,7 +1277,7 @@ pub fn ex_match(eap: &mut exarg_T) {
         let id: c_int = if eap.line2 <= 3 {
             eap.line2 as c_int
         } else {
-            emsg((&raw const e_invcmd).cast());
+            emsg(e_invcmd.as_ptr());
             return;
         };
 
@@ -1308,17 +1308,17 @@ pub fn ex_match(eap: &mut exarg_T) {
                 }
                 p = skipwhite(p);
                 if *p == NUL {
-                    semsg!(gettext((&raw const e_invarg2).cast()), arg);
+                    semsg!(gettext(e_invarg2.as_ptr()), arg);
                     return;
                 }
                 end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
                 if eap.skip == 0 {
                     if *end != NUL && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
-                        eap.errmsg = ex_errmsg((&raw const e_trailing_arg).cast(), end);
+                        eap.errmsg = ex_errmsg(e_trailing_arg.as_ptr(), end);
                         return;
                     }
                     if *end != *p {
-                        semsg!(gettext((&raw const e_invarg2).cast()), p);
+                        semsg!(gettext(e_invarg2.as_ptr()), p);
                         return;
                     }
 

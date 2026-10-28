@@ -1448,18 +1448,18 @@ pub fn do_bang(
             }
             let mut t = vec![0 as c_char; len];
             if !newcmd.is_empty() {
-                { let d = t.as_mut_ptr(); let s = newcmd.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(t.as_mut_ptr(), newcmd.as_ptr());
             }
             if ins_prevcmd {
-                { let d = t.as_mut_ptr(); let s = (&raw const excmds_st().prevcmd)
+                crate::memory::cstr_cat(t.as_mut_ptr(), (&raw const excmds_st().prevcmd)
                         .as_ref()
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        .as_ptr());
             }
             let mut p_idx = crate::memory::cstr_len(t.as_ptr());
-            { let d = t.as_mut_ptr(); let s = trailarg; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            crate::memory::cstr_cat(t.as_mut_ptr(), trailarg);
             newcmd = t;
 
             let mut next_trail_off: Option<usize> = None;
@@ -1521,8 +1521,8 @@ pub fn do_bang(
                 let qlen = crate::memory::cstr_len(prev_ptr) + 2 * crate::memory::cstr_len(opt_vars().p_shq) + 1;
                 newcmd = vec![0 as c_char; qlen];
                 crate::memory::cstr_cpy(newcmd.as_mut_ptr(), opt_vars().p_shq);
-                { let d = newcmd.as_mut_ptr(); let s = prev_ptr; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                { let d = newcmd.as_mut_ptr(); let s = opt_vars().p_shq; std::ptr::copy_nonoverlapping(s, d.add(crate::memory::cstr_len(d)), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                crate::memory::cstr_cat(newcmd.as_mut_ptr(), prev_ptr);
+                crate::memory::cstr_cat(newcmd.as_mut_ptr(), opt_vars().p_shq);
             }
             if addr_count == 0 {
                 msg_start();
