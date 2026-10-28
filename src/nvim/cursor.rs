@@ -100,9 +100,9 @@ pub fn getviscol() -> c_int {
         getvvcol(
             *curwin.as_ptr(),
             &mut (**curwin.as_ptr()).w_cursor,
-            &raw mut x,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            Some(&mut x),
+            None,
+            None,
             0,
         );
         x as c_int
@@ -121,9 +121,9 @@ pub fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
         getvvcol(
             *curwin.as_ptr(),
             &mut pos,
-            &raw mut x,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            Some(&mut x),
+            None,
+            None,
             0,
         );
         x as c_int
@@ -298,7 +298,7 @@ fn coladvance2(
                 if one_more == 0 {
                     let mut scol: colnr_T = 0;
                     let mut ecol: colnr_T = 0;
-                    getvcol(wp, pos, &raw mut scol, ptr::null_mut(), &raw mut ecol, 0);
+                    getvcol(wp, pos, Some(&mut scol), None, Some(&mut ecol), 0);
                     pos.coladd = ecol - scol;
                 }
             } else {
@@ -346,7 +346,7 @@ pub fn get_cursor_rel_lnum(wp: &mut win_T, lnum: linenr_T) -> linenr_T {
         let mut retval: linenr_T = 0;
 
         while from_line < to_line {
-            hasFolding(wp, from_line, ptr::null_mut(), &raw mut from_line);
+            hasFolding(wp, from_line, None, &raw mut from_line);
             from_line += 1;
             retval += 1;
         }
@@ -374,7 +374,7 @@ pub fn check_cursor_lnum(win: &mut win_T) {
             && !hasFolding(
                 win,
                 (*buf).b_ml.ml_line_count,
-                &raw mut win.w_cursor.lnum,
+                Some(&mut win.w_cursor.lnum),
                 ptr::null_mut(),
             )
         {
@@ -427,9 +427,9 @@ pub fn check_cursor_col(win: &mut win_T) {
                     getvcol(
                         win,
                         &mut w_cursor,
-                        &raw mut cs,
-                        ptr::null_mut(),
-                        &raw mut ce,
+                        Some(&mut cs),
+                        None,
+                        Some(&mut ce),
                         0,
                     );
                     win.w_cursor = w_cursor;
@@ -508,9 +508,9 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
         getvvcol(
             *curwin.as_ptr(),
             &mut (**curwin.as_ptr()).w_cursor,
-            &raw mut s,
-            ptr::null_mut(),
-            &raw mut e,
+            Some(&mut s),
+            None,
+            Some(&mut e),
             0,
         );
         if e > lastcol as colnr_T {

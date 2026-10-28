@@ -389,7 +389,7 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
                 buf.as_mut_ptr().cast(),
                 FSK_KEYCODE,
                 true,
-                ptr::null_mut(),
+                None,
             );
 
             if new_size > 0 {

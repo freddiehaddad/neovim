@@ -1421,7 +1421,7 @@ pub fn nlua_print_event(text: NvimString) {
             c"lua_print".as_ptr(),
             true,
             false,
-            ptr::null_mut(),
+            None,
             &mut needs_clear,
             raw,
         );
@@ -1910,7 +1910,7 @@ fn nlua_exec_typval_fmt(
             args,
             argcount,
             special,
-            ret_tv,
+            Some(&mut *ret_tv),
         );
 }
 
@@ -1969,9 +1969,9 @@ fn nlua_exec_typval(
     name: *const c_char,
     args: *mut typval_T,
     argcount: c_int,
-    special: bool,
-    ret_tv: *mut typval_T,
+    special: bool,ret_tv: Option<&mut typval_T>,
 ) {
+    let ret_tv: *mut typval_T = ret_tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if check_secure() {
             if !ret_tv.is_null() {
@@ -2017,7 +2017,7 @@ pub fn nlua_exec_lines(lines: &[std::ffi::CString], name: *mut c_char) {
             ptr::null_mut(),
             0,
             false,
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -2095,9 +2095,9 @@ pub fn nlua_exec(
 pub fn nlua_call_typval(
     module: *const c_char,
     func: *const c_char,
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    argvars: *mut typval_T,rettv: Option<&mut typval_T>,
 ) {
+    let rettv: *mut typval_T = rettv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut argcount: c_int = 0;
         let mut tv = argvars;
@@ -2114,7 +2114,7 @@ pub fn nlua_call_typval(
             module,
             func,
         ) as usize;
-        nlua_exec_typval(buf.as_ptr(), len, module, argvars, argcount, false, rettv);
+        nlua_exec_typval(buf.as_ptr(), len, module, argvars, argcount, false, (!rettv.is_null()).then(||  { &mut *rettv }));
     }
 }
 
@@ -2341,7 +2341,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
             ptr::null_mut(),
             0,
             false,
-            ptr::null_mut(),
+            None,
         );
     }
 }

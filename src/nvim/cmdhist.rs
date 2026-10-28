@@ -583,7 +583,7 @@ pub fn f_histget(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             let req_idx = if arg1.v_type == VarType::VAR_UNKNOWN {
                 get_history_idx(htype)
             } else {
-                tv_get_number_chk(arg1, std::ptr::null_mut()) as c_int
+                tv_get_number_chk(arg1, None) as c_int
             };
             let idx = calc_hist_idx(htype, req_idx);
             if idx < 0 {

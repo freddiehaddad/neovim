@@ -1401,7 +1401,7 @@ pub fn grab_file_name(count: c_int, file_lnum: &mut linenr_T) -> Option<std::ffi
             }
             find_file_name_in_path(ptr, len, options, count as c_long, (*g_st().curbuf).b_ffname)
         } else {
-            file_name_at_cursor(options | FNAME_HYP, count, file_lnum)
+            file_name_at_cursor(options | FNAME_HYP, count, Some(&mut *file_lnum))
         }?;
         #[cfg(windows)]
         let fname = {
@@ -1420,9 +1420,9 @@ pub fn grab_file_name(count: c_int, file_lnum: &mut linenr_T) -> Option<std::ffi
 /// Return the file name under or after the cursor.
 pub fn file_name_at_cursor(
     options: c_int,
-    count: c_int,
-    file_lnum: *mut linenr_T,
+    count: c_int,file_lnum: Option<&mut linenr_T>,
 ) -> Option<std::ffi::CString> {
+    let file_lnum: *mut linenr_T = file_lnum.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         file_name_in_line(
             get_cursor_line_ptr(),
@@ -1430,7 +1430,7 @@ pub fn file_name_at_cursor(
             options,
             count,
             (*g_st().curbuf).b_ffname,
-            file_lnum,
+            (!file_lnum.is_null()).then(||  { &mut *file_lnum }),
         )
     }
 }
@@ -1441,9 +1441,9 @@ pub fn file_name_in_line(
     col: c_int,
     options: c_int,
     count: c_int,
-    rel_fname: *mut c_char,
-    file_lnum: *mut linenr_T,
+    rel_fname: *mut c_char,file_lnum: Option<&mut linenr_T>,
 ) -> Option<std::ffi::CString> {
+    let file_lnum: *mut linenr_T = file_lnum.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut ptr = line.add(col as usize);
         while *ptr != NUL && !vim_isfilec(c_int::from(*ptr as u8)) {

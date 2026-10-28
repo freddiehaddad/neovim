@@ -687,7 +687,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
             c"vim._core.spell".as_ptr(),
             c"select_suggest".as_ptr(),
             (&raw mut lua_args).cast(),
-            ptr::null_mut(),
+            None,
         );
         tv_clear(&raw mut items_tv);
         tv_clear(&raw mut bad_tv);
@@ -904,7 +904,7 @@ fn spell_find_suggest(
                 *curwin.as_ptr(),
                 su.su_badptr,
                 &mut attr,
-                ptr::null_mut(),
+                None,
                 false,
             );
             su.su_badlen = tmplen as c_int;
@@ -2864,7 +2864,7 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
                 *curwin.as_ptr(),
                 (&raw mut longword).cast(),
                 &mut attr,
-                ptr::null_mut(),
+                None,
                 false,
             );
             if attr != HLF_COUNT {

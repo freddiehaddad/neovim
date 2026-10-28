@@ -673,7 +673,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 c"vim._core.swapfile".as_ptr(),
                 c"list_swaps".as_ptr(),
                 lua_args.as_mut_ptr(),
-                ptr::null_mut(),
+                None,
             );
             tv_clear(&raw mut items_tv);
             os_exit(0);
@@ -838,7 +838,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     c"vim._core.exmode".as_ptr(),
                     c"run".as_ptr(),
                     args.as_mut_ptr(),
-                    ptr::null_mut(),
+                    None,
                 );
             }
             if g_st().msg_didout {
@@ -967,7 +967,7 @@ pub fn getout(mut exitval: c_int) -> ! {
                             false,
                             buf,
                         );
-                        if bufref_valid(&raw mut bufref) {
+                        if bufref_valid(Some(&bufref)) {
                             buf_set_changedtick(&mut *buf, -1);
                         }
                         next_tp = g_st().first_tabpage;
@@ -984,7 +984,7 @@ pub fn getout(mut exitval: c_int) -> ! {
                     let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&mut bufref, buf);
                     apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf);
-                    if !bufref_valid(&raw mut bufref) {
+                    if !bufref_valid(Some(&bufref)) {
                         break;
                     }
                 }
@@ -2110,7 +2110,7 @@ fn create_windows(parmp: &mut mparm_T) {
                         (**curwin.as_ptr()).w_arg_idx = -1;
                         g_st().swap_exists_action = SEA_NONE;
                     } else {
-                        handle_swap_exists(ptr::null_mut());
+                        handle_swap_exists(None);
                     }
                     dorewind = true;
                 }
@@ -2649,7 +2649,7 @@ fn check_swap_exists_action() {
             ui_call_error_exit(1);
             getout(1);
         }
-        handle_swap_exists(ptr::null_mut());
+        handle_swap_exists(None);
 }
 
 #[cfg(test)]

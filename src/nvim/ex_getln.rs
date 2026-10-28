@@ -602,8 +602,8 @@ pub fn parse_pattern_and_range(
             c_int::from(*is_magic),
             false,
             None,
-            ptr::null_mut(),
-            &raw mut magic,
+            None,
+            Some(&mut magic),
         );
         let use_last_pat = end == p && *end as c_int == delim;
 
@@ -782,7 +782,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
                 count,
                 search_flags,
                 magic,
-                &raw mut sia,
+                Some(&mut sia),
             );
             g_st().emsg_off -= 1;
             *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) = next_char;
@@ -2030,7 +2030,7 @@ fn may_do_command_line_next_incsearch(
             search_flags,
             RE_SEARCH,
             magic,
-            ptr::null_mut(),
+            None,
         );
         g_st().emsg_off -= 1;
         if !dircp.is_null() {
@@ -2888,8 +2888,8 @@ fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
                 opt_vars().p_magic,
                 false,
                 None,
-                ptr::null_mut(),
-                &raw mut magic_val,
+                None,
+                Some(&mut magic_val),
             );
         } else {
             return true;
@@ -3858,7 +3858,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     }
                     let mut error = false;
                     let first_li = tv_list_first(l);
-                    let start = tv_get_number_chk(&(*first_li).li_tv, &mut error);
+                    let start = tv_get_number_chk(&(*first_li).li_tv, Some(&mut error));
                     if error {
                         break 'color_cmdline_error;
                     } else if !(prev_end <= start
@@ -3901,7 +3901,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         });
                     }
                     let second_li = (*first_li).li_next;
-                    let end = tv_get_number_chk(&(*second_li).li_tv, &mut error);
+                    let end = tv_get_number_chk(&(*second_li).li_tv, Some(&mut error));
                     if error {
                         break 'color_cmdline_error;
                     } else if !(start < end && end <= colored_ccline.cmdlen as varnumber_T) {
@@ -4954,7 +4954,7 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
 
-            pos = (tv_get_number_chk(&argvars[1], &mut error) - 1) as c_int;
+            pos = (tv_get_number_chk(&argvars[1], Some(&mut error)) - 1) as c_int;
             if error {
                 return;
             }
@@ -5113,7 +5113,7 @@ fn cmdwin_invoke(action: *const c_char, firstc: c_int, content: *mut c_char, pos
             } else {
                 tv_args.as_mut_ptr().add(3)
             },
-            ptr::null_mut(),
+            None,
         );
     }
 }

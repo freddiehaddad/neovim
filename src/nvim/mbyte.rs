@@ -2689,7 +2689,7 @@ pub fn utf_find_illegal() {
         'search: loop {
             let mut p = get_cursor_pos_ptr();
             if vimconv.vc_type != CONV_NONE {
-                tofree = string_convert(&vimconv, p, ptr::null_mut());
+                tofree = string_convert(&vimconv, p, None);
                 let Some(ref tf) = tofree else {
                     break;
                 };
@@ -3061,9 +3061,9 @@ pub fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
 fn iconv_string(
     vcp: &vimconv_T,
     str_: *const c_char,
-    slen: usize,unconvlenp: Option<&mut usize>,
-    resultlenp: *mut usize,
+    slen: usize,unconvlenp: Option<&mut usize>,resultlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
+    let resultlenp: *mut usize = resultlenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let unconvlenp: *mut usize = unconvlenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut to: *mut c_char;
@@ -3154,7 +3154,7 @@ pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
     if vimconv.vc_type == CONV_NONE {
         crate::eval::typval::tv_set_string(rettv, str_);
-    } else if let Some(conv_bytes) = string_convert(&vimconv, str_.cast_mut(), ptr::null_mut()) {
+    } else if let Some(conv_bytes) = string_convert(&vimconv, str_.cast_mut(), None) {
         crate::eval::typval::tv_set_string(rettv, conv_bytes.as_ptr().cast());
     }
 }
@@ -3234,18 +3234,18 @@ pub fn convert_setup_ext(
 
 pub fn string_convert(
     vcp: &vimconv_T,
-    ptr: *mut c_char,
-    lenp: *mut usize,
+    ptr: *mut c_char,lenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
-    string_convert_ext(vcp, ptr, lenp, None)
+    let lenp: *mut usize = lenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    string_convert_ext(vcp, ptr, (!lenp.is_null()).then(|| unsafe { &mut *lenp }), None)
 }
 
 pub fn string_convert_ext(
     vcp: &vimconv_T,
-    ptr: *mut c_char,
-    lenp: *mut usize,
+    ptr: *mut c_char,lenp: Option<&mut usize>,
     mut unconvlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
+    let lenp: *mut usize = lenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let len = if lenp.is_null() {
             CStr::from_ptr(ptr).to_bytes().len()
@@ -3359,7 +3359,7 @@ pub fn string_convert_ext(
                 out.push(0);
                 Some(out)
             }
-            CONV_ICONV => iconv_string(vcp, ptr, len, unconvlenp, lenp),
+            CONV_ICONV => iconv_string(vcp, ptr, len, unconvlenp, (!lenp.is_null()).then(||  { &mut *lenp })),
             _ => None,
         }
     }

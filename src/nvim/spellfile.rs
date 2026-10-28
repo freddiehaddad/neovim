@@ -1786,7 +1786,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                 let Some(pc_bytes) = string_convert(
                     &spin.si_conv,
                     rline.as_mut_ptr(),
-                    ptr::null_mut(),
+                    None,
                 ) else {
                     smsg!(
                         0,
@@ -2988,7 +2988,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 let Some(pc_bytes) = string_convert(
                     &spin.si_conv,
                     line.as_mut_ptr(),
-                    ptr::null_mut(),
+                    None,
                 ) else {
                     smsg!(
                         0,
@@ -3603,7 +3603,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
                 let Some(pc_bytes) = string_convert(
                     &spin.si_conv,
                     rline.as_mut_ptr(),
-                    ptr::null_mut(),
+                    None,
                 ) else {
                     smsg!(
                         0,

@@ -280,7 +280,7 @@ pub fn setmark(c: c_int) -> c_int {
             c,
             &mut (**curwin.as_ptr()).w_cursor,
             (*g_st().curbuf).b_fnum,
-            &raw const view as *mut fmarkv_T,
+            Some(&view),
         )
     }
 }
@@ -355,13 +355,14 @@ fn do_markset_autocmd(c: c_char, pos: &pos_T, buf: *mut buf_T) {
             ptr::null_mut(),
             AUGROUP_ALL,
             &mut *buf,
-            &raw mut dict_obj,
+            Some(&mut dict_obj),
         );
     }
 }
 
 /// Set named mark `c` to position `pos` (`setmark_pos`).
-pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut fmarkv_T) -> c_int {
+pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int,view_pt: Option<&fmarkv_T>) -> c_int {
+    let view_pt: *const fmarkv_T = view_pt.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let view = if !view_pt.is_null() {
             *view_pt
@@ -604,11 +605,11 @@ pub fn get_changelist(buf: &mut buf_T, win: &mut win_T, count: c_int) -> *mut fm
 /// Get a named mark (`mark_get`).
 pub fn mark_get(
     buf: &mut buf_T,
-    win: *mut win_T,
-    fmp: *mut fmark_T,
+    win: *mut win_T,fmp: Option<&mut fmark_T>,
     flag: MarkGet,
     name: c_int,
 ) -> *mut fmark_T {
+    let fmp: *mut fmark_T = fmp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut fm: *mut fmark_T = ptr::null_mut();
         if ascii_isupper(name) || ascii_isdigit(name) {
@@ -617,7 +618,7 @@ pub fn mark_get(
             if flag == kMarkBufLocal && (*xfm).fmark.fnum != buf.b_fnum {
                 return pos_to_mark(
                     &raw mut *buf,
-                    ptr::null_mut(),
+                    None,
                     pos_T {
                         lnum: 0,
                         col: 0,
@@ -660,13 +661,13 @@ pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fma
         let mark = if ascii_islower(name) {
             &raw mut buf.b_namedm[(name - b'a' as c_int) as usize]
         } else if name == b'[' as c_int {
-            pos_to_mark(&raw mut *buf, ptr::null_mut(), buf.b_op_start)
+            pos_to_mark(&raw mut *buf, None, buf.b_op_start)
         } else if name == b']' as c_int {
-            pos_to_mark(&raw mut *buf, ptr::null_mut(), buf.b_op_end)
+            pos_to_mark(&raw mut *buf, None, buf.b_op_end)
         } else if name == b'<' as c_int || name == b'>' as c_int {
             mark_get_visual(buf, name)
         } else if name == b'\'' as c_int || name == b'`' as c_int {
-            pos_to_mark(g_st().curbuf, ptr::null_mut(), (*win).w_pcmark)
+            pos_to_mark(g_st().curbuf, None, (*win).w_pcmark)
         } else if name == b'"' as c_int {
             &raw mut buf.b_last_cursor
         } else if name == b'^' as c_int {
@@ -708,7 +709,7 @@ pub fn mark_get_motion(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fm
                 c_int::from(NUL),
                 false,
             ) {
-                mark = pos_to_mark(buf, ptr::null_mut(), (*win).w_cursor);
+                mark = pos_to_mark(buf, None, (*win).w_cursor);
             }
         } else if (name == b'(' as c_int || name == b')' as c_int)
             && findsent(
@@ -720,7 +721,7 @@ pub fn mark_get_motion(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fm
                 1,
             ) != 0
         {
-            mark = pos_to_mark(buf, ptr::null_mut(), (*win).w_cursor);
+            mark = pos_to_mark(buf, None, (*win).w_cursor);
         }
         (**curwin.as_ptr()).w_cursor = pos;
         g_st().listcmd_busy = slcb;
@@ -738,9 +739,9 @@ pub fn mark_get_visual(buf: &mut buf_T, name: c_int) -> *mut fmark_T {
             mark = if ((name == b'<' as c_int) == lt(startp, endp) || endp.lnum == 0)
                 && startp.lnum != 0
             {
-                pos_to_mark(&raw mut *buf, ptr::null_mut(), startp)
+                pos_to_mark(&raw mut *buf, None, startp)
             } else {
-                pos_to_mark(&raw mut *buf, ptr::null_mut(), endp)
+                pos_to_mark(&raw mut *buf, None, endp)
             };
 
             if buf.b_visual.vi_mode == b'V' as c_int {
@@ -753,7 +754,8 @@ pub fn mark_get_visual(buf: &mut buf_T, name: c_int) -> *mut fmark_T {
 }
 
 /// Wrap a `pos_T` into an `fmark_T` (`pos_to_mark`).
-pub fn pos_to_mark(buf: *mut buf_T, fmp: *mut fmark_T, pos: pos_T) -> *mut fmark_T {
+pub fn pos_to_mark(buf: *mut buf_T,fmp: Option<&mut fmark_T>, pos: pos_T) -> *mut fmark_T {
+    let fmp: *mut fmark_T = fmp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let fm = if fmp.is_null() {
             &raw mut mark_st().POS_TO_MARK_FMS
@@ -842,7 +844,7 @@ pub fn mark_view_restore(fm: *mut fmark_T) {
             if topline >= 1 {
                 set_topline(&mut **curwin.as_ptr(), topline);
                 (**curwin.as_ptr()).w_skipcol = if (*fm).view.skipcol > 0
-                    && !hasFolding(*curwin.as_ptr(), topline, ptr::null_mut(), ptr::null_mut())
+                    && !hasFolding(*curwin.as_ptr(), topline, None, ptr::null_mut())
                     && (*fm).view.skipcol < linetabsize_eol(*curwin.as_ptr(), topline)
                 {
                     (*fm).view.skipcol

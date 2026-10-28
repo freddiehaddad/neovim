@@ -2798,9 +2798,9 @@ fn do_source_ext(
 
             if str_ptr.is_null() {
                 let has_sourcecmd = if fname.is_null() {
-                    has_autocmd(EVENT_SOURCECMD, fname_exp, ptr::null_mut())
+                    has_autocmd(EVENT_SOURCECMD, fname_exp, None)
                 } else {
-                    has_autocmd_fullname(EVENT_SOURCECMD, fname_exp, ptr::null_mut())
+                    has_autocmd_fullname(EVENT_SOURCECMD, fname_exp, None)
                 };
                 if has_sourcecmd
                     && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, g_st().curbuf)
@@ -2934,7 +2934,7 @@ fn do_source_ext(
 
             if l_do_profiling == PROF_YES && !si.is_null() {
                 let mut forceit = false;
-                if !(*si).sn_prof_on && has_profiling(true, (*si).name_ptr(), &mut forceit) {
+                if !(*si).sn_prof_on && has_profiling(true, (*si).name_ptr(), Some(&mut forceit)) {
                     profile_init(si);
                     (*si).sn_pr_force = forceit;
                 }
@@ -3001,7 +3001,7 @@ fn do_source_ext(
                     convert_setup(&mut cookie.conv, c"utf-8".as_ptr().cast_mut(), opt_vars().p_enc);
                     let after_bom = fl.as_ptr().add(3).cast_mut();
                     firstline = Some(
-                        string_convert(&cookie.conv, after_bom, ptr::null_mut()).map_or_else(
+                        string_convert(&cookie.conv, after_bom, None).map_or_else(
                             || cstr_to_cstring(after_bom),
                             |v| cstr_to_cstring(v.as_ptr().cast()),
                         ),
@@ -3275,7 +3275,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             let sid_di = tv_dict_find(arg_dict, c"sid".as_ptr(), 3);
             if !sid_di.is_null() {
                 let mut error = false;
-                sid = tv_get_number_chk(&(*sid_di).di_tv, &mut error);
+                sid = tv_get_number_chk(&(*sid_di).di_tv, Some(&mut error));
                 if error {
                     return;
                 }
@@ -3404,7 +3404,7 @@ pub fn getsourceline(
             let len = b.len().saturating_sub(usize::from(b.last() == Some(&NUL)));
             if sp.conv.vc_type != CONV_NONE
                 && let Some(s) =
-                    string_convert(&sp.conv, b.as_ptr().cast_mut(), ptr::null_mut())
+                    string_convert(&sp.conv, b.as_ptr().cast_mut(), None)
             {
                 cstr_to_cstring(s.as_ptr().cast())
             } else {

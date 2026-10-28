@@ -240,7 +240,7 @@ fn fill_assert_error(
                 }
             }
 
-            let tofree = encode_tv2string(&mut *exp_tv, std::ptr::null_mut());
+            let tofree = encode_tv2string(&mut *exp_tv, None);
             ga_concat_shorten_esc(gap, tofree.as_ptr());
         } else {
             if atype == AssertType::Fails {
@@ -260,7 +260,7 @@ fn fill_assert_error(
             } else {
                 ga_concat_literal(gap, b" but got ");
             }
-            let tofree = encode_tv2string(&mut *got_tv, std::ptr::null_mut());
+            let tofree = encode_tv2string(&mut *got_tv, None);
             ga_concat_shorten_esc(gap, tofree.as_ptr());
 
             if omitted != 0 {
@@ -339,7 +339,7 @@ fn assert_bool(argvars: &mut [typval_T], is_true: bool) -> c_int {
         K_BOOL_VAR_FALSE
     };
     if (arg0.v_type != VarType::VAR_NUMBER
-        || (tv_get_number_chk(&argvars[0], &mut error) == 0) == is_true
+        || (tv_get_number_chk(&argvars[0], Some(&mut error)) == 0) == is_true
         || error)
         && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_bool() != expected_bool as c_int)
     {
@@ -831,9 +831,9 @@ fn assert_inrange(argvars: &mut [typval_T]) -> c_int {
             return 1;
         }
     } else {
-        let lower = tv_get_number_chk(arg0, &mut error);
-        let upper = tv_get_number_chk(arg1, &mut error);
-        let actual = tv_get_number_chk(arg2, &mut error);
+        let lower = tv_get_number_chk(arg0, Some(&mut error));
+        let upper = tv_get_number_chk(arg1, Some(&mut error));
+        let actual = tv_get_number_chk(arg2, Some(&mut error));
 
         if error {
             return 0;

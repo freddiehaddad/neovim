@@ -462,7 +462,7 @@ fn buf_write_do_autocmds(
 
         ctx_restore(&mut aco);
 
-        if !bufref_valid(&raw mut bufref) {
+        if !bufref_valid(Some(&bufref)) {
             buf = ptr::null_mut();
         }
         if buf.is_null()
@@ -1908,7 +1908,7 @@ pub fn buf_write(
                                     iobuf,
                                     msg_id.as_mut_ptr(),
                                     c"bufwrite".as_ptr(),
-                                    ptr::null_mut(),
+                                    None,
                                     0,
                                     true,
                                     true,

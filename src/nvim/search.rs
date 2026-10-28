@@ -562,8 +562,8 @@ pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
             opt_vars().p_magic,
             false,
             None,
-            ptr::null_mut(),
-            &raw mut magic_val,
+            None,
+            Some(&mut magic_val),
         );
 
         while *p != NUL {
@@ -703,9 +703,9 @@ pub fn searchit(
     mut count: c_int,
     options: c_int,
     pat_use: c_int,
-    magic: bool,
-    extra_arg: *mut searchit_arg_T,
+    magic: bool,extra_arg: Option<&mut searchit_arg_T>,
 ) -> c_int {
+    let extra_arg: *mut searchit_arg_T = extra_arg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut found: c_int;
         let mut lnum: linenr_T;
@@ -1177,8 +1177,8 @@ pub fn parse_search_pattern_offset(
             opt_vars().p_magic,
             true,
             Some(strcopy),
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
         );
         if !had_copy && !strcopy.is_empty() {
             let new_ptr = strcopy.as_mut_ptr();
@@ -1242,9 +1242,9 @@ pub fn do_search(
     mut patlen: usize,
     count: c_int,
     options: c_int,
-    magic: bool,
-    sia: *mut searchit_arg_T,
+    magic: bool,sia: Option<&mut searchit_arg_T>,
 ) -> c_int {
+    let sia: *mut searchit_arg_T = sia.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut searchstr: *mut c_char;
         let mut searchstrlen: usize;
@@ -1282,10 +1282,10 @@ pub fn do_search(
         }
 
         if dirc == b'/' as c_int {
-            if hasFolding(*curwin.as_ptr(), pos.lnum, ptr::null_mut(), &raw mut pos.lnum) {
+            if hasFolding(*curwin.as_ptr(), pos.lnum, None, &raw mut pos.lnum) {
                 pos.col = MAXCOL - 2;
             }
-        } else if hasFolding(*curwin.as_ptr(), pos.lnum, &raw mut pos.lnum, ptr::null_mut()) {
+        } else if hasFolding(*curwin.as_ptr(), pos.lnum, Some(&mut pos.lnum), ptr::null_mut()) {
             pos.col = 0;
         }
 
@@ -1520,7 +1520,7 @@ pub fn do_search(
                             })),
                 RE_LAST,
                 magic,
-                sia,
+                (!sia.is_null()).then(||  { &mut *sia }),
             ));
 
             if !dircp.is_null() {
@@ -1603,7 +1603,7 @@ pub fn do_search(
                             && hasFolding(
                                 *curwin.as_ptr(),
                                 (**curwin.as_ptr()).w_cursor.lnum,
-                                ptr::null_mut(),
+                                None,
                                 ptr::null_mut(),
                             )),
                     opt_vars().p_msc as c_int,
@@ -2504,9 +2504,9 @@ pub fn showmatch(c: c_int) {
             getvcol(
                 &mut **curwin.as_ptr(),
                 &mut *lpos,
-                ptr::null_mut(),
-                &raw mut vcol,
-                ptr::null_mut(),
+                None,
+                Some(&mut vcol),
+                None,
                 0,
             );
         }
@@ -2619,7 +2619,7 @@ pub fn current_search(count: c_int, forward: bool) -> c_int {
                 SEARCH_KEEP | flags,
                 RE_SEARCH,
                 opt_vars().p_magic != 0,
-                ptr::null_mut(),
+                None,
             );
 
             opt_vars().p_ws = old_p_ws;
@@ -2736,7 +2736,7 @@ fn is_zero_width(
             SEARCH_KEEP + flag,
             RE_SEARCH,
             opt_vars().p_magic != 0,
-            ptr::null_mut(),
+            None,
         ) != FAIL
         {
             let mut nmatched: c_int;
@@ -2982,7 +2982,7 @@ fn update_search_stat(
                     SEARCH_KEEP,
                     RE_LAST,
                     opt_vars().p_magic != 0,
-                    ptr::null_mut(),
+                    None,
                 ) != FAIL
             {
                 done_search = true;
@@ -3047,14 +3047,14 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             let dict: *mut dict_T = argvars[0].vval.v_dict();
             let mut di: *mut dictitem_T = tv_dict_find(dict, c"timeout".as_ptr(), -1);
             if !di.is_null() {
-                timeout = tv_get_number_chk(&(*di).di_tv, &mut error) as c_int;
+                timeout = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as c_int;
                 if error {
                     return;
                 }
             }
             di = tv_dict_find(dict, c"maxcount".as_ptr(), -1);
             if !di.is_null() {
-                maxcount = tv_get_number_chk(&(*di).di_tv, &mut error) as c_int;
+                maxcount = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as c_int;
                 if error {
                     return;
                 }
@@ -3083,7 +3083,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 let mut li: *mut listitem_T = tv_list_find((*di).di_tv.vval.v_list(), 0);
                 if !li.is_null() {
                     pos.lnum =
-                        tv_get_number_chk(&(*li).li_tv, &mut error) as linenr_T;
+                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as linenr_T;
                     if error {
                         return;
                     }
@@ -3091,7 +3091,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 li = tv_list_find((*di).di_tv.vval.v_list(), 1);
                 if !li.is_null() {
                     pos.col =
-                        tv_get_number_chk(&(*li).li_tv, &mut error) as colnr_T - 1;
+                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as colnr_T - 1;
                     if error {
                         return;
                     }
@@ -3099,7 +3099,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 li = tv_list_find((*di).di_tv.vval.v_list(), 2);
                 if !li.is_null() {
                     pos.coladd =
-                        tv_get_number_chk(&(*li).li_tv, &mut error) as colnr_T;
+                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as colnr_T;
                     if error {
                         return;
                     }
@@ -3297,7 +3297,7 @@ pub fn find_pattern_in_path(
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
                         p_fname,
-                        ptr::null_mut(),
+                        None,
                     )
                 }
                 .map(|cstr| {

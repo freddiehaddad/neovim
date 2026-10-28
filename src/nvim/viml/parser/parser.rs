@@ -80,7 +80,7 @@ fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: &mut Pa
             size: pline.size,
         };
         if let Some(conv_bytes) =
-            string_convert(&preader.conv, pline.data.cast_mut(), &mut cpline.size)
+            string_convert(&preader.conv, pline.data.cast_mut(), Some(&mut cpline.size))
         {
             cpline.data = conv_bytes.as_ptr().cast::<c_char>();
             preader.owned_lines.push(conv_bytes);

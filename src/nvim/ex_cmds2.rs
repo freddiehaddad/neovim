@@ -135,7 +135,7 @@ pub fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
         set_bufref(&mut bufref, &raw mut *buf);
         let mut r = buf_write_all(buf, forceit);
 
-        if bufref_valid(&raw mut bufref) && bufIsChanged(buf) {
+        if bufref_valid(Some(&bufref)) && bufIsChanged(buf) {
             r = FAIL;
         }
         r
@@ -154,7 +154,7 @@ pub fn autowrite_all() {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&mut bufref, buf);
                 buf_write_all(&mut *buf, false);
-                if !bufref_valid(&raw mut bufref) {
+                if !bufref_valid(Some(&bufref)) {
                     buf = g_st().firstbuf;
                     continue;
                 }
@@ -188,11 +188,11 @@ pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
                         buf2 = (*buf2).b_next;
                     }
                 }
-                if !bufref_valid(&raw mut bufref) {
+                if !bufref_valid(Some(&bufref)) {
                     return false;
                 }
                 dialog_changed(buf, count > 1);
-                if !bufref_valid(&raw mut bufref) {
+                if !bufref_valid(Some(&bufref)) {
                     return false;
                 }
                 return bufIsChanged(buf);
@@ -267,7 +267,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
                     {
                         buf_write_all(&mut *buf2, false);
                     }
-                    if !bufref_valid(&raw mut bufref) {
+                    if !bufref_valid(Some(&bufref)) {
                         buf2 = g_st().firstbuf;
                         continue;
                     }
@@ -371,7 +371,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 if check_changed(
                     &mut *buf,
                     (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 }) | CCGD_MULTWIN | CCGD_ALLBUF,
-                ) && bufref_valid(&raw mut bufref)
+                ) && bufref_valid(Some(&bufref))
                 {
                     break;
                 }
@@ -423,7 +423,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                             let mut bufref: bufref_T = bufref_T::new();
                             set_bufref(&mut bufref, buf);
                             goto_tabpage_win(&mut *tp, wp);
-                            if !bufref_valid(&raw mut bufref) {
+                            if !bufref_valid(Some(&bufref)) {
                                 wiped = true;
                             }
                             found = true;

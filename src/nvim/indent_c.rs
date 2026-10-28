@@ -703,9 +703,9 @@ fn get_indent_nolabel(lnum: linenr_T) -> c_int {
         getvcol(
             &mut **curwin.as_ptr(),
             &mut fp,
-            &raw mut col,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            Some(&mut col),
+            None,
+            None,
             0,
         );
         col
@@ -775,9 +775,9 @@ fn cin_first_id_amount() -> c_int {
         getvcol(
             &mut **curwin.as_ptr(),
             &mut fp,
-            &raw mut col,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            Some(&mut col),
+            None,
+            None,
             0,
         );
         col
@@ -819,9 +819,9 @@ fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
         getvcol(
             &mut **curwin.as_ptr(),
             &mut fp,
-            &raw mut col,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            Some(&mut col),
+            None,
+            None,
             0,
         );
         col
@@ -1270,9 +1270,9 @@ fn get_baseclass_amount(col: colnr_T) -> c_int {
             getvcol(
                 &mut **curwin.as_ptr(),
                 &mut (**curwin.as_ptr()).w_cursor,
-                &raw mut vcol,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                Some(&mut vcol),
+                None,
+                None,
                 0,
             );
             amount = vcol;
@@ -1731,9 +1731,9 @@ pub fn get_c_indent() -> c_int {
                         getvcol(
                             &mut **curwin.as_ptr(),
                             &mut *trypos,
-                            &raw mut col,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
+                            Some(&mut col),
+                            None,
+                            None,
                             0,
                         );
                         amount = col;
@@ -1753,9 +1753,9 @@ pub fn get_c_indent() -> c_int {
                     getvcol(
                         &mut **curwin.as_ptr(),
                         &mut *comment_pos,
-                        &raw mut col,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        Some(&mut col),
+                        None,
+                        None,
                         0,
                     );
                     amount = col;
@@ -1866,9 +1866,9 @@ pub fn get_c_indent() -> c_int {
                             getvcol(
                                 &mut **curwin.as_ptr(),
                                 &mut *comment_pos,
-                                &raw mut col,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
+                                Some(&mut col),
+                                None,
+                                None,
                                 0,
                             );
                             amount = col;
@@ -2031,9 +2031,9 @@ pub fn get_c_indent() -> c_int {
                                     getvcol(
                                         &mut **curwin.as_ptr(),
                                         &mut our_paren_pos,
-                                        &raw mut col,
-                                        ptr::null_mut(),
-                                        ptr::null_mut(),
+                                        Some(&mut col),
+                                        None,
+                                        None,
                                         0,
                                     );
                                     if cur_amount > col {
@@ -2101,9 +2101,9 @@ pub fn get_c_indent() -> c_int {
                             getvcol(
                                 &mut **curwin.as_ptr(),
                                 &mut *trypos,
-                                &raw mut col,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
+                                Some(&mut col),
+                                None,
+                                None,
                                 0,
                             );
                             amount = col;

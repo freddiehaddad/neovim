@@ -2451,9 +2451,9 @@ pub fn aucmd_span_pattern(mut pat: *const c_char, start: *mut *const c_char) -> 
 
 pub fn do_doautocmd(
     arg_start: *mut c_char,
-    do_msg: bool,
-    did_something: *mut bool,
+    do_msg: bool,did_something: Option<&mut bool>,
 ) -> c_int {
+    let did_something: *mut bool = did_something.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut arg = arg_start;
         let mut nothing_done = true;
@@ -2525,7 +2525,7 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             set_bufref(&mut bufref, buf);
 
-            retval = do_doautocmd(arg, false, &raw mut did_aucmd);
+            retval = do_doautocmd(arg, false, Some(&mut did_aucmd));
 
             if call_do_modelines && did_aucmd {
                 do_modelines(if is_ctx_win(*curwin.as_ptr()) { OPT_NOWIN } else { 0 });
@@ -2533,7 +2533,7 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
 
             ctx_restore(&mut aco);
 
-            if retval == FAIL || !bufref_valid(&raw mut bufref) {
+            if retval == FAIL || !bufref_valid(Some(&bufref)) {
                 retval = FAIL;
                 break;
             }
@@ -2541,7 +2541,7 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
         }
 
         if retval == OK {
-            do_doautocmd(arg, false, &raw mut did_aucmd);
+            do_doautocmd(arg, false, Some(&mut did_aucmd));
             if call_do_modelines && did_aucmd {
                 do_modelines(0);
             }
@@ -2565,9 +2565,9 @@ pub fn aucmd_defer(
     fname: *mut c_char,
     fname_io: *mut c_char,
     group: c_int,
-    buf: &mut buf_T,
-    data: *mut Object,
+    buf: &mut buf_T,data: Option<&mut Object>,
 ) {
+    let data: *mut Object = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let evdata = Box::new(AutoCmdEvent {
             event,
@@ -3491,10 +3491,10 @@ pub fn getnextac(
 
 fn has_autocmd_ext(
     event: event_T,
-    sfname: *mut c_char,
-    buf: *mut buf_T,
+    sfname: *mut c_char,buf: Option<&mut buf_T>,
     is_full: bool,
 ) -> bool {
+    let buf: *mut buf_T = buf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if !has_event(event) {
             return false;
@@ -3538,12 +3538,14 @@ fn has_autocmd_ext(
     }
 }
 
-pub fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *mut buf_T) -> bool {
-    has_autocmd_ext(event, sfname, buf, false)
+pub fn has_autocmd(event: event_T, sfname: *mut c_char,buf: Option<&mut buf_T>) -> bool {
+    let buf: *mut buf_T = buf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    has_autocmd_ext(event, sfname, (!buf.is_null()).then(|| unsafe { &mut *buf }), false)
 }
 
-pub fn has_autocmd_fullname(event: event_T, fname: *mut c_char, buf: *mut buf_T) -> bool {
-    has_autocmd_ext(event, fname, buf, true)
+pub fn has_autocmd_fullname(event: event_T, fname: *mut c_char,buf: Option<&mut buf_T>) -> bool {
+    let buf: *mut buf_T = buf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    has_autocmd_ext(event, fname, (!buf.is_null()).then(|| unsafe { &mut *buf }), true)
 }
 
 pub fn expand_get_augroup_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {

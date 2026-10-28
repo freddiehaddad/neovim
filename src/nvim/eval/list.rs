@@ -76,7 +76,7 @@ fn filter_map_one(
         }
         if filtermap == FilterMap::Filter {
             let mut error = false;
-            *remp = tv_get_number_chk(&*newtv, &mut error) == 0;
+            *remp = tv_get_number_chk(&*newtv, Some(&mut error)) == 0;
             tv_clear(newtv);
             if error {
                 tv_clear(get_vim_var_tv(VV_VAL));
@@ -492,7 +492,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 && !value_check_lock((*b).bv_lock, c"add() argument".as_ptr(), TV_TRANSLATE)
             {
                 let mut error = false;
-                let n = tv_get_number_chk(&argvars[1], &mut error);
+                let n = tv_get_number_chk(&argvars[1], Some(&mut error));
                 if !error {
                     let bv = &mut (*b).bv_ga;
                     bv.push(n as u8);
@@ -598,7 +598,7 @@ pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     let arg3 = &argvars[3];
 
     if arg2.v_type != VarType::VAR_UNKNOWN {
-        ic = tv_get_bool_chk(arg2, &mut error) != 0;
+        ic = tv_get_bool_chk(arg2, Some(&mut error)) != 0;
     }
 
     if !error && arg0.v_type == VarType::VAR_STRING {
@@ -606,7 +606,7 @@ pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     } else if !error && arg0.v_type == VarType::VAR_LIST {
         let mut idx: i64 = 0;
         if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
-            idx = tv_get_number_chk(arg3, &mut error);
+            idx = tv_get_number_chk(arg3, Some(&mut error));
         }
         if !error {
             n = count_list(arg0.vval.v_list(), arg1, idx, ic);
@@ -714,7 +714,7 @@ fn extend_list(argvars: &mut [typval_T],
             let mut item: *mut listitem_T = std::ptr::null_mut();
             let arg2 = &argvars[2];
             if arg2.v_type != VarType::VAR_UNKNOWN {
-                let before = tv_get_number_chk(arg2, &mut error) as c_int;
+                let before = tv_get_number_chk(arg2, Some(&mut error)) as c_int;
                 if error {
                     if is_new {
                         tv_list_unref(l1);
@@ -802,7 +802,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let len = tv_blob_len(b);
 
             if arg2.v_type != VarType::VAR_UNKNOWN {
-                before = tv_get_number_chk(arg2, &mut error) as c_int;
+                before = tv_get_number_chk(arg2, Some(&mut error)) as c_int;
                 if error {
                     return;
                 }
@@ -811,7 +811,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                     return;
                 }
             }
-            let val = tv_get_number_chk(arg1, &mut error) as c_int;
+            let val = tv_get_number_chk(arg1, Some(&mut error)) as c_int;
             if error {
                 return;
             }
@@ -839,7 +839,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
             let mut before: i64 = 0;
             if arg2.v_type != VarType::VAR_UNKNOWN {
-                before = tv_get_number_chk(arg2, &mut error);
+                before = tv_get_number_chk(arg2, Some(&mut error));
             }
             if error {
                 return;

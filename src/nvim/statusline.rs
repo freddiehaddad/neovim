@@ -2071,7 +2071,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     let l = ml_find_line_or_offset(
                         &mut *(*wp).w_buffer,
                         (*wp).w_cursor.lnum,
-                        ptr::null_mut(),
+                        None,
                         false,
                     );
                     num = if ((*(*wp).w_buffer).b_ml.ml_flags & ML_EMPTY) != 0 || l < 0 {

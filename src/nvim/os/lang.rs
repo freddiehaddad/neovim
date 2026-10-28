@@ -349,7 +349,7 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
             if let Some(mut slice) = string_convert(
                     &vc,
                     bytes.as_ptr().cast::<c_char>().cast_mut(),
-                    &raw mut len,
+                    Some(&mut len),
                 ) {
                 slice.truncate(len);
                 return slice;

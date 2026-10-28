@@ -3518,7 +3518,7 @@ fn win_close_buffer(win: *mut win_T, action: c_int, abort_if_last: bool) -> bool
                 (*win).w_locked -= 1;
             }
 
-            if !bufref_valid(&raw mut bufref) {
+            if !bufref_valid(Some(&bufref)) {
                 g_st().curbuf = g_st().firstbuf;
             }
         }
@@ -3792,7 +3792,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             g_st().redraw_cmdline = true;
         }
         if !bufref.br_buf.is_null()
-            && bufref_valid(&raw mut bufref)
+            && bufref_valid(Some(&bufref))
             && !(*bufref.br_buf).terminal.is_null()
         {
             terminal_check_size(&mut *(*bufref.br_buf).terminal);
@@ -4056,7 +4056,7 @@ pub fn win_close_othertab(
         win_free_mem(win, &mut dir, tp);
 
         if !bufref.br_buf.is_null()
-            && bufref_valid(&raw mut bufref)
+            && bufref_valid(Some(&bufref))
             && !(*bufref.br_buf).terminal.is_null()
         {
             terminal_check_size(&mut *(*bufref.br_buf).terminal);
@@ -4077,7 +4077,7 @@ pub fn win_close_othertab(
                     prev_idx.as_mut_ptr(),
                     prev_idx.as_mut_ptr(),
                     false,
-                    if !bufref.br_buf.is_null() && bufref_valid(&raw mut bufref) {
+                    if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) {
                         bufref.br_buf
                     } else {
                         g_st().curbuf
@@ -5746,7 +5746,7 @@ pub fn tabpage_move(nr: c_int) {
                 ptr::null_mut(),
                 AUGROUP_ALL,
                 &mut *g_st().curbuf,
-                &raw mut obj,
+                Some(&mut obj),
             );
         }
     }
@@ -6795,7 +6795,7 @@ pub fn may_trigger_win_scrolled_resized() {
 
             if tv_dict_add_list(v_event, c"windows".as_ptr(), 7, windows_list) == OK {
                 tv_dict_set_keys_readonly(&mut *v_event);
-                let buf = if bufref_valid(&raw mut resize_bufref) {
+                let buf = if bufref_valid(Some(&resize_bufref)) {
                     resize_bufref.br_buf
                 } else {
                     g_st().curbuf
@@ -6825,7 +6825,7 @@ pub fn may_trigger_win_scrolled_resized() {
             tv_dict_set_keys_readonly(&mut *v_event);
             tv_dict_unref(scroll_dict);
 
-            let buf = if bufref_valid(&raw mut scroll_bufref) {
+            let buf = if bufref_valid(Some(&scroll_bufref)) {
                 scroll_bufref.br_buf
             } else {
                 g_st().curbuf
@@ -7602,7 +7602,7 @@ pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
                 }
             } else if sline > 0 {
                 while sline > 0 && lnum > 1 {
-                    hasFolding(wp, lnum, &raw mut lnum, ptr::null_mut());
+                    hasFolding(wp, lnum, Some(&mut lnum), ptr::null_mut());
                     if lnum == 1 {
                         line_size = c_int::from(!decor_conceal_line(wp, lnum - 1, false));
                         sline -= 1;
@@ -7618,7 +7618,7 @@ pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
                 }
 
                 if sline < 0 {
-                    hasFolding(wp, lnum, ptr::null_mut(), &raw mut lnum);
+                    hasFolding(wp, lnum, None, &raw mut lnum);
                     lnum += 1;
                     wp.w_wrow -= line_size + sline;
                 } else if sline > 0 {

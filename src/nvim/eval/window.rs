@@ -217,7 +217,7 @@ pub fn win_findbuf(argvars: &mut [typval_T], list: *mut list_T) {
 /// Find window specified by `vp` in tabpage `tp` (`find_win_by_nr`).
 pub fn find_win_by_nr(vp: &typval_T, mut tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
-        let nr = tv_get_number_chk(vp, ptr::null_mut()) as c_int;
+        let nr = tv_get_number_chk(vp, None) as c_int;
 
         if nr < 0 {
             return ptr::null_mut();
@@ -249,7 +249,7 @@ pub fn find_win_by_nr(vp: &typval_T, mut tp: *mut tabpage_T) -> *mut win_T {
 /// Find a window: When using a Window ID in any tab page, when using a number
 /// in the current tab page (`find_win_by_nr_or_id`).
 pub fn find_win_by_nr_or_id(vp: &typval_T) -> *mut win_T {
-    let nr = tv_get_number_chk(vp, ptr::null_mut()) as c_int;
+    let nr = tv_get_number_chk(vp, None) as c_int;
 
     if nr >= LOWEST_WIN_ID {
         return win_id2wp(tv_get_number(vp) as c_int);
@@ -531,7 +531,7 @@ pub fn f_gettabinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         );
 
         if argvars[0].v_type != VarType::VAR_UNKNOWN {
-            tparg = find_tabpage(tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int);
+            tparg = find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int);
             if tparg.is_null() {
                 return;
             }

@@ -810,7 +810,7 @@ pub fn pum_redraw() {
 
         if border_width > 0 {
             let mut err = Error::new();
-            if !parse_winborder(&raw mut fconfig, opt_vars().p_pumborder, &mut err) {
+            if !parse_winborder(Some(&mut fconfig), opt_vars().p_pumborder, &mut err) {
                 if err.err_type != ErrorType::kErrorTypeNone {
                     emsg(err.msg_ptr());
                 }

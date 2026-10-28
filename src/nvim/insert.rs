@@ -657,7 +657,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
                 } else if hasFolding(
                     *curwin.as_ptr(),
                     (**curwin.as_ptr()).w_topline,
-                    ptr::null_mut(),
+                    None,
                     &raw mut s.old_topline,
                 ) {
                     set_topline(&mut **curwin.as_ptr(), s.old_topline + 1);
@@ -1072,7 +1072,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     g_st().pum_want.active = false;
                 }
 
-                let changed = bufref_valid(&raw mut save_curbuf)
+                let changed = bufref_valid(Some(&save_curbuf))
                     && g_st().curbuf == save_curbuf.br_buf
                     && tick != buf_get_changedtick(&*g_st().curbuf);
                 if (*g_st().curbuf).b_u_synced || changed {
@@ -1525,20 +1525,20 @@ pub fn edit_putchar(c: c_int, highlight: bool) {
         grid_line_start(&raw mut (**curwin.as_ptr()).w_grid, ins_st().pc_row);
         if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
             ins_st().pc_col = (**curwin.as_ptr()).w_view_width - 1 - (**curwin.as_ptr()).w_wcol;
-            if grid_line_getchar(ins_st().pc_col, ptr::null_mut()) == 0 {
+            if grid_line_getchar(ins_st().pc_col, None) == 0 {
                 grid_line_put_schar(ins_st().pc_col - 1, schar_from_ascii(b' '), attr);
                 (**curwin.as_ptr()).w_wcol -= 1;
                 ins_st().pc_status = PC_STATUS_RIGHT;
             }
         } else {
             ins_st().pc_col = (**curwin.as_ptr()).w_wcol;
-            if grid_line_getchar(ins_st().pc_col + 1, ptr::null_mut()) == 0 {
+            if grid_line_getchar(ins_st().pc_col + 1, None) == 0 {
                 ins_st().pc_status = PC_STATUS_LEFT;
             }
         }
 
         if ins_st().pc_status == PC_STATUS_UNSET {
-            ins_st().pc_schar = grid_line_getchar(ins_st().pc_col, &raw mut ins_st().pc_attr);
+            ins_st().pc_schar = grid_line_getchar(ins_st().pc_col, Some(&mut ins_st().pc_attr));
             ins_st().pc_status = PC_STATUS_SET;
         }
 
@@ -2371,7 +2371,7 @@ pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
         if n >= lnum {
             lnum = 1;
         } else if win_lines_concealed(&mut *wp) {
-            hasFolding(&raw mut *wp, lnum, &raw mut lnum, ptr::null_mut());
+            hasFolding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
             while n > 0 {
                 n -= 1;
                 lnum -= 1;
@@ -2382,7 +2382,7 @@ pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
                     n += 1;
                 }
                 if n > 0 || !((g_st().State & MODE_INSERT) != 0 || (opt_vars().fdo_flags & kOptFdoFlagAll) != 0) {
-                    hasFolding(&raw mut *wp, lnum, &raw mut lnum, ptr::null_mut());
+                    hasFolding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
                 }
             }
             lnum = lnum.max(1);
@@ -2422,7 +2422,7 @@ pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
                 if hasFoldingWin(
                     &raw mut *wp,
                     lnum,
-                    ptr::null_mut(),
+                    None,
                     &raw mut last,
                     true,
                     None,
@@ -2453,7 +2453,7 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
         hasFoldingWin(
             *curwin.as_ptr(),
             lnum,
-            ptr::null_mut(),
+            None,
             &raw mut lnum,
             true,
             None,
@@ -2657,9 +2657,9 @@ fn replace_do_bs(limit_col: c_int) {
                 getvcol(
                     &mut **curwin.as_ptr(),
                     &mut (**curwin.as_ptr()).w_cursor,
-                    ptr::null_mut(),
-                    &raw mut start_vcol,
-                    ptr::null_mut(),
+                    None,
+                    Some(&mut start_vcol),
+                    None,
                     0,
                 );
                 orig_vcols = win_chartabsize(&mut **curwin.as_ptr(), get_cursor_pos_ptr(), start_vcol);
@@ -3737,17 +3737,17 @@ fn ins_tab() -> bool {
             getvcol(
                 &mut **curwin.as_ptr(),
                 &mut fpos,
-                &raw mut vcol,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                Some(&mut vcol),
+                None,
+                None,
                 0,
             );
             getvcol(
                 &mut **curwin.as_ptr(),
                 &mut *cursor,
-                &raw mut want_vcol,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                Some(&mut want_vcol),
+                None,
+                None,
                 0,
             );
 
@@ -3871,7 +3871,7 @@ pub fn ins_eol(c: c_int) -> bool {
                 0
             },
             g_st().old_indent,
-            ptr::null_mut(),
+            None,
         );
         g_st().old_indent = 0;
         g_st().Ins.can_cindent = true;

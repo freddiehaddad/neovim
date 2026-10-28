@@ -1304,7 +1304,7 @@ fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
         if state.vc.vc_type != CONV_NONE
             && !cur_linebuf.is_null() && !std::ffi::CStr::from_ptr(cur_linebuf).to_bytes().is_ascii()
             && let Some(line) =
-                string_convert(&state.vc, cur_linebuf, &raw mut state.linelen)
+                string_convert(&state.vc, cur_linebuf, Some(&mut state.linelen))
         {
             if state.linelen < IOSIZE {
                 xstrlcpy(cur_linebuf, line.as_ptr().cast(), state.linelen + 1);
@@ -2605,7 +2605,7 @@ fn qf_get_fnum(
             .unwrap()
             .as_ref()
             .is_some_and(|last| std::ffi::CStr::from_ptr(bufname_ptr).to_bytes() == std::ffi::CStr::from_ptr(last.as_ptr()).to_bytes());
-        let buf = if same_as_last && bufref_valid(&raw mut qf_st().qf_last_bufref) {
+        let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
             drop(ptr_cstr);
             qf_st().qf_last_bufref.br_buf
         } else {
@@ -3256,7 +3256,7 @@ fn qf_jump_goto_line(
                 1,
                 SEARCH_KEEP,
                 opt_vars().p_magic != 0,
-                ptr::null_mut(),
+                None,
             ) == 0
             {
                 (**curwin.as_ptr()).w_cursor = save_cursor;
@@ -6026,7 +6026,7 @@ fn load_dummy_buffer(
 
             ctx_restore(&mut aco);
 
-            if !newbuf_to_wipe.br_buf.is_null() && bufref_valid(&raw mut newbuf_to_wipe) {
+            if !newbuf_to_wipe.br_buf.is_null() && bufref_valid(Some(&newbuf_to_wipe)) {
                 block_autocmds();
                 wipe_dummy_buffer(&mut *newbuf_to_wipe.br_buf, ptr::null_mut());
                 unblock_autocmds();
@@ -6038,7 +6038,7 @@ fn load_dummy_buffer(
         os_dirname(resulting_dir, MAXPATHL);
         restore_start_dir(dirname_start);
 
-        if !bufref_valid(&raw mut newbufref) {
+        if !bufref_valid(Some(&newbufref)) {
             return ptr::null_mut();
         }
         if failed {
@@ -7049,7 +7049,7 @@ fn qf_setprop_curidx(
             newidx = qfl.count();
         } else {
             let mut denote = false;
-            newidx = tv_get_number_chk(&di.di_tv, &raw mut denote) as c_int;
+            newidx = tv_get_number_chk(&di.di_tv, Some(&mut denote)) as c_int;
             if denote {
                 return FAIL;
             }

@@ -991,7 +991,7 @@ pub fn get_spec_reg(
                     file_name_at_cursor(
                         FNAME_MESS | FNAME_HYP | if regname == Ctrl_P { FNAME_EXP } else { 0 },
                         1,
-                        ptr::null_mut(),
+                        None,
                     ),
                 );
                 true
@@ -1829,9 +1829,9 @@ pub fn do_put(
             } else if y_type == MotionType::kMTLineWise {
                 lnum = (**curwin.as_ptr()).w_cursor.lnum;
                 if dir == BACKWARD {
-                    hasFolding(*curwin.as_ptr(), lnum, &raw mut lnum, ptr::null_mut());
+                    hasFolding(*curwin.as_ptr(), lnum, Some(&mut lnum), ptr::null_mut());
                 } else {
-                    hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &raw mut lnum);
+                    hasFolding(*curwin.as_ptr(), lnum, None, &raw mut lnum);
                 }
                 if dir == FORWARD {
                     lnum += 1;
@@ -1887,18 +1887,18 @@ pub fn do_put(
                         getvcol(
                             &mut **curwin.as_ptr(),
                             &mut (**curwin.as_ptr()).w_cursor,
-                            &raw mut col,
-                            ptr::null_mut(),
-                            &raw mut endcol2,
+                            Some(&mut col),
+                            None,
+                            Some(&mut endcol2),
                             0,
                         );
                     } else {
                         getvcol(
                             &mut **curwin.as_ptr(),
                             &mut (**curwin.as_ptr()).w_cursor,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            &raw mut col,
+                            None,
+                            None,
+                            Some(&mut col),
                             0,
                         );
                     }
@@ -1908,9 +1908,9 @@ pub fn do_put(
                     getvcol(
                         &mut **curwin.as_ptr(),
                         &mut (**curwin.as_ptr()).w_cursor,
-                        &raw mut col,
-                        ptr::null_mut(),
-                        &raw mut endcol2,
+                        Some(&mut col),
+                        None,
+                        Some(&mut endcol2),
                         0,
                     );
                 }
@@ -2145,9 +2145,9 @@ pub fn do_put(
                             getvcol(
                                 &mut **curwin.as_ptr(),
                                 &mut pos,
-                                ptr::null_mut(),
-                                &raw mut vcol,
-                                ptr::null_mut(),
+                                None,
+                                Some(&mut vcol),
+                                None,
                                 0,
                             );
                         }

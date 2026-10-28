@@ -2170,7 +2170,7 @@ fn ins_compl_dictionaries(
                 } else {
                     pat
                 };
-                spell_dump_compl(ptr, c_int::from(regmatch.rm_ic), &raw mut dir, 0);
+                spell_dump_compl(ptr, c_int::from(regmatch.rm_ic), Some(&mut dir), 0);
             } else if count > 0 {
                 if flags == DICT_EXACT {
                     ins_compl_files(
@@ -3622,7 +3622,7 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
         if argvars[1].v_type != VAR_LIST {
             emsg(gettext((&raw const e_invarg).cast()));
         } else {
-            let startcol = tv_get_number_chk(&argvars[0], ptr::null_mut()) as colnr_T;
+            let startcol = tv_get_number_chk(&argvars[0], None) as colnr_T;
             if startcol > 0 {
                 set_completion(startcol - 1, argvars[1].vval.v_list());
             }
@@ -4680,7 +4680,7 @@ fn get_next_default_completion(
                     SEARCH_KEEP + SEARCH_NFMSG,
                     RE_LAST,
                     opt_vars().p_magic != 0,
-                    ptr::null_mut(),
+                    None,
                 );
             }
             g_st().msg_silent -= 1;
@@ -5397,7 +5397,7 @@ fn ins_compl_expand_multiple(str_ptr: *mut c_char) {
                     FORWARD,
                     OPENLINE_KEEPTRAIL | OPENLINE_FORCE_INDENT,
                     base_indent,
-                    ptr::null_mut(),
+                    None,
                 );
                 start = curr.add(1);
             }

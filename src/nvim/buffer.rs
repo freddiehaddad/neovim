@@ -1016,7 +1016,7 @@ pub fn buf_ensure_loaded(buf: &mut buf_T) -> bool {
         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
         let status = open_buffer(false, ptr::null_mut(), 0);
         ctx_restore(&mut aco);
-        status != FAIL && bufref_valid(&raw mut bufref) && buf.b_ml.ml_mfp.is_some()
+        status != FAIL && bufref_valid(Some(&bufref)) && buf.b_ml.ml_mfp.is_some()
 }
 
 /// Open current buffer, that is: open the memfile and read the file into
@@ -1207,9 +1207,9 @@ pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_i
             do_doautocmd(
                 c"filetypedetect BufRead".as_ptr().cast_mut(),
                 false,
-                ptr::null_mut(),
+                None,
             );
-            if !bufref_valid(&raw mut bufref) || g_st().curbuf != old_curbuf.br_buf || aborting() {
+            if !bufref_valid(Some(&bufref)) || g_st().curbuf != old_curbuf.br_buf || aborting() {
                 return FAIL;
             }
         }
@@ -1233,7 +1233,7 @@ pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_i
             return retval;
         }
 
-        if bufref_valid(&raw mut old_curbuf) && (*old_curbuf.br_buf).b_ml.ml_mfp.is_some() {
+        if bufref_valid(Some(&old_curbuf)) && (*old_curbuf.br_buf).b_ml.ml_mfp.is_some() {
             let mut aco: CtxSwitch = CtxSwitch::new();
 
             ctx_switch(
@@ -1275,7 +1275,8 @@ pub fn set_bufref(bufref: &mut bufref_T, buf: *mut buf_T) {
 
 /// Return true if `bufref->br_buf` points to the same buffer as when
 /// `set_bufref()` was called and it is a valid buffer.
-pub fn bufref_valid(bufref: *mut bufref_T) -> bool {
+pub fn bufref_valid(bufref: Option<&bufref_T>) -> bool {
+    let bufref: *const bufref_T = bufref.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         if (*bufref).br_buf_free_count == buf_st().buf_free_count {
             true
@@ -1418,7 +1419,7 @@ pub fn close_buffer(
                 false,
                 buf,
                 win,
-            ) && !bufref_valid(&raw mut bufref)
+            ) && !bufref_valid(Some(&bufref))
             {
                 emsg(gettext(e_auabort.as_ptr()));
                 return false;
@@ -1434,7 +1435,7 @@ pub fn close_buffer(
                 (*buf).b_locked += 1;
                 (*buf).b_locked_split += 1;
                 if apply_autocmds(EVENT_BUFHIDDEN, (*buf).b_fname, (*buf).b_fname, false, buf)
-                    && !bufref_valid(&raw mut bufref)
+                    && !bufref_valid(Some(&bufref))
                 {
                     emsg(gettext(e_auabort.as_ptr()));
                     return false;
@@ -1596,20 +1597,20 @@ pub fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
         if (*buf).b_ml.ml_mfp.is_some()
             && apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf)
-            && !bufref_valid(&raw mut bufref)
+            && !bufref_valid(Some(&bufref))
         {
             return false;
         }
         if (flags & BFA_DEL) != 0
             && (*buf).b_p_bl != 0
             && apply_autocmds(EVENT_BUFDELETE, (*buf).b_fname, (*buf).b_fname, false, buf)
-            && !bufref_valid(&raw mut bufref)
+            && !bufref_valid(Some(&bufref))
         {
             return false;
         }
         if (flags & BFA_WIPE) != 0
             && apply_autocmds(EVENT_BUFWIPEOUT, (*buf).b_fname, (*buf).b_fname, false, buf)
-            && !bufref_valid(&raw mut bufref)
+            && !bufref_valid(Some(&bufref))
         {
             return false;
         }
@@ -1875,13 +1876,14 @@ pub fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
             g_st().swap_exists_did_quit = true;
             leave_cleanup(&mut cs);
         } else {
-            handle_swap_exists(&raw mut old_curbuf);
+            handle_swap_exists(Some(&mut old_curbuf));
         }
     }
 }
 
 /// Handle the situation of `swap_exists_action` being set.
-pub fn handle_swap_exists(old_curbuf: *mut bufref_T) {
+pub fn handle_swap_exists(old_curbuf: Option<&mut bufref_T>) {
+    let old_curbuf: *mut bufref_T = old_curbuf.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut cs: cleanup_T = cleanup_T::new();
         let old_tw = (*g_st().curbuf).b_p_tw;
@@ -1893,7 +1895,7 @@ pub fn handle_swap_exists(old_curbuf: *mut bufref_T) {
             g_st().swap_exists_did_quit = true;
             close_buffer(*curwin.as_ptr(), g_st().curbuf, DOBUF_UNLOAD, false, false, true);
             let buf = if old_curbuf.is_null()
-                || !bufref_valid(old_curbuf)
+                || !bufref_valid((!old_curbuf.is_null()).then(||  { &*old_curbuf }))
                 || (*old_curbuf).br_buf == g_st().curbuf
             {
                 block_autocmds();
@@ -2090,7 +2092,7 @@ fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_int {
             *curwin.as_ptr(),
         );
 
-        if buf != g_st().curbuf && bufref_valid(&raw mut bufref) && (*buf).b_nwindows == 0 {
+        if buf != g_st().curbuf && bufref_valid(Some(&bufref)) && (*buf).b_nwindows == 0 {
             close_buffer(ptr::null_mut(), buf, action, false, false, false);
         }
 
@@ -2226,7 +2228,7 @@ fn do_buffer_ext(
             if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(&*buf) {
                 if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                     dialog_changed(&mut *buf, false);
-                    if !bufref_valid(&raw mut bufref) {
+                    if !bufref_valid(Some(&bufref)) {
                         return FAIL;
                     }
                     if buf_is_changed(&*buf) {
@@ -2296,7 +2298,7 @@ fn do_buffer_ext(
 
                 close_windows(buf, false);
                 if buf != g_st().curbuf
-                    && bufref_valid(&raw mut bufref)
+                    && bufref_valid(Some(&bufref))
                     && (*g_st().firstwin).w_buffer == buf
                     && one_window(g_st().firstwin, ptr::null_mut())
                 {
@@ -2314,7 +2316,7 @@ fn do_buffer_ext(
                     ctx_restore(&mut switchwin);
                 }
 
-                if buf != g_st().curbuf && bufref_valid(&raw mut bufref) && (*buf).b_nwindows <= 0 {
+                if buf != g_st().curbuf && bufref_valid(Some(&bufref)) && (*buf).b_nwindows <= 0 {
                     close_buffer(ptr::null_mut(), buf, action, false, false, false);
                 }
                 return OK;
@@ -2323,7 +2325,7 @@ fn do_buffer_ext(
             buf = ptr::null_mut();
             bp = ptr::null_mut();
             if !g_st().au_new_curbuf.br_buf.is_null()
-                && bufref_valid(&raw mut g_st().au_new_curbuf)
+                && bufref_valid(Some(&g_st().au_new_curbuf))
                 && (*g_st().au_new_curbuf.br_buf).b_locked_split == 0
             {
                 buf = g_st().au_new_curbuf.br_buf;
@@ -2473,7 +2475,7 @@ fn do_buffer_ext(
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&mut bufref, buf);
                 dialog_changed(&mut *g_st().curbuf, false);
-                if !bufref_valid(&raw mut bufref) {
+                if !bufref_valid(Some(&bufref)) {
                     return FAIL;
                 }
             }
@@ -2542,8 +2544,8 @@ pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
             ptr::null_mut(),
             false,
             g_st().curbuf,
-        ) || (bufref_valid(&raw mut prevbufref)
-            && bufref_valid(&raw mut newbufref)
+        ) || (bufref_valid(Some(&prevbufref))
+            && bufref_valid(Some(&newbufref))
             && !aborting())
         {
             if prevbuf == (**curwin.as_ptr()).w_buffer {
@@ -2552,7 +2554,7 @@ pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
             if unload {
                 close_windows(prevbuf, false);
             }
-            if bufref_valid(&raw mut prevbufref) && !aborting() {
+            if bufref_valid(Some(&prevbufref)) && !aborting() {
                 if prevbuf == g_st().curbuf && ((g_st().State & MODE_INSERT) == 0 || (*g_st().curbuf).b_nwindows <= 1) {
                     u_sync(false);
                 }
@@ -2582,7 +2584,7 @@ pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
             }
         }
 
-        if bufref_valid(&raw mut prevbufref) && !(*prevbuf).terminal.is_null() {
+        if bufref_valid(Some(&prevbufref)) && !(*prevbuf).terminal.is_null() {
             terminal_check_size(&mut *(*prevbuf).terminal);
         }
 
@@ -2796,7 +2798,7 @@ pub fn buflist_new(
                             false,
                             buf,
                         )
-                        && !bufref_valid(&raw mut bufref)
+                        && !bufref_valid(Some(&bufref))
                     {
                         return ptr::null_mut();
                     }
@@ -2818,7 +2820,7 @@ pub fn buflist_new(
                 drop(ffname_cstr);
                 return ptr::null_mut();
             }
-            if !bufref_valid(&raw mut bufref) {
+            if !bufref_valid(Some(&bufref)) {
                 buf = ptr::null_mut();
             }
         }
@@ -2900,13 +2902,13 @@ pub fn buflist_new(
             let mut bufref: bufref_T = bufref_T::new();
             set_bufref(&mut bufref, buf);
             if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
-                && !bufref_valid(&raw mut bufref)
+                && !bufref_valid(Some(&bufref))
             {
                 return ptr::null_mut();
             }
             if (flags & BLN_LISTED) != 0
                 && apply_autocmds(EVENT_BUFADD, ptr::null_mut(), ptr::null_mut(), false, buf)
-                && !bufref_valid(&raw mut bufref)
+                && !bufref_valid(Some(&bufref))
             {
                 return ptr::null_mut();
             }
@@ -4607,7 +4609,7 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
 
                 g_st().swap_exists_action = SEA_DIALOG;
                 set_curbuf(buf, DOBUF_GOTO, (opt_vars().jop_flags & kOptJopFlagClean) == 0);
-                if !bufref_valid(&raw mut bufref) {
+                if !bufref_valid(Some(&bufref)) {
                     g_st().swap_exists_action = SEA_NONE;
                     break;
                 }
@@ -4620,7 +4622,7 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
                     g_st().swap_exists_did_quit = true;
                     leave_cleanup(&mut cs);
                 } else {
-                    handle_swap_exists(ptr::null_mut());
+                    handle_swap_exists(None);
                 }
             }
 
@@ -5073,7 +5075,7 @@ pub fn buf_set_changedtick(buf: &mut buf_T, changedtick: varnumber_T) {
                 &mut *buf.b_vars(),
                 buf.changedtick_di.di_key.as_ptr(),
                 &raw mut buf.changedtick_di.di_tv,
-                &raw const old_val as *mut _,
+                Some(&old_val),
             );
             buf.b_locked -= 1;
         }

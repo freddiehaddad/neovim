@@ -484,7 +484,7 @@ pub fn internal_format(
                 } else {
                     g_st().old_indent
                 },
-                &raw mut did_do_comment,
+                Some(&mut did_do_comment),
             );
             if (flags & INSCHAR_COM_LIST) == 0 {
                 g_st().old_indent = 0;

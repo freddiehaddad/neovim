@@ -486,7 +486,7 @@ pub fn nvim_open_win(
                 goto_tabpage_win(&mut *tp, wp);
                 tp = win_find_tabpage(wp);
             }
-            if !tp.is_null() && bufref_valid(&mut bufref) && b != (*wp).w_buffer {
+            if !tp.is_null() && bufref_valid(Some(&bufref)) && b != (*wp).w_buffer {
                 let au_no_enter_leave = *curwin.as_ptr() != wp && !fconfig.noautocmd;
                 if au_no_enter_leave {
                     g_st().autocmd_no_enter += 1;
@@ -1432,7 +1432,8 @@ fn parse_bordertext_pos(
 }
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
-pub fn parse_border_style(style: Object, fconfig: *mut WinConfig, err: &mut Error) {
+pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &mut Error) {
+    let fconfig: *mut WinConfig = fconfig.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         const DEFAULTS_CHARS: [[&str; 8]; 6] = [
             ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
@@ -1598,11 +1599,11 @@ fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: &mut Error)
 
 /// Parses a border style name or custom (comma-separated) style.
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
-pub fn parse_winborder(
-    fconfig: *mut WinConfig,
+pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
     border_opt: *mut c_char,
     err: &mut Error,
 ) -> bool {
+    let fconfig: *mut WinConfig = fconfig.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if fconfig.is_null() {
             return false;
@@ -1629,7 +1630,7 @@ pub fn parse_winborder(
             cstr_to_obj(border_opt)
         };
 
-        parse_border_style(style, fconfig, err);
+        parse_border_style(style, (!fconfig.is_null()).then(||  { &mut *fconfig }), err);
         api_free_object(style);
         !error_set(err)
     }
@@ -1918,14 +1919,14 @@ fn parse_win_config(
                 }
                 let border_style = config.border;
                 if border_style.obj_type != ObjectType::kObjectTypeNil {
-                    parse_border_style(border_style, &raw mut *fconfig, err);
+                    parse_border_style(border_style, Some(&mut *fconfig), err);
                     if error_set(err) {
                         break 'fail;
                     }
                 }
             } else if *opt_vars().p_winborder != NUL
                 && (wp.is_null() || !(*wp).w_floating)
-                && !parse_winborder(&raw mut *fconfig, opt_vars().p_winborder, err)
+                && !parse_winborder(Some(&mut *fconfig), opt_vars().p_winborder, err)
             {
                 break 'fail;
             }

@@ -474,7 +474,7 @@ pub fn nvim_set_hl(
             base = &mut base_attrs;
         }
 
-        let attrs = dict2hlattrs(val, true, &mut link_id, base, err);
+        let attrs = dict2hlattrs(val, true, Some(&mut link_id), base, err);
         if !error_set(err) {
             let save_current_sctx = api_set_sctx(channel_id);
             ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
@@ -812,7 +812,7 @@ pub fn nvim_replace_termcodes(
             false,
             0,
             flags,
-            ptr::null_mut(),
+            None,
             opt_vars().p_cpo,
         )
         .unwrap_or_default();
@@ -1371,7 +1371,7 @@ pub fn nvim_echo(
             kind,
             history,
             opts.err,
-            &mut msg_data,
+            Some(&mut msg_data),
             &mut needs_clear,
             false,
         );
@@ -1577,13 +1577,13 @@ pub fn nvim_create_buf(
             let mut bufref = bufref_T::new();
             set_bufref(&mut bufref, buf);
             if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
-                && !bufref_valid(&mut bufref)
+                && !bufref_valid(Some(&bufref))
             {
                 break 'create;
             }
             if listed
                 && apply_autocmds(EVENT_BUFADD, ptr::null_mut(), ptr::null_mut(), false, buf)
-                && !bufref_valid(&mut bufref)
+                && !bufref_valid(Some(&bufref))
             {
                 break 'create;
             }
@@ -2971,9 +2971,9 @@ pub fn nvim_eval_statusline(
                 (*wp).w_buffer,
                 lnum - 1,
                 statuscol.sattrs.as_mut_ptr(),
-                &mut line_id,
-                &mut cul_id,
-                &mut num_id,
+                Some(&mut line_id),
+                Some(&mut cul_id),
+                Some(&mut num_id),
             );
 
             statuscol.foldinfo = fold_info(wp, lnum);

@@ -1842,7 +1842,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
         }
 
         let mut error = false;
-        let idx = tv_get_number_chk(&argvars[1], &mut error);
+        let idx = tv_get_number_chk(&argvars[1], Some(&mut error));
 
         if error {
             return;
@@ -1855,7 +1855,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
             drop(Box::from_raw(item));
         } else {
-            let end = tv_get_number_chk(&argvars[2], &mut error);
+            let end = tv_get_number_chk(&argvars[2], Some(&mut error));
             if error {
                 return;
             }
@@ -1978,7 +1978,7 @@ fn item_compare(
                 p1 = (*tv1).vval.v_string();
             }
         } else {
-            let s1 = encode_tv2string(&mut *tv1, ptr::null_mut());
+            let s1 = encode_tv2string(&mut *tv1, None);
             p1 = s1.as_ptr().cast_mut();
             tofree1 = Some(s1);
         }
@@ -1989,7 +1989,7 @@ fn item_compare(
                 p2 = (*tv2).vval.v_string();
             }
         } else {
-            let s2 = encode_tv2string(&mut *tv2, ptr::null_mut());
+            let s2 = encode_tv2string(&mut *tv2, None);
             p2 = s2.as_ptr().cast_mut();
             tofree2 = Some(s2);
         }
@@ -2076,7 +2076,7 @@ fn item_compare2(
             res = ITEM_COMPARE_FAIL;
             info.item_compare_func_err = true;
         } else {
-            let n = tv_get_number_chk(&rettv, &raw mut info.item_compare_func_err);
+            let n = tv_get_number_chk(&rettv, Some(&mut info.item_compare_func_err));
             res = if n > 0 {
                 1
             } else if n < 0 {
@@ -2114,7 +2114,7 @@ fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut sortinfo_T) {
                 if (*tv).v_type == VarType::VAR_STRING {
                     si.key = ListSortKey::Float(0.0);
                 } else {
-                    let p = encode_tv2string(&mut *tv, ptr::null_mut());
+                    let p = encode_tv2string(&mut *tv, None);
                     let f = strtod(p.as_ptr(), ptr::null_mut());
                     si.key = ListSortKey::Float(f);
                 }
@@ -2240,7 +2240,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
             info.item_compare_partial = argvars[1].vval.v_partial();
         } else {
             let mut error = false;
-            let nr = tv_get_number_chk(&argvars[1], &mut error) as c_int;
+            let nr = tv_get_number_chk(&argvars[1], Some(&mut error)) as c_int;
             if error {
                 return FAIL;
             }
@@ -2439,7 +2439,8 @@ pub fn tv_list_find(l: *mut list_T, mut n: c_int) -> *mut listitem_T {
 }
 
 /// Get list item l[n] as a number.
-pub fn tv_list_find_nr(l: *mut list_T, n: c_int, ret_error: *mut bool) -> varnumber_T {
+pub fn tv_list_find_nr(l: *mut list_T, n: c_int,ret_error: Option<&mut bool>) -> varnumber_T {
+    let ret_error: *mut bool = ret_error.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let li = tv_list_find(l, n);
         if li.is_null() {
@@ -2448,7 +2449,7 @@ pub fn tv_list_find_nr(l: *mut list_T, n: c_int, ret_error: *mut bool) -> varnum
             }
             return -1;
         }
-        tv_get_number_chk(&(*li).li_tv, ret_error)
+        tv_get_number_chk(&(*li).li_tv, (!ret_error.is_null()).then(||  { &mut *ret_error }))
     }
 }
 
@@ -2710,9 +2711,9 @@ fn tv_dict_watcher_matches(watcher: &DictWatcher, key: *const c_char) -> bool {
 pub fn tv_dict_watcher_notify(
     dict: &mut dict_T,
     key: *const c_char,
-    newtv: *mut typval_T,
-    oldtv: *mut typval_T,
+    newtv: *mut typval_T,oldtv: Option<&typval_T>,
 ) {
+    let oldtv: *const typval_T = oldtv.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut argv: [typval_T; 3] = [tv_initial_value(); 3];
 
@@ -3334,7 +3335,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
                                 d1,
                                 (*new_di).di_key.as_ptr(),
                                 &raw mut (*new_di).di_tv,
-                                ptr::null_mut(),
+                                None,
                             );
                         }
                     } else {
@@ -3346,7 +3347,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
                                 d1,
                                 (*new_di).di_key.as_ptr(),
                                 &raw mut (*new_di).di_tv,
-                                ptr::null_mut(),
+                                None,
                             );
                         }
                     }
@@ -3376,7 +3377,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
                             d1,
                             (*di1).di_key.as_ptr(),
                             &raw mut (*di1).di_tv,
-                            &raw mut oldtv,
+                            Some(&oldtv),
                         );
                         tv_clear(&raw mut oldtv);
                     }
@@ -3457,7 +3458,7 @@ pub fn tv_dict_copy(
                 let key_ptr = (*di).di_key.as_mut_ptr();
                 let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
                     let mut len = std::ffi::CStr::from_ptr(key_ptr).to_bytes().len();
-                    if let Some(key) = string_convert(conv, key_ptr, &raw mut len) {
+                    if let Some(key) = string_convert(conv, key_ptr, Some(&mut len)) {
                         tv_dict_item_alloc_len(key.as_ptr().cast(), len)
                     } else {
                         tv_dict_item_alloc_len(key_ptr, len)
@@ -3708,7 +3709,7 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
         }
 
         let mut error = false;
-        let mut idx = tv_get_number_chk(&argvars[1], &mut error);
+        let mut idx = tv_get_number_chk(&argvars[1], Some(&mut error));
 
         if !error {
             let len = i64::from(tv_blob_len_inline(b));
@@ -3724,7 +3725,7 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
                 let removed = bv.remove(idx as usize);
                 rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
             } else {
-                let mut end = tv_get_number_chk(&argvars[2], &mut error);
+                let mut end = tv_get_number_chk(&argvars[2], Some(&mut error));
                 if error {
                     return;
                 }
@@ -3787,7 +3788,7 @@ pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let mut li = (*l).lv_first;
         while !li.is_null() {
             let mut error = false;
-            let n = tv_get_number_chk(&(*li).li_tv, &mut error);
+            let n = tv_get_number_chk(&(*li).li_tv, Some(&mut error));
             if error || !(0..=255).contains(&n) {
                 if !error {
                     semsg!(tr(e_invalid_value_for_blob_nr.as_ptr()), n as c_int);
@@ -3947,7 +3948,7 @@ pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
                         (*di).di_tv = tv_initial_value();
                         tv_dict_item_remove(&mut *d, di);
                         if tv_dict_is_watched_inline(d) {
-                            tv_dict_watcher_notify(&mut *d, key, ptr::null_mut(), rettv);
+                            tv_dict_watcher_notify(&mut *d, key, ptr::null_mut(), Some(&*rettv));
                         }
                     }
                 }
@@ -4756,11 +4757,12 @@ pub fn tv_check_str(tv: &typval_T) -> bool {
 /// Get the number value of a Vimscript object.
 pub fn tv_get_number(tv: &typval_T) -> varnumber_T {
     let mut error = false;
-    tv_get_number_chk(tv, &mut error)
+    tv_get_number_chk(tv, Some(&mut error))
 }
 
 /// Get the number value of a Vimscript object.
-pub fn tv_get_number_chk(tv: &typval_T, ret_error: *mut bool) -> varnumber_T {
+pub fn tv_get_number_chk(tv: &typval_T,ret_error: Option<&mut bool>) -> varnumber_T {
+    let ret_error: *mut bool = ret_error.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         match tv.v_type {
             VarType::VAR_FUNC
@@ -4804,18 +4806,19 @@ pub fn tv_get_number_chk(tv: &typval_T, ret_error: *mut bool) -> varnumber_T {
 
 /// Get the boolean value of a Vimscript object.
 pub fn tv_get_bool(tv: &typval_T) -> varnumber_T {
-    tv_get_number_chk(tv, ptr::null_mut())
+    tv_get_number_chk(tv, None)
 }
 
-pub fn tv_get_bool_chk(tv: &typval_T, ret_error: *mut bool) -> varnumber_T {
-    tv_get_number_chk(tv, ret_error)
+pub fn tv_get_bool_chk(tv: &typval_T,ret_error: Option<&mut bool>) -> varnumber_T {
+    let ret_error: *mut bool = ret_error.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    tv_get_number_chk(tv, (!ret_error.is_null()).then(|| unsafe { &mut *ret_error }))
 }
 
 /// Get the line number from Vimscript object.
 pub fn tv_get_lnum(tv: &typval_T) -> linenr_T {
     unsafe {
         let did_emsg_before = g_st().did_emsg;
-        let mut lnum = tv_get_number_chk(tv, ptr::null_mut()) as linenr_T;
+        let mut lnum = tv_get_number_chk(tv, None) as linenr_T;
         if lnum <= 0 && did_emsg_before == g_st().did_emsg && tv.v_type != VarType::VAR_NUMBER {
             let mut fnum: c_int = 0;
             let fp = var2fpos(tv, true, &mut fnum, false, &mut **curwin.as_ptr());
@@ -4838,7 +4841,7 @@ pub fn tv_get_lnum_buf(tv: &typval_T, buf: *const buf_T) -> linenr_T {
         {
             return (*buf).b_ml.ml_line_count;
         }
-        tv_get_number_chk(tv, ptr::null_mut()) as linenr_T
+        tv_get_number_chk(tv, None) as linenr_T
     }
 }
 
@@ -5242,11 +5245,11 @@ mod tests {
             assert_eq!(tv_list_idx_of_item(l, ptr::null()), -1);
 
             let mut err = false;
-            assert_eq!(tv_list_find_nr(l, 0, &mut err), 10);
+            assert_eq!(tv_list_find_nr(l, 0, Some(&mut err)), 10);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l, -1, &mut err), 30);
+            assert_eq!(tv_list_find_nr(l, -1, Some(&mut err)), 30);
             assert!(!err);
-            assert_eq!(tv_list_find_nr(l, 10, &mut err), -1);
+            assert_eq!(tv_list_find_nr(l, 10, Some(&mut err)), -1);
             assert!(err);
 
             tv_list_reverse(l);
@@ -5285,7 +5288,7 @@ mod tests {
             };
             tv_list_insert_tv(l2, &mut tv_ins, (*l2).lv_first);
             assert_eq!(tv_list_len_inline(l2), 3);
-            assert_eq!(tv_list_find_nr(l2, 0, ptr::null_mut()), 99);
+            assert_eq!(tv_list_find_nr(l2, 0, None), 99);
             assert_eq!(CStr::from_ptr(tv_list_find_str(l2, 1)).to_bytes(), b"hello");
             assert_eq!(CStr::from_ptr(tv_list_find_str(l2, 2)).to_bytes(), b"world");
 

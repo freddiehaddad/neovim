@@ -809,9 +809,9 @@ fn get_line_number_attr(wp: &mut win_T, wlv: &mut winlinevars_T) -> c_int {
                     (*wp).w_buffer,
                     wlv.lnum - 2,
                     ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    &raw mut wlv.prev_num_attr,
+                    None,
+                    None,
+                    Some(&mut wlv.prev_num_attr),
                 );
                 if wlv.prev_num_attr > 0 {
                     wlv.prev_num_attr = syn_id2attr(wlv.prev_num_attr);
@@ -905,8 +905,8 @@ fn draw_statuscol(wp: &mut win_T,
                 &mut *wp,
                 lnum - 1,
                 lnum,
-                &raw mut virt_below_prev,
-                ptr::null_mut(),
+                Some(&mut virt_below_prev),
+                None,
                 true,
             );
             let diff_fill_prev = diff_check_fill(wp, lnum - 1);
@@ -1544,9 +1544,9 @@ pub fn win_line(
                             getvvcol(
                                 &raw mut *wp,
                                 &mut *top,
-                                &raw mut wlv.fromcol,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
+                                Some(&mut wlv.fromcol),
+                                None,
+                                None,
                                 0,
                             );
                             if gchar_pos(&mut *top) == c_int::from(NUL) {
@@ -1566,18 +1566,18 @@ pub fn win_line(
                                 getvvcol(
                                     &raw mut *wp,
                                     &mut pos,
-                                    &raw mut wlv.tocol,
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
+                                    Some(&mut wlv.tocol),
+                                    None,
+                                    None,
                                     0,
                                 );
                             } else {
                                 getvvcol(
                                     &raw mut *wp,
                                     &mut pos,
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
-                                    &raw mut wlv.tocol,
+                                    None,
+                                    None,
+                                    Some(&mut wlv.tocol),
                                     0,
                                 );
                                 wlv.tocol += 1;
@@ -1600,9 +1600,9 @@ pub fn win_line(
                     getvcol(
                         &mut **curwin.as_ptr(),
                         &mut (**curwin.as_ptr()).w_cursor,
-                        &raw mut wlv.fromcol,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        Some(&mut wlv.fromcol),
+                        None,
+                        None,
                         0,
                     );
                 } else {
@@ -1617,9 +1617,9 @@ pub fn win_line(
                     getvcol(
                         &mut **curwin.as_ptr(),
                         &mut pos,
-                        &raw mut wlv.tocol,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        Some(&mut wlv.tocol),
+                        None,
+                        None,
                         0,
                     );
                 }
@@ -1672,8 +1672,8 @@ pub fn win_line(
             &mut *wp,
             lnum - 1,
             lnum,
-            &raw mut wlv.n_virt_below,
-            &raw mut virt_lines,
+            Some(&mut wlv.n_virt_below),
+            Some(&mut virt_lines),
             true,
         );
         let total_virt_rows = wlv.n_virt_lines;
@@ -1707,9 +1707,9 @@ pub fn win_line(
             buf,
             wlv.lnum - 1,
             (&raw mut wlv.sattrs).cast::<SignTextAttrs>(),
-            &raw mut sign_line_attr,
-            &raw mut wlv.sign_cul_attr,
-            &raw mut wlv.sign_num_attr,
+            Some(&mut sign_line_attr),
+            Some(&mut wlv.sign_cul_attr),
+            Some(&mut wlv.sign_num_attr),
         );
 
         let mut statuscol = statuscol_T::new();
@@ -2058,7 +2058,7 @@ pub fn win_line(
                         let target_row = total_virt_rows - virt_rows_todo;
                         while (virt_line_index as usize) < virt_lines.len() {
                             let vl_ptr = &raw const virt_lines[virt_line_index as usize];
-                            let line_rows = decor_virt_line_rows(&mut *wp, &*vl_ptr, 0, ptr::null_mut());
+                            let line_rows = decor_virt_line_rows(&mut *wp, &*vl_ptr, 0, None);
                             if target_row < virt_line_start_row + line_rows {
                                 has_virt_line = true;
                                 virt_line_flags = (*vl_ptr).flags;
@@ -2066,7 +2066,7 @@ pub fn win_line(
                                     &mut *wp,
                                     &*vl_ptr,
                                     target_row - virt_line_start_row,
-                                    &raw mut virt_line_skip_cells,
+                                    Some(&mut virt_line_skip_cells),
                                 );
                                 break;
                             }
@@ -2620,7 +2620,7 @@ pub fn win_line(
                                     &raw mut *wp,
                                     p,
                                     &mut spell_hlf,
-                                    &raw mut spv.spv_cap_col,
+                                    Some(&mut spv.spv_cap_col),
                                     spv.spv_unchanged,
                                 );
                                 debug_assert!(tmplen <= c_int::MAX as usize);

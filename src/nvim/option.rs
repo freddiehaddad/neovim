@@ -1850,10 +1850,10 @@ pub fn get_option_newval(
     argp: *mut *mut c_char,
     nextchar: c_int,
     mut op: set_op_T,
-    varp: *mut c_void,
-    oldval_override: *mut Object,
+    varp: *mut c_void,oldval_override: Option<&mut Object>,
     errmsg: *mut *const c_char,
 ) -> Object {
+    let oldval_override: *mut Object = oldval_override.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         assert!(!varp.is_null());
 
@@ -2112,7 +2112,7 @@ fn do_one_set_option(
             nextchar,
             op,
             varp,
-            ptr::null_mut(),
+            None,
             &mut errmsg,
         );
 
@@ -2231,7 +2231,7 @@ fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_int {
                 len + 1,
                 &mut modifiers,
                 FSK_KEYCODE | FSK_KEEP_X_KEY | FSK_SIMPLIFY,
-                ptr::null_mut(),
+                None,
             );
             if modifiers != 0 {
                 key = 0;
@@ -5211,7 +5211,7 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
             kCallbackPartial => {
                 let mut tv = typval_T::new();
                 callback_put(cb, &mut tv);
-                let str_ = encode_tv2string(&mut tv, ptr::null_mut());
+                let str_ = encode_tv2string(&mut tv, None);
                 tv_clear(&raw mut tv);
                 return cstr_to_obj(str_.as_ptr());
             }

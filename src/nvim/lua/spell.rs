@@ -57,7 +57,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
                 *curwin.as_ptr(),
                 str_.cast_mut(),
                 &mut attr,
-                &raw mut capcol,
+                Some(&mut capcol),
                 false,
             );
             assert!(len <= c_int::MAX as usize);

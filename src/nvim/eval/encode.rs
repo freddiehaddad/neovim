@@ -369,7 +369,7 @@ fn conv_error(
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::String((&*hi_ptr).key_ptr()),
                     };
-                    let key = encode_tv2string(&mut key_tv, std::ptr::null_mut());
+                    let key = encode_tv2string(&mut key_tv, None);
                     vim_snprintf!(
                         iobuf.as_mut_ptr(),
                         iobuf.len(),
@@ -1737,7 +1737,8 @@ pub fn encode_vim_to_msgpack(
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-pub fn encode_tv2string(tv: &mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2string(tv: &mut typval_T,len: Option<&mut usize>) -> std::ffi::CString {
+    let len: *mut usize = len.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
@@ -1778,7 +1779,8 @@ pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::C
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-pub fn encode_tv2json(tv: &mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2json(tv: &mut typval_T,len: Option<&mut usize>) -> std::ffi::CString {
+    let len: *mut usize = len.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);

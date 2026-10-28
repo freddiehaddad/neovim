@@ -494,7 +494,7 @@ fn set_maparg_lhs_rhs(
             true,
             0,
             flags,
-            &mut did_simplify,
+            Some(&mut did_simplify),
             cpo_val,
         ) else {
             return false;
@@ -512,7 +512,7 @@ fn set_maparg_lhs_rhs(
                 true,
                 0,
                 flags | REPTERM_NO_SIMPLIFY,
-                ptr::null_mut(),
+                None,
                 cpo_val,
             ) else {
                 return false;
@@ -560,7 +560,7 @@ fn set_maparg_rhs(
                     false,
                     sid,
                     REPTERM_DO_LT,
-                    ptr::null_mut(),
+                    None,
                     cpo_val,
                 )
                 .unwrap_or_default();
@@ -1243,7 +1243,7 @@ pub fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, abbr: boo
             false,
             0,
             REPTERM_DO_LT,
-            ptr::null_mut(),
+            None,
             opt_vars().p_cpo,
         )
         .unwrap_or_default();
@@ -1740,7 +1740,7 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
                 false,
                 0,
                 REPTERM_DO_LT,
-                ptr::null_mut(),
+                None,
                 opt_vars().p_cpo,
             )
         } else {
@@ -2244,7 +2244,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
             false,
             0,
             flags,
-            &mut did_simplify,
+            Some(&mut did_simplify),
             opt_vars().p_cpo,
         )
         .unwrap_or_default();
@@ -2269,7 +2269,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
                 false,
                 0,
                 flags | REPTERM_NO_SIMPLIFY,
-                ptr::null_mut(),
+                None,
                 opt_vars().p_cpo,
             )
             .unwrap_or_default();
@@ -2548,7 +2548,7 @@ pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                         false,
                         0,
                         flags,
-                        &mut did_simplify,
+                        Some(&mut did_simplify),
                         opt_vars().p_cpo,
                     )
                     .unwrap_or_default();

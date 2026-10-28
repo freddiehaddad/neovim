@@ -223,7 +223,7 @@ fn buf_set_sign(
         extmark_set(
             &mut *buf,
             ns,
-            id,
+            Some(&mut *id),
             (*buf).b_ml.ml_line_count.min(lnum) - 1,
             0,
             -1,
@@ -1538,7 +1538,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                 let di_id = tv_dict_find(dict, c"id".as_ptr(), -1);
                 if !di_id.is_null() {
                     sign_id =
-                        tv_get_number_chk(&(*di_id).di_tv, &raw mut notanum) as c_int;
+                        tv_get_number_chk(&(*di_id).di_tv, Some(&mut notanum)) as c_int;
                     if notanum {
                         return;
                     }
@@ -1566,7 +1566,7 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut notanum = false;
-        let id = tv_get_number_chk(&argvars[0], &raw mut notanum) as c_int;
+        let id = tv_get_number_chk(&argvars[0], Some(&mut notanum)) as c_int;
         if notanum {
             return;
         }
@@ -1613,7 +1613,7 @@ fn sign_place_from_dict(
             }
         }
         if !id_tv.is_null() {
-            id = tv_get_number_chk(&*id_tv, &raw mut notanum) as c_int;
+            id = tv_get_number_chk(&*id_tv, Some(&mut notanum)) as c_int;
             if notanum {
                 return -1;
             }
@@ -1681,7 +1681,7 @@ fn sign_place_from_dict(
         let mut prio: c_int = -1;
         let di_prio = tv_dict_find(dict, c"priority".as_ptr(), -1);
         if !di_prio.is_null() {
-            prio = tv_get_number_chk(&(*di_prio).di_tv, &raw mut notanum) as c_int;
+            prio = tv_get_number_chk(&(*di_prio).di_tv, Some(&mut notanum)) as c_int;
             if notanum {
                 return -1;
             }

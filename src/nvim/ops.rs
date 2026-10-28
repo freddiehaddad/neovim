@@ -1883,9 +1883,9 @@ pub fn adjust_cursor_eol() {
             getvcol(
                 &mut **curwin.as_ptr(),
                 &mut (**curwin.as_ptr()).w_cursor,
-                &raw mut scol,
-                ptr::null_mut(),
-                &raw mut ecol,
+                Some(&mut scol),
+                None,
+                Some(&mut ecol),
                 0,
             );
             (**curwin.as_ptr()).w_cursor.coladd = ecol - scol + 1;
@@ -2330,8 +2330,8 @@ pub fn getregionpos_prep(
             let mut sc2: colnr_T = 0;
             let mut ec2: colnr_T = 0;
             let lbr_saved = reset_lbr();
-            getvvcol(*curwin.as_ptr(), p1, &raw mut sc1, ptr::null_mut(), &raw mut ec1, 0);
-            getvvcol(*curwin.as_ptr(), p2, &raw mut sc2, ptr::null_mut(), &raw mut ec2, 0);
+            getvvcol(*curwin.as_ptr(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
+            getvvcol(*curwin.as_ptr(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
             restore_lbr(lbr_saved);
             oap.motion_type = kMTBlockWise;
             oap.inclusive = true;
@@ -2462,9 +2462,9 @@ pub fn charwise_block_prep(
                 getvcol(
                     &mut **curwin.as_ptr(),
                     &mut start,
-                    &raw mut cs,
-                    ptr::null_mut(),
-                    &raw mut ce,
+                    Some(&mut cs),
+                    None,
+                    Some(&mut ce),
                     0,
                 );
                 if ce != cs && start.coladd > 0 {
@@ -2481,9 +2481,9 @@ pub fn charwise_block_prep(
                 getvcol(
                     &mut **curwin.as_ptr(),
                     &mut end,
-                    &raw mut cs,
-                    ptr::null_mut(),
-                    &raw mut ce,
+                    Some(&mut cs),
+                    None,
+                    Some(&mut ce),
                     0,
                 );
                 if *p.add(endcol as usize) == NUL
@@ -3423,7 +3423,7 @@ fn op_colon(oap: &mut oparg_T) {
             hasFolding(
                 *curwin.as_ptr(),
                 oap.start.lnum,
-                ptr::null_mut(),
+                None,
                 &raw mut endOfStartFold,
             );
             if oap.end.lnum != oap.start.lnum && oap.end.lnum != endOfStartFold {
@@ -3433,7 +3433,7 @@ fn op_colon(oap: &mut oparg_T) {
                 } else if oap.end.lnum == (*g_st().curbuf).b_ml.ml_line_count {
                     stuffcharReadbuff(b'$' as c_int);
                 } else if oap.start.lnum == (**curwin.as_ptr()).w_cursor.lnum
-                    && !hasFolding(*curwin.as_ptr(), oap.end.lnum, ptr::null_mut(), ptr::null_mut())
+                    && !hasFolding(*curwin.as_ptr(), oap.end.lnum, None, ptr::null_mut())
                 {
                     stuffReadbuff(c".+".as_ptr());
                     stuffnumReadbuff(oap.line_count - 1);
@@ -3550,17 +3550,17 @@ fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
         getvvcol(
             *curwin.as_ptr(),
             &mut oap.start,
-            &raw mut oap.start_vcol,
-            ptr::null_mut(),
-            &raw mut oap.end_vcol,
+            Some(&mut oap.start_vcol),
+            None,
+            Some(&mut oap.end_vcol),
             0,
         );
         getvvcol(
             *curwin.as_ptr(),
             &mut oap.end,
-            &raw mut start,
-            ptr::null_mut(),
-            &raw mut end,
+            Some(&mut start),
+            None,
+            Some(&mut end),
             0,
         );
 
@@ -3581,9 +3581,9 @@ fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
                 getvvcol(
                     *curwin.as_ptr(),
                     &mut (**curwin.as_ptr()).w_cursor,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    &raw mut end,
+                    None,
+                    None,
+                    Some(&mut end),
                     0,
                 );
                 oap.end_vcol = oap.end_vcol.max(end);
@@ -3705,7 +3705,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                     if hasFolding(
                         *curwin.as_ptr(),
                         oap.start.lnum,
-                        &raw mut oap.start.lnum,
+                        Some(&mut oap.start.lnum),
                         ptr::null_mut(),
                     ) {
                         oap.start.col = 0;
@@ -3716,7 +3716,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                         && hasFolding(
                             *curwin.as_ptr(),
                             (**curwin.as_ptr()).w_cursor.lnum,
-                            ptr::null_mut(),
+                            None,
                             &raw mut (**curwin.as_ptr()).w_cursor.lnum,
                         )
                     {
@@ -3732,7 +3732,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                     if hasFolding(
                         *curwin.as_ptr(),
                         (**curwin.as_ptr()).w_cursor.lnum,
-                        &raw mut (**curwin.as_ptr()).w_cursor.lnum,
+                        Some(&mut (**curwin.as_ptr()).w_cursor.lnum),
                         ptr::null_mut(),
                     ) {
                         (**curwin.as_ptr()).w_cursor.col = 0;
@@ -3740,7 +3740,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                     if hasFolding(
                         *curwin.as_ptr(),
                         oap.start.lnum,
-                        ptr::null_mut(),
+                        None,
                         &raw mut oap.start.lnum,
                     ) {
                         oap.start.col = ml_get_len(oap.start.lnum);
@@ -3767,9 +3767,9 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                             getvvcol(
                                 *curwin.as_ptr(),
                                 &mut oap.end,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
-                                &raw mut oap.end_vcol,
+                                None,
+                                None,
+                                Some(&mut oap.end_vcol),
                                 0,
                             );
                         }
@@ -3778,9 +3778,9 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                                 getvvcol(
                                     *curwin.as_ptr(),
                                     &mut oap.start,
-                                    &raw mut oap.start_vcol,
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
+                                    Some(&mut oap.start_vcol),
+                                    None,
+                                    None,
                                     0,
                                 );
                             }

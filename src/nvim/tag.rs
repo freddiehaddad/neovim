@@ -1992,7 +1992,7 @@ fn findtags_string_convert(st: *mut findtags_state_T) {
         let Some(conv_line) = string_convert(
             &st.vimconv,
             st.lbuf.as_mut_ptr(),
-            ptr::null_mut(),
+            None,
         ) else {
             return;
         };
@@ -2762,7 +2762,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
             fname = expanded.as_ptr().cast_mut();
             tofree_fname = Some(expanded);
 
-            if !os_path_exists(fname) && !has_autocmd(EVENT_BUFREADCMD, fname, ptr::null_mut()) {
+            if !os_path_exists(fname) && !has_autocmd(EVENT_BUFREADCMD, fname, None) {
                 retval = NOTAGFILE;
                 tag_st().nofile_fname = tofree_fname.take();
                 break 'erret;
@@ -2868,7 +2868,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                         1,
                         search_options,
                         false,
-                        ptr::null_mut(),
+                        None,
                     ) != 0
                     {
                         retval = OK;
@@ -2884,7 +2884,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                             1,
                             search_options,
                             false,
-                            ptr::null_mut(),
+                            None,
                         ) == 0
                         {
                             found = 2;
@@ -2906,7 +2906,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                                 1,
                                 search_options,
                                 false,
-                                ptr::null_mut(),
+                                None,
                             ) == 0
                             {
                                 pbuflen = vim_snprintf!(
@@ -2924,7 +2924,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                                     1,
                                     search_options,
                                     false,
-                                    ptr::null_mut(),
+                                    None,
                                 ) == 0
                                 {
                                     found = 0;
@@ -3480,8 +3480,8 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
                     if list2fpos(
                         &mut (*di).di_tv,
                         &mut mark,
-                        &raw mut fnum,
-                        ptr::null_mut(),
+                        Some(&mut fnum),
+                        None,
                         false,
                     ) == OK
                     {

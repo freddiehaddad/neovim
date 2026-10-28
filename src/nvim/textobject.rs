@@ -223,7 +223,7 @@ pub fn findpar(pincl: &mut bool,
 
                 // skip folded lines
                 let mut fold_skipped = false;
-                if first && hasFolding(*curwin.as_ptr(), curr, &raw mut fold_first, &raw mut fold_last) {
+                if first && hasFolding(*curwin.as_ptr(), curr, Some(&mut fold_first), &raw mut fold_last) {
                     curr = (if dir > 0 { fold_last } else { fold_first }) + dir;
                     fold_skipped = true;
                 }
@@ -343,7 +343,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
             if hasFolding(
                 *curwin.as_ptr(),
                 (**curwin.as_ptr()).w_cursor.lnum,
-                ptr::null_mut(),
+                None,
                 &raw mut (**curwin.as_ptr()).w_cursor.lnum,
             ) {
                 coladvance(&mut **curwin.as_ptr(), MAXCOL);
@@ -395,7 +395,7 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
             if hasFolding(
                 *curwin.as_ptr(),
                 (**curwin.as_ptr()).w_cursor.lnum,
-                &raw mut (**curwin.as_ptr()).w_cursor.lnum,
+                Some(&mut (**curwin.as_ptr()).w_cursor.lnum),
                 ptr::null_mut(),
             ) {
                 (**curwin.as_ptr()).w_cursor.col = 0;
@@ -453,7 +453,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
             if hasFolding(
                 *curwin.as_ptr(),
                 (**curwin.as_ptr()).w_cursor.lnum,
-                ptr::null_mut(),
+                None,
                 &raw mut (**curwin.as_ptr()).w_cursor.lnum,
             ) {
                 coladvance(&mut **curwin.as_ptr(), MAXCOL);

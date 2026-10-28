@@ -1171,7 +1171,7 @@ pub fn nvim_buf_get_offset(
         i64::from(ml_find_line_or_offset(
             &mut *b,
             (index as linenr_T) + 1,
-            ptr::null_mut(),
+            None,
             true,
         ))
     }
@@ -1535,7 +1535,7 @@ pub fn nvim_buf_del_mark(
         let fm = mark_get(
             &mut *b,
             *curwin.as_ptr(),
-            ptr::null_mut(),
+            None,
             kMarkAllNoResolve,
             c_int::from(*name.data.cast::<u8>()),
         );
@@ -1637,7 +1637,7 @@ pub fn nvim_buf_get_mark(
         }
 
         let mark = c_int::from(*name.data.cast::<u8>());
-        let fm = mark_get(&mut *b, *curwin.as_ptr(), ptr::null_mut(), kMarkAllNoResolve, mark);
+        let fm = mark_get(&mut *b, *curwin.as_ptr(), None, kMarkAllNoResolve, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name".as_ptr(), name.data, 0, true);
             return rv;

@@ -541,7 +541,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
                     attrs = dict2hlattrs(
                         &mut dict,
                         true,
-                        &raw mut it.link_id,
+                        Some(&mut it.link_id),
                         ptr::null_mut(),
                         &mut err,
                     );
@@ -1440,11 +1440,11 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
 
 pub fn dict2hlattrs(
     dict: &mut KeyDict_highlight,
-    use_rgb: bool,
-    link_id: *mut c_int,
+    use_rgb: bool,link_id: Option<&mut c_int>,
     base: *mut HlAttrs,
     err: &mut Error,
 ) -> HlAttrs {
+    let link_id: *mut c_int = link_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut hlattrs = HLATTRS_INIT;
         let mut fg: i32 = if !base.is_null() {

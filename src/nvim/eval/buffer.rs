@@ -596,7 +596,7 @@ pub fn f_bufnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
         if buf.is_null()
             && argvars[1].v_type != VarType::VAR_UNKNOWN
-            && tv_get_bool_chk(&argvars[1], &mut error) != 0
+            && tv_get_bool_chk(&argvars[1], Some(&mut error)) != 0
             && !error
         {
             let name = tv_get_string_chk(&argvars[0]);

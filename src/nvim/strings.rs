@@ -646,7 +646,7 @@ pub fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
         } else {
             *idxp += 1;
             let mut err = false;
-            n = tv_get_number_chk(&*tvs.add(idx), &mut err);
+            n = tv_get_number_chk(&*tvs.add(idx), Some(&mut err));
             if err {
                 n = 0;
             }
@@ -2280,7 +2280,7 @@ fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let str_ = tv_get_string_chk(&argvars[0]);
-        let mut idx = tv_get_number_chk(&argvars[1], ptr::null_mut());
+        let mut idx = tv_get_number_chk(&argvars[1], None);
         if str_.is_null() || idx < 0 {
             return;
         }
@@ -2288,7 +2288,7 @@ fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
         let mut utf16idx: varnumber_T = 0;
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
-            utf16idx = tv_get_bool_chk(&argvars[2], &mut error);
+            utf16idx = tv_get_bool_chk(&argvars[2], Some(&mut error));
             if error {
                 return;
             }
@@ -2354,7 +2354,7 @@ pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         }
 
         let str_ = tv_get_string_chk(&argvars[0]);
-        let mut idx = tv_get_number_chk(&argvars[1], ptr::null_mut());
+        let mut idx = tv_get_number_chk(&argvars[1], None);
         if str_.is_null() || idx < 0 {
             return;
         }
@@ -2482,7 +2482,7 @@ pub fn f_strgetchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             return;
         }
         let mut error = false;
-        let mut charidx = tv_get_number_chk(&argvars[1], &mut error);
+        let mut charidx = tv_get_number_chk(&argvars[1], Some(&mut error));
         if error {
             return;
         }
@@ -2516,7 +2516,7 @@ pub fn f_stridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         let hay_len = CStr::from_ptr(haystack).to_bytes().len();
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
-            let start_idx = tv_get_number_chk(&argvars[2], &mut error) as isize;
+            let start_idx = tv_get_number_chk(&argvars[2], Some(&mut error)) as isize;
             if error || start_idx >= hay_len as isize {
                 return;
             }
@@ -2542,7 +2542,7 @@ pub fn f_string(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
     crate::eval::typval::tv_set_string(
             rettv,
-            encode_tv2string(&mut argvars[0], ptr::null_mut()).as_ptr(),
+            encode_tv2string(&mut argvars[0], None).as_ptr(),
         );
 }
 
@@ -2580,7 +2580,7 @@ pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         let mut skipcc: varnumber_T = 0;
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
-            skipcc = tv_get_bool_chk(&argvars[1], &mut error);
+            skipcc = tv_get_bool_chk(&argvars[1], Some(&mut error));
             if error {
                 return;
             }
@@ -2657,12 +2657,12 @@ pub fn f_strcharpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut nbyte: c_int = 0;
         let mut skipcc: varnumber_T = 0;
         let mut error = false;
-        let mut nchar = tv_get_number_chk(&argvars[1], &mut error);
+        let mut nchar = tv_get_number_chk(&argvars[1], Some(&mut error));
         if !error {
             if argvars[2].v_type != VarType::VAR_UNKNOWN
                 && argvars[3].v_type != VarType::VAR_UNKNOWN
             {
-                skipcc = tv_get_bool_chk(&argvars[3], &mut error);
+                skipcc = tv_get_bool_chk(&argvars[3], Some(&mut error));
                 if error {
                     return;
                 }
@@ -2729,7 +2729,7 @@ pub fn f_strpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let p = tv_get_string(&argvars[0]);
         let slen = CStr::from_ptr(p).to_bytes().len() as varnumber_T;
 
-        let mut n = tv_get_number_chk(&argvars[1], &mut error);
+        let mut n = tv_get_number_chk(&argvars[1], Some(&mut error));
         let mut len = if error {
             0
         } else if argvars[2].v_type != VarType::VAR_UNKNOWN {
@@ -2781,7 +2781,7 @@ pub fn f_strridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let needle_bytes = CStr::from_ptr(needle).to_bytes();
         let haystack_len = hay_bytes.len();
         let end_idx: isize = if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            let idx = tv_get_number_chk(&argvars[2], ptr::null_mut()) as isize;
+            let idx = tv_get_number_chk(&argvars[2], None) as isize;
             if idx < 0 {
                 return;
             }
@@ -2843,7 +2843,7 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         }
 
         let str_ = tv_get_string_chk(&argvars[0]);
-        let mut idx = tv_get_number_chk(&argvars[1], ptr::null_mut());
+        let mut idx = tv_get_number_chk(&argvars[1], None);
         if str_.is_null() || idx < 0 {
             return;
         }
@@ -3023,7 +3023,7 @@ pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
             if argvars[2].v_type != VarType::VAR_UNKNOWN {
                 let mut error = false;
-                dir = tv_get_number_chk(&argvars[2], &mut error) as c_int;
+                dir = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
                 if error {
                     return;
                 }

@@ -236,7 +236,7 @@ pub fn ask_yesno(str_ptr: *const c_char) -> c_int {
                 prompt.as_mut_ptr().cast::<c_char>(),
                 HLF_R,
                 true,
-                std::ptr::null_mut(),
+                None,
             );
             if r == CTRL_C || r == ESC {
                 r = b'n' as c_int;
@@ -258,9 +258,9 @@ pub fn ask_yesno(str_ptr: *const c_char) -> c_int {
 pub fn prompt_for_input(
     prompt: *mut c_char,
     hl_id: c_int,
-    one_key: bool,
-    mouse_used: *mut bool,
+    one_key: bool,mouse_used: Option<&mut bool>,
 ) -> c_int {
+    let mouse_used: *mut bool = mouse_used.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
         let kmsg = g_st().keep_msg.clone();
@@ -363,7 +363,7 @@ pub fn do_dialog(
                 dlg_st().confirm_buttons.as_mut_ptr(),
                 HLF_M,
                 true,
-                std::ptr::null_mut(),
+                None,
             );
             match c {
                 CAR | 0 => {

@@ -335,7 +335,8 @@ pub fn free_global_msglist() {
     }
 }
 
-pub fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
+pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: *mut c_char) {
+    let cstack: *mut cstack_T = cstack.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if exeval_st().cause_abort {
             exeval_st().cause_abort = false;

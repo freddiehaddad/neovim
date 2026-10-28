@@ -420,7 +420,7 @@ fn changed_common(
                 let mut folded = hasFoldingWin(
                     wp,
                     lnum,
-                    &raw mut lnum,
+                    Some(&mut lnum),
                     ptr::null_mut(),
                     false,
                     None,
@@ -431,7 +431,7 @@ fn changed_common(
                 folded = hasFoldingWin(
                     wp,
                     last,
-                    ptr::null_mut(),
+                    None,
                     &raw mut last,
                     false,
                     None,
@@ -755,9 +755,9 @@ pub fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
                 getvcol(
                     &mut **curwin.as_ptr(),
                     &mut (**curwin.as_ptr()).w_cursor,
-                    ptr::null_mut(),
-                    &raw mut vcol,
-                    ptr::null_mut(),
+                    None,
+                    Some(&mut vcol),
+                    None,
                     0,
                 );
                 let new_vcol = vcol + win_chartabsize(&mut **curwin.as_ptr(), buf, vcol);
@@ -970,9 +970,9 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
 pub fn open_line(
     dir: c_int,
     flags: c_int,
-    second_line_indent: c_int,
-    did_do_comment: *mut bool,
+    second_line_indent: c_int,did_do_comment: Option<&mut bool>,
 ) -> bool {
+    let did_do_comment: *mut bool = did_do_comment.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut next_line_vec: Vec<c_char> = Vec::new();
         let mut p_extra: *mut c_char = ptr::null_mut();

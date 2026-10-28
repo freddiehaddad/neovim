@@ -904,7 +904,7 @@ pub fn ml_recover(checkext: bool) {
                     c"vim._core.swapfile".as_ptr(),
                     c"select_swap".as_ptr(),
                     (&raw mut lua_args).cast(),
-                    ptr::null_mut(),
+                    None,
                 );
                 tv_clear(&raw mut items_tv);
                 ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
@@ -3663,7 +3663,7 @@ fn findswapname(
 
                     if choice == SEA_CHOICE_NONE
                         && g_st().swap_exists_action != SEA_NONE
-                        && has_autocmd(EVENT_SWAPEXISTS, buf_fname, buf)
+                        && has_autocmd(EVENT_SWAPEXISTS, buf_fname, Some(&mut *buf))
                     {
                         choice = do_swapexists(buf, fname);
                     }
@@ -4054,10 +4054,10 @@ fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtype: c_in
 /// Find offset for line or line with offset.
 pub fn ml_find_line_or_offset(
     buf: &mut buf_T,
-    lnum: linenr_T,
-    offp: *mut c_int,
+    lnum: linenr_T,offp: Option<&mut c_int>,
     no_ff: bool,
 ) -> c_int {
+    let offp: *mut c_int = offp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let ffdos = c_int::from(!no_ff && get_fileformat(buf) == EOL_DOS);
         let mut extra: c_int = 0;
@@ -4196,7 +4196,7 @@ pub fn goto_byte(cnt: c_int) {
         if boff != 0 {
             boff -= 1;
         }
-        let lnum = ml_find_line_or_offset(&mut *g_st().curbuf, 0, &raw mut boff, false) as linenr_T;
+        let lnum = ml_find_line_or_offset(&mut *g_st().curbuf, 0, Some(&mut boff), false) as linenr_T;
         if lnum < 1 {
             (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
             (**curwin.as_ptr()).w_curswant = MAXCOL;

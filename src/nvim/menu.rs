@@ -384,7 +384,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
                     false,
                     0,
                     REPTERM_DO_LT,
-                    ptr::null_mut(),
+                    None,
                     opt_vars().p_cpo,
                 )
             } else {

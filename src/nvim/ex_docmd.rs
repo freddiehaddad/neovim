@@ -5002,7 +5002,7 @@ pub fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c
 
         if do_cmdline_start() == FAIL {
             let _ = emsg(gettext(e_command_too_recursive.as_ptr()));
-            do_errthrow(ptr::null_mut(), ptr::null_mut());
+            do_errthrow(None, ptr::null_mut());
             g_st().msg_list = saved_msg_list;
             return FAIL;
         }
@@ -5375,7 +5375,7 @@ pub fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c
         }
 
         do_errthrow(
-            &raw mut cstack,
+            Some(&mut cstack),
             if fgetline.is_func() {
                 c"endfunction".as_ptr().cast_mut()
             } else {
@@ -5926,7 +5926,7 @@ pub fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
 fn find_excmd_after_range(eap: &mut exarg_T) -> *mut c_char {
     let cmd = eap.cmd;
         eap.cmd = skip_range(eap.cmd, None);
-        let p = find_ex_command(eap, ptr::null_mut());
+        let p = find_ex_command(eap, None);
         eap.cmd = cmd;
         p
 }
@@ -6258,8 +6258,8 @@ pub fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_i
                 && g_st().global_busy == 0
                 && eap.addr_type == ADDR_LINES
             {
-                hasFolding(*curwin.as_ptr(), eap.line1, &raw mut eap.line1, ptr::null_mut());
-                hasFolding(*curwin.as_ptr(), eap.line2, ptr::null_mut(), &raw mut eap.line2);
+                hasFolding(*curwin.as_ptr(), eap.line1, Some(&mut eap.line1), ptr::null_mut());
+                hasFolding(*curwin.as_ptr(), eap.line2, None, &raw mut eap.line2);
             }
 
             if parse_count(&mut *eap, &mut errormsg, true) == FAIL {
@@ -6527,7 +6527,7 @@ fn do_one_cmd(
                     ptr::null_mut(),
                 );
                 p = if ret && !aborting() {
-                    find_ex_command(&mut ea, ptr::null_mut())
+                    find_ex_command(&mut ea, None)
                 } else {
                     ea.cmd
                 };
@@ -6642,8 +6642,8 @@ fn do_one_cmd(
                 && g_st().global_busy == 0
                 && ea.addr_type == ADDR_LINES
             {
-                hasFolding(*curwin.as_ptr(), ea.line1, &raw mut ea.line1, ptr::null_mut());
-                hasFolding(*curwin.as_ptr(), ea.line2, ptr::null_mut(), &raw mut ea.line2);
+                hasFolding(*curwin.as_ptr(), ea.line1, Some(&mut ea.line1), ptr::null_mut());
+                hasFolding(*curwin.as_ptr(), ea.line2, None, &raw mut ea.line2);
             }
 
             p = replace_makeprg(&mut ea, p, cmdlinep);
@@ -6795,7 +6795,7 @@ fn do_one_cmd(
             let _ = emsg(errormsg);
         }
         do_errthrow(
-            cstack,
+            Some(&mut *cstack),
             if ea.cmdidx != CMD_SIZE_I32 && ea.cmdidx >= 0 {
                 CMDNAMES[ea.cmdidx as usize].cmd_name.as_ptr().cast_mut()
             } else {
@@ -7417,7 +7417,8 @@ fn one_letter_cmd(p: *const c_char, idx: &mut cmdidx_T) -> c_int {
     }
 }
 
-pub fn find_ex_command(eap: &mut exarg_T, full: *mut c_int) -> *mut c_char {
+pub fn find_ex_command(eap: &mut exarg_T,full: Option<&mut c_int>) -> *mut c_char {
+    let full: *mut c_int = full.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut p = eap.cmd;
         let mut cmdidx_out = cmdidx_T::CMD_append;
@@ -7512,7 +7513,7 @@ pub fn find_ex_command(eap: &mut exarg_T, full: *mut c_int) -> *mut c_char {
                 while ascii_isalnum(*p) {
                     p = p.add(1);
                 }
-                p = find_ucmd(eap, p, full, ptr::null_mut(), ptr::null_mut());
+                p = find_ucmd(eap, p, (!full.is_null()).then(||  { &mut *full }), None, None);
             }
             if p == eap.cmd {
                 eap.cmdidx = CMD_SIZE_I32;
@@ -7578,7 +7579,7 @@ pub fn cmd_exists(name: *const c_char) -> c_int {
         ea.cmdidx = 0;
         ea.flags = 0;
         let mut full: c_int = 0;
-        let p = find_ex_command(&mut ea, &raw mut full);
+        let p = find_ex_command(&mut ea, Some(&mut full));
         if p.is_null() {
             return 3;
         }
@@ -7619,7 +7620,7 @@ pub fn f_fullcommand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         };
         ea.cmdidx = 0;
         ea.flags = 0;
-        let p = find_ex_command(&mut ea, ptr::null_mut());
+        let p = find_ex_command(&mut ea, None);
         if p.is_null() || ea.cmdidx == CMD_SIZE_I32 {
             return;
         }
@@ -7806,7 +7807,7 @@ pub fn get_address(
                             let fm = mark_get(
                                 &mut *g_st().curbuf,
                                 *curwin.as_ptr(),
-                                ptr::null_mut(),
+                                None,
                                 flag,
                                 c_int::from(*cmd as u8),
                             );
@@ -7862,7 +7863,7 @@ pub fn get_address(
                                 1,
                                 search_flags,
                                 opt_vars().p_magic != 0,
-                                ptr::null_mut(),
+                                None,
                             ) == 0
                             {
                                 (**curwin.as_ptr()).w_cursor = pos;
@@ -7916,7 +7917,7 @@ pub fn get_address(
                                 SEARCH_MSG,
                                 pat_use,
                                 opt_vars().p_magic != 0,
-                                ptr::null_mut(),
+                                None,
                             ) != FAIL
                             {
                                 lnum = pos.lnum;
@@ -7988,7 +7989,7 @@ pub fn get_address(
                             && (op == b'-' as c_int || op == b'+' as c_int)
                             && address_count >= 2
                         {
-                            hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &raw mut lnum);
+                            hasFolding(*curwin.as_ptr(), lnum, None, &raw mut lnum);
                         }
                         if op == b'-' as c_int {
                             lnum -= n;
@@ -8793,7 +8794,7 @@ fn ex_doautocmd(eap: &mut exarg_T) {
         let call_do_modelines = check_nomodeline(&raw mut arg);
         let mut did_aucmd = false;
 
-        do_doautocmd(arg, false, &raw mut did_aucmd);
+        do_doautocmd(arg, false, Some(&mut did_aucmd));
         if call_do_modelines && did_aucmd {
             do_modelines(0);
         }
@@ -9143,7 +9144,7 @@ fn ex_exmode(_eap: &mut exarg_T) {
             c"vim._core.exmode".as_ptr(),
             c"open".as_ptr(),
             args.as_mut_ptr(),
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -9623,7 +9624,7 @@ pub fn ex_win_close(forceit: c_int, win: &mut win_T, tp: *mut tabpage_T) {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&mut bufref, buf);
                 dialog_changed(&mut *buf, false);
-                if bufref_valid(&raw mut bufref) && bufIsChanged(&mut *buf) {
+                if bufref_valid(Some(&bufref)) && bufIsChanged(&mut *buf) {
                     return;
                 }
                 need_hide = false;
@@ -12218,7 +12219,7 @@ pub fn eval_vars(
                     }
                 }
                 SPEC_CFILE => {
-                    let Some(cfile) = file_name_at_cursor(FNAME_MESS | FNAME_HYP, 1, ptr::null_mut()) else {
+                    let Some(cfile) = file_name_at_cursor(FNAME_MESS | FNAME_HYP, 1, None) else {
                         *errormsg = c"".as_ptr();
                         return None;
                     };
@@ -12538,7 +12539,7 @@ fn ex_filetype(eap: &mut exarg_T) {
                 do_doautocmd(
                     c"filetypedetect BufRead".as_ptr().cast_mut(),
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
                 do_modelines(0);
             }
@@ -12669,7 +12670,7 @@ fn ex_folddo(eap: &mut exarg_T) {
     unsafe {
         let mut lnum = eap.line1;
         while lnum <= eap.line2 {
-            if hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), ptr::null_mut())
+            if hasFolding(*curwin.as_ptr(), lnum, None, ptr::null_mut())
                 == (eap.cmdidx == cmdidx_T::CMD_folddoclosed as c_int)
             {
                 ml_setmarked(lnum);

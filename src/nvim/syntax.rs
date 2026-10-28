@@ -5290,10 +5290,10 @@ pub fn syn_get_id(
     wp: *mut win_T,
     lnum: linenr_T,
     col: colnr_T,
-    trans: c_int,
-    spellp: *mut bool,
+    trans: c_int,spellp: Option<&mut bool>,
     keep_state: c_int,
 ) -> c_int {
+    let spellp: *mut bool = spellp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if wp != syn_st().syn_win || (*wp).w_buffer != syn_st().syn_buf || lnum != syn_st().current_lnum || col < syn_st().current_col {
             syntax_start(wp, lnum);

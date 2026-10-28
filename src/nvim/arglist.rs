@@ -978,7 +978,7 @@ fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
                         let mut bufref: bufref_T = bufref_T::new();
                         set_bufref(&mut bufref, buf);
                         autowrite(&mut *buf, false);
-                        if !win_valid(wp) || !bufref_valid(&raw mut bufref) {
+                        if !win_valid(wp) || !bufref_valid(Some(&bufref)) {
                             wp = if (*g_st().lastwin).w_floating {
                                 g_st().lastwin
                             } else {
@@ -1301,7 +1301,7 @@ pub fn f_argv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         }
 
         tv_set_string(rettv, ptr::null());
-        let idx = tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int;
+        let idx = tv_get_number_chk(&argvars[0], None) as c_int;
         if !al_ptr.is_null() && idx >= 0 && idx < count {
             tv_set_string(rettv, alist_name(&*al_ptr.add(idx as usize)));
         } else if idx == -1 {

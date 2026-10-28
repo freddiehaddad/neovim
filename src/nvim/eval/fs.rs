@@ -663,7 +663,7 @@ fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int
                 }
 
                 if argvars[2].v_type != VarType::VAR_UNKNOWN {
-                    count = tv_get_number_chk(&argvars[2], &mut error) as c_int;
+                    count = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
                 }
             }
         }
@@ -1078,15 +1078,15 @@ pub fn f_glob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         // for 'wildignore' and don't put matches for 'suffixes' at the end.
         rettv.v_type = VarType::VAR_STRING;
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
-            if tv_get_bool_chk(&argvars[1], &mut error) != 0 {
+            if tv_get_bool_chk(&argvars[1], Some(&mut error)) != 0 {
                 options |= WILD_KEEP_ALL;
             }
             if argvars[2].v_type != VarType::VAR_UNKNOWN {
-                if tv_get_bool_chk(&argvars[2], &mut error) != 0 {
+                if tv_get_bool_chk(&argvars[2], Some(&mut error)) != 0 {
                     tv_list_set_ret(rettv, ptr::null_mut());
                 }
                 if argvars[3].v_type != VarType::VAR_UNKNOWN
-                    && tv_get_bool_chk(&argvars[3], &mut error) != 0
+                    && tv_get_bool_chk(&argvars[3], Some(&mut error)) != 0
                 {
                     options |= WILD_ALLLINKS;
                 }
@@ -1145,16 +1145,16 @@ pub fn f_globpath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             // When the optional second argument is non-zero, don't remove matches
             // for 'wildignore' and don't put matches for 'suffixes' at the end.
-            if tv_get_bool_chk(&argvars[2], &mut error) != 0 {
+            if tv_get_bool_chk(&argvars[2], Some(&mut error)) != 0 {
                 flags |= WILD_KEEP_ALL;
             }
 
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
-                if tv_get_bool_chk(&argvars[3], &mut error) != 0 {
+                if tv_get_bool_chk(&argvars[3], Some(&mut error)) != 0 {
                     tv_list_set_ret(rettv, ptr::null_mut());
                 }
                 if argvars[4].v_type != VarType::VAR_UNKNOWN
-                    && tv_get_bool_chk(&argvars[4], &mut error) != 0
+                    && tv_get_bool_chk(&argvars[4], Some(&mut error)) != 0
                 {
                     flags |= WILD_ALLLINKS;
                 }
@@ -1287,7 +1287,7 @@ pub fn f_mkdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
         let mut created: Option<std::ffi::CString> = None;
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             if argvars[2].v_type != VarType::VAR_UNKNOWN {
-                prot = tv_get_number_chk(&argvars[2], ptr::null_mut()) as c_int;
+                prot = tv_get_number_chk(&argvars[2], None) as c_int;
                 if prot == -1 {
                     return;
                 }
@@ -1394,7 +1394,7 @@ pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> var
 
         let mut rettv = tv_init;
         if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 1, &mut rettv) != FAIL {
-            retval = tv_get_number_chk(&rettv, &mut error);
+            retval = tv_get_number_chk(&rettv, Some(&mut error));
             if error {
                 retval = -1;
             }

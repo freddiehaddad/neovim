@@ -374,7 +374,7 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
         let mut attrs = dict2hlattrs(
             &mut dict,
             rgb,
-            ptr::null_mut(),
+            None,
             ptr::null_mut(),
             &mut err,
         );

@@ -153,8 +153,7 @@ fn extmark_push_savepos(
 /// Create or update an extmark (`extmark_set`).
 pub fn extmark_set(
     buf: &mut buf_T,
-    ns_id: u32,
-    idp: *mut u32,
+    ns_id: u32,idp: Option<&mut u32>,
     row: c_int,
     col: colnr_T,
     end_row: c_int,
@@ -166,6 +165,7 @@ pub fn extmark_set(
     no_undo: bool,
     invalidate: bool,
 ) {
+    let idp: *mut u32 = idp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let ns = buf.b_extmark_ns.entry(ns_id).or_insert(0);
         let mut id = if !idp.is_null() { *idp } else { 0 };
@@ -574,7 +574,7 @@ pub fn extmark_set_pos(
         extmark_set(
             &mut *buf,
             ns_id,
-            mark,
+            Some(&mut *mark),
             pos.lnum - 1,
             pos.col,
             -1,
@@ -802,7 +802,7 @@ pub fn extmark_adjust(
         if g_st().curbuf_splice_pending != 0 {
             return;
         }
-        let start_byte = ml_find_line_or_offset(&mut *buf, line1, ptr::null_mut(), true) as bcount_t;
+        let start_byte = ml_find_line_or_offset(&mut *buf, line1, None, true) as bcount_t;
         let mut old_byte: bcount_t = 0;
         let mut new_byte: bcount_t = 0;
         let old_row: c_int;
@@ -817,7 +817,7 @@ pub fn extmark_adjust(
             new_row = amount as c_int;
         }
         if new_row > 0 {
-            new_byte = (ml_find_line_or_offset(&mut *buf, line1 + new_row, ptr::null_mut(), true)
+            new_byte = (ml_find_line_or_offset(&mut *buf, line1 + new_row, None, true)
                 as bcount_t)
                 - start_byte;
         }
@@ -851,7 +851,7 @@ pub fn extmark_splice(
     undo: ExtmarkOp,
 ) {
     unsafe {
-        let mut offset = ml_find_line_or_offset(&mut *buf, start_row + 1, ptr::null_mut(), true);
+        let mut offset = ml_find_line_or_offset(&mut *buf, start_row + 1, None, true);
         if offset < 0 && (*buf).b_ml.ml_chunksize.is_empty() {
             offset = 0;
         }

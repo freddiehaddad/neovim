@@ -667,7 +667,7 @@ pub fn win_previewpopup_config(value: *const c_char, config: &mut WinConfig) -> 
         }
         if !border.is_null() {
             let mut err = error_init();
-            let ok = parse_winborder(&raw mut *config, border, &mut err);
+            let ok = parse_winborder(Some(&mut *config), border, &mut err);
             api_clear_error(&mut err);
             if !ok {
                 return false;

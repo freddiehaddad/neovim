@@ -747,9 +747,9 @@ pub fn get_number_indent(lnum: linenr_T) -> c_int {
         getvcol(
             &mut **curwin.as_ptr(),
             &mut pos,
-            &raw mut col,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            Some(&mut col),
+            None,
+            None,
             0,
         );
         col as c_int

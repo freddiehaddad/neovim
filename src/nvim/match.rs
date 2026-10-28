@@ -234,7 +234,7 @@ fn match_add(
                         failed = true;
                         break;
                     }
-                    lnum = tv_get_number_chk(&(*subli).li_tv, &mut error) as linenr_T;
+                    lnum = tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as linenr_T;
                     if error {
                         failed = true;
                         break;
@@ -247,7 +247,7 @@ fn match_add(
                     subli = (*subli).li_next;
                     if !subli.is_null() {
                         col =
-                            tv_get_number_chk(&(*subli).li_tv, &mut error) as colnr_T;
+                            tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as colnr_T;
                         if error {
                             failed = true;
                             break;
@@ -258,7 +258,7 @@ fn match_add(
                         }
                         subli = (*subli).li_next;
                         if !subli.is_null() {
-                            len = tv_get_number_chk(&(*subli).li_tv, &mut error)
+                            len = tv_get_number_chk(&(*subli).li_tv, Some(&mut error))
                                 as colnr_T;
                             if len < 0 {
                                 li = (*li).li_next;
@@ -572,7 +572,7 @@ pub fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T
                 if (*shl).first_lnum == 0 {
                     (*shl).first_lnum = lnum;
                     while (*shl).first_lnum > wp.w_topline {
-                        if hasFolding(&raw mut *wp, (*shl).first_lnum - 1, ptr::null_mut(), ptr::null_mut()) {
+                        if hasFolding(&raw mut *wp, (*shl).first_lnum - 1, None, ptr::null_mut()) {
                             break;
                         }
                         (*shl).first_lnum -= 1;
@@ -1154,9 +1154,9 @@ pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             return;
         }
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            prio = tv_get_number_chk(&argvars[2], &mut error) as c_int;
+            prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
-                id = tv_get_number_chk(&argvars[3], &mut error) as c_int;
+                id = tv_get_number_chk(&argvars[3], Some(&mut error)) as c_int;
                 if argvars[4].v_type != VarType::VAR_UNKNOWN
                     && matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
                         == FAIL
@@ -1212,9 +1212,9 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut win = *curwin.as_ptr();
 
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            prio = tv_get_number_chk(&argvars[2], &mut error) as c_int;
+            prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as c_int;
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
-                id = tv_get_number_chk(&argvars[3], &mut error) as c_int;
+                id = tv_get_number_chk(&argvars[3], Some(&mut error)) as c_int;
                 if argvars[4].v_type != VarType::VAR_UNKNOWN
                     && matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
                         == FAIL

@@ -1553,11 +1553,11 @@ fn win_update(wp: &mut win_T) {
                     }
                 }
 
-                hasFolding(&raw mut *wp, mod_top, &raw mut mod_top, ptr::null_mut());
+                hasFolding(&raw mut *wp, mod_top, Some(&mut mod_top), ptr::null_mut());
                 mod_top = mod_top.min(lnumt);
 
                 mod_bot -= 1;
-                hasFolding(&raw mut *wp, mod_bot, ptr::null_mut(), &raw mut mod_bot);
+                hasFolding(&raw mut *wp, mod_bot, None, &raw mut mod_bot);
                 mod_bot += 1;
                 mod_bot = mod_bot.max(lnumb);
             }
@@ -1599,7 +1599,7 @@ fn win_update(wp: &mut win_T) {
             hasFolding(
                 &raw mut *wp,
                 topline_conceal,
-                ptr::null_mut(),
+                None,
                 &raw mut topline_conceal,
             );
         }
@@ -1630,7 +1630,7 @@ fn win_update(wp: &mut win_T) {
                         if j >= wp.w_view_height - 2 {
                             break;
                         }
-                        hasFolding(&raw mut *wp, ln, ptr::null_mut(), &raw mut ln);
+                        hasFolding(&raw mut *wp, ln, None, &raw mut ln);
                         ln += 1;
                     }
                 } else {
@@ -1720,9 +1720,9 @@ fn win_update(wp: &mut win_T) {
                             w_lines_at(&mut *wp, 0).wl_size = plines_correct_topline(
                                 &raw mut *wp,
                                 wp.w_topline,
-                                ptr::null_mut(),
+                                None,
                                 true,
-                                ptr::null_mut(),
+                                None,
                             ) as u16;
                         }
                     }
@@ -1818,9 +1818,9 @@ fn win_update(wp: &mut win_T) {
                                 getvvcol(
                                     &raw mut *wp,
                                     &mut pos,
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
-                                    &raw mut t,
+                                    None,
+                                    None,
+                                    Some(&mut t),
                                     0,
                                 );
                                 toc = toc.max(t);
@@ -2035,9 +2035,9 @@ fn win_update(wp: &mut win_T) {
                                     let n = plines_correct_topline(
                                         &raw mut *wp,
                                         l,
-                                        &raw mut l,
+                                        Some(&mut l),
                                         true,
-                                        ptr::null_mut(),
+                                        None,
                                     );
                                     new_rows += n;
                                     j += c_int::from(n > 0);
@@ -2171,8 +2171,8 @@ fn win_update(wp: &mut win_T) {
                             &mut *wp,
                             lastlnum,
                             lastlnum + 1,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
+                            None,
+                            None,
                             true,
                         ) > 0;
                         while !virt_below
@@ -2186,7 +2186,7 @@ fn win_update(wp: &mut win_T) {
                             virt_below = false;
                             w_lines_at(&mut *wp, idx as usize).wl_lastlnum += 1;
                             let last_ptr = &raw mut w_lines_at(&mut *wp, idx as usize).wl_lastlnum;
-                            hasFolding(&raw mut *wp, *last_ptr, ptr::null_mut(), last_ptr);
+                            hasFolding(&raw mut *wp, *last_ptr, None, last_ptr);
                         }
                     }
 
@@ -2304,7 +2304,7 @@ fn win_update(wp: &mut win_T) {
                 } else if (opt_vars().dy_flags & kOptDyFlagLastline) != 0 {
                     grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
                     let width =
-                        if grid_line_getchar((wp.w_view_width - 3).max(0), ptr::null_mut()) == 0
+                        if grid_line_getchar((wp.w_view_width - 3).max(0), None) == 0
                         {
                             4
                         } else {

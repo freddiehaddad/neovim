@@ -117,7 +117,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 c"vim._core.help".as_ptr(),
                 c"resolve_tag".as_ptr(),
                 no_args.as_mut_ptr(),
-                &raw mut rettv,
+                Some(&mut rettv),
             );
             if rettv.v_type == VarType::VAR_STRING
                 && !rettv.vval.v_string().is_null()
@@ -364,7 +364,7 @@ pub fn find_help_tags(
             c"vim._core.help".as_ptr(),
             c"escape_subject".as_ptr(),
             tv_args.as_mut_ptr(),
-            &raw mut rettv,
+            Some(&mut rettv),
         );
         if rettv.v_type != VarType::VAR_STRING || rettv.vval.v_string().is_null() {
             tv_clear(&raw mut rettv);
@@ -499,7 +499,7 @@ pub fn get_local_additions() {
             c"vim._core.help".as_ptr(),
             c"local_additions".as_ptr(),
             no_args.as_mut_ptr(),
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -557,7 +557,7 @@ pub fn ex_helptags(eap: &mut exarg_T) {
             c"vim._core.help".as_ptr(),
             c"gen_tags".as_ptr(),
             tv_args.as_mut_ptr(),
-            ptr::null_mut(),
+            None,
         );
     }
 }

@@ -702,12 +702,12 @@ fn virt_text_cursor_off(csarg: &CharsizeArg, on_nul: bool) -> c_int {
 
 pub fn getvcol(
     wp: &mut win_T,
-    pos: &mut pos_T,
-    start: *mut colnr_T,
-    cursor: *mut colnr_T,
-    end: *mut colnr_T,
+    pos: &mut pos_T,start: Option<&mut colnr_T>,cursor: Option<&mut colnr_T>,end: Option<&mut colnr_T>,
     flags: c_int,
 ) {
+    let start: *mut colnr_T = start.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let cursor: *mut colnr_T = cursor.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let end: *mut colnr_T = end.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let line = ml_get_buf(wp.w_buffer, pos.lnum);
         let end_col = pos.col;
@@ -802,9 +802,9 @@ pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
 
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
         if posp.coladd != 0 {
-            getvvcol(*curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
+            getvvcol(*curwin.as_ptr(), posp, None, Some(&mut vcol), None, 0);
         } else {
-            getvcol(&mut **curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
+            getvcol(&mut **curwin.as_ptr(), posp, None, Some(&mut vcol), None, 0);
         }
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = list_save;
         vcol
@@ -813,17 +813,17 @@ pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
 
 pub fn getvvcol(
     wp: *mut win_T,
-    pos: &mut pos_T,
-    start: *mut colnr_T,
-    cursor: *mut colnr_T,
-    end: *mut colnr_T,
+    pos: &mut pos_T,start: Option<&mut colnr_T>,cursor: Option<&mut colnr_T>,end: Option<&mut colnr_T>,
     flags: c_int,
 ) {
+    let start: *mut colnr_T = start.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let cursor: *mut colnr_T = cursor.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let end: *mut colnr_T = end.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut col: colnr_T = 0;
 
         if virtual_active(wp) {
-            getvcol(&mut *wp, pos, &mut col, ptr::null_mut(), ptr::null_mut(), flags);
+            getvcol(&mut *wp, pos, Some(&mut col), None, None, flags);
             let mut coladd = pos.coladd;
             let mut endadd: colnr_T = 0;
 
@@ -851,7 +851,7 @@ pub fn getvvcol(
                 *end = col + endadd;
             }
         } else {
-            getvcol(&mut *wp, pos, start, cursor, end, flags);
+            getvcol(&mut *wp, pos, (!start.is_null()).then(||  { &mut *start }), (!cursor.is_null()).then(||  { &mut *cursor }), (!end.is_null()).then(||  { &mut *end }), flags);
         }
     }
 }
@@ -871,11 +871,11 @@ pub fn getvcols(
         let mut to2: colnr_T = 0;
 
         if lt(*pos1, *pos2) {
-            getvvcol(wp, pos1, &mut from1, ptr::null_mut(), &mut to1, flags);
-            getvvcol(wp, pos2, &mut from2, ptr::null_mut(), &mut to2, flags);
+            getvvcol(wp, pos1, Some(&mut from1), None, Some(&mut to1), flags);
+            getvvcol(wp, pos2, Some(&mut from2), None, Some(&mut to2), flags);
         } else {
-            getvvcol(wp, pos2, &mut from1, ptr::null_mut(), &mut to1, flags);
-            getvvcol(wp, pos1, &mut from2, ptr::null_mut(), &mut to2, flags);
+            getvvcol(wp, pos2, Some(&mut from1), None, Some(&mut to1), flags);
+            getvvcol(wp, pos1, Some(&mut from2), None, Some(&mut to2), flags);
         }
 
         *left = from1.min(from2);
@@ -901,7 +901,7 @@ pub fn win_may_fill(wp: &mut win_T) -> bool {
 
 pub fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
-        decor_virt_lines(&mut *wp, lnum - 1, lnum, ptr::null_mut(), ptr::null_mut(), true)
+        decor_virt_lines(&mut *wp, lnum - 1, lnum, None, None, true)
             + diff_check_fill(wp, lnum)
     }
 }
@@ -1014,14 +1014,14 @@ pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
 
 pub fn plines_win_full(
     wp: *mut win_T,
-    mut lnum: linenr_T,
-    nextp: *mut linenr_T,
-    foldedp: *mut bool,
+    mut lnum: linenr_T,nextp: Option<&mut linenr_T>,foldedp: Option<&mut bool>,
     cache: bool,
     limit_winheight: bool,
 ) -> c_int {
+    let nextp: *mut linenr_T = nextp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let foldedp: *mut bool = foldedp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
-        let folded = hasFoldingWin(wp, lnum, &mut lnum, nextp, cache, None);
+        let folded = hasFoldingWin(wp, lnum, Some(&mut lnum), nextp, cache, None);
         if !foldedp.is_null() {
             *foldedp = folded;
         }
@@ -1054,7 +1054,7 @@ pub fn plines_m_win(
         let mut count = 0;
         while first <= last && count < max {
             let mut next = first;
-            count += plines_win_full(&raw mut *wp, first, &mut next, ptr::null_mut(), false, false);
+            count += plines_win_full(&raw mut *wp, first, Some(&mut next), None, false, false);
             first = next + 1;
         }
         if first == (*wp.w_buffer).b_ml.ml_line_count + 1 {
@@ -1068,7 +1068,7 @@ pub fn plines_m_win_fill(wp: *mut win_T, first: linenr_T, last: linenr_T) -> c_i
     unsafe {
         let mut count = last - first
             + 1
-            + decor_virt_lines(&mut *wp, first - 1, last, ptr::null_mut(), ptr::null_mut(), false);
+            + decor_virt_lines(&mut *wp, first - 1, last, None, None, false);
 
         if diffopt_filler() {
             for lnum in first..=last {
@@ -1104,7 +1104,7 @@ pub fn win_text_height(
 
         if start_vcol >= 0 {
             let mut lnum_next = lnum;
-            cur_folded = hasFolding(&raw mut *wp, lnum, &mut lnum, &mut lnum_next);
+            cur_folded = hasFolding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
             height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;
             let row_off = if start_vcol < i64::from(width1) || width2 <= 0 {
@@ -1118,7 +1118,7 @@ pub fn win_text_height(
 
         while lnum <= *end_lnum && height_sum_nofill + height_sum_fill < max {
             let mut lnum_next = lnum;
-            cur_folded = hasFolding(&raw mut *wp, lnum, &mut lnum, &mut lnum_next);
+            cur_folded = hasFolding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
             height_sum_fill += i64::from(win_get_fill(&raw mut *wp, lnum));
             height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;

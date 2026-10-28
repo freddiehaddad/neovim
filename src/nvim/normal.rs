@@ -2809,8 +2809,8 @@ pub fn clear_showcmd() {
                 top = (**curwin.as_ptr()).w_cursor.lnum;
                 bot = g_st().Visual.start.lnum;
             }
-            hasFolding(*curwin.as_ptr(), top, &raw mut top, ptr::null_mut());
-            hasFolding(*curwin.as_ptr(), bot, ptr::null_mut(), &raw mut bot);
+            hasFolding(*curwin.as_ptr(), top, Some(&mut top), ptr::null_mut());
+            hasFolding(*curwin.as_ptr(), bot, None, &raw mut bot);
             let lines = bot - top + 1;
 
             if g_st().Visual.mode == Ctrl_V {
@@ -3396,7 +3396,7 @@ pub fn find_decl(
                 searchflags,
                 RE_LAST,
                 false,
-                ptr::null_mut(),
+                None,
             ) != 0;
             if (**curwin.as_ptr()).w_cursor.lnum >= old_pos.lnum {
                 t = false;
@@ -3518,7 +3518,7 @@ pub fn nv_screengo(
                         && !hasFolding(
                             *curwin.as_ptr(),
                             (**curwin.as_ptr()).w_cursor.lnum,
-                            ptr::null_mut(),
+                            None,
                             ptr::null_mut(),
                         )
                     {
@@ -3547,7 +3547,7 @@ pub fn nv_screengo(
                         && !hasFolding(
                             *curwin.as_ptr(),
                             (**curwin.as_ptr()).w_cursor.lnum,
-                            ptr::null_mut(),
+                            None,
                             ptr::null_mut(),
                         )
                     {
@@ -3842,7 +3842,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     if hasFolding(
                         *curwin.as_ptr(),
                         (**curwin.as_ptr()).w_cursor.lnum,
-                        ptr::null_mut(),
+                        None,
                         ptr::null_mut(),
                     ) {
                         col = 0;
@@ -3850,9 +3850,9 @@ fn nv_zet(cap: &mut cmdarg_T) {
                         getvcol(
                             &mut **curwin.as_ptr(),
                             &mut (**curwin.as_ptr()).w_cursor,
-                            &raw mut col,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
+                            Some(&mut col),
+                            None,
+                            None,
                             0,
                         );
                     }
@@ -3872,7 +3872,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                     if hasFolding(
                         *curwin.as_ptr(),
                         (**curwin.as_ptr()).w_cursor.lnum,
-                        ptr::null_mut(),
+                        None,
                         ptr::null_mut(),
                     ) {
                         col = 0;
@@ -3880,9 +3880,9 @@ fn nv_zet(cap: &mut cmdarg_T) {
                         getvcol(
                             &mut **curwin.as_ptr(),
                             &mut (**curwin.as_ptr()).w_cursor,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            &raw mut col,
+                            None,
+                            None,
+                            Some(&mut col),
                             0,
                         );
                     }
@@ -3963,7 +3963,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 if hasFolding(
                     *curwin.as_ptr(),
                     (**curwin.as_ptr()).w_cursor.lnum,
-                    ptr::null_mut(),
+                    None,
                     ptr::null_mut(),
                 ) {
                     openFold((**curwin.as_ptr()).w_cursor, cap.count1);
@@ -3976,7 +3976,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 if hasFolding(
                     *curwin.as_ptr(),
                     (**curwin.as_ptr()).w_cursor.lnum,
-                    ptr::null_mut(),
+                    None,
                     ptr::null_mut(),
                 ) {
                     openFoldRecurse((**curwin.as_ptr()).w_cursor);
@@ -4662,7 +4662,7 @@ fn nv_scroll(cap: &mut cmdarg_T) {
                     hasFolding(
                         *curwin.as_ptr(),
                         (**curwin.as_ptr()).w_cursor.lnum,
-                        &raw mut (**curwin.as_ptr()).w_cursor.lnum,
+                        Some(&mut (**curwin.as_ptr()).w_cursor.lnum),
                         ptr::null_mut(),
                     );
                     n += c_int::from(decor_conceal_line(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, true));
@@ -4692,7 +4692,7 @@ fn nv_scroll(cap: &mut cmdarg_T) {
                     if hasFolding(
                         *curwin.as_ptr(),
                         (**curwin.as_ptr()).w_topline + n,
-                        ptr::null_mut(),
+                        None,
                         &raw mut lnum,
                     ) {
                         n = lnum - (**curwin.as_ptr()).w_topline;
@@ -4712,7 +4712,7 @@ fn nv_scroll(cap: &mut cmdarg_T) {
                         prev > 0
                     }) && lnum < (**curwin.as_ptr()).w_botline - 1
                     {
-                        hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &raw mut lnum);
+                        hasFolding(*curwin.as_ptr(), lnum, None, &raw mut lnum);
                         lnum += 1;
                     }
                     n = lnum - (**curwin.as_ptr()).w_topline;
@@ -5062,7 +5062,7 @@ fn normal_search(
             cap.count1,
             opt | SEARCH_OPT | SEARCH_ECHO | SEARCH_MSG,
             opt_vars().p_magic != 0,
-            &raw mut sia,
+            Some(&mut sia),
         );
         if let Some(wrapped) = wrapped {
             *wrapped = sia.sa_wrapped;
@@ -5126,9 +5126,9 @@ fn nv_csearch(cap: &mut cmdarg_T) {
             getvcol(
                 &mut **curwin.as_ptr(),
                 &mut (**curwin.as_ptr()).w_cursor,
-                &raw mut scol,
-                ptr::null_mut(),
-                &raw mut ecol,
+                Some(&mut scol),
+                None,
+                Some(&mut ecol),
                 0,
             );
             (**curwin.as_ptr()).w_cursor.coladd = ecol - scol;
@@ -5359,7 +5359,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
         } else if cap.nchar == b'p' as c_int || cap.nchar == b'P' as c_int {
             nv_put_opt(cap, true);
         } else if cap.nchar == b'\'' as c_int || cap.nchar == b'`' as c_int {
-            let mut fm = pos_to_mark(g_st().curbuf, ptr::null_mut(), (**curwin.as_ptr()).w_cursor);
+            let mut fm = pos_to_mark(g_st().curbuf, None, (**curwin.as_ptr()).w_cursor);
             assert!(!fm.is_null());
             let mut prev_fm = fm;
             let mut n = cap.count1;
@@ -5458,7 +5458,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                     c"vim._core.mcursor".as_ptr(),
                     c"jump".as_ptr(),
                     tv_args.as_mut_ptr(),
-                    &raw mut rettv,
+                    Some(&mut rettv),
                 );
                 if rettv.v_type != VarType::VAR_BOOL || rettv.vval.v_bool() != kBoolVarTrue {
                     clearopbeep(&mut *cap.oap);
@@ -6086,7 +6086,7 @@ fn nv_gomark(cap: &mut cmdarg_T) {
             flags |= kMarkSetView;
         }
 
-        let fm = mark_get(&mut *g_st().curbuf, *curwin.as_ptr(), ptr::null_mut(), kMarkAll, name);
+        let fm = mark_get(&mut *g_st().curbuf, *curwin.as_ptr(), None, kMarkAll, name);
         let move_res = nv_mark_move_to(cap, flags, &mut *fm);
 
         if !virtual_active(*curwin.as_ptr()) {
@@ -6495,9 +6495,9 @@ fn nv_g_dollar_cmd(cap: &mut cmdarg_T) {
                 getvvcol(
                     *curwin.as_ptr(),
                     &mut (**curwin.as_ptr()).w_cursor,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    &raw mut vcol,
+                    None,
+                    None,
+                    Some(&mut vcol),
                     0,
                 );
                 if vcol >= (**curwin.as_ptr()).w_leftcol + (**curwin.as_ptr()).w_view_width - col_off {
@@ -6586,7 +6586,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                         c"vim._core.mcursor".as_ptr(),
                         c"restore".as_ptr(),
                         tv_args.as_mut_ptr(),
-                        ptr::null_mut(),
+                        None,
                     );
                 }
             }
@@ -6802,14 +6802,14 @@ fn n_opencmd(cap: &mut cmdarg_T) {
             hasFolding(
                 *curwin.as_ptr(),
                 (**curwin.as_ptr()).w_cursor.lnum,
-                &raw mut (**curwin.as_ptr()).w_cursor.lnum,
+                Some(&mut (**curwin.as_ptr()).w_cursor.lnum),
                 ptr::null_mut(),
             );
         } else {
             hasFolding(
                 *curwin.as_ptr(),
                 (**curwin.as_ptr()).w_cursor.lnum,
-                ptr::null_mut(),
+                None,
                 &raw mut (**curwin.as_ptr()).w_cursor.lnum,
             );
         }
@@ -6830,7 +6830,7 @@ fn n_opencmd(cap: &mut cmdarg_T) {
                     0
                 },
                 0,
-                ptr::null_mut(),
+                None,
             )
         {
             if win_cursorline_standout(&**curwin.as_ptr()) {
@@ -7115,7 +7115,7 @@ pub fn unadjust_for_sel_inner(pp: &mut pos_T) -> bool {
             if virtual_active(*curwin.as_ptr()) {
                 let mut cs: colnr_T = 0;
                 let mut ce: colnr_T = 0;
-                getvcol(&mut **curwin.as_ptr(), pp, &raw mut cs, ptr::null_mut(), &raw mut ce, 0);
+                getvcol(&mut **curwin.as_ptr(), pp, Some(&mut cs), None, Some(&mut ce), 0);
                 pp.coladd = ce - cs;
             }
         } else if pp.lnum > 1 {
@@ -7451,7 +7451,7 @@ fn nv_q(cap: &mut cmdarg_T) {
                 c"vim._core.cmdwin".as_ptr(),
                 c"open".as_ptr(),
                 tv_args.as_mut_ptr(),
-                ptr::null_mut(),
+                None,
             );
         } else if g_st().reg_executing == 0 && do_record(cap.nchar) == FAIL {
             clearopbeep(&mut *cap.oap);

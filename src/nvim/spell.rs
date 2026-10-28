@@ -262,10 +262,10 @@ fn mb_cptr_adv(p: &mut *const c_char) {
 /// Main spell-checking function.
 pub fn spell_check(
     wp: *mut win_T,
-    ptr: *mut c_char,attrp: &mut hlf_T,
-    capcol: *mut c_int,
+    ptr: *mut c_char,attrp: &mut hlf_T,capcol: Option<&mut c_int>,
     docount: bool,
 ) -> usize {
+    let capcol: *mut c_int = capcol.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let attrp: *mut hlf_T = &raw mut *attrp;
     unsafe {
         if (*ptr as u8) <= b' ' {
@@ -1096,7 +1096,7 @@ fn decor_spell_nav_col(wp: &mut win_T,
 #[inline]
 fn can_syn_spell(wp: &mut win_T, lnum: linenr_T, col: c_int) -> bool {
     let mut can_spell = false;
-        let _ = syn_get_id(wp, lnum, col, 0, &raw mut can_spell, 0);
+        let _ = syn_get_id(wp, lnum, col, 0, Some(&mut can_spell), 0);
         can_spell
 }
 pub fn spell_move_to(
@@ -1171,7 +1171,7 @@ pub fn spell_move_to(
                         break;
                     }
                     attr = HLF_COUNT;
-                    len = spell_check(&raw mut *wp, p, &mut attr, &raw mut capcol, false);
+                    len = spell_check(&raw mut *wp, p, &mut attr, Some(&mut capcol), false);
                     if attr != HLF_COUNT
                         && (behaviour == SMT_ALL
                             || (behaviour == SMT_BAD && attr == HLF_SPB)
@@ -1738,7 +1738,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                         let _ = spell_load_file(lang_ptr, lang_ptr, ptr::null_mut(), false);
                     } else {
                         spell_load_lang(lang_ptr);
-                        if !bufref_valid(&raw mut bufref) || !win_valid_any_tab(wp) {
+                        if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(wp) {
                             ret_msg = c"E797: SpellFileMissing autocommand deleted buffer"
                                 .as_ptr()
                                 .cast_mut();
@@ -2282,7 +2282,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
                 1,
                 SEARCH_KEEP,
                 false,
-                ptr::null_mut(),
+                None,
             ) == 0
                 || u_save_cursor() == FAIL
             {
@@ -2805,7 +2805,7 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
         spell_dump_compl(
             ptr::null_mut(),
             0,
-            ptr::null_mut(),
+            None,
             if eap.forceit != 0 {
                 DUMPFLAG_COUNT
             } else {
@@ -2820,10 +2820,10 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
 }
 pub fn spell_dump_compl(
     pat: *mut c_char,
-    ic: c_int,
-    dir: *mut Direction,
+    ic: c_int,dir: Option<&mut Direction>,
     dumpflags_arg: c_int,
 ) {
+    let dir: *mut Direction = dir.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -2942,7 +2942,7 @@ pub fn spell_dump_compl(
                                         slang,
                                         (&raw mut word).cast(),
                                         pat,
-                                        dir,
+                                        (!dir.is_null()).then(||  { &mut *dir }),
                                         dumpflags,
                                         flags,
                                         lnum,
@@ -2956,7 +2956,7 @@ pub fn spell_dump_compl(
                                         slang,
                                         (&raw mut word).cast(),
                                         pat,
-                                        dir,
+                                        (!dir.is_null()).then(||  { &mut *dir }),
                                         dumpflags,
                                         flags,
                                         lnum,
@@ -2983,12 +2983,12 @@ pub fn spell_dump_compl(
 fn dump_word(
     slang: &mut slang_T,
     word: *mut c_char,
-    pat: *mut c_char,
-    dir: *mut Direction,
+    pat: *mut c_char,dir: Option<&mut Direction>,
     dumpflags: c_int,
     wordflags: c_int,
     lnum: linenr_T,
 ) {
+    let dir: *mut Direction = dir.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut keepcap = false;
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -3076,12 +3076,12 @@ fn dump_word(
 fn dump_prefixes(
     slang: &mut slang_T,
     word: *mut c_char,
-    pat: *mut c_char,
-    dir: *mut Direction,
+    pat: *mut c_char,dir: Option<&mut Direction>,
     dumpflags: c_int,
     flags: c_int,
     startlnum: linenr_T,
 ) -> linenr_T {
+    let dir: *mut Direction = dir.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -3131,7 +3131,7 @@ fn dump_prefixes(
                                 slang,
                                 (&raw mut prefix).cast(),
                                 pat,
-                                dir,
+                                (!dir.is_null()).then(||  { &mut *dir }),
                                 dumpflags,
                                 if (c & WF_RAREPFX) != 0 {
                                     flags | WF_RARE
@@ -3163,7 +3163,7 @@ fn dump_prefixes(
                                     slang,
                                     (&raw mut prefix).cast(),
                                     pat,
-                                    dir,
+                                    (!dir.is_null()).then(||  { &mut *dir }),
                                     dumpflags,
                                     if (c & WF_RAREPFX) != 0 {
                                         flags | WF_RARE

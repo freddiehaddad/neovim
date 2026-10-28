@@ -646,7 +646,7 @@ pub fn free_all_mem() {
 
             buf_free_callbacks(&mut *buf);
             close_buffer(std::ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
-            buf = if bufref_valid(&raw mut bufref) {
+            buf = if bufref_valid(Some(&bufref)) {
                 nextbuf
             } else {
                 g_st().firstbuf

@@ -489,7 +489,7 @@ pub fn bufhl_add_hl_pos_offset(
             extmark_set(
                 &mut *buf,
                 src_id as u32,
-                ptr::null_mut(),
+                None,
                 lnum - 1,
                 hl_start,
                 lnum - 1 + end_off,
@@ -1450,11 +1450,11 @@ pub fn decor_redraw_signs(
     wp: *mut win_T,
     buf: *mut buf_T,
     row: c_int,
-    sattrs: *mut SignTextAttrs,
-    line_id: *mut c_int,
-    cul_id: *mut c_int,
-    num_id: *mut c_int,
+    sattrs: *mut SignTextAttrs,line_id: Option<&mut c_int>,cul_id: Option<&mut c_int>,num_id: Option<&mut c_int>,
 ) {
+    let line_id: *mut c_int = line_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let cul_id: *mut c_int = cul_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let num_id: *mut c_int = num_id.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if !buf_has_signs(buf) {
             return;
@@ -1656,9 +1656,9 @@ fn decor_virt_line_wrap(wp: &mut win_T, overflow: VirtLineOverflow) -> bool {
 
 pub fn decor_virt_line_rows(wp: &mut win_T,
     vl: &VirtLine,
-    target_row: c_int,
-    skip_cells: *mut c_int,
+    target_row: c_int,skip_cells: Option<&mut c_int>,
 ) -> c_int {
+    let skip_cells: *mut c_int = skip_cells.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let wp: *mut win_T = &raw mut *wp;
     unsafe {
         if !skip_cells.is_null() {
@@ -1713,11 +1713,11 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
 pub fn decor_virt_lines(
     wp: &mut win_T,
     start_row: c_int,
-    end_row: c_int,
-    num_below: *mut c_int,
-    lines: *mut VirtLines,
+    end_row: c_int,num_below: Option<&mut c_int>,lines: Option<&mut VirtLines>,
     apply_folds: bool,
 ) -> c_int {
+    let num_below: *mut c_int = num_below.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let lines: *mut VirtLines = lines.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let buf = wp.w_buffer;
         if buf_meta_total(&*buf, kMTMetaLines) == 0 {
@@ -1754,7 +1754,7 @@ pub fn decor_virt_lines(
                         if draw_row >= start_row
                             && draw_row < end_row
                             && (!apply_folds
-                                || !(hasFolding(wp, mrow + 1, ptr::null_mut(), ptr::null_mut())
+                                || !(hasFolding(wp, mrow + 1, None, ptr::null_mut())
                                     || decor_conceal_line(wp, mrow, false)))
                         {
                             if decor_virt_line_wrap(wp, virt_lines[0].overflow) {
@@ -1763,7 +1763,7 @@ pub fn decor_virt_lines(
                                         &mut *wp,
                                         item,
                                         0,
-                                        ptr::null_mut(),
+                                        None,
                                     );
                                     n_virt_lines += rows;
                                     if !num_below.is_null() && !above {

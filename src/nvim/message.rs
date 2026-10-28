@@ -584,10 +584,10 @@ pub fn msg_multiline(
 /// @param hl_msg Message chunks
 /// @param msg_data Additional data for progress messages
 fn format_progress_message(
-    hl_msg: &HlMessage,
-    msg_data: *mut MessageData,
+    hl_msg: &HlMessage,msg_data: Option<&mut MessageData>,
     updated_msg: &mut HlMessage,
 ) -> bool {
+    let msg_data: *mut MessageData = msg_data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         // progress messages are special. displayed as "title: percent% msg"
         if (*msg_data).title.size != 0 {
@@ -648,11 +648,11 @@ pub fn msg_multihl(
     hl_msg: &mut HlMessage,
     kind: *const c_char,
     history: bool,
-    err: bool,
-    msg_data: *mut MessageData,
+    err: bool,msg_data: Option<&mut MessageData>,
     needs_msg_clear: &mut bool,
     raw_for_lua_print: bool,
 ) -> MsgID {
+    let msg_data: *mut MessageData = msg_data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     if id.obj_type == ObjectType::kObjectTypeNil {
             let next_id = msg_st().msg_id_next;
             msg_st().msg_id_next += 1;
@@ -668,12 +668,12 @@ pub fn msg_multihl(
         let mut hl_msg_updated = false;
         // don't display progress message in cmd when target doesn't have cmd
         if crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress") {
-            do_autocmd_progress(id, hl_msg, msg_data);
+            do_autocmd_progress(id, hl_msg, (!msg_data.is_null()).then(|| unsafe { &mut *msg_data }));
             if (msg_st().progress_msg_target & PROGRESS_TARGET_CMD) == 0 {
                 *needs_msg_clear = true;
                 return id;
             }
-            if !msg_data.is_null() && format_progress_message(hl_msg, msg_data, &mut updated_msg) {
+            if !msg_data.is_null() && format_progress_message(hl_msg, (!msg_data.is_null()).then(|| unsafe { &mut *msg_data }), &mut updated_msg) {
                 *needs_msg_clear = true;
                 hl_msg_updated = true;
             }
@@ -1336,7 +1336,7 @@ pub fn msg_progress(
             s,
             id,
             c"progress".as_ptr(),
-            &raw mut data,
+            Some(&mut data),
             hl_id,
             hist,
             trunc,
@@ -1348,13 +1348,13 @@ pub fn msg_progress(
 pub fn msg_with_id(
     mut s: *mut c_char,
     id: *mut c_char,
-    kind: *const c_char,
-    data: *mut MessageData,
+    kind: *const c_char,data: Option<&mut MessageData>,
     hl_id: c_int,
     hist: bool,
     trunc: bool,
     err: bool,
 ) -> *mut c_char {
+    let data: *mut MessageData = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let mut clear = false;
         let mut chunks = HlMessage::new();
         if !s.is_null() {
@@ -1380,7 +1380,7 @@ pub fn msg_with_id(
             kind,
             false,
             err,
-            data,
+            (!data.is_null()).then(|| unsafe { &mut *data }),
             &mut clear,
             false,
         );
@@ -1416,7 +1416,8 @@ fn msg_hist_add(mut s: *const c_char, len: c_int, hl_id: c_int) {
     }
 }
 
-pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut MessageData) {
+pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage,msg_data: Option<&mut MessageData>) {
+    let msg_data: *mut MessageData = msg_data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if !has_event(EVENT_PROGRESS) {
             return;
@@ -1732,7 +1733,7 @@ pub fn ex_messages(eap: &mut exarg_T) {
                     (*p).kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
                     false,
                     false,
-                    ptr::null_mut(),
+                    None,
                     &mut needs_clear,
                     false,
                 );
@@ -1776,7 +1777,7 @@ pub fn wait_return(redraw: c_int) {
                 c"Press any key to continue".as_ptr().cast_mut(),
                 HLF_M,
                 true,
-                ptr::null_mut(),
+                None,
             );
             return;
         }
@@ -2311,7 +2312,7 @@ pub fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) 
                 str_ = str_.add(1);
                 c"<Space>".as_ptr()
             } else {
-                str2special(&raw mut str_, from, kFalse, ptr::null_mut())
+                str2special(&raw mut str_, from, kFalse, None)
             };
             if *text != NUL && *text.add(1) == NUL {
                 text = transchar_byte_buf(ptr::null(), c_int::from(*text as u8));
@@ -2346,7 +2347,7 @@ pub fn str2special_save(
         let mut buf: Vec<u8> = Vec::with_capacity(40);
         let mut p = str_;
         while *p != NUL {
-            let s = str2special(&raw mut p, replace_spaces, replace_others, ptr::null_mut());
+            let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             if !s.is_null() {
                 buf.extend_from_slice(CStr::from_ptr(s).to_bytes());
             }
@@ -2366,7 +2367,7 @@ pub fn str2special_arena(
         let mut p = str_;
         let mut len = 0usize;
         while *p != NUL {
-            let s = str2special(&raw mut p, replace_spaces, replace_others, ptr::null_mut());
+            let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             len += CStr::from_ptr(s).to_bytes().len();
         }
 
@@ -2374,7 +2375,7 @@ pub fn str2special_arena(
         let mut pos = 0usize;
         p = str_;
         while *p != NUL {
-            let s = str2special(&raw mut p, replace_spaces, replace_others, ptr::null_mut());
+            let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             let s_len = CStr::from_ptr(s).to_bytes().len();
             ptr::copy_nonoverlapping(s, buf.add(pos), s_len);
             pos += s_len;
@@ -2388,9 +2389,9 @@ pub fn str2special_arena(
 pub fn str2special(
     sp: *mut *const c_char,
     replace_spaces: bool,
-    replace_others: TriState,
-    data: *mut keychord,
+    replace_others: TriState,data: Option<&mut keychord>,
 ) -> *const c_char {
+    let data: *mut keychord = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let p = mb_unescape(sp);
         if !p.is_null() {
@@ -2445,7 +2446,7 @@ pub fn str2special(
             || (replace_others != kFalse && c == b'<' as c_int)
             || (replace_others == kTrue && (c == b'|' as c_int || c == b'\\' as c_int))
         {
-            return get_special_key(c, modifiers, data);
+            return get_special_key(c, modifiers, (!data.is_null()).then(||  { &mut *data }));
         }
 
         let buf_ptr = (&raw mut msg_st().STR2SPECIAL_BUF).cast::<c_char>();

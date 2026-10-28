@@ -526,7 +526,8 @@ pub fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_int) {
     }
 }
 
-pub fn grid_line_getchar(mut col: c_int, attr: *mut c_int) -> schar_T {
+pub fn grid_line_getchar(mut col: c_int,attr: Option<&mut c_int>) -> schar_T {
+    let attr: *mut c_int = attr.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if col < grid_st().grid_line_maxcol {
             col += grid_st().grid_line_coloff;

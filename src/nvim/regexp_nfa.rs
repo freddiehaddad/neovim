@@ -1264,9 +1264,9 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int {
                             getvvcol(
                                 *curwin.as_ptr(),
                                 &mut (**curwin.as_ptr()).w_cursor,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
-                                &raw mut vcol,
+                                None,
+                                None,
+                                Some(&mut vcol),
                                 0,
                             );
                             vcol += 1;
@@ -4334,7 +4334,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         let fm = mark_get(
                             &mut *re_st().rex.reg_buf,
                             *curwin.as_ptr(),
-                            ptr::null_mut(),
+                            None,
                             kMarkBufLocal,
                             t_st.val,
                         );

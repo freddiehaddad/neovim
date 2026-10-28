@@ -724,9 +724,9 @@ fn debuggy_find(
     fname: *mut c_char,
     after: i32,
     gap: &mut [debuggy],
-    is_prof: bool,
-    fp: *mut bool,
+    is_prof: bool,fp: Option<&mut bool>,
 ) -> i32 {
+    let fp: *mut bool = fp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if gap.is_empty() {
             return 0;
@@ -802,13 +802,14 @@ fn debuggy_find(
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
 pub fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
     let gap = dbg_vec_mut(false);
-        debuggy_find(file, fname, after, gap, false, std::ptr::null_mut())
+        debuggy_find(file, fname, after, gap, false, None)
 }
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
-pub fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool {
+pub fn has_profiling(file: bool, fname: *mut c_char,fp: Option<&mut bool>) -> bool {
+    let fp: *mut bool = fp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let gap = dbg_vec_mut(true);
-        debuggy_find(file, fname, 0, gap, true, fp) != 0
+        debuggy_find(file, fname, 0, gap, true, (!fp.is_null()).then(|| unsafe { &mut *fp })) != 0
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).

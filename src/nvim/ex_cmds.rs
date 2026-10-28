@@ -1180,10 +1180,10 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> c_int {
             return OK;
         }
 
-        let start_byte = ml_find_line_or_offset(&mut *g_st().curbuf, line1, ptr::null_mut(), true) as bcount_t;
-        let end_byte = ml_find_line_or_offset(&mut *g_st().curbuf, line2 + 1, ptr::null_mut(), true) as bcount_t;
+        let start_byte = ml_find_line_or_offset(&mut *g_st().curbuf, line1, None, true) as bcount_t;
+        let end_byte = ml_find_line_or_offset(&mut *g_st().curbuf, line2 + 1, None, true) as bcount_t;
         let extent_byte = end_byte - start_byte;
-        let dest_byte = ml_find_line_or_offset(&mut *g_st().curbuf, dest + 1, ptr::null_mut(), true) as bcount_t;
+        let dest_byte = ml_find_line_or_offset(&mut *g_st().curbuf, dest + 1, None, true) as bcount_t;
 
         let num_lines = line2 - line1 + 1;
 
@@ -2324,7 +2324,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
                             do_doautocmd(
                                 c"filetypedetect BufRead".as_ptr().cast_mut(),
                                 true,
-                                ptr::null_mut(),
+                                None,
                             );
                         }
                         do_modelines(0);
@@ -2521,7 +2521,7 @@ pub fn do_wqall(eap: &mut exarg_T) {
                 {
                     error += 1;
                 }
-                if !bufref_valid(&raw mut bufref) {
+                if !bufref_valid(Some(&bufref)) {
                     buf = g_st().firstbuf;
                     eap.forceit = save_forceit;
                     if !buf.is_null() {
@@ -2898,7 +2898,7 @@ pub fn do_ecmd(
                     oldbuf = true;
                     set_bufref(&mut bufref, buf);
                     buf_check_timestamp(&mut *buf);
-                    if !bufref_valid(&raw mut bufref) || g_st().curbuf != old_curbuf.br_buf {
+                    if !bufref_valid(Some(&bufref)) || g_st().curbuf != old_curbuf.br_buf {
                         break 'theend;
                     }
                     if aborting() {
@@ -2926,7 +2926,7 @@ pub fn do_ecmd(
                         g_st().curbuf,
                     );
 
-                    if !bufref_valid(&raw mut g_st().au_new_curbuf) {
+                    if !bufref_valid(Some(&g_st().au_new_curbuf)) {
                         delbuf_msg(new_name.take());
                         g_st().au_new_curbuf = save_au_new_curbuf;
                         break 'theend;
@@ -2973,7 +2973,7 @@ pub fn do_ecmd(
                             g_st().au_new_curbuf = save_au_new_curbuf;
                             break 'theend;
                         }
-                        if !bufref_valid(&raw mut g_st().au_new_curbuf) {
+                        if !bufref_valid(Some(&g_st().au_new_curbuf)) {
                             if (**curwin.as_ptr()).w_buffer.is_null() {
                                 buf = g_st().lastbuf;
                             } else {
@@ -3062,7 +3062,7 @@ pub fn do_ecmd(
                 } else {
                     buf_freeall(g_st().curbuf, 0);
                 }
-                if !bufref_valid(&raw mut bufref) {
+                if !bufref_valid(Some(&bufref)) {
                     delbuf_msg(new_name.take());
                     break 'theend;
                 }
@@ -3124,7 +3124,7 @@ pub fn do_ecmd(
                     if g_st().swap_exists_action == SEA_QUIT {
                         retval = FAIL;
                     }
-                    handle_swap_exists(&raw mut old_curbuf);
+                    handle_swap_exists(Some(&mut old_curbuf));
                 } else {
                     do_modelines(OPT_WINONLY);
 
@@ -3256,10 +3256,10 @@ pub fn do_ecmd(
         }
 
         // theend:
-        if bufref_valid(&raw mut old_curbuf) && !(*old_curbuf.br_buf).terminal.is_null() {
+        if bufref_valid(Some(&old_curbuf)) && !(*old_curbuf.br_buf).terminal.is_null() {
             terminal_check_size(&mut *(*old_curbuf.br_buf).terminal);
         }
-        if (!bufref_valid(&raw mut old_curbuf) || g_st().curbuf != old_curbuf.br_buf)
+        if (!bufref_valid(Some(&old_curbuf)) || g_st().curbuf != old_curbuf.br_buf)
             && !(*g_st().curbuf).terminal.is_null()
         {
             terminal_check_size(&mut *(*g_st().curbuf).terminal);
@@ -3979,8 +3979,8 @@ fn do_sub(
                     opt_vars().p_magic,
                     true,
                     None,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
+                    None,
                 );
                 pat.size = cmd.offset_from(pat.data) as usize;
                 if *cmd as c_int == delimiter {
@@ -4285,7 +4285,7 @@ fn do_sub(
                                     p.as_ptr().cast_mut(),
                                     HLF_R,
                                     true,
-                                    ptr::null_mut(),
+                                    None,
                                 );
                                 g_st().Search.hl_match = false;
                                 drop(p);
@@ -4928,8 +4928,8 @@ pub fn ex_global(eap: &mut exarg_T) {
                 opt_vars().p_magic,
                 true,
                 None,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                None,
+                None,
             );
             if *cmd == delim {
                 *cmd = NUL;

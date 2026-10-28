@@ -1443,7 +1443,7 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
         diff_win_options(*curwin.as_ptr(), true);
         if win_valid(old_curwin) {
             diff_win_options(old_curwin, true);
-            if bufref_valid(&raw mut old_curbuf) {
+            if bufref_valid(Some(&old_curbuf)) {
                 (**curwin.as_ptr()).w_cursor.lnum = diff_get_corresponding_line(
                     old_curbuf.br_buf.cast(),
                     (*old_curwin).w_cursor.lnum,
@@ -2064,7 +2064,7 @@ pub fn diff_check_with_linestatus(
             return 0;
         }
         let u_idx = idx as usize;
-        if hasFolding(wp, lnum, ptr::null_mut(), ptr::null_mut())
+        if hasFolding(wp, lnum, None, ptr::null_mut())
             || decor_conceal_line(wp, lnum - 1, false)
         {
             return 0;
@@ -2310,7 +2310,7 @@ pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
         hasFolding(
             &raw mut *towin,
             towin.w_topline,
-            &raw mut towin.w_topline,
+            Some(&mut towin.w_topline),
             ptr::null_mut(),
         );
     }

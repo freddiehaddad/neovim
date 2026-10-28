@@ -248,7 +248,7 @@ pub fn nvim_buf_add_highlight(
         extmark_set(
             &mut *buf,
             ns,
-            ptr::null_mut(),
+            None,
             line as c_int,
             col_start as colnr_T,
             end_line,
@@ -344,7 +344,7 @@ pub fn nvim_buf_set_virtual_text(
         extmark_set(
             &mut *buf,
             ns_id,
-            ptr::null_mut(),
+            None,
             line as c_int,
             0,
             -1,

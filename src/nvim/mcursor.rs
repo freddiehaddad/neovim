@@ -523,7 +523,7 @@ fn mc_cascade() {
         'outer: for ai in 0..(*ga).len() {
             let atom = &mut (&mut *ga)[ai];
             if !atom.origin.buf.br_buf.is_null()
-                && (!bufref_valid(&raw mut atom.origin.buf) || atom.origin.buf.br_buf != g_st().curbuf)
+                && (!bufref_valid(Some(&atom.origin.buf)) || atom.origin.buf.br_buf != g_st().curbuf)
             {
                 continue;
             }
@@ -729,7 +729,7 @@ fn mc_region_mark_set(mark: &mut u32, pos: pos_T) {
         extmark_set(
             &mut *g_st().curbuf,
             mc_session_ns(),
-            mark,
+            Some(&mut *mark),
             pos.lnum - 1,
             pos.col,
             pos.lnum - 1,
@@ -1183,7 +1183,7 @@ fn mc_vsel_mark(
         extmark_set(
             &mut *g_st().curbuf,
             mc_vsel_ns(),
-            &mut mark,
+            Some(&mut mark),
             start_lnum - 1,
             start_col,
             end_lnum - 1,
@@ -1381,7 +1381,7 @@ fn mc_lua_enable(enable: bool) {
             c"vim._core.mcursor".as_ptr(),
             c"enable".as_ptr(),
             tv_args.as_mut_ptr(),
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -1754,7 +1754,7 @@ pub fn mc_counter(count1: c_long) {
             c"vim._core.mcursor".as_ptr(),
             c"number".as_ptr(),
             tv_args.as_mut_ptr(),
-            ptr::null_mut(),
+            None,
         );
 }
 

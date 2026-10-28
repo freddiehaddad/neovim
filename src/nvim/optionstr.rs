@@ -3284,7 +3284,7 @@ pub fn validate_border(args: &mut optset_T) -> *const c_char {
     let mut fconfig = WIN_CONFIG_INIT;
         let mut err = Error::new();
         let ok = parse_winborder(
-            &raw mut fconfig,
+            Some(&mut fconfig),
             args.os_newval.data.string().data,
             &mut err,
         );

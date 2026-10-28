@@ -2151,9 +2151,9 @@ static SPECIAL_KEY_STRING: crate::globals::GlobalState<[c_char; MAX_KEY_NAME_LEN
 /// (`get_special_key`).
 pub fn get_special_key(
     mut c: c_int,
-    mut modifiers: c_int,
-    data: *mut keychord,
+    mut modifiers: c_int,data: Option<&mut keychord>,
 ) -> *mut c_char {
+    let data: *mut keychord = data.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let string = (*SPECIAL_KEY_STRING.as_ptr()).as_mut_ptr();
         let mut is_ascii_ctrl = false;
@@ -2333,7 +2333,7 @@ pub fn get_special_key(
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).
 pub fn get_special_key_name(c: c_int, modifiers: c_int) -> *mut c_char {
-    get_special_key(c, modifiers, std::ptr::null_mut())
+    get_special_key(c, modifiers, None)
 }
 
 /// Try translating a `<>` name ("keycode") (`trans_special`).
@@ -2342,11 +2342,11 @@ pub fn trans_special(
     src_len: usize,
     dst: *mut c_char,
     flags: c_int,
-    escape_ks: bool,
-    did_simplify: *mut bool,
+    escape_ks: bool,did_simplify: Option<&mut bool>,
 ) -> c_uint {
+    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let mut modifiers: c_int = 0;
-    let key = find_special_key(srcp, src_len, &mut modifiers, flags, did_simplify);
+    let key = find_special_key(srcp, src_len, &mut modifiers, flags, (!did_simplify.is_null()).then(|| unsafe { &mut *did_simplify }));
     if key == 0 {
         return 0;
     }
@@ -2398,9 +2398,9 @@ pub fn special_to_buf(
 fn extract_modifiers(
     mut key: c_int,
     modp: &mut c_int,
-    simplify: bool,
-    did_simplify: *mut bool,
+    simplify: bool,did_simplify: Option<&mut bool>,
 ) -> c_int {
+    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let mut modifiers = *modp;
 
     if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 && ascii_isalpha(key) {
@@ -2443,9 +2443,9 @@ pub fn find_special_key(
     srcp: *mut *const c_char,
     src_len: usize,
     modp: &mut c_int,
-    flags: c_int,
-    did_simplify: *mut bool,
+    flags: c_int,did_simplify: Option<&mut bool>,
 ) -> c_int {
+    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if src_len == 0 {
             return 0;
@@ -2605,7 +2605,7 @@ pub fn find_special_key(
                             key,
                             &mut modifiers,
                             (flags & FSK_SIMPLIFY) != 0,
-                            did_simplify,
+                            (!did_simplify.is_null()).then(||  { &mut *did_simplify }),
                         );
                     }
 
@@ -2676,10 +2676,10 @@ pub fn replace_termcodes(
     from_len: usize,
     buf_limit: bool,
     sid_arg: scid_T,
-    flags: c_int,
-    did_simplify: *mut bool,
+    flags: c_int,did_simplify: Option<&mut bool>,
     cpo_val: *const c_char,
 ) -> Option<std::ffi::CString> {
+    let did_simplify: *mut bool = did_simplify.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut dlen: usize = 0;
         let end_exclusive = from.add(from_len);
@@ -2751,7 +2751,7 @@ pub fn replace_termcodes(
                     result.add(dlen),
                     fsk_flags,
                     true,
-                    did_simplify,
+                    (!did_simplify.is_null()).then(||  { &mut *did_simplify }),
                 ) as usize;
                 if slen != 0 {
                     dlen += slen;
@@ -2965,24 +2965,24 @@ mod tests {
         let mut modp: c_int = 0;
             let mut p = c"abc".as_ptr();
             assert_eq!(
-                find_special_key(&mut p, 3, &mut modp, 0, std::ptr::null_mut()),
+                find_special_key(&mut p, 3, &mut modp, 0, None),
                 0
             );
 
             p = c"<C-M-S-A>".as_ptr();
             assert_ne!(
-                find_special_key(&mut p, 9, &mut modp, 0, std::ptr::null_mut()),
+                find_special_key(&mut p, 9, &mut modp, 0, None),
                 0
             );
             assert_ne!(modp, 0);
 
             p = c"<C-A>".as_ptr();
-            let k_upper = find_special_key(&mut p, 5, &mut modp, 0, std::ptr::null_mut());
+            let k_upper = find_special_key(&mut p, 5, &mut modp, 0, None);
             let m_upper = modp;
             for variant in [c"<C-a>", c"<c-A>", c"<c-a>"] {
                 p = variant.as_ptr();
                 assert_eq!(
-                    find_special_key(&mut p, 5, &mut modp, 0, std::ptr::null_mut()),
+                    find_special_key(&mut p, 5, &mut modp, 0, None),
                     k_upper
                 );
                 assert_eq!(modp, m_upper);
@@ -2990,22 +2990,22 @@ mod tests {
 
             p = c"<C-\">".as_ptr();
             assert_eq!(
-                find_special_key(&mut p, 5, &mut modp, 0, std::ptr::null_mut()),
+                find_special_key(&mut p, 5, &mut modp, 0, None),
                 b'"' as c_int
             );
             p = c"<C-\">".as_ptr();
             assert_eq!(
-                find_special_key(&mut p, 5, &mut modp, FSK_IN_STRING, std::ptr::null_mut()),
+                find_special_key(&mut p, 5, &mut modp, FSK_IN_STRING, None),
                 0
             );
             p = c"<C-\\\">".as_ptr();
             assert_eq!(
-                find_special_key(&mut p, 6, &mut modp, 0, std::ptr::null_mut()),
+                find_special_key(&mut p, 6, &mut modp, 0, None),
                 0
             );
             p = c"<C-\\\">".as_ptr();
             assert_eq!(
-                find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, std::ptr::null_mut()),
+                find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, None),
                 b'"' as c_int
             );
     }

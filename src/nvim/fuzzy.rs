@@ -627,7 +627,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
                     semsg!(e_invargval.as_ptr(), c"limit".as_ptr());
                     return;
                 }
-                max_matches = tv_get_number_chk(&(*di_limit).di_tv, std::ptr::null_mut()) as c_int;
+                max_matches = tv_get_number_chk(&(*di_limit).di_tv, None) as c_int;
             }
 
             if tv_dict_has_key(d, c"matchseq".as_ptr()) {

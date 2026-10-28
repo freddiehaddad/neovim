@@ -1329,9 +1329,9 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                         getvvcol(
                                             *curwin.as_ptr(),
                                             &mut (**curwin.as_ptr()).w_cursor,
-                                            ptr::null_mut(),
-                                            ptr::null_mut(),
-                                            &raw mut vcol,
+                                            None,
+                                            None,
+                                            Some(&mut vcol),
                                             0,
                                         );
                                         vcol += 1;
@@ -2726,7 +2726,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_int) ->
                                 0
                             };
                             let fm =
-                                mark_get(&mut *re_st().rex.reg_buf, *curwin.as_ptr(), ptr::null_mut(), kMarkBufLocal, mark);
+                                mark_get(&mut *re_st().rex.reg_buf, *curwin.as_ptr(), None, kMarkBufLocal, mark);
                             if REG_MULTI() {
                                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                                 re_st().rex.input = re_st().rex.line.add(col);

@@ -1312,7 +1312,7 @@ pub fn nvim_buf_set_extmark(
                 extmark_set(
                     &mut *b,
                     ns_id as u32,
-                    &mut id,
+                    Some(&mut id),
                     line as c_int,
                     col as colnr_T,
                     line2,

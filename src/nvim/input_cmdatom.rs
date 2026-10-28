@@ -487,7 +487,7 @@ fn atom_origin() -> CmdOrigin {
 #[inline]
 fn atom_origin_changed(origin: CmdOrigin) -> bool {
     unsafe {
-        bufref_valid((&raw const origin.buf).cast_mut())
+        bufref_valid(Some(&origin.buf))
             && buf_get_changedtick(&*origin.buf.br_buf) != origin.tick
     }
 }
@@ -495,7 +495,7 @@ fn atom_origin_changed(origin: CmdOrigin) -> bool {
 #[inline]
 fn atom_origin_moved(origin: CmdOrigin) -> bool {
     unsafe {
-        bufref_valid((&raw const origin.buf).cast_mut())
+        bufref_valid(Some(&origin.buf))
             && win_valid(origin.win)
             && (*origin.win).w_buffer == origin.buf.br_buf
             && !equalpos(origin.pos, (*origin.win).w_cursor)
@@ -505,7 +505,7 @@ fn atom_origin_moved(origin: CmdOrigin) -> bool {
 #[inline]
 fn atom_origin_undoseq(origin: CmdOrigin) -> c_int {
     unsafe {
-        if bufref_valid((&raw const origin.buf).cast_mut()) {
+        if bufref_valid(Some(&origin.buf)) {
             (*origin.buf.br_buf).b_u_seq_cur
         } else {
             0
@@ -518,7 +518,7 @@ pub fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
         let o = atom_st().composite.origin;
         if atom_st().composite.open
             && o.buf.br_buf == buf
-            && bufref_valid((&raw const o.buf).cast_mut())
+            && bufref_valid(Some(&o.buf))
             && buf_get_changedtick(&*buf) == o.tick
         {
             return o.pos;
@@ -759,7 +759,7 @@ fn atom_emit(atom: &CmdAtom) {
             ptr::null_mut(),
             AUGROUP_ALL,
             &mut *buf,
-            &mut obj,
+            Some(&mut obj),
         );
         api_free_dict(data);
     }

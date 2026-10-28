@@ -1642,8 +1642,8 @@ pub fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_ch
             magic,
             false,
             None,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
         )
 }
 
@@ -1668,10 +1668,10 @@ pub fn skip_regexp_ex(
     dirc: c_int,
     magic: c_int,
     in_place: bool,
-    mut copy_buf: Option<&mut Vec<c_char>>,
-    dropped: *mut c_int,
-    magic_val: *mut magic_T,
+    mut copy_buf: Option<&mut Vec<c_char>>,dropped: Option<&mut c_int>,magic_val: Option<&mut magic_T>,
 ) -> *mut c_char {
+    let dropped: *mut c_int = dropped.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    let magic_val: *mut magic_T = magic_val.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
         let mut p = startp;
@@ -2157,17 +2157,17 @@ pub(super) fn reg_match_visual() -> bool {
             getvvcol(
                 wp,
                 &mut top_copy,
-                &raw mut start,
-                ptr::null_mut(),
-                &raw mut end,
+                Some(&mut start),
+                None,
+                Some(&mut end),
                 0,
             );
             getvvcol(
                 wp,
                 &mut bot_copy,
-                &raw mut start2,
-                ptr::null_mut(),
-                &raw mut end2,
+                Some(&mut start2),
+                None,
+                Some(&mut end2),
                 0,
             );
             if start2 < start {

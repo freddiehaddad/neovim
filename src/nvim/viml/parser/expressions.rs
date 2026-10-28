@@ -2159,7 +2159,7 @@ fn parse_quoted_string(
                                 v_p,
                                 flags,
                                 false,
-                                std::ptr::null_mut(),
+                                None,
                             ) as usize;
                             if special_len != 0 {
                                 v_p = v_p.add(special_len);

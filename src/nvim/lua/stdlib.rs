@@ -428,7 +428,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
                 return 0;
             }
             if watched {
-                tv_dict_watcher_notify(&mut *dict, key.data, ptr::null_mut(), &raw mut (*di).di_tv);
+                tv_dict_watcher_notify(&mut *dict, key.data, ptr::null_mut(), Some(&(*di).di_tv));
             }
             tv_dict_item_remove(&mut *dict, di);
         } else {
@@ -475,7 +475,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             tv_copy(&tv, &mut (*di).di_tv);
 
             if watched {
-                tv_dict_watcher_notify(&mut *dict, key.data, &raw mut tv, &raw mut oldtv);
+                tv_dict_watcher_notify(&mut *dict, key.data, &raw mut tv, Some(&oldtv));
                 tv_clear(&raw mut oldtv);
             }
 
@@ -586,7 +586,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
             false,
         );
 
-        let ret = string_convert(&vimconv, str_.cast_mut(), &raw mut str_len);
+        let ret = string_convert(&vimconv, str_.cast_mut(), Some(&mut str_len));
 
         match ret {
             None => lua_pushnil(lstate),
@@ -743,7 +743,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
         let mut data = keychord::new();
 
         while *p != NUL {
-            let keys = str2special(&raw mut p, true, kTrue, &raw mut data);
+            let keys = str2special(&raw mut p, true, kTrue, Some(&mut data));
 
             lua_createtable(lstate, 0, 3);
 

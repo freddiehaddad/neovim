@@ -2328,7 +2328,7 @@ fn shada_read_when_writing(
                                         mark_get(
                                             &mut *buf,
                                             *curwin.as_ptr(),
-                                            &mut fm,
+                                            Some(&mut fm),
                                             kMarkBufLocal,
                                             c_int::from(fm_name),
                                         );

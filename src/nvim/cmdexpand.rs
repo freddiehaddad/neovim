@@ -3189,7 +3189,7 @@ fn set_cmd_index(
                 p = cmd.add(1);
             } else if *cmd >= b'A' as c_char && *cmd <= b'Z' as c_char {
                 eap.cmd = cmd.cast_mut();
-                p = find_ucmd(eap, p.cast_mut(), ptr::null_mut(), xp, complp);
+                p = find_ucmd(eap, p.cast_mut(), None, Some(&mut *xp), Some(&mut *complp));
                 if p.is_null() {
                     eap.cmdidx = cmdidx_T::CMD_SIZE as c_int;
                 }
@@ -5810,7 +5810,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let type_str = tv_get_string(&argvars[1]);
 
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
-            filtered = tv_get_bool_chk(&argvars[2], ptr::null_mut()) != 0;
+            filtered = tv_get_bool_chk(&argvars[2], None) != 0;
         }
 
         if opt_vars().p_wic != 0 {
@@ -6219,7 +6219,7 @@ fn expand_pattern_in_buf(
                 search_flags,
                 RE_LAST,
                 opt_vars().p_magic != 0,
-                ptr::null_mut(),
+                None,
             );
             g_st().msg_silent -= 1;
             g_st().emsg_off -= 1;

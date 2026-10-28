@@ -909,7 +909,7 @@ fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id: *const
                 iobuf_ptr,
                 msg_id.cast_mut(),
                 c"bufwrite".as_ptr(),
-                ptr::null_mut(),
+                None,
                 0,
                 false,
                 true,
@@ -2998,7 +2998,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
                 do_doautocmd(
                     c"filetypedetect BufRead".as_ptr().cast_mut(),
                     false,
-                    ptr::null_mut(),
+                    None,
                 );
             }
             do_modelines(0);
@@ -3693,7 +3693,7 @@ pub fn check_timestamps(focus: c_int) -> c_int {
                     set_bufref(&mut bufref, buf);
                     let n = buf_check_timestamp(&mut *buf);
                     didit = didit.max(n);
-                    if n > 0 && !bufref_valid(&raw mut bufref) {
+                    if n > 0 && !bufref_valid(Some(&bufref)) {
                         buf = g_st().firstbuf;
                         continue;
                     }
@@ -3835,7 +3835,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                 g_st().allbuf_lock -= 1;
                 BUSY.store(false, std::sync::atomic::Ordering::Relaxed);
                 if n {
-                    if !bufref_valid(&raw mut bufref) {
+                    if !bufref_valid(Some(&bufref)) {
                         emsg(tr(
                             c"E246: FileChangedShell autocommand deleted buffer".as_ptr()
                         ));
@@ -3961,14 +3961,14 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
 
         if reload != RELOAD_NONE {
             buf_reload(&raw mut *buf, orig_mode, reload == RELOAD_DETECT);
-            if bufref_valid(&raw mut bufref) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
+            if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
                 let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
                 u_compute_hash(buf, hash.as_mut_ptr());
                 u_write_undo(ptr::null(), false, &raw mut *buf, hash.as_mut_ptr());
             }
         }
 
-        if bufref_valid(&raw mut bufref) && retval != 0 {
+        if bufref_valid(Some(&bufref)) && retval != 0 {
             apply_autocmds(
                 EVENT_FILECHANGEDSHELLPOST,
                 buf.b_fname,
@@ -4056,7 +4056,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
                         (*buf).b_fname,
                     );
                 }
-                if !savebuf.is_null() && bufref_valid(&raw mut bufref) && buf == g_st().curbuf {
+                if !savebuf.is_null() && bufref_valid(Some(&bufref)) && buf == g_st().curbuf {
                     while !buf_is_empty(&mut *g_st().curbuf) {
                         if ml_delete((*buf).b_ml.ml_line_count) == FAIL {
                             break;
@@ -4077,7 +4077,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
         }
         drop(_ea_cmd);
 
-        if !savebuf.is_null() && bufref_valid(&raw mut bufref) {
+        if !savebuf.is_null() && bufref_valid(Some(&bufref)) {
             wipe_buffer(savebuf, false);
         }
 

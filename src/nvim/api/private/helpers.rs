@@ -567,7 +567,7 @@ pub fn dict_set_var(
                 );
             } else {
                 if watched {
-                    tv_dict_watcher_notify(dict, key.data, ptr::null_mut(), &raw mut (*di).di_tv);
+                    tv_dict_watcher_notify(dict, key.data, ptr::null_mut(), Some(&(*di).di_tv));
                 }
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
@@ -616,7 +616,7 @@ pub fn dict_set_var(
 
             tv_copy(&tv, &mut (*di).di_tv);
             if watched {
-                tv_dict_watcher_notify(dict, key.data, &raw mut tv, &raw mut oldtv);
+                tv_dict_watcher_notify(dict, key.data, &raw mut tv, Some(&oldtv));
                 tv_clear(&raw mut oldtv);
             }
             tv_clear(&raw mut tv);
@@ -1489,7 +1489,7 @@ pub fn set_mark(
             *name.data as c_int,
             &mut pos,
             (*buf).b_fnum,
-            ptr::null_mut(),
+            None,
         ) != 0;
         if !res {
             if deleting {

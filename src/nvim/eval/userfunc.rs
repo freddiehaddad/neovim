@@ -1405,7 +1405,7 @@ pub fn call_user_func(
                         msg_outnum((*arg_tv).vval.v_number() as c_int);
                     } else {
                         g_st().emsg_off += 1;
-                        let tf = encode_tv2string(&mut *arg_tv, ptr::null_mut());
+                        let tf = encode_tv2string(&mut *arg_tv, None);
                         g_st().emsg_off -= 1;
                         let mut s = tf.as_ptr().cast_mut();
                         let mut buf = [0 as c_char; MSG_BUF_LEN];
@@ -1432,7 +1432,7 @@ pub fn call_user_func(
         let do_profiling_yes = g_st().do_profiling == PROF_YES;
         let func_not_yet_profiling_but_should = do_profiling_yes
             && (*fp).uf_profiling == 0
-            && has_profiling(false, uf2hikey(&*fp), ptr::null_mut());
+            && has_profiling(false, uf2hikey(&*fp), None);
 
         if func_not_yet_profiling_but_should {
             started_profiling = true;
@@ -1522,7 +1522,7 @@ pub fn call_user_func(
             } else {
                 let mut buf = [0 as c_char; MSG_BUF_LEN];
                 g_st().emsg_off += 1;
-                let tf = encode_tv2string(&mut *(*fc).fc_rettv, ptr::null_mut());
+                let tf = encode_tv2string(&mut *(*fc).fc_rettv, None);
                 g_st().emsg_off -= 1;
                 let mut s = tf.as_ptr().cast_mut();
                 if vim_strsize(s) > MSG_BUF_CLEN {
@@ -1800,7 +1800,7 @@ pub fn callback_call_retnr(
             return -2;
         }
 
-        let retval = tv_get_number_chk(&rettv, ptr::null_mut());
+        let retval = tv_get_number_chk(&rettv, None);
         tv_clear(&raw mut rettv);
         retval
 }
@@ -2179,10 +2179,10 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
 pub fn trans_function_name(
     pp: *mut *mut c_char,
     skip: bool,
-    flags: c_int,
-    fdp: *mut funcdict_T,
+    flags: c_int,fdp: Option<&mut funcdict_T>,
     partial: *mut *mut partial_T,
 ) -> Option<std::ffi::CString> {
+    let fdp: *mut funcdict_T = fdp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut name: *mut c_char = ptr::null_mut();
         let mut len: c_int;
@@ -2212,7 +2212,7 @@ pub fn trans_function_name(
 
         let end = get_lval(
             start.cast_mut(),
-            ptr::null_mut(),
+            None,
             &mut lv,
             false,
             skip,
@@ -2451,9 +2451,9 @@ pub fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CStri
 pub fn save_function_name(
     name: *mut *mut c_char,
     skip: bool,
-    flags: c_int,
-    fudi: *mut funcdict_T,
+    flags: c_int,fudi: Option<&mut funcdict_T>,
 ) -> Option<std::ffi::CString> {
+    let fudi: *mut funcdict_T = fudi.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut p = *name;
         let saved: Option<std::ffi::CString>;
@@ -2469,7 +2469,7 @@ pub fn save_function_name(
                 *fudi = funcdict_T::new();
             }
         } else {
-            saved = trans_function_name(&raw mut p, skip, flags, fudi, ptr::null_mut());
+            saved = trans_function_name(&raw mut p, skip, flags, (!fudi.is_null()).then(||  { &mut *fudi }), ptr::null_mut());
         }
         *name = p;
         saved
@@ -2760,7 +2760,7 @@ fn get_function_body(
                     }
                     p = p.add(eval_fname_script(p) as usize);
                     let _ =
-                        trans_function_name(&raw mut p, true, 0, ptr::null_mut(), ptr::null_mut());
+                        trans_function_name(&raw mut p, true, 0, None, ptr::null_mut());
                     if *skipwhite(p) == b'(' as c_char {
                         if nesting == MAX_FUNC_NESTING - 1 {
                             emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP.as_ptr()));
@@ -2934,7 +2934,7 @@ pub fn ex_function(eap: &mut exarg_T) {
 
         let mut p = eap.arg;
         let mut name_owned =
-            save_function_name(&raw mut p, eap.skip != 0, TFN_NO_AUTOLOAD, &raw mut fudi);
+            save_function_name(&raw mut p, eap.skip != 0, TFN_NO_AUTOLOAD, Some(&mut fudi));
         let mut name = name_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3310,7 +3310,7 @@ pub fn function_exists(name: *const c_char, no_deref: bool) -> bool {
         if no_deref {
             flag |= TFN_NO_DEREF;
         }
-        let p = trans_function_name(&raw mut nm, false, flag, ptr::null_mut(), ptr::null_mut());
+        let p = trans_function_name(&raw mut nm, false, flag, None, ptr::null_mut());
         nm = skipwhite(nm);
 
         if let Some(ref p) = p
@@ -3382,7 +3382,7 @@ pub fn ex_delfunction(eap: &mut exarg_T) {
             &raw mut p,
             eap.skip != 0,
             0,
-            &raw mut fudi,
+            Some(&mut fudi),
             ptr::null_mut(),
         );
         let Some(ref name_cstr) = name_owned else {
@@ -3820,7 +3820,7 @@ pub fn ex_call(eap: &mut exarg_T) {
             &raw mut arg,
             false,
             TFN_INT,
-            &raw mut fudi,
+            Some(&mut fudi),
             &raw mut partial,
         );
         if let Some(ref newkey) = fudi.fd_newkey {

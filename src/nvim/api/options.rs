@@ -320,7 +320,7 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
             did_au_ft = do_filetype_autocmd(&mut *ftbuf, true);
         });
 
-        if !bufref_valid(&mut bufref) {
+        if !bufref_valid(Some(&bufref)) {
             if !error_set(err) {
                 api_set_error!(
                     err,
@@ -354,10 +354,10 @@ fn wipe_ft_buf(buf: &mut buf_T) {
         set_bufref(&mut bufref, &raw mut *buf);
 
         close_windows(&raw mut *buf, false);
-        if bufref_valid(&mut bufref) && !ptr::eq(buf, g_st().curbuf) && buf.b_nwindows == 0 {
+        if bufref_valid(Some(&bufref)) && !ptr::eq(buf, g_st().curbuf) && buf.b_nwindows == 0 {
             wipe_buffer(&raw mut *buf, false);
         }
-        if bufref_valid(&mut bufref) {
+        if bufref_valid(Some(&bufref)) {
             buf.b_flags &= !BF_DUMMY;
         }
 
@@ -727,7 +727,7 @@ pub fn nvim_set_option_value(
                     0,
                     operation,
                     varp,
-                    &mut oldval,
+                    Some(&mut oldval),
                     &mut errmsg,
                 );
                 optval_free(oldval);

@@ -660,7 +660,7 @@ pub fn nvim_cmd(
             let cmdname = arena_string(arena, cmd.cmd).data;
             ea.cmd = cmdname;
 
-            let mut p = find_ex_command(&mut ea, ptr::null_mut());
+            let mut p = find_ex_command(&mut ea, None);
 
             if !p.is_null()
                 && ea.cmdidx == CMD_SIZE
@@ -670,7 +670,7 @@ pub fn nvim_cmd(
                 p = arena_string(arena, cmd.cmd).data;
                 let ret = apply_autocmds(EVENT_CMDUNDEFINED, p, p, true, ptr::null_mut());
                 p = if ret && !aborting() {
-                    find_ex_command(&mut ea, ptr::null_mut())
+                    find_ex_command(&mut ea, None)
                 } else {
                     ea.cmd
                 };

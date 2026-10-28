@@ -495,9 +495,9 @@ fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
                     getvcol(
                         &mut **curwin.as_ptr(),
                         &mut m_pos,
-                        ptr::null_mut(),
-                        &raw mut col,
-                        ptr::null_mut(),
+                        None,
+                        Some(&mut col),
+                        None,
                         0,
                     );
                     m_pos.col = col;
@@ -1629,7 +1629,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                     hasFolding(
                         *curwin.as_ptr(),
                         (**curwin.as_ptr()).w_topline,
-                        &raw mut (**curwin.as_ptr()).w_topline,
+                        Some(&mut (**curwin.as_ptr()).w_topline),
                         ptr::null_mut(),
                     );
                     if (**curwin.as_ptr()).w_topfill < win_get_fill(*curwin.as_ptr(), (**curwin.as_ptr()).w_topline) {
@@ -1664,7 +1664,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                         if hasFolding(
                             *curwin.as_ptr(),
                             (**curwin.as_ptr()).w_topline,
-                            ptr::null_mut(),
+                            None,
                             &raw mut (**curwin.as_ptr()).w_topline,
                         ) && (**curwin.as_ptr()).w_topline == (*g_st().curbuf).b_ml.ml_line_count
                         {
@@ -1844,7 +1844,7 @@ pub fn mouse_comp_pos(
                 break;
             }
 
-            hasFolding(&raw mut *win, lnum, ptr::null_mut(), &raw mut lnum);
+            hasFolding(&raw mut *win, lnum, None, &raw mut lnum);
 
             if lnum == (*win.w_buffer).b_ml.ml_line_count {
                 retval = true;
@@ -1859,8 +1859,8 @@ pub fn mouse_comp_pos(
             &mut *win,
             lnum - 1,
             lnum,
-            &raw mut virt_below,
-            ptr::null_mut(),
+            Some(&mut virt_below),
+            None,
             true,
         );
         let diff_fill = diff_check_fill(&raw mut *win, lnum);
@@ -1878,8 +1878,8 @@ pub fn mouse_comp_pos(
                 &mut *win,
                 lnum - 1,
                 lnum,
-                &raw mut virt_below_prev,
-                ptr::null_mut(),
+                Some(&mut virt_below_prev),
+                None,
                 true,
             );
             let diff_fill_prev = diff_check_fill(&raw mut *win, lnum - 1);
@@ -1896,7 +1896,7 @@ pub fn mouse_comp_pos(
             && decor_conceal_line(&raw mut *win, lnum - 1, false)
         {
             lnum += 1;
-            hasFolding(&raw mut *win, lnum, ptr::null_mut(), &raw mut lnum);
+            hasFolding(&raw mut *win, lnum, None, &raw mut lnum);
         }
 
         if !retval {

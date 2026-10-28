@@ -606,7 +606,7 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
             (*cs).cs_w_localdir = None;
         }
 
-        let b = if bufref_valid(&raw mut (*cs).cs_new_curbuf) {
+        let b = if bufref_valid(Some(&(*cs).cs_new_curbuf)) {
             (*cs).cs_new_curbuf.br_buf.cast::<buf_T>()
         } else {
             ptr::null_mut()
@@ -978,7 +978,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             let saved_buf = cs.cs_new_curbuf.br_buf.cast::<buf_T>();
             if (**curwin.as_ptr()).handle == cs.cs_new_curwin
                 && g_st().curbuf != saved_buf
-                && bufref_valid(&raw mut cs.cs_new_curbuf)
+                && bufref_valid(Some(&cs.cs_new_curbuf))
                 && (*saved_buf).b_ml.ml_mfp.is_some()
             {
                 (*g_st().curbuf).b_nwindows -= 1;

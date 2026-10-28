@@ -161,22 +161,22 @@ pub fn hasAnyFolding(win: &mut win_T) -> c_int {
 /// Return true if line "lnum" in window "win" is part of a closed fold.
 pub fn hasFolding(
     win: *mut win_T,
-    lnum: linenr_T,
-    firstp: *mut linenr_T,
+    lnum: linenr_T,firstp: Option<&mut linenr_T>,
     lastp: *mut linenr_T,
 ) -> bool {
-    hasFoldingWin(win, lnum, firstp, lastp, true, None)
+    let firstp: *mut linenr_T = firstp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
+    hasFoldingWin(win, lnum, (!firstp.is_null()).then(|| unsafe { &mut *firstp }), lastp, true, None)
 }
 
 /// Search folds starting at lnum.
 pub fn hasFoldingWin(
     win: *mut win_T,
-    lnum: linenr_T,
-    firstp: *mut linenr_T,
+    lnum: linenr_T,firstp: Option<&mut linenr_T>,
     lastp: *mut linenr_T,
     cache: bool,
     mut infop: Option<&mut foldinfo_T>,
 ) -> bool {
+    let firstp: *mut linenr_T = firstp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         checkupdate(win);
 
@@ -295,7 +295,7 @@ pub fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
         };
         let mut last: linenr_T = 0;
 
-        if hasFoldingWin(win, lnum, ptr::null_mut(), &mut last, false, Some(&mut info)) {
+        if hasFoldingWin(win, lnum, None, &mut last, false, Some(&mut info)) {
             info.fi_lines = last - lnum + 1;
         } else {
             info.fi_lines = 0;
@@ -375,11 +375,11 @@ pub fn opFoldRange(
             };
             let mut lnum_next = lnum;
             if opening != 0 && recurse == 0 {
-                hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &mut lnum_next);
+                hasFolding(*curwin.as_ptr(), lnum, None, &mut lnum_next);
             }
             setManualFold(temp, opening != 0, recurse != 0, Some(&mut done));
             if opening == 0 && recurse == 0 {
-                hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &mut lnum_next);
+                hasFolding(*curwin.as_ptr(), lnum, None, &mut lnum_next);
             }
             lnum = lnum_next + 1;
         }
@@ -880,13 +880,13 @@ pub fn foldAdjustVisual() {
         if hasFolding(
             *curwin.as_ptr(),
             (*start).lnum,
-            &raw mut (*start).lnum,
+            Some(&mut (*start).lnum),
             ptr::null_mut(),
         ) {
             (*start).col = 0;
         }
 
-        if !hasFolding(*curwin.as_ptr(), (*end).lnum, ptr::null_mut(), &raw mut (*end).lnum) {
+        if !hasFolding(*curwin.as_ptr(), (*end).lnum, None, &raw mut (*end).lnum) {
             return;
         }
 
@@ -903,7 +903,7 @@ pub fn foldAdjustCursor(wp: &mut win_T) {
     hasFolding(
             &raw mut *wp,
             wp.w_cursor.lnum,
-            &raw mut wp.w_cursor.lnum,
+            Some(&mut wp.w_cursor.lnum),
             ptr::null_mut(),
         );
 }
@@ -2698,7 +2698,7 @@ fn foldclosed_both(argvars: &mut [typval_T], rettv: &mut typval_T, end: bool) {
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             let mut first: linenr_T = 0;
             let mut last: linenr_T = 0;
-            if hasFoldingWin(*curwin.as_ptr(), lnum, &mut first, &mut last, false, None) {
+            if hasFoldingWin(*curwin.as_ptr(), lnum, Some(&mut first), &mut last, false, None) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(if end { last } else { first }));
                 return;
             }
