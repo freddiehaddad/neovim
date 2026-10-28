@@ -3139,11 +3139,11 @@ fn set_cmd_index(
             p = cmd.add(1);
         } else {
             p = cmd;
-            while ascii_isalpha(*p) || crate::memory::cstr_first_byte(p) == b'*' {
+            while ascii_isalpha(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'*' {
                 p = p.add(1);
             }
-            if ascii_isupper(*cmd) {
-                while ascii_isalnum(*p) || crate::memory::cstr_first_byte(p) == b'*' {
+            if ascii_isupper(crate::memory::cstr_first_char(cmd)) {
+                while ascii_isalnum(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'*' {
                     p = p.add(1);
                 }
             }
@@ -3153,7 +3153,7 @@ fn set_cmd_index(
                 && crate::memory::cstr_first_byte(p) == b'3'
             {
                 p = p.add(1);
-                while ascii_isalpha(*p) || crate::memory::cstr_first_byte(p) == b'*' {
+                while ascii_isalpha(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'*' {
                     p = p.add(1);
                 }
             }
@@ -3172,7 +3172,7 @@ fn set_cmd_index(
             if (*cmd >= b'A' as c_char && *cmd <= b'Z' as c_char)
                 || (fuzzy && eap.cmdidx != cmdidx_T::CMD_bang as c_int as c_int && !crate::memory::cstr_is_empty(p))
             {
-                while ascii_isalnum(*p) || crate::memory::cstr_first_byte(p) == b'*' {
+                while ascii_isalnum(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'*' {
                     p = p.add(1);
                 }
             }

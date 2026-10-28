@@ -268,15 +268,15 @@ pub fn ex_menu(eap: &mut exarg_T) {
 
         let mut p = arg;
         while !crate::memory::cstr_is_empty(p) {
-            if !ascii_isdigit(*p) && crate::memory::cstr_first_byte(p) != b'.' {
+            if !ascii_isdigit(crate::memory::cstr_first_char(p)) && crate::memory::cstr_first_byte(p) != b'.' {
                 break;
             }
             p = p.add(1);
         }
         let mut i: usize;
-        if ascii_iswhite(*p) {
+        if ascii_iswhite(crate::memory::cstr_first_char(p)) {
             i = 0;
-            while i < MENUDEPTH && !ascii_iswhite(*arg) {
+            while i < MENUDEPTH && !ascii_iswhite(crate::memory::cstr_first_char(arg)) {
                 pri_tab[i] = getdigits_int(&raw mut arg, false, 0);
                 if pri_tab[i] == 0 {
                     pri_tab[i] = 500;
@@ -299,10 +299,10 @@ pub fn ex_menu(eap: &mut exarg_T) {
         }
         pri_tab[MENUDEPTH] = -1;
 
-        if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6]) && ascii_iswhite(*arg.add(6)) {
+        if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6]) && ascii_iswhite(crate::memory::cstr_char_at(arg, 6)) {
             enable = kTrue;
             arg = skipwhite(arg.add(6));
-        } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7]) && ascii_iswhite(*arg.add(7)) {
+        } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7]) && ascii_iswhite(crate::memory::cstr_char_at(arg, 7)) {
             enable = kFalse;
             arg = skipwhite(arg.add(7));
         }
@@ -1009,19 +1009,19 @@ pub fn set_context_in_menu_cmd(
 
         let mut p = arg;
         while !crate::memory::cstr_is_empty(p) {
-            if !ascii_isdigit(*p) && crate::memory::cstr_first_byte(p) != b'.' {
+            if !ascii_isdigit(crate::memory::cstr_first_char(p)) && crate::memory::cstr_first_byte(p) != b'.' {
                 break;
             }
             p = p.add(1);
         }
 
-        if !ascii_iswhite(*p) {
+        if !ascii_iswhite(crate::memory::cstr_first_char(p)) {
             if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6])
-                && (crate::memory::cstr_byte_at(arg, 6) == 0 || ascii_iswhite(*arg.add(6)))
+                && (crate::memory::cstr_byte_at(arg, 6) == 0 || ascii_iswhite(crate::memory::cstr_char_at(arg, 6)))
             {
                 p = arg.add(6);
             } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7])
-                && (crate::memory::cstr_byte_at(arg, 7) == 0 || ascii_iswhite(*arg.add(7)))
+                && (crate::memory::cstr_byte_at(arg, 7) == 0 || ascii_iswhite(crate::memory::cstr_char_at(arg, 7)))
             {
                 p = arg.add(7);
             } else {
@@ -1029,14 +1029,14 @@ pub fn set_context_in_menu_cmd(
             }
         }
 
-        while !crate::memory::cstr_is_empty(p) && ascii_iswhite(*p) {
+        while !crate::memory::cstr_is_empty(p) && ascii_iswhite(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
 
         let mut after_dot = p;
         arg = p;
 
-        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(*p) {
+        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p)) {
             if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
             } else if crate::memory::cstr_first_byte(p) == b'.' {
@@ -1048,7 +1048,7 @@ pub fn set_context_in_menu_cmd(
         let expand_menus =
             !((crate::memory::cstr_first_byte(cmd) == b't' && crate::memory::cstr_byte_at(cmd, 1) == b'e') || crate::memory::cstr_first_byte(cmd) == b'p');
         menu_st().EXPAND_EMENU = crate::memory::cstr_first_byte(cmd) == b'e';
-        if expand_menus && ascii_iswhite(*p) {
+        if expand_menus && ascii_iswhite(crate::memory::cstr_first_char(p)) {
             return ptr::null_mut();
         }
         if crate::memory::cstr_is_empty(p) {
@@ -1681,7 +1681,7 @@ pub fn ex_emenu(eap: &mut exarg_T) {
         let mut arg = eap.arg;
         let mut mode_idx = MENU_INDEX_INVALID;
 
-        if !crate::memory::cstr_is_empty(arg) && ascii_iswhite(*arg.add(1)) {
+        if !crate::memory::cstr_is_empty(arg) && ascii_iswhite(crate::memory::cstr_char_at(arg, 1)) {
             match crate::memory::cstr_first_byte(arg) {
                 b'n' => mode_idx = MENU_INDEX_NORMAL,
                 b'v' => mode_idx = MENU_INDEX_VISUAL,
@@ -1797,7 +1797,7 @@ pub fn ex_menutranslate(eap: &mut exarg_T) {
 /// Find the character just after one part of a menu name (`menu_skip_part`).
 fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
     unsafe {
-        while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' && !ascii_iswhite(*p) {
+        while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' && !ascii_iswhite(crate::memory::cstr_first_char(p)) {
             if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
             }
@@ -1852,7 +1852,7 @@ fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
     unsafe {
         let mut arg = arg_start;
 
-        while !crate::memory::cstr_is_empty(arg) && !ascii_iswhite(*arg) {
+        while !crate::memory::cstr_is_empty(arg) && !ascii_iswhite(crate::memory::cstr_first_char(arg)) {
             if (crate::memory::cstr_first_byte(arg) == b'\\' || *arg == Ctrl_V) && crate::memory::cstr_byte_at(arg, 1) != 0 {
                 arg = arg.add(1);
             } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {

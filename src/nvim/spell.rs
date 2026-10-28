@@ -1682,9 +1682,9 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                     ) {
                     let p = vim_strchr(path_tail(lang_ptr), b'_' as c_int);
                     if !p.is_null()
-                        && ascii_isalpha(*p.add(1))
-                        && ascii_isalpha(*p.add(2))
-                        && !ascii_isalpha(*p.add(3))
+                        && ascii_isalpha(crate::memory::cstr_char_at(p, 1))
+                        && ascii_isalpha(crate::memory::cstr_char_at(p, 2))
+                        && !ascii_isalpha(crate::memory::cstr_char_at(p, 3))
                     {
                         xstrlcpy((&raw mut region_cp).cast(), p.add(1), 3);
                         ptr::copy(
@@ -3253,13 +3253,12 @@ pub fn valid_spellfile(val: impl crate::strings::IntoCCharPtr) -> bool { let val
             {
                 path_to_slash(spf_ptr);
             }
-            let mut s = spf_ptr;
-            while !crate::memory::cstr_is_empty(s) {
-                if !vim_is_fname_char(crate::memory::cstr_first_byte(s) as c_int) {
+            let s = spf_ptr;
+            for &s_byte in crate::memory::cstr_as_bytes(s) {
+                if !vim_is_fname_char(s_byte as c_int) {
                     return false;
                 }
-                s = s.add(1);
-            }
+}
         }
         true
     }

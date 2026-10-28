@@ -4598,7 +4598,7 @@ fn ccheck_abbr(c: c_int) -> c_int {
 /// Escape special characters in `fname`, depending on `what`.
 pub fn vim_strsave_fnameescape(fname: impl crate::strings::IntoCCharPtr, what: c_int) -> std::ffi::CString { let fname = fname.into_c_char_ptr();
     #[cfg(windows)]
-    let mut p = unsafe {
+    let mut p =  {
         let mut buf: [c_char; 32] = [0; 32];
         let mut j: usize = 0;
         let chars = if what == VSE_BUFFER {
@@ -4606,16 +4606,15 @@ pub fn vim_strsave_fnameescape(fname: impl crate::strings::IntoCCharPtr, what: c
         } else {
             PATH_ESC_CHARS.as_ptr()
         };
-        let mut cp = chars;
-        while !crate::memory::cstr_is_empty(cp) {
-            if (crate::memory::cstr_first_byte(cp) != b'[' && crate::memory::cstr_first_byte(cp) != b'{' && crate::memory::cstr_first_byte(cp) != b'!')
-                || !vim_isfilec((crate::memory::cstr_first_byte(cp)) as c_int)
+        let cp = chars;
+        for &cp_byte in crate::memory::cstr_as_bytes(cp) {
+            if (cp_byte != b'[' && cp_byte != b'{' && cp_byte != b'!')
+                || !vim_isfilec((cp_byte) as c_int)
             {
-                buf[j] = *cp;
+                buf[j] = cp_byte as c_char;
                 j += 1;
             }
-            cp = cp.add(1);
-        }
+}
         buf[j] = NUL;
         vim_strsave_escaped(fname, buf.as_ptr())
     };

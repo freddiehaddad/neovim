@@ -1294,13 +1294,13 @@ fn stropt_copy_value(
         let newval = newval_vec.as_mut_ptr();
         let mut s = newval;
 
-        while !crate::memory::cstr_is_empty(arg) && !ascii_iswhite(*arg) {
+        while !crate::memory::cstr_is_empty(arg) && !ascii_iswhite(crate::memory::cstr_first_char(arg)) {
             #[cfg(windows)]
             let remove_bs = crate::memory::cstr_first_byte(arg) == b'\\'
                 && crate::memory::cstr_byte_at(arg, 1) != 0
                 && !((flags & kOptFlagExpand) != 0
                     && vim_isfilec(crate::memory::cstr_byte_at(arg, 1) as c_int)
-                    && !ascii_iswhite(*arg.add(1))
+                    && !ascii_iswhite(crate::memory::cstr_char_at(arg, 1))
                     && (crate::memory::cstr_byte_at(arg, 1) != b'\\'
                         || (s == newval && crate::memory::cstr_byte_at(arg, 2) != b'\\')));
             #[cfg(not(windows))]
@@ -1821,11 +1821,11 @@ pub fn find_option_end(arg: impl crate::strings::IntoCCharPtr,opt_idxp: &mut Opt
         }
         p = arg;
 
-        if !ascii_isalpha(*p) {
+        if !ascii_isalpha(crate::memory::cstr_first_char(p)) {
             *opt_idxp = kOptInvalid;
             return ptr::null();
         }
-        while ascii_isalpha(*p) {
+        while ascii_isalpha(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
 
@@ -1909,8 +1909,8 @@ pub fn get_option_newval(
                     && (crate::memory::cstr_first_byte(arg) == b'<'
                         || crate::memory::cstr_first_byte(arg) == b'^'
                         || (!crate::memory::cstr_is_empty(arg)
-                            && (crate::memory::cstr_byte_at(arg, 1) == 0 || ascii_iswhite(*arg.add(1)))
-                            && !ascii_isdigit(*arg)))
+                            && (crate::memory::cstr_byte_at(arg, 1) == 0 || ascii_iswhite(crate::memory::cstr_char_at(arg, 1)))
+                            && !ascii_isdigit(crate::memory::cstr_first_char(arg))))
                 {
                     newval_num = OptInt::from(string_to_key(arg));
                     if newval_num == 0 {
@@ -1920,7 +1920,7 @@ pub fn get_option_newval(
                         }
                         return newval;
                     }
-                } else if crate::memory::cstr_first_byte(arg) == b'-' || ascii_isdigit(*arg) {
+                } else if crate::memory::cstr_first_byte(arg) == b'-' || ascii_isdigit(crate::memory::cstr_first_char(arg)) {
                     let mut i: c_int = 0;
                     vim_str2nr(
                         arg,
@@ -1934,7 +1934,7 @@ pub fn get_option_newval(
                         None,
                     );
                     if i == 0
-                        || (crate::memory::cstr_byte_at(arg, i as usize) != 0 && !ascii_iswhite(*arg.add(i as usize)))
+                        || (crate::memory::cstr_byte_at(arg, i as usize) != 0 && !ascii_iswhite(crate::memory::cstr_char_at(arg, i as usize)))
                     {
                         *errmsg = E_NUMBER_REQUIRED_AFTER_EQUAL;
                         if oldval_override.is_none() {
@@ -2005,7 +2005,7 @@ fn do_one_set_option(
         let afterchar = *option_end;
         let mut p = option_end.cast_mut();
 
-        while ascii_iswhite(*p) {
+        while ascii_iswhite(crate::memory::cstr_first_char(p)) {
             p = p.add(1);
         }
 
@@ -2039,7 +2039,7 @@ fn do_one_set_option(
             }
             if !vim_strchr(c"?!&<", nextchar).is_null()
                 && crate::memory::cstr_byte_at(*argp, 1) != 0
-                && !ascii_iswhite(*(*argp).add(1))
+                && !ascii_iswhite(crate::memory::cstr_char_at(*argp, 1))
             {
                 return e_trailing.as_ptr();
             }
@@ -2126,7 +2126,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
         } else {
             while !crate::memory::cstr_is_empty(arg) {
                 if (crate::memory::cstr_prefix_bytes(arg, 3) == &b"all"[..3])
-                    && !ascii_isalpha(*arg.add(3))
+                    && !ascii_isalpha(crate::memory::cstr_char_at(arg, 3))
                     && (opt_flags & OPT_MODELINE) == 0
                 {
                     arg = arg.add(3);
@@ -2475,14 +2475,13 @@ pub fn redraw_titles() {
 
 /// Return true if "val" is a valid name.
 pub fn valid_name(val: impl crate::strings::IntoCCharPtr, allowed: &std::ffi::CStr) -> bool { let val = val.into_c_char_ptr();
-    unsafe {
-        let mut s = val;
-        while !crate::memory::cstr_is_empty(s) {
-            if !ascii_isalnum(*s) && vim_strchr(allowed.as_ptr(), crate::memory::cstr_first_byte(s) as c_int).is_null() {
+     {
+        let s = val;
+        for &s_byte in crate::memory::cstr_as_bytes(s) {
+            if !ascii_isalnum(s_byte as c_char as c_int) && vim_strchr(allowed.as_ptr(), s_byte as c_int).is_null() {
                 return false;
             }
-            s = s.add(1);
-        }
+}
         true
     }
 }
@@ -3535,7 +3534,7 @@ fn do_spelllang_source(win: &mut win_T) {
 
         let mut p = q;
         while !crate::memory::cstr_is_empty(p) {
-            if !ascii_isalnum(*p) && crate::memory::cstr_first_byte(p) != b'-' {
+            if !ascii_isalnum(crate::memory::cstr_first_char(p)) && crate::memory::cstr_first_byte(p) != b'-' {
                 break;
             }
             p = p.add(1);
@@ -7700,7 +7699,7 @@ pub fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, opt_flags
             opt_st().EXPAND_OPTION_NAME[2] = *p.offset(-2);
             opt_st().EXPAND_OPTION_NAME[3] = *p.offset(-1);
         } else {
-            while ascii_isalnum(*p) || crate::memory::cstr_first_byte(p) == b'_' || crate::memory::cstr_first_byte(p) == b'*' {
+            while ascii_isalnum(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'_' || crate::memory::cstr_first_byte(p) == b'*' {
                 p = p.add(1);
             }
             if crate::memory::cstr_is_empty(p) {
@@ -8109,11 +8108,10 @@ pub fn ExpandSettingSubtract(
             )));
 
             if num_flags > 1 {
-                let mut flag = option_val;
-                while !crate::memory::cstr_is_empty(flag) {
-                    matches.push(crate::memory::cstr_from_bytes(&[crate::memory::cstr_first_byte(flag)]));
-                    flag = flag.add(1);
-                }
+                let flag = option_val;
+                for &flag_byte in crate::memory::cstr_as_bytes(flag) {
+                    matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
+}
             }
 
             return true;

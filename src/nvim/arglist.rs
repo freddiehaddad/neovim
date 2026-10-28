@@ -268,7 +268,7 @@ fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
                 *p = *str_;
                 p = p.add(1);
             } else {
-                if !inbacktick && ascii_isspace(*str_) {
+                if !inbacktick && ascii_isspace(crate::memory::cstr_first_char(str_)) {
                     break;
                 }
                 if crate::memory::cstr_first_byte(str_) == b'`' {

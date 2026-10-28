@@ -4986,7 +4986,7 @@ fn strip_caret_numbers_in_place(str_ptr: *mut c_char) {
         while !crate::memory::cstr_is_empty(read) {
             if crate::memory::cstr_first_byte(read) == b'^' {
                 let mut p = read.add(1);
-                while ascii_isdigit(*p) {
+                while ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     p = p.add(1);
                 }
                 if (crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_is_empty(p)) && !ptr::eq(p, read.add(1)) {
@@ -5470,7 +5470,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
             if len == crate::memory::cstr_len(first) as c_int {
                 let line = get_cursor_line_ptr();
                 let p = line.add(curwin_mut().w_cursor.col as usize);
-                if !p.is_null() && !ascii_iswhite_or_nul(*p) {
+                if !p.is_null() && !ascii_iswhite_or_nul(crate::memory::cstr_first_char(p)) {
                     let end = find_word_end(p);
                     let text_len = end.offset_from(p) as c_int;
                     if text_len > 0

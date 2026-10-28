@@ -1279,7 +1279,7 @@ pub fn ex_match(eap: &mut exarg_T) {
             let arg_bytes = crate::memory::cstr_as_bytes(arg);
             if arg_bytes.len() >= 4
                 && arg_bytes[..4].eq_ignore_ascii_case(b"none")
-                && (ascii_iswhite(*arg.add(4)) || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
+                && (ascii_iswhite(crate::memory::cstr_char_at(arg, 4)) || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
             {
                 end = arg.add(4);
             } else {

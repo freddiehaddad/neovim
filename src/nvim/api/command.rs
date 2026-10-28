@@ -663,7 +663,7 @@ pub fn nvim_cmd(
 
             if !p.is_null()
                 && ea.cmdidx == CMD_SIZE
-                && ascii_isupper(*ea.cmd)
+                && ascii_isupper(crate::memory::cstr_first_char(ea.cmd))
                 && has_event(EVENT_CMDUNDEFINED)
             {
                 p = arena_string(arena, cmd.cmd).data;

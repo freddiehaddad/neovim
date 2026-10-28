@@ -498,12 +498,11 @@ pub fn nvim__option_to_object(
         } else {
             let mut nparts: usize = 1;
             let mut p = str_ptr;
-            while !crate::memory::cstr_is_empty(p) {
-                if crate::memory::cstr_first_byte(p) == b',' {
+            for &p_byte in crate::memory::cstr_as_bytes(p) {
+                if p_byte == b',' {
                     nparts += 1;
                 }
-                p = p.add(1);
-            }
+}
             let as_map = (flags & kOptFlagColon) != 0
                 || (flags & kOptFlagFlagList) != 0
                 || !schema.is_empty();

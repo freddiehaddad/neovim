@@ -299,7 +299,7 @@ pub fn os_expand_wildcards(
                 *p = b')' as c_char;
                 p = p.sub(1);
             }
-            while (p as usize) > (command as usize) && ascii_iswhite(*p) {
+            while (p as usize) > (command as usize) && ascii_iswhite(crate::memory::cstr_first_char(p)) {
                 p = p.sub(1);
             }
             if crate::memory::cstr_first_byte(p) == b'&' {

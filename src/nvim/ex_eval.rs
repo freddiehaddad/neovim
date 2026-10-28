@@ -405,11 +405,11 @@ pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdna
         loop {
             if crate::memory::cstr_is_empty(p)
                 || (crate::memory::cstr_first_byte(p) == b'E'
-                    && ascii_isdigit(*p.add(1))
+                    && ascii_isdigit(crate::memory::cstr_char_at(p, 1))
                     && (crate::memory::cstr_byte_at(p, 2) == b':'
-                        || (ascii_isdigit(*p.add(2))
+                        || (ascii_isdigit(crate::memory::cstr_char_at(p, 2))
                             && (crate::memory::cstr_byte_at(p, 3) == b':'
-                                || (ascii_isdigit(*p.add(3)) && crate::memory::cstr_byte_at(p, 4) == b':')))))
+                                || (ascii_isdigit(crate::memory::cstr_char_at(p, 3)) && crate::memory::cstr_byte_at(p, 4) == b':')))))
             {
                 if crate::memory::cstr_is_empty(p) || ptr::eq(p, mesg) {
                     out.extend_from_slice(crate::memory::cstr_as_bytes(mesg));

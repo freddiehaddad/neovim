@@ -1933,7 +1933,7 @@ pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_
     let start = start.into_c_char_ptr();
     unsafe {
         let mut p = start;
-        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(*p) && crate::memory::cstr_first_byte(p) != b',' && crate::memory::cstr_first_byte(p) != b'|' {
+        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p)) && crate::memory::cstr_first_byte(p) != b',' && crate::memory::cstr_first_byte(p) != b'|' {
             p = p.add(1);
         }
 
@@ -2067,7 +2067,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                 cmd = c"".as_ptr().cast_mut();
             } else {
                 cmd = pat;
-                while !crate::memory::cstr_is_empty(cmd) && (!ascii_iswhite(*cmd) || *cmd.sub(1) == b'\\' as c_char) {
+                while !crate::memory::cstr_is_empty(cmd) && (!ascii_iswhite(crate::memory::cstr_first_char(cmd)) || *cmd.sub(1) == b'\\' as c_char) {
                     cmd = cmd.add(1);
                 }
                 if !crate::memory::cstr_is_empty(cmd) {
@@ -2135,7 +2135,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                     do_all_autocmd_events(pat, once, c_int::from(nested), cmd, forceit != 0, group);
                 }
             } else {
-                while !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && !ascii_iswhite(*arg) {
+                while !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && !ascii_iswhite(crate::memory::cstr_first_char(arg)) {
                     let event = event_name2nr(arg, &raw mut arg);
                     assert!((event as usize) < NUM_EVENTS);
                     if !do_autocmd_event(
@@ -2458,7 +2458,7 @@ pub fn do_doautocmd(
 
         fname = skipwhite(fname);
 
-        while !crate::memory::cstr_is_empty(arg) && ends_excmd(c_int::from(*arg.cast::<u8>())) == 0 && !ascii_iswhite(*arg)
+        while !crate::memory::cstr_is_empty(arg) && ends_excmd(c_int::from(*arg.cast::<u8>())) == 0 && !ascii_iswhite(crate::memory::cstr_first_char(arg))
         {
             let ev = event_name2nr(arg, &raw mut arg);
             if apply_autocmds_group(
@@ -3529,7 +3529,7 @@ pub fn aucmd_set_expand_context(
         }
 
         p = arg;
-        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(*p) {
+        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p)) {
             if crate::memory::cstr_first_byte(p) == b',' {
                 arg = p.add(1);
             }
@@ -3545,22 +3545,22 @@ pub fn aucmd_set_expand_context(
         }
 
         arg = skipwhite(p);
-        while !crate::memory::cstr_is_empty(arg) && (!ascii_iswhite(*arg) || *arg.sub(1) == b'\\' as c_char) {
+        while !crate::memory::cstr_is_empty(arg) && (!ascii_iswhite(crate::memory::cstr_first_char(arg)) || *arg.sub(1) == b'\\' as c_char) {
             arg = arg.add(1);
         }
         if !crate::memory::cstr_is_empty(arg) {
             arg = skipwhite(arg);
             for _ in 0..2 {
                 let bytes = crate::memory::cstr_as_bytes(arg);
-                if bytes.starts_with(b"++once") && ascii_iswhite(*arg.add(6)) {
+                if bytes.starts_with(b"++once") && ascii_iswhite(crate::memory::cstr_char_at(arg, 6)) {
                     arg = skipwhite(arg.add(6));
                 }
                 let bytes = crate::memory::cstr_as_bytes(arg);
-                if bytes.starts_with(b"++nested") && ascii_iswhite(*arg.add(8)) {
+                if bytes.starts_with(b"++nested") && ascii_iswhite(crate::memory::cstr_char_at(arg, 8)) {
                     arg = skipwhite(arg.add(8));
                 }
                 let bytes = crate::memory::cstr_as_bytes(arg);
-                if bytes.starts_with(b"nested") && ascii_iswhite(*arg.add(6)) {
+                if bytes.starts_with(b"nested") && ascii_iswhite(crate::memory::cstr_char_at(arg, 6)) {
                     arg = skipwhite(arg.add(6));
                 }
             }
@@ -3764,14 +3764,14 @@ fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {
         let mut p: *mut c_char = ptr::null_mut();
 
         if crate::memory::cstr_first_byte(arg) == b'*' {
-            if crate::memory::cstr_byte_at(arg, 1) != 0 && !ascii_iswhite(*arg.add(1)) {
+            if crate::memory::cstr_byte_at(arg, 1) != 0 && !ascii_iswhite(crate::memory::cstr_char_at(arg, 1)) {
                 semsg!(tr(c"E215: Illegal character after *: %s"), arg);
                 return ptr::null_mut();
             }
             pat = arg.add(1);
         } else {
             pat = arg;
-            while !crate::memory::cstr_is_empty(pat) && crate::memory::cstr_first_byte(pat) != b'|' && !ascii_iswhite(*pat) {
+            while !crate::memory::cstr_is_empty(pat) && crate::memory::cstr_first_byte(pat) != b'|' && !ascii_iswhite(crate::memory::cstr_first_char(pat)) {
                 if (event_name2nr(pat, &raw mut p) as usize) >= NUM_EVENTS {
                     if have_group {
                         semsg!(tr(c"E216: No such event: %s"), pat);
@@ -3791,7 +3791,7 @@ fn arg_augroup_get(argp: *mut *mut c_char) -> c_int {
     unsafe {
         let arg = *argp;
         let mut p = arg;
-        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(*p) && crate::memory::cstr_first_byte(p) != b'|' {
+        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p)) && crate::memory::cstr_first_byte(p) != b'|' {
             p = p.add(1);
         }
         if p <= arg {
@@ -3820,7 +3820,7 @@ fn arg_autocmd_flag_get(
     unsafe {
         let cmd_bytes = crate::memory::cstr_as_bytes(*cmd_ptr);
         let pat_slice = crate::memory::cstr_slice(pattern.as_ptr(), len as usize);
-        if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(*(*cmd_ptr).add(len as usize)) {
+        if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(crate::memory::cstr_char_at(*cmd_ptr, len as usize)) {
             if *flag {
                 semsg!(tr(e_duparg2), pattern.as_ptr());
                 return true;

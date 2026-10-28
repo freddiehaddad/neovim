@@ -581,7 +581,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
                     stl = stl.add(1);
                 }
                 if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as c_int != 0 {
-                    while ascii_isdigit(*stl) {
+                    while ascii_isdigit(crate::memory::cstr_first_char(stl)) {
                         stl = stl.add(1);
                     }
                 }
@@ -1666,7 +1666,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 left_align = true;
             }
 
-            if ascii_isdigit(*fmt_p) {
+            if ascii_isdigit(crate::memory::cstr_first_char(fmt_p)) {
                 minwid = getdigits_int(&raw mut fmt_p, false, 0);
             }
 
@@ -1731,7 +1731,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
             if crate::memory::cstr_first_byte(fmt_p) == b'.' {
                 fmt_p = fmt_p.add(1);
-                if ascii_isdigit(*fmt_p) {
+                if ascii_isdigit(crate::memory::cstr_first_char(fmt_p)) {
                     maxwid = getdigits_int(&raw mut fmt_p, false, 50);
                     if maxwid <= 0 {
                         maxwid = 50;
@@ -2311,7 +2311,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     while l < minwid && out_p < out_end_p {
                         if l + 1 == minwid
                             && fillchar == schar_from_ascii(b'-')
-                            && ascii_isdigit(*t)
+                            && ascii_isdigit(crate::memory::cstr_first_char(t))
                         {
                             *out_p = b' ' as c_char;
                             out_p = out_p.add(1);
@@ -2334,7 +2334,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 while !crate::memory::cstr_is_empty(t) && out_p < out_end_p {
                     if fillable
                         && crate::memory::cstr_first_byte(t) == b' '
-                        && (!ascii_isdigit(*t.add(1)) || fillchar != schar_from_ascii(b'-'))
+                        && (!ascii_isdigit(crate::memory::cstr_char_at(t, 1)) || fillchar != schar_from_ascii(b'-'))
                     {
                         schar_get_adv(&raw mut out_p, fillchar);
                     } else {

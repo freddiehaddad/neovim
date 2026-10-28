@@ -1818,7 +1818,7 @@ pub fn win_line(
                 || wp.w_p_lcs_chars.leadtab1 != 0
             {
                 leadcol = 0;
-                while ascii_iswhite(*ptr.add(leadcol as usize)) {
+                while ascii_iswhite(crate::memory::cstr_char_at(ptr, leadcol as usize)) {
                     leadcol += 1;
                 }
                 if crate::memory::cstr_byte_at(ptr, leadcol as usize) == 0 {

@@ -2645,7 +2645,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
             .map_or(ptr::null_mut(), |tn| tn.as_ptr().cast_mut());
         'theend: {
             if crate::memory::cstr_is_empty(s)
-                || (use_string && ascii_isdigit(*s))
+                || (use_string && ascii_isdigit(crate::memory::cstr_first_char(s)))
                 || (is_funcref && trans_name.is_null())
             {
                 semsg!(
@@ -3770,14 +3770,14 @@ pub fn f_has(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 let end = s6.add(dlen);
                 let major = std::str::from_utf8_unchecked(crate::memory::cstr_slice(s6, dlen)).parse::<c_int>().unwrap_or(0);
                 if crate::memory::cstr_first_byte(end) == b'.'
-                    && ascii_isdigit(*end.add(1))
+                    && ascii_isdigit(crate::memory::cstr_char_at(end, 1))
                     && crate::memory::cstr_byte_at(end, 2) == b'.'
-                    && ascii_isdigit(*end.add(3))
+                    && ascii_isdigit(crate::memory::cstr_char_at(end, 3))
                 {
                     let minor = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(end.add(1))) as c_int;
                     n = has_vim_patch(crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(end.add(3))) as c_int, major * 100 + minor);
                 }
-            } else if ascii_isdigit(*name.add(5)) {
+            } else if ascii_isdigit(crate::memory::cstr_char_at(name, 5)) {
                 n = has_vim_patch(crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(name.add(5))) as c_int, 0);
             }
         } else if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(b"nvim-") {
@@ -7903,7 +7903,7 @@ fn get_yank_type(
             }
             c if c == b'b' as c_char || c == Ctrl_V => {
                 *yank_type = crate::register::MotionType::kMTBlockWise;
-                if ascii_isdigit(*stropt.add(1)) {
+                if ascii_isdigit(crate::memory::cstr_char_at(stropt, 1)) {
                     stropt = stropt.add(1);
                     *block_len = getdigits_int(&raw mut stropt, false, 0) - 1;
                     stropt = stropt.sub(1);

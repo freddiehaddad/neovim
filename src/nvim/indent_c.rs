@@ -217,7 +217,7 @@ fn skip_string(p: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut 
                 let mut i: usize = 2;
                 if crate::memory::cstr_byte_at(p, 1) == b'\\' && crate::memory::cstr_byte_at(p, 2) != 0 {
                     i += 1;
-                    while ascii_isdigit(*p.add(i - 1)) {
+                    while ascii_isdigit(crate::memory::cstr_char_at(p, i - 1)) {
                         i += 1;
                     }
                 }
@@ -635,7 +635,7 @@ fn cin_is_cpp_namespace(s: impl crate::strings::IntoCCharPtr) -> bool { let mut 
         {
             let mut p = cin_skipcomment(skipwhite(s.add(9)));
             while !crate::memory::cstr_is_empty(p) {
-                if ascii_iswhite(*p) {
+                if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     has_name = true;
                     p = cin_skipcomment(skipwhite(p));
                 } else if crate::memory::cstr_first_byte(p) == b'{' {
@@ -750,10 +750,10 @@ fn cin_first_id_amount() -> c_int {
             || (len == 6 && (crate::memory::cstr_prefix_bytes(p, 6) == &b"signed"[..6]))
         {
             let s = skipwhite(p.add(len as usize));
-            if ((crate::memory::cstr_prefix_bytes(s, 3) == &b"int"[..3]) && ascii_iswhite(*s.add(3)))
-                || ((crate::memory::cstr_prefix_bytes(s, 4) == &b"long"[..4]) && ascii_iswhite(*s.add(4)))
-                || ((crate::memory::cstr_prefix_bytes(s, 5) == &b"short"[..5]) && ascii_iswhite(*s.add(5)))
-                || ((crate::memory::cstr_prefix_bytes(s, 4) == &b"char"[..4]) && ascii_iswhite(*s.add(4)))
+            if ((crate::memory::cstr_prefix_bytes(s, 3) == &b"int"[..3]) && ascii_iswhite(crate::memory::cstr_char_at(s, 3)))
+                || ((crate::memory::cstr_prefix_bytes(s, 4) == &b"long"[..4]) && ascii_iswhite(crate::memory::cstr_char_at(s, 4)))
+                || ((crate::memory::cstr_prefix_bytes(s, 5) == &b"short"[..5]) && ascii_iswhite(crate::memory::cstr_char_at(s, 5)))
+                || ((crate::memory::cstr_prefix_bytes(s, 4) == &b"char"[..4]) && ascii_iswhite(crate::memory::cstr_char_at(s, 4)))
             {
                 p = s;
             }
@@ -762,7 +762,7 @@ fn cin_first_id_amount() -> c_int {
         while vim_isIDc(crate::memory::cstr_byte_at(p, len as usize) as c_int) {
             len += 1;
         }
-        if len == 0 || !ascii_iswhite(*p.add(len as usize)) || cin_nocode(p) {
+        if len == 0 || !ascii_iswhite(crate::memory::cstr_char_at(p, len as usize)) || cin_nocode(p) {
             return 0;
         }
         p = skipwhite(p.add(len as usize));
@@ -1061,7 +1061,7 @@ fn cin_is_if_for_while_before_offset(line: impl crate::strings::IntoCCharPtr, po
         if prev_offset < 2 {
             return 0;
         }
-        while offset > 2 && ascii_iswhite(*line.add(offset as usize)) {
+        while offset > 2 && ascii_iswhite(crate::memory::cstr_char_at(line, offset as usize)) {
             offset -= 1;
         }
         offset -= 1;
@@ -1320,7 +1320,7 @@ fn cin_is_cpp_extern_c(s: impl crate::strings::IntoCCharPtr) -> bool { let mut s
         {
             let mut p = cin_skipcomment(skipwhite(s.add(6)));
             while !crate::memory::cstr_is_empty(p) {
-                if ascii_iswhite(*p) {
+                if ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     p = cin_skipcomment(skipwhite(p));
                 } else if crate::memory::cstr_first_byte(p) == b'{' {
                     break;
@@ -1559,7 +1559,7 @@ pub fn parse_cino(buf: &mut buf_T) {
             if crate::memory::cstr_first_byte(p) == b'.' {
                 p = p.add(1);
                 fraction = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as c_int;
-                while ascii_isdigit(*p) {
+                while ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     p = p.add(1);
                     if divider != 0 {
                         divider *= 10;
@@ -1772,7 +1772,7 @@ pub fn get_c_indent() -> c_int {
                             } else if *p == COM_LEFT || *p == COM_RIGHT {
                                 align = crate::memory::cstr_first_byte(p) as c_int;
                                 p = p.add(1);
-                            } else if ascii_isdigit(*p) || crate::memory::cstr_first_byte(p) == b'-' {
+                            } else if ascii_isdigit(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'-' {
                                 off = getdigits_int(&raw mut p, true, 0);
                             } else {
                                 p = p.add(1);
@@ -2016,7 +2016,7 @@ pub fn get_c_indent() -> c_int {
                                         our_paren_pos.col += 1;
                                     } else {
                                         col = our_paren_pos.col + 1;
-                                        while ascii_iswhite(*l.add(col as usize)) {
+                                        while ascii_iswhite(crate::memory::cstr_char_at(l, col as usize)) {
                                             col += 1;
                                         }
                                         if crate::memory::cstr_byte_at(l, col as usize) != 0 {

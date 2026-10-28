@@ -156,7 +156,7 @@ pub fn tabstop_set(
                 }
             }
 
-            if ascii_isdigit(*cp) {
+            if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
                 cp = cp.add(1);
                 continue;
             }
@@ -508,7 +508,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
             if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi != 0 {
                 ind_done = 0;
 
-                while todo > 0 && ascii_iswhite(*p) {
+                while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     if *p == TAB {
                         tab_pad =
                             tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
@@ -565,7 +565,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
             ind_len += 1;
         }
 
-        if !doit && !ascii_iswhite(*p) && (flags & SIN_INSERT) == 0 {
+        if !doit && !ascii_iswhite(crate::memory::cstr_first_char(p)) && (flags & SIN_INSERT) == 0 {
             return false;
         }
 
@@ -603,7 +603,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
                 orig_char_len -= 1;
             }
 
-            while ascii_iswhite(*p) {
+            while ascii_iswhite(crate::memory::cstr_first_char(p)) {
                 p = p.add(1);
             }
         } else {
@@ -622,7 +622,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
                 p = oldline;
                 ind_done = 0;
 
-                while todo > 0 && ascii_iswhite(*p) {
+                while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(p)) {
                     if *p == TAB {
                         tab_pad =
                             tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
@@ -899,7 +899,7 @@ pub fn inindent(extra: c_int) -> bool {
     unsafe {
         let mut ptr = get_cursor_line_ptr();
         let mut col: colnr_T = 0;
-        while ascii_iswhite(*ptr) {
+        while ascii_iswhite(crate::memory::cstr_first_char(ptr)) {
             col += 1;
             ptr = ptr.add(1);
         }
@@ -1073,7 +1073,7 @@ pub fn ins_try_si(c: c_int) {
                 if i > 0 {
                     while {
                         i -= 1;
-                        i > 0 && ascii_iswhite(*ptr.add(i as usize))
+                        i > 0 && ascii_iswhite(crate::memory::cstr_char_at(ptr, i as usize))
                     } {}
                 }
                 curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1308,7 +1308,7 @@ pub fn copy_indent(size: c_int, src: impl crate::strings::IntoCCharPtr) -> bool 
             let mut ind_col: c_int = 0;
             let mut s = src;
 
-            while todo > 0 && ascii_iswhite(*s) {
+            while todo > 0 && ascii_iswhite(crate::memory::cstr_first_char(s)) {
                 if *s == TAB {
                     tab_pad = tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     if todo < tab_pad {
@@ -1411,7 +1411,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
         let mut is_indent_only = false;
 
         let mut ptr = eap.arg;
-        if (crate::memory::cstr_prefix_bytes(ptr, 11) == &b"-indentonly"[..11]) && ascii_iswhite_or_nul(*ptr.add(11)) {
+        if (crate::memory::cstr_prefix_bytes(ptr, 11) == &b"-indentonly"[..11]) && ascii_iswhite_or_nul(crate::memory::cstr_char_at(ptr, 11)) {
             is_indent_only = true;
             ptr = skipwhite(ptr.add(11));
         }
@@ -1427,7 +1427,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
             emsg(gettext(errmsg));
             return;
         }
-        while ascii_isdigit(*ptr) || crate::memory::cstr_first_byte(ptr) == b',' {
+        while ascii_isdigit(crate::memory::cstr_first_char(ptr)) || crate::memory::cstr_first_byte(ptr) == b',' {
             ptr = ptr.add(1);
         }
 
@@ -1453,7 +1453,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
             let mut vcol: i64 = 0;
             let mut did_undo = false;
             loop {
-                if ascii_iswhite(*ptr.add(col as usize)) {
+                if ascii_iswhite(crate::memory::cstr_char_at(ptr, col as usize)) {
                     if !got_tab && num_spaces == 0 {
                         start_vcol = vcol;
                         start_col = col;
@@ -1765,7 +1765,7 @@ pub fn get_lisp_indent() -> c_int {
                     }
                     let mut firsttry: colnr_T = amount;
 
-                    while ascii_iswhite(*that) {
+                    while ascii_iswhite(crate::memory::cstr_first_char(that)) {
                         amount += win_charsize(
                             cstype,
                             amount,
@@ -1838,7 +1838,7 @@ pub fn get_lisp_indent() -> c_int {
                             }
                         }
 
-                        while ascii_iswhite(*that) {
+                        while ascii_iswhite(crate::memory::cstr_first_char(that)) {
                             amount += win_charsize(
                                 cstype,
                                 amount,
@@ -1867,7 +1867,7 @@ pub fn get_lisp_indent() -> c_int {
 }
 
 fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
-    unsafe {
+     {
         let mut buf = [0 as c_char; 512];
         let mut word = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
             curbuf_mut().b_p_lw
@@ -1877,7 +1877,7 @@ fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_c
 
         while !crate::memory::cstr_is_empty(word) {
             let len = copy_option_part(&raw mut word, buf.as_mut_ptr(), buf.len(), c",");
-            if (crate::memory::cstr_prefix_bytes(buf.as_ptr(), len) == crate::memory::cstr_prefix_bytes(p, len)) && ascii_iswhite_or_nul(*p.add(len)) {
+            if (crate::memory::cstr_prefix_bytes(buf.as_ptr(), len) == crate::memory::cstr_prefix_bytes(p, len)) && ascii_iswhite_or_nul(crate::memory::cstr_char_at(p, len)) {
                 return true;
             }
         }

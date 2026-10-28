@@ -83,7 +83,7 @@ pub fn ex_help(eap: &mut exarg_T) {
         let arg_len = crate::memory::cstr_len(arg);
         if arg_len > 0 {
             let mut p = arg.add(arg_len - 1);
-            while p > arg && ascii_iswhite(*p) && *p.sub(1) != b'\\' as c_char {
+            while p > arg && ascii_iswhite(crate::memory::cstr_first_char(p)) && *p.sub(1) != b'\\' as c_char {
                 *p = NUL;
                 p = p.sub(1);
             }
@@ -274,8 +274,8 @@ pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
         let len = crate::memory::cstr_len(arg);
         if len >= 3
             && crate::memory::cstr_byte_at(arg, len - 3) == b'@'
-            && ascii_isalpha(*arg.add(len - 2))
-            && ascii_isalpha(*arg.add(len - 1))
+            && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 2))
+            && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 1))
         {
             *arg.add(len - 3) = NUL;
             return arg.add(len - 2);
@@ -293,16 +293,15 @@ pub fn help_heuristic(
     let matched_string = matched_string.into_c_char_ptr().cast_mut();
     unsafe {
         let mut num_letters: c_int = 0;
-        let mut p = matched_string;
-        while !crate::memory::cstr_is_empty(p) {
-            if ascii_isalnum(*p) {
+        let p = matched_string;
+        for &p_byte in crate::memory::cstr_as_bytes(p) {
+            if ascii_isalnum(p_byte as c_char as c_int) {
                 num_letters += 1;
             }
-            p = p.add(1);
-        }
+}
 
         if offset > 0
-            && ascii_isalnum(*matched_string.add(offset as usize))
+            && ascii_isalnum(crate::memory::cstr_char_at(matched_string, offset as usize))
             && ascii_isalnum(*matched_string.add((offset - 1) as usize))
         {
             offset += 10000;
@@ -516,7 +515,7 @@ pub fn ex_helptags(eap: &mut exarg_T) {
         let mut add_help_tags = false;
 
         let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
-        if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(*eap.arg.add(3)) {
+        if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(crate::memory::cstr_char_at(eap.arg, 3)) {
             add_help_tags = true;
             eap.arg = skipwhite(eap.arg.add(3));
         }

@@ -1205,7 +1205,7 @@ pub fn parse_search_pattern_offset(
         offset.line = false;
         offset.end = false;
         offset.off = 0;
-        if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' || ascii_isdigit(*p) {
+        if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' || ascii_isdigit(crate::memory::cstr_first_char(p)) {
             offset.line = true;
         } else if (options & SEARCH_OPT) != 0
             && (crate::memory::cstr_first_byte(p) == b'e' || crate::memory::cstr_first_byte(p) == b's' || crate::memory::cstr_first_byte(p) == b'b')
@@ -1215,8 +1215,8 @@ pub fn parse_search_pattern_offset(
             }
             p = p.add(1);
         }
-        if ascii_isdigit(*p) || crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-            if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
+        if ascii_isdigit(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
+            if ascii_isdigit(crate::memory::cstr_first_char(p)) || ascii_isdigit(crate::memory::cstr_char_at(p, 1)) {
                 {
                     offset.off = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as std::ffi::c_long as _;
                 }
@@ -1226,7 +1226,7 @@ pub fn parse_search_pattern_offset(
                 offset.off = 1;
             }
             p = p.add(1);
-            while ascii_isdigit(*p) {
+            while ascii_isdigit(crate::memory::cstr_first_char(p)) {
                 p = p.add(1);
             }
         }

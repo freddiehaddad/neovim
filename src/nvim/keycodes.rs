@@ -2459,7 +2459,7 @@ pub fn find_special_key(
         // Find end of modifier list
         let mut last_dash = src;
         let mut bp = src.add(1);
-        while (bp as usize) <= (end as usize) && (crate::memory::cstr_first_byte(bp) == b'-' || ascii_isident(*bp)) {
+        while (bp as usize) <= (end as usize) && (crate::memory::cstr_first_byte(bp) == b'-' || ascii_isident(crate::memory::cstr_first_char(bp))) {
             if crate::memory::cstr_first_byte(bp) == b'-' {
                 last_dash = bp;
                 if (bp.add(1) as usize) <= (end as usize) {
@@ -2530,7 +2530,7 @@ pub fn find_special_key(
             if (bp as usize) >= (last_dash as usize) {
                 let mut key: c_int;
                 if crate::memory::cstr_prefix_bytes(last_dash.add(1), 5).eq_ignore_ascii_case(b"char-")
-                    && ascii_isdigit(*last_dash.add(6))
+                    && ascii_isdigit(crate::memory::cstr_char_at(last_dash, 6))
                 {
                     // <Char-123> or <Char-033> or <Char-0x33>
                     let mut l: c_int = 0;
@@ -2639,7 +2639,7 @@ pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
         }
 
         let mut len = 0usize;
-        while ascii_isident(*name.add(len)) {
+        while ascii_isident(crate::memory::cstr_char_at(name, len)) {
             len += 1;
         }
 

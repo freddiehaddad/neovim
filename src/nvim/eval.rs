@@ -998,7 +998,7 @@ pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
                 retval = 0;
             } else {
                 let mut s = tv.vval.v_string();
-                if !crate::memory::cstr_is_empty(s) && !ascii_isdigit(*s) && crate::memory::cstr_first_byte(s) != b'-' {
+                if !crate::memory::cstr_is_empty(s) && !ascii_isdigit(crate::memory::cstr_first_char(s)) && crate::memory::cstr_first_byte(s) != b'-' {
                     *cp = c_int::from(crate::memory::cstr_first_byte(s));
                     s = s.add(1);
                 }
@@ -1312,7 +1312,7 @@ fn get_lval_subscript(lp: &mut lval_T,
             if crate::memory::cstr_first_byte(p) == b'.' {
                 key = p.add(1);
                 len = 0;
-                while ascii_isalnum(*key.add(len as usize))
+                while ascii_isalnum(crate::memory::cstr_char_at(key, len as usize))
                     || crate::memory::cstr_byte_at(key, len as usize) == b'_'
                 {
                     len += 1;
@@ -1474,7 +1474,7 @@ pub fn get_lval(
             find_name_end(name, &raw mut expr_start, &raw mut expr_end, fne_flags).cast_mut();
         if !expr_start.is_null() {
             if unlet
-                && !ascii_iswhite(*p)
+                && !ascii_iswhite(crate::memory::cstr_first_char(p))
                 && ends_excmd(c_int::from(crate::memory::cstr_first_byte(p))) == 0
                 && crate::memory::cstr_first_byte(p) != b'['
                 && crate::memory::cstr_first_byte(p) != b'.'
@@ -1755,7 +1755,7 @@ pub fn eval_for_line(
         expr = skipwhite(expr);
         if crate::memory::cstr_first_byte(expr) != b'i'
             || crate::memory::cstr_byte_at(expr, 1) != b'n'
-            || !(crate::memory::cstr_byte_at(expr, 2) == 0 || ascii_iswhite(*expr.add(2)))
+            || !(crate::memory::cstr_byte_at(expr, 2) == 0 || ascii_iswhite(crate::memory::cstr_char_at(expr, 2)))
         {
             emsg(gettext(c"E690: Missing \"in\" after :for"));
             return fi;
@@ -1908,7 +1908,7 @@ pub fn set_context_for_expression(
                 while (p as usize) >= (arg as usize) {
                     xp.xp_pattern = p;
                     p = p.offset(-((utf_head_off(arg, p.sub(1)) + 1) as isize));
-                    if (p as usize) >= (arg as usize) && ascii_iswhite(*p) {
+                    if (p as usize) >= (arg as usize) && ascii_iswhite(crate::memory::cstr_first_char(p)) {
                         break;
                     }
                 }
@@ -3651,7 +3651,7 @@ fn eval_number(
         let mut p = skipdigits((*arg).add(1));
         let mut get_float = false;
 
-        if !want_string && crate::memory::cstr_first_byte(p) == b'.' && ascii_isdigit(*p.add(1)) {
+        if !want_string && crate::memory::cstr_first_byte(p) == b'.' && ascii_isdigit(crate::memory::cstr_char_at(p, 1)) {
             get_float = true;
             p = skipdigits(p.add(2));
             if crate::memory::cstr_first_byte(p) == b'e' || crate::memory::cstr_first_byte(p) == b'E' {
@@ -3659,13 +3659,13 @@ fn eval_number(
                 if crate::memory::cstr_first_byte(p) == b'-' || crate::memory::cstr_first_byte(p) == b'+' {
                     p = p.add(1);
                 }
-                if !ascii_isdigit(*p) {
+                if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
                     get_float = false;
                 } else {
                     p = skipdigits(p.add(1));
                 }
             }
-            if ascii_isalpha(*p) || crate::memory::cstr_first_byte(p) == b'.' {
+            if ascii_isalpha(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'.' {
                 get_float = false;
             }
         }
@@ -3681,8 +3681,8 @@ fn eval_number(
         {
             let mut bytes: Vec<u8> = Vec::new();
             let mut bp = (*arg).add(2);
-            while ascii_isxdigit(*bp) {
-                if !ascii_isxdigit(*bp.add(1)) {
+            while ascii_isxdigit(crate::memory::cstr_first_char(bp)) {
+                if !ascii_isxdigit(crate::memory::cstr_char_at(bp, 1)) {
                     if evaluate {
                         emsg(gettext(
                             c"E973: Blob literal should have an even number of hex characters",
@@ -3696,7 +3696,7 @@ fn eval_number(
                         as u8;
                     bytes.push(byte);
                 }
-                if crate::memory::cstr_byte_at(bp, 2) == b'.' && ascii_isxdigit(*bp.add(3)) {
+                if crate::memory::cstr_byte_at(bp, 2) == b'.' && ascii_isxdigit(crate::memory::cstr_char_at(bp, 3)) {
                     bp = bp.add(1);
                 }
                 bp = bp.add(2);
@@ -3840,7 +3840,7 @@ fn eval_string(
                         p = p.add(1);
                     }
                     b'X' | b'x' | b'u' | b'U' => {
-                        if ascii_isxdigit(*p.add(1)) {
+                        if ascii_isxdigit(crate::memory::cstr_char_at(p, 1)) {
                             let c = (crate::memory::cstr_first_byte(p)).to_ascii_uppercase();
                             let mut n = if c == b'X' {
                                 2
@@ -3850,7 +3850,7 @@ fn eval_string(
                                 8
                             };
                             let mut nr: c_int = 0;
-                            while n > 0 && ascii_isxdigit(*p.add(1)) {
+                            while n > 0 && ascii_isxdigit(crate::memory::cstr_char_at(p, 1)) {
                                 n -= 1;
                                 p = p.add(1);
                                 nr = (nr << 4) + hex2nr(c_int::from(crate::memory::cstr_first_byte(p)));
@@ -4665,7 +4665,7 @@ fn get_literal_key(arg: *mut *mut c_char, tv: &mut typval_T) -> bool {
             return false;
         }
         let mut p = *arg;
-        while ascii_isalnum(*p) || crate::memory::cstr_first_byte(p) == b'_' || crate::memory::cstr_first_byte(p) == b'-' {
+        while ascii_isalnum(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'_' || crate::memory::cstr_first_byte(p) == b'-' {
             p = p.add(1);
         }
         crate::eval::typval::tv_set_string_len(&mut *tv, *arg, (p as usize).wrapping_sub(*arg as usize));
@@ -5106,7 +5106,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
             (*pt).pt_refcount += 1;
         } else if arg.v_type == VarType::VAR_STRING
             && !arg.vval.v_string().is_null()
-            && ascii_isdigit(*arg.vval.v_string())
+            && ascii_isdigit(crate::memory::cstr_first_char(arg.vval.v_string()))
         {
             r = FAIL;
         } else if arg.v_type == VarType::VAR_FUNC || arg.v_type == VarType::VAR_STRING {
@@ -5505,11 +5505,10 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
             let mut total_len: usize = 0;
             if !buf.is_null() {
                 for lnum in 1..=(*buf).b_ml.ml_line_count {
-                    let mut p = ml_get_buf(&mut *buf, lnum);
-                    while !crate::memory::cstr_is_empty(p) {
+                    let p = ml_get_buf(&mut *buf, lnum);
+                    for &_p_byte in crate::memory::cstr_as_bytes(p) {
                         total_len += 1;
-                        p = p.add(1);
-                    }
+}
                     total_len += 1;
                 }
             } else {
@@ -5727,7 +5726,7 @@ pub fn var2fpos(
                 return ptr::null_mut();
             }
             eval_st().VAR2FPOS_POS = (*fm).mark;
-            if ascii_isupper(*name.add(1)) || ascii_isdigit(*name.add(1)) {
+            if ascii_isupper(crate::memory::cstr_char_at(name, 1)) || ascii_isdigit(crate::memory::cstr_char_at(name, 1)) {
                 *ret_fnum = (*fm).fnum;
             }
         }
@@ -6153,7 +6152,7 @@ fn tv_is_luafunc(tv: &mut typval_T) -> bool {
 /// Skips one character past the end of the name of a v:lua function.
 pub fn skip_luafunc_name(p: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut p = p.into_c_char_ptr();
     unsafe {
-        while ascii_isalnum(*p)
+        while ascii_isalnum(crate::memory::cstr_first_char(p))
             || crate::memory::cstr_first_byte(p) == b'_'
             || crate::memory::cstr_first_byte(p) == b'-'
             || crate::memory::cstr_first_byte(p) == b'.'
@@ -6666,13 +6665,13 @@ pub fn var_flavour(varname: impl crate::strings::IntoCCharPtr) -> var_flavour_T 
     unsafe {
         let mut p = varname;
 
-        if ascii_isupper(*p) {
+        if ascii_isupper(crate::memory::cstr_first_char(p)) {
             loop {
                 p = p.add(1);
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
-                if ascii_islower(*p) {
+                if ascii_islower(crate::memory::cstr_first_char(p)) {
                     return VAR_FLAVOUR_SESSION;
                 }
             }

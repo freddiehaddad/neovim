@@ -3704,7 +3704,7 @@ fn get_syn_options(
                     len += 1;
                 }
                 if p[i] == 0
-                    && (ascii_iswhite(*arg.add(len))
+                    && (ascii_iswhite(crate::memory::cstr_char_at(arg, len))
                         || if argtype > 0 {
                             crate::memory::cstr_byte_at(arg, len) == b'='
                         } else {
@@ -3921,7 +3921,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
                     if rest.is_null() || ends_excmd(crate::memory::cstr_first_char(rest)) != 0 {
                         break;
                     }
-                    while !crate::memory::cstr_is_empty(rest) && !ascii_iswhite(*rest) {
+                    while !crate::memory::cstr_is_empty(rest) && !ascii_iswhite(crate::memory::cstr_first_char(rest)) {
                         if crate::memory::cstr_first_byte(rest) == b'\\' && crate::memory::cstr_byte_at(rest, 1) != 0 {
                             rest = rest.add(1);
                         }
@@ -4118,7 +4118,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
             }
 
             let mut key_end = rest;
-            while !crate::memory::cstr_is_empty(key_end) && !ascii_iswhite(*key_end) && crate::memory::cstr_first_byte(key_end) != b'=' {
+            while !crate::memory::cstr_is_empty(key_end) && !ascii_iswhite(crate::memory::cstr_first_char(key_end)) && crate::memory::cstr_first_byte(key_end) != b'=' {
                 key_end = key_end.add(1);
             }
             key = Some(crate::memory::cstr_from_bytes(
@@ -4411,15 +4411,15 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
 
             loop {
                 let (opt_len, list_op) = if crate::memory::cstr_prefix_bytes(rest, 3).eq_ignore_ascii_case(b"add")
-                    && (ascii_iswhite(*rest.add(3)) || crate::memory::cstr_byte_at(rest, 3) == b'=')
+                    && (ascii_iswhite(crate::memory::cstr_char_at(rest, 3)) || crate::memory::cstr_byte_at(rest, 3) == b'=')
                 {
                     (3, CLUSTER_ADD)
                 } else if crate::memory::cstr_prefix_bytes(rest, 6).eq_ignore_ascii_case(b"remove")
-                    && (ascii_iswhite(*rest.add(6)) || crate::memory::cstr_byte_at(rest, 6) == b'=')
+                    && (ascii_iswhite(crate::memory::cstr_char_at(rest, 6)) || crate::memory::cstr_byte_at(rest, 6) == b'=')
                 {
                     (6, CLUSTER_SUBTRACT)
                 } else if crate::memory::cstr_prefix_bytes(rest, 8).eq_ignore_ascii_case(b"contains")
-                    && (ascii_iswhite(*rest.add(8)) || crate::memory::cstr_byte_at(rest, 8) == b'=')
+                    && (ascii_iswhite(crate::memory::cstr_char_at(rest, 8)) || crate::memory::cstr_byte_at(rest, 8) == b'=')
                 {
                     (8, CLUSTER_REPLACE)
                 } else {
@@ -4539,7 +4539,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
             }
         }
 
-        if ends_excmd(crate::memory::cstr_first_char(end)) == 0 && !ascii_iswhite(*end) {
+        if ends_excmd(crate::memory::cstr_first_char(end)) == 0 && !ascii_iswhite(crate::memory::cstr_first_char(end)) {
             semsg!(gettext(c"E402: Garbage after pattern: %s"), arg);
             return ptr::null_mut();
         }
@@ -4596,7 +4596,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                     key.add(9)
                 })
                 .cast_mut();
-                if *arg_end.sub(1) != b'=' as c_char || !ascii_isdigit(*arg_end) {
+                if *arg_end.sub(1) != b'=' as c_char || !ascii_isdigit(crate::memory::cstr_first_char(arg_end)) {
                     illegal = true;
                     break;
                 }
@@ -4711,7 +4711,7 @@ fn get_id_list(
             let mut count: c_int = 0;
             loop {
                 let mut end = p;
-                while !crate::memory::cstr_is_empty(end) && !ascii_iswhite(*end) && crate::memory::cstr_first_byte(end) != b',' {
+                while !crate::memory::cstr_is_empty(end) && !ascii_iswhite(crate::memory::cstr_first_char(end)) && crate::memory::cstr_first_byte(end) != b',' {
                     end = end.add(1);
                 }
                 let mut name_buf = vec![0 as c_char; end.offset_from(p) as usize + 3];
@@ -5052,7 +5052,7 @@ pub fn ex_syntax(eap: &mut exarg_T) {
         let arg = eap.arg;
 
         let mut subcmd_end = arg;
-        while ascii_isalpha(*subcmd_end) {
+        while ascii_isalpha(crate::memory::cstr_first_char(subcmd_end)) {
             subcmd_end = subcmd_end.add(1);
         }
         let subcmd_slice =

@@ -1922,13 +1922,12 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
                     if crate::memory::cstr_is_empty(t) {
                         char_before = b'^';
                     } else {
-                        while !crate::memory::cstr_is_empty(t) {
-                            if !ascii_isdigit(crate::memory::cstr_first_char(t)) {
+                        for &t_byte in crate::memory::cstr_as_bytes(t) {
+                            if !ascii_isdigit(t_byte as c_char as c_int) {
                                 char_before = b'^';
                                 break;
                             }
-                            t = t.add(1);
-                        }
+}
                     }
                 }
             }

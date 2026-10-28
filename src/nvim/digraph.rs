@@ -1771,7 +1771,7 @@ pub fn putdigraph(mut str: *mut c_char) {
 
             str = skipwhite(str);
 
-            if !ascii_isdigit(*str) {
+            if !ascii_isdigit(crate::memory::cstr_first_char(str)) {
                 emsg(gettext(e_number_exp));
                 return;
             }

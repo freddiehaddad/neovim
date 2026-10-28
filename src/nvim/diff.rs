@@ -2219,9 +2219,9 @@ fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::Into
         let mut p1: *const c_char = s1;
         let mut p2: *const c_char = s2;
         while !crate::memory::cstr_is_empty(p1) && !crate::memory::cstr_is_empty(p2) {
-            if ((diff_st().diff_flags & DIFF_IWHITE) != 0 && ascii_iswhite(*p1) && ascii_iswhite(*p2))
+            if ((diff_st().diff_flags & DIFF_IWHITE) != 0 && ascii_iswhite(crate::memory::cstr_first_char(p1)) && ascii_iswhite(crate::memory::cstr_first_char(p2)))
                 || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                    && (ascii_iswhite(*p1) || ascii_iswhite(*p2)))
+                    && (ascii_iswhite(crate::memory::cstr_first_char(p1)) || ascii_iswhite(crate::memory::cstr_first_char(p2))))
             {
                 p1 = skipwhite(p1);
                 p2 = skipwhite(p2);
@@ -2584,11 +2584,11 @@ fn diff_find_change_simple(
                 let mut si_new: c_int = 0;
                 while crate::memory::cstr_byte_at(line_org, si_org as usize) != 0 {
                     if ((diff_st().diff_flags & DIFF_IWHITE) != 0
-                        && ascii_iswhite(*line_org.add(si_org as usize))
-                        && ascii_iswhite(*line_new.add(si_new as usize)))
+                        && ascii_iswhite(crate::memory::cstr_char_at(line_org, si_org as usize))
+                        && ascii_iswhite(crate::memory::cstr_char_at(line_new, si_new as usize)))
                         || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                            && (ascii_iswhite(*line_org.add(si_org as usize))
-                                || ascii_iswhite(*line_new.add(si_new as usize))))
+                            && (ascii_iswhite(crate::memory::cstr_char_at(line_org, si_org as usize))
+                                || ascii_iswhite(crate::memory::cstr_char_at(line_new, si_new as usize))))
                     {
                         si_org =
                             skipwhite(line_org.add(si_org as usize)).offset_from(line_org) as c_int;
@@ -2615,17 +2615,17 @@ fn diff_find_change_simple(
                     let mut ei_new = crate::memory::cstr_len(line_new) as c_int;
                     while ei_org >= *startp && ei_new >= si_new && ei_org >= 0 && ei_new >= 0 {
                         if ((diff_st().diff_flags & DIFF_IWHITE) != 0
-                            && ascii_iswhite(*line_org.add(ei_org as usize))
-                            && ascii_iswhite(*line_new.add(ei_new as usize)))
+                            && ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
+                            && ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize)))
                             || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
-                                && (ascii_iswhite(*line_org.add(ei_org as usize))
-                                    || ascii_iswhite(*line_new.add(ei_new as usize))))
+                                && (ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
+                                    || ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize))))
                         {
-                            while ei_org >= *startp && ascii_iswhite(*line_org.add(ei_org as usize))
+                            while ei_org >= *startp && ascii_iswhite(crate::memory::cstr_char_at(line_org, ei_org as usize))
                             {
                                 ei_org -= 1;
                             }
-                            while ei_new >= si_new && ascii_iswhite(*line_new.add(ei_new as usize))
+                            while ei_new >= si_new && ascii_iswhite(crate::memory::cstr_char_at(line_new, ei_new as usize))
                             {
                                 ei_new -= 1;
                             }
@@ -2891,7 +2891,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             curstr.push(NL as u8);
                             numlines += 1;
                         }
-                        if ascii_iswhite(*s) {
+                        if ascii_iswhite(crate::memory::cstr_first_char(s)) {
                             if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
                                 in_keyword = false;
                                 s = skipwhite(s);
@@ -2918,7 +2918,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             curstr.push(NUL as u8);
                         } else {
                             char_len = utfc_ptr2len(s);
-                            if ascii_iswhite(*s) && (diff_st().diff_flags & DIFF_IWHITE) != 0 {
+                            if ascii_iswhite(crate::memory::cstr_first_char(s)) && (diff_st().diff_flags & DIFF_IWHITE) != 0 {
                                 char_len = skipwhite(s).offset_from(s) as c_int;
                             }
                             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
@@ -3268,7 +3268,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
                 p = p.sub(1);
             }
             let mut i: usize = 0;
-            while ascii_isdigit(*eap.arg.add(i)) && eap.arg.add(i) < p {
+            while ascii_isdigit(crate::memory::cstr_char_at(eap.arg, i)) && eap.arg.add(i) < p {
                 i += 1;
             }
             let bufnr = if eap.arg.add(i) == p {

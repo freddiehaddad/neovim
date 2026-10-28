@@ -1079,7 +1079,7 @@ pub fn open_line(
                         }
                     } else {
                         let mut p = ptr.add(crate::memory::cstr_len(ptr)).sub(1);
-                        while p > ptr && ascii_iswhite(*p) {
+                        while p > ptr && ascii_iswhite(crate::memory::cstr_first_char(p)) {
                             p = p.sub(1);
                         }
                         let last_char = *p;
@@ -1088,7 +1088,7 @@ pub fn open_line(
                             if p > ptr {
                                 p = p.sub(1);
                             }
-                            while p > ptr && ascii_iswhite(*p) {
+                            while p > ptr && ascii_iswhite(crate::memory::cstr_first_char(p)) {
                                 p = p.sub(1);
                             }
                         }
@@ -1342,7 +1342,7 @@ pub fn open_line(
                 crate::memory::cstr_ncpy(leader, saved_line, lead_len as usize);
 
                 for li in 0..comment_start {
-                    if !ascii_iswhite(*leader.add(li as usize)) {
+                    if !ascii_iswhite(crate::memory::cstr_char_at(leader, li as usize)) {
                         *leader.add(li as usize) = b' ' as c_char;
                     }
                 }
@@ -1356,7 +1356,7 @@ pub fn open_line(
                         if *p == COM_RIGHT || *p == COM_LEFT {
                             c = *p;
                             p = p.add(1);
-                        } else if ascii_isdigit(*p) || crate::memory::cstr_first_byte(p) == b'-' {
+                        } else if ascii_isdigit(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'-' {
                             off = getdigits_int(&raw mut p, true, 0);
                         } else {
                             p = p.add(1);
@@ -1364,7 +1364,7 @@ pub fn open_line(
                     }
                     if c == COM_RIGHT {
                         let mut p = leader.add((lead_len - 1) as usize);
-                        while p > leader && ascii_iswhite(*p) {
+                        while p > leader && ascii_iswhite(crate::memory::cstr_first_char(p)) {
                             p = p.sub(1);
                         }
                         p = p.add(1);
@@ -1414,7 +1414,7 @@ pub fn open_line(
                                 );
                                 lead_len -= l;
                                 *p = b' ' as c_char;
-                            } else if !ascii_iswhite(*p) {
+                            } else if !ascii_iswhite(crate::memory::cstr_first_char(p)) {
                                 *p = b' ' as c_char;
                             }
                         }
@@ -1443,7 +1443,7 @@ pub fn open_line(
 
                         p = p.add(lead_repl_len as usize);
                         while p < leader.add(lead_len as usize) {
-                            if !ascii_iswhite(*p) {
+                            if !ascii_iswhite(crate::memory::cstr_first_char(p)) {
                                 if p.add(1) < leader.add(lead_len as usize) && *p.add(1) == TAB {
                                     lead_len -= 1;
                                     ptr::copy(
@@ -1512,7 +1512,7 @@ pub fn open_line(
                 newcol = lead_len;
 
                 if newindent != 0 || g_st().Ins.did_si {
-                    while lead_len != 0 && ascii_iswhite(*leader) {
+                    while lead_len != 0 && ascii_iswhite(crate::memory::cstr_first_char(leader)) {
                         lead_len -= 1;
                         newcol -= 1;
                         leader = leader.add(1);
@@ -1889,7 +1889,7 @@ pub fn get_leader_len(
 
         let mut result: usize = 0;
         let mut i: usize = 0;
-        while ascii_iswhite(*line.add(i)) {
+        while ascii_iswhite(crate::memory::cstr_char_at(line, i)) {
             i += 1;
         }
 
@@ -1931,11 +1931,11 @@ pub fn get_leader_len(
                     continue;
                 }
 
-                if ascii_iswhite(*string) {
-                    if i == 0 || !ascii_iswhite(*line.add(i - 1)) {
+                if ascii_iswhite(crate::memory::cstr_first_char(string)) {
+                    if i == 0 || !ascii_iswhite(crate::memory::cstr_char_at(line, i - 1)) {
                         continue;
                     }
-                    while ascii_iswhite(*string) {
+                    while ascii_iswhite(crate::memory::cstr_first_char(string)) {
                         string = string.add(1);
                     }
                 }
@@ -1948,7 +1948,7 @@ pub fn get_leader_len(
                 }
 
                 if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8)).is_null()
-                    && !ascii_iswhite(*line.add(i + j))
+                    && !ascii_iswhite(crate::memory::cstr_char_at(line, i + j))
                     && crate::memory::cstr_byte_at(line, i + j) != 0
                 {
                     continue;
@@ -1986,7 +1986,7 @@ pub fn get_leader_len(
 
             result = i;
 
-            while ascii_iswhite(*line.add(i)) {
+            while ascii_iswhite(crate::memory::cstr_char_at(line, i)) {
                 i += 1;
             }
 
@@ -2036,11 +2036,11 @@ pub fn get_last_leader_offset(line: impl crate::strings::IntoCCharPtr, flags: *m
                 string = string.add(1);
                 com_leader = string;
 
-                if ascii_iswhite(*string) {
+                if ascii_iswhite(crate::memory::cstr_first_char(string)) {
                     if i == 0 || !ascii_iswhite(*line.add((i - 1) as usize)) {
                         continue;
                     }
-                    while ascii_iswhite(*string) {
+                    while ascii_iswhite(crate::memory::cstr_first_char(string)) {
                         string = string.add(1);
                     }
                 }
@@ -2053,7 +2053,7 @@ pub fn get_last_leader_offset(line: impl crate::strings::IntoCCharPtr, flags: *m
                 }
 
                 if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8)).is_null()
-                    && !ascii_iswhite(*line.add(i as usize + j))
+                    && !ascii_iswhite(crate::memory::cstr_char_at(line, i as usize + j))
                     && crate::memory::cstr_byte_at(line, i as usize + j) != 0
                 {
                     continue;
@@ -2061,7 +2061,7 @@ pub fn get_last_leader_offset(line: impl crate::strings::IntoCCharPtr, flags: *m
 
                 if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)).is_null() {
                     let mut k: c_int = 0;
-                    while k <= i && ascii_iswhite(*line.add(k as usize)) {
+                    while k <= i && ascii_iswhite(crate::memory::cstr_char_at(line, k as usize)) {
                         k += 1;
                     }
                     if k < i {
@@ -2087,7 +2087,7 @@ pub fn get_last_leader_offset(line: impl crate::strings::IntoCCharPtr, flags: *m
 
                 lower_check_bound = i;
 
-                while ascii_iswhite(*com_leader) {
+                while ascii_iswhite(crate::memory::cstr_first_char(com_leader)) {
                     com_leader = com_leader.add(1);
                 }
                 let len1 = crate::memory::cstr_len(com_leader) as c_int;
@@ -2110,7 +2110,7 @@ pub fn get_last_leader_offset(line: impl crate::strings::IntoCCharPtr, flags: *m
                         continue;
                     }
                     string = string.add(1);
-                    while ascii_iswhite(*string) {
+                    while ascii_iswhite(crate::memory::cstr_first_char(string)) {
                         string = string.add(1);
                     }
                     let len2 = crate::memory::cstr_len(string) as c_int;

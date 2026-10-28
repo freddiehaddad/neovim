@@ -1943,12 +1943,11 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
             let mut p = mb_unescape(&mut p_in);
             str_ptr = p_in.cast::<u8>();
             if !p.is_null() {
-                while !crate::memory::cstr_is_empty(p) {
-                    if fputc(crate::memory::cstr_first_byte(p) as c_int, fd) < 0 {
+                for &p_byte in crate::memory::cstr_as_bytes(p) {
+                    if fputc(p_byte as c_int, fd) < 0 {
                         return false;
                     }
-                    p = p.add(1);
-                }
+}
                 continue;
             }
 
