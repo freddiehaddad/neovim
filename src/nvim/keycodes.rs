@@ -2098,7 +2098,7 @@ pub fn simplify_key(key: c_int, modifiers: &mut c_int) -> c_int {
 }
 
 /// Inverse of `simplify_key()` (`unsimplify_key`).
-pub fn unsimplify_key(c: c_int, modifiers: *mut c_int) -> c_int {
+pub fn unsimplify_key(c: c_int, modifiers: &mut c_int) -> c_int {
     if !is_special(c) {
         return c;
     }
@@ -2110,7 +2110,7 @@ pub fn unsimplify_key(c: c_int, modifiers: *mut c_int) -> c_int {
         if key0 == c_int::from(MODIFIER_KEYS_TABLE[i + 1])
             && key1 == c_int::from(MODIFIER_KEYS_TABLE[i + 2])
         {
-            unsafe {
+            {
                 *modifiers |= c_int::from(MODIFIER_KEYS_TABLE[i]);
             }
             return termcap2key(
@@ -2442,7 +2442,7 @@ fn extract_modifiers(
 pub fn find_special_key(
     srcp: *mut *const c_char,
     src_len: usize,
-    modp: *mut c_int,
+    modp: &mut c_int,
     flags: c_int,
     did_simplify: *mut bool,
 ) -> c_int {

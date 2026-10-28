@@ -1636,7 +1636,7 @@ pub fn win_line(
         let mut change_index: c_int = -1;
         if linestatus < 0 {
             if linestatus == -1 {
-                if diff_find_change(wp, lnum, &raw mut line_changes) {
+                if diff_find_change(wp, lnum, &mut line_changes) {
                     wlv.diff_hlf = HLF_ADD;
                 } else if !line_changes.changes.is_empty() {
                     let added = diff_change_parse(
@@ -1865,7 +1865,7 @@ pub fn win_line(
                     vcol,
                     ci.ptr,
                     ci.chr.value,
-                    &raw mut csarg,
+                    &mut csarg,
                     cli.cells,
                 );
                 vcol += cs.width;
@@ -2356,7 +2356,7 @@ pub fn win_line(
                     let v = ptr.offset_from(line) as c_int;
                     let lnume = lnum + foldinfo.fi_lines - 1;
                     debug_assert!(foldtext_free.is_none());
-                    let fdt = get_foldtext(&raw mut *wp, lnum, lnume, foldinfo, &raw mut fold_vt);
+                    let fdt = get_foldtext(&raw mut *wp, lnum, lnume, foldinfo, &mut fold_vt);
                     wlv.n_extra = fdt.to_bytes().len() as c_int;
                     foldtext_free = Some(fdt);
                     wlv.p_extra = foldtext_free.as_ref().unwrap().as_ptr().cast_mut();
@@ -2714,7 +2714,7 @@ pub fn win_line(
                                 wlv.vcol,
                                 p,
                                 cs_ci.chr.value,
-                                &raw mut csarg,
+                                &mut csarg,
                                 cs_cli.cells,
                             )
                             .width

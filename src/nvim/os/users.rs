@@ -103,8 +103,8 @@ unsafe extern "system" {
         filter: u32,
         bufptr: *mut *mut UserInfo0,
         prefmaxlen: u32,
-        entriesread: *mut u32,
-        totalentries: *mut u32,
+        entriesread: &mut u32,
+        totalentries: &mut u32,
         resume_handle: *mut u32,
     ) -> u32;
     fn NetApiBufferFree(buffer: *mut c_void) -> u32;

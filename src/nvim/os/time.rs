@@ -176,7 +176,7 @@ pub fn os_localtime(result: *mut Tm) -> *mut Tm {
 /// # Safety
 /// `clock` and `result` must be valid pointers, with `result` writable for `result_len` bytes.
 pub fn os_ctime_r(
-    clock: *const time_t,
+    clock: &time_t,
     result: *mut c_char,
     result_len: usize,
     add_newline: bool,

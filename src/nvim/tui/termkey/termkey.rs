@@ -898,7 +898,7 @@ fn termkey_lookup_keyname_format(
 pub fn termkey_lookup_keyname(
     tk: &TermKey,
     str_in: *const c_char,
-    sym: *mut TermKeySym,
+    sym: &mut TermKeySym,
 ) -> *const c_char {
     termkey_lookup_keyname_format(tk, str_in, sym, 0)
 }

@@ -41,17 +41,17 @@ fn tv_blob_set(b: &mut blob_T, idx: c_int, c: u8) {
 }
 
 fn filter_map_one(
-    tv: *mut typval_T,
+    tv: &mut typval_T,
     expr: *mut typval_T,
     filtermap: FilterMap,
-    newtv: *mut typval_T,
+    newtv: &mut typval_T,
     remp: &mut bool,
 ) -> c_int {
     unsafe {
         let mut retval = FAIL;
         tv_copy(&*tv, &mut *get_vim_var_tv(VV_VAL));
 
-        (*newtv).v_type = VarType::VAR_UNKNOWN;
+        newtv.v_type = VarType::VAR_UNKNOWN;
         if filtermap == FilterMap::ForEach && (*expr).v_type == VarType::VAR_STRING {
             do_cmdline_cmd((*expr).vval.v_string());
             if g_st().did_emsg == 0 {

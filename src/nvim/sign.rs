@@ -694,7 +694,7 @@ fn sign_list_by_name(name: *mut c_char) {
 }
 
 fn sign_place(
-    id: *mut u32,
+    id: &mut u32,
     group: *mut c_char,
     name: *mut c_char,
     buf: *mut buf_T,
@@ -886,7 +886,7 @@ fn sign_place_cmd(
                 return;
             }
             let mut uid = id as u32;
-            sign_place(&raw mut uid, group, name, buf, lnum, prio);
+            sign_place(&mut uid, group, name, buf, lnum, prio);
         }
     }
 }
@@ -1688,7 +1688,7 @@ fn sign_place_from_dict(
         }
 
         let mut uid = id as u32;
-        if sign_place(&raw mut uid, group, name, buf, lnum, prio) == OK {
+        if sign_place(&mut uid, group, name, buf, lnum, prio) == OK {
             return uid as c_int;
         }
 

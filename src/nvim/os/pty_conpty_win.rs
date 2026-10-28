@@ -191,13 +191,13 @@ unsafe extern "system" {
         nOutBufferSize: DWORD,
         nInBufferSize: DWORD,
         nDefaultTimeOut: DWORD,
-        lpSecurityAttributes: *mut SECURITY_ATTRIBUTES,
+        lpSecurityAttributes: &mut SECURITY_ATTRIBUTES,
     ) -> HANDLE;
     fn InitializeProcThreadAttributeList(
         lpAttributeList: *mut c_void,
         dwAttributeCount: DWORD,
         dwFlags: DWORD,
-        lpSize: *mut usize,
+        lpSize: &mut usize,
     ) -> BOOL;
     fn UpdateProcThreadAttribute(
         lpAttributeList: *mut c_void,
@@ -218,8 +218,8 @@ unsafe extern "system" {
         dwCreationFlags: DWORD,
         lpEnvironment: *mut c_void,
         lpCurrentDirectory: *const u16,
-        lpStartupInfo: *mut STARTUPINFOW,
-        lpProcessInformation: *mut PROCESS_INFORMATION,
+        lpStartupInfo: &mut STARTUPINFOW,
+        lpProcessInformation: &mut PROCESS_INFORMATION,
     ) -> BOOL;
 }
 
@@ -437,7 +437,7 @@ pub fn os_conpty_init(
 #[cfg(windows)]
 pub fn os_conpty_spawn(
     conpty_object: &mut conpty_t,
-    proc_handle: *mut HANDLE,
+    proc_handle: &mut HANDLE,
     name: *mut u16,
     cmd_line: *mut u16,
     cwd: *mut u16,

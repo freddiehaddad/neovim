@@ -1150,14 +1150,14 @@ fn first_submatch(rp: &regmmatch_T) -> c_int {
 
 pub fn parse_search_pattern_offset(
     pat: *mut *mut c_char,
-    patlen: *mut usize,
+    patlen: &mut usize,
     search_delim: c_int,
     options: c_int,
     strcopy: &mut Vec<c_char>,
     searchstr: *mut *mut c_char,
-    searchstrlen: *mut usize,
+    searchstrlen: &mut usize,
     dircp: *mut *mut c_char,
-    offset: *mut SearchOffset,
+    offset: &mut SearchOffset,
 ) -> c_int {
     unsafe {
         if (*pat).is_null() || **pat == NUL {
@@ -1196,28 +1196,28 @@ pub fn parse_search_pattern_offset(
             p = p.add(1);
         }
 
-        (*offset).line = false;
-        (*offset).end = false;
-        (*offset).off = 0;
+        offset.line = false;
+        offset.end = false;
+        offset.off = 0;
         if *p == b'+' as c_char || *p == b'-' as c_char || ascii_isdigit(*p) {
-            (*offset).line = true;
+            offset.line = true;
         } else if (options & SEARCH_OPT) != 0
             && (*p == b'e' as c_char || *p == b's' as c_char || *p == b'b' as c_char)
         {
             if *p == b'e' as c_char {
-                (*offset).end = true;
+                offset.end = true;
             }
             p = p.add(1);
         }
         if ascii_isdigit(*p) || *p == b'+' as c_char || *p == b'-' as c_char {
             if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
                 {
-                    (*offset).off = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(p).to_bytes()) as std::ffi::c_long as _;
+                    offset.off = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(p).to_bytes()) as std::ffi::c_long as _;
                 }
             } else if *p == b'-' as c_char {
-                (*offset).off = -1;
+                offset.off = -1;
             } else {
-                (*offset).off = 1;
+                offset.off = 1;
             }
             p = p.add(1);
             while ascii_isdigit(*p) {
@@ -1323,14 +1323,14 @@ pub fn do_search(
                 let prev_searchstrlen = searchstrlen;
                 g_st().Search.cmdlen += parse_search_pattern_offset(
                     &raw mut pat,
-                    &raw mut patlen,
+                    &mut patlen,
                     search_delim,
                     options,
                     &mut strcopy,
                     &raw mut searchstr,
-                    &raw mut searchstrlen,
+                    &mut searchstrlen,
                     &raw mut dircp,
-                    &raw mut srch().spats[0].off,
+                    &mut srch().spats[0].off,
                 );
                 if *searchstr == NUL {
                     searchstr = prev_searchstr;

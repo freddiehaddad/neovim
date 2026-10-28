@@ -736,7 +736,7 @@ pub fn save_redobuff(save_redo: &mut RedoState) {
 }
 
 /// Restores the redo state from `save_redo`.
-pub fn restore_redobuff(save_redo: *mut RedoState) {
+pub fn restore_redobuff(save_redo: &mut RedoState) {
     unsafe {
         let rb = &raw mut inp_st().redobuff;
         *rb = std::mem::take(&mut *save_redo);
@@ -2221,7 +2221,7 @@ fn char_iter(itp: *mut *const u8, nomap: c_int) -> c_int {
 
 fn handle_mapping(
     keylenp: &mut c_int,
-    timedout: *const bool,
+    timedout: &bool,
     mapdepth: &mut c_int,
     advance: bool,
 ) -> c_int {
@@ -2637,7 +2637,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                     } else if g_st().typebuf.tb_len > 0 {
                         let result = handle_mapping(
                             &mut keylen,
-                            &raw const timedout,
+                            &timedout,
                             &mut mapdepth,
                             advance,
                         );
@@ -2729,7 +2729,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                                             vcol,
                                             ci.ptr.cast_mut(),
                                             ci.chr.value,
-                                            &raw mut csarg,
+                                            &mut csarg,
                                             cli.cells,
                                         )
                                         .width;

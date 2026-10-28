@@ -3014,7 +3014,7 @@ pub fn apply_autocmds_group(
             let save_current_sctx = g_st().current_sctx;
 
             if g_st().do_profiling == PROF_YES {
-                prof_child_enter(&raw mut wait_time);
+                prof_child_enter(&mut wait_time);
             }
 
             save_funccal();
@@ -3118,7 +3118,7 @@ pub fn apply_autocmds_group(
             g_st().current_sctx = save_current_sctx;
             restore_funccal();
             if g_st().do_profiling == PROF_YES {
-                prof_child_exit(&raw mut wait_time);
+                prof_child_exit(&mut wait_time);
             }
             g_st().KeyTyped = save_KeyTyped;
             drop(patcmd);
@@ -3127,7 +3127,7 @@ pub fn apply_autocmds_group(
             if !g_st().autocmd_busy {
                 restore_search_patterns();
                 if did_save_redobuff {
-                    restore_redobuff(&raw mut save_redo);
+                    restore_redobuff(&mut save_redo);
                 }
                 (*g_st().curbuf).b_did_filetype = false;
                 let pending_buf = &raw mut g_st().au_pending_free_buf;

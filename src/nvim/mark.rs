@@ -262,13 +262,13 @@ fn set_xfmark(
 
 #[inline]
 fn reset_xfmark(
-    xfmarkp: *mut xfmark_T,
+    xfmarkp: &mut xfmark_T,
     mark: pos_T,
     fnum: c_int,
     view: fmarkv_T,
     fname: Option<std::ffi::CString>,
 ) {
-    unsafe {
+    {
         free_xfmark(&mut *xfmarkp);
         set_xfmark(xfmarkp, mark, fnum, view, fname);
     }
@@ -438,7 +438,7 @@ pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut fmarkv_
             } else {
                 (c - b'A' as c_int) as usize
             };
-            reset_xfmark(&raw mut g_st().namedfm[i], *pos, fnum, view, None);
+            reset_xfmark(&mut g_st().namedfm[i], *pos, fnum, view, None);
             do_markset_autocmd(c as c_char, pos, buf);
             return OK;
         }

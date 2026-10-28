@@ -514,7 +514,7 @@ fn check_top_offset(wp: *mut win_T) -> bool {
             };
             let mut n = i64::from((*wp).w_topfill);
             while n < so {
-                topline_back(wp, &raw mut loff);
+                topline_back(wp, &mut loff);
                 if loff.lnum < (*wp).w_topline || (loff.lnum == (*wp).w_topline && loff.fill > 0) {
                     break;
                 }
@@ -1877,7 +1877,7 @@ fn topline_back_winheight(wp: *mut win_T, lp: *mut lineoff_T, winheight: bool) {
     }
 }
 
-fn topline_back(wp: *mut win_T, lp: *mut lineoff_T) {
+fn topline_back(wp: *mut win_T, lp: &mut lineoff_T) {
     topline_back_winheight(wp, lp, true);
 }
 
@@ -2143,7 +2143,7 @@ pub fn scroll_cursor_bot(wp: &mut win_T, min_scroll: c_int, set_topbot: bool) {
             }
 
             let loff_lnum_before = loff.lnum;
-            topline_back(wp, &raw mut loff);
+            topline_back(wp, &mut loff);
             if loff.height == MAXCOL {
                 used = MAXCOL;
             } else {
@@ -2315,7 +2315,7 @@ pub fn scroll_cursor_halfway(wp: &mut win_T, atend: bool, prefer_above: bool) {
                 } else {
                     round == 1 && below > above
                 } {
-                    topline_back(wp, &raw mut loff);
+                    topline_back(wp, &mut loff);
                     if loff.height == MAXCOL {
                         used = MAXCOL;
                     } else {
@@ -2469,7 +2469,7 @@ fn get_scroll_overlap(dir: Direction) -> c_int {
             return min_height + 2;
         }
         if dir == FORWARD {
-            topline_back(*curwin.as_ptr(), &raw mut loff);
+            topline_back(*curwin.as_ptr(), &mut loff);
         } else {
             botline_forw(*curwin.as_ptr(), &mut loff);
         }
@@ -2479,7 +2479,7 @@ fn get_scroll_overlap(dir: Direction) -> c_int {
             return min_height + 2;
         }
         if dir == FORWARD {
-            topline_back(*curwin.as_ptr(), &raw mut loff);
+            topline_back(*curwin.as_ptr(), &mut loff);
         } else {
             botline_forw(*curwin.as_ptr(), &mut loff);
         }
@@ -2489,7 +2489,7 @@ fn get_scroll_overlap(dir: Direction) -> c_int {
             return min_height + 2;
         }
         if dir == FORWARD {
-            topline_back(*curwin.as_ptr(), &raw mut loff);
+            topline_back(*curwin.as_ptr(), &mut loff);
         } else {
             botline_forw(*curwin.as_ptr(), &mut loff);
         }

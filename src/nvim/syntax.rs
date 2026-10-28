@@ -1851,9 +1851,9 @@ fn syn_current_attr(
                                         &mut startpos,
                                         &mut endpos,
                                         &mut hl_endpos,
-                                        &raw mut flags,
+                                        &mut flags,
                                         &mut eoe_pos,
-                                        &raw mut end_idx,
+                                        &mut end_idx,
                                         cur_extmatch.clone(),
                                     );
                                     if endpos.lnum == 0 {
@@ -2317,9 +2317,9 @@ fn update_si_end(sip: &mut stateitem_T, startcol: c_int, force: bool) {
             &mut startpos,
             &mut endpos,
             &mut hl_endpos,
-            &raw mut sip.si_flags,
+            &mut sip.si_flags,
             &mut end_endpos,
-            &raw mut end_idx,
+            &mut end_idx,
             sip.si_extmatch.clone(),
         );
 
@@ -2369,9 +2369,9 @@ fn find_endpos(
     startpos: &mut lpos_T,
     m_endpos: &mut lpos_T,
     hl_endpos: &mut lpos_T,
-    flagsp: *mut c_int,
+    flagsp: &mut c_int,
     end_endpos: &mut lpos_T,
-    end_idx: *mut c_int,
+    end_idx: &mut c_int,
     start_ext: Option<std::rc::Rc<reg_extmatch_T>>,
 ) {
     unsafe {
@@ -3662,7 +3662,7 @@ fn get_group_name(arg: *mut c_char, name_end: *mut *mut c_char) -> *mut c_char {
 
 fn get_syn_options(
     mut arg: *mut c_char,
-    opt: *mut syn_opt_arg_T,
+    opt: &mut syn_opt_arg_T,
     conceal_char: &mut c_int,
     skip: c_int,
 ) -> *mut c_char {
@@ -3695,7 +3695,7 @@ fn get_syn_options(
         }
 
         if (*win_s(&mut **curwin.as_ptr())).b_syn_conceal != 0 {
-            (*opt).flags |= HL_CONCEAL;
+            opt.flags |= HL_CONCEAL;
         }
 
         loop {
@@ -3725,7 +3725,7 @@ fn get_syn_options(
                             ends_excmd(*arg.add(len) as c_int) != 0
                         })
                 {
-                    if (*opt).keyword
+                    if opt.keyword
                         && (flags == HL_DISPLAY || flags == HL_FOLD || flags == HL_EXTEND)
                     {
                         fidx = -1;
@@ -3740,19 +3740,19 @@ fn get_syn_options(
 
             let (_, argtype, flags) = FLAGTAB[fidx as usize];
             if argtype == 1 {
-                if !(*opt).has_cont_list {
+                if !opt.has_cont_list {
                     emsg(gettext(e_contains_argument_not_accepted_here));
                     return ptr::null_mut();
                 }
-                if get_id_list(&raw mut arg, 8, &mut (*opt).cont_list, skip != 0) == FAIL {
+                if get_id_list(&raw mut arg, 8, &mut opt.cont_list, skip != 0) == FAIL {
                     return ptr::null_mut();
                 }
             } else if argtype == 2 {
-                if get_id_list(&raw mut arg, 11, &mut (*opt).cont_in_list, skip != 0) == FAIL {
+                if get_id_list(&raw mut arg, 11, &mut opt.cont_in_list, skip != 0) == FAIL {
                     return ptr::null_mut();
                 }
             } else if argtype == 3 {
-                if get_id_list(&raw mut arg, 9, &mut (*opt).next_list, skip != 0) == FAIL {
+                if get_id_list(&raw mut arg, 9, &mut opt.next_list, skip != 0) == FAIL {
                     return ptr::null_mut();
                 }
             } else if argtype == 11 && *arg.add(5) == b'=' as c_char {
@@ -3764,11 +3764,11 @@ fn get_syn_options(
                 }
                 arg = skipwhite(arg.add(7));
             } else {
-                (*opt).flags |= flags;
+                opt.flags |= flags;
                 arg = skipwhite(arg.add(len));
 
                 if flags == HL_SYNC_HERE || flags == HL_SYNC_THERE {
-                    if (*opt).sync_idx.is_none() {
+                    if opt.sync_idx.is_none() {
                         emsg(gettext(c"E393: group[t]here not accepted here".as_ptr()));
                         return ptr::null_mut();
                     }
@@ -3783,7 +3783,7 @@ fn get_syn_options(
                     );
                     let gname = std::ffi::CString::new(gname_slice).unwrap();
                     if gname.as_bytes() == b"NONE" {
-                        (*opt).sync_idx = Some(NONE_IDX);
+                        opt.sync_idx = Some(NONE_IDX);
                     } else {
                         let syn_id = syn_name2id(gname.as_ptr());
                         let mut i = (*win_s(&mut **curwin.as_ptr())).b_syn_patterns.len() as c_int - 1;
@@ -3791,7 +3791,7 @@ fn get_syn_options(
                             let spp = syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(i as isize);
                             if (*spp).sp_syn.id as c_int == syn_id && (*spp).sp_type == SPTYPE_START
                             {
-                                (*opt).sync_idx = Some(i);
+                                opt.sync_idx = Some(i);
                                 break;
                             }
                             i -= 1;
@@ -3930,7 +3930,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
                 while !rest.is_null() && ends_excmd(*rest as c_int) == 0 {
                     rest = get_syn_options(
                         rest,
-                        &raw mut syn_opt_arg,
+                        &mut syn_opt_arg,
                         &mut conceal_char,
                         eap.skip,
                     );
@@ -4036,19 +4036,19 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
         };
         rest = get_syn_options(
             rest,
-            &raw mut syn_opt_arg,
+            &mut syn_opt_arg,
             &mut conceal_char,
             eap.skip,
         );
 
-        rest = get_syn_pattern(rest, &raw mut item);
+        rest = get_syn_pattern(rest, &mut item);
         if vim_regcomp_had_eol() != 0 && (syn_opt_arg.flags & HL_EXCLUDENL) == 0 {
             syn_opt_arg.flags |= HL_HAS_EOL;
         }
 
         rest = get_syn_options(
             rest,
-            &raw mut syn_opt_arg,
+            &mut syn_opt_arg,
             &mut conceal_char,
             eap.skip,
         );
@@ -4125,7 +4125,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
         while !rest.is_null() && ends_excmd(*rest as c_int) == 0 {
             rest = get_syn_options(
                 rest,
-                &raw mut syn_opt_arg,
+                &mut syn_opt_arg,
                 &mut conceal_char,
                 eap.skip,
             );
@@ -4191,7 +4191,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
                 } else {
                     g_st().reg_do_extmatch = REX_USE;
                 }
-                rest = get_syn_pattern(rest, &raw mut synp);
+                rest = get_syn_pattern(rest, &mut synp);
                 g_st().reg_do_extmatch = 0;
                 if item == ITEM_END
                     && vim_regcomp_had_eol() != 0
@@ -4475,7 +4475,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
+fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
     unsafe {
         if arg.is_null() || *arg == NUL || *arg.add(1) == NUL || *arg.add(2) == NUL {
             return ptr::null_mut();
@@ -4495,15 +4495,15 @@ fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
 
         let cpo_save = opt_vars().p_cpo;
         opt_vars().p_cpo = empty_string_option.as_ptr().cast();
-        (*ci).sp_prog = crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
+        ci.sp_prog = crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
         opt_vars().p_cpo = cpo_save;
-        (*ci).sp_pattern = Some(pat_cstr);
+        ci.sp_pattern = Some(pat_cstr);
 
-        if (*ci).sp_prog.is_none() {
+        if ci.sp_prog.is_none() {
             return ptr::null_mut();
         }
-        (*ci).sp_ic = (*win_s(&mut **curwin.as_ptr())).b_syn_ic;
-        syn_clear_time(&mut (*ci).sp_time);
+        ci.sp_ic = (*win_s(&mut **curwin.as_ptr())).b_syn_ic;
+        syn_clear_time(&mut ci.sp_time);
 
         end = end.add(1);
         loop {
@@ -4516,7 +4516,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
             }
             if idx >= 0 {
                 let base_idx = idx as usize;
-                let p = &raw mut (*ci).sp_offsets[base_idx];
+                let p = &raw mut ci.sp_offsets[base_idx];
                 if base_idx != SPO_LC_OFF {
                     match *end.add(3) as u8 {
                         b's' | b'b' => {}
@@ -4525,14 +4525,14 @@ fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
                     }
                 }
                 if idx >= 0 {
-                    (*ci).sp_off_flags |= 1 << (idx as usize);
+                    ci.sp_off_flags |= 1 << (idx as usize);
                     if base_idx == SPO_LC_OFF {
                         end = end.add(3);
                         *p = getdigits_int(&raw mut end, true, 0);
 
-                        if ((*ci).sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
-                            (*ci).sp_off_flags |= 1 << SPO_MS_OFF;
-                            (*ci).sp_offsets[SPO_MS_OFF] = *p;
+                        if (ci.sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
+                            ci.sp_off_flags |= 1 << SPO_MS_OFF;
+                            ci.sp_offsets[SPO_MS_OFF] = *p;
                         }
                     } else {
                         end = end.add(4);

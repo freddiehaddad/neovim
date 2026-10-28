@@ -487,8 +487,8 @@ fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
             key,
             &raw mut ev,
             &raw mut button,
-            &raw mut row,
-            &raw mut col,
+            &mut row,
+            &mut col,
         );
 
         if (ev == TERMKEY_MOUSE_RELEASE || ev == TERMKEY_MOUSE_DRAG) && button == 0 {

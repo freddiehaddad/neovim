@@ -2094,7 +2094,7 @@ pub fn validate_cursorlineopt(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         let mut flags: c_uint = 0;
-        if *value == NUL || fill_culopt_flags(value, &raw mut flags) != OK {
+        if *value == NUL || fill_culopt_flags(value, &mut flags) != OK {
             return e_invarg.as_ptr();
         }
         args.os_prep = OptSetPrep::Flags(flags);
@@ -2875,7 +2875,7 @@ pub fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
         g_st().suppress_errthrow = false;
 
         let mut tstate = TryState::new();
-        try_enter(&raw mut tstate);
+        try_enter(&mut tstate);
         let mut errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog);
         try_leave(&tstate, &mut err);
 
@@ -3485,7 +3485,7 @@ pub fn opt_strings_check(
                     }
                     let mut end = v.cast_mut();
                     let mut n: i64 = 0;
-                    if !try_getdigits(&raw mut end, &raw mut n)
+                    if !try_getdigits(&raw mut end, &mut n)
                         || n < i64::from(c_int::MIN)
                         || n > i64::from(c_int::MAX)
                     {

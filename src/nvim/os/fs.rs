@@ -436,7 +436,7 @@ unsafe extern "system" {
     fn CoInitialize(pvReserved: *mut c_void) -> i32;
     fn CoUninitialize();
     fn CoCreateInstance(
-        rclsid: *const GUID,
+        rclsid: &GUID,
         pUnkOuter: *mut c_void,
         dwClsContext: u32,
         riid: *const GUID,
@@ -547,7 +547,7 @@ pub fn os_nodetype(name: *const c_char) -> c_int {
     #[cfg(not(windows))]
     {
         let mut statbuf = uv_stat_t::default();
-        if os_stat(name, &raw mut statbuf) != 0 {
+        if os_stat(name, &mut statbuf) != 0 {
             return NODE_NORMAL;
         }
         if s_isreg(statbuf.st_mode) || s_isdir(statbuf.st_mode) {
@@ -579,7 +579,7 @@ pub fn os_nodetype(name: *const c_char) -> c_int {
 }
 
 /// Gets the absolute path of the currently running executable.
-pub fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int {
+pub fn os_exepath(buffer: *mut c_char, size: &mut usize) -> c_int {
     unsafe {
         let r = uv_exepath(buffer, size);
         to_slash(buffer);
@@ -1126,7 +1126,7 @@ pub fn os_fsync(fd: c_int) -> c_int {
     }
 }
 
-fn os_stat(name: *const c_char, statbuf: *mut uv_stat_t) -> c_int {
+fn os_stat(name: *const c_char, statbuf: &mut uv_stat_t) -> c_int {
     if name.is_null() {
         return UV_EINVAL;
     }
@@ -1144,7 +1144,7 @@ fn os_stat(name: *const c_char, statbuf: *mut uv_stat_t) -> c_int {
 /// Get the file permissions for a given file.
 pub fn os_getperm(name: *const c_char) -> i32 {
     let mut statbuf = uv_stat_t::default();
-        let stat_result = os_stat(name, &raw mut statbuf);
+        let stat_result = os_stat(name, &mut statbuf);
         if stat_result == 0 {
             statbuf.st_mode as i32
         } else {
@@ -1316,7 +1316,7 @@ pub fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
 /// Check if a path exists.
 pub fn os_path_exists(path: *const c_char) -> bool {
     let mut statbuf = uv_stat_t::default();
-        os_stat(path, &raw mut statbuf) == 0
+        os_stat(path, &mut statbuf) == 0
 }
 
 /// Sets file access and modification times.
@@ -1538,7 +1538,7 @@ pub fn os_remove(path: *const c_char) -> c_int {
 /// Get the file information for a given path.
 pub fn os_fileinfo(path: *const c_char, file_info: &mut FileInfo) -> bool {
     *file_info = FileInfo::new();
-        os_stat(path, &raw mut file_info.stat) == 0
+        os_stat(path, &mut file_info.stat) == 0
 }
 
 /// Parses `path` into a `FileInfo` structure.
@@ -1691,7 +1691,7 @@ pub fn os_fileinfo_blocksize(file_info: &FileInfo) -> u64 {
 /// Get the `FileID` for a given path.
 pub fn os_fileid(path: *const c_char, file_id: &mut FileID) -> bool {
     let mut statbuf = uv_stat_t::default();
-        if os_stat(path, &raw mut statbuf) == 0 {
+        if os_stat(path, &mut statbuf) == 0 {
             file_id.inode = statbuf.st_ino;
             file_id.device_id = statbuf.st_dev;
             true
@@ -1749,7 +1749,7 @@ pub fn os_resolve_shortcut(fname: *const c_char) -> Option<std::ffi::CString> {
         let _ = CoInitialize(ptr::null_mut());
 
         let hr = CoCreateInstance(
-            &raw const CLSID_SHELL_LINK,
+            &CLSID_SHELL_LINK,
             ptr::null_mut(),
             1, // CLSCTX_INPROC_SERVER
             &raw const IID_ISHELL_LINK_W,

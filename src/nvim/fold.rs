@@ -1446,7 +1446,7 @@ pub fn get_foldtext(
     lnum: linenr_T,
     lnume: linenr_T,
     foldinfo: foldinfo_T,
-    vt: *mut VirtText,
+    vt: &mut VirtText,
 ) -> std::ffi::CString {
     unsafe {
         let mut text: Option<std::ffi::CString> = None;

@@ -117,7 +117,7 @@ pub fn modify_fname(
     usedlen: *mut usize,
     fnamep: *mut *mut c_char,
     bufp: &mut Option<Vec<c_char>>,
-    fnamelen: *mut usize,
+    fnamelen: &mut usize,
     use_shellslash: bool,
 ) -> c_int {
     unsafe {
@@ -775,7 +775,7 @@ pub fn f_fnamemodify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                     &raw mut usedlen,
                     &raw mut fname,
                     &mut fbuf,
-                    &raw mut len,
+                    &mut len,
                     false,
                 );
             }

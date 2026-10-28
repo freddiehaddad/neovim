@@ -840,7 +840,7 @@ impl std::hash::Hash for PathKey {
 }
 
 #[inline]
-fn hmll_init(hmll: *mut HMLList, size: usize) {
+fn hmll_init(hmll: &mut HMLList, size: usize) {
     unsafe {
         ptr::write(
             hmll,
@@ -2625,7 +2625,7 @@ fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
 }
 
 fn shada_write(
-    sd_writer: *mut FileDescriptor,
+    sd_writer: &mut FileDescriptor,
     sd_reader: *mut FileDescriptor,
 ) -> ShaDaWriteResult {
     unsafe {
@@ -3591,7 +3591,7 @@ fn msgpack_read_uint64(
 
 fn shada_read_next_item(
     sd_reader: *mut FileDescriptor,
-    entry: *mut ShadaEntry,
+    entry: &mut ShadaEntry,
     flags: c_uint,
     max_kbyte: usize,
 ) -> ShaDaReadResult {
@@ -3638,8 +3638,8 @@ fn shada_read_next_item(
             }
 
             let length = length_u64 as usize;
-            (*entry).timestamp = timestamp_u64;
-            (*entry).can_free_entry = true;
+            entry.timestamp = timestamp_u64;
+            entry.can_free_entry = true;
 
             if type_u64 == 0 {
                 semsg!(
@@ -3696,12 +3696,12 @@ fn shada_read_next_item(
             }
 
             if type_u64 > SHADA_LAST_ENTRY {
-                (*entry).entry_type = ShadaEntryType::kSDItemUnknown;
+                entry.entry_type = ShadaEntryType::kSDItemUnknown;
                 if initial_fpos == 0 {
                     let status = unpack_skip(&mut read_ptr, &mut read_size);
                     let spm_ret = shada_check_status(parse_pos, status, read_size);
                     if spm_ret != ShaDaReadResult::kSDReadStatusSuccess {
-                        (*entry).entry_type = ShadaEntryType::kSDItemMissing;
+                        entry.entry_type = ShadaEntryType::kSDItemMissing;
                         return spm_ret;
                     }
                 }
@@ -3710,7 +3710,7 @@ fn shada_read_next_item(
                 } else {
                     std::slice::from_raw_parts(buf, length).to_vec()
                 };
-                (*entry).data = ShadaEntryData::UnknownItem(ShadaUnknownItem {
+                entry.data = ShadaEntryData::UnknownItem(ShadaUnknownItem {
                     item_type: type_u64,
                     contents,
                 });
@@ -3731,13 +3731,13 @@ fn shada_read_next_item(
                 11 => ShadaEntryType::kSDItemChange,
                 _ => ShadaEntryType::kSDItemUnknown,
             };
-            (*entry).data = sd_default_value(entry_type).data;
+            entry.data = sd_default_value(entry_type).data;
 
             let parse_ok: bool = 'parse_item: {
                 match entry_type {
                     ShadaEntryType::kSDItemHeader => {}
                     ShadaEntryType::kSDItemSearchPattern => {
-                        let it: *mut KeyDict__shada_search_pat = (*entry).data.search_pattern_mut();
+                        let it: *mut KeyDict__shada_search_pat = entry.data.search_pattern_mut();
                         if !unpack_keydict(
                             it.cast(),
                             Some(shada_search_pat_get_field_cb),
@@ -3798,7 +3798,7 @@ fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        let fm = (*entry).data.filemark_mut();
+                        let fm = entry.data.filemark_mut();
                         if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__n)) != 0 {
                             if entry_type == ShadaEntryType::kSDItemJump
                                 || entry_type == ShadaEntryType::kSDItemChange
@@ -3904,7 +3904,7 @@ fn shada_read_next_item(
                         for s in &mut it.rc {
                             *s = copy_string(*s, None);
                         }
-                        let reg = (*entry).data.reg_mut();
+                        let reg = entry.data.reg_mut();
                         reg.contents = it.rc;
 
                         if (it.is_set___shada_register_
@@ -3978,7 +3978,7 @@ fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        let hi = (*entry).data.history_item_mut();
+                        let hi = entry.data.history_item_mut();
                         hi.histtype = hist_type as u8;
                         let is_hist_search = (hi.histtype as c_int) == HIST_SEARCH;
                         if is_hist_search {
@@ -4038,7 +4038,7 @@ fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        let gv = (*entry).data.global_var_mut();
+                        let gv = entry.data.global_var_mut();
                         gv.name = Some(
                             std::ffi::CString::new(std::slice::from_raw_parts(
                                 name.data.cast::<u8>(),
@@ -4105,7 +4105,7 @@ fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        (*entry).data.sub_string_mut().sub = Some(
+                        entry.data.sub_string_mut().sub = Some(
                             std::ffi::CString::new(std::slice::from_raw_parts(
                                 sub.data.cast::<u8>(),
                                 sub.size,
@@ -4128,7 +4128,7 @@ fn shada_read_next_item(
                         }
                         if len > 0 {
                             let ulen = len as usize;
-                            let buffers = &mut (*entry).data.buffer_list_mut().buffers;
+                            let buffers = &mut entry.data.buffer_list_mut().buffers;
                             buffers.reserve(ulen);
                             for _ in 0..ulen {
                                 let mut it = KeyDict__shada_buflist_item::default();
@@ -4255,13 +4255,13 @@ fn shada_read_next_item(
             };
 
             if parse_ok {
-                (*entry).entry_type = entry_type;
-                (*entry).additional_data = additional_data_take(&mut ad);
+                entry.entry_type = entry_type;
+                entry.additional_data = additional_data_take(&mut ad);
                 ret = ShaDaReadResult::kSDReadStatusSuccess;
             } else {
-                (*entry).entry_type = entry_type;
+                entry.entry_type = entry_type;
                 shada_free_shada_entry(entry);
-                (*entry).entry_type = ShadaEntryType::kSDItemMissing;
+                entry.entry_type = ShadaEntryType::kSDItemMissing;
             }
 
             drop(owned_buf);

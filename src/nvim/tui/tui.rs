@@ -874,7 +874,7 @@ fn terminfo_start(tui: &mut TUIData) {
         tui.terminfo_found_in_db = false;
         if !term.is_null()
             && !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false)
-            && terminfo_from_database(&raw mut tui.ti, term)
+            && terminfo_from_database(&mut tui.ti, term)
         {
             tui.term = term_cstr.clone();
             tui.terminfo_found_in_db = true;

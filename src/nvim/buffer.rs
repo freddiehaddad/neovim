@@ -2765,7 +2765,7 @@ pub fn buflist_new(
         let mut file_id: FileID = FileID::new();
         let file_id_valid = !sfname.is_null() && os_fileid(sfname, &mut *(&raw mut file_id).cast());
         if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
-            buf = buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid);
+            buf = buflist_findname_file_id(ffname, &mut file_id, file_id_valid);
             if !buf.is_null() {
                 drop(ffname_cstr);
                 if lnum != 0 {
@@ -3145,13 +3145,13 @@ pub fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
     unsafe {
         let mut file_id: FileID = FileID::new();
         let file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
-        buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid)
+        buflist_findname_file_id(ffname, &mut file_id, file_id_valid)
     }
 }
 
 fn buflist_findname_file_id(
     ffname: *mut c_char,
-    file_id: *mut FileID,
+    file_id: &mut FileID,
     file_id_valid: bool,
 ) -> *mut buf_T {
     unsafe {
@@ -3798,7 +3798,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
 }
 
 /// Get file name and line number for file `fnum`.
-pub fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut linenr_T) -> c_int {
+pub fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: &mut linenr_T) -> c_int {
     unsafe {
         let buf = buflist_findnr(fnum);
         if buf.is_null() || (*buf).b_fname.is_null() {
@@ -3835,7 +3835,7 @@ pub fn setfname(
 
             file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
             if ((*buf).b_flags & BF_DUMMY) == 0 {
-                obuf = buflist_findname_file_id(ffname, &raw mut file_id, file_id_valid);
+                obuf = buflist_findname_file_id(ffname, &mut file_id, file_id_valid);
             }
             if !obuf.is_null() && obuf != buf {
                 let mut in_use = false;
@@ -3950,7 +3950,7 @@ pub fn getaltfname(errmsg: bool) -> *mut c_char {
     let mut fname: *mut c_char = ptr::null_mut();
         let mut dummy: linenr_T = 0;
 
-        if buflist_name_nr(0, &raw mut fname, &raw mut dummy) == FAIL {
+        if buflist_name_nr(0, &raw mut fname, &mut dummy) == FAIL {
             if errmsg {
                 emsg(gettext(e_noalt.as_ptr()));
             }
@@ -4725,7 +4725,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
                         e = s.add(3);
                     }
                     let mut vers: i64 = 0;
-                    if !try_getdigits(&raw mut e, &raw mut vers) {
+                    if !try_getdigits(&raw mut e, &mut vers) {
                         prev = *s as u8 as c_int;
                         s = s.add(1);
                         continue;

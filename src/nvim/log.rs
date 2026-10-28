@@ -417,7 +417,7 @@ fn do_log_to_file_str(
             tv_sec: 0,
             tv_usec: 0,
         };
-        if uv_gettimeofday(&raw mut curtime) == 0 {
+        if uv_gettimeofday(&mut curtime) == 0 {
             millis = curtime.tv_usec / 1000;
         }
 

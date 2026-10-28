@@ -531,7 +531,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
                     vcol,
                     ci.ptr,
                     ci.chr.value,
-                    &raw mut csarg,
+                    &mut csarg,
                     cli.cells,
                 )
                 .width;
@@ -600,7 +600,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
                     non_white_col,
                     non_white,
                     i32::from(*non_white as u8),
-                    &raw mut csarg,
+                    &mut csarg,
                     1,
                 )
                 .width;
@@ -627,7 +627,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
                     verbatim_copy_width,
                     ci.ptr,
                     ci.chr.value,
-                    &raw mut csarg,
+                    &mut csarg,
                     cli.cells,
                 )
                 .width;
@@ -2202,7 +2202,7 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
                 vcol,
                 ci.ptr,
                 ci.chr.value,
-                &raw mut csarg,
+                &mut csarg,
                 cli.cells,
             )
             .width;
@@ -2262,7 +2262,7 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
                         vcol,
                         ci.ptr,
                         ci.chr.value,
-                        &raw mut csarg,
+                        &mut csarg,
                         cli.cells,
                     )
                     .width;
@@ -3524,7 +3524,7 @@ fn op_function(oap: &oparg_T) {
             ) {
                 tv_clear(&raw mut rettv);
             }
-            restore_redobuff(&raw mut save_redo);
+            restore_redobuff(&mut save_redo);
 
             g_st().virtual_op = save_virtual_op;
             g_st().finish_op = save_finish_op;

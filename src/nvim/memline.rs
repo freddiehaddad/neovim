@@ -528,7 +528,7 @@ pub fn ml_setname(buf: &mut buf_T) {
                 buf,
                 &raw mut dirp,
                 mf_fname_ptr,
-                &raw mut found_existing_dir,
+                &mut found_existing_dir,
             );
             if buf.b_ml.mfp_ptr() != mfp {
                 return;
@@ -616,7 +616,7 @@ pub fn ml_open_file(buf: &mut buf_T) {
                 buf,
                 &raw mut dirp,
                 ptr::null_mut(),
-                &raw mut found_existing_dir,
+                &mut found_existing_dir,
             );
             if buf.b_ml.mfp_ptr() != mfp {
                 return;
@@ -722,9 +722,9 @@ fn ml_check_b0_id(b0p: &ZeroBlock) -> bool {
 }
 
 #[inline]
-fn ml_check_b0_strings(b0p: *const ZeroBlock) -> bool {
-    unsafe {
-        let b0 = &*b0p;
+fn ml_check_b0_strings(b0p: &ZeroBlock) -> bool {
+    {
+        let b0 = b0p;
         b0.b0_version.contains(&NUL)
             && b0.b0_uname.contains(&NUL)
             && b0.b0_hname.contains(&NUL)
@@ -1770,7 +1770,7 @@ fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
             x = file_info.stat.st_mtim.tv_sec as _;
             let mut ctime_buf = [0 as c_char; 100];
             let ct = os_ctime_r(
-                &raw const x,
+                &x,
                 (&raw mut ctime_buf).cast(),
                 size_of_val(&ctime_buf),
                 true,
@@ -1797,7 +1797,7 @@ fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
                     sb_push_cstr(msg, tr(c"         [from Vim version 3.0]"));
                 } else if !ml_check_b0_id(&b0) {
                     sb_push_cstr(msg, tr(c"         [does not look like a Nvim swap file]"));
-                } else if !ml_check_b0_strings(&raw const b0) {
+                } else if !ml_check_b0_strings(&b0) {
                     sb_push_cstr(msg, tr(c"         [garbled strings (not nul terminated)]"));
                 } else {
                     sb_push_cstr(msg, tr(c"         file name: "));
@@ -3495,7 +3495,7 @@ fn attention_message(
             let x: time_t = file_info.stat.st_mtim.tv_sec as _;
             let mut ctime_buf = [0 as c_char; 50];
             let ct = os_ctime_r(
-                &raw const x,
+                &x,
                 (&raw mut ctime_buf).cast(),
                 size_of_val(&ctime_buf),
                 true,
@@ -3562,7 +3562,7 @@ fn findswapname(
     buf: &mut buf_T,
     dirp: *mut *mut c_char,
     old_fname: *mut c_char,
-    found_existing_dir: *mut bool,
+    found_existing_dir: &mut bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
         let buf_fname = buf.b_fname;

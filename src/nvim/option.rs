@@ -1637,7 +1637,7 @@ fn stropt_get_newval(
     argp: *mut *mut c_char,
     varp: *mut c_void,
     origval: *const c_char,
-    op_arg: *mut set_op_T,
+    op_arg: &mut set_op_T,
 ) -> std::ffi::CString {
     unsafe {
         let mut arg = *argp;
@@ -1972,11 +1972,11 @@ pub fn get_option_newval(
             }
             ObjectType::kObjectTypeString => {
                 let oldval_str = oldval.data.string().data;
-                let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &raw mut op);
+                let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &mut op);
                 newval = cstr_to_obj(newval_str.as_ptr());
             }
             ObjectType::kObjectTypeLuaRef => {
-                let newval_str = stropt_get_newval(opt_idx, argp, varp, c"".as_ptr(), &raw mut op);
+                let newval_str = stropt_get_newval(opt_idx, argp, varp, c"".as_ptr(), &mut op);
                 newval = cstr_to_obj(newval_str.as_ptr());
             }
             _ => std::process::abort(),
@@ -2228,7 +2228,7 @@ fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_int {
             key = find_special_key(
                 &raw mut arg,
                 len + 1,
-                &raw mut modifiers,
+                &mut modifiers,
                 FSK_KEYCODE | FSK_KEEP_X_KEY | FSK_SIMPLIFY,
                 ptr::null_mut(),
             );
@@ -2646,8 +2646,8 @@ pub fn apply_optionset_autocmd_now(
         let mut oldval_l_tv = opt_to_tv(oldval_l, false);
         let mut newval_tv = opt_to_tv(newval, false);
 
-        set_vim_var_tv(VV_OPTION_OLD, &raw mut oldval_tv);
-        set_vim_var_tv(VV_OPTION_NEW, &raw mut newval_tv);
+        set_vim_var_tv(VV_OPTION_OLD, &mut oldval_tv);
+        set_vim_var_tv(VV_OPTION_NEW, &mut newval_tv);
         let typelen = vim_snprintf_safelen!(
             buf_type.as_mut_ptr(),
             buf_type.len(),
@@ -2665,7 +2665,7 @@ pub fn apply_optionset_autocmd_now(
                 c"setlocal".as_ptr(),
                 "setlocal".len() as isize,
             );
-            set_vim_var_tv(VV_OPTION_OLDLOCAL, &raw mut oldval_tv);
+            set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
         }
         if (opt_flags & OPT_GLOBAL) != 0 {
             set_vim_var_string(
@@ -2673,12 +2673,12 @@ pub fn apply_optionset_autocmd_now(
                 c"setglobal".as_ptr(),
                 "setglobal".len() as isize,
             );
-            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &raw mut oldval_tv);
+            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_tv);
         }
         if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0 {
             set_vim_var_string(VV_OPTION_COMMAND, c"set".as_ptr(), "set".len() as isize);
-            set_vim_var_tv(VV_OPTION_OLDLOCAL, &raw mut oldval_l_tv);
-            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &raw mut oldval_g_tv);
+            set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_l_tv);
+            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_g_tv);
         }
         if (opt_flags & OPT_MODELINE) != 0 {
             set_vim_var_string(
@@ -2686,7 +2686,7 @@ pub fn apply_optionset_autocmd_now(
                 c"modeline".as_ptr(),
                 "modeline".len() as isize,
             );
-            set_vim_var_tv(VV_OPTION_OLDLOCAL, &raw mut oldval_tv);
+            set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
         }
         apply_autocmds(
             EVENT_OPTIONSET,
@@ -6618,7 +6618,7 @@ fn put_set_value(
                 }
                 let value_num = value.data.integer();
                 let mut wc: OptInt = 0;
-                if wc_use_keyname(varp.cast::<OptInt>(), &raw mut wc) != 0 {
+                if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
                     if fputs(get_special_key_name(wc as c_int, 0), fd) < 0 {
                         return FAIL;
                     }
@@ -7349,7 +7349,7 @@ pub fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
         check_colorcolumn(ptr::null_mut(), wp);
         briopt_check(wp);
         let mut culopt_flags: c_uint = 0;
-        if fill_culopt_flags((*wp).w_onebuf_opt.wo_culopt, &raw mut culopt_flags) == OK {
+        if fill_culopt_flags((*wp).w_onebuf_opt.wo_culopt, &mut culopt_flags) == OK {
             (*wp).w_p_culopt_flags = culopt_flags as u8;
         }
         set_chars_option(
@@ -8168,7 +8168,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
 
         let namebuf_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
         let mut wc: OptInt = 0;
-        if wc_use_keyname(varp.cast::<OptInt>(), &raw mut wc) != 0 {
+        if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
             xstrlcpy(namebuf_ptr, get_special_key_name(wc as c_int, 0), MAXPATHL);
             return;
         }
@@ -8197,7 +8197,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
     }
 }
 
-fn wc_use_keyname(p: *const OptInt, wcp: *mut OptInt) -> c_int {
+fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> c_int {
     unsafe {
         if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
             *wcp = *p;
@@ -8243,7 +8243,7 @@ pub fn reset_option_was_set(opt_idx: OptIndex) {
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
-pub fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int {
+pub fn fill_culopt_flags(val: *mut c_char, flags: &mut c_uint) -> c_int {
     unsafe {
         let mut p = val;
         let mut culopt_flags_new: u8 = 0;

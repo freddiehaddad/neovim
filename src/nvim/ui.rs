@@ -329,10 +329,10 @@ pub fn ui_pum_get_height() -> c_int {
 }
 
 pub fn ui_pum_get_pos(
-    pwidth: *mut f64,
-    pheight: *mut f64,
-    prow: *mut f64,
-    pcol: *mut f64,
+    pwidth: &mut f64,
+    pheight: &mut f64,
+    prow: &mut f64,
+    pcol: &mut f64,
 ) -> bool {
     unsafe {
         let uis_ptr = &raw const ui_state().uis;

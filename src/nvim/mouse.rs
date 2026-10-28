@@ -2058,7 +2058,7 @@ pub fn vcol2col(
                     cur_vcol,
                     ci.ptr.cast_mut(),
                     ci.chr.value,
-                    &raw mut csarg,
+                    &mut csarg,
                     cli.cells,
                 )
                 .width;

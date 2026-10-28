@@ -720,7 +720,7 @@ pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -
         }
 
         if g_st().do_profiling == PROF_YES {
-            prof_child_enter(&raw mut wait_time);
+            prof_child_enter(&mut wait_time);
         }
 
         let retval = if *opt_vars().p_sh == NUL {
@@ -733,7 +733,7 @@ pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -
 
         set_vim_var_nr(VV_SHELL_ERROR, varnumber_T::from(retval));
         if g_st().do_profiling == PROF_YES {
-            prof_child_exit(&raw mut wait_time);
+            prof_child_exit(&mut wait_time);
         }
 
         retval

@@ -569,7 +569,7 @@ unsafe extern "C" {
     fn ts_tree_delete(self_: *mut TSTree);
     fn ts_tree_root_node(self_: *const TSTree) -> TSNode;
     fn ts_tree_included_ranges(self_: *const TSTree, length: &mut u32) -> *mut TSRange;
-    fn ts_tree_edit(self_: *mut TSTree, edit: *const TSInputEdit);
+    fn ts_tree_edit(self_: *mut TSTree, edit: &TSInputEdit);
     fn ts_tree_get_changed_ranges(
         old_tree: *const TSTree,
         new_tree: *const TSTree,
@@ -613,7 +613,7 @@ unsafe extern "C" {
         source: *const c_char,
         source_len: u32,
         error_offset: &mut u32,
-        error_type: *mut TSQueryError,
+        error_type: &mut TSQueryError,
     ) -> *mut TSQuery;
     fn ts_query_delete(self_: *mut TSQuery);
     fn ts_query_pattern_count(self_: *const TSQuery) -> u32;

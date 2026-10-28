@@ -1245,8 +1245,8 @@ pub fn nvim_win_get_config(
     }
 }
 
-fn parse_float_anchor(anchor: NvimString, out: *mut FloatAnchor) -> bool {
-    unsafe {
+fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
+    {
         if anchor.size == 0 {
             *out = 0;
         }
@@ -1266,8 +1266,8 @@ fn parse_float_anchor(anchor: NvimString, out: *mut FloatAnchor) -> bool {
     }
 }
 
-fn parse_float_relative(relative: NvimString, out: *mut FloatRelative) -> bool {
-    unsafe {
+fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
+    {
         let str_ptr = relative.data;
         if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"editor")) {
             *out = kFloatRelativeEditor;
@@ -1288,8 +1288,8 @@ fn parse_float_relative(relative: NvimString, out: *mut FloatRelative) -> bool {
     }
 }
 
-fn parse_config_split(split: NvimString, out: *mut WinSplit) -> bool {
-    unsafe {
+fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
+    {
         let str_ptr = split.data;
         if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"left")) {
             *out = kWinSplitLeft;

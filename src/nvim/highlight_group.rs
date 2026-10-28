@@ -921,8 +921,8 @@ pub fn load_colors(name: *mut c_char) -> c_int {
     }
 }
 
-fn lookup_color(idx: c_int, foreground: bool, boldp: *mut TriState) -> c_int {
-    unsafe {
+fn lookup_color(idx: c_int, foreground: bool, boldp: &mut TriState) -> c_int {
+    {
         let mut color = COLOR_NUMBERS_16[idx as usize];
 
         if color < 0 {
@@ -1471,7 +1471,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                             }
 
                             let mut bold = kNone;
-                            color = lookup_color(i as c_int, key_bytes[5] == b'F', &raw mut bold);
+                            color = lookup_color(i as c_int, key_bytes[5] == b'F', &mut bold);
 
                             if bold == kTrue {
                                 (*hl_table().add(idx as usize)).sg_cterm |= HL_BOLD;
@@ -2682,7 +2682,7 @@ pub fn name_to_ctermcolor(name: *const c_char) -> c_int {
             return -1;
         }
         let mut bold = kNone;
-        lookup_color(i as c_int, false, &raw mut bold)
+        lookup_color(i as c_int, false, &mut bold)
     }
 }
 

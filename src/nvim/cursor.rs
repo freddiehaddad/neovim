@@ -224,7 +224,7 @@ fn coladvance2(
             while col <= wcol && *ci.ptr != NUL {
                 let cli = utf_ClusterInfo(ci);
                 let cs: CharSize =
-                    win_charsize(cstype, col, ci.ptr, ci.chr.value, &raw mut csarg, cli.cells);
+                    win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
                 csize = cs.width;
                 head = cs.head;
                 col += cs.width;

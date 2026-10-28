@@ -1610,7 +1610,7 @@ pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
         let mut switchwin: CtxSwitch = CtxSwitch::new();
 
         let mut tstate = TryState::new();
-        try_enter(&raw mut tstate);
+        try_enter(&mut tstate);
         let win_ok = ctx_switch(
             &raw mut switchwin,
             &raw mut *win,
@@ -1870,7 +1870,7 @@ pub fn ui_ext_win_viewport(wp: &mut win_T) {
                     cur_topline,
                     i64::from(wp.w_skipcol),
                     &mut lnume,
-                    &raw mut vcole,
+                    &mut vcole,
                     ptr::null_mut(),
                     i64::MAX,
                 );
@@ -1889,7 +1889,7 @@ pub fn ui_ext_win_viewport(wp: &mut win_T) {
                     last_topline,
                     last_skipcol,
                     &mut lnume,
-                    &raw mut vcole,
+                    &mut vcole,
                     ptr::null_mut(),
                     i64::MAX,
                 );
@@ -3527,7 +3527,7 @@ fn win_close_buffer(win: *mut win_T, action: c_int, abort_if_last: bool) -> bool
     }
 }
 
-fn win_unclose_buffer(win: *mut win_T, _bufref: *mut bufref_T) {
+fn win_unclose_buffer(win: *mut win_T, _bufref: &mut bufref_T) {
     unsafe {
         if (*win).w_buffer.is_null() {
             (*win).w_buffer = g_st().firstbuf;
@@ -3694,7 +3694,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             if !(*g_st().first_tabpage).tp_next.is_null() {
                 emsg(e_floatonly.as_ptr());
             }
-            win_unclose_buffer(win, &raw mut bufref);
+            win_unclose_buffer(win, &mut bufref);
             return FAIL;
         }
         if close_last_window_tabpage(win, free_buf, &mut *prev_curtab) {
@@ -4002,14 +4002,14 @@ pub fn win_close_othertab(
 
         if !valid_tabpage(tp) || ptr::eq(tp, g_st().curtab) || !tabpage_win_valid(tp, win) {
             if win_valid_any_tab(win) {
-                win_unclose_buffer(win, &raw mut bufref);
+                win_unclose_buffer(win, &mut bufref);
             }
             return false;
         }
         if (*(*tp).tp_lastwin).w_floating && one_window(win, tp) {
             emsg(e_floatonly.as_ptr());
             if win_valid_any_tab(win) {
-                win_unclose_buffer(win, &raw mut bufref);
+                win_unclose_buffer(win, &mut bufref);
             }
             return false;
         }

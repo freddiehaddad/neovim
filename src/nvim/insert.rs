@@ -3755,7 +3755,7 @@ fn ins_tab() -> bool {
             let mut cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, tab);
 
             while ascii_iswhite(*ptr as u8 as c_int) {
-                let i = win_charsize(cstype, vcol, tab, tab_v, &raw mut csarg, 1).width;
+                let i = win_charsize(cstype, vcol, tab, tab_v, &mut csarg, 1).width;
                 if vcol + i > want_vcol {
                     break;
                 }
@@ -3777,7 +3777,7 @@ fn ins_tab() -> bool {
                 let mut repl_off: c_int = 0;
                 cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, ptr);
                 while vcol < want_vcol && *ptr == b' ' as c_char {
-                    vcol += win_charsize(cstype, vcol, ptr, b' ' as i32, &raw mut csarg, 1).width;
+                    vcol += win_charsize(cstype, vcol, ptr, b' ' as i32, &mut csarg, 1).width;
                     ptr = ptr.add(1);
                     repl_off += 1;
                 }
@@ -3956,7 +3956,7 @@ pub fn ins_copychar(lnum: linenr_T) -> c_int {
                 vcol,
                 ci.ptr,
                 ci.chr.value,
-                &raw mut csarg,
+                &mut csarg,
                 cli.cells,
             )
             .width;

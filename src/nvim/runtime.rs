@@ -2636,7 +2636,7 @@ pub fn new_script_item(
 }
 
 fn do_source_buffer_init(
-    sp: *mut source_cookie_T,
+    sp: &mut source_cookie_T,
     eap: *const exarg_T,
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
@@ -2667,15 +2667,15 @@ fn do_source_buffer_init(
             cstr_to_cstring(iobuff)
         };
 
-        (*sp).buflines.clear();
+        sp.buflines.clear();
         for curr_lnum in (*eap).line1..=(*eap).line2 {
-            (*sp)
+            sp
                 .buflines
                 .push(CStr::from_ptr(ml_get(curr_lnum)).to_owned());
         }
-        (*sp).buf_lnum = 0;
-        (*sp).source_from_buf_or_str = true;
-        (*sp).sourcing_lnum = (*eap).line1 - 1;
+        sp.buf_lnum = 0;
+        sp.source_from_buf_or_str = true;
+        sp.sourcing_lnum = (*eap).line1 - 1;
 
         Some(fname)
     }

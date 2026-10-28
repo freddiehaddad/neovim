@@ -904,7 +904,7 @@ pub fn get_unsigned_int(
 }
 
 pub fn parse_fmt_types(
-    num_posarg: *mut c_int,
+    num_posarg: &mut c_int,
     fmt: *const c_char,
     tvs: *mut typval_T,
 ) -> c_int {
@@ -1309,7 +1309,7 @@ fn vim_vsnprintf_typval_inner(
         let mut num_posarg: c_int = 0;
         let mut arg_idx: c_int = 1;
 
-        if parse_fmt_types(&raw mut num_posarg, fmt, tvs) == FAIL {
+        if parse_fmt_types(&mut num_posarg, fmt, tvs) == FAIL {
             return 0;
         }
 

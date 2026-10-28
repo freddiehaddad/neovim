@@ -1518,7 +1518,7 @@ impl findtags_state_T {
 }
 
 fn findtags_state_init(
-    st: *mut findtags_state_T,
+    st: &mut findtags_state_T,
     pat: *mut c_char,
     flags: c_int,
     mincount: c_int,
@@ -1756,7 +1756,7 @@ fn findtags_hdr_parse(st: &mut findtags_state_T) -> bool {
 fn findtags_start_state_handler(
     st: &mut findtags_state_T,
     sortic: &mut bool,
-    sinfo_p: *mut tagsearch_info_T,
+    sinfo_p: &mut tagsearch_info_T,
 ) -> bool {
     unsafe {
         let noic = (st.flags & TAG_NOIC) != 0;
@@ -1793,11 +1793,11 @@ fn findtags_start_state_handler(
                 let filesize = vim_ftell(fp);
                 g_st().vim_ignored = vim_fseek(fp, 0, SEEK_SET);
 
-                (*sinfo_p).low_offset = 0;
-                (*sinfo_p).low_char = 0;
-                (*sinfo_p).high_offset = filesize;
-                (*sinfo_p).curr_offset = 0;
-                (*sinfo_p).high_char = 0xff;
+                sinfo_p.low_offset = 0;
+                sinfo_p.low_char = 0;
+                sinfo_p.high_offset = filesize;
+                sinfo_p.curr_offset = 0;
+                sinfo_p.high_char = 0xff;
             }
             return false;
         }
@@ -1810,7 +1810,7 @@ fn findtags_parse_line(
     st: &mut findtags_state_T,
     tagpp: &mut tagptrs_T,
     margs: &mut findtags_match_args_T,
-    sinfo_p: *mut tagsearch_info_T,
+    sinfo_p: &mut tagsearch_info_T,
 ) -> tagmatch_status_T {
     unsafe {
         let status: c_int;
@@ -1840,7 +1840,7 @@ fn findtags_parse_line(
                 if margs.sortic {
                     i = toupper_asc(c_int::from(*tagpp.tagname as u8));
                 }
-                if i < (*sinfo_p).low_char || i > (*sinfo_p).high_char {
+                if i < sinfo_p.low_char || i > sinfo_p.high_char {
                     margs.sort_error = true;
                 }
 
@@ -1860,27 +1860,27 @@ fn findtags_parse_line(
 
                 if tagcmp == 0 {
                     st.state = tagsearch_state_T::TS_SKIP_BACK;
-                    (*sinfo_p).match_offset = (*sinfo_p).curr_offset;
+                    sinfo_p.match_offset = sinfo_p.curr_offset;
                     return tagmatch_status_T::TAG_MATCH_NEXT;
                 }
                 if tagcmp < 0 {
-                    (*sinfo_p).curr_offset = vim_ftell((*st).fp_ptr());
-                    if (*sinfo_p).curr_offset < (*sinfo_p).high_offset {
-                        (*sinfo_p).low_offset = (*sinfo_p).curr_offset;
+                    sinfo_p.curr_offset = vim_ftell((*st).fp_ptr());
+                    if sinfo_p.curr_offset < sinfo_p.high_offset {
+                        sinfo_p.low_offset = sinfo_p.curr_offset;
                         if margs.sortic {
-                            (*sinfo_p).low_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
+                            sinfo_p.low_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
                         } else {
-                            (*sinfo_p).low_char = *tagpp.tagname as u8 as c_int;
+                            sinfo_p.low_char = *tagpp.tagname as u8 as c_int;
                         }
                         return tagmatch_status_T::TAG_MATCH_NEXT;
                     }
                 }
-                if tagcmp > 0 && (*sinfo_p).curr_offset != (*sinfo_p).high_offset {
-                    (*sinfo_p).high_offset = (*sinfo_p).curr_offset;
+                if tagcmp > 0 && sinfo_p.curr_offset != sinfo_p.high_offset {
+                    sinfo_p.high_offset = sinfo_p.curr_offset;
                     if margs.sortic {
-                        (*sinfo_p).high_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
+                        sinfo_p.high_char = toupper_asc(c_int::from(*tagpp.tagname as u8));
                     } else {
-                        (*sinfo_p).high_char = *tagpp.tagname as u8 as c_int;
+                        sinfo_p.high_char = *tagpp.tagname as u8 as c_int;
                     }
                     return tagmatch_status_T::TAG_MATCH_NEXT;
                 }
@@ -1891,13 +1891,13 @@ fn findtags_parse_line(
                 if mb_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize) != 0 {
                     st.state = tagsearch_state_T::TS_STEP_FORWARD;
                 } else {
-                    (*sinfo_p).curr_offset = (*sinfo_p).curr_offset_used;
+                    sinfo_p.curr_offset = sinfo_p.curr_offset_used;
                 }
                 return tagmatch_status_T::TAG_MATCH_NEXT;
             } else if st.state == tagsearch_state_T::TS_STEP_FORWARD {
                 assert!(cmplen >= 0);
                 if mb_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize) != 0 {
-                    return if vim_ftell((*st).fp_ptr()) > (*sinfo_p).match_offset {
+                    return if vim_ftell((*st).fp_ptr()) > sinfo_p.match_offset {
                         tagmatch_status_T::TAG_MATCH_STOP
                     } else {
                         tagmatch_status_T::TAG_MATCH_NEXT
@@ -2156,7 +2156,7 @@ fn findtags_get_all_tags(
             }
 
             if st.state == tagsearch_state_T::TS_START
-                && !findtags_start_state_handler(st, &mut margs.sortic, &raw mut search_info)
+                && !findtags_start_state_handler(st, &mut margs.sortic, &mut search_info)
             {
                 continue;
             }
@@ -2175,7 +2175,7 @@ fn findtags_get_all_tags(
                 continue;
             }
 
-            let retval = findtags_parse_line(st, &mut tagp, margs, &raw mut search_info);
+            let retval = findtags_parse_line(st, &mut tagp, margs, &mut search_info);
             if retval == tagmatch_status_T::TAG_MATCH_NEXT {
                 continue;
             }
@@ -2322,7 +2322,7 @@ pub fn find_tags(
 
         let help_save = (*g_st().curbuf).b_help;
 
-        findtags_state_init(&raw mut st, pat, flags, mincount);
+        findtags_state_init(&mut st, pat, flags, mincount);
 
         if st.help_only {
             (*g_st().curbuf).b_help = true;

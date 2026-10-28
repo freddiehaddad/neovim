@@ -2261,7 +2261,7 @@ fn redraw_wildmenu(
         }
 
         let mut group: hlf_T = 0;
-        let fillchar = fillchar_status(&raw mut group, *curwin.as_ptr());
+        let fillchar = fillchar_status(&mut group, *curwin.as_ptr());
         let attr = win_hl_attr(*curwin.as_ptr(), group);
 
         let mut len: usize;

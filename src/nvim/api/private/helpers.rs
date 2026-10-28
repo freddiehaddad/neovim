@@ -261,7 +261,7 @@ pub fn cstr_to_arena_obj(arena: &mut Arena, s: *const c_char) -> Object {
 #[inline]
 pub fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
     let mut tstate = TryState::new();
-        try_enter(&raw mut tstate);
+        try_enter(&mut tstate);
         f();
         try_leave(&tstate, err);
 }
@@ -269,7 +269,7 @@ pub fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
 #[inline]
 pub fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
     let mut tstate = TryState::new();
-        try_enter(&raw mut tstate);
+        try_enter(&mut tstate);
         f(err);
         try_leave(&tstate, err);
 }
@@ -363,7 +363,7 @@ pub fn error_set(e: &Error) -> bool {
 }
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
-pub fn try_enter(tstate: *mut TryState) {
+pub fn try_enter(tstate: &mut TryState) {
     unsafe {
         let ml = &raw mut g_st().msg_list;
         let saved_msg_list = (*ml).replace(Vec::new());

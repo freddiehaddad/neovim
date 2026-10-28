@@ -2274,7 +2274,7 @@ pub fn get_vimvar_dict() -> *mut dict_T {
     &raw mut vars_st().vimvardict
 }
 
-pub fn set_vim_var_tv(idx: VimVarIndex, tv: *mut typval_T) {
+pub fn set_vim_var_tv(idx: VimVarIndex, tv: &mut typval_T) {
     unsafe {
         let tv_out = get_vim_var_tv(idx);
         tv_clear(tv_out);

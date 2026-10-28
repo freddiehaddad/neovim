@@ -3648,8 +3648,8 @@ pub fn check_secure() -> bool {
 }
 
 /// Get old substitute replacement string.
-pub fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
-    unsafe {
+pub fn sub_get_replacement(ret_sub: &mut SubReplacementString) {
+    {
         *ret_sub = excmds_st().old_sub.clone();
     }
 }

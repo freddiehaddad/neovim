@@ -3093,7 +3093,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 }
 
                 if spin.si_compflags.is_some()
-                    && get_compflags(affile, afflist, store_afflist.as_mut_ptr(), &raw mut totlen)
+                    && get_compflags(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
                         == FAIL
                 {
                     retval = FAIL;
@@ -3236,7 +3236,7 @@ fn get_compflags(
     affile: &afffile_T,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
-    cntp: *mut c_int,
+    cntp: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
@@ -3422,7 +3422,7 @@ fn store_aff_word(
                                             affile,
                                             ae_flags,
                                             use_pfxlist,
-                                            &raw mut listlen,
+                                            &mut listlen,
                                         ) == FAIL
                                         {
                                             retval = FAIL;

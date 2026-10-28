@@ -300,7 +300,7 @@ pub fn fuzzy_match(
     str_ptr: *mut c_char,
     pat_arg: *const c_char,
     matchseq: bool,
-    out_score: *mut c_int,
+    out_score: &mut c_int,
     matches: *mut u32,
     max_matches: c_int,
 ) -> bool {
@@ -811,9 +811,9 @@ pub fn search_for_fuzzy_match(
     pattern: *mut c_char,
     dir: c_int,
     start_pos: &pos_T,
-    len: *mut c_int,
+    len: &mut c_int,
     ptr: *mut *mut c_char,
-    score: *mut c_int,
+    score: &mut c_int,
 ) -> bool {
     unsafe {
         let mut current_pos = *pos;

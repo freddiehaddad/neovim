@@ -1203,7 +1203,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
                             vcol,
                             ci.ptr,
                             ci.chr.value,
-                            &raw mut csarg,
+                            &mut csarg,
                             cli.cells,
                         )
                         .width;
@@ -1749,7 +1749,7 @@ pub fn get_lisp_indent() -> c_int {
                         amount,
                         sci.ptr,
                         sci.chr.value,
-                        &raw mut csarg,
+                        &mut csarg,
                         cli.cells,
                     )
                     .width;
@@ -1773,7 +1773,7 @@ pub fn get_lisp_indent() -> c_int {
                             amount,
                             that,
                             i32::from(*that as u8),
-                            &raw mut csarg,
+                            &mut csarg,
                             1,
                         )
                         .width;
@@ -1817,7 +1817,7 @@ pub fn get_lisp_indent() -> c_int {
                                         amount,
                                         that,
                                         ci.value,
-                                        &raw mut csarg,
+                                        &mut csarg,
                                         cli.cells,
                                     )
                                     .width;
@@ -1831,7 +1831,7 @@ pub fn get_lisp_indent() -> c_int {
                                     amount,
                                     that,
                                     ci.value,
-                                    &raw mut csarg,
+                                    &mut csarg,
                                     cli.cells,
                                 )
                                 .width;
@@ -1846,7 +1846,7 @@ pub fn get_lisp_indent() -> c_int {
                                 amount,
                                 that,
                                 i32::from(*that as u8),
-                                &raw mut csarg,
+                                &mut csarg,
                                 1,
                             )
                             .width;

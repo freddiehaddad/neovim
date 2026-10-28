@@ -746,7 +746,7 @@ fn qfga_concat_len(gap: &mut Vec<c_char>, s: *const c_char, len: usize) {
 fn qf_init_process_nextline(
     qfl: &mut qf_list_T,
     fmt_first: &[efm_T],
-    state: *mut qfstate_T,
+    state: &mut qfstate_T,
     fields: &mut qffields_T,
 ) -> c_int {
     unsafe {
@@ -758,7 +758,7 @@ fn qf_init_process_nextline(
         status = qf_parse_line(
             qfl,
             (*state).linebuf_ptr(),
-            (*state).linelen,
+            state.linelen,
             fmt_first,
             fields,
         );
@@ -972,7 +972,7 @@ fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: *mut efm_T) -> *const c_
 fn efm_to_regpat(
     efm: *const c_char,
     len: c_int,
-    fmt_ptr: *mut efm_T,
+    fmt_ptr: &mut efm_T,
     regpat: *mut c_char,
 ) -> c_int {
     unsafe {
@@ -1011,7 +1011,7 @@ fn efm_to_regpat(
                     *ptr = b'*' as c_char;
                     ptr = ptr.add(1);
                 } else if *efmp == b'>' as c_char {
-                    (*fmt_ptr).conthere = 1;
+                    fmt_ptr.conthere = 1;
                 } else if efmp == efm.add(1) {
                     efmp = efm_analyze_prefix(efmp, fmt_ptr);
                     if efmp.is_null() {
@@ -1096,7 +1096,7 @@ fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
 
             let len = efm_option_part_len(efm);
 
-            if efm_to_regpat(efm, len, &raw mut fmt_item, fmtstr.as_mut_ptr()) == FAIL {
+            if efm_to_regpat(efm, len, &mut fmt_item, fmtstr.as_mut_ptr()) == FAIL {
                 errored = true;
                 break;
             }
@@ -1589,7 +1589,7 @@ fn qf_init_ext(
                 let status = qf_init_process_nextline(
                     qfl,
                     (*cache_ptr).as_slice(),
-                    &raw mut state,
+                    &mut state,
                     &mut fields,
                 );
                 if status == QF_END_OF_INPUT {
@@ -5595,7 +5595,7 @@ fn vgr_match_buflines(
                     str_.add(col as usize),
                     spat,
                     false,
-                    &raw mut score,
+                    &mut score,
                     matches.as_mut_ptr(),
                     FUZZY_MATCH_MAX_LEN as c_int,
                 ) {
@@ -7313,8 +7313,8 @@ fn cbuffer_get_auname(cmdidx: c_int) -> *const c_char {
 fn cbuffer_process_args(
     eap: &mut exarg_T,
     bufp: *mut *mut buf_T,
-    line1: *mut linenr_T,
-    line2: *mut linenr_T,
+    line1: &mut linenr_T,
+    line2: &mut linenr_T,
 ) -> c_int {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
@@ -7379,7 +7379,7 @@ pub fn ex_cbuffer(eap: &mut exarg_T) {
         let mut buf: *mut buf_T = ptr::null_mut();
         let mut line1: linenr_T = 0;
         let mut line2: linenr_T = 0;
-        if cbuffer_process_args(eap, &raw mut buf, &raw mut line1, &raw mut line2) == FAIL {
+        if cbuffer_process_args(eap, &raw mut buf, &mut line1, &mut line2) == FAIL {
             return;
         }
 

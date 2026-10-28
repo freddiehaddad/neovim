@@ -831,7 +831,7 @@ pub fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
     }
 }
 
-fn atom_push(cascade: bool, atom: *mut CmdAtom) {
+fn atom_push(cascade: bool, atom: &mut CmdAtom) {
     unsafe {
         if atom_blocked() {
             *atom = CmdAtom::new();
@@ -841,7 +841,7 @@ fn atom_push(cascade: bool, atom: *mut CmdAtom) {
     }
 }
 
-fn atom_stage_set(atom: *mut CmdAtom) {
+fn atom_stage_set(atom: &mut CmdAtom) {
     unsafe {
         let cur_frame = cur_frame_ptr();
         assert!(!cur_frame.is_null());
@@ -851,7 +851,7 @@ fn atom_stage_set(atom: *mut CmdAtom) {
             *atom = CmdAtom::new();
             return;
         }
-        assert!((*atom).keys.is_some());
+        assert!(atom.keys.is_some());
         (*cur_frame).staged = std::mem::take(&mut *atom);
     }
 }
@@ -1160,14 +1160,14 @@ pub fn atom_payload_end() {
     }
 }
 
-fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
+fn atom_payload_append(atom: &mut CmdAtom, frame: *mut CmdFrame) {
     unsafe {
         let plen = if (*frame).payload_start == usize::MAX {
             0
         } else {
             (*frame).payload_end - (*frame).payload_start
         };
-        let Some(ref cur_keys) = (*atom).keys else {
+        let Some(ref cur_keys) = atom.keys else {
             return;
         };
         if plen == 0 {
@@ -1176,7 +1176,7 @@ fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
         let mut bytes = cur_keys.as_bytes().to_vec();
         let typed_keys = &raw const atom_st().typed.keys;
         bytes.extend_from_slice(&(&*typed_keys)[(*frame).payload_start..(*frame).payload_end]);
-        (*atom).keys = Some(std::ffi::CString::new(bytes).unwrap());
+        atom.keys = Some(std::ffi::CString::new(bytes).unwrap());
         (*frame).payload_start = usize::MAX;
     }
 }

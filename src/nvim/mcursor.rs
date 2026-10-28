@@ -1479,7 +1479,7 @@ fn mc_zq_first(
     search: bool,
     motion_type: c_int,
     bounds: *const pos_T,
-    step: *mut pos_T,
+    step: &mut pos_T,
 ) -> bool {
     unsafe {
         let start = *bounds;
@@ -1487,7 +1487,7 @@ fn mc_zq_first(
         let curswant = (**curwin.as_ptr()).w_curswant;
         let mut before = start;
         let bof = dec(&mut before) == -1;
-        (*step).lnum = 0;
+        step.lnum = 0;
         if !bof {
             let save_ww = opt_vars().p_ww;
             opt_vars().p_ww = c"s,l,>".as_ptr().cast_mut();
@@ -1505,12 +1505,12 @@ fn mc_zq_first(
         if s.lnum > from.lnum && !(**curwin.as_ptr()).w_set_curswant {
             let mut c = from;
             getvpos(*curwin.as_ptr(), &mut c, (**curwin.as_ptr()).w_curswant);
-            if ltoreq(start, c) && ltoreq(c, end_bound) && ((*step).lnum == 0 || lt(c, *step)) {
+            if ltoreq(start, c) && ltoreq(c, end_bound) && (step.lnum == 0 || lt(c, *step)) {
                 *step = c;
             }
         }
         (**curwin.as_ptr()).w_curswant = curswant;
-        if (*step).lnum != 0 {
+        if step.lnum != 0 {
             return true;
         }
         let failed = s.lnum == 0;

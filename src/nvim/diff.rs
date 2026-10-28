@@ -1606,7 +1606,7 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
 }
 fn extract_hunk_internal(
     dout: *mut diffout_T,
-    hunk: *mut diffhunk_T,
+    hunk: &mut diffhunk_T,
     line_idx: &mut c_int,
 ) -> bool {
     unsafe {
@@ -1618,8 +1618,8 @@ fn extract_hunk_internal(
         eof
     }
 }
-fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut diffstyle_T) -> bool {
-    unsafe {
+fn extract_hunk(fd: *mut FILE, hunk: &mut diffhunk_T, diffstyle: &mut diffstyle_T) -> bool {
+    {
         loop {
             let mut line: [c_char; LBUFLEN] = [0; LBUFLEN];
             if vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd) {
@@ -1780,9 +1780,9 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
                 count_new: 0,
             };
             let eof = if dio.dio_internal != 0 {
-                extract_hunk_internal(dout, &raw mut hunk, &mut line_hunk_idx)
+                extract_hunk_internal(dout, &mut hunk, &mut line_hunk_idx)
             } else {
-                extract_hunk(fd, &raw mut hunk, &raw mut diffstyle)
+                extract_hunk(fd, &mut hunk, &mut diffstyle)
             };
             if eof {
                 break;
@@ -1825,7 +1825,7 @@ pub fn diff_clear(tp: &mut tabpage_T) {
     diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.clear();
 }
-pub fn diff_linematch(dp: *const diff_T) -> bool {
+pub fn diff_linematch(dp: &diff_T) -> bool {
     unsafe {
         if (diff_st().diff_flags & DIFF_LINEMATCH) == 0 {
             return false;
@@ -1833,10 +1833,10 @@ pub fn diff_linematch(dp: *const diff_T) -> bool {
         let mut tsize: c_int = 0;
         for i in 0..DB_COUNT {
             if !(*g_st().curtab).tp_diffbuf[i].is_null() {
-                if (*dp).df_count[i] < 0 {
+                if dp.df_count[i] < 0 {
                     return false;
                 }
-                tsize += (*dp).df_count[i];
+                tsize += dp.df_count[i];
             }
         }
         tsize <= diff_st().linematch_lines
@@ -3076,7 +3076,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         clear_diffout(&mut dio.dio_diff);
     }
 }
-pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {
+pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: &mut diffline_T) -> bool {
     unsafe {
         let idx = diff_buf_idx(wp.w_buffer, &mut *g_st().curtab);
         if idx == DB_COUNT as c_int {
@@ -3116,11 +3116,11 @@ pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut diffline_
             simple_change.dc_end[u_idx] = change_end;
             simple_change.dc_start_lnum_off[u_idx] = off;
             simple_change.dc_end_lnum_off[u_idx] = off;
-            (*diffline).changes.clear();
-            (*diffline).changes.push(simple_change);
-            (*diffline).is_simple = true;
-            (*diffline).bufidx = idx;
-            (*diffline).lineoff = lnum - (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[u_idx];
+            diffline.changes.clear();
+            diffline.changes.push(simple_change);
+            diffline.is_simple = true;
+            diffline.bufidx = idx;
+            diffline.lineoff = lnum - (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[u_idx];
             return ret;
         }
         if !(&(*g_st().curtab).tp_diffs)[dp_idx].has_changes {
@@ -3129,8 +3129,8 @@ pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut diffline_
         let dp = &mut (&mut (*g_st().curtab).tp_diffs)[dp_idx];
         let changes_len = dp.df_changes.len() as c_int;
         let mut change_idx: c_int = 0;
-        (*diffline).changes.clear();
-        (*diffline).is_simple = false;
+        diffline.changes.clear();
+        diffline.is_simple = false;
         while change_idx < changes_len {
             let change = &dp.df_changes[change_idx as usize];
             if change.dc_end_lnum_off[u_idx] < off {
@@ -3140,12 +3140,12 @@ pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut diffline_
             if change.dc_start_lnum_off[u_idx] > off {
                 break;
             }
-            (*diffline).changes.push(*change);
+            diffline.changes.push(*change);
             change_idx += 1;
         }
-        let num_changes = (*diffline).changes.len() as c_int;
-        (*diffline).bufidx = idx;
-        (*diffline).lineoff = off;
+        let num_changes = diffline.changes.len() as c_int;
+        diffline.bufidx = idx;
+        diffline.lineoff = off;
         let mut added = false;
         if num_changes == 1 && change_idx == changes_len {
             added = true;
@@ -3849,7 +3849,7 @@ pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 if linestatus == -1 {
                     diff_st().f_diff_hlid_change_start = MAXCOL;
                     diff_st().f_diff_hlid_change_end = -1;
-                    if diff_find_change(&mut **curwin.as_ptr(), lnum, &raw mut diffline) {
+                    if diff_find_change(&mut **curwin.as_ptr(), lnum, &mut diffline) {
                         diff_st().f_diff_hlid_hlID = HLF_ADD;
                     } else {
                         diff_st().f_diff_hlid_hlID = HLF_CHD;

@@ -935,7 +935,7 @@ fn uc_scan_attr(
     flags: &mut c_int,
     complp: &mut c_int,
     compl_arg: &mut Option<CString>,
-    addr_type_arg: *mut cmd_addr_T,
+    addr_type_arg: &mut cmd_addr_T,
 ) -> c_int {
     unsafe {
         if len == 0 {
@@ -1221,7 +1221,7 @@ pub fn ex_command(eap: &mut exarg_T) {
                 &mut flags,
                 &mut context,
                 &mut compl_arg,
-                &raw mut addr_type_arg,
+                &mut addr_type_arg,
             ) == FAIL
             {
                 return;
@@ -1334,9 +1334,9 @@ pub fn ex_delcommand(eap: &mut exarg_T) {
 pub fn uc_split_args_iter(
     arg: *const c_char,
     arglen: usize,
-    end: *mut usize,
+    end: &mut usize,
     buf: *mut c_char,
-    len: *mut usize,
+    len: &mut usize,
 ) -> bool {
     unsafe {
         if arglen == 0 {

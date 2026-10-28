@@ -279,7 +279,7 @@ unsafe extern "C" {
     pub fn uv_tcp_getsockname(
         handle: *const crate::event::socket::uv_tcp_t,
         name: *mut c_void,
-        namelen: *mut c_int,
+        namelen: &mut c_int,
     ) -> c_int;
     pub fn uv_tcp_connect(
         req: *mut uv_connect_t,
@@ -322,11 +322,11 @@ unsafe extern "C" {
         cb: *const c_void,
     ) -> c_int;
     pub fn uv_print_all_handles(loop_: *mut uv_loop_t, stream: *mut crate::fileio::FILE);
-    pub fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
+    pub fn uv_gettimeofday(tv: &mut UvTimeval64) -> c_int;
     pub fn uv_uptime(uptime: &mut f64) -> c_int;
     pub fn uv_sleep(msec: std::ffi::c_uint);
     pub fn uv_hrtime() -> u64;
-    pub fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
+    pub fn uv_clock_gettime(clock_id: c_int, ts: &mut UvTimespec64) -> c_int;
     pub fn uv_now(loop_ptr: *const c_void) -> u64;
     pub fn uv_thread_self() -> uv_thread_t;
     pub fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;

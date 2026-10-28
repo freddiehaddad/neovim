@@ -2177,7 +2177,7 @@ fn ins_compl_dictionaries(
                         flags,
                         &mut regmatch,
                         buf,
-                        &raw mut dir,
+                        &mut dir,
                     );
                 } else {
                     ins_compl_files(
@@ -2186,7 +2186,7 @@ fn ins_compl_dictionaries(
                         flags,
                         &mut regmatch,
                         buf,
-                        &raw mut dir,
+                        &mut dir,
                     );
                     files.clear();
                 }
@@ -2253,7 +2253,7 @@ fn ins_compl_files(
     flags: c_int,
     regmatch: *mut regmatch_T,
     buf: *mut c_char,
-    dir: *mut Direction,
+    dir: &mut Direction,
 ) {
     unsafe {
         let leader = if cot_fuzzy() {
@@ -4653,9 +4653,9 @@ fn get_next_default_completion(
                     leader,
                     insexp().compl_direction,
                     start_pos,
-                    &raw mut len,
+                    &mut len,
                     &raw mut ptr,
-                    &raw mut score,
+                    &mut score,
                 ));
             } else if ctrl_x_mode_whole_line()
                 || ctrl_x_mode_eval()

@@ -2727,38 +2727,38 @@ pub fn terminfo_from_builtin(
         }
 }
 
-pub fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -> bool {
+pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: *const c_char) -> bool {
     unsafe {
         let Some(ut) = unibi_from_term(termname) else {
             return false;
         };
 
-        (*ti).back_color_erase = ut.get_bool(unibi_boolean::unibi_back_color_erase);
-        (*ti).max_colors = ut.get_num(unibi_numeric::unibi_max_colors);
-        (*ti).lines = ut.get_num(unibi_numeric::unibi_lines);
-        (*ti).columns = ut.get_num(unibi_numeric::unibi_columns);
+        ti.back_color_erase = ut.get_bool(unibi_boolean::unibi_back_color_erase);
+        ti.max_colors = ut.get_num(unibi_numeric::unibi_max_colors);
+        ti.lines = ut.get_num(unibi_numeric::unibi_lines);
+        ti.columns = ut.get_num(unibi_numeric::unibi_columns);
 
-        (*ti).Tc = false;
-        (*ti).RGB = false;
-        (*ti).Su = false;
+        ti.Tc = false;
+        ti.RGB = false;
+        ti.Su = false;
         let ext_bool_count = ut.count_ext_bool();
         for i in 0..ext_bool_count {
             let n = ut.get_ext_bool_name(i);
             if !n.is_null() {
                 let bytes = CStr::from_ptr(n).to_bytes();
                 if bytes == b"Tc" {
-                    (*ti).Tc = true;
+                    ti.Tc = true;
                 } else if bytes == b"RGB" {
-                    (*ti).RGB = true;
+                    ti.RGB = true;
                 } else if bytes == b"Su" {
-                    (*ti).Su = true;
+                    ti.Su = true;
                 }
             }
         }
 
         for (i, &uni_id) in UNI_IDS.iter().enumerate() {
             let val = ut.get_str(uni_id);
-            (*ti).defs[i] = if !val.is_null() {
+            ti.defs[i] = if !val.is_null() {
                 Some(Cow::Owned(CStr::from_ptr(val).to_owned()))
             } else {
                 None
@@ -2771,7 +2771,7 @@ pub fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -
                 let n = ut.get_ext_str_name(val);
                 if !n.is_null() && (crate::memory::cstr_as_opt_bytes(n) == crate::memory::cstr_as_opt_bytes(name.as_ptr())) {
                     let data = ut.get_ext_str(val);
-                    (*ti).defs[kTermExtOffset + i] = if !data.is_null() {
+                    ti.defs[kTermExtOffset + i] = if !data.is_null() {
                         Some(Cow::Owned(CStr::from_ptr(data).to_owned()))
                     } else {
                         None
@@ -2784,10 +2784,10 @@ pub fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -
         for (i, pair) in UNI_KEYS.iter().enumerate() {
             let val = ut.get_str(pair[0]);
             if !val.is_null() {
-                (*ti).keys[i][0] = Some(Cow::Owned(CStr::from_ptr(val).to_owned()));
+                ti.keys[i][0] = Some(Cow::Owned(CStr::from_ptr(val).to_owned()));
                 if pair[1] != unibi_string::unibi_string_begin_ {
                     let sval = ut.get_str(pair[1]);
-                    (*ti).keys[i][1] = if !sval.is_null() {
+                    ti.keys[i][1] = if !sval.is_null() {
                         Some(Cow::Owned(CStr::from_ptr(sval).to_owned()))
                     } else {
                         None
@@ -2798,7 +2798,7 @@ pub fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -
 
         for (i, &fkey_id) in UNI_FKEYS.iter().enumerate() {
             let val = ut.get_str(fkey_id);
-            (*ti).f_keys[i] = if !val.is_null() {
+            ti.f_keys[i] = if !val.is_null() {
                 Some(Cow::Owned(CStr::from_ptr(val).to_owned()))
             } else {
                 None

@@ -142,7 +142,7 @@ mod win_impl {
             dwFlags: c_ulong,
         ) -> BOOL;
         fn UnregisterWaitEx(WaitHandle: HANDLE, CompletionEvent: HANDLE) -> BOOL;
-        fn GetExitCodeProcess(hProcess: HANDLE, lpExitCode: *mut DWORD) -> BOOL;
+        fn GetExitCodeProcess(hProcess: HANDLE, lpExitCode: &mut DWORD) -> BOOL;
     }
 
     #[inline]
@@ -308,7 +308,7 @@ mod win_impl {
 
                 if !os_conpty_spawn(
                     conpty_object.as_deref_mut().unwrap(),
-                    &raw mut proc_handle,
+                    &mut proc_handle,
                     if file.is_empty() {
                         ptr::null_mut()
                     } else {
@@ -441,7 +441,7 @@ mod win_impl {
             let ptail = pty_proc_win_tail(ptyproc);
 
             let mut exit_code: DWORD = 0;
-            GetExitCodeProcess((*ptail).proc_handle, &raw mut exit_code);
+            GetExitCodeProcess((*ptail).proc_handle, &mut exit_code);
             (*hdr).status = if (*hdr).exit_signal != 0 {
                 128 + c_int::from((*hdr).exit_signal)
             } else {

@@ -2135,7 +2135,7 @@ fn convert_modifiers(key: &mut c_int, modifiers: c_int, statep: *mut VTermModifi
 fn convert_key(
     key: &mut c_int,
     mut modifiers: c_int,
-    statep: *mut VTermModifier,
+    statep: &mut VTermModifier,
 ) -> VTermKey {
     *key = unsimplify_key(*key, &mut modifiers);
         convert_modifiers(key, modifiers, statep);

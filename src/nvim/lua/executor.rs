@@ -565,9 +565,9 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &mut exarg_T, cmod: &cmdmod_T) {
                     done = uc_split_args_iter(
                         eap.arg,
                         length,
-                        &raw mut end,
+                        &mut end,
                         buf.as_mut_ptr(),
-                        &raw mut len,
+                        &mut len,
                     );
                     if len > 0 {
                         lua_pushlstring(lstate, buf.as_ptr(), len);
@@ -1523,7 +1523,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
 
         let mut rel_time: proftime_T = 0;
         let mut start_time: proftime_T = 0;
-        time_push(&raw mut rel_time, &raw mut start_time);
+        time_push(&mut rel_time, &raw mut start_time);
         let status = lua_pcall(lstate, 1, 1, 0);
         if status == 0 {
             vim_snprintf!(
@@ -1696,7 +1696,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
 
             let mut tstate = TryState::new();
-            try_enter(&raw mut tstate);
+            try_enter(&mut tstate);
             let _ = call_func(
                 name,
                 name_len as c_int,

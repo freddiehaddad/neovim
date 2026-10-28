@@ -135,8 +135,8 @@ pub fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
     }
 }
 
-fn src2ns(src_id: *mut Integer) -> u32 {
-    unsafe {
+fn src2ns(src_id: &mut Integer) -> u32 {
+    {
         if *src_id == 0 {
             *src_id = nvim_create_namespace(NvimString {
                 data: ptr::null_mut(),

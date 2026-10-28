@@ -5207,7 +5207,7 @@ pub fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c
                 &raw mut cmdline_copy,
                 &raw mut cmdline_buf,
                 flags,
-                &raw mut cstack,
+                &mut cstack,
                 cmd_getline,
             );
             RECURSIVE.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
@@ -6427,7 +6427,7 @@ fn do_one_cmd(
     cmdlinep: *mut *mut c_char,
     cmdline_buf: *mut Vec<c_char>,
     flags: c_int,
-    cstack: *mut cstack_T,
+    cstack: &mut cstack_T,
     fgetline: LineGetter,
 ) -> *mut c_char {
     unsafe {
@@ -6455,7 +6455,7 @@ fn do_one_cmd(
             ea.cmdlinep = cmdlinep;
             ea.cmdline_buf = cmdline_buf;
             ea.ea_getline = fgetline;
-            ea.cstack = cstack.cast();
+            ea.cstack = &raw mut *cstack;
 
             if parse_command_modifiers(&mut ea, &mut errormsg, &mut g_st().cmdmod, false)
                 == FAIL
@@ -6470,8 +6470,8 @@ fn do_one_cmd(
                 g_st().did_emsg != 0
                     || g_st().got_int
                     || g_st().did_throw
-                    || ((*cstack).cs_idx >= 0
-                        && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ACTIVE) == 0),
+                    || (cstack.cs_idx >= 0
+                        && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_ACTIVE) == 0),
             );
 
             let mut p = find_excmd_after_range(&mut ea);
@@ -7386,7 +7386,7 @@ fn append_command(cmd: *const c_char) {
     }
 }
 
-fn one_letter_cmd(p: *const c_char, idx: *mut cmdidx_T) -> c_int {
+fn one_letter_cmd(p: *const c_char, idx: &mut cmdidx_T) -> c_int {
     unsafe {
         if *p == b'k' as c_char
             && (*p.add(1) != b'e' as c_char
@@ -7421,7 +7421,7 @@ pub fn find_ex_command(eap: &mut exarg_T, full: *mut c_int) -> *mut c_char {
     unsafe {
         let mut p = eap.cmd;
         let mut cmdidx_out = cmdidx_T::CMD_append;
-        if one_letter_cmd(p, &raw mut cmdidx_out) != 0 {
+        if one_letter_cmd(p, &mut cmdidx_out) != 0 {
             eap.cmdidx = cmdidx_out as c_int;
             p = p.add(1);
             if !full.is_null() {
@@ -7642,7 +7642,7 @@ pub fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
         }
 
         let mut idx = cmdidx_T::CMD_append;
-        if one_letter_cmd(cmd, &raw mut idx) == 0 {
+        if one_letter_cmd(cmd, &mut idx) == 0 {
             let mut i: c_int = 0;
             while i < CMD_SIZE_I32 {
                 if crate::memory::cstr_prefix_bytes(CMDNAMES[i as usize].cmd_name.as_ptr(), len) == crate::memory::cstr_prefix_bytes(cmd, len) {
@@ -8237,7 +8237,7 @@ pub fn expand_filename(
             let repl_owned = eval_vars(
                 p,
                 eap.arg,
-                &raw mut srclen,
+                &mut srclen,
                 &raw mut eap.do_ecmd_lnum,
                 errormsgp,
                 &raw mut escaped,
@@ -12098,7 +12098,7 @@ pub fn find_cmdline_var(src: *const c_char, usedlen: &mut usize) -> isize {
 pub fn eval_vars(
     src: *mut c_char,
     srcstart: *const c_char,
-    usedlen: *mut usize,
+    usedlen: &mut usize,
     lnump: *mut linenr_T,
     errormsg: *mut *const c_char,
     escaped: *mut c_int,
@@ -12366,7 +12366,7 @@ pub fn eval_vars(
                     usedlen,
                     &raw mut result,
                     &mut resultbuf,
-                    &raw mut resultlen,
+                    &mut resultlen,
                     use_shellslash,
                 );
                 if result.is_null() {
@@ -12417,7 +12417,7 @@ pub fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
                 let repl = eval_vars(
                     p,
                     result_vec.as_ptr(),
-                    &raw mut srclen,
+                    &mut srclen,
                     ptr::null_mut(),
                     &mut errormsg,
                     ptr::null_mut(),

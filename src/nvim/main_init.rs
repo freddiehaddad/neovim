@@ -362,7 +362,7 @@ fn early_init(paramp: *mut mparm_T) {
         {
             let mut ovi = OsVersionInfoA::new();
             ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
-            GetVersionExA(&raw mut ovi);
+            GetVersionExA(&mut ovi);
             let mut buf = Vec::with_capacity(20);
             let _ = write!(buf, "{}.{}\0", ovi.dwMajorVersion, ovi.dwMinorVersion);
             let copy_len = buf.len().min(20);
@@ -1907,7 +1907,7 @@ fn check_and_set_isatty(_paramp: &mut mparm_T) {
 fn init_path(exename: *const c_char) {
     let mut exepath = [0 as c_char; MAXPATHL];
         let mut exepathlen: usize = MAXPATHL;
-        if os_exepath(exepath.as_mut_ptr(), &raw mut exepathlen) != 0 {
+        if os_exepath(exepath.as_mut_ptr(), &mut exepathlen) != 0 {
             path_guess_exepath(exename, exepath.as_mut_ptr(), exepath.len());
         }
         set_vim_var_string(VV_PROGPATH, exepath.as_ptr(), -1);

@@ -625,7 +625,7 @@ pub fn hl_ns_get_attrs(
     ns_id: c_int,
     hl_id: c_int,
     optional: *mut bool,
-    attrs: *mut HlAttrs,
+    attrs: &mut HlAttrs,
 ) -> bool {
     unsafe {
         let mut opt = if !optional.is_null() { *optional } else { true };
@@ -651,7 +651,7 @@ pub fn hl_get_ui_attr(
         let mut available = false;
 
         if final_id > 0 {
-            available = hl_ns_get_attrs(ns_id, final_id, &raw mut optional, &raw mut attrs);
+            available = hl_ns_get_attrs(ns_id, final_id, &raw mut optional, &mut attrs);
         }
 
         if (HLF_PNI..=HLF_PST).contains(&idx) {
@@ -894,8 +894,8 @@ pub fn hl_get_font(index: i32) -> *const c_char {
     }
 }
 
-pub fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
-    unsafe {
+pub fn hl_get_term_attr(aep: &mut HlAttrs) -> c_int {
+    {
         get_attr_entry(HlEntry {
             attr: *aep,
             kind: kHlTerminal,

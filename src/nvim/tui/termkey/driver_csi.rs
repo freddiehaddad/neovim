@@ -496,8 +496,8 @@ pub fn termkey_interpret_mouse(
     key: &TermKeyKey,
     event: *mut TermKeyMouseEvent,
     button: *mut c_int,
-    line: *mut c_int,
-    col: *mut c_int,
+    line: &mut c_int,
+    col: &mut c_int,
 ) -> TermKeyResult {
     unsafe {
         if key.r#type != TERMKEY_TYPE_MOUSE {
@@ -687,7 +687,7 @@ pub fn termkey_interpret_modereport(
 fn parse_csi(
     tk: &TermKey,
     introlen: usize,
-    csi_len: *mut usize,
+    csi_len: &mut usize,
     params: &mut [TermKeyCsiParam; 16],
     nargs: *mut usize,
     commandp: *mut c_uint,

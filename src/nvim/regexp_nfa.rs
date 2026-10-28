@@ -2377,20 +2377,20 @@ fn nfa_postprocess(prog: &mut nfa_regprog_T) {
 }
 
 #[inline]
-fn copy_pim(to: *mut nfa_pim_T, from: *mut nfa_pim_T) {
+fn copy_pim(to: &mut nfa_pim_T, from: *mut nfa_pim_T) {
     unsafe {
-        (*to).result = (*from).result;
-        (*to).state = (*from).state;
-        copy_sub(&mut (*to).subs.norm, &mut (*from).subs.norm);
+        to.result = (*from).result;
+        to.state = (*from).state;
+        copy_sub(&mut to.subs.norm, &mut (*from).subs.norm);
         if re_st().rex.nfa_has_zsubexpr != 0 {
-            copy_sub(&mut (*to).subs.synt, &mut (*from).subs.synt);
+            copy_sub(&mut to.subs.synt, &mut (*from).subs.synt);
         }
-        (*to).end = (*from).end;
+        to.end = (*from).end;
     }
 }
 
-fn clear_sub(sub: *mut regsub_T) {
-    unsafe {
+fn clear_sub(sub: &mut regsub_T) {
+    {
         let sub = &mut *sub;
         let n = re_st().rex.nfa_nsubexpr as usize;
         if REG_MULTI() {
@@ -2771,7 +2771,7 @@ fn addstate_idx(
                 if pim.is_null() {
                     thread.pim.result = NFA_PIM_UNUSED;
                 } else {
-                    copy_pim(&raw mut thread.pim, pim);
+                    copy_pim(&mut thread.pim, pim);
                     (*l).has_pim = 1;
                 }
                 copy_sub(&mut thread.subs.norm, &mut (*subs).norm);
@@ -4468,7 +4468,7 @@ fn nfa_regmatch(
 
                     if pim == &raw mut (*t).pim {
                         pim_copy = nfa_pim_T::new();
-                        copy_pim(&raw mut pim_copy, pim);
+                        copy_pim(&mut pim_copy, pim);
                         pim = &raw mut pim_copy;
                     }
 
@@ -4671,10 +4671,10 @@ fn nfa_regtry(
         nfa_st().nfa_timed_out = timed_out;
         nfa_st().nfa_time_count = 0;
 
-        clear_sub(&raw mut subs.norm);
-        clear_sub(&raw mut m.norm);
-        clear_sub(&raw mut subs.synt);
-        clear_sub(&raw mut m.synt);
+        clear_sub(&mut subs.norm);
+        clear_sub(&mut m.norm);
+        clear_sub(&mut subs.synt);
+        clear_sub(&mut m.synt);
 
         let result = nfa_regmatch(&raw mut *prog, start, &raw mut subs, &raw mut m);
         if result == 0 {

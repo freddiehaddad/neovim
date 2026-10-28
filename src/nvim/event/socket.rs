@@ -191,7 +191,7 @@ pub fn socket_watcher_init(
             let mut port_scan = port;
             let mut iport: i64 = 0;
 
-            let ok = try_getdigits(&raw mut port_scan, &raw mut iport);
+            let ok = try_getdigits(&raw mut port_scan, &mut iport);
             if !ok || iport < 0 || iport > i64::from(u16::MAX) {
                 logmsg!(
                     LOGLVL_ERR,
@@ -304,7 +304,7 @@ pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_in
                 if result == 0 {
                     let mut sas = SockaddrStorage { bytes: [0; 128] };
                     let mut sas_len = size_of::<SockaddrStorage>() as c_int;
-                    uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &raw mut sas_len);
+                    uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
                     let len = std::ffi::CStr::from_ptr(addr).to_bytes().len();
                     vim_snprintf!(

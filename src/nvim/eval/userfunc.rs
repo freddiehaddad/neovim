@@ -680,7 +680,7 @@ pub fn get_lambda_tv(
 /// Return name of the function corresponding to `name`.
 pub fn deref_func_name(
     name: *const c_char,
-    lenp: *mut c_int,
+    lenp: &mut c_int,
     partialp: *mut *mut partial_T,
     no_autoload: bool,
     found_var: *mut bool,
@@ -1569,7 +1569,7 @@ pub fn call_user_func(
             func_clear_free(fp, false);
         }
         if did_save_redo {
-            restore_redobuff(&raw mut save_redo);
+            restore_redobuff(&mut save_redo);
         }
         restore_search_patterns();
     }
@@ -2291,7 +2291,7 @@ pub fn trans_function_name(
             len = exp_name.as_bytes().len() as c_int;
             name = deref_func_name(
                 exp_ptr,
-                &raw mut len,
+                &mut len,
                 partial,
                 (flags & TFN_NO_AUTOLOAD) != 0,
                 ptr::null_mut(),
@@ -2303,7 +2303,7 @@ pub fn trans_function_name(
             len = end.offset_from(*pp) as c_int;
             name = deref_func_name(
                 *pp,
-                &raw mut len,
+                &mut len,
                 partial,
                 (flags & TFN_NO_AUTOLOAD) != 0,
                 ptr::null_mut(),
@@ -3577,8 +3577,8 @@ fn ex_call_inner(
     name: *mut c_char,
     arg: *mut *mut c_char,
     startarg: *mut c_char,
-    funcexe_init: *const funcexe_T,
-    evalarg: *mut evalarg_T,
+    funcexe_init: &funcexe_T,
+    evalarg: &mut evalarg_T,
 ) -> bool {
     unsafe {
         let mut failed = false;
@@ -3633,7 +3633,7 @@ fn ex_defer_inner(
     name: *mut c_char,
     arg: *mut *mut c_char,
     partial: *const partial_T,
-    evalarg: *mut evalarg_T,
+    evalarg: &mut evalarg_T,
 ) -> c_int {
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
@@ -3841,7 +3841,7 @@ pub fn ex_call(eap: &mut exarg_T) {
         let mut found_var = false;
         let name = deref_func_name(
             tofree,
-            &raw mut len,
+            &mut len,
             if !partial.is_null() {
                 ptr::null_mut()
             } else {
@@ -3861,7 +3861,7 @@ pub fn ex_call(eap: &mut exarg_T) {
 
         let failed = if eap.cmdidx == cmdidx_T::CMD_defer as c_int {
             arg = startarg;
-            ex_defer_inner(name, &raw mut arg, partial, &raw mut evalarg) == FAIL
+            ex_defer_inner(name, &raw mut arg, partial, &mut evalarg) == FAIL
         } else {
             let mut funcexe = funcexe_T::new();
             funcexe.fe_partial = partial;
@@ -3875,8 +3875,8 @@ pub fn ex_call(eap: &mut exarg_T) {
                 name,
                 &raw mut arg,
                 startarg,
-                &raw const funcexe,
-                &raw mut evalarg,
+                &funcexe,
+                &mut evalarg,
             )
         };
 

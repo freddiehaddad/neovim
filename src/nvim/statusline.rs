@@ -366,7 +366,7 @@ pub fn win_redr_status(wp: &mut win_T) {
         let mut group: hlf_T = HLF_C;
         if wp.w_vsep_width != 0 && wp.w_status_height != 0 && redrawing() {
             let fillchar = if stl_connected(wp) {
-                fillchar_status(&raw mut group, &raw mut *wp)
+                fillchar_status(&mut group, &raw mut *wp)
             } else {
                 wp.w_p_fcs_chars.vert
             };
@@ -632,7 +632,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
                 col = (*wp).w_wincol;
                 maxwidth = (*wp).w_width;
             }
-            fillchar = fillchar_status(&raw mut group, wp);
+            fillchar = fillchar_status(&mut group, wp);
             attr = win_hl_attr(wp, group);
             stl_clear_click_defs(&mut (*wp).w_status_click_defs);
             click_defs = stl_alloc_click_defs(&mut (*wp).w_status_click_defs, maxwidth);
@@ -832,7 +832,7 @@ pub fn redraw_ruler() {
 }
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
-pub fn fillchar_status(group: *mut hlf_T, wp: *mut win_T) -> schar_T {
+pub fn fillchar_status(group: &mut hlf_T, wp: *mut win_T) -> schar_T {
     unsafe {
         if wp == *curwin.as_ptr() {
             *group = HLF_S;

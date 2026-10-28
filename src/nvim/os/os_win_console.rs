@@ -158,7 +158,7 @@ unsafe extern "system" {
     pub fn TerminateProcess(hProcess: HANDLE, uExitCode: u32) -> BOOL;
     pub fn DebugBreakProcess(Process: *mut c_void) -> c_int;
     pub fn ExitThread(dwExitCode: u32) -> !;
-    pub fn GetVersionExA(lpVersionInformation: *mut OsVersionInfoA) -> c_int;
+    pub fn GetVersionExA(lpVersionInformation: &mut OsVersionInfoA) -> c_int;
 }
 
 #[cfg(windows)]

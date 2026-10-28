@@ -888,7 +888,7 @@ pub fn skip_to_newline(p: *const c_char) -> *mut c_char {
     unsafe { { let _s = p; let _b = std::ffi::CStr::from_ptr(_s).to_bytes(); let _off = _b.iter().position(|&_x| _x == (NL) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() } }
 }
 
-pub fn try_getdigits(pp: *mut *mut c_char, nr: *mut i64) -> bool {
+pub fn try_getdigits(pp: *mut *mut c_char, nr: &mut i64) -> bool {
     unsafe {
         let orig = *pp;
         let mut p = orig.cast::<u8>();
@@ -979,7 +979,7 @@ pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
 
 pub fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
     let mut number: i64 = 0;
-        let ok = try_getdigits(pp, &raw mut number);
+        let ok = try_getdigits(pp, &mut number);
         if strict && !ok {
             std::process::abort();
         }

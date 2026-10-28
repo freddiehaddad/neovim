@@ -1749,7 +1749,7 @@ fn get_col(argvars: *mut typval_T, rettv: &mut typval_T, charcol: bool) {
         let bp = (*wp).w_buffer;
         let mut col: colnr_T = 0;
         let mut fnum = (*bp).b_fnum;
-        let fp = var2fpos(&*argvars, false, &raw mut fnum, charcol, &mut *wp);
+        let fp = var2fpos(&*argvars, false, &mut fnum, charcol, &mut *wp);
         if !fp.is_null() && fnum == (*bp).b_fnum {
             if (*fp).col == MAXCOL {
                 if (*fp).lnum <= (*bp).b_ml.ml_line_count {
@@ -2385,7 +2385,7 @@ pub fn f_expand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let result = eval_vars(
                 s.cast_mut(),
                 s,
-                &raw mut len,
+                &mut len,
                 ptr::null_mut(),
                 &mut errormsg,
                 ptr::null_mut(),
@@ -3083,7 +3083,7 @@ fn getpos_both(
                 fp = &raw mut pos;
             }
         } else {
-            fp = var2fpos(&*argvars, true, &raw mut fnum, charcol, &mut **curwin.as_ptr());
+            fp = var2fpos(&*argvars, true, &mut fnum, charcol, &mut **curwin.as_ptr());
         }
 
         let l = tv_list_alloc_ret(&mut *rettv, 4 + isize::from(getcurpos));
@@ -5337,11 +5337,11 @@ pub fn f_line(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                     g_st().skip_update_topline = true;
                 }
                 check_cursor(wp);
-                fp = var2fpos(&*argvars, true, &raw mut fnum, false, &mut *wp);
+                fp = var2fpos(&*argvars, true, &mut fnum, false, &mut *wp);
                 g_st().skip_update_topline = false;
             }
         } else {
-            fp = var2fpos(&*argvars, true, &raw mut fnum, false, &mut **curwin.as_ptr());
+            fp = var2fpos(&*argvars, true, &mut fnum, false, &mut **curwin.as_ptr());
         }
 
         if !fp.is_null() {
@@ -6628,8 +6628,8 @@ pub fn f_reg_recorded(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     return_register(g_st().reg_recorded, rettv);
 }
 
-fn list2proftime(arg: &mut typval_T, tm: *mut proftime_T) -> c_int {
-    unsafe {
+fn list2proftime(arg: &mut typval_T, tm: &mut proftime_T) -> c_int {
+    {
         if arg.v_type != VarType::VAR_LIST || tv_list_len(arg.vval.v_list()) != 2 {
             return FAIL;
         }
@@ -6657,13 +6657,13 @@ pub fn f_reltime(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
             res = profile_start();
         } else if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
-            if list2proftime(&mut *argvars, &raw mut res) == FAIL {
+            if list2proftime(&mut *argvars, &mut res) == FAIL {
                 return;
             }
             res = profile_end(res);
         } else {
-            if list2proftime(&mut *argvars, &raw mut start) == FAIL
-                || list2proftime(&mut *argvars.add(1), &raw mut res) == FAIL
+            if list2proftime(&mut *argvars, &mut start) == FAIL
+                || list2proftime(&mut *argvars.add(1), &mut res) == FAIL
             {
                 return;
             }
@@ -6687,7 +6687,7 @@ pub fn f_reltimestr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         let mut tm: proftime_T = 0;
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        if list2proftime(&mut *argvars, &raw mut tm) == OK {
+        if list2proftime(&mut *argvars, &mut tm) == OK {
             crate::eval::typval::tv_set_string(rettv, profile_msg(tm));
         }
     }
@@ -8499,7 +8499,7 @@ pub fn f_reltimefloat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let mut tm: proftime_T = 0;
         rettv.v_type = VarType::VAR_FLOAT;
         rettv.vval = crate::eval::typval::TypvalVval::Float(0.0);
-        if list2proftime(&mut *argvars, &raw mut tm) == OK {
+        if list2proftime(&mut *argvars, &mut tm) == OK {
             rettv.vval = crate::eval::typval::TypvalVval::Float((profile_signed(tm) as float_T) / (NS_PER_SEC as float_T));
         }
     }
@@ -9417,7 +9417,7 @@ pub fn f_virtcol(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
             let bp = (*wp).w_buffer;
             let mut fnum = (*bp).b_fnum;
-            let fp = var2fpos(&*argvars, false, &raw mut fnum, false, &mut *wp);
+            let fp = var2fpos(&*argvars, false, &mut fnum, false, &mut *wp);
             if !fp.is_null() && (*fp).lnum <= (*bp).b_ml.ml_line_count && fnum == (*bp).b_fnum {
                 if (*fp).col < 0 {
                     (*fp).col = 0;

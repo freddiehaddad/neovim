@@ -1620,7 +1620,7 @@ pub fn pum_set_event_info(dict: *mut dict_T) {
         let mut h: f64 = 0.0;
         let mut r: f64 = 0.0;
         let mut c: f64 = 0.0;
-        if !ui_pum_get_pos(&raw mut w, &raw mut h, &raw mut r, &raw mut c) {
+        if !ui_pum_get_pos(&mut w, &mut h, &mut r, &mut c) {
             w = f64::from(pum().width);
             h = f64::from(pum().height);
             r = f64::from(pum().row);

@@ -371,7 +371,7 @@ fn buf_write_do_autocmds(
     sfnamep: *mut *mut c_char,
     ffnamep: *mut *mut c_char,
     start: linenr_T,
-    endp: *mut linenr_T,
+    endp: &mut linenr_T,
     eap: *mut exarg_T,
     append: bool,
     filtering: bool,
@@ -775,13 +775,13 @@ fn get_fileinfo(
     overwriting: bool,
     forceit: bool,
     file_info_old: &mut FileInfo,
-    perm: *mut c_int,
-    device: *mut bool,
-    newfile: *mut bool,
-    readonly: *mut bool,
-    err: *mut Error_T,
+    perm: &mut c_int,
+    device: &mut bool,
+    newfile: &mut bool,
+    readonly: &mut bool,
+    err: &mut Error_T,
 ) -> c_int {
-    unsafe {
+    {
         if get_fileinfo_os(
             fname,
             file_info_old,
@@ -1202,7 +1202,7 @@ pub fn buf_write(
             &raw mut sfname,
             &raw mut ffname,
             start,
-            &raw mut end,
+            &mut end,
             eap,
             append,
             filtering,
@@ -1285,10 +1285,10 @@ pub fn buf_write(
                     overwriting,
                     forceit,
                     &mut file_info_old,
-                    &raw mut perm,
-                    &raw mut device,
-                    &raw mut newfile,
-                    &raw mut file_readonly,
+                    &mut perm,
+                    &mut device,
+                    &mut newfile,
+                    &mut file_readonly,
                     &mut err,
                 ) == FAIL
                 {

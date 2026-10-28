@@ -115,7 +115,7 @@ pub(crate) fn win_charsize(
     vcol: colnr_T,
     ptr_val: *const c_char,
     chr: i32,
-    csarg: *mut CharsizeArg,
+    csarg: &mut CharsizeArg,
     mb_width: c_int,
 ) -> CharSize {
     if cstype == kCharsizeFast {
@@ -1086,7 +1086,7 @@ pub fn win_text_height(
     start_lnum: linenr_T,
     start_vcol: i64,
     end_lnum: &mut linenr_T,
-    end_vcol: *mut i64,
+    end_vcol: &mut i64,
     fill: *mut i64,
     max: i64,
 ) -> i64 {

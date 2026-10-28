@@ -694,7 +694,7 @@ fn do_incsearch_highlighting(
 }
 
 /// May do `'incsearch'` highlighting if desired.
-fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_state_T) {
+fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_state_T) {
     unsafe {
         let mut skiplen: c_int = 0;
         let mut patlen: c_int = 0;
@@ -721,10 +721,10 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
         // if there is a character waiting, search and redraw later
         if char_avail() {
             restore_last_search_pattern();
-            (*s).incsearch_postponed = true;
+            s.incsearch_postponed = true;
             return;
         }
-        (*s).incsearch_postponed = false;
+        s.incsearch_postponed = false;
 
         // Use the previous pattern for ":s//".
         let mut next_char = *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize);
@@ -738,7 +738,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
 
         if g_st().Search.first_line == 0 {
             // start at the original cursor position
-            (**curwin.as_ptr()).w_cursor = (*s).search_start;
+            (**curwin.as_ptr()).w_cursor = s.search_start;
         } else if g_st().Search.first_line > (*g_st().curbuf).b_ml.ml_line_count {
             // start after the last line
             (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
@@ -791,7 +791,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
             {
                 // match outside of address range
                 found = 0;
-                (**curwin.as_ptr()).w_cursor = (*s).search_start;
+                (**curwin.as_ptr()).w_cursor = s.search_start;
             }
 
             // if interrupted while searching, behave like it failed
@@ -801,7 +801,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
                 found = 0;
             } else if char_avail() {
                 // cancelled searching because a char was typed
-                (*s).incsearch_postponed = true;
+                s.incsearch_postponed = true;
             }
             ui_busy_stop();
         } else {
@@ -813,18 +813,18 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
 
         // first restore the old curwin values, so the screen is
         // positioned in the same way as the actual search command
-        restore_viewstate(&mut **curwin.as_ptr(), &(*s).old_viewstate);
+        restore_viewstate(&mut **curwin.as_ptr(), &s.old_viewstate);
         changed_cline_bef_curs(&mut **curwin.as_ptr());
         update_topline(*curwin.as_ptr());
 
         let mut end_pos = (**curwin.as_ptr()).w_cursor;
         if found != 0 {
-            (*s).match_start = (**curwin.as_ptr()).w_cursor;
+            s.match_start = (**curwin.as_ptr()).w_cursor;
             set_search_match(&mut (**curwin.as_ptr()).w_cursor);
             validate_cursor(*curwin.as_ptr());
-            (*s).match_end = (**curwin.as_ptr()).w_cursor;
+            s.match_end = (**curwin.as_ptr()).w_cursor;
             (**curwin.as_ptr()).w_cursor = end_pos;
-            end_pos = (*s).match_end;
+            end_pos = s.match_end;
         }
 
         // Disable 'hlsearch' highlighting if the pattern matches
@@ -859,7 +859,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
         // Leave it at the end to make CTRL-R CTRL-W work.  But not when beyond the
         // end of the pattern, e.g. for ":s/pat/".
         if *getln_st().ccline.cmdbuff.add((skiplen + patlen) as usize) != NUL {
-            (**curwin.as_ptr()).w_cursor = (*s).search_start;
+            (**curwin.as_ptr()).w_cursor = s.search_start;
         } else if found != 0 {
             (**curwin.as_ptr()).w_cursor = end_pos;
             (**curwin.as_ptr()).w_valid_cursor = end_pos; // mark as valid for cmdline_show redraw
@@ -867,7 +867,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
 
         msg_starthere();
         redrawcmdline();
-        (*s).did_incsearch = true;
+        s.did_incsearch = true;
         // Fire WinScrolled/WinResized last, after all state is finalized: the
         // autocmd may mutate curwin or getln_st().ccline via arbitrary user code.
         may_trigger_win_scrolled_resized();
@@ -877,7 +877,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: *mut incsearch_
 /// When CTRL-L typed: add character from the match to the pattern.
 /// May set `*c` to the added character.
 /// Return `OK` when calling `command_line_not_changed`.
-fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: *mut incsearch_state_T) -> c_int {
+fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_T) -> c_int {
     unsafe {
         let mut skiplen: c_int = 0;
         let mut patlen: c_int = 0;
@@ -902,8 +902,8 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: *mut incsearch_state_
         }
         restore_last_search_pattern();
 
-        if (*s).did_incsearch {
-            (**curwin.as_ptr()).w_cursor = (*s).match_end;
+        if s.did_incsearch {
+            (**curwin.as_ptr()).w_cursor = s.match_end;
             *c = gchar_cursor();
             if *c != NUL as c_int {
                 // If 'ignorecase' and 'smartcase' are set and the
@@ -1132,7 +1132,7 @@ fn command_line_enter(
                 tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
                 tv_dict_set_keys_readonly(&mut *dict);
                 let mut tstate = TryState::new();
-                try_enter(&raw mut tstate);
+                try_enter(&mut tstate);
                 apply_autocmds(
                     EVENT_CMDLINEENTER,
                     firstcbuf.as_mut_ptr(),
@@ -1224,7 +1224,7 @@ fn command_line_enter(
                 );
                 set_vim_var_char((*s).c);
                 let mut tstate = TryState::new();
-                try_enter(&raw mut tstate);
+                try_enter(&mut tstate);
                 apply_autocmds(
                     EVENT_CMDLINELEAVE,
                     firstcbuf.as_mut_ptr(),
@@ -1678,7 +1678,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
                 init_incsearch_state(&raw mut s.is_state);
             }
             if (**curwin.as_ptr()).w_display_tick > display_tick_saved && s.is_state.did_incsearch {
-                may_do_incsearch_highlighting(s.firstc, s.count, &raw mut s.is_state);
+                may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
             }
             if getln_st().ccline.cmdbuff_replaced {
                 command_line_changed(s);
@@ -1938,7 +1938,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
                 init_incsearch_state(&raw mut s.is_state);
             }
             if g_st().KeyTyped || vpeekc() == NUL as c_int {
-                may_do_incsearch_highlighting(s.firstc, s.count, &raw mut s.is_state);
+                may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
             }
             return command_line_not_changed(s);
         }
@@ -1953,7 +1953,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
 fn may_do_command_line_next_incsearch(
     firstc: c_int,
     count: c_int,
-    s: *mut incsearch_state_T,
+    s: &mut incsearch_state_T,
     next_match: bool,
 ) -> c_int {
     unsafe {
@@ -1995,24 +1995,24 @@ fn may_do_command_line_next_incsearch(
 
         parse_search_pattern_offset(
             &raw mut pat,
-            &raw mut patlen_s,
+            &mut patlen_s,
             search_delim,
             SEARCH_OPT,
             &mut strcopy,
             &raw mut searchstr,
-            &raw mut searchstrlen,
+            &mut searchstrlen,
             &raw mut dircp,
-            &raw mut offset,
+            &mut offset,
         );
 
         if next_match {
-            t = (*s).match_end;
-            if lt((*s).match_start, (*s).match_end) {
+            t = s.match_end;
+            if lt(s.match_start, s.match_end) {
                 decl(&mut t);
             }
             search_flags += SEARCH_COL;
         } else {
-            t = (*s).match_start;
+            t = s.match_start;
         }
         if opt_vars().p_hls == 0 {
             search_flags += SEARCH_KEEP;
@@ -2038,59 +2038,59 @@ fn may_do_command_line_next_incsearch(
         }
         ui_busy_stop();
         if found != 0 {
-            let match_start = (*s).match_start;
-            let match_end = (*s).match_end;
+            let match_start = s.match_start;
+            let match_end = s.match_end;
             let mut off = offset.off;
 
-            (*s).search_start = match_start;
+            s.search_start = match_start;
             if !offset.line && (offset.end || off != 0) {
                 if offset.end {
-                    (*s).search_start = match_end;
-                    decl(&mut (*s).search_start);
+                    s.search_start = match_end;
+                    decl(&mut s.search_start);
                 }
                 while off > 0 {
-                    if incl(&mut (*s).search_start) == -1 {
+                    if incl(&mut s.search_start) == -1 {
                         break;
                     }
                     off -= 1;
                 }
                 while off < 0 {
-                    if decl(&mut (*s).search_start) == -1 {
+                    if decl(&mut s.search_start) == -1 {
                         break;
                     }
                     off += 1;
                 }
             }
-            (*s).match_end = t;
-            (*s).match_start = t;
+            s.match_end = t;
+            s.match_start = t;
             if !next_match && firstc != b'?' as c_int {
-                (*s).search_start = t;
-                decl(&mut (*s).search_start);
+                s.search_start = t;
+                decl(&mut s.search_start);
             } else if next_match && firstc == b'?' as c_int {
-                (*s).search_start = t;
-                incl(&mut (*s).search_start);
+                s.search_start = t;
+                incl(&mut s.search_start);
             }
-            if lt(t, (*s).search_start) && next_match {
-                (*s).search_start = t;
+            if lt(t, s.search_start) && next_match {
+                s.search_start = t;
                 if firstc == b'?' as c_int {
-                    incl(&mut (*s).search_start);
+                    incl(&mut s.search_start);
                 } else {
-                    decl(&mut (*s).search_start);
+                    decl(&mut s.search_start);
                 }
             }
 
-            set_search_match(&mut (*s).match_end);
-            (**curwin.as_ptr()).w_cursor = (*s).match_start;
+            set_search_match(&mut s.match_end);
+            (**curwin.as_ptr()).w_cursor = s.match_start;
             changed_cline_bef_curs(&mut **curwin.as_ptr());
             update_topline(*curwin.as_ptr());
             validate_cursor(*curwin.as_ptr());
             g_st().Search.hl_match = true;
-            save_viewstate(&mut **curwin.as_ptr(), &mut (*s).old_viewstate);
+            save_viewstate(&mut **curwin.as_ptr(), &mut s.old_viewstate);
             redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
             update_screen();
             g_st().Search.hl_match = false;
             redrawcmdline();
-            (**curwin.as_ptr()).w_cursor = (*s).match_end;
+            (**curwin.as_ptr()).w_cursor = s.match_end;
         } else {
             vim_beep(kOptBoFlagError);
         }
@@ -2679,7 +2679,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                         if may_add_char_to_search(
                             s.firstc,
                             &mut s.c,
-                            &raw mut s.is_state,
+                            &mut s.is_state,
                         ) == OK
                         {
                             return command_line_not_changed(s);
@@ -2764,7 +2764,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
                         if may_do_command_line_next_incsearch(
                             s.firstc,
                             s.count,
-                            &raw mut s.is_state,
+                            &mut s.is_state,
                             s.c == Ctrl_G,
                         ) == FAIL
                         {
@@ -2993,7 +2993,7 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
         let mut err = error_init();
 
         let mut tstate = TryState::new();
-        try_enter(&raw mut tstate);
+        try_enter(&mut tstate);
         let result = do_buffer(
             DOBUF_GOTO,
             DOBUF_FIRST,
@@ -3197,7 +3197,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
 
         let mut err = error_init();
         let mut tstate = TryState::new();
-        try_enter(&raw mut tstate);
+        try_enter(&mut tstate);
         cmdpreview_type = execute_cmd(&mut ea, &mut cmod, true);
         try_leave(&tstate, &mut err);
         if error_set(&err) {
@@ -3249,7 +3249,7 @@ fn do_autocmd_cmdlinechanged(firstc: c_int) {
             tv_dict_add_nr(dict, c"cmdlevel".as_ptr(), 8, getln_st().ccline.level as varnumber_T);
             tv_dict_set_keys_readonly(&mut *dict);
             let mut tstate = TryState::new();
-            try_enter(&raw mut tstate);
+            try_enter(&mut tstate);
             apply_autocmds(
                 EVENT_CMDLINECHANGED,
                 firstcbuf.as_mut_ptr(),
@@ -3289,7 +3289,7 @@ fn command_line_changed(s: &mut CommandLineState) -> c_int {
                 update_screen();
             }
             if s.xpc.xp_context == EXPAND_NOTHING && (g_st().KeyTyped || vpeekc() == NUL as c_int) {
-                may_do_incsearch_highlighting(s.firstc, s.count, &raw mut s.is_state);
+                may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
             }
         }
 
@@ -3762,7 +3762,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     color_cb = colored_ccline.highlight_callback.clone();
                 } else if colored_ccline.cmdfirstc == b':' as c_int {
                     let mut tstate = TryState::new();
-                    try_enter(&raw mut tstate);
+                    try_enter(&mut tstate);
                     err_errmsg = c"E5408: Unable to get g:Nvim_color_cmdline callback: %s".as_ptr();
                     dgc_ret = tv_dict_get_callback(
                         get_globvar_dict(),
@@ -3798,7 +3798,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
 
                 getln_st().getln_interrupted_highlight = false;
                 let mut tstate = TryState::new();
-                try_enter(&raw mut tstate);
+                try_enter(&mut tstate);
                 err_errmsg = c"E5407: Callback has thrown an exception: %s".as_ptr();
                 let saved_msg_col = g_st().msg_col;
                 g_st().msg_silent += 1;

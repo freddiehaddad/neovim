@@ -194,7 +194,7 @@ use crate::os::os_win_console::GetLastError;
 unsafe extern "system" {
     fn GetEnvironmentStringsW() -> *mut u16;
     fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> c_int;
-    fn GetComputerNameW(lpBuffer: *mut u16, nSize: *mut u32) -> c_int;
+    fn GetComputerNameW(lpBuffer: *mut u16, nSize: &mut u32) -> c_int;
 }
 
 #[inline]
@@ -440,7 +440,7 @@ pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
     unsafe {
         let mut host_utf16 = [0u16; 16];
         let mut host_wsize = host_utf16.len() as u32;
-        if GetComputerNameW(host_utf16.as_mut_ptr(), &raw mut host_wsize) == 0 {
+        if GetComputerNameW(host_utf16.as_mut_ptr(), &mut host_wsize) == 0 {
             *hostname = NUL;
             let err = GetLastError();
             semsg!(c"GetComputerNameW failed: %d".as_ptr(), err);
@@ -1074,7 +1074,7 @@ pub fn home_replace(
                 &raw mut usedlen,
                 &raw mut homedir_env_mod,
                 &mut fbuf,
-                &raw mut flen,
+                &mut flen,
                 false,
             );
             flen = std::ffi::CStr::from_ptr(homedir_env_mod).to_bytes().len();

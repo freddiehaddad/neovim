@@ -571,7 +571,7 @@ pub fn func_do_profile(fp: *mut ufunc_T) {
 }
 
 /// Prepare profiling for entering a child (`prof_child_enter`).
-pub fn prof_child_enter(tm: *mut proftime_T) {
+pub fn prof_child_enter(tm: &mut proftime_T) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -582,7 +582,7 @@ pub fn prof_child_enter(tm: *mut proftime_T) {
 }
 
 /// Take care of time spent in a child (`prof_child_exit`).
-pub fn prof_child_exit(tm: *mut proftime_T) {
+pub fn prof_child_exit(tm: &mut proftime_T) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -922,7 +922,7 @@ pub fn script_line_end() {
 }
 
 /// Saves the previous time before doing something that could nest (`time_push`).
-pub fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
+pub fn time_push(rel: &mut proftime_T, start: *mut proftime_T) {
     let now = profile_start();
     unsafe {
         let prev = prof_st().G_PREV_TIME;

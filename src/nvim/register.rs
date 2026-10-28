@@ -1973,7 +1973,7 @@ pub fn do_put(
                             vcol,
                             ci.ptr,
                             ci.chr.value,
-                            &raw mut csarg,
+                            &mut csarg,
                             cli.cells,
                         )
                         .width;
@@ -2014,7 +2014,7 @@ pub fn do_put(
                                 0,
                                 ci.ptr,
                                 ci.chr.value,
-                                &raw mut csarg,
+                                &mut csarg,
                                 cli.cells,
                             )
                             .width;
@@ -2637,7 +2637,7 @@ pub fn ex_display(eap: &mut exarg_T) {
         if (arg.is_null() || !vim_strchr(arg, c_int::from(b'#')).is_null()) && !g_st().got_int {
             let mut fname: *mut c_char = ptr::null_mut();
             let mut dummy: linenr_T = 0;
-            if buflist_name_nr(0, &raw mut fname, &raw mut dummy) != FAIL
+            if buflist_name_nr(0, &raw mut fname, &mut dummy) != FAIL
                 && !message_filtered(fname)
             {
                 msg_puts(c"\n  c  \"#   ".as_ptr());

@@ -956,7 +956,7 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> c_int {
 pub fn eval_expr_option_tv(
     cb: &mut Callback,
     use_sandbox: bool,
-    ret_tv: *mut typval_T,
+    ret_tv: &mut typval_T,
 ) -> bool {
     save_funccal();
         {
@@ -1039,7 +1039,7 @@ pub fn eval_foldtext(wp: *mut win_T) -> Object {
         if !eval_expr_option_tv(
             &mut *(&raw mut (*wp).w_onebuf_opt.wo_fdt).cast(),
             use_sandbox,
-            &raw mut tv,
+            &mut tv,
         ) {
             retval = Object {
                 obj_type: ObjectType::kObjectTypeString,
@@ -1092,7 +1092,7 @@ fn get_lval_dict_item(
     mut key: *mut c_char,
     len: c_int,
     key_end: *mut *mut c_char,
-    var1: *mut typval_T,
+    var1: &mut typval_T,
     flags: c_int,
     unlet: bool,
     rettv: *mut typval_T,
@@ -1187,8 +1187,8 @@ fn get_lval_dict_item(
 
 fn get_lval_blob(
     lp: &mut lval_T,
-    var1: *mut typval_T,
-    var2: *mut typval_T,
+    var1: &mut typval_T,
+    var2: &mut typval_T,
     empty1: bool,
     quiet: bool,
 ) -> c_int {
@@ -1226,8 +1226,8 @@ fn get_lval_blob(
 
 fn get_lval_list(
     lp: &mut lval_T,
-    var1: *mut typval_T,
-    var2: *mut typval_T,
+    var1: &mut typval_T,
+    var2: &mut typval_T,
     empty1: bool,
     _flags: c_int,
     quiet: bool,
@@ -1418,7 +1418,7 @@ fn get_lval_subscript(
                     key,
                     len,
                     &raw mut p,
-                    &raw mut var1,
+                    &mut var1,
                     flags,
                     unlet,
                     rettv,
@@ -1432,13 +1432,13 @@ fn get_lval_subscript(
                     break;
                 }
             } else if (*(*lp).ll_tv).v_type == VarType::VAR_BLOB {
-                if get_lval_blob(&mut *lp, &raw mut var1, &raw mut var2, empty1, quiet) == FAIL {
+                if get_lval_blob(&mut *lp, &mut var1, &mut var2, empty1, quiet) == FAIL {
                     tv_clear(&raw mut var1);
                     tv_clear(&raw mut var2);
                     return ptr::null_mut();
                 }
                 break;
-            } else if get_lval_list(&mut *lp, &raw mut var1, &raw mut var2, empty1, flags, quiet) == FAIL
+            } else if get_lval_list(&mut *lp, &mut var1, &mut var2, empty1, flags, quiet) == FAIL
             {
                 tv_clear(&raw mut var1);
                 tv_clear(&raw mut var2);
@@ -2071,7 +2071,7 @@ fn eval_func(
         let mut partial: *mut partial_T = ptr::null_mut();
         s = deref_func_name(
             s,
-            &raw mut len,
+            &mut len,
             &raw mut partial,
             !evaluate,
             &raw mut found_var,
@@ -2533,10 +2533,10 @@ fn eval4(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T) -
 }
 
 /// Make a copy of blob "tv1" and append blob "tv2".
-fn eval_addblob(tv1: *mut typval_T, tv2: *mut typval_T) {
+fn eval_addblob(tv1: *mut typval_T, tv2: &mut typval_T) {
     unsafe {
         let b1 = (*tv1).vval.v_blob();
-        let b2 = (*tv2).vval.v_blob();
+        let b2 = tv2.vval.v_blob();
         let b = tv_blob_alloc();
 
         let len1 = i64::from(tv_blob_len(b1));
@@ -2560,10 +2560,10 @@ fn eval_addblob(tv1: *mut typval_T, tv2: *mut typval_T) {
 }
 
 /// Make a copy of list "tv1" and append list "tv2".
-fn eval_addlist(tv1: *mut typval_T, tv2: *mut typval_T) -> c_int {
+fn eval_addlist(tv1: *mut typval_T, tv2: &mut typval_T) -> c_int {
     unsafe {
         let mut var3 = tv_initial_value();
-        if tv_list_concat((*tv1).vval.v_list(), (*tv2).vval.v_list(), &mut var3) == FAIL {
+        if tv_list_concat((*tv1).vval.v_list(), tv2.vval.v_list(), &mut var3) == FAIL {
             tv_clear(tv1);
             tv_clear(tv2);
             return FAIL;
@@ -2588,7 +2588,7 @@ pub fn grow_string_tv(tv1: *mut typval_T, s2: *const c_char) -> c_int {
 }
 
 /// Concatenate strings "tv1" and "tv2" and store the result in "tv1".
-fn eval_concat_str(tv1: *mut typval_T, tv2: *mut typval_T) -> c_int {
+fn eval_concat_str(tv1: *mut typval_T, tv2: &mut typval_T) -> c_int {
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
@@ -2612,7 +2612,7 @@ fn eval_concat_str(tv1: *mut typval_T, tv2: *mut typval_T) -> c_int {
 }
 
 /// Add or subtract numbers "tv1" and "tv2" and store the result in "tv1".
-fn eval_addsub_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int) -> c_int {
+fn eval_addsub_number(tv1: *mut typval_T, tv2: &mut typval_T, op: c_int) -> c_int {
     unsafe {
         let mut error = false;
         let mut n1: varnumber_T;
@@ -2630,12 +2630,12 @@ fn eval_addsub_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int) -> c_in
                 tv_clear(tv2);
                 return FAIL;
             }
-            if (*tv2).v_type == VarType::VAR_FLOAT {
+            if tv2.v_type == VarType::VAR_FLOAT {
                 f1 = n1 as float_T;
             }
         }
-        if (*tv2).v_type == VarType::VAR_FLOAT {
-            f2 = (*tv2).vval.v_float();
+        if tv2.v_type == VarType::VAR_FLOAT {
+            f2 = tv2.vval.v_float();
             n2 = 0;
         } else {
             n2 = tv_get_number_chk(tv2, &mut error);
@@ -2650,7 +2650,7 @@ fn eval_addsub_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int) -> c_in
         }
         tv_clear(tv1);
 
-        if (*tv1).v_type == VarType::VAR_FLOAT || (*tv2).v_type == VarType::VAR_FLOAT {
+        if (*tv1).v_type == VarType::VAR_FLOAT || tv2.v_type == VarType::VAR_FLOAT {
             if op == b'+' as c_int {
                 f1 += f2;
             } else {
@@ -2710,22 +2710,22 @@ fn eval5(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T) -
 
             if evaluate {
                 if op == b'.' as c_int {
-                    if eval_concat_str(rettv, &raw mut var2) == FAIL {
+                    if eval_concat_str(rettv, &mut var2) == FAIL {
                         return FAIL;
                     }
                 } else if op == b'+' as c_int
                     && (*rettv).v_type == VarType::VAR_BLOB
                     && var2.v_type == VarType::VAR_BLOB
                 {
-                    eval_addblob(rettv, &raw mut var2);
+                    eval_addblob(rettv, &mut var2);
                 } else if op == b'+' as c_int
                     && (*rettv).v_type == VarType::VAR_LIST
                     && var2.v_type == VarType::VAR_LIST
                 {
-                    if eval_addlist(rettv, &raw mut var2) == FAIL {
+                    if eval_addlist(rettv, &mut var2) == FAIL {
                         return FAIL;
                     }
-                } else if eval_addsub_number(rettv, &raw mut var2, op) == FAIL {
+                } else if eval_addsub_number(rettv, &mut var2, op) == FAIL {
                     return FAIL;
                 }
                 tv_clear(&raw mut var2);
@@ -2736,7 +2736,7 @@ fn eval5(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T) -
 }
 
 /// Multiply or divide or compute the modulo of numbers "tv1" and "tv2".
-fn eval_multdiv_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int) -> c_int {
+fn eval_multdiv_number(tv1: *mut typval_T, tv2: &mut typval_T, op: c_int) -> c_int {
     unsafe {
         let mut n1: varnumber_T;
         let n2: varnumber_T;
@@ -2758,12 +2758,12 @@ fn eval_multdiv_number(tv1: *mut typval_T, tv2: *mut typval_T, op: c_int) -> c_i
             return FAIL;
         }
 
-        if (*tv2).v_type == VarType::VAR_FLOAT {
+        if tv2.v_type == VarType::VAR_FLOAT {
             if !use_float {
                 f1 = n1 as float_T;
                 use_float = true;
             }
-            f2 = (*tv2).vval.v_float();
+            f2 = tv2.vval.v_float();
             n2 = 0;
         } else {
             n2 = tv_get_number_chk(tv2, &mut error);
@@ -2839,7 +2839,7 @@ fn eval6(
                 return FAIL;
             }
 
-            if evaluate && eval_multdiv_number(rettv, &raw mut var2, op) == FAIL {
+            if evaluate && eval_multdiv_number(rettv, &mut var2, op) == FAIL {
                 return FAIL;
             }
         }
@@ -3813,7 +3813,7 @@ fn eval_string(
                     if find_special_key(
                         &raw mut p_const,
                         (arg_end as usize).wrapping_sub(p as usize),
-                        &raw mut modifiers,
+                        &mut modifiers,
                         flags,
                         ptr::null_mut(),
                     ) != 0
@@ -4728,7 +4728,7 @@ pub fn set_ref_in_item(
 }
 
 /// Get the key for #{key: val} into "tv" and advance "arg".
-fn get_literal_key(arg: *mut *mut c_char, tv: *mut typval_T) -> c_int {
+fn get_literal_key(arg: *mut *mut c_char, tv: &mut typval_T) -> c_int {
     unsafe {
         if !ascii_isalnum(**arg) && **arg != b'_' as c_char && **arg != b'-' as c_char {
             return FAIL;
@@ -4776,7 +4776,7 @@ fn eval_dict(
         *arg = skipwhite((*arg).add(1));
         while **arg != b'}' as c_char && **arg != NUL {
             let key_res = if literal {
-                get_literal_key(arg, &raw mut tvkey)
+                get_literal_key(arg, &mut tvkey)
             } else {
                 eval1(arg, &raw mut tvkey, evalarg)
             };
@@ -5093,7 +5093,7 @@ fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: &mut typval_T, retl
         }
 
         if profiling {
-            prof_child_enter(&raw mut wait_time);
+            prof_child_enter(&mut wait_time);
         }
 
         let mut res: Vec<c_char> = Vec::new();
@@ -5109,7 +5109,7 @@ fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: &mut typval_T, retl
         );
 
         if profiling {
-            prof_child_exit(&raw mut wait_time);
+            prof_child_exit(&mut wait_time);
         }
 
         drop(input);
@@ -5731,7 +5731,7 @@ pub fn buf_charidx_to_byteidx(
 pub fn var2fpos(
     tv: &typval_T,
     dollar_lnum: bool,
-    ret_fnum: *mut c_int,
+    ret_fnum: &mut c_int,
     charcol: bool,
     wp: &mut win_T,
 ) -> *mut pos_T {
