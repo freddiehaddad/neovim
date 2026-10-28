@@ -551,7 +551,7 @@ pub fn init_homedir() {
             }
 
             if (var.is_null() || *var == NUL)
-                && os_dirname((&raw mut g_st().os_buf).cast(), MAXPATHL) == OK
+                && os_dirname((&raw mut g_st().os_buf).cast(), MAXPATHL)
             {
                 var = (&raw mut g_st().os_buf).cast();
             }

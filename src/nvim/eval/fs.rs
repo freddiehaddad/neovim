@@ -478,7 +478,7 @@ pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
         // Return the current directory
         let mut cwd = vec![0 as c_char; MAXPATHL];
-        if os_dirname(cwd.as_mut_ptr(), MAXPATHL) != FAIL {
+        if os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
             #[cfg(windows)]
             slash_adjust(cwd.as_mut_ptr());
             crate::eval::typval::tv_set_string(rettv, cwd.as_ptr());
@@ -963,7 +963,7 @@ pub fn f_getcwd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 cur_scope = kCdScopeInvalid;
             }
         }
-        if cur_scope == kCdScopeInvalid && os_dirname(cwd.as_mut_ptr(), MAXPATHL) == FAIL {
+        if cur_scope == kCdScopeInvalid && !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
             from = c"".as_ptr(); // Return empty string on failure.
         }
 

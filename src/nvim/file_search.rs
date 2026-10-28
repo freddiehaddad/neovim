@@ -75,7 +75,8 @@ use crate::api::vim::kCdScopeGlobal;
 use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
 use crate::ex_session::kCdCauseOther;
-use crate::math::{FAIL, OK};
+#[cfg(windows)]
+use crate::math::FAIL;
 
 #[repr(C)]
 pub struct ff_stack_T {
@@ -230,7 +231,7 @@ pub fn vim_findfile_init(
             #[cfg(not(windows))]
             let handled_drive = false;
 
-            if !handled_drive && os_dirname(expand_ptr, MAXPATHL) == FAIL {
+            if !handled_drive && !os_dirname(expand_ptr, MAXPATHL) {
                 return None;
             }
             let expand_len = CStr::from_ptr(expand_ptr).to_bytes().len();
@@ -746,7 +747,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                     }
 
                                     let mut expand_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-                                    if os_dirname(expand_buf.as_mut_ptr(), MAXPATHL) == OK {
+                                    if os_dirname(expand_buf.as_mut_ptr(), MAXPATHL) {
                                         let p = path_shorten_fname(
                                             file_path.data,
                                             expand_buf.as_mut_ptr(),
@@ -1729,7 +1730,7 @@ pub fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> bool {
         xstrlcpy(dir.as_mut_ptr(), fname, MAXPATHL);
         *path_tail_with_sep(dir.as_mut_ptr()) = NUL;
 
-        if os_dirname(name_buff, MAXPATHL) != OK {
+        if !os_dirname(name_buff, MAXPATHL) {
             *name_buff = NUL;
         }
 

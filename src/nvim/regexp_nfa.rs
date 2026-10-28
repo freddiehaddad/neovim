@@ -1553,7 +1553,7 @@ fn nfa_regatom_collection(
     }
 }
 
-fn nfa_regpiece() -> c_int {
+fn nfa_regpiece() -> bool {
     unsafe {
         let mut old_state = parse_state_T::new();
 
@@ -1563,11 +1563,11 @@ fn nfa_regpiece() -> c_int {
 
         let ret = nfa_regatom();
         if ret == FAIL {
-            return FAIL;
+            return false;
         }
         let op = peekchr();
         if re_multi_type(op) == NOT_MULTI {
-            return OK;
+            return true;
         }
 
         nfa_regpiece_multi(op, &mut old_state, my_post_start)
@@ -1579,7 +1579,7 @@ fn nfa_regpiece_multi(
     op: c_int,
     old_state: &mut parse_state_T,
     my_post_start: usize,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut minval: c_int = 0;
         let mut maxval: c_int = 0;
@@ -1593,7 +1593,7 @@ fn nfa_regpiece_multi(
             restore_parse_state(&mut *old_state);
             re_st().curchr = -1;
             if nfa_regatom() == FAIL {
-                return FAIL;
+                return false;
             }
             EMIT(NFA_STAR);
             EMIT(NFA_CONCAT);
@@ -1618,7 +1618,7 @@ fn nfa_regpiece_multi(
             }
             if i == 0 {
                 semsg!(tr(c"E869: (NFA) Unknown operator '\\@%c'".as_ptr()), op2);
-                return FAIL;
+                return false;
             }
             EMIT(i);
             if i == NFA_PREV_ATOM_JUST_BEFORE || i == NFA_PREV_ATOM_JUST_BEFORE_NEG {
@@ -1638,7 +1638,7 @@ fn nfa_regpiece_multi(
                     c"E870: (NFA regexp) Error reading repetition limits".as_ptr()
                 ));
                 g_st().rc_did_emsg = true;
-                return FAIL;
+                return false;
             }
             if minval == 0 && maxval == MAX_LIMIT {
                 if greedy {
@@ -1649,14 +1649,14 @@ fn nfa_regpiece_multi(
             } else if maxval == 0 {
                 (*pv).truncate(my_post_start);
                 EMIT(NFA_EMPTY);
-                return OK;
+                return true;
             } else {
                 if (re_st().nfa_re_flags & RE_AUTO) != 0
                     && (maxval > 500 || maxval > minval + 200)
                     && (maxval != MAX_LIMIT && minval < 200)
                     && !re_st().wants_nfa
                 {
-                    return FAIL;
+                    return false;
                 }
                 (*pv).truncate(my_post_start);
                 save_parse_state(&mut new_state);
@@ -1670,7 +1670,7 @@ fn nfa_regpiece_multi(
                     restore_parse_state(&mut *old_state);
                     let old_post_pos = (*pv).len();
                     if nfa_regatom() == FAIL {
-                        return FAIL;
+                        return false;
                     }
                     if i + 1 > minval {
                         if maxval == MAX_LIMIT {
@@ -1700,10 +1700,10 @@ fn nfa_regpiece_multi(
                 c"E871: (NFA regexp) Can't have a multi follow a multi".as_ptr()
             ));
             g_st().rc_did_emsg = true;
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -1745,7 +1745,7 @@ fn nfa_regconcat() -> bool {
                 skipchr_keepstart();
                 re_st().curchr = -1;
             } else {
-                if nfa_regpiece() == FAIL {
+                if !nfa_regpiece() {
                     return false;
                 }
                 if !first {

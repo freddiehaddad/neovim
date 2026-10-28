@@ -6099,7 +6099,7 @@ fn unload_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
         restore_start_dir(dirname_start);
 }
 
-fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> c_int {
+fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
     let mut bufnum = qfp.qf_fnum;
         if bufnum != 0 && buflist_findnr(bufnum).is_null() {
             bufnum = 0;
@@ -6160,7 +6160,7 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> c_int {
             std::process::abort();
         }
 
-        OK
+        true
 }
 
 fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
@@ -6168,7 +6168,7 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
     mut qf_idx: c_int,
     eidx: c_int,
     list: *mut list_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut qi = qi_arg.map_or(ptr::null_mut(), |p| &raw mut *p);
         if qi.is_null() {
@@ -6177,12 +6177,12 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
                 qi = get_loc_list(wp);
             }
             if qi.is_null() {
-                return FAIL;
+                return false;
             }
         }
 
         if eidx < 0 {
-            return OK;
+            return true;
         }
 
         if qf_idx == INVALID_QFIDX {
@@ -6190,12 +6190,12 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
         }
 
         if qf_idx >= (*qi).qf_listcount {
-            return FAIL;
+            return false;
         }
 
         let qfl = qf_get_list(&mut *qi, qf_idx);
         if qf_list_empty(qfl) {
-            return FAIL;
+            return false;
         }
 
         for (idx, qfp) in qfl.qf_items.iter_mut().enumerate() {
@@ -6207,12 +6207,12 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
                 if eidx == i {
                     return get_qfline_items(qfp, &mut *list);
                 }
-            } else if get_qfline_items(qfp, &mut *list) == FAIL {
-                return FAIL;
+            } else if !get_qfline_items(qfp, &mut *list) {
+                return false;
             }
         }
 
-        OK
+        true
     }
 }
 

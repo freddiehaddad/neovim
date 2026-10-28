@@ -47,7 +47,6 @@ use crate::api::buffer::VIML_INTERNAL_CALL;
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 use crate::keycodes::K_SPECIAL;
-use crate::math::OK;
 pub type CtxStateFlags = c_int;
 pub type CtxLoadFlags = c_int;
 pub type CtxSwitchFlags = c_int;
@@ -652,7 +651,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *m
 
         let mut cwd = [0 as c_char; MAXPATHL];
         if ((cs.cs_flags & kCtxKeepDirs) != 0 || *curwin.as_ptr() != wp)
-            && os_dirname(cwd.as_mut_ptr(), MAXPATHL) == OK
+            && os_dirname(cwd.as_mut_ptr(), MAXPATHL)
         {
             cs.cs_cwd = Some(CStr::from_ptr(cwd.as_ptr()).to_owned());
         }
@@ -663,7 +662,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *m
             let saved_cwd_bytes = cs_cwd.as_bytes().to_vec();
             do_autochdir();
             let mut autocwd = [0 as c_char; MAXPATHL];
-            if os_dirname(autocwd.as_mut_ptr(), MAXPATHL) == OK {
+            if os_dirname(autocwd.as_mut_ptr(), MAXPATHL) {
                 cs.cs_apply_acd =
                     saved_cwd_bytes.as_slice() == CStr::from_ptr(autocwd.as_ptr()).to_bytes();
             }

@@ -2471,7 +2471,7 @@ pub fn did_set_inccommand(_args: &mut optset_T) -> *const c_char {
 
 /// Validate the 'isident', 'iskeyword' or 'isfname' option.
 pub fn validate_isopt(args: &mut optset_T) -> *const c_char {
-    if check_isopt(args.os_newval.data.string().data) == FAIL {
+    if !check_isopt(args.os_newval.data.string().data) {
             e_invarg.as_ptr()
         } else {
             ptr::null()
@@ -2599,7 +2599,7 @@ pub fn validate_matchpairs(args: &mut optset_T) -> *const c_char {
 
 /// Validate the 'mkspellmem' option.
 pub fn validate_mkspellmem(args: &mut optset_T) -> *const c_char {
-    if spell_check_msm(args.os_newval.data.string().data, false) == OK {
+    if spell_check_msm(args.os_newval.data.string().data, false) {
             ptr::null()
         } else {
             e_invarg.as_ptr()

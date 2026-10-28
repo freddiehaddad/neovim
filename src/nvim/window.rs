@@ -6116,7 +6116,7 @@ pub fn update_cwd(cause: CdCause) {
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
-        if os_dirname(cwd.as_mut_ptr(), MAXPATHL) != OK {
+        if !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
             cwd[0] = NUL;
         }
 

@@ -465,7 +465,7 @@ fn put_view(
         if (*flagp & kOptSsopFlagFolds) != 0
             && !(*(*wp).w_buffer).b_ffname.is_null()
             && (bt_normal((*wp).w_buffer) || bt_help((*wp).w_buffer))
-            && put_folds(fd, wp) == FAIL
+            && !put_folds(fd, wp)
         {
             return false;
         }
@@ -1137,7 +1137,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                     let mut dirnow_vec: Vec<c_char> = vec![0; MAXPATHL];
                     let dirnow = dirnow_vec.as_mut_ptr();
 
-                    if os_dirname(dirnow, MAXPATHL) == FAIL || os_chdir(dirnow) != 0 {
+                    if !os_dirname(dirnow, MAXPATHL) || os_chdir(dirnow) != 0 {
                         *dirnow = NUL;
                     }
                     if *dirnow != NUL && (opt_vars().ssop_flags & kOptSsopFlagSesdir) != 0 {

@@ -2519,7 +2519,7 @@ fn eval_addblob(tv1: &mut typval_T, tv2: &mut typval_T) {
 fn eval_addlist(tv1: &mut typval_T, tv2: &mut typval_T) -> bool {
      {
         let mut var3 = tv_initial_value();
-        if tv_list_concat(tv1.vval.v_list(), tv2.vval.v_list(), &mut var3) == FAIL {
+        if !tv_list_concat(tv1.vval.v_list(), tv2.vval.v_list(), &mut var3) {
             tv_clear(tv1);
             tv_clear(tv2);
             return false;

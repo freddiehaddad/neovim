@@ -2915,7 +2915,7 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
             (*win_s(&mut **curwin.as_ptr())).b_syn_chartab = (*g_st().curbuf).b_chartab;
             (*win_s(&mut **curwin.as_ptr())).b_syn_isk = None;
         } else {
-            if check_isopt(arg) == FAIL {
+            if !check_isopt(arg) {
                 emsg(gettext((&raw const e_invarg).cast()));
                 return;
             }

@@ -504,15 +504,15 @@ pub fn os_chdir(path: *const c_char) -> c_int {
 }
 
 /// Get the name of current directory.
-pub fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
+pub fn os_dirname(buf: *mut c_char, mut len: usize) -> bool {
     unsafe {
         let error_number = uv_cwd(buf, &mut len);
         if error_number != 0 {
             xstrlcpy(buf, uv_strerror(error_number), len);
-            return FAIL;
+            return false;
         }
         to_slash(buf);
-        OK
+        true
     }
 }
 
@@ -1903,11 +1903,11 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             let mut cwd = [0 as c_char; MAXPATHL];
-            assert_eq!(os_dirname(cwd.as_mut_ptr(), MAXPATHL), OK);
+            assert!(os_dirname(cwd.as_mut_ptr(), MAXPATHL));
             let cwd_len = CStr::from_ptr(cwd.as_ptr()).to_bytes().len();
             assert!(cwd_len > 0);
             let mut tiny = [0 as c_char; 4];
-            assert_eq!(os_dirname(tiny.as_mut_ptr(), cwd_len.min(3)), FAIL);
+            assert!(!os_dirname(tiny.as_mut_ptr(), cwd_len.min(3)));
 
             // os_chdir("~") fails and leaves cwd unchanged
             assert!(!os_isdir(c"~".as_ptr()));
@@ -1952,7 +1952,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             let mut cwd_buf = [0 as c_char; MAXPATHL];
-            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
             let cwd = CStr::from_ptr(cwd_buf.as_ptr()).to_str().unwrap();
             let base = format!("{cwd}/target/ut_fs_{}", std::process::id());
             let _ = std::fs::remove_dir_all(&base);

@@ -2016,7 +2016,7 @@ pub fn path_try_shorten_fname(full_path: *mut c_char) -> *mut c_char {
         let mut dirname = [0 as c_char; MAXPATHL];
         let mut p = full_path;
 
-        if os_dirname(dirname.as_mut_ptr(), MAXPATHL) == OK {
+        if os_dirname(dirname.as_mut_ptr(), MAXPATHL) {
             p = path_shorten_fname(full_path, dirname.as_mut_ptr());
             if p.is_null() || *p == NUL {
                 p = full_path;
@@ -2146,31 +2146,31 @@ pub fn match_suffix(fname: *mut c_char) -> bool {
     }
 }
 
-pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usize) -> c_int {
+pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usize) -> bool {
     unsafe {
         if *directory == NUL {
             return os_dirname(buffer, len);
         }
 
         if !os_realpath(directory, buffer, len).is_null() {
-            return OK;
+            return true;
         }
 
         if path_is_absolute(directory) {
-            return FAIL;
+            return false;
         }
 
         let mut old_dir = [0 as c_char; MAXPATHL];
-        if os_dirname(old_dir.as_mut_ptr(), MAXPATHL) == FAIL {
-            return FAIL;
+        if !os_dirname(old_dir.as_mut_ptr(), MAXPATHL) {
+            return false;
         }
 
         xstrlcpy(buffer, old_dir.as_ptr(), len);
         if append_path(buffer, directory, len) == FAIL {
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -2273,7 +2273,7 @@ fn path_to_absolute(
                 *relative_directory = NUL;
             }
 
-            if path_full_dir_name(relative_directory, buf, len) == FAIL {
+            if !path_full_dir_name(relative_directory, buf, len) {
                 return FAIL;
             }
         }
@@ -2308,7 +2308,7 @@ pub fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize: usize
             xstrlcpy(buf, argv0, bufsize);
         } else if let Some(ref path_cstr) = path_cstr {
             if *argv0 == b'.' as c_char || argv0_bytes.contains(&(PATHSEP as u8)) {
-                if os_dirname(buf, MAXPATHL) != OK {
+                if !os_dirname(buf, MAXPATHL) {
                     *buf = NUL;
                 }
                 { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), PATHSEPSTR.as_ptr().cast::<c_char>(), _dsize - _dlen); };
@@ -2504,7 +2504,7 @@ mod tests {
 
             assert!(path_try_shorten_fname(ptr::null_mut()).is_null());
             let mut cwd_buf = [0 as c_char; MAXPATHL];
-            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
             let cwd_str = CStr::from_ptr(cwd_buf.as_ptr()).to_str().unwrap();
             let mut in_cwd = CString::new(format!("{cwd_str}/subdir/file.txt"))
                 .unwrap()
@@ -2594,7 +2594,7 @@ mod tests {
             init_progpath();
 
             let mut cwd_buf = [0 as c_char; MAXPATHL];
-            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
             let cwd = CStr::from_ptr(cwd_buf.as_ptr())
                 .to_str()
                 .unwrap()
@@ -2651,30 +2651,21 @@ mod tests {
             // path_full_dir_name
             let mut out = [0 as c_char; MAXPATHL];
             let mut empty = *b"\0";
-            assert_eq!(
-                path_full_dir_name(empty.as_mut_ptr().cast(), out.as_mut_ptr(), MAXPATHL),
-                OK
-            );
+            assert!(path_full_dir_name(empty.as_mut_ptr().cast(), out.as_mut_ptr(), MAXPATHL));
             assert_eq!(CStr::from_ptr(out.as_ptr()).to_str().unwrap(), cwd);
 
             let mut rel_c = CString::new(rel_dir.clone()).unwrap().into_bytes_with_nul();
-            assert_eq!(
-                path_full_dir_name(rel_c.as_mut_ptr().cast(), out.as_mut_ptr(), MAXPATHL),
-                OK
-            );
+            assert!(path_full_dir_name(rel_c.as_mut_ptr().cast(), out.as_mut_ptr(), MAXPATHL));
             assert_eq!(CStr::from_ptr(out.as_ptr()).to_str().unwrap(), abs_dir);
 
             let mut non_exist_abs = CString::new(format!("{abs_dir}/does_not_exist"))
                 .unwrap()
                 .into_bytes_with_nul();
-            assert_eq!(
-                path_full_dir_name(
+            assert!(!path_full_dir_name(
                     non_exist_abs.as_mut_ptr().cast(),
                     out.as_mut_ptr(),
                     MAXPATHL
-                ),
-                FAIL
-            );
+                ));
 
             // vim_FullName
             assert_eq!(vim_FullName(ptr::null(), out.as_mut_ptr(), 10, true), FAIL);

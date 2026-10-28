@@ -98,13 +98,13 @@ pub fn xpopcount(x: u64) -> c_uint {
 
 /// Append a decimal digit (`0..=9`) to `*value`, returning `FAIL` on `c_int` overflow
 /// (`vim_append_digit_int`).
-pub fn vim_append_digit_int(value: &mut c_int, digit: c_int) -> c_int {
+pub fn vim_append_digit_int(value: &mut c_int, digit: c_int) -> bool {
     let x = *value;
     if x > (c_int::MAX - digit) / 10 {
-        return FAIL;
+        return false;
     }
     *value = x * 10 + digit;
-    OK
+    true
 }
 
 /// Clamp a 64-bit signed integer into the range of `c_int` (`trim_to_int`).
@@ -155,10 +155,10 @@ mod tests {
     fn append_digit_and_trim() {
         let mut v: c_int = 0;
         for &d in &[2, 1, 4, 7, 4, 8, 3, 6, 4, 7] {
-            assert_eq!(vim_append_digit_int(&mut v, d), OK);
+            assert!(vim_append_digit_int(&mut v, d));
         }
         assert_eq!(v, c_int::MAX);
-        assert_eq!(vim_append_digit_int(&mut v, 0), FAIL);
+        assert!(!vim_append_digit_int(&mut v, 0));
         assert_eq!(v, c_int::MAX);
 
         assert_eq!(trim_to_int(0), 0);

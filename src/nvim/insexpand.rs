@@ -6057,7 +6057,7 @@ fn get_normal_compl_info(
     }
 }
 
-fn get_wholeline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int {
+fn get_wholeline_compl_info(line: *mut c_char, curs_col: colnr_T) -> bool {
     unsafe {
         insexp().compl_col = getwhitecols(line) as colnr_T;
         insexp().compl_length = curs_col - insexp().compl_col;
@@ -6075,7 +6075,7 @@ fn get_wholeline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int {
             set_compl_pattern_bytes(line.add(insexp().compl_col as usize), insexp().compl_length as usize);
         }
 
-        OK
+        true
     }
 }
 
@@ -6083,7 +6083,7 @@ fn get_filename_compl_info(
     line: *mut c_char,
     mut startcol: c_int,
     curs_col: colnr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         if startcol > 0 {
             let mut p = line.add(startcol as usize);
@@ -6122,11 +6122,11 @@ fn get_filename_compl_info(
             EXPAND_FILES,
         ));
 
-        OK
+        true
     }
 }
 
-fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int {
+fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> bool {
     unsafe {
         set_compl_pattern_bytes(line, curs_col as usize);
         set_cmd_context(
@@ -6146,7 +6146,7 @@ fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int {
         }
         insexp().compl_length = curs_col - insexp().compl_col;
 
-        OK
+        true
     }
 }
 
@@ -6287,14 +6287,14 @@ fn compl_get_info(
     startcol: c_int,
     curs_col: colnr_T,
     line_invalid: &mut bool,
-) -> c_int {
+) -> bool {
     {
         if ctrl_x_mode_normal()
             || ctrl_x_mode_register()
             || ((insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0 && !thesaurus_func_complete(insexp().ctrl_x_mode))
         {
             if !get_normal_compl_info(line, startcol, curs_col) {
-                return FAIL;
+                return false;
             }
             *line_invalid = true;
         } else if ctrl_x_mode_line_or_eval() {
@@ -6308,20 +6308,20 @@ fn compl_get_info(
             || thesaurus_func_complete(insexp().ctrl_x_mode)
         {
             if get_userdefined_compl_info(curs_col, ptr::null_mut(), None) != OK {
-                return FAIL;
+                return false;
             }
             *line_invalid = true;
         } else if ctrl_x_mode_spell() {
             if !get_spell_compl_info(startcol, curs_col) {
-                return FAIL;
+                return false;
             }
             *line_invalid = true;
         } else {
             internal_error(c"ins_complete()".as_ptr());
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -6397,7 +6397,7 @@ fn ins_compl_start() -> bool {
         }
 
         let mut line_invalid = false;
-        if compl_get_info(line, startcol, curs_col, &mut line_invalid) == FAIL {
+        if !compl_get_info(line, startcol, curs_col, &mut line_invalid) {
             if ctrl_x_mode_function() || ctrl_x_mode_omni() || thesaurus_func_complete(insexp().ctrl_x_mode)
             {
                 g_st().Ins.did_ai = save_did_ai;

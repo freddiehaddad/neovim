@@ -3641,7 +3641,7 @@ fn nv_z_get_count(cap: &mut cmdarg_T, nchar_arg: &mut c_int) -> bool {
             if nchar == K_DEL || nchar == K_KDEL {
                 n /= 10;
             } else if ascii_isdigit(nchar) {
-                if vim_append_digit_int(&mut n, nchar - b'0' as c_int) == FAIL {
+                if !vim_append_digit_int(&mut n, nchar - b'0' as c_int) {
                     clearopbeep(&mut *cap.oap);
                     break;
                 }

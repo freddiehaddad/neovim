@@ -1312,7 +1312,7 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
             let mut dirbuf: [c_char; MAXPATHL] = [0; MAXPATHL];
             #[cfg(unix)]
             {
-                if crate::os::fs::os_dirname((&raw mut dirbuf).cast(), MAXPATHL) != OK
+                if !crate::os::fs::os_dirname((&raw mut dirbuf).cast(), MAXPATHL)
                     || crate::os::fs::os_chdir((&raw const dirbuf).cast()) != 0
                 {
                     dirbuf[0] = NUL;
@@ -1644,7 +1644,7 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut diffhunk_T, diffstyle: &mut diffstyle_
                 if !ascii_isdigit(line[0]) {
                     continue;
                 }
-                if parse_diff_ed((&raw mut line).cast(), hunk) == FAIL {
+                if !parse_diff_ed((&raw mut line).cast(), hunk) {
                     continue;
                 }
             } else {
@@ -1652,7 +1652,7 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut diffhunk_T, diffstyle: &mut diffstyle_
                 if !(crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]) {
                     continue;
                 }
-                if parse_diff_unified((&raw mut line).cast(), hunk) == FAIL {
+                if !parse_diff_unified((&raw mut line).cast(), hunk) {
                     continue;
                 }
             }
@@ -3718,7 +3718,7 @@ pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
         n.min(dp.df_lnum[u_i] + dp.df_count[u_i])
     }
 }
-fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
+fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
     unsafe {
         let mut p = line;
         let f1 = getdigits_int32(&raw mut p, true, 0);
@@ -3729,7 +3729,7 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
             f1
         };
         if *p != b'a' as c_char && *p != b'c' as c_char && *p != b'd' as c_char {
-            return FAIL;
+            return false;
         }
         let difftype = *p as u8;
         p = p.add(1);
@@ -3741,7 +3741,7 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
             f2
         };
         if l1 < f1 || l2 < f2 {
-            return FAIL;
+            return false;
         }
         if difftype == b'a' {
             hunk.lnum_orig = f1 + 1;
@@ -3757,10 +3757,10 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
             hunk.lnum_new = f2;
             hunk.count_new = l2 - f2 + 1;
         }
-        OK
+        true
     }
 }
-fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
+fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
     unsafe {
         let mut p = line;
         if *p == b'@' as c_char
@@ -3798,11 +3798,11 @@ fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> c_int {
                 hunk.count_orig = oldcount;
                 hunk.lnum_new = newline;
                 hunk.count_new = newcount;
-                return OK;
+                return true;
             }
-            return FAIL;
+            return false;
         }
-        FAIL
+        false
     }
 }
 pub(crate) fn xdiff_out(
@@ -3913,19 +3913,13 @@ mod tests {
                 count_new: 0,
             };
             let mut ed_line = *b"2,4c5,6\n\0";
-            assert_eq!(
-                parse_diff_ed(ed_line.as_mut_ptr().cast(), &mut hunk),
-                OK
-            );
+            assert!(parse_diff_ed(ed_line.as_mut_ptr().cast(), &mut hunk));
             assert_eq!(hunk.lnum_orig, 2);
             assert_eq!(hunk.count_orig, 3);
             assert_eq!(hunk.lnum_new, 5);
             assert_eq!(hunk.count_new, 2);
             let mut uni_line = *b"@@ -10,3 +12,4 @@\n\0";
-            assert_eq!(
-                parse_diff_unified(uni_line.as_mut_ptr().cast(), &mut hunk),
-                OK
-            );
+            assert!(parse_diff_unified(uni_line.as_mut_ptr().cast(), &mut hunk));
             assert_eq!(hunk.lnum_orig, 10);
             assert_eq!(hunk.count_orig, 3);
             assert_eq!(hunk.lnum_new, 12);

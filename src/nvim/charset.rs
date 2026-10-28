@@ -246,7 +246,7 @@ pub fn buf_init_isk_chartab(buf: &mut buf_T) -> bool {
         if buf.b_p_lisp != 0 {
             set_chartab(buf.b_chartab.as_mut_ptr(), b'-' as c_int);
         }
-        if parse_isopt(buf.b_p_isk, buf.b_chartab.as_mut_ptr()) == FAIL {
+        if !parse_isopt(buf.b_p_isk, buf.b_chartab.as_mut_ptr()) {
             buf.b_chartab = save_chartab;
             return false;
         }
@@ -256,7 +256,7 @@ pub fn buf_init_isk_chartab(buf: &mut buf_T) -> bool {
 pub fn init_isf_chartab() -> c_int {
     let save_chartab = charset_st().isf_chartab;
         charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
-        if parse_isopt(opt_vars().p_isf, (&raw mut charset_st().isf_chartab).cast::<u64>()) == FAIL {
+        if !parse_isopt(opt_vars().p_isf, (&raw mut charset_st().isf_chartab).cast::<u64>()) {
             charset_st().isf_chartab = save_chartab;
             return FAIL;
         }
@@ -266,18 +266,18 @@ pub fn init_isf_chartab() -> c_int {
 pub fn init_isi_chartab() -> c_int {
     let save_chartab = charset_st().isi_chartab;
         charset_st().isi_chartab = [0; 4];
-        if parse_isopt(opt_vars().p_isi, (&raw mut charset_st().isi_chartab).cast::<u64>()) == FAIL {
+        if !parse_isopt(opt_vars().p_isi, (&raw mut charset_st().isi_chartab).cast::<u64>()) {
             charset_st().isi_chartab = save_chartab;
             return FAIL;
         }
         OK
 }
 
-pub fn check_isopt(var: *mut c_char) -> c_int {
+pub fn check_isopt(var: *mut c_char) -> bool {
     parse_isopt(var, ptr::null_mut())
 }
 
-pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c_int {
+pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> bool {
     unsafe {
         let mut p = var;
 
@@ -312,13 +312,13 @@ pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c_int {
                 || c2 >= 256
                 || !(*p == NUL || *p == b',' as c_char)
             {
-                return FAIL;
+                return false;
             }
 
             let trail_comma = *p == b',' as c_char;
             p = skip_to_option_part(p);
             if trail_comma && *p == NUL {
-                return FAIL;
+                return false;
             }
 
             if chartab.is_null() {
@@ -347,7 +347,7 @@ pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c_int {
             }
         }
 
-        OK
+        true
     }
 }
 

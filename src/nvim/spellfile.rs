@@ -1671,36 +1671,36 @@ fn spell_reload_one(fname: *mut c_char, added_word: bool) {
 }
 
 /// Check the 'mkspellmem' option. Return FAIL if it's wrong.
-pub fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
+pub fn spell_check_msm(value: *mut c_char, apply: bool) -> bool {
     unsafe {
         let mut p = value;
 
         if !ascii_isdigit(*p as c_int) {
-            return FAIL;
+            return false;
         }
         let start = (getdigits_int(&raw mut p, true, 0) * 10) / ((SBLOCKSIZE / 102) as c_int);
         if *p != b',' as c_char {
-            return FAIL;
+            return false;
         }
         p = p.add(1);
         if !ascii_isdigit(*p as c_int) {
-            return FAIL;
+            return false;
         }
         let incr = (getdigits_int(&raw mut p, true, 0) * 102) / ((SBLOCKSIZE / 10) as c_int);
         if *p != b',' as c_char {
-            return FAIL;
+            return false;
         }
         p = p.add(1);
         if !ascii_isdigit(*p as c_int) {
-            return FAIL;
+            return false;
         }
         let added = getdigits_int(&raw mut p, true, 0) * 1024;
         if *p != NUL {
-            return FAIL;
+            return false;
         }
 
         if start == 0 || incr == 0 || added == 0 || incr > start {
-            return FAIL;
+            return false;
         }
 
         if apply {
@@ -1708,7 +1708,7 @@ pub fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
             spellfile_st().compress_inc = incr;
             spellfile_st().compress_added = added;
         }
-        OK
+        true
     }
 }
 
@@ -5604,12 +5604,9 @@ mod tests {
             assert_eq!(buf[1] as u8, 255);
 
             let mut msm_valid = *b"460000,2000,500\0";
-            assert_eq!(spell_check_msm(msm_valid.as_mut_ptr().cast(), false), OK);
+            assert!(spell_check_msm(msm_valid.as_mut_ptr().cast(), false));
 
             let mut msm_invalid = *b"0,2000,500\0";
-            assert_eq!(
-                spell_check_msm(msm_invalid.as_mut_ptr().cast(), false),
-                FAIL
-            );
+            assert!(!spell_check_msm(msm_invalid.as_mut_ptr().cast(), false));
     }
 }

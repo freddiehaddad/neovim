@@ -2204,7 +2204,7 @@ fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
                         if !ascii_iswhite(cc) {
                             break;
                         }
-                        if del_char(true) == FAIL {
+                        if !del_char(true) {
                             break;
                         }
                     }
@@ -3069,7 +3069,7 @@ fn ins_del() {
                     g_st().orig_line_count = (*g_st().curbuf).b_ml.ml_line_count;
                 }
             }
-        } else if del_char(false) == FAIL {
+        } else if !del_char(false) {
             vim_beep(kOptBoFlagBackspace);
         }
         g_st().Ins.did_ai = false;

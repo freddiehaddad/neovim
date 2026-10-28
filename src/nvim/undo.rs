@@ -3213,7 +3213,7 @@ mod tests {
             g_st().emsg_skip += 1;
 
             let mut cwd_buf = [0 as c_char; MAXPATHL];
-            assert_eq!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL), OK);
+            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
             let cwd = CStr::from_ptr(cwd_buf.as_ptr()).to_str().unwrap();
             let base = format!("{cwd}/target/ut_undo_{}", std::process::id());
             let _ = std::fs::remove_dir_all(&base);

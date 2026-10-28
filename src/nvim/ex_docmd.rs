@@ -10816,7 +10816,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
-        if os_dirname(cwd.as_mut_ptr(), MAXPATHL) != OK {
+        if !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
             return;
         }
         let cwd_cstr = std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned();
@@ -10863,7 +10863,7 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             new_dir = prev.as_ptr().cast_mut();
         }
 
-        let pdir = if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) == OK {
+        let pdir = if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) {
             Some(std::ffi::CStr::from_ptr((&raw const g_st().NameBuff).cast()).to_owned())
         } else {
             None
@@ -10970,7 +10970,7 @@ pub fn ex_cd(eap: &mut exarg_T) {
 
 fn ex_pwd(_eap: &mut exarg_T) {
     unsafe {
-        if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) == OK {
+        if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) {
             #[cfg(windows)]
             slash_adjust((&raw mut g_st().NameBuff).cast());
             if opt_vars().p_verbose > 0 {

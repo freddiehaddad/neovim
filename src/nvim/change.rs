@@ -68,7 +68,7 @@ use std::ptr;
 use crate::arglist::ML_EMPTY;
 use crate::eval::typval::kCallbackNone;
 use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::regexp::{GRAPHEME_STATE_INIT, MAXCOL};
 
 pub const OPENLINE_DELSPACES: c_int = 0x01;
@@ -849,18 +849,18 @@ pub fn ins_str(s: *mut c_char, slen: usize) {
 }
 
 /// Delete one character under the cursor.
-pub fn del_char(fixpos: bool) -> c_int {
+pub fn del_char(fixpos: bool) -> bool {
     unsafe {
         mb_adjust_cursor();
         if *get_cursor_pos_ptr() == NUL {
-            return FAIL;
+            return false;
         }
         del_chars(1, c_int::from(fixpos))
     }
 }
 
 /// Like `del_bytes()`, but delete characters instead of bytes.
-pub fn del_chars(count: c_int, fixpos: c_int) -> c_int {
+pub fn del_chars(count: c_int, fixpos: c_int) -> bool {
     unsafe {
         let mut bytes: colnr_T = 0;
         let mut p = get_cursor_pos_ptr();
@@ -876,7 +876,7 @@ pub fn del_chars(count: c_int, fixpos: c_int) -> c_int {
 }
 
 /// Delete `count` bytes under the cursor.
-pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> c_int {
+pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> bool {
     unsafe {
         let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut col = (**curwin.as_ptr()).w_cursor.col;
@@ -885,17 +885,17 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
         let oldlen = ml_get_len(lnum);
 
         if col >= oldlen {
-            return FAIL;
+            return false;
         }
         if count == 0 {
-            return OK;
+            return true;
         }
         if count < 1 {
             siemsg!(
                 c"E292: Invalid count for del_bytes(): %ld".as_ptr(),
                 i64::from(count),
             );
-            return FAIL;
+            return false;
         }
 
         if opt_vars().p_deco != 0 && use_delcombine && utfc_ptr2len(oldp.add(col as usize)) >= count {
@@ -961,7 +961,7 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
 
         inserted_bytes(lnum, col, count, 0);
 
-        OK
+        true
     }
 }
 

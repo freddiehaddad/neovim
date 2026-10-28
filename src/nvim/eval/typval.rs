@@ -1614,7 +1614,7 @@ pub fn tv_list_extend(l1: *mut list_T, l2: *mut list_T, bef: *mut listitem_T) {
 }
 
 /// Concatenate lists into a new list.
-pub fn tv_list_concat(l1: *mut list_T, l2: *mut list_T, tv: &mut typval_T) -> c_int {
+pub fn tv_list_concat(l1: *mut list_T, l2: *mut list_T, tv: &mut typval_T) -> bool {
     tv.v_type = VarType::VAR_LIST;
         tv.v_lock = VAR_UNLOCKED;
         let l = if l1.is_null() && l2.is_null() {
@@ -1629,11 +1629,11 @@ pub fn tv_list_concat(l1: *mut list_T, l2: *mut list_T, tv: &mut typval_T) -> c_
             copy
         };
         if l.is_null() && !(l1.is_null() && l2.is_null()) {
-            return FAIL;
+            return false;
         }
 
         tv.vval = crate::eval::typval::TypvalVval::List(l);
-        OK
+        true
 }
 
 fn tv_list_slice(ol: *mut list_T, mut n1: varnumber_T, n2: varnumber_T) -> *mut list_T {
@@ -1705,7 +1705,7 @@ fn list_join_inner(
     l: &mut list_T,
     sep: *const c_char,
     join_vec: &mut Vec<std::ffi::CString>,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut sumlen: usize = 0;
         let mut first = true;
@@ -1750,16 +1750,16 @@ fn list_join_inner(
             line_breakcheck();
         }
 
-        OK
+        true
     }
 }
 
 /// Join list into a string using given separator.
-pub fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_char) -> c_int {
+pub fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_char) -> bool {
     unsafe {
         let len = tv_list_len_inline(l);
         if len == 0 {
-            return OK;
+            return true;
         }
 
         let mut join_vec: Vec<std::ffi::CString> = Vec::with_capacity(len as usize);
@@ -3184,16 +3184,16 @@ pub fn tv_dict_add_float(
     key: *const c_char,
     key_len: usize,
     nr: float_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key, key_len);
         (*item).di_tv.v_type = VarType::VAR_FLOAT;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Float(nr);
         if tv_dict_add(d, item) == FAIL {
             tv_dict_item_free(item);
-            return FAIL;
+            return false;
         }
-        OK
+        true
     }
 }
 
@@ -3556,7 +3556,7 @@ fn tv_blob_slice(
     mut n2: varnumber_T,
     exclusive: bool,
     rettv: &mut typval_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let len64 = i64::from(len);
         if n1 < 0 {
@@ -3586,7 +3586,7 @@ fn tv_blob_slice(
             tv_blob_set_ret_inline(rettv, new_blob);
         }
 
-        OK
+        true
     }
 }
 
@@ -3594,7 +3594,7 @@ fn tv_blob_index(
     len: c_int,
     mut idx: varnumber_T,
     rettv: &mut typval_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let len64 = i64::from(len);
         if idx < 0 {
@@ -3607,10 +3607,10 @@ fn tv_blob_index(
             rettv.vval = crate::eval::typval::TypvalVval::Number(v);
         } else {
             semsg!(tr(e_blobidx.as_ptr()), idx);
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -3620,7 +3620,7 @@ pub fn tv_blob_slice_or_index(
     n2: varnumber_T,
     exclusive: bool,
     rettv: &mut typval_T,
-) -> c_int {
+) -> bool {
     let len = tv_blob_len_inline(rettv.vval.v_blob());
     if is_range {
         tv_blob_slice(len, n1, n2, exclusive, rettv)
@@ -5262,14 +5262,14 @@ mod tests {
             assert!(!tv_list_equal(l2, ptr::null_mut(), false));
 
             let mut joined: Vec<c_char> = Vec::new();
-            assert_eq!(tv_list_join(&mut joined, l2, c", ".as_ptr()), OK);
+            assert!(tv_list_join(&mut joined, l2, c", ".as_ptr()));
             assert_eq!(
                 std::slice::from_raw_parts(joined.as_ptr().cast::<u8>(), joined.len()),
                 b"99, hello, world"
             );
 
             let mut cat_tv = tv_initial_value();
-            assert_eq!(tv_list_concat(l2, l2_copy, &mut cat_tv), OK);
+            assert!(tv_list_concat(l2, l2_copy, &mut cat_tv));
             assert_eq!(tv_list_len_inline(cat_tv.vval.v_list()), 6);
             tv_clear(&raw mut cat_tv);
 
@@ -5301,7 +5301,7 @@ mod tests {
             assert!(!d.is_null());
             (*d).dv_refcount = 1;
             assert_eq!(tv_dict_add_nr(d, c"foo".as_ptr(), 3, 42), OK);
-            assert_eq!(tv_dict_add_float(&mut *d, c"flt".as_ptr(), 3, 3.5), OK);
+            assert!(tv_dict_add_float(&mut *d, c"flt".as_ptr(), 3, 3.5));
             assert_eq!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()), OK);
             assert_eq!(
                 tv_dict_add_str_len(d, c"alloc".as_ptr(), 5, c"baz".as_ptr(), -1),

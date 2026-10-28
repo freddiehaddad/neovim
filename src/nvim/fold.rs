@@ -2579,21 +2579,21 @@ fn foldlevelSyntax(flp: &mut fline_T) {
 }
 
 /// Write commands to "fd" to restore the manual folds in window "wp".
-pub fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
+pub fn put_folds(fd: *mut FILE, wp: *mut win_T) -> bool {
     unsafe {
         if foldmethodIsManual(&mut *wp)
             && (!put_line(fd, c"silent! normal! zE".as_ptr() as *mut c_char)
                 || !put_folds_recurse(fd, &(*wp).w_folds, 0)
                 || !put_line(fd, c"let &fdl = &fdl".as_ptr() as *mut c_char))
         {
-            return FAIL;
+            return false;
         }
 
         if (*wp).w_fold_manual {
             return put_foldopen_recurse(fd, wp, &(*wp).w_folds, 0);
         }
 
-        OK
+        true
     }
 }
 
@@ -2624,7 +2624,7 @@ fn put_foldopen_recurse(
     wp: *mut win_T,
     gap: &[fold_T],
     off: linenr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         for fp in gap {
             if fp.fd_flags != FD_LEVEL {
@@ -2640,13 +2640,13 @@ fn put_foldopen_recurse(
                         || put_eol(fd) == FAIL
                         || !put_line(fd, c"sil! normal! zo".as_ptr() as *mut c_char)
                     {
-                        return FAIL;
+                        return false;
                     }
-                    if put_foldopen_recurse(fd, wp, &fp.fd_nested, off + fp.fd_top) == FAIL {
-                        return FAIL;
+                    if !put_foldopen_recurse(fd, wp, &fp.fd_nested, off + fp.fd_top) {
+                        return false;
                     }
                     if fp.fd_flags == FD_CLOSED && !put_fold_open_close(fd, fp, off) {
-                        return FAIL;
+                        return false;
                     }
                 } else {
                     let level = i64::from(foldLevelWin(&mut *wp, off + fp.fd_top));
@@ -2654,13 +2654,13 @@ fn put_foldopen_recurse(
                         || (fp.fd_flags != FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl < level))
                         && !put_fold_open_close(fd, fp, off)
                     {
-                        return FAIL;
+                        return false;
                     }
                 }
             }
         }
 
-        OK
+        true
     }
 }
 
