@@ -701,7 +701,7 @@ pub fn spell_suggest(count: c_int) {
             parse_spelllang(curwin_ptr());
             curwin_mut().w_onebuf_opt.wo_spell = 1;
         }
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         let prev_cursor = curwin_mut().w_cursor;
         'skip: {
             let w_s = curwin_mut().w_s_ptr();
@@ -729,13 +729,13 @@ pub fn spell_suggest(count: c_int) {
                 curwin_mut().w_cursor = prev_cursor;
                 let curline = get_cursor_line_ptr();
                 let mut p = curline.add(curwin_mut().w_cursor.col as usize);
-                while p > curline && spell_iswordp_nmw(p, curwin_ptr()) {
+                while p > curline && spell_iswordp_nmw(p, curwin_mut()) {
                     mb_ptr_back(curline, &mut p);
                 }
-                while *p != NUL && !spell_iswordp_nmw(p, curwin_ptr()) {
+                while *p != NUL && !spell_iswordp_nmw(p, curwin_mut()) {
                     mb_ptr_adv(&mut p);
                 }
-                if !spell_iswordp_nmw(p, curwin_ptr()) {
+                if !spell_iswordp_nmw(p, curwin_mut()) {
                     beep_flush();
                     break 'skip;
                 }
@@ -912,7 +912,7 @@ fn spell_find_suggest(
         su.su_badlen = su.su_badlen.min(MAXWLEN as c_int - 1);
         crate::memory::cstr_ncpy(su.su_badword.as_mut_ptr(), su.su_badptr, su.su_badlen as usize);
         spell_casefold(
-            curwin_ptr(),
+            curwin_mut(),
             su.su_badptr,
             su.su_badlen,
             (&raw mut su.su_fbadword).cast(),
@@ -1140,7 +1140,7 @@ fn suggest_try_change(su: &mut suginfo_T) {
         let mut n = crate::memory::cstr_len((&raw const fword).cast()) as c_int;
         let p = su.su_badptr.add(su.su_badlen as usize);
         spell_casefold(
-            curwin_ptr(),
+            curwin_mut(),
             p,
             crate::memory::cstr_len(p) as c_int,
             (&raw mut fword).cast::<c_char>().add(n as usize),
@@ -1437,7 +1437,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             c = WF_ONECAP;
                         }
                         c |= flags;
-                        if !p.is_null() && spell_iswordp_nmw(p, curwin_ptr()) {
+                        if !p.is_null() && spell_iswordp_nmw(p, curwin_mut()) {
                             c &= !WF_ONECAP;
                         }
                         make_case_word(
@@ -1669,7 +1669,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                 if ((!try_compound
                                     && !spell_iswordp_nmw(
                                         fword.add(stack[udepth].ts_fidx as usize),
-                                        curwin_ptr(),
+                                        curwin_mut(),
                                     ))
                                     || fword_ends)
                                     && *fword.add(stack[udepth].ts_fidx as usize) != NUL
@@ -2432,7 +2432,7 @@ fn stp_sal_score(
             badsound
         } else {
             spell_casefold(
-                curwin_ptr(),
+                curwin_mut(),
                 su.su_badptr,
                 stp.st_orglen,
                 (&raw mut fword).cast(),

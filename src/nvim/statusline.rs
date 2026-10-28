@@ -370,7 +370,7 @@ pub fn win_redr_status(wp: &mut win_T) {
             } else {
                 wp.w_p_fcs_chars.vert
             };
-            let attr = win_hl_attr(&raw mut *wp, group);
+            let attr = win_hl_attr(&mut *wp, group);
             grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
             grid_line_put_schar(w_endcol(wp), fillchar, attr);
             grid_line_flush();
@@ -561,7 +561,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
 
             fillchar = (*wp).w_p_fcs_chars.wbr;
             group = if wp == curwin_ptr() { HLF_WBR } else { HLF_WBRNC };
-            attr = win_hl_attr(wp, group);
+            attr = win_hl_attr( &mut *wp, group);
             maxwidth = (*wp).w_view_width;
             stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
             click_defs = stl_alloc_click_defs(&mut (*wp).w_winbar_click_defs, maxwidth);
@@ -633,7 +633,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
                 maxwidth = (*wp).w_width;
             }
             fillchar = fillchar_status(&mut group, wp);
-            attr = win_hl_attr(wp, group);
+            attr = win_hl_attr( &mut *wp, group);
             stl_clear_click_defs(&mut (*wp).w_status_click_defs);
             click_defs = stl_alloc_click_defs(&mut (*wp).w_status_click_defs, maxwidth);
         }
@@ -1009,7 +1009,7 @@ pub fn draw_tabline() {
                 };
 
                 if (*tp).tp_topframe == g_st().topframe {
-                    attr = hl_combine_attr(attr_fill, win_hl_attr(cwp, HLF_TPS));
+                    attr = hl_combine_attr(attr_fill, win_hl_attr( &mut *cwp, HLF_TPS));
                 }
                 if use_sep_chars && col > 0 {
                     grid_line_put_schar(col, schar_from_ascii(b'|'), attr);
@@ -1017,7 +1017,7 @@ pub fn draw_tabline() {
                 }
 
                 if (*tp).tp_topframe != g_st().topframe {
-                    attr = hl_combine_attr(attr_fill, win_hl_attr(cwp, HLF_TP));
+                    attr = hl_combine_attr(attr_fill, win_hl_attr( &mut *cwp, HLF_TP));
                 }
 
                 grid_line_put_schar(col, schar_from_ascii(b' '), attr);
@@ -1045,7 +1045,7 @@ pub fn draw_tabline() {
                             col,
                             name_buff,
                             len,
-                            hl_combine_attr(attr, win_hl_attr(cwp, HLF_T)),
+                            hl_combine_attr(attr, win_hl_attr( &mut *cwp, HLF_T)),
                         );
                         col += len;
                     }

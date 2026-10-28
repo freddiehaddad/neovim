@@ -179,7 +179,7 @@ fn coladvance2(
                 || (g_st().State & MODE_TERMINAL) != 0
                 || g_st().restart_edit != 0
                 || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
-                || ((get_ve_flags(wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
+                || ((get_ve_flags( &mut *wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
         );
 
         let line = ml_get_buf(wp.w_buffer, pos.lnum);
@@ -205,7 +205,7 @@ fn coladvance2(
                 && wcol >= width
                 && width > 0
             {
-                csize = linetabsize_eol(wp, pos.lnum);
+                csize = linetabsize_eol( &mut *wp, pos.lnum);
                 if csize > 0 {
                     csize -= 1;
                 }
@@ -390,7 +390,7 @@ pub fn check_cursor_col(win: &mut win_T) {
      {
         let oldcol = win.w_cursor.col;
         let oldcoladd = win.w_cursor.col + win.w_cursor.coladd;
-        let cur_ve_flags = get_ve_flags(win);
+        let cur_ve_flags = get_ve_flags( &mut *win);
 
         let len = ml_get_buf_len(win.w_buffer, win.w_cursor.lnum);
         if len == 0 {
@@ -442,10 +442,10 @@ pub fn check_cursor_col(win: &mut win_T) {
 }
 
 /// Make sure `curwin->w_cursor` is on a valid character (`check_cursor`).
-pub fn check_cursor(wp: *mut win_T) {
-    unsafe {
-        check_cursor_lnum(&mut *wp);
-        check_cursor_col(&mut *wp);
+pub fn check_cursor(wp: &mut win_T) {
+     {
+        check_cursor_lnum(wp);
+        check_cursor_col(wp);
     }
 }
 
@@ -493,7 +493,7 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
         validate_virtcol(curwin_ptr());
 
         let mut retval = false;
-        let siso = get_sidescrolloff_value(curwin_ptr());
+        let siso = get_sidescrolloff_value(curwin_mut());
         if curwin_mut().w_virtcol > (lastcol - siso) as colnr_T {
             retval = true;
             coladvance(curwin_mut(), (lastcol - siso) as colnr_T);

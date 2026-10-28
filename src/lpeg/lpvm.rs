@@ -35,11 +35,11 @@ fn getoffset(p: *const Instruction) -> isize {
     unsafe { (*p.add(1)).offset as isize }
 }
 
-pub fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -> c_int {
+pub fn charinset(i: &Instruction, buff: *const byte, mut c: uint) -> c_int {
     unsafe {
-        c = c.wrapping_sub(uint::from((*i).i.aux2.set.offset));
-        if c >= (uint::from((*i).i.aux2.set.size) * (size_of::<Instruction>() as uint) * 8) {
-            return c_int::from((*i).i.aux1);
+        c = c.wrapping_sub(uint::from(i.i.aux2.set.offset));
+        if c >= (uint::from(i.i.aux2.set.size) * (size_of::<Instruction>() as uint) * 8) {
+            return c_int::from(i.i.aux1);
         }
         testchar(buff, c)
     }
@@ -215,13 +215,13 @@ fn removedyncap(
 fn findopen_full(mut cap: *mut Capture, currindex: Index_t) -> *mut Capture {
     unsafe {
         cap = cap.sub(1);
-        if !isopencap(cap) && (*cap).index == currindex {
+        if !isopencap( &*cap) && (*cap).index == currindex {
             return ptr::null_mut();
         }
         for _ in 0..MAXLOP {
             if currindex - (*cap).index >= Index_t::from(u8::MAX) {
                 return ptr::null_mut();
-            } else if isopencap(cap) {
+            } else if isopencap( &*cap) {
                 return cap;
             } else if (*cap).kind == Cclose {
                 return ptr::null_mut();
@@ -292,7 +292,7 @@ pub fn r#match(
                     if s < e {
                         let mut codepoint: c_int = 0;
                         s = utf8_decode(s, &mut codepoint);
-                        if !s.is_null() && (*p.add(1)).offset <= codepoint && codepoint <= utf_to(p)
+                        if !s.is_null() && (*p.add(1)).offset <= codepoint && codepoint <= utf_to( &*p)
                         {
                             p = p.add(2);
                             continue;
@@ -325,7 +325,7 @@ pub fn r#match(
                 ISet => {
                     if s < e {
                         let c = uint::from(*s as byte);
-                        if charinset(p, p.add(1).cast::<byte>(), c) != 0 {
+                        if charinset( &*p, p.add(1).cast::<byte>(), c) != 0 {
                             p = p.add(1 + (*p).i.aux2.set.size as usize);
                             s = s.add(1);
                             continue;
@@ -335,7 +335,7 @@ pub fn r#match(
                 ITestSet => {
                     if s < e {
                         let c = uint::from(*s as byte);
-                        if charinset(p, p.add(2).cast::<byte>(), c) != 0 {
+                        if charinset( &*p, p.add(2).cast::<byte>(), c) != 0 {
                             p = p.add(2 + (*p).i.aux2.set.size as usize);
                             continue;
                         }
@@ -354,7 +354,7 @@ pub fn r#match(
                 ISpan => {
                     while s < e {
                         let c = uint::from(*s as byte);
-                        if charinset(p, p.add(1).cast::<byte>(), c) == 0 {
+                        if charinset( &*p, p.add(1).cast::<byte>(), c) == 0 {
                             break;
                         }
                         s = s.add(1);
@@ -471,7 +471,7 @@ pub fn r#match(
                         (*cap).siz = 1;
                         (*cap).index = curr_idx;
                         (*cap).idx = (*p).i.aux2.key as c_ushort;
-                        (*cap).kind = getkind(p) as byte;
+                        (*cap).kind = getkind( &*p) as byte;
                         captop += 1;
                         capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
                         p = p.add(1);
@@ -483,19 +483,19 @@ pub fn r#match(
                     (*cap).siz = 0;
                     (*cap).index = s.offset_from(o) as Index_t;
                     (*cap).idx = (*p).i.aux2.key as c_ushort;
-                    (*cap).kind = getkind(p) as byte;
+                    (*cap).kind = getkind( &*p) as byte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
                     p = p.add(1);
                     continue;
                 }
                 IFullCapture => {
-                    let off = getoff(p);
+                    let off = getoff( &*p);
                     let cap = capture.add(captop as usize);
                     (*cap).siz = (off + 1) as byte;
                     (*cap).index = (s.offset_from(o) as c_int - off) as Index_t;
                     (*cap).idx = (*p).i.aux2.key as c_ushort;
-                    (*cap).kind = getkind(p) as byte;
+                    (*cap).kind = getkind( &*p) as byte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
                     p = p.add(1);

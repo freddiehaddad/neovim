@@ -169,10 +169,10 @@ pub fn linetabsize(wp: &mut win_T, lnum: linenr_T) -> c_int {
     win_linetabsize(wp, lnum, ml_get_buf(wp.w_buffer, lnum), MAXCOL)
 }
 
-pub fn linetabsize_eol(wp: *mut win_T, lnum: linenr_T) -> c_int {
-    unsafe {
-        linetabsize(&mut *wp, lnum)
-            + if (*wp).w_onebuf_opt.wo_list != 0 && (*wp).w_p_lcs_chars.eol != 0 {
+pub fn linetabsize_eol(wp: &mut win_T, lnum: linenr_T) -> c_int {
+     {
+        linetabsize(wp, lnum)
+            + if wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 {
                 1
             } else {
                 0
@@ -254,7 +254,7 @@ fn inline_virt_text_width(
             let mark = marktree_itr_current(&(*buf).b_marktree, iter);
             if mark.pos.row != row || mark.pos.col > col {
                 break;
-            } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &raw mut *wp) {
+            } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
                 let decor = mt_decor(mark);
                 for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
                     decor.data.ext().vt
@@ -310,7 +310,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                 let mark = marktree_itr_current(&(*buf).b_marktree, &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
                     break;
-                } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
+                } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns,  &mut *wp) {
                     let decor = mt_decor(mark);
                     for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
                         decor.data.ext().vt
@@ -840,7 +840,7 @@ pub fn getvvcol(
             **p = col + endadd;
         }
         } else {
-            getvcol(&mut *wp, pos, (start.is_some()).then(||  { &mut *start.unwrap() }), (cursor.is_some()).then(||  { &mut *cursor.unwrap() }), (end.is_some()).then(||  { &mut *end.unwrap() }), flags);
+            getvcol(&mut *wp, pos, (start.is_some()).then(||  &mut *start.unwrap()), (cursor.is_some()).then(||  &mut *cursor.unwrap()), (end.is_some()).then(||  &mut *end.unwrap()), flags);
         }
     }
 }
@@ -891,7 +891,7 @@ pub fn win_may_fill(wp: &mut win_T) -> bool {
 pub fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         decor_virt_lines(&mut *wp, lnum - 1, lnum, None, None, true)
-            + diff_check_fill(wp, lnum)
+            + diff_check_fill( &mut *wp, lnum)
     }
 }
 
@@ -1066,7 +1066,7 @@ pub fn plines_m_win_fill(wp: *mut win_T, first: linenr_T, last: linenr_T) -> c_i
 
         if diffopt_filler() {
             for lnum in first..=last {
-                let n = diff_check_fill(wp, lnum);
+                let n = diff_check_fill( &mut *wp, lnum);
                 count += n.max(0);
             }
         }
@@ -1137,7 +1137,7 @@ pub fn win_text_height(
         if cur_folded {
             vcol_end = 0;
         } else {
-            let linesize = i64::from(linetabsize_eol(&raw mut *wp, cur_lnum));
+            let linesize = i64::from(linetabsize_eol(&mut *wp, cur_lnum));
             vcol_end = (if use_vcol { vcol_end } else { i64::MAX }).min(linesize);
         }
 

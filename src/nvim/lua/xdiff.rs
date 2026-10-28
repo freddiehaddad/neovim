@@ -203,9 +203,9 @@ pub(crate) fn hunk_locations_cb(
     count_a: c_int,
     start_b: c_int,
     count_b: c_int,
-    cb_data: *mut HunkPriv,
+    cb_data: &mut HunkPriv,
 ) -> c_int {
-    let priv_ref = unsafe { &mut *cb_data };
+    let priv_ref =  { cb_data };
     let lstate = priv_ref.lstate;
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
         get_linematch_results(
@@ -235,7 +235,7 @@ pub(crate) fn call_on_hunk_cb(
     count_a: c_int,
     mut start_b: c_int,
     count_b: c_int,
-    cb_data: *mut HunkPriv,
+    cb_data: &mut HunkPriv,
 ) -> c_int {
     if count_a > 0 {
         start_a += 1;
@@ -244,7 +244,7 @@ pub(crate) fn call_on_hunk_cb(
         start_b += 1;
     }
 
-    let priv_ref = unsafe { &mut *cb_data };
+    let priv_ref =  { cb_data };
     let lstate = priv_ref.lstate;
     let err = &mut priv_ref.err;
 

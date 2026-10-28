@@ -1689,7 +1689,7 @@ pub fn did_set_buftype(args: &mut optset_T) -> *const c_char {
 
 pub fn validate_chars_option(args: &mut optset_T) -> *const c_char {
     set_chars_option(
-            args.os_win,
+            unsafe { &mut *args.os_win },
             args.os_newval.data.string().data,
             if args.os_idx == kOptListchars {
                 CharsOption::kListchars
@@ -1717,7 +1717,7 @@ fn did_set_global_chars_option(
         };
 
         let errmsg = set_chars_option(
-            &raw mut *win,
+            &mut *win,
             val,
             what,
             **local_ptr == NUL || (opt_flags & OPT_GLOBAL) == 0,
@@ -1739,7 +1739,7 @@ fn did_set_global_chars_option(
                     (*wp).w_onebuf_opt.wo_fcs
                 };
                 if *opt == NUL {
-                    set_chars_option(wp, opt, what, true, errbuf);
+                    set_chars_option( &mut *wp, opt, what, true, errbuf);
                 }
             }
         }
@@ -1774,9 +1774,9 @@ pub fn did_set_chars_option(args: &mut optset_T) -> *const c_char {
                 args.os_errbuf,
             );
         } else if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_lcs) {
-            errmsg = set_chars_option(win, *varp, CharsOption::kListchars, true, args.os_errbuf);
+            errmsg = set_chars_option( &mut *win, *varp, CharsOption::kListchars, true, args.os_errbuf);
         } else if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_fcs) {
-            errmsg = set_chars_option(win, *varp, CharsOption::kFillchars, true, args.os_errbuf);
+            errmsg = set_chars_option( &mut *win, *varp, CharsOption::kFillchars, true, args.os_errbuf);
         }
 
         errmsg
@@ -2197,7 +2197,7 @@ pub fn did_set_encoding(args: &mut optset_T) -> *const c_char {
         let varp = args.os_varp.cast::<*mut c_char>();
         if args.os_idx == kOptFileencoding {
             redraw_titles();
-            ml_setflags(buf);
+            ml_setflags( &mut *buf);
         }
 
         if let Some(prep_cstr) = args.os_prep.take_encoding() {
@@ -2280,7 +2280,7 @@ pub fn did_set_fileformat(args: &mut optset_T) -> *const c_char {
         let oldval = args.os_oldval.data.string().data;
 
         redraw_titles();
-        ml_setflags(buf);
+        ml_setflags( &mut *buf);
         if get_fileformat(&*buf) == EOL_MAC || *oldval == b'm' as c_char {
             redraw_buf_later(buf, UPD_NOT_VALID);
         }
@@ -3934,7 +3934,7 @@ const LCS_TAB: [CharsTabEntry; 12] = [
 
 /// Handle setting 'listchars' or 'fillchars'.
 pub fn set_chars_option(
-    wp: *mut win_T,
+    wp: &mut win_T,
     mut value: *const c_char,
     what: CharsOption,
     apply: bool,
@@ -3949,12 +3949,12 @@ pub fn set_chars_option(
         let mut lcs_chars = lcs_chars_T::new();
 
         let tab: &[CharsTabEntry] = if what == CharsOption::kListchars {
-            if apply && *(*wp).w_onebuf_opt.wo_lcs == NUL {
+            if apply && *wp.w_onebuf_opt.wo_lcs == NUL {
                 value = opt_vars().p_lcs;
             }
             &LCS_TAB
         } else {
-            if apply && *(*wp).w_onebuf_opt.wo_fcs == NUL {
+            if apply && *wp.w_onebuf_opt.wo_fcs == NUL {
                 value = opt_vars().p_fcs;
             }
             &FCS_TAB
@@ -4166,9 +4166,9 @@ pub fn set_chars_option(
 
         if apply {
             if what == CharsOption::kListchars {
-                (*wp).w_p_lcs_chars = lcs_chars;
+                wp.w_p_lcs_chars = lcs_chars;
             } else {
-                (*wp).w_p_fcs_chars = fcs_chars;
+                wp.w_p_fcs_chars = fcs_chars;
             }
         }
 
@@ -4195,16 +4195,16 @@ pub fn get_listchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub fn check_chars_options() -> *const c_char {
     unsafe {
-        if !set_chars_option(curwin_ptr(), opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
+        if !set_chars_option(curwin_mut(), opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
         }
-        if !set_chars_option(curwin_ptr(), opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
+        if !set_chars_option(curwin_mut(), opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(tp) {
                 if !set_chars_option(
-                    wp,
+                     &mut *wp,
                     (*wp).w_onebuf_opt.wo_lcs,
                     CharsOption::kListchars,
                     true,
@@ -4215,7 +4215,7 @@ pub fn check_chars_options() -> *const c_char {
                     return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
                 }
                 if !set_chars_option(
-                    wp,
+                     &mut *wp,
                     (*wp).w_onebuf_opt.wo_fcs,
                     CharsOption::kFillchars,
                     true,

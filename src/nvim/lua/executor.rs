@@ -2435,7 +2435,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
         }
 
         lua_pop(lstate, 1);
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         redraw_curbuf_later(UPD_NOT_VALID);
     }
 }

@@ -499,14 +499,14 @@ const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
 }
 
 pub fn bufhl_add_hl_pos_offset(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     src_id: c_int,
     hl_id: c_int,
     pos_start: lpos_T,
     pos_end: lpos_T,
     offset: colnr_T,
 ) {
-    unsafe {
+     {
         let mut hl_start: colnr_T = 0;
         let mut hl_end: colnr_T = 0;
         let decor = DecorInline {
@@ -535,7 +535,7 @@ pub fn bufhl_add_hl_pos_offset(
             }
 
             extmark_set(
-                &mut *buf,
+                buf,
                 src_id as u32,
                 None,
                 lnum - 1,
@@ -696,7 +696,7 @@ pub fn buf_put_decor_sh(
         sh.sign_add_id = decor_st().sign_add_id;
         decor_st().sign_add_id += 1;
         if sh.text[0] != 0 {
-            buf_signcols_count_range(&raw mut *buf, row1, row2, 1, kFalse);
+            buf_signcols_count_range(&mut *buf, row1, row2, 1, kFalse);
             may_force_numberwidth_recompute(buf, false);
         }
     }
@@ -738,7 +738,7 @@ pub fn buf_remove_decor_sh(
     {
         if (sh.flags & kSHIsSign) != 0 && sh.text[0] != 0 {
             if buf_meta_total(&*buf, kMTMetaSignText) != 0 {
-                buf_signcols_count_range(buf, row1, row2, -1, kFalse);
+                buf_signcols_count_range( &mut *buf, row1, row2, -1, kFalse);
             } else {
                 may_force_numberwidth_recompute(&mut *buf, true);
                 buf.b_signcols.count[0] = 0;
@@ -1244,7 +1244,7 @@ pub fn decor_redraw_col_impl(
                 break;
             }
 
-            if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns, wp) {
+            if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns,  &mut *wp) {
                 let endpos = marktree_get_altpos(&(*buf).b_marktree, mark, None);
                 decor_range_add_from_inline(
                     state,
@@ -1409,7 +1409,7 @@ pub fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> boo
             || (!check_cursor
                 && ptr::eq(wp, curwin_ptr())
                 && row + 1 == (*wp).w_cursor.lnum
-                && !conceal_cursor_line(wp))
+                && !conceal_cursor_line( &*wp))
         {
             return false;
         }
@@ -1423,7 +1423,7 @@ pub fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> boo
         let b = &(*wp).buf_mut().b_marktree;
         marktree_itr_get_overlap(b, row, 0, &mut itr);
         while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-            if mt_conceal_lines(pair.start) && ns_in_win(pair.start.ns, wp) {
+            if mt_conceal_lines(pair.start) && ns_in_win(pair.start.ns,  &mut *wp) {
                 return true;
             }
         }
@@ -1435,7 +1435,7 @@ pub fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> boo
             if mark.pos.row > row {
                 break;
             }
-            if mt_conceal_lines(mark) && ns_in_win(mark.ns, wp) {
+            if mt_conceal_lines(mark) && ns_in_win(mark.ns,  &mut *wp) {
                 return true;
             }
             marktree_itr_next_filter(b, &mut itr, row + 1, 0, &CONCEAL_FILTER);
@@ -1485,7 +1485,7 @@ pub fn decor_redraw_signs(
     sattrs: *mut SignTextAttrs,mut line_id: Option<&mut c_int>,mut cul_id: Option<&mut c_int>,mut num_id: Option<&mut c_int>,
 ) {
     unsafe {
-        if !buf_has_signs(buf) {
+        if !buf_has_signs( &*buf) {
             return;
         }
 
@@ -1497,7 +1497,7 @@ pub fn decor_redraw_signs(
 
         marktree_itr_get_overlap(b, row, 0, &mut itr);
         while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-            if !mt_invalid(pair.start) && mt_decor_sign(pair.start) && ns_in_win(pair.start.ns, wp)
+            if !mt_invalid(pair.start) && mt_decor_sign(pair.start) && ns_in_win(pair.start.ns,  &mut *wp)
             {
                 let sh = decor_find_sign(mt_decor(pair.start)).unwrap();
                 num_text += c_int::from(sh.text[0] != 0);
@@ -1515,7 +1515,7 @@ pub fn decor_redraw_signs(
             if mark.pos.row != row {
                 break;
             }
-            if !mt_invalid(mark) && !mt_end(mark) && mt_decor_sign(mark) && ns_in_win(mark.ns, wp) {
+            if !mt_invalid(mark) && !mt_end(mark) && mt_decor_sign(mark) && ns_in_win(mark.ns,  &mut *wp) {
                 let sh = decor_find_sign(mt_decor(mark)).unwrap();
                 num_text += c_int::from(sh.text[0] != 0);
                 signs.push(SignItem { sh, id: mark.id });
@@ -1576,21 +1576,21 @@ pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight
 }
 
 pub fn buf_signcols_count_range(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     row1: c_int,
     row2: c_int,
     add: c_int,
     clear: TriState,
 ) {
-    unsafe {
-        if !(*buf).b_signcols.autom || row2 < row1 || buf_meta_total(&*buf, kMTMetaSignText) == 0 {
+     {
+        if !buf.b_signcols.autom || row2 < row1 || buf_meta_total(buf, kMTMetaSignText) == 0 {
             return;
         }
 
         let mut count = vec![0 as c_int; (row2 + 1 - row1) as usize];
         let mut itr = MarkTreeIter::new();
         let mut pair: MTPair = MTPair::new();
-        let b = &(*buf).b_marktree;
+        let b = &buf.b_marktree;
 
         marktree_itr_get_overlap(b, row1, 0, &mut itr);
         while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
@@ -1621,13 +1621,13 @@ pub fn buf_signcols_count_range(
         for &c_val in &count {
             let prevwidth = SIGN_SHOW_MAX.min(c_val - add);
             if clear != kNone && prevwidth > 0 {
-                (*buf).b_signcols.count[(prevwidth - 1) as usize] -= 1;
+                buf.b_signcols.count[(prevwidth - 1) as usize] -= 1;
             }
             let width = SIGN_SHOW_MAX.min(c_val);
             if clear != kTrue && width > 0 {
-                (*buf).b_signcols.count[(width - 1) as usize] += 1;
-                if width > (*buf).b_signcols.max {
-                    (*buf).b_signcols.max = width;
+                buf.b_signcols.count[(width - 1) as usize] += 1;
+                if width > buf.b_signcols.max {
+                    buf.b_signcols.max = width;
                 }
             }
         }
@@ -1767,7 +1767,7 @@ pub fn decor_virt_lines(
         loop {
             let mark = marktree_itr_current(b, &itr);
             let mut vt = mt_decor_virt(mark);
-            if !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
+            if !mt_invalid(mark) && ns_in_win(mark.ns,  &mut *wp) {
                 while !vt.is_null() {
                     let virt_lines = (*vt).data.virt_lines();
                     if ((*vt).flags & kVTIsLines) != 0 && !virt_lines.is_empty() {

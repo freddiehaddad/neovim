@@ -929,7 +929,7 @@ pub fn restore_vimvar(idx: c_int,save_tv: &mut typval_T) {
         if hashitem_empty(&*hi) {
             internal_error(c"restore_vimvar()");
         } else {
-            hash_remove(&mut vars_st().vimvardict.dv_hashtab, hi);
+            hash_remove(&mut vars_st().vimvardict.dv_hashtab,  &mut *hi);
         }
     }
 }
@@ -2914,7 +2914,7 @@ pub fn vars_clear_ext(ht: &mut hashtab_T, free_val: bool) {
 /// Delete a variable from hashtab "ht" at item "hi".
 fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
     let di = tv_dict_hi2di(hi);
-        hash_remove(ht, hi);
+        hash_remove(ht, unsafe { &mut *hi });
         crate::eval::typval::tv_dict_item_free(di);
 }
 

@@ -3758,7 +3758,7 @@ pub fn find_pattern_in_path(
                                         }
                                         if !stop_fpip_loop {
                                             curwin_mut().w_cursor.lnum = lnum;
-                                            check_cursor(curwin_ptr());
+                                            check_cursor(curwin_mut());
                                         }
                                     } else if !getfile_success(getfile(
                                         0,

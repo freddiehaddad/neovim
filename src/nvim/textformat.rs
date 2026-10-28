@@ -782,7 +782,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             }
         }
 
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
     }
 }
 
@@ -870,7 +870,7 @@ pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
         if keep_cursor {
             curwin_mut().w_cursor = g_st().saved_cursor;
             g_st().saved_cursor.lnum = 0;
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
         }
 
         if oap.is_VIsual {

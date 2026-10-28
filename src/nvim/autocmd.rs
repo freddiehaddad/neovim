@@ -1717,11 +1717,11 @@ pub fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
     &mut au_st().autocmds[event as usize]
 }
 
-pub fn aubuflocal_remove(buf: *mut buf_T) {
+pub fn aubuflocal_remove(buf: &mut buf_T) {
     unsafe {
         let apc_list = &raw const au_st().active_apc_list;
         for arg_bufnr in (*apc_list).iter().rev() {
-            if (*buf).b_fnum == arg_bufnr.get() {
+            if buf.b_fnum == arg_bufnr.get() {
                 arg_bufnr.set(0);
             }
         }
@@ -1732,7 +1732,7 @@ pub fn aubuflocal_remove(buf: *mut buf_T) {
                 if !ac
                     .pat
                     .as_ref()
-                    .is_some_and(|ap| ap.buflocal_nr == (*buf).b_fnum)
+                    .is_some_and(|ap| ap.buflocal_nr == buf.b_fnum)
                 {
                     continue;
                 }
@@ -1745,7 +1745,7 @@ pub fn aubuflocal_remove(buf: *mut buf_T) {
                         0,
                         tr(c"auto-removing autocommand: %s <buffer=%d>"),
                         event_nr2name(event),
-                        (*buf).b_fnum,
+                        buf.b_fnum,
                     );
                     verbose_leave();
                 }
@@ -3138,7 +3138,7 @@ pub fn apply_autocmds_group(
         }
 
         if event == EVENT_BUFWIPEOUT && !buf.is_null() {
-            aubuflocal_remove(buf);
+            aubuflocal_remove( &mut *buf);
         }
 
         if retval && event == EVENT_FILETYPE {

@@ -762,8 +762,8 @@ use crate::os::fs::MAXPATHL;
 use crate::version::longVersion;
 
 #[inline]
-fn file_eof(fp: *const FileDescriptor) -> bool {
-    unsafe { (*fp).eof && (*fp).read_pos == (*fp).write_pos }
+fn file_eof(fp: &FileDescriptor) -> bool {
+     fp.eof && fp.read_pos == fp.write_pos
 }
 
 #[inline]
@@ -960,7 +960,7 @@ fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDaReadRes
             return ShaDaReadResult::kSDReadStatusReadError;
         } else if skip_bytes != (offset as isize) {
             assert!(skip_bytes < (offset as isize));
-            if file_eof(sd_reader) {
+            if file_eof( &*sd_reader) {
                 semsg!(
                     gettext(
                         c"E576: Reading ShaDa file: last entry specified that it occupies %llu bytes, but file ended earlier",
@@ -1595,7 +1595,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                                 additional_data: None,
                             };
                             buflist_setfpos(
-                                buf,
+                                 &mut *buf,
                                 curwin_ptr(),
                                 (*buf).b_last_cursor.mark.lnum,
                                 (*buf).b_last_cursor.mark.col,
@@ -2675,7 +2675,7 @@ fn shada_write(
 
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(tp) {
-                set_last_cursor(wp);
+                set_last_cursor( &mut *wp);
             }
         }
 
@@ -3501,7 +3501,7 @@ fn msgpack_read_uint64(
             );
             return ShaDaReadResult::kSDReadStatusReadError;
         } else if read_bytes == 0 {
-            if allow_eof && file_eof(sd_reader) {
+            if allow_eof && file_eof( &*sd_reader) {
                 return ShaDaReadResult::kSDReadStatusFinished;
             }
             semsg!(
@@ -3556,7 +3556,7 @@ fn shada_read_next_item(
         let mut ret = ShaDaReadResult::kSDReadStatusMalformed;
         loop {
             *entry = MISSING_ENTRY;
-            if file_eof(sd_reader) {
+            if file_eof( &*sd_reader) {
                 return ShaDaReadResult::kSDReadStatusFinished;
             }
 

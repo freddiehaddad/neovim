@@ -720,7 +720,7 @@ pub fn channel_from_stdio(
         let stdio_in = &raw mut (*channel).stdio_in;
         let stdio_out = &raw mut (*channel).stdio_out;
         {
-            rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
+            rstream_init_fd((&raw mut g_st().main_loop).cast(),  &mut *stdio_in, stdin_dup_fd);
             wstream_init_fd(&mut *(&raw mut g_st().main_loop).cast(), &mut *stdio_out, stdout_dup_fd, 0);
         }
 

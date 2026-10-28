@@ -394,7 +394,7 @@ fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
-        validate_botline_win(&raw mut *wp);
+        validate_botline_win(&mut *wp);
 
         tv_dict_add_nr(dict, c"tabnr", tpnr as varnumber_T);
         tv_dict_add_nr(dict, c"winnr", winnr as varnumber_T);
@@ -1006,7 +1006,7 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         }
         restore_viewstate(curwin_mut(), &vs);
 
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         changed_window_setting(curwin_mut());
         if curwin_mut().w_topline <= 0 {
             curwin_mut().w_topline = 1;

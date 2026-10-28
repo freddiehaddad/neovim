@@ -1811,7 +1811,7 @@ pub fn listdigraphs(use_headers: bool) {
 
             if tmp.result != 0 && tmp.result != c_int::from(tmp.char2) {
                 printdigraph(
-                    &raw const tmp,
+                    &tmp,
                     if use_headers {
                         &raw mut previous
                     } else {
@@ -1831,7 +1831,7 @@ pub fn listdigraphs(use_headers: bool) {
                 digraph_header(gettext(c"Custom"));
             }
             previous = -1;
-            printdigraph(dp, ptr::null_mut());
+            printdigraph( dp, ptr::null_mut());
             fast_breakcheck();
         }
     }
@@ -1886,12 +1886,12 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
     }
 }
 
-fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
+fn printdigraph(dp: &digr_T, previous: *mut result_T) {
     unsafe {
         let mut buf = [0 as c_char; 30];
         let list_width: c_int = 13;
 
-        if (*dp).result == 0 {
+        if dp.result == 0 {
             return;
         }
 
@@ -1901,14 +1901,14 @@ fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
                     break;
                 };
                 if *previous < HEADER_TABLE[i].dg_start
-                    && (*dp).result >= HEADER_TABLE[i].dg_start
-                    && (*dp).result < HEADER_TABLE[i + 1].dg_start
+                    && dp.result >= HEADER_TABLE[i].dg_start
+                    && dp.result < HEADER_TABLE[i + 1].dg_start
                 {
                     digraph_header(gettext(header.as_ptr()));
                     break;
                 }
             }
-            *previous = (*dp).result;
+            *previous = dp.result;
         }
         if g_st().msg_col > g_st().Columns - list_width {
             msg_putchar(b'\n' as c_int);
@@ -1918,28 +1918,28 @@ fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
             msg_advance((g_st().msg_col / list_width + 1) * list_width);
         }
 
-        buf[0] = (*dp).char1 as c_char;
-        buf[1] = (*dp).char2 as c_char;
+        buf[0] = dp.char1 as c_char;
+        buf[1] = dp.char2 as c_char;
         buf[2] = b' ' as c_char;
         buf[3] = NUL;
         msg_outtrans(buf.as_ptr(), 0, false);
 
         let mut p = buf.as_mut_ptr();
-        if utf_iscomposing_first((*dp).result) {
+        if utf_iscomposing_first(dp.result) {
             *p = b' ' as c_char;
             p = p.add(1);
         }
-        p = p.add(utf_char2bytes((*dp).result, p) as usize);
+        p = p.add(utf_char2bytes(dp.result, p) as usize);
         *p = NUL;
         msg_outtrans(buf.as_ptr(), HLF_8, false);
 
         p = buf.as_mut_ptr();
-        if char2cells((*dp).result) == 1 {
+        if char2cells(dp.result) == 1 {
             *p = b' ' as c_char;
             p = p.add(1);
         }
         let used = p.offset_from(buf.as_ptr()) as usize;
-        vim_snprintf!(p, buf.len() - used, c" %3d", (*dp).result);
+        vim_snprintf!(p, buf.len() - used, c" %3d", dp.result);
         msg_outtrans(buf.as_ptr(), 0, false);
     }
 }

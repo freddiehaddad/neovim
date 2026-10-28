@@ -928,7 +928,7 @@ pub fn do_mouse(
             clearop(&mut *oap);
         }
 
-        if g_st().Visual.active && is_drag && get_scrolloff_value(curwin_ptr()) != 0 {
+        if g_st().Visual.active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
             if g_st().mouse_row == 0 {
                 g_st().mouse_dragging = 2;
             } else {
@@ -1862,7 +1862,7 @@ pub fn mouse_comp_pos(
             None,
             true,
         );
-        let diff_fill = diff_check_fill(&raw mut *win, lnum);
+        let diff_fill = diff_check_fill(&mut *win, lnum);
         let skip_fill = if lnum == win.w_topline {
             virt_lines + diff_fill - win.w_topfill
         } else {
@@ -1881,7 +1881,7 @@ pub fn mouse_comp_pos(
                 None,
                 true,
             );
-            let diff_fill_prev = diff_check_fill(&raw mut *win, lnum - 1);
+            let diff_fill_prev = diff_check_fill(&mut *win, lnum - 1);
             virtnum = -row - 1 - virt_lines_prev - diff_fill_prev + virt_below_prev;
         } else if row < virt_lines + diff_fill - skip_fill {
             virtnum = -row;

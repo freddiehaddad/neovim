@@ -526,20 +526,20 @@ pub fn nvim_open_win(
     }
 }
 
-fn win_split_dir(win: *mut win_T) -> WinSplit {
+fn win_split_dir(win: &mut win_T) -> WinSplit {
     unsafe {
-        if (*win).w_frame.is_null() || (*(*win).w_frame).fr_parent.is_null() {
+        if win.w_frame.is_null() || (*win.w_frame).fr_parent.is_null() {
             return kWinSplitLeft;
         }
 
-        let layout = (*(*(*win).w_frame).fr_parent).fr_layout;
+        let layout = (*(*win.w_frame).fr_parent).fr_layout;
         if layout == FR_COL {
-            if !(*(*win).w_frame).fr_next.is_null() {
+            if !(*win.w_frame).fr_next.is_null() {
                 kWinSplitAbove
             } else {
                 kWinSplitBelow
             }
-        } else if !(*(*win).w_frame).fr_next.is_null() {
+        } else if !(*win.w_frame).fr_next.is_null() {
             kWinSplitLeft
         } else {
             kWinSplitRight
@@ -627,7 +627,7 @@ fn win_config_split(
         let mask = config.is_set__win_config_;
         let has_split = has_key(mask, KEYSET_OPTIDX_win_config__split);
         let has_vertical = has_key(mask, KEYSET_OPTIDX_win_config__vertical);
-        let old_split = win_split_dir(win);
+        let old_split = win_split_dir( &mut *win);
         if has_vertical && !has_split {
             if config.vertical {
                 fconfig.split = if old_split == kWinSplitRight || opt_vars().p_spr != 0 {
@@ -808,7 +808,7 @@ fn win_config_split(
                 }
 
                 win_remove(
-                    win,
+                     &mut *win,
                     if win_tp == g_st().curtab {
                         ptr::null_mut()
                     } else {
@@ -968,7 +968,7 @@ fn win_config_float_tp(
 
             if win_tp != parent_tp {
                 win_remove(
-                    win,
+                     &mut *win,
                     if win_tp == g_st().curtab {
                         ptr::null_mut()
                     } else {
@@ -1222,7 +1222,7 @@ pub fn nvim_win_get_config(
             rv.width = i64::from((*wp).w_width);
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__height;
             rv.height = i64::from((*wp).w_height);
-            let split = win_split_dir(wp);
+            let split = win_split_dir( &mut *wp);
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__split;
             rv.split = cstr_as_string(WIN_SPLIT_STR[split as usize].as_ptr());
         }

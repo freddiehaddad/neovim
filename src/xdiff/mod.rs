@@ -91,8 +91,8 @@ impl xdemitcb_t {
             Self::Diff(dout) => unsafe {
                 crate::diff::xdiff_out(start_a, count_a, start_b, count_b, &mut *dout)
             },
-            Self::OnHunk(priv_data) => crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, priv_data),
-            Self::Locations(priv_data) => crate::lua::xdiff::hunk_locations_cb(start_a, count_a, start_b, count_b, priv_data),
+            Self::OnHunk(priv_data) => crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, unsafe { &mut *priv_data }),
+            Self::Locations(priv_data) => crate::lua::xdiff::hunk_locations_cb(start_a, count_a, start_b, count_b, unsafe { &mut *priv_data }),
             Self::None | Self::Unified(_) => 0,
         }
     }

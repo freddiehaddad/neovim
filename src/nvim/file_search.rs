@@ -1429,7 +1429,7 @@ pub fn file_name_at_cursor(
             options,
             count,
             curbuf_mut().b_ffname,
-            (file_lnum.is_some()).then(||  { &mut *file_lnum.unwrap() }),
+            (file_lnum.is_some()).then(||  &mut *file_lnum.unwrap()),
         )
     }
 }

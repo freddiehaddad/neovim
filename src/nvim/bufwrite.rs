@@ -325,10 +325,10 @@ fn buf_write_bytes(ip: &mut bw_info) -> bool {
         true
 }
 
-fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> bool {
-    unsafe {
-        if (*buf).b_mtime_read != 0
-            && time_differs(file_info, (*buf).b_mtime_read, (*buf).b_mtime_read_ns)
+fn check_mtime(buf: &mut buf_T, file_info: &FileInfo) -> bool {
+     {
+        if buf.b_mtime_read != 0
+            && time_differs(file_info, buf.b_mtime_read, buf.b_mtime_read_ns)
         {
             g_st().msg_scroll = 1;
             g_st().msg_silent = 0;
@@ -493,7 +493,7 @@ fn buf_write_do_autocmds(
                     return OK;
                 }
                 if overwriting {
-                    ml_timestamp(buf);
+                    ml_timestamp( &mut *buf);
                     if append {
                         (*buf).b_flags &= !BF_NEW;
                     } else {
@@ -815,7 +815,7 @@ fn get_fileinfo(
                 return false;
             }
 
-            if overwriting && !forceit && !check_mtime(buf, file_info_old) {
+            if overwriting && !forceit && !check_mtime(unsafe { &mut *buf }, file_info_old) {
                 return false;
             }
         }
@@ -1127,7 +1127,7 @@ pub fn buf_write(
         let whole = start == 1 && end == (*buf).b_ml.ml_line_count;
         let mut write_undo_file = false;
         let mut sha_ctx = context_sha256_T::new();
-        let bkc = get_bkc_flags(buf);
+        let bkc = get_bkc_flags( &mut *buf);
 
         if fname.is_null() || *fname == NUL {
             return FAIL;
@@ -1568,7 +1568,7 @@ pub fn buf_write(
 
                         write_info.bw_len = 0;
                         write_info.bw_flags = wb_flags;
-                        fileformat = get_fileformat_force(buf, (eap.is_some()).then(||  { eap.unwrap() }));
+                        fileformat = get_fileformat_force( &*buf, (eap.is_some()).then(||  { eap.unwrap() }));
                         let mut s = buffer;
                         lnum = start;
                         while lnum <= end {
@@ -1747,9 +1747,9 @@ pub fn buf_write(
                                     let _ = os_setperm(wfname, perm);
                                 }
                             }
-                            buf_set_file_id(buf);
+                            buf_set_file_id(&mut *buf);
                         } else if !(*buf).file_id_valid {
-                            buf_set_file_id(buf);
+                            buf_set_file_id(&mut *buf);
                         }
 
                         let close_err = os_close(fd);
@@ -1934,7 +1934,7 @@ pub fn buf_write(
                     }
 
                     if overwriting {
-                        ml_timestamp(buf);
+                        ml_timestamp( &mut *buf);
                         if append {
                             (*buf).b_flags &= !BF_NEW;
                         } else {

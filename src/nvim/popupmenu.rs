@@ -483,7 +483,7 @@ pub fn pum_display(
             } else {
                 pum_win_row = curwin_mut().w_wrow;
                 let mut wcol = curwin_mut().w_wcol;
-                if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_ptr()) {
+                if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
                     wcol -= curwin_mut().w_wcol_conceal_off;
                     if wcol < 0 {
                         wcol = 0;
@@ -611,8 +611,8 @@ fn pum_compute_text_attrs(
     unsafe {
         if *text == NUL
             || (hlf != HLF_PSI && hlf != HLF_PNI)
-            || (win_hl_attr(curwin_ptr(), HLF_PMSI) == win_hl_attr(curwin_ptr(), HLF_PSI)
-                && win_hl_attr(curwin_ptr(), HLF_PMNI) == win_hl_attr(curwin_ptr(), HLF_PNI))
+            || (win_hl_attr(curwin_mut(), HLF_PMSI) == win_hl_attr(curwin_mut(), HLF_PSI)
+                && win_hl_attr(curwin_mut(), HLF_PMNI) == win_hl_attr(curwin_mut(), HLF_PNI))
         {
             return None;
         }
@@ -648,27 +648,27 @@ fn pum_compute_text_attrs(
         let is_select = hlf == HLF_PSI;
 
         while *ptr != NUL {
-            let mut new_attr = win_hl_attr(curwin_ptr(), hlf);
+            let mut new_attr = win_hl_attr(curwin_mut(), hlf);
 
             if let Some(ref positions) = match_positions {
                 if positions.contains(&char_pos) {
-                    new_attr = win_hl_attr(curwin_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), hlf), new_attr);
+                    new_attr = win_hl_attr(curwin_mut(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PMNI), new_attr);
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), hlf), new_attr);
                 }
             } else {
                 if matched_len < 0 && mb_strnicmp(ptr, leader, leader_len) == 0 {
                     matched_len = leader_len as c_int;
                 }
                 if matched_len > 0 {
-                    new_attr = win_hl_attr(curwin_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), hlf), new_attr);
+                    new_attr = win_hl_attr(curwin_mut(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PMNI), new_attr);
+                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), hlf), new_attr);
                     matched_len -= 1;
                 }
             }
 
-            new_attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PNI), new_attr);
+            new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), new_attr);
 
             if user_hlattr > 0 {
                 new_attr = hl_combine_attr(new_attr, user_hlattr);
@@ -766,8 +766,8 @@ fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int {
 pub fn pum_redraw() {
     unsafe {
         let mut row: c_int = 0;
-        let attr_scroll = win_hl_attr(curwin_ptr(), HLF_PSB);
-        let attr_thumb = win_hl_attr(curwin_ptr(), HLF_PST);
+        let attr_scroll = win_hl_attr(curwin_mut(), HLF_PSB);
+        let attr_thumb = win_hl_attr(curwin_mut(), HLF_PST);
         let mut thumb_pos: c_int = 0;
         let mut thumb_height: c_int = 1;
         let fcs_trunc: schar_T = if pum().rl {
@@ -918,10 +918,10 @@ pub fn pum_redraw() {
             let idx = i + pum().first;
             let selected = idx == pum().selected;
             let hlfs = if selected { &HLFS_SEL } else { &HLFS_NORM };
-            let trunc_attr = win_hl_attr(curwin_ptr(), if selected { HLF_PSI } else { HLF_PNI });
+            let trunc_attr = win_hl_attr(curwin_mut(), if selected { HLF_PSI } else { HLF_PNI });
             let mut hlf = hlfs[0];
-            let mut attr = win_hl_attr(curwin_ptr(), hlf);
-            attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PNI), attr);
+            let mut attr = win_hl_attr(curwin_mut(), hlf);
+            attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), attr);
 
             screengrid_line_start(&raw mut g_st().pum_grid, row, 0);
 
@@ -946,8 +946,8 @@ pub fn pum_redraw() {
             for j in 0..3 {
                 let item_type = order[j];
                 hlf = hlfs[item_type as usize];
-                attr = win_hl_attr(curwin_ptr(), hlf);
-                attr = hl_combine_attr(win_hl_attr(curwin_ptr(), HLF_PNI), attr);
+                attr = win_hl_attr(curwin_mut(), hlf);
+                attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), attr);
                 orig_attr = attr;
                 if item_type < 2 {
                     attr = pum_user_attr_combine(idx, item_type, attr);

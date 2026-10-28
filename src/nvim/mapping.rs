@@ -1179,12 +1179,12 @@ fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, abbr: c_
         }
 
         let mode = get_map_mode(&mut cmdp, forceit != 0);
-        map_clear_mode(g_st().curbuf, mode, local, abbr != 0);
+        map_clear_mode(curbuf_mut(), mode, local, abbr != 0);
     }
 }
 
 /// Clear all mappings in "mode".
-pub fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
+pub fn map_clear_mode(buf: &mut buf_T, mode: c_int, local: bool, abbr: bool) {
     unsafe {
         for hash in 0..256 {
             let mpp: &mut Vec<mapblock_T> = if abbr {
@@ -1192,13 +1192,14 @@ pub fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
                     break;
                 }
                 if local {
-                    &mut (*buf).b_first_abbr
+                    &mut buf.b_first_abbr
                 } else {
                     let a = &raw mut map_st().first_abbr;
                     &mut *a
                 }
             } else if local {
-                &mut (&mut (*buf).b_maphash)[hash]
+                let mh = &raw mut buf.b_maphash;
+                &mut (*mh)[hash]
             } else {
                 let mh = &raw mut map_st().maphash;
                 &mut (*mh)[hash]
@@ -1216,7 +1217,7 @@ pub fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
                     if !abbr && new_hash != hash {
                         let moved = mpp.remove(idx);
                         if local {
-                            (&mut (*buf).b_maphash)[new_hash].insert(0, moved);
+                            (&mut buf.b_maphash)[new_hash].insert(0, moved);
                         } else {
                             let mh = &raw mut map_st().maphash;
                             (*mh)[new_hash].insert(0, moved);

@@ -389,9 +389,7 @@ fn json_append_string_contents(
     unsafe {
         let json = if use_keybuf {
             &mut (*ctx.options).keybuf.buf
-        } else {
-            &mut *ctx.json
-        };
+        } else { &mut *ctx.json };
 
         let mut len: usize = 0;
         let str_ptr = lua_tolstring(l, lindex, &mut len);
@@ -550,9 +548,7 @@ fn json_append_number(
         let num = lua_tonumber(l, lindex);
         let json = if use_keybuf {
             &mut (*ctx.options).keybuf.buf
-        } else {
-            &mut *ctx.json
-        };
+        } else { &mut *ctx.json };
 
         if num.is_infinite() || num.is_nan() {
             json_encode_exception(l, ctx, lindex, c"must not be NaN or Infinity");

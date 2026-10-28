@@ -1096,7 +1096,7 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
                     do_join(2, false, false, false, false);
                     g_st().curbuf_splice_pending -= 1;
                     extmark_splice(
-                        g_st().curbuf,
+                        curbuf_mut(),
                         startpos.lnum - 1,
                         startpos.col,
                         oap.line_count - 1,
@@ -1299,7 +1299,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
                 }
                 g_st().curbuf_splice_pending -= 1;
                 extmark_splice(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     baselnum - 1,
                     bd.textcol,
                     0,
@@ -1388,7 +1388,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
         }
 
         curwin_mut().w_cursor = oap.start;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         changed_lines(
             g_st().curbuf,
             oap.start.lnum,
@@ -1730,7 +1730,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
                 }
 
                 curwin_mut().w_cursor.col = oap.start.col;
-                check_cursor(curwin_ptr());
+                check_cursor(curwin_mut());
             }
         }
     }
@@ -1842,7 +1842,7 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
                         );
                     }
                 }
-                check_cursor(curwin_ptr());
+                check_cursor(curwin_mut());
                 changed_lines(
                     g_st().curbuf,
                     oap.start.lnum + 1,
@@ -1863,7 +1863,7 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
 /// there move it left.
 pub fn adjust_cursor_eol() {
      {
-        let cur_ve_flags = get_ve_flags(curwin_ptr());
+        let cur_ve_flags = get_ve_flags(curwin_mut());
 
         let adj_cursor = curwin_mut().w_cursor.col > 0
             && gchar_cursor() == c_int::from(NUL)
@@ -2029,7 +2029,7 @@ pub fn do_join(
             if t > 0 && g_st().curbuf_splice_pending == 0 {
                 let removed = curr.offset_from(curr_start) as colnr_T;
                 extmark_splice(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     curwin_mut().w_cursor.lnum - 1,
                     sumsize,
                     1,

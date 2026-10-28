@@ -47,7 +47,7 @@ fn pushluaval(cs: &mut CapState) {
 
 #[inline]
 fn skipclose(cs: &mut CapState, head: *const Capture) {
-    if isopencap(head) {
+    if isopencap(unsafe { &*head }) {
         debug_assert!(isclosecap(cs.cap));
         cs.cap = unsafe { cs.cap.add(1) };
     }
@@ -56,7 +56,7 @@ fn skipclose(cs: &mut CapState, head: *const Capture) {
 #[inline]
 fn capsize(cap: *const Capture, close: *const Capture) -> Index_t {
     unsafe {
-        if isopencap(cap) {
+        if isopencap( &*cap) {
             debug_assert!(isclosecap(close));
             (*close).index - (*cap).index
         } else {
@@ -89,7 +89,7 @@ fn findopen(mut cap: *mut Capture) -> *mut Capture {
             cap = cap.sub(1);
             if isclosecap(cap) {
                 n += 1;
-            } else if isopencap(cap) {
+            } else if isopencap( &*cap) {
                 if n == 0 {
                     return cap;
                 }
@@ -102,11 +102,11 @@ fn findopen(mut cap: *mut Capture) -> *mut Capture {
 fn nextcap(cs: &mut CapState) {
     unsafe {
         let mut cap = cs.cap;
-        if isopencap(cap) {
+        if isopencap( &*cap) {
             let mut n: c_int = 0;
             loop {
                 cap = cap.add(1);
-                if isopencap(cap) {
+                if isopencap( &*cap) {
                     n += 1;
                 } else if isclosecap(cap) {
                     if n == 0 {

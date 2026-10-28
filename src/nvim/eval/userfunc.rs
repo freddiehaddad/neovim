@@ -1098,7 +1098,7 @@ fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
         if if force {
             (*fc).fc_refcount <= 0
         } else {
-            !fc_referenced(fc)
+            !fc_referenced( &*fc)
         } {
             let pfc = &raw mut uf_st().previous_funccal;
             if let Some(pos) = (*pfc)
@@ -3493,12 +3493,12 @@ pub fn func_ptr_ref(fp: *mut ufunc_T) {
 }
 
 #[inline]
-fn fc_referenced(fc: *const funccall_T) -> bool {
-    unsafe {
-        (*fc).fc_l_varlist.lv_refcount != DO_NOT_FREE_CNT
-            || (*fc).fc_l_vars.dv_refcount != DO_NOT_FREE_CNT
-            || (*fc).fc_l_avars.dv_refcount != DO_NOT_FREE_CNT
-            || (*fc).fc_refcount > 0
+fn fc_referenced(fc: &funccall_T) -> bool {
+     {
+        fc.fc_l_varlist.lv_refcount != DO_NOT_FREE_CNT
+            || fc.fc_l_vars.dv_refcount != DO_NOT_FREE_CNT
+            || fc.fc_l_avars.dv_refcount != DO_NOT_FREE_CNT
+            || fc.fc_refcount > 0
     }
 }
 

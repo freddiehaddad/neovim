@@ -667,17 +667,17 @@ pub fn check_need_swap(newfile: bool) {
 }
 
 /// Close memline for buffer `buf`.
-pub fn ml_close(buf: *mut buf_T, del_file: c_int) {
-    unsafe {
-        if (*buf).b_ml.ml_mfp.is_none() {
+pub fn ml_close(buf: &mut buf_T, del_file: c_int) {
+     {
+        if buf.b_ml.ml_mfp.is_none() {
             return;
         }
-        mf_close((*buf).b_ml.ml_mfp.take(), del_file != 0);
-        (*buf).b_ml.ml_line_buf = Vec::new();
-        (*buf).b_ml.ml_stack = Vec::new();
-        (*buf).b_ml.ml_chunksize = Vec::new();
+        mf_close(buf.b_ml.ml_mfp.take(), del_file != 0);
+        buf.b_ml.ml_line_buf = Vec::new();
+        buf.b_ml.ml_stack = Vec::new();
+        buf.b_ml.ml_chunksize = Vec::new();
 
-        (*buf).b_flags &= !BF_RECOVERED;
+        buf.b_flags &= !BF_RECOVERED;
     }
 }
 
@@ -685,7 +685,7 @@ pub fn ml_close(buf: *mut buf_T, del_file: c_int) {
 pub fn ml_close_all(del_file: bool) {
      {
         for buf in for_all_buffers_ptr() {
-            ml_close(buf, c_int::from(del_file));
+            ml_close(unsafe { &mut *buf }, c_int::from(del_file));
         }
         spell_delete_wordlist();
         vim_deltempdir();
@@ -697,16 +697,16 @@ pub fn ml_close_notmod() {
     unsafe {
         for buf in for_all_buffers_ptr() {
             if !bufIsChanged(&mut *buf) {
-                ml_close(buf, 1);
+                ml_close( &mut *buf, 1);
             }
         }
     }
 }
 
 /// Update the timestamp in the `.swp` file.
-pub fn ml_timestamp(buf: *mut buf_T) {
-    unsafe {
-        ml_upd_block0(&mut *buf, upd_block0_T::UB_FNAME);
+pub fn ml_timestamp(buf: &mut buf_T) {
+     {
+        ml_upd_block0(buf, upd_block0_T::UB_FNAME);
     }
 }
 
@@ -1390,7 +1390,7 @@ pub fn ml_recover(checkext: bool) {
         if orig_file_status != OK || curbuf_mut().b_ml.ml_line_count != lnum * 2 + 1 {
             if !(curbuf_mut().b_ml.ml_line_count == 2 && *ml_get(1) == NUL) {
                 changed_internal(curbuf_mut());
-                buf_inc_changedtick(g_st().curbuf);
+                buf_inc_changedtick(curbuf_mut());
             }
         } else {
             for i_lnum in 1..=lnum {
@@ -1398,7 +1398,7 @@ pub fn ml_recover(checkext: bool) {
                 let cmp = crate::memory::cstr_as_bytes(p_line.as_ptr()).cmp(crate::memory::cstr_as_bytes(ml_get(i_lnum + lnum))) as c_int;
                 if cmp != 0 {
                     changed_internal(curbuf_mut());
-                    buf_inc_changedtick(g_st().curbuf);
+                    buf_inc_changedtick(curbuf_mut());
                     break;
                 }
             }
@@ -1408,7 +1408,7 @@ pub fn ml_recover(checkext: bool) {
             ml_delete(curbuf_mut().b_ml.ml_line_count);
         }
         curbuf_mut().b_flags |= BF_RECOVERED;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
 
         g_st().msg_ext_skip_flush = !g_st().got_int;
         g_st().recoverymode = false;
@@ -1478,7 +1478,7 @@ fn ml_recover_theend(
         }
         drop(buf);
         if serious_error && called_from_main {
-            ml_close(g_st().curbuf, 1);
+            ml_close(curbuf_mut(), 1);
         } else {
             apply_autocmds(
                 EVENT_BUFREADPOST,
@@ -2157,7 +2157,7 @@ fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool) -> *m
         }
         if will_change {
             (*buf).b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
-            ml_add_deleted_len_buf(buf, (*buf).b_ml.ml_line_ptr, -1);
+            ml_add_deleted_len_buf( &mut *buf, (*buf).b_ml.ml_line_ptr, -1);
         }
 
         (*buf).b_ml.ml_line_ptr
@@ -2634,11 +2634,11 @@ pub fn ml_append_buf(
 }
 
 pub fn ml_add_deleted_len(ptr: *mut c_char, len: isize) {
-    ml_add_deleted_len_buf(g_st().curbuf, ptr, len);
+    ml_add_deleted_len_buf(curbuf_mut(), ptr, len);
 }
 
-pub fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len: isize) {
-    unsafe {
+pub fn ml_add_deleted_len_buf(buf: &mut buf_T, ptr: *mut c_char, mut len: isize) {
+     {
         if g_st().inhibit_delete_count != 0 {
             return;
         }
@@ -2646,17 +2646,17 @@ pub fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len: isize)
         if len == -1 || len > maxlen {
             len = maxlen;
         }
-        (*buf).deleted_bytes += (len as usize) + 1;
-        (*buf).deleted_bytes2 += (len as usize) + 1;
-        if (*buf).update_need_codepoints {
+        buf.deleted_bytes += (len as usize) + 1;
+        buf.deleted_bytes2 += (len as usize) + 1;
+        if buf.update_need_codepoints {
             mb_utflen(
                 ptr,
                 len as usize,
-                &mut (*buf).deleted_codepoints,
-                &mut (*buf).deleted_codeunits,
+                &mut buf.deleted_codepoints,
+                &mut buf.deleted_codeunits,
             );
-            (*buf).deleted_codepoints += 1;
-            (*buf).deleted_codeunits += 1;
+            buf.deleted_codepoints += 1;
+            buf.deleted_codeunits += 1;
         }
     }
 }
@@ -2727,7 +2727,7 @@ pub fn ml_replace_buf_len(
 
         if !(*buf).update_callbacks.is_empty() {
             let old_line = ml_get_buf(buf, lnum);
-            ml_add_deleted_len_buf(buf, old_line, -1);
+            ml_add_deleted_len_buf( &mut *buf, old_line, -1);
         }
 
         if let Some(mut v) = new_buf {
@@ -2812,7 +2812,7 @@ fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> bool {
 
         assert!(line_size >= 1);
         ml_add_deleted_len_buf(
-            buf,
+             &mut *buf,
             dp.cast::<c_char>().add(line_start as usize),
             (line_size - 1) as isize,
         );
@@ -3848,19 +3848,19 @@ fn char_to_long(s_in: *const c_char) -> c_long {
 }
 
 /// Set the flags in the first block of the swapfile.
-pub fn ml_setflags(buf: *mut buf_T) {
+pub fn ml_setflags(buf: &mut buf_T) {
     unsafe {
-        if (*buf).b_ml.ml_mfp.is_none() {
+        if buf.b_ml.ml_mfp.is_none() {
             return;
         }
-        let mfp = (*buf).b_ml.mfp_ptr();
+        let mfp = buf.b_ml.mfp_ptr();
         let hp = pmap_get_bhdr(&(*mfp).mf_hash, 0);
         if !hp.is_null() {
             let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
-            (*b0p).set_dirty(if (*buf).b_changed != 0 { B0_DIRTY } else { 0 });
-            let ff_bits = ((get_fileformat(&*buf) + 1) as u8) & B0_FF_MASK;
+            (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
+            let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
             (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
-            add_b0_fenc(&mut *b0p, &mut *buf);
+            add_b0_fenc(&mut *b0p, buf);
             (*hp).bh_flags |= BH_DIRTY;
             mf_sync(&mut *mfp, MFS_ZERO);
         }
@@ -4190,7 +4190,7 @@ pub fn goto_byte(cnt: c_int) {
             curwin_mut().w_cursor.coladd = 0;
             curwin_mut().w_set_curswant = true;
         }
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         mb_adjust_cursor();
     }
 }

@@ -482,7 +482,7 @@ fn atom_origin() -> CmdOrigin {
             pos: curwin_mut().w_cursor,
             tick: buf_get_changedtick(curbuf_mut()),
             maptick: g_st().maptick,
-            mcursor: mc_mark_at(g_st().curbuf, curwin_mut().w_cursor, 0),
+            mcursor: mc_mark_at(curbuf_mut(), curwin_mut().w_cursor, 0),
             ..CmdOrigin::default()
         };
         set_bufref(&mut origin.buf, g_st().curbuf);
@@ -618,7 +618,7 @@ fn atom_from_frame(ca: &mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
             );
             atom = atom_from_cmdline(kANormal, ca, lua_id.as_ptr(), (*frame).visual.active);
         }
-        atom_payload_append(&mut atom, frame);
+        atom_payload_append(&mut atom,  &mut *frame);
         atom
     }
 }
@@ -652,9 +652,9 @@ fn atom_key_name(c: c_int) -> std::ffi::CString {
         cstr_to_cstring(buf.as_ptr())
 }
 
-fn atom_dict(atom: *const CmdAtom) -> Dict {
+fn atom_dict(atom: &CmdAtom) -> Dict {
     unsafe {
-        let spec = &(*atom).spec;
+        let spec = &atom.spec;
         let regname: [c_char; 2] = [spec.regname as c_char, 0];
         let force_buf: [c_char; 2] = [spec.motion_force as c_char, 0];
         let force: *const c_char = if spec.motion_force == Ctrl_V {
@@ -684,30 +684,30 @@ fn atom_dict(atom: *const CmdAtom) -> Dict {
         if !cmdarg.as_bytes().is_empty() {
             dict_put(&mut d, c"cmdarg", cstr_to_obj(cmdarg.as_ptr()));
         }
-        dict_put(&mut d, c"changed", boolean_obj((*atom).changed));
+        dict_put(&mut d, c"changed", boolean_obj(atom.changed));
         if !cmd.as_bytes().is_empty() {
             dict_put(&mut d, c"cmd", cstr_to_obj(cmd.as_ptr()));
         }
         if spec.count > 0 {
             dict_put(&mut d, c"count", integer_obj(spec.count as _));
         }
-        if (*atom).origin.pos.lnum > 0 {
-            dict_put(&mut d, c"moved", boolean_obj((*atom).moved));
+        if atom.origin.pos.lnum > 0 {
+            dict_put(&mut d, c"moved", boolean_obj(atom.moved));
             let mut pos = Array {
                 items: ptr::null_mut(),
                 size: 0,
                 capacity: 0,
             };
-            array_add(&mut pos, integer_obj(i64::from((*atom).origin.pos.lnum)));
-            array_add(&mut pos, integer_obj(i64::from((*atom).origin.pos.col)));
+            array_add(&mut pos, integer_obj(i64::from(atom.origin.pos.lnum)));
+            array_add(&mut pos, integer_obj(i64::from(atom.origin.pos.col)));
             dict_put(&mut d, c"pos", array_obj(pos));
-            dict_put(&mut d, c"undoseq", integer_obj(i64::from((*atom).undoseq)));
+            dict_put(&mut d, c"undoseq", integer_obj(i64::from(atom.undoseq)));
         }
-        let keys: *const c_char = (*atom).keys.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-        if !(*atom).remap {
+        let keys: *const c_char = atom.keys.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
+        if !atom.remap {
             dict_put(&mut d, c"keys", cstr_to_obj(keys));
         }
-        let lhs_ptr = match &(*atom).lhs {
+        let lhs_ptr = match &atom.lhs {
             Some(lhs) if !lhs.as_bytes().is_empty() => lhs.as_ptr(),
             _ => keys,
         };
@@ -721,7 +721,7 @@ fn atom_dict(atom: *const CmdAtom) -> Dict {
         if spec.regname != 0 {
             dict_put(&mut d, c"reg", cstr_to_obj(regname.as_ptr()));
         }
-        if let Some(ref text) = (*atom).text
+        if let Some(ref text) = atom.text
             && !text.as_bytes().is_empty()
         {
             dict_put(&mut d, c"text", cstr_to_obj(text.as_ptr()));
@@ -729,7 +729,7 @@ fn atom_dict(atom: *const CmdAtom) -> Dict {
         dict_put(
             &mut d,
             c"type",
-            cstr_to_obj(TYPE_NAMES[(*atom).r#type as usize].as_ptr()),
+            cstr_to_obj(TYPE_NAMES[atom.r#type as usize].as_ptr()),
         );
         d
     }
@@ -740,7 +740,7 @@ fn atom_emit(atom: &CmdAtom) {
         if !has_event(EVENT_CMDATOM) {
             return;
         }
-        let mut data = atom_dict(atom);
+        let mut data = atom_dict( atom);
         if !atom.atoms.is_empty() {
             let mut atoms = Array {
                 items: ptr::null_mut(),
@@ -748,7 +748,7 @@ fn atom_emit(atom: &CmdAtom) {
                 capacity: 0,
             };
             for sub in &atom.atoms {
-                array_add(&mut atoms, dict_obj(atom_dict(sub)));
+                array_add(&mut atoms, dict_obj(atom_dict( sub)));
             }
             dict_put(&mut data, c"atoms", array_obj(atoms));
         }
@@ -1166,12 +1166,12 @@ pub fn atom_payload_end() {
     }
 }
 
-fn atom_payload_append(atom: &mut CmdAtom, frame: *mut CmdFrame) {
+fn atom_payload_append(atom: &mut CmdAtom, frame: &mut CmdFrame) {
     unsafe {
-        let plen = if (*frame).payload_start == usize::MAX {
+        let plen = if frame.payload_start == usize::MAX {
             0
         } else {
-            (*frame).payload_end - (*frame).payload_start
+            frame.payload_end - frame.payload_start
         };
         let Some(ref cur_keys) = atom.keys else {
             return;
@@ -1181,9 +1181,9 @@ fn atom_payload_append(atom: &mut CmdAtom, frame: *mut CmdFrame) {
         }
         let mut bytes = cur_keys.as_bytes().to_vec();
         let typed_keys = &raw const atom_st().typed.keys;
-        bytes.extend_from_slice(&(&*typed_keys)[(*frame).payload_start..(*frame).payload_end]);
+        bytes.extend_from_slice(&(&*typed_keys)[frame.payload_start..frame.payload_end]);
         atom.keys = Some(std::ffi::CString::new(bytes).unwrap());
-        (*frame).payload_start = usize::MAX;
+        frame.payload_start = usize::MAX;
     }
 }
 
@@ -1937,7 +1937,7 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
 
             if (*root).redo_frame == (*old).id && !mouse_cmd {
                 let mut atom = atom_from_redo(kAOperator);
-                atom_payload_append(&mut atom, old);
+                atom_payload_append(&mut atom,  &mut *old);
 
                 let effect = (changed
                     || reg_max_ts(true) > (*old).reg_ts

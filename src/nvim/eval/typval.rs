@@ -765,8 +765,8 @@ pub fn tv_set_string_len(tv: &mut typval_T, s: *const c_char, len: usize) {
 }
 
 #[inline]
-pub fn tv_blob_get(b: *const blob_T, idx: c_int) -> u8 {
-    unsafe { tv_blob_get_inline(&*b, idx) }
+pub fn tv_blob_get(b: &blob_T, idx: c_int) -> u8 {
+     tv_blob_get_inline(b, idx)
 }
 
 #[inline]
@@ -1027,7 +1027,7 @@ fn tv_list_item_alloc() -> *mut listitem_T {
 pub fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut listitem_T {
     unsafe {
         let next_item = (*item).li_next;
-        tv_list_drop_items(l, item, item);
+        tv_list_drop_items( &mut *l, item,  &mut *item);
         drop(Box::from_raw(item));
         next_item
     }
@@ -1157,33 +1157,33 @@ pub fn tv_list_unref(l: *mut list_T) {
 }
 
 /// Remove items "item" to "item2" from list "l".
-pub fn tv_list_drop_items(l: *mut list_T, item: *mut listitem_T, item2: *mut listitem_T) {
+pub fn tv_list_drop_items(l: &mut list_T, item: *mut listitem_T, item2: &mut listitem_T) {
     unsafe {
         let mut ip = item;
-        while ip != (*item2).li_next {
-            (*l).lv_len -= 1;
-            tv_list_watch_fix(&mut *l, &*ip);
+        while ip != item2.li_next {
+            l.lv_len -= 1;
+            tv_list_watch_fix(l, &*ip);
             ip = (*ip).li_next;
         }
 
-        if (*item2).li_next.is_null() {
-            (*l).lv_last = (*item).li_prev;
+        if item2.li_next.is_null() {
+            l.lv_last = (*item).li_prev;
         } else {
-            (*(*item2).li_next).li_prev = (*item).li_prev;
+            (*item2.li_next).li_prev = (*item).li_prev;
         }
         if (*item).li_prev.is_null() {
-            (*l).lv_first = (*item2).li_next;
+            l.lv_first = item2.li_next;
         } else {
-            (*(*item).li_prev).li_next = (*item2).li_next;
+            (*(*item).li_prev).li_next = item2.li_next;
         }
-        (*l).lv_idx_item = ptr::null_mut();
+        l.lv_idx_item = ptr::null_mut();
     }
 }
 
 /// Like tv_list_drop_items, but also frees all removed items.
 pub fn tv_list_remove_items(l: *mut list_T, item: *mut listitem_T, item2: *mut listitem_T) {
     unsafe {
-        tv_list_drop_items(l, item, item2);
+        tv_list_drop_items( &mut *l, item,  &mut *item2);
         let mut li = item;
         loop {
             let nli = (*li).li_next;
@@ -1205,7 +1205,7 @@ pub fn tv_list_move_items(
     cnt: c_int,
 ) {
     unsafe {
-        tv_list_drop_items(l, item, item2);
+        tv_list_drop_items( &mut *l, item,  &mut *item2);
         (*item).li_prev = tgt_l.lv_last;
         item2.li_next = ptr::null_mut();
         if tgt_l.lv_last.is_null() {
@@ -1545,7 +1545,7 @@ pub fn tv_list_flatten(
             if (*item).li_tv.v_type == VarType::VAR_LIST {
                 let itemlist = (*item).li_tv.vval.v_list();
 
-                tv_list_drop_items(list, item, item);
+                tv_list_drop_items( &mut *list, item,  &mut *item);
                 tv_list_extend(list, itemlist, next);
 
                 if maxdepth > 0 {
@@ -1891,7 +1891,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
         if item.is_null() {
             semsg!(tr(e_list_index_out_of_range_nr), idx);
         } else if argvars[2].v_type == VarType::VAR_UNKNOWN {
-            tv_list_drop_items(l, item, item);
+            tv_list_drop_items( &mut *l, item,  &mut *item);
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
             drop(Box::from_raw(item));
         } else {
@@ -2484,7 +2484,7 @@ pub fn tv_list_find_nr(l: *mut list_T, n: c_int,mut ret_error: Option<&mut bool>
         }
             return -1;
         }
-        tv_get_number_chk(&(*li).li_tv, (ret_error.is_some()).then(||  { &mut *ret_error.unwrap() }))
+        tv_get_number_chk(&(*li).li_tv, (ret_error.is_some()).then(||  &mut *ret_error.unwrap()))
     }
 }
 
@@ -2861,7 +2861,7 @@ pub fn tv_dict_item_remove(dict: &mut dict_T, item: *mut dictitem_T) {
         if hashitem_empty(&*hi) {
             semsg!(tr(e_intern2), c"tv_dict_item_remove()");
         } else {
-            hash_remove(&mut dict.dv_hashtab, hi);
+            hash_remove(&mut dict.dv_hashtab,  &mut *hi);
         }
         tv_dict_item_free(item);
     }
@@ -2899,7 +2899,7 @@ pub fn tv_dict_free_contents(d: &mut dict_T) {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
-                hash_remove(&mut d.dv_hashtab, hi);
+                hash_remove(&mut d.dv_hashtab,  &mut *hi);
                 tv_dict_item_free(di);
             }
             hi = hi.add(1);
@@ -3302,12 +3302,12 @@ pub fn tv_dict_add_str_len<S: crate::strings::IntoCCharPtr>(
 pub fn tv_dict_add_func(
     d: *mut dict_T,
     key: &std::ffi::CStr,
-    fp: *mut ufunc_T,
+    fp: &mut ufunc_T,
 ) -> bool {
     unsafe {
         let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
-        let name_ptr = (*fp).uf_name.as_ptr();
-        tv_set_string_len(&mut (*item).di_tv, name_ptr, (*fp).uf_namelen);
+        let name_ptr = fp.uf_name.as_ptr();
+        tv_set_string_len(&mut (*item).di_tv, name_ptr, fp.uf_namelen);
         (*item).di_tv.v_type = VarType::VAR_FUNC;
         func_ref((*item).di_tv.vval.v_string());
         if !tv_dict_add(d, item) {
@@ -3331,7 +3331,7 @@ pub fn tv_dict_clear(d: &mut dict_T) {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 tv_dict_item_free(tv_dict_hi2di(hi));
-                hash_remove(&mut d.dv_hashtab, hi);
+                hash_remove(&mut d.dv_hashtab, &mut *hi);
             }
             hi = hi.add(1);
         }
@@ -3367,7 +3367,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
                     if *action == b'm' as c_char {
                         let new_di = di2;
                         if tv_dict_add(&raw mut *d1, new_di) {
-                            hash_remove(&mut d2.dv_hashtab, hi2);
+                            hash_remove(&mut d2.dv_hashtab,  &mut *hi2);
                             tv_dict_watcher_notify(
                                 d1,
                                 (*new_di).di_key.as_ptr(),

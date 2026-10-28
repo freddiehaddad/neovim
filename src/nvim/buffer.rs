@@ -1382,10 +1382,10 @@ pub fn close_buffer(
         let mut win_valid = win_valid_any_tab(win);
         if set_context && win_valid && (*win).w_buffer == buf {
             if (*buf).b_nwindows == 1 {
-                set_last_cursor(win);
+                set_last_cursor( &mut *win);
             }
             buflist_setfpos(
-                buf,
+                 &mut *buf,
                 win,
                 if (*win).w_cursor.lnum == 1 {
                     0
@@ -1550,7 +1550,7 @@ pub fn buf_clear() {
      {
         let line_count = curbuf_mut().b_ml.ml_line_count;
         extmark_free_all(curbuf_mut());
-        mc_buf_free(g_st().curbuf);
+        mc_buf_free(curbuf_mut());
         while (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
             ml_delete(1);
         }
@@ -1637,7 +1637,7 @@ pub fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
         }
 
         let count = (*buf).b_ml.ml_line_count;
-        ml_close(buf, 1);
+        ml_close( &mut *buf, 1);
         (*buf).b_ml.ml_line_count = 0;
         mc_buf_clear(buf);
 
@@ -1747,7 +1747,7 @@ fn free_buffer(buf: *mut buf_T) {
             );
         }
         unref_var_dict(&mut *(*buf).b_vars());
-        aubuflocal_remove(buf);
+        aubuflocal_remove( &mut *buf);
         if g_st().autocmd_busy {
             (*buf).additional_data = None;
             (*buf).b_prompt_text = None;
@@ -1788,7 +1788,7 @@ fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
                 c"changedtick",
             );
             debug_assert!(!changedtick_hi.is_null());
-            hash_remove(&mut (*(*buf).b_vars()).dv_hashtab, changedtick_hi);
+            hash_remove(&mut (*(*buf).b_vars()).dv_hashtab,  &mut *changedtick_hi);
         }
         vars_clear(&mut (*(*buf).b_vars()).dv_hashtab);
         if (free_flags & kBffInitChangedtick) != 0 {
@@ -1796,9 +1796,9 @@ fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
         }
         (*buf).b_ucmds.clear();
         extmark_free_all(&mut *buf);
-        mc_buf_free(buf);
-        map_clear_mode(buf, MAP_ALL_MODES, true, false);
-        map_clear_mode(buf, MAP_ALL_MODES, true, true);
+        mc_buf_free( &mut *buf);
+        map_clear_mode( &mut *buf, MAP_ALL_MODES, true, false);
+        map_clear_mode( &mut *buf, MAP_ALL_MODES, true, true);
         (*buf).b_start_fenc = None;
         (*buf).b_localdir = None;
         (*buf).b_prevdir = None;
@@ -2741,7 +2741,7 @@ pub fn buflist_new(
                 drop(ffname_cstr);
                 if lnum != 0 {
                     buflist_setfpos(
-                        buf,
+                         &mut *buf,
                         if (flags & BLN_NOCURWIN) != 0 {
                             ptr::null_mut()
                         } else {
@@ -3019,7 +3019,7 @@ pub fn buflist_getfile(
         let col: colnr_T;
         let mut restore_view = false;
         if lnum == 0 {
-            fm = buflist_findfmark(buf);
+            fm = buflist_findfmark( &mut *buf);
             lnum = (*fm).mark.lnum;
             col = (*fm).mark.col;
             restore_view = true;
@@ -3081,7 +3081,7 @@ pub fn buflist_getfile(
 
 fn buflist_getfpos() {
     unsafe {
-        let fm = buflist_findfmark(g_st().curbuf);
+        let fm = buflist_findfmark(curbuf_mut());
         let fpos = &raw const (*fm).mark;
 
         curwin_mut().w_cursor.lnum = (*fpos).lnum;
@@ -3433,15 +3433,15 @@ pub fn buflist_nr2name(
 
 /// Set the line and column numbers for the given buffer and window.
 pub fn buflist_setfpos(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     win: *mut win_T,
     mut lnum: linenr_T,
     col: colnr_T,
     copy_options: bool,
 ) {
     unsafe {
-        let mut wip = if let Some(i) = (*buf).b_wininfo.iter().position(|w| w.wi_win == win) {
-            let mut wip = (*buf).b_wininfo.remove(i);
+        let mut wip = if let Some(i) = buf.b_wininfo.iter().position(|w| w.wi_win == win) {
+            let mut wip = buf.b_wininfo.remove(i);
             if copy_options && wip.wi_optset {
                 clear_winopt(&mut wip.wi_opt);
                 wip.wi_folds.clear();
@@ -3473,7 +3473,7 @@ pub fn buflist_setfpos(
             wip.wi_optset = true;
         }
 
-        (*buf).b_wininfo.insert(0, wip);
+        buf.b_wininfo.insert(0, wip);
     }
 }
 
@@ -3576,9 +3576,9 @@ pub fn get_winopts(buf: *mut buf_T) {
 }
 
 /// Find the mark for the buffer `buf` for the current window.
-pub fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
+pub fn buflist_findfmark(buf: &mut buf_T) -> *mut fmark_T {
     unsafe {
-        let wip = find_wininfo(&mut *buf, false, false);
+        let wip = find_wininfo(buf, false, false);
         if wip.is_null() {
             &raw mut buf_st().no_position
         } else {
@@ -3589,7 +3589,7 @@ pub fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
 
 /// Find the lnum for the buffer `buf` for the current window.
 pub fn buflist_findlnum(buf: *mut buf_T) -> linenr_T {
-    unsafe { (*buflist_findfmark(buf)).mark.lnum }
+    unsafe { (*buflist_findfmark( &mut *buf)).mark.lnum }
 }
 
 /// List all known file names (for `:files` and `:buffers` command).
@@ -3877,7 +3877,7 @@ pub fn buf_name_changed(buf: *mut buf_T) {
         maketitle();
         status_redraw_all();
         fmarks_check_names(&mut *buf);
-        ml_timestamp(buf);
+        ml_timestamp( &mut *buf);
     }
 }
 
@@ -3916,7 +3916,7 @@ pub fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int {
 
 /// Set alternate cursor position for the current buffer and window `win`.
 pub fn buflist_altfpos(win: &mut win_T) {
-    buflist_setfpos(g_st().curbuf, win, win.w_cursor.lnum, win.w_cursor.col, true);
+    buflist_setfpos(curbuf_mut(), win, win.w_cursor.lnum, win.w_cursor.col, true);
 }
 
 /// Check that `ffname` is not the same file as current file.
@@ -3947,7 +3947,7 @@ fn otherfile_buf(
                 return true;
             }
             if buf_same_file_id(buf, file_id_p) {
-                buf_set_file_id(&raw mut *buf);
+                buf_set_file_id(&mut *buf);
                 if buf_same_file_id(buf, file_id_p) {
                     return false;
                 }
@@ -3958,14 +3958,14 @@ fn otherfile_buf(
 }
 
 /// Set `file_id` for a buffer.
-pub fn buf_set_file_id(buf: *mut buf_T) {
+pub fn buf_set_file_id(buf: &mut buf_T) {
     unsafe {
         let mut file_id: FileID = FileID::new();
-        if !(*buf).b_fname.is_null() && os_fileid((*buf).b_fname, &mut *(&raw mut file_id).cast()) {
-            (*buf).file_id_valid = true;
-            (*buf).file_id = file_id;
+        if !buf.b_fname.is_null() && os_fileid(buf.b_fname, &mut *(&raw mut file_id).cast()) {
+            buf.file_id_valid = true;
+            buf.file_id = file_id;
         } else {
-            (*buf).file_id_valid = false;
+            buf.file_id_valid = false;
         }
     }
 }
@@ -4877,19 +4877,19 @@ pub fn buf_spname(buf: *mut buf_T) -> *mut c_char {
             return gettext(c"[Scratch]");
         }
         if (*buf).b_fname.is_null() {
-            return buf_get_fname(buf);
+            return buf_get_fname( &*buf);
         }
         ptr::null_mut()
     }
 }
 
 /// Get `buf->b_fname`, use `"[No Name]"` if it is NULL.
-pub fn buf_get_fname(buf: *const buf_T) -> *mut c_char {
-    unsafe {
-        if (*buf).b_fname.is_null() {
+pub fn buf_get_fname(buf: &buf_T) -> *mut c_char {
+     {
+        if buf.b_fname.is_null() {
             gettext(c"[No Name]")
         } else {
-            (*buf).b_fname
+            buf.b_fname
         }
     }
 }
@@ -4993,9 +4993,9 @@ pub fn buf_is_empty(buf: &mut buf_T) -> bool {
 }
 
 /// Increment `b:changedtick` value.
-pub fn buf_inc_changedtick(buf: *mut buf_T) {
-    unsafe {
-        buf_set_changedtick(&mut *buf, buf_get_changedtick(&*buf) + 1);
+pub fn buf_inc_changedtick(buf: &mut buf_T) {
+     {
+        buf_set_changedtick(buf, buf_get_changedtick(buf) + 1);
     }
 }
 

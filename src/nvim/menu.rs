@@ -1575,11 +1575,11 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
 
                 g_st().Visual.active = true;
                 g_st().Visual.reselect = 1;
-                check_cursor(curwin_ptr());
+                check_cursor(curwin_mut());
                 g_st().Visual.start = curwin_mut().w_cursor;
                 curwin_mut().w_cursor = tpos;
 
-                check_cursor(curwin_ptr());
+                check_cursor(curwin_mut());
 
                 if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && gchar_cursor() != c_int::from(NUL) {
                     curwin_mut().w_cursor.col += 1;

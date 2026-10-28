@@ -303,7 +303,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
         );
 
         if !providers_mut().is_empty() {
-            validate_botline_win(&raw mut *wp);
+            validate_botline_win(&mut *wp);
         }
         let botline: linenr_T = wp.w_botline.min(wp.buf_mut().b_ml.ml_line_count);
 

@@ -2599,7 +2599,7 @@ pub fn find_special_key(
                             key,
                             &mut modifiers,
                             (flags & FSK_SIMPLIFY) != 0,
-                            (did_simplify.is_some()).then(||  { &mut *did_simplify.unwrap() }),
+                            (did_simplify.is_some()).then(||  &mut *did_simplify.unwrap()),
                         );
                     }
 
@@ -2745,7 +2745,7 @@ pub fn replace_termcodes(
                     result.add(dlen),
                     fsk_flags,
                     true,
-                    (did_simplify.is_some()).then(||  { &mut *did_simplify.as_deref_mut().unwrap() }),
+                    (did_simplify.is_some()).then(||  &mut *did_simplify.as_deref_mut().unwrap()),
                 ) as usize;
                 if slen != 0 {
                     dlen += slen;

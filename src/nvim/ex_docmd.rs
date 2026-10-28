@@ -7302,7 +7302,7 @@ pub fn parse_cmd_address(
                     if eap.skip == 0 {
                         curwin_mut().w_cursor.lnum = eap.line2;
                         if eap.line2 > 0 {
-                            check_cursor(curwin_ptr());
+                            check_cursor(curwin_mut());
                         } else {
                             check_cursor_col(curwin_mut());
                         }
@@ -7324,7 +7324,7 @@ pub fn parse_cmd_address(
         }
 
         if need_check_cursor {
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
         }
         ret
     }
@@ -7503,7 +7503,7 @@ pub fn find_ex_command(eap: &mut exarg_T,mut full: Option<&mut c_int>) -> *mut c
                 while ascii_isalnum(*p) {
                     p = p.add(1);
                 }
-                p = find_ucmd(eap, p, (full.is_some()).then(||  { &mut *full.unwrap() }), None, None);
+                p = find_ucmd(eap, p, (full.is_some()).then(||  &mut *full.unwrap()), None, None);
             }
             if p == eap.cmd {
                 eap.cmdidx = CMD_SIZE_I32;
@@ -10672,7 +10672,7 @@ fn ex_syncbind(_eap: &mut exarg_T) {
             for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_scb != 0 && !(*wp).w_buffer.is_null() {
                     let y = plines_m_win_fill(wp, 1, (*wp).buf_mut().b_ml.ml_line_count)
-                        - (get_scrolloff_value(curwin_ptr()) as c_int);
+                        - (get_scrolloff_value(curwin_mut()) as c_int);
                     vt = vt.min(y);
                 }
             }
@@ -11636,7 +11636,7 @@ fn ex_mark(eap: &mut exarg_T) {
 
 pub fn update_topline_cursor() {
      {
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         update_topline(curwin_ptr());
         if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
             validate_cursor(curwin_ptr());

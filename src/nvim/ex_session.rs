@@ -94,12 +94,12 @@ fn write_fmt(fd: *mut FILE, s: String) -> bool {
     write_bytes(fd, s.as_bytes())
 }
 
-fn put_view_curpos(fd: *mut FILE, wp: *const win_T, spaces: &str) -> c_int {
-    unsafe {
-        let s = if (*wp).w_curswant == MAXCOL {
+fn put_view_curpos(fd: *mut FILE, wp: &win_T, spaces: &str) -> c_int {
+     {
+        let s = if wp.w_curswant == MAXCOL {
             format!("{spaces}normal! $\n")
         } else {
-            format!("{spaces}normal! 0{}|\n", (*wp).w_virtcol + 1)
+            format!("{spaces}normal! 0{}|\n", wp.w_virtcol + 1)
         };
         c_int::from(write_fmt(fd, s))
     }
@@ -279,22 +279,22 @@ fn ses_arglist(
         true
 }
 
-fn ses_get_fname(buf: *mut buf_T, flagp: &c_uint) -> *mut c_char {
-    unsafe {
-        if !(*buf).b_sfname.is_null()
+fn ses_get_fname(buf: &mut buf_T, flagp: &c_uint) -> *mut c_char {
+     {
+        if !buf.b_sfname.is_null()
             && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
             && (opt_vars().ssop_flags & (kOptSsopFlagCurdir | kOptSsopFlagSesdir)) != 0
             && opt_vars().p_acd == 0
             && !exses_st().did_lcd
         {
-            return (*buf).b_sfname;
+            return buf.b_sfname;
         }
-        (*buf).b_ffname
+        buf.b_ffname
     }
 }
 
 fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: &mut c_uint, add_eol: bool) -> bool {
-    let name = ses_get_fname(buf, flagp);
+    let name = ses_get_fname(unsafe { &mut *buf }, flagp);
         if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
             return false;
         }
@@ -374,7 +374,7 @@ fn put_view(
         }
 
         if add_edit && (!did_next || (*wp).w_arg_idx_invalid) {
-            let fname_esc = ses_escape_fname(ses_get_fname((*wp).w_buffer, flagp));
+            let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
             if bt_help((*wp).w_buffer) {
                 let mut curtag: *const c_char = c"".as_ptr();
                 if 0 < (*wp).w_tagstackidx && (*wp).w_tagstackidx <= (*wp).w_tagstacklen {
@@ -505,12 +505,12 @@ fn put_view(
                         i64::from((*wp).w_width / 2),
                         i64::from((*wp).w_width),
                     ),
-                ) || put_view_curpos(fd, wp, "  ") == FAIL
+                ) || put_view_curpos(fd,  &*wp, "  ") == FAIL
                     || !put_line(fd, c"endif")
                 {
                     return false;
                 }
-            } else if put_view_curpos(fd, wp, "") == FAIL {
+            } else if put_view_curpos(fd,  &*wp, "") == FAIL {
                 return false;
             }
         }
@@ -726,7 +726,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                     fd,
                 ) < 0
-                    || fputs(ses_get_fname(b, &opt_vars().ssop_flags), fd) < 0
+                    || fputs(ses_get_fname( &mut *b, &opt_vars().ssop_flags), fd) < 0
                     || fputs(
                         c"]==]), callback = function() vim.cmd.bcd({ [==[",
                         fd,

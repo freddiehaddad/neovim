@@ -682,12 +682,12 @@ fn is_qf_list(qfl: &qf_list_T) -> bool {
 }
 
 #[inline]
-fn get_loc_list(wp: *const win_T) -> *mut qf_info_T {
-    unsafe {
-        if is_ll_window(&*wp) {
-            (*wp).w_llist_ref
+fn get_loc_list(wp: &win_T) -> *mut qf_info_T {
+     {
+        if is_ll_window(wp) {
+            wp.w_llist_ref
         } else {
-            (*wp).w_llist
+            wp.w_llist
         }
     }
 }
@@ -2444,7 +2444,7 @@ fn qf_cmd_get_stack(eap: &mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
         assert!(!qi.is_null());
 
         if is_loclist_cmd(eap.cmdidx) {
-            qi = get_loc_list(curwin_ptr());
+            qi = get_loc_list(curwin_mut());
             if qi.is_null() {
                 if print_emsg {
                     emsg(gettext(e_loclist));
@@ -2546,7 +2546,7 @@ fn copy_loclist(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> bool {
 
 pub fn copy_loclist_stack(from: &mut win_T, to: &mut win_T) {
     unsafe {
-        let qi = get_loc_list(from);
+        let qi = get_loc_list( &*from);
         if qi.is_null() {
             return;
         }
@@ -2700,7 +2700,7 @@ fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
             if !win_valid(wp) {
                 return false;
             }
-            qi = get_loc_list(wp);
+            qi = get_loc_list( &*wp);
         }
         if qi.is_null() {
             return false;
@@ -2859,9 +2859,9 @@ fn qf_find_help_win() -> *mut win_T {
     }
 }
 
-fn win_set_loclist(wp: *mut win_T, qi: &mut qf_info_T) {
-    unsafe {
-        (*wp).w_llist = &raw mut *qi;
+fn win_set_loclist(wp: &mut win_T, qi: &mut qf_info_T) {
+     {
+        wp.w_llist = &raw mut *qi;
         qi.qf_refcount += 1;
     }
 }
@@ -2897,7 +2897,7 @@ fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut boo
             }
 
             if is_ll_stack(qi) && !newwin {
-                win_set_loclist(curwin_ptr(), qi);
+                win_set_loclist(curwin_mut(), qi);
             }
         }
 
@@ -2957,7 +2957,7 @@ fn qf_open_new_file_win(ll_ref: *mut qf_info_T) -> bool {
         opt_vars().swb_flags = 0;
         reset_binding(curwin_mut());
         if !ll_ref.is_null() {
-            win_set_loclist(curwin_ptr(), &mut *ll_ref);
+            win_set_loclist(curwin_mut(), &mut *ll_ref);
         }
         true
     }
@@ -2994,7 +2994,7 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: *mut qf
         win_goto(win);
 
         if (*win).w_llist.is_null() && !ll_ref.is_null() {
-            win_set_loclist(win, &mut *ll_ref);
+            win_set_loclist( &mut *win, &mut *ll_ref);
         }
     }
 }
@@ -3235,7 +3235,7 @@ fn qf_jump_goto_line(
                     curwin_mut().w_cursor.col = qf_col - 1;
                 }
                 curwin_mut().w_set_curswant = true;
-                check_cursor(curwin_ptr());
+                check_cursor(curwin_mut());
             } else {
                 beginline(BL_WHITE | BL_FIX);
             }
@@ -3936,7 +3936,7 @@ pub fn qf_view_result(split: bool) {
         assert!(!qi.is_null());
 
         if is_ll_window(curwin_mut()) {
-            qi = get_loc_list(curwin_ptr());
+            qi = get_loc_list(curwin_mut());
         }
 
         if qf_list_empty(qf_get_curlist(&mut *qi)) {
@@ -4150,7 +4150,7 @@ pub fn ex_copen(eap: &mut exarg_T) {
 
         curwin_mut().w_cursor.lnum = lnum;
         curwin_mut().w_cursor.col = 0;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         update_topline(curwin_ptr());
     }
 }
@@ -4324,7 +4324,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
         if old_count == 0 {
             let new_byte_count = get_region_bytecount(&mut *buf, 1, new_line_count, 0, new_endcol);
             extmark_splice(
-                buf,
+                 &mut *buf,
                 0,
                 0,
                 old_line_count - 1,
@@ -4352,7 +4352,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
             let new_byte_count =
                 get_region_bytecount(&mut *buf, start_lnum, new_line_count, 0, new_endcol);
             extmark_splice(
-                buf,
+                 &mut *buf,
                 old_line_count - 1,
                 old_endcol,
                 0,
@@ -4781,7 +4781,7 @@ pub fn ex_make(eap: &mut exarg_T) {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
         if !wp.is_null() {
-            qi = get_loc_list(wp);
+            qi = get_loc_list( &*wp);
         }
         if !qi.is_null() {
             if res >= 0 {
@@ -5383,7 +5383,7 @@ pub fn ex_cfile(eap: &mut exarg_T) {
             enc,
         );
         if !wp.is_null() {
-            qi = get_loc_list(wp);
+            qi = get_loc_list( &*wp);
             if qi.is_null() {
                 decr_quickfix_busy();
                 return;
@@ -6147,7 +6147,7 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
         if qi.is_null() {
             qi = ql_info_ptr();
             if !wp.is_null() {
-                qi = get_loc_list(wp);
+                qi = get_loc_list( &*wp);
             }
             if qi.is_null() {
                 return false;
@@ -6191,11 +6191,11 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
 
 fn qf_get_list_from_lines(
     what: &mut dict_T,
-    di: *mut dictitem_T,
+    di: &mut dictitem_T,
     retdict: &mut dict_T,
 ) -> bool {
     unsafe {
-        if (*di).di_tv.v_type != VarType::VAR_LIST || (*di).di_tv.vval.v_list().is_null() {
+        if di.di_tv.v_type != VarType::VAR_LIST || di.di_tv.vval.v_list().is_null() {
             return false;
         }
 
@@ -6226,7 +6226,7 @@ fn qf_get_list_from_lines(
             0,
             ptr::null(),
             ptr::null_mut(),
-            Some(&mut (*di).di_tv),
+            Some(&mut di.di_tv),
             errorformat,
             true,
             0,
@@ -6495,11 +6495,11 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
 
         let di = tv_dict_find(what, c"lines", 5);
         if !di.is_null() {
-            return qf_get_list_from_lines(what, di, retdict);
+            return qf_get_list_from_lines(what,  &mut *di, retdict);
         }
 
         if !wp.is_null() {
-            qi = get_loc_list(wp);
+            qi = get_loc_list( &*wp);
         }
 
         let flags = qf_getprop_keys2flags(what, !wp.is_null());
@@ -6894,11 +6894,11 @@ fn qf_setprop_title(
     qi: &mut qf_info_T,
     qf_idx: c_int,
     what: &dict_T,
-    di: *const dictitem_T,
+    di: &dictitem_T,
 ) -> bool {
-    unsafe {
+     {
         let qfl = qf_get_list(&mut *qi, qf_idx);
-        if (*di).di_tv.v_type != VarType::VAR_STRING {
+        if di.di_tv.v_type != VarType::VAR_STRING {
             return false;
         }
 
@@ -6941,7 +6941,7 @@ fn qf_setprop_items_from_lines(
     qi: &mut qf_info_T,
     qf_idx: c_int,
     what: &dict_T,
-    di: *mut dictitem_T,
+    di: &mut dictitem_T,
     action: c_int,
 ) -> bool {
     unsafe {
@@ -6958,7 +6958,7 @@ fn qf_setprop_items_from_lines(
             errorformat = (*efm_di).di_tv.vval.v_string();
         }
 
-        if (*di).di_tv.v_type != VarType::VAR_LIST || (*di).di_tv.vval.v_list().is_null() {
+        if di.di_tv.v_type != VarType::VAR_LIST || di.di_tv.vval.v_list().is_null() {
             return false;
         }
 
@@ -6970,7 +6970,7 @@ fn qf_setprop_items_from_lines(
             qf_idx,
             ptr::null(),
             ptr::null_mut(),
-            Some(&mut (*di).di_tv),
+            Some(&mut di.di_tv),
             errorformat,
             false,
             0,
@@ -7059,7 +7059,7 @@ fn qf_set_properties(
         let mut retval = false;
         let mut di = tv_dict_find(what, c"title", 5);
         if !di.is_null() {
-            retval = qf_setprop_title(qi, qf_idx, what, di);
+            retval = qf_setprop_title(qi, qf_idx, what,  &*di);
         }
         di = tv_dict_find(what, c"items", 5);
         if !di.is_null() {
@@ -7067,7 +7067,7 @@ fn qf_set_properties(
         }
         di = tv_dict_find(what, c"lines", 5);
         if !di.is_null() {
-            retval = qf_setprop_items_from_lines(qi, qf_idx, what, di, action);
+            retval = qf_setprop_items_from_lines(qi, qf_idx, what,  &mut *di, action);
         }
         di = tv_dict_find(what, c"context", 7);
         if !di.is_null() {
@@ -7123,7 +7123,7 @@ fn qf_free_stack(mut wp: *mut win_T, qi: &mut qf_info_T) {
 
             (*qfwin).w_llist_ref = new_ll;
             if wp != qfwin {
-                win_set_loclist(wp, &mut *new_ll);
+                win_set_loclist( &mut *wp, &mut *new_ll);
             }
         }
     }

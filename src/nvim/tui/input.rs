@@ -235,7 +235,7 @@ pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) 
             input.ttimeoutlen = opt_vars().p_ttm;
         }
 
-        rstream_init_fd(loop_, &raw mut input.read_stream, input.in_fd);
+        rstream_init_fd(loop_, &mut input.read_stream, input.in_fd);
 
         input.tk = termkey_new_abstract(
             Some(ti),

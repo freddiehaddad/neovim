@@ -693,7 +693,7 @@ pub fn diff_redraw(dofold: bool) {
             if dofold && foldmethodIsDiff(&mut *wp) {
                 foldUpdateAll(&mut *wp);
             }
-            let n = diff_check_fill(wp, (*wp).w_topline);
+            let n = diff_check_fill( &mut *wp, (*wp).w_topline);
             if (wp != curwin_ptr() && (*wp).w_topfill > 0) || n > 0 {
                 if (*wp).w_topfill > n {
                     (*wp).w_topfill = n.max(0);
@@ -1409,7 +1409,7 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
         };
         set_bufref(&mut old_curbuf, g_st().curbuf);
         validate_cursor(curwin_ptr());
-        set_fraction(curwin_ptr());
+        set_fraction(curwin_mut());
         g_st().cmdmod.cmod_tab = 0;
         if !win_split(
             0,
@@ -1591,14 +1591,14 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
     }
 }
 fn extract_hunk_internal(
-    dout: *mut diffout_T,
+    dout: &mut diffout_T,
     hunk: &mut diffhunk_T,
     line_idx: &mut c_int,
 ) -> bool {
-    unsafe {
-        let eof = *line_idx >= (*dout).dout_ga.len() as c_int;
+     {
+        let eof = *line_idx >= dout.dout_ga.len() as c_int;
         if !eof {
-            *hunk = (&(*dout).dout_ga)[*line_idx as usize];
+            *hunk = (&dout.dout_ga)[*line_idx as usize];
             *line_idx += 1;
         }
         eof
@@ -1766,7 +1766,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
                 count_new: 0,
             };
             let eof = if dio.dio_internal != 0 {
-                extract_hunk_internal(dout, &mut hunk, &mut line_hunk_idx)
+                extract_hunk_internal( &mut *dout, &mut hunk, &mut line_hunk_idx)
             } else {
                 extract_hunk(fd, &mut hunk, &mut diffstyle)
             };
@@ -2146,12 +2146,12 @@ pub fn diff_check_with_linestatus(
         num_fill
     }
 }
-pub fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
-    unsafe {
+pub fn diff_check_fill(wp: &mut win_T, lnum: linenr_T) -> c_int {
+     {
         if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
         }
-        let n = diff_check_with_linestatus(&mut *wp, lnum, None);
+        let n = diff_check_with_linestatus(wp, lnum, None);
         n.max(0)
     }
 }
@@ -3365,7 +3365,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         if diff_st().diff_need_update {
             ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         changed_line_abv_curs();
         if curtab_mut().tp_diffs.is_empty() {
             for wp in for_all_windows_mut() {
@@ -3529,7 +3529,7 @@ fn diffgetput(
                         }
                     }
                 }
-                extmark_adjust(g_st().curbuf, lnum, lnum + count - 1, MAXLNUM, added, kExtmarkUndo);
+                extmark_adjust(curbuf_mut(), lnum, lnum + count - 1, MAXLNUM, added, kExtmarkUndo);
                 changed_lines(g_st().curbuf, lnum, 0, lnum + count, added, true);
                 if did_free {
                     diff_fold_update(&dfree_lnum, &dfree_count, idx_to);
@@ -3796,7 +3796,7 @@ pub(crate) fn xdiff_out(
 pub fn f_diff_filler(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
      {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin_ptr(), tv_get_lnum(&argvars[0])).max(0) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin_mut(), tv_get_lnum(&argvars[0])).max(0) as varnumber_T);
     }
 }
 pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){

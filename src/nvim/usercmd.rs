@@ -1116,9 +1116,7 @@ pub fn uc_add_command(
         let u = &raw mut (*ucmds_mut());
         let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
             &mut curbuf_mut().b_ucmds
-        } else {
-            &mut *u
-        };
+        } else { &mut *u };
 
         let mut i: c_int = 0;
         while (i as usize) < gap.len() {

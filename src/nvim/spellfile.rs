@@ -1748,7 +1748,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             gettext(c"Reading affix file %s..."),
             fname,
         );
-        spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
 
         let do_rep = spin.si_rep.is_empty();
         let do_repsal = spin.si_repsal.is_empty();
@@ -2908,7 +2908,7 @@ fn add_fromto(
      {
         let mut word = [0 as c_char; MAXWLEN];
         spell_casefold(
-            curwin_ptr(),
+            curwin_mut(),
             from,
             crate::memory::cstr_len(from) as c_int,
             word.as_mut_ptr(),
@@ -2916,7 +2916,7 @@ fn add_fromto(
         );
         let ft_from = crate::memory::cstr_to_cstring(word.as_ptr());
         spell_casefold(
-            curwin_ptr(),
+            curwin_mut(),
             to,
             crate::memory::cstr_len(to) as c_int,
             word.as_mut_ptr(),
@@ -2955,7 +2955,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
             gettext(c"Reading dictionary file %s..."),
             fname,
         );
-        spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
 
         spin.si_msg_count = 999999;
 
@@ -3575,7 +3575,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
             gettext(c"Reading word file %s..."),
             fname,
         );
-        spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
 
         while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as c_int, fd) && !g_st().got_int {
             line_breakcheck();
@@ -3762,7 +3762,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
-            spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
+            spell_message(&*spin, (&raw mut g_st().IObuff).cast());
         }
 
         retval
@@ -3807,7 +3807,7 @@ fn store_word(
             return false;
         }
 
-        spell_casefold(curwin_ptr(), word, len, foldword.as_mut_ptr(), MAXWLEN as c_int);
+        spell_casefold(curwin_mut(), word, len, foldword.as_mut_ptr(), MAXWLEN as c_int);
         let mut p = pfxlist;
         while res {
             if !need_affix || (!p.is_null() && *p != NUL) {
@@ -4076,7 +4076,7 @@ fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: &std::ff
                 tot - n,
                 perc,
             );
-            spell_message(spin, (&raw mut g_st().IObuff).cast());
+            spell_message( &*spin, (&raw mut g_st().IObuff).cast());
         }
     }
 }
@@ -4646,7 +4646,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
             .map_or(ptr::null_mut(), |s| &raw mut **s);
         let mut temp_slang: Option<Box<slang_T>> = None;
         if slang.is_null() {
-            spell_message(&raw mut *spin, gettext(c"Reading back spell file..."));
+            spell_message(&*spin, gettext(c"Reading back spell file..."));
             let mut new_lp = slang_alloc(ptr::null_mut());
             new_lp.sl_fname = Some(crate::memory::cstr_to_cstring(wfname));
             let add_b = crate::memory::cstr_as_bytes(SPL_FNAME_ADD);
@@ -4665,7 +4665,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
         spin.si_first_free = None;
         spin.si_foldwcount = 0;
 
-        spell_message(&raw mut *spin, gettext(c"Performing soundfolding..."));
+        spell_message(&*spin, gettext(c"Performing soundfolding..."));
         if sug_filltree(spin, &mut *slang) && sug_maketable(spin) {
             smsg!(
                 0,
@@ -4673,7 +4673,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
                 spin.si_spellbuf.as_ref().unwrap().b_ml.ml_line_count as i64,
             );
 
-            spell_message(&raw mut *spin, gettext(msg_compressing));
+            spell_message(&*spin, gettext(msg_compressing));
             wordtree_compress(spin, spin.si_foldroot, c"case-folded");
 
             let mut fname_buf = [0 as c_char; MAXPATHL];
@@ -4903,7 +4903,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
             gettext(c"Writing suggestion file %s..."),
             fname,
         );
-        spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
+        spell_message(&*spin, (&raw mut g_st().IObuff).cast());
 
         if fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) != 1 {
             emsg(gettext(e_write));
@@ -4955,7 +4955,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
                 gettext(c"Estimated runtime memory use: %d bytes"),
                 spin.si_memtot,
             );
-            spell_message(&raw mut *spin, (&raw mut g_st().IObuff).cast());
+            spell_message(&*spin, (&raw mut g_st().IObuff).cast());
         }
 
         fclose(fd);
@@ -5114,7 +5114,7 @@ fn mkspell(
                 }
 
                 if !error && !g_st().got_int {
-                    spell_message(&raw const spin, gettext(msg_compressing));
+                    spell_message(&spin, gettext(msg_compressing));
                     let foldroot = spin.si_foldroot;
                     wordtree_compress(&mut spin, foldroot, c"case-folded");
                     let keeproot = spin.si_keeproot;
@@ -5130,18 +5130,18 @@ fn mkspell(
                         gettext(c"Writing spell file %s..."),
                         wfname,
                     );
-                    spell_message(&raw const spin, (&raw mut g_st().IObuff).cast());
+                    spell_message(&spin, (&raw mut g_st().IObuff).cast());
 
                     error = !write_vim_spell(&mut spin, wfname);
 
-                    spell_message(&raw const spin, gettext(c"Done!"));
+                    spell_message(&spin, gettext(c"Done!"));
                     vim_snprintf!(
                         (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
                         gettext(c"Estimated runtime memory use: %d bytes"),
                         spin.si_memtot,
                     );
-                    spell_message(&raw const spin, (&raw mut g_st().IObuff).cast());
+                    spell_message(&spin, (&raw mut g_st().IObuff).cast());
 
                     if !error {
                         spell_reload_one(wfname, added_word);
@@ -5164,15 +5164,15 @@ fn mkspell(
     }
 }
 
-fn spell_message(spin: *const spellinfo_T, str_: *const c_char) {
-    unsafe {
-        if (*spin).si_verbose != 0 || opt_vars().p_verbose > 2 {
-            if (*spin).si_verbose == 0 {
+fn spell_message(spin: &spellinfo_T, str_: *const c_char) {
+     {
+        if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
+            if spin.si_verbose == 0 {
                 verbose_enter();
             }
             msg(str_, 0);
             ui_flush();
-            if (*spin).si_verbose == 0 {
+            if spin.si_verbose == 0 {
                 verbose_leave();
             }
         }

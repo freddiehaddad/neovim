@@ -1734,7 +1734,7 @@ fn get_col(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) {
             if wp.is_null() || tp.is_null() {
                 return;
             }
-            check_cursor(wp);
+            check_cursor( &mut *wp);
         }
 
         let bp = (*wp).w_buffer;
@@ -1927,7 +1927,7 @@ fn set_cursorpos(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) 
         curwin_mut().w_cursor.col = col;
         curwin_mut().w_cursor.coladd = coladd;
 
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         mb_adjust_cursor();
 
         curwin_mut().w_set_curswant = set_curswant;
@@ -2815,7 +2815,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 if idx < 0 || idx >= tv_blob_len(blob) {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
                 } else {
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_blob_get(blob, idx)));
+                    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_blob_get( &*blob, idx)));
                     tv = rettv;
                 }
             }
@@ -3804,7 +3804,7 @@ pub fn f_has(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
             n = ui_gui_attached();
         } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"syntax_items") {
             x = true;
-            n = syntax_present(curwin_ptr());
+            n = syntax_present(curwin_mut());
         } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"wsl") {
             x = true;
             n = has_wsl();
@@ -4039,7 +4039,7 @@ pub fn f_index(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 let tv = typval_T {
                     v_type: VarType::VAR_NUMBER,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(varnumber_T::from(tv_blob_get(b, idx))),
+                    vval: TypvalVval::Number(varnumber_T::from(tv_blob_get( &*b, idx))),
                 };
                 if tv_equal(&tv, &argvars[1], ic) {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(idx));
@@ -4130,7 +4130,7 @@ fn indexof_blob(
         let mut idx = startidx;
         while idx < varnumber_T::from(tv_blob_len(b)) {
             set_vim_var_nr(VV_KEY, idx);
-            set_vim_var_nr(VV_VAL, varnumber_T::from(tv_blob_get(b, idx as c_int)));
+            set_vim_var_nr(VV_VAL, varnumber_T::from(tv_blob_get(unsafe { &*b }, idx as c_int)));
 
             if indexof_eval_expr(expr) != 0 {
                 return idx;
@@ -5205,7 +5205,7 @@ pub fn f_line(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 {
                     g_st().skip_update_topline = true;
                 }
-                check_cursor(wp);
+                check_cursor( &mut *wp);
                 fp = var2fpos(&argvars[0], true, &mut fnum, false, &mut *wp);
                 g_st().skip_update_topline = false;
             }
@@ -6531,7 +6531,7 @@ fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
 
         let mut i: c_int = 0;
         while i < slen {
-            if tv_blob_get(blob, i) != 0 {
+            if tv_blob_get( &*blob, i) != 0 {
                 break;
             }
             i += 1;
@@ -6708,7 +6708,7 @@ fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
             initial = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(varnumber_T::from(tv_blob_get(b, 0))),
+                vval: TypvalVval::Number(varnumber_T::from(tv_blob_get( &*b, 0))),
             };
             i = 1;
         } else if !tv_check_for_number_arg(argvars, 2) {
@@ -6725,7 +6725,7 @@ fn reduce_blob(argvars: &mut [typval_T], rettv: &mut typval_T) {
             argv[1] = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(varnumber_T::from(tv_blob_get(b, i))),
+                vval: TypvalVval::Number(varnumber_T::from(tv_blob_get( &*b, i))),
             };
 
             let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
@@ -6950,7 +6950,7 @@ fn search_cmn(argvars: &mut [typval_T], match_pos: Option<&mut pos_T>, flagsp: &
                     match_pos.lnum = pos.lnum;
                     match_pos.col = pos.col + 1;
                 }
-                check_cursor(curwin_ptr());
+                check_cursor(curwin_mut());
             }
 
             if (flags & SP_NOMOVE) != 0 {
@@ -7778,7 +7778,7 @@ fn set_position(argvars: &mut [typval_T], rettv: &mut typval_T, charpos: bool) {
                 curwin_mut().w_curswant = curswant - 1;
                 curwin_mut().w_set_curswant = false;
             }
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         } else if *name == b'\'' as c_char && *name.add(1) != NUL && *name.add(2) == NUL {
             if setmark_pos(
@@ -8163,7 +8163,7 @@ pub fn f_shiftwidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             if col < 0 {
                 return;
             }
-            rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(get_sw_value_col(g_st().curbuf, col, false)));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(get_sw_value_col(curbuf_mut(), col, false)));
             return;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(get_sw_value(g_st().curbuf)));
@@ -9159,7 +9159,7 @@ pub fn f_virtcol(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 if wp.is_null() || tp.is_null() {
                     break 'theend;
                 }
-                check_cursor(wp);
+                check_cursor( &mut *wp);
             }
 
             let bp = (*wp).w_buffer;

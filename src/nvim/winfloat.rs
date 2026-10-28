@@ -113,7 +113,7 @@ pub fn win_new_float(
                 drop(Box::from_raw((*wp).w_frame));
             }
             (*wp).w_frame = ptr::null_mut();
-            win_remove(wp, tp);
+            win_remove( &mut *wp, tp);
             if win_tp == g_st().curtab {
                 last_status(false);
                 win_comp_pos();
@@ -360,12 +360,12 @@ pub fn win_float_remove(bang: bool, mut count: c_int) {
     }
 }
 
-pub fn win_check_anchored_floats(win: *mut win_T) {
+pub fn win_check_anchored_floats(win: &mut win_T) {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             if (*wp).w_config.relative == kFloatRelativeWindow
-                && (*wp).w_config.window == (*win).handle
+                && (*wp).w_config.window == win.handle
             {
                 (*wp).w_pos_changed = true;
             }
@@ -461,7 +461,7 @@ fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T {
             api_clear_error(err);
         }
         if !wp.is_null() {
-            win_remove(wp, ptr::null_mut());
+            win_remove( &mut *wp, ptr::null_mut());
             win_free(wp, ptr::null_mut());
         }
         unblock_autocmds();

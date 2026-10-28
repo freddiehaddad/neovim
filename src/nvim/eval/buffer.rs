@@ -771,7 +771,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         }
         tv_dict_add_list(dict, c"windows", windows);
 
-        if buf_has_signs(&raw mut *buf) {
+        if buf_has_signs(&*buf) {
             tv_dict_add_list(dict, c"signs", get_buffer_signs(buf));
         }
 

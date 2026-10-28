@@ -211,7 +211,7 @@ fn filter_map_blob(
         let mut i: c_int = 0;
         let mut idx: i64 = 0;
         while i < (*b).bv_ga.len() as c_int {
-            let val = tv_blob_get(b, i) as i64;
+            let val = tv_blob_get( &*b, i) as i64;
             let mut tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
@@ -888,8 +888,8 @@ pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             let b = arg0.vval.v_blob();
             let len = tv_blob_len(b);
             for i in 0..(len / 2) {
-                let tmp = tv_blob_get(b, i);
-                tv_blob_set(&mut *b, i, tv_blob_get(b, len - i - 1));
+                let tmp = tv_blob_get( &*b, i);
+                tv_blob_set(&mut *b, i, tv_blob_get( &*b, len - i - 1));
                 tv_blob_set(&mut *b, len - i - 1, tmp);
             }
             tv_blob_set_ret(rettv, b);

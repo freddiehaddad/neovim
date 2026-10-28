@@ -169,13 +169,13 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-pub fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
+pub fn ns_in_win(ns_id: u32, wp: &mut win_T) -> bool {
     unsafe {
         let local_ptr = &raw const g_st().namespace_localscope;
         if !(*local_ptr).contains(&ns_id) {
             return true;
         }
-        (*wp).w_ns_set.contains(&ns_id)
+        wp.w_ns_set.contains(&ns_id)
     }
 }
 
@@ -548,13 +548,13 @@ pub fn nvim_buf_get_extmarks(
 
         let mut l_row: c_int = 0;
         let mut l_col: colnr_T = 0;
-        if !extmark_get_index_from_obj(b, ns_id, start, &mut l_row, &mut l_col, err) {
+        if !extmark_get_index_from_obj( &mut *b, ns_id, start, &mut l_row, &mut l_col, err) {
             return rv;
         }
 
         let mut u_row: c_int = 0;
         let mut u_col: colnr_T = 0;
-        if !extmark_get_index_from_obj(b, ns_id, end, &mut u_row, &mut u_col, err) {
+        if !extmark_get_index_from_obj( &mut *b, ns_id, end, &mut u_row, &mut u_col, err) {
             return rv;
         }
 
@@ -1522,14 +1522,14 @@ pub fn nvim_set_decoration_provider(
 }
 
 fn extmark_get_index_from_obj(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     ns_id: Integer,
     obj: Object,
     row: &mut c_int,
     col: &mut colnr_T,
     err: &mut Error,
 ) -> bool {
-    unsafe {
+     {
         if obj.obj_type == ObjectType::kObjectTypeInteger {
             let id = obj.data.integer();
             if id == 0 {
@@ -1545,7 +1545,7 @@ fn extmark_get_index_from_obj(
                 return false;
             }
 
-            let extmark = extmark_from_id(&mut *buf, ns_id as u32, id as u32);
+            let extmark = extmark_from_id(buf, ns_id as u32, id as u32);
             if extmark.start.pos.row < 0 {
                 api_err_invalid(err, c"mark id (not found)", ptr::null(), id, false);
                 return false;

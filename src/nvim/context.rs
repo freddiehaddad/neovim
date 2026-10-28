@@ -351,7 +351,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
                 let mut p = *pos_ptr;
                 check_pos(curbuf_mut(), &mut p);
                 extmark_set_pos(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     ctx_marks_ns(),
                     &mut ctx.pos_marks[i],
                     p,
@@ -431,7 +431,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
                 if pos_ptr.is_null() || ctx.pos_marks[i] == 0 {
                     continue;
                 }
-                extmark_get_pos(buf, ctx_marks_ns(), ctx.pos_marks[i], &mut *pos_ptr);
+                extmark_get_pos( &mut *buf, ctx_marks_ns(), ctx.pos_marks[i], &mut *pos_ptr);
             }
             if (flags & kCtxVisual) != 0 {
                 (*buf).b_visual = ctx.visual;
@@ -777,7 +777,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
         }
 
         curbuf_mut().b_nwindows -= 1;
-        win_remove(curwin_ptr(), ptr::null_mut());
+        win_remove(curwin_mut(), ptr::null_mut());
         let map_ptr = &raw mut g_st().window_handles;
         (*map_ptr).remove(&curwin_mut().handle);
 
@@ -898,7 +898,7 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             ctx_st().CTX_SWITCH_DEPTH += 1;
         }
         if (flags & kCtxValidate) != 0 {
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
         }
         true
     }
@@ -977,7 +977,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             g_st().Visual.active = cs.cs_visual_active;
         }
         if cs.cs_mode == kCtxSwitchBuf {
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
             if g_st().Visual.active {
                 check_pos(curbuf_mut(), &mut g_st().Visual.start);
             }
@@ -996,7 +996,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             if !wp.is_null() && !equalpos(cs.cs_target_old_pos, (*wp).w_cursor) {
                 (*wp).w_redr_status = true;
             }
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
             if g_st().Visual.active {
                 check_pos(curbuf_mut(), &mut g_st().Visual.start);
             }

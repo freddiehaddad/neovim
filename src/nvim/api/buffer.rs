@@ -595,7 +595,7 @@ pub fn nvim_buf_set_lines(
             }
 
             extmark_splice(
-                b,
+                 &mut *b,
                 (start as c_int) - 1,
                 0,
                 (end - start) as c_int,
@@ -926,7 +926,7 @@ pub fn nvim_buf_set_text(
             }
 
             extmark_splice(
-                b,
+                 &mut *b,
                 (start_row as c_int) - 1,
                 start_col as colnr_T,
                 (end_row - start_row) as c_int,

@@ -381,22 +381,22 @@ pub fn get_recorded() -> std::ffi::CString {
     }
 }
 
-fn redo_prefix(spec: *const CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
-    unsafe {
-        if (*spec).regname != 0 {
+fn redo_prefix(spec: &CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
+     {
+        if spec.regname != 0 {
             sb_add_char(buf, b'"' as c_int);
-            sb_add_char(buf, (*spec).regname);
-            if replay && (*spec).regname == b'=' as c_int {
+            sb_add_char(buf, spec.regname);
+            if replay && spec.regname == b'=' as c_int {
                 sb_add_char(buf, CAR);
             }
         }
-        if (*spec).count != 0 {
+        if spec.count != 0 {
             let mut numbuf = [0 as c_char; 32];
             let n = vim_snprintf!(
                 numbuf.as_mut_ptr(),
                 numbuf.len(),
                 c"%d",
-                (*spec).count as c_int,
+                spec.count as c_int,
             );
             if n > 0 {
                 buf.extend_from_slice(&numbuf[..n as usize]);
@@ -405,25 +405,25 @@ fn redo_prefix(spec: *const CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
     }
 }
 
-fn redo_chars(spec: *const CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool) {
-    unsafe {
-        if (*spec).op != NUL {
-            sb_add_char(buf, (*spec).op);
+fn redo_chars(spec: &CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool) {
+     {
+        if spec.op != NUL {
+            sb_add_char(buf, spec.op);
         }
-        if (*spec).op_extra != NUL {
-            sb_add_char(buf, (*spec).op_extra);
+        if spec.op_extra != NUL {
+            sb_add_char(buf, spec.op_extra);
         }
-        if (*spec).motion_force != NUL {
-            sb_add_char(buf, (*spec).motion_force);
+        if spec.motion_force != NUL {
+            sb_add_char(buf, spec.motion_force);
         }
-        if (*spec).cmd != NUL {
-            sb_add_char(buf, (*spec).cmd);
+        if spec.cmd != NUL {
+            sb_add_char(buf, spec.cmd);
         }
-        if (*spec).cmd2 != NUL {
-            sb_add_char(buf, (*spec).cmd2);
+        if spec.cmd2 != NUL {
+            sb_add_char(buf, spec.cmd2);
         }
-        if (*spec).cmdarg != NUL && !arg_meta {
-            sb_add_char(buf, (*spec).cmdarg);
+        if spec.cmdarg != NUL && !arg_meta {
+            sb_add_char(buf, spec.cmdarg);
         }
     }
 }
@@ -438,11 +438,11 @@ pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
         };
 
         let mut buf: Vec<c_char> = Vec::new();
-        redo_prefix(spec, &mut buf, false);
+        redo_prefix( &*spec, &mut buf, false);
         if !(*spec).body.is_empty() {
             buf.extend_from_slice(&(*spec).body);
         } else {
-            redo_chars(spec, &mut buf, false);
+            redo_chars( &*spec, &mut buf, false);
         }
         if buf.is_empty() {
             None
@@ -687,7 +687,7 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
             return;
         }
         let body = &raw mut inp_st().redobuff.cur.body;
-        redo_chars(&raw const spec, &mut *body, arg_meta);
+        redo_chars(&spec, &mut *body, arg_meta);
     }
 }
 
@@ -706,8 +706,8 @@ pub fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
         if !keys.is_null() && len > 0 {
             (*body).extend_from_slice(std::slice::from_raw_parts(keys, len));
         }
-        redo_prefix(&raw const spec, &mut *body, false);
-        redo_chars(&raw const spec, &mut *body, false);
+        redo_prefix(&spec, &mut *body, false);
+        redo_chars(&spec, &mut *body, false);
     }
 }
 
@@ -945,7 +945,7 @@ pub fn start_redo(count: c_int, old_redo: bool) -> bool {
             spec.count = c_long::from(count);
         }
         let mut prefix: Vec<c_char> = Vec::new();
-        redo_prefix(&raw const spec, &mut prefix, true);
+        redo_prefix(&spec, &mut prefix, true);
         add_buff(&mut inp_st().readbuf2, prefix.as_ptr(), prefix.len() as isize);
         drop(prefix);
         if spec.regname == b'=' as c_int {

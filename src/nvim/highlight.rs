@@ -276,9 +276,9 @@ use crate::eval::funcs::{
 use crate::lua::converter::LUA_NOREF;
 
 #[inline]
-pub fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
-    unsafe {
-        if let Some(ref tbl) = (*wp).w_ns_hl_attr
+pub fn win_hl_attr(wp: &mut win_T, hlf: c_int) -> c_int {
+     {
+        if let Some(ref tbl) = wp.w_ns_hl_attr
             && g_st().ns_hl_fast < 0
         {
             tbl[hlf as usize].get()

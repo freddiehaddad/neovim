@@ -2263,7 +2263,7 @@ fn redraw_wildmenu(
 
         let mut group: hlf_T = 0;
         let fillchar = fillchar_status(&mut group, curwin_ptr());
-        let attr = win_hl_attr(curwin_ptr(), group);
+        let attr = win_hl_attr(curwin_mut(), group);
 
         let mut len: usize;
         if cmdexp().first_match == 0 {

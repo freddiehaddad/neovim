@@ -3742,7 +3742,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
         let mut foldlevel: OptInt = -1;
         let mut foldenable: c_int = kNone;
 
-        let siso = get_sidescrolloff_value(curwin_ptr());
+        let siso = get_sidescrolloff_value(curwin_mut());
 
         if ascii_isdigit(nchar) && !nv_z_get_count(cap, &mut nchar) {
             return;
@@ -3779,7 +3779,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 || c == b't' as c_int =>
             {
                 if nchar == b'+' as c_int && cap.count0 == 0 {
-                    validate_botline_win(curwin_ptr());
+                    validate_botline_win(curwin_mut());
                     curwin_mut().w_cursor.lnum = curwin_mut().w_botline.min(curbuf_mut().b_ml.ml_line_count);
                 }
                 if nchar != b't' as c_int {
@@ -3787,7 +3787,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 }
                 scroll_cursor_top(curwin_mut(), 0, 1);
                 redraw_later(curwin_ptr(), UPD_VALID);
-                set_fraction(curwin_ptr());
+                set_fraction(curwin_mut());
             }
             c if c == b'.' as c_int || c == b'z' as c_int => {
                 if nchar == b'.' as c_int {
@@ -3795,7 +3795,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 }
                 scroll_cursor_halfway(curwin_mut(), true, false);
                 redraw_later(curwin_ptr(), UPD_VALID);
-                set_fraction(curwin_ptr());
+                set_fraction(curwin_mut());
             }
             c if c == b'^' as c_int || c == b'-' as c_int || c == b'b' as c_int => {
                 if nchar == b'^' as c_int {
@@ -3813,7 +3813,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 }
                 scroll_cursor_bot(curwin_mut(), 0, true);
                 redraw_later(curwin_ptr(), UPD_VALID);
-                set_fraction(curwin_ptr());
+                set_fraction(curwin_mut());
             }
             c if c == b'H' as c_int || c == b'h' as c_int || c == K_LEFT => {
                 if nchar == b'H' as c_int {
@@ -4647,7 +4647,7 @@ fn nv_scroll(cap: &mut cmdarg_T) {
         setpcmark();
 
         if cap.cmdchar == b'L' as c_int {
-            validate_botline_win(curwin_ptr());
+            validate_botline_win(curwin_mut());
             curwin_mut().w_cursor.lnum = curwin_mut().w_botline - 1;
             if cap.count1 > curwin_mut().w_cursor.lnum {
                 curwin_mut().w_cursor.lnum = 1;
@@ -4672,7 +4672,7 @@ fn nv_scroll(cap: &mut cmdarg_T) {
         } else {
             if cap.cmdchar == b'M' as c_int {
                 let mut used = -(win_get_fill(curwin_ptr(), curwin_mut().w_topline) - curwin_mut().w_topfill);
-                validate_botline_win(curwin_ptr());
+                validate_botline_win(curwin_mut());
                 let half = (curwin_mut().w_view_height - curwin_mut().w_empty_rows + 1) / 2;
                 n = 0;
                 while curwin_mut().w_topline + n < curbuf_mut().b_ml.ml_line_count {
@@ -5024,7 +5024,7 @@ fn nv_next(cap: &mut cmdarg_T) {
         if i > 0
             && opt_vars().p_hls != 0
             && !g_st().Search.no_hlsearch
-            && win_hl_attr(curwin_ptr(), HLF_LC as c_int) != win_hl_attr(curwin_ptr(), HLF_L as c_int)
+            && win_hl_attr(curwin_mut(), HLF_LC as c_int) != win_hl_attr(curwin_mut(), HLF_L as c_int)
         {
             redraw_later(curwin_ptr(), UPD_SOME_VALID);
         }
@@ -5076,12 +5076,12 @@ fn normal_search(
         if !equalpos(curwin_mut().w_cursor, prev_cursor)
             && opt_vars().p_hls != 0
             && !g_st().Search.no_hlsearch
-            && win_hl_attr(curwin_ptr(), HLF_LC as c_int) != win_hl_attr(curwin_ptr(), HLF_L as c_int)
+            && win_hl_attr(curwin_mut(), HLF_LC as c_int) != win_hl_attr(curwin_mut(), HLF_L as c_int)
         {
             redraw_later(curwin_ptr(), UPD_SOME_VALID);
         }
 
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         i
     }
 }
@@ -5354,7 +5354,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
         } else if cap.nchar == b'p' as c_int || cap.nchar == b'P' as c_int {
             nv_put_opt(cap, true);
         } else if cap.nchar == b'\'' as c_int || cap.nchar == b'`' as c_int {
-            let mut fm = pos_to_mark(g_st().curbuf, None, curwin_mut().w_cursor);
+            let mut fm = pos_to_mark(curbuf_mut(), None, curwin_mut().w_cursor);
             assert!(!fm.is_null());
             let mut prev_fm = fm;
             let mut n = cap.count1;
@@ -5951,7 +5951,7 @@ fn n_swapchar(cap: &mut cmdarg_T) {
             n -= 1;
         }
 
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         curwin_mut().w_set_curswant = true;
         if did_change {
             changed_lines(
@@ -6206,7 +6206,7 @@ fn nv_visual(cap: &mut cmdarg_T) {
             }
             if g_st().Visual.resel.mode != b'v' as c_int || g_st().Visual.resel.line_count > 1 {
                 curwin_mut().w_cursor.lnum += g_st().Visual.resel.line_count * cap.count0 - 1;
-                check_cursor(curwin_ptr());
+                check_cursor(curwin_mut());
             }
             g_st().Visual.mode = g_st().Visual.resel.mode;
             if g_st().Visual.mode == b'v' as c_int {
@@ -6277,7 +6277,7 @@ fn n_start_visual_mode(c: c_int) {
         g_st().Visual.mode = c;
         g_st().Visual.active = true;
         g_st().Visual.reselect = 1;
-        if c == Ctrl_V && (get_ve_flags(curwin_ptr()) & kOptVeFlagBlock) != 0 && gchar_cursor() == TAB {
+        if c == Ctrl_V && (get_ve_flags(curwin_mut()) & kOptVeFlagBlock) != 0 && gchar_cursor() == TAB {
             validate_virtcol(curwin_ptr());
             coladvance(curwin_mut(), curwin_mut().w_virtcol);
         }
@@ -6345,10 +6345,10 @@ fn nv_gv_cmd(cap: &mut cmdarg_T) {
         g_st().Visual.active = true;
         g_st().Visual.reselect = 1;
 
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         g_st().Visual.start = curwin_mut().w_cursor;
         curwin_mut().w_cursor = tpos;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         update_topline(curwin_ptr());
 
         if cap.arg != 0 {
@@ -7049,7 +7049,7 @@ fn adjust_cursor(oap: &mut oparg_T) {
             && gchar_cursor() == NUL as c_int
             && (!g_st().Visual.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
             && !virtual_active(curwin_ptr())
-            && (get_ve_flags(curwin_ptr()) & kOptVeFlagOnemore) == 0
+            && (get_ve_flags(curwin_mut()) & kOptVeFlagOnemore) == 0
         {
             curwin_mut().w_cursor.col -= 1;
             mb_adjust_cursor();
@@ -7221,7 +7221,7 @@ fn nv_esc(cap: &mut cmdarg_T) {
 pub fn set_cursor_for_append_to_line() {
      {
         curwin_mut().w_set_curswant = true;
-        if get_ve_flags(curwin_ptr()) == kOptVeFlagAll {
+        if get_ve_flags(curwin_mut()) == kOptVeFlagAll {
             let save_State = g_st().State;
             g_st().State = MODE_INSERT;
             coladvance(curwin_mut(), MAXCOL);

@@ -1542,7 +1542,7 @@ pub fn readfile(
                 if keep_fileformat {
                     keep_fileformat = false;
                 } else if eap.is_some() && eap.unwrap().force_ff != 0 {
-                    fileformat = get_fileformat_force(g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
+                    fileformat = get_fileformat_force(curbuf_mut(), (eap.is_some()).then(||  { eap.unwrap() }));
                     try_unix = 0;
                     try_dos = 0;
                     try_mac = 0;
@@ -2858,7 +2858,7 @@ pub fn set_file_options(set_options: bool,eap: Option<&exarg_T>) {
      {
         if set_options {
             if eap.is_some() && eap.unwrap().force_ff != 0 {
-                set_fileformat(get_fileformat_force(g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() })), OPT_LOCAL);
+                set_fileformat(get_fileformat_force(curbuf_mut(), (eap.is_some()).then(||  { eap.unwrap() })), OPT_LOCAL);
             } else if !crate::memory::cstr_is_empty(opt_vars().p_ffs) {
                 set_fileformat(default_fileformat(), OPT_LOCAL);
             }
@@ -4088,7 +4088,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
 
         curwin_mut().w_topline = old_topline.min(curbuf_mut().b_ml.ml_line_count);
         curwin_mut().w_cursor = old_cursor;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         update_topline(curwin_ptr());
         curbuf_mut().b_keep_filetype = false;
 

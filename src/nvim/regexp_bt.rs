@@ -2212,17 +2212,17 @@ fn reg_save_equal(save: &regsave_T) -> bool {
     }
 }
 
-fn save_se_multi(savep: *mut save_se_T, posp: *mut lpos_T) {
+fn save_se_multi(savep: &mut save_se_T, posp: &mut lpos_T) {
     unsafe {
-        (*savep).se_u = crate::regexp::RegPos::Pos(*posp);
-        (*posp).lnum = re_st().rex.lnum;
-        (*posp).col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
+        savep.se_u = crate::regexp::RegPos::Pos(*posp);
+        posp.lnum = re_st().rex.lnum;
+        posp.col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
     }
 }
 
-fn save_se_one(savep: *mut save_se_T, pp: *mut *mut u8) {
+fn save_se_one(savep: &mut save_se_T, pp: *mut *mut u8) {
     unsafe {
-        (*savep).se_u = crate::regexp::RegPos::Ptr(*pp);
+        savep.se_u = crate::regexp::RegPos::Ptr(*pp);
         *pp = re_st().rex.input;
     }
 }
@@ -2230,9 +2230,9 @@ fn save_se_one(savep: *mut save_se_T, pp: *mut *mut u8) {
 #[inline]
 fn save_se(savep: *mut save_se_T, posp: *mut lpos_T, pp: *mut *mut u8) {
     if REG_MULTI() {
-            save_se_multi(savep, posp);
+            save_se_multi(unsafe { &mut *savep }, unsafe { &mut *posp });
         } else {
-            save_se_one(savep, pp);
+            save_se_one(unsafe { &mut *savep }, pp);
         }
 }
 
@@ -3810,7 +3810,7 @@ fn regtry(
         re_st().rex.need_clear_subexpr = 1;
         re_st().rex.need_clear_zsubexpr = c_int::from(prog.reghasz == REX_SET as u8);
 
-        if !regmatch(prog.program.as_mut_ptr().add(1), tm, (timed_out.is_some()).then(||  { &mut *timed_out.unwrap() })) {
+        if !regmatch(prog.program.as_mut_ptr().add(1), tm, (timed_out.is_some()).then(||  &mut *timed_out.unwrap())) {
             return 0;
         }
 
@@ -3968,7 +3968,7 @@ fn bt_regexec_both(
                             && (*prog).regstart < 255
                             && mb_tolower((*prog).regstart) == mb_tolower(c))))
             {
-                retval = regtry(&mut *prog, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.as_deref_mut().unwrap() }));
+                retval = regtry(&mut *prog, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap()));
             } else {
                 retval = 0;
             }
@@ -3989,7 +3989,7 @@ fn bt_regexec_both(
                     break;
                 }
 
-                retval = regtry(&mut *prog, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.as_deref_mut().unwrap() }));
+                retval = regtry(&mut *prog, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap()));
                 if retval > 0 {
                     break;
                 }

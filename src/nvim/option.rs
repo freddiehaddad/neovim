@@ -2380,14 +2380,14 @@ fn didset_options2() {
         highlight_changed();
 
         set_chars_option(
-            curwin_ptr(),
+            curwin_mut(),
             curwin_mut().w_onebuf_opt.wo_fcs,
             CharsOption::kFillchars,
             true,
             None,
         );
         set_chars_option(
-            curwin_ptr(),
+            curwin_mut(),
             curwin_mut().w_onebuf_opt.wo_lcs,
             CharsOption::kListchars,
             true,
@@ -3558,7 +3558,7 @@ fn do_spelllang_source(win: &mut win_T) {
 fn check_num_option_bounds(
     opt_idx: OptIndex,
     newval: *mut OptInt,
-    win: *mut win_T,
+    win: &mut win_T,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
@@ -3595,14 +3595,14 @@ fn check_num_option_bounds(
             }
             kOptScroll
                 if (*newval <= 0
-                    || (*newval > OptInt::from((*win).w_view_height)
-                        && (*win).w_view_height > 0))
+                    || (*newval > OptInt::from(win.w_view_height)
+                        && win.w_view_height > 0))
                     && g_st().full_screen =>
             {
                 if *newval != 0 {
                     errmsg = e_scroll.as_ptr();
                 }
-                *newval = OptInt::from(win_default_scroll(&mut *win));
+                *newval = OptInt::from(win_default_scroll(win));
             }
             _ => {}
         }
@@ -3766,7 +3766,7 @@ fn validate_num_option(
             _ => {}
         }
 
-        check_num_option_bounds(opt_idx, newval, win, errbuf)
+        check_num_option_bounds(opt_idx, newval,  &mut *win, errbuf)
     }
 }
 
@@ -7322,14 +7322,14 @@ pub fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
             (*wp).w_p_culopt_flags = culopt_flags as u8;
         }
         set_chars_option(
-            wp,
+             &mut *wp,
             (*wp).w_onebuf_opt.wo_fcs,
             CharsOption::kFillchars,
             true,
             None,
         );
         set_chars_option(
-            wp,
+             &mut *wp,
             (*wp).w_onebuf_opt.wo_lcs,
             CharsOption::kListchars,
             true,
@@ -7337,7 +7337,7 @@ pub fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
         );
         parse_winhl_opt(ptr::null(), wp);
         check_blending(&mut *wp);
-        set_winbar_win(wp, false, valid_cursor);
+        set_winbar_win( &mut *wp, false, valid_cursor);
         check_signcolumn(ptr::null_mut(), wp);
         (*wp).w_grid_alloc.blending = (*wp).w_onebuf_opt.wo_winbl > 0;
     }
@@ -8309,10 +8309,10 @@ pub fn can_bs(what: c_int) -> bool {
 }
 
 /// Get the local or global value of 'backupcopy' flags.
-pub fn get_bkc_flags(buf: *mut buf_T) -> c_uint {
-    unsafe {
-        if (*buf).b_bkc_flags != 0 {
-            (*buf).b_bkc_flags
+pub fn get_bkc_flags(buf: &mut buf_T) -> c_uint {
+     {
+        if buf.b_bkc_flags != 0 {
+            buf.b_bkc_flags
         } else {
             opt_vars().bkc_flags
         }
@@ -8331,10 +8331,10 @@ pub fn get_flp_value(buf: &mut buf_T) -> *mut c_char {
 }
 
 /// Get the local or global value of 'virtualedit' flags.
-pub fn get_ve_flags(wp: *mut win_T) -> c_uint {
-    unsafe {
-        let f = if (*wp).w_onebuf_opt.wo_ve_flags != 0 {
-            (*wp).w_onebuf_opt.wo_ve_flags
+pub fn get_ve_flags(wp: &mut win_T) -> c_uint {
+     {
+        let f = if wp.w_onebuf_opt.wo_ve_flags != 0 {
+            wp.w_onebuf_opt.wo_ve_flags
         } else {
             opt_vars().ve_flags
         };
@@ -8371,7 +8371,7 @@ pub fn get_fileformat(buf: &buf_T) -> c_int {
 }
 
 /// Like get_fileformat(), but override 'fileformat' with "p" for "++opt=val" argument.
-pub fn get_fileformat_force(buf: *const buf_T,eap: Option<&exarg_T>) -> c_int {
+pub fn get_fileformat_force(buf: &buf_T,eap: Option<&exarg_T>) -> c_int {
     unsafe {
         let c = if let Some(eap) = eap
             && eap.force_ff != 0
@@ -8383,12 +8383,12 @@ pub fn get_fileformat_force(buf: *const buf_T,eap: Option<&exarg_T>) -> c_int {
             {
                 eap.force_bin == FORCE_BIN
             } else {
-                (*buf).b_p_bin != 0
+                buf.b_p_bin != 0
             };
             if is_bin {
                 return EOL_UNIX;
             }
-            *(*buf).b_p_ff as u8
+            *buf.b_p_ff as u8
         };
         if c == b'u' {
             return EOL_UNIX;
@@ -8567,37 +8567,37 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
 }
 
 /// Return the effective 'scrolloff' value for the current window.
-pub fn get_scrolloff_value(wp: *mut win_T) -> i64 {
-    unsafe {
-        if (g_st().State & MODE_TERMINAL) != 0 && !(*wp).buf_mut().terminal.is_null() {
+pub fn get_scrolloff_value(wp: &mut win_T) -> i64 {
+     {
+        if (g_st().State & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.is_null() {
             return 0;
         }
-        if (*wp).w_onebuf_opt.wo_so < 0 {
+        if wp.w_onebuf_opt.wo_so < 0 {
             opt_vars().p_so
         } else {
-            (*wp).w_onebuf_opt.wo_so
+            wp.w_onebuf_opt.wo_so
         }
     }
 }
 
 /// Return the effective 'scrolloffpad' value for the current window.
-pub fn get_scrolloffpad_value(wp: *mut win_T) -> i64 {
-    unsafe {
-        if (*wp).w_onebuf_opt.wo_sop == -1 {
+pub fn get_scrolloffpad_value(wp: &mut win_T) -> i64 {
+     {
+        if wp.w_onebuf_opt.wo_sop == -1 {
             opt_vars().p_sop
         } else {
-            (*wp).w_onebuf_opt.wo_sop
+            wp.w_onebuf_opt.wo_sop
         }
     }
 }
 
 /// Return the effective 'sidescrolloff' value for the current window.
-pub fn get_sidescrolloff_value(wp: *mut win_T) -> i64 {
-    unsafe {
-        if (*wp).w_onebuf_opt.wo_siso < 0 {
+pub fn get_sidescrolloff_value(wp: &mut win_T) -> i64 {
+     {
+        if wp.w_onebuf_opt.wo_siso < 0 {
             opt_vars().p_siso
         } else {
-            (*wp).w_onebuf_opt.wo_siso
+            wp.w_onebuf_opt.wo_siso
         }
     }
 }
@@ -8623,7 +8623,7 @@ pub fn get_option_info(
             return Dict::new();
         }
 
-        option_info_dict(&mut *get_option(opt_idx), opt_flags, buf, win, arena)
+        option_info_dict(&mut *get_option(opt_idx), opt_flags,  &mut *buf,  &mut *win, arena)
     }
 }
 
@@ -8633,7 +8633,7 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
         let mut retval = arena_dict(arena, kOptCount as usize);
         for opt_idx in 0..kOptCount {
             let opt = get_option(opt_idx);
-            let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, g_st().curbuf, curwin_ptr(), arena);
+            let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena);
             put_c(&mut retval, (*opt).fullname.as_ptr(), dict_obj(opt_dict));
         }
         retval
@@ -8643,8 +8643,8 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
 fn option_info_dict(
     opt: &mut vimoption_T,
     opt_flags: c_int,
-    buf: *mut buf_T,
-    win: *mut win_T,
+    buf: &mut buf_T,
+    win: &mut win_T,
     arena: &mut Arena,
 ) -> Dict {
     unsafe {
@@ -8707,10 +8707,10 @@ fn option_info_dict(
         } else {
             if option_has_scope(opt_idx, kOptScopeBuf) {
                 script_ctx =
-                    (*buf).b_p_script_ctx[opt.scope_idx[kOptScopeBuf as usize] as usize];
+                    buf.b_p_script_ctx[opt.scope_idx[kOptScopeBuf as usize] as usize];
             }
             if option_has_scope(opt_idx, kOptScopeWin) {
-                script_ctx = (*win).w_onebuf_opt.wo_script_ctx
+                script_ctx = win.w_onebuf_opt.wo_script_ctx
                     [opt.scope_idx[kOptScopeWin as usize] as usize];
             }
             if opt_flags != OPT_LOCAL && script_ctx.sc_sid == 0 {

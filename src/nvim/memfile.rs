@@ -254,7 +254,7 @@ pub fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bh
 
             let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
             hp = &raw mut *boxed;
-            if !mf_read(mfp, hp) {
+            if !mf_read(mfp,  &mut *hp) {
                 return ptr::null_mut();
             }
             mfp.mf_hash.insert(nr, boxed);
@@ -283,7 +283,7 @@ pub fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
         }
         (*hp).bh_flags = flags;
         if infile {
-            let _ = mf_trans_add(mfp, hp);
+            let _ = mf_trans_add( &mut *mfp,  &mut *hp);
         }
     }
 }
@@ -432,21 +432,21 @@ fn mf_alloc_bhdr(
     })
 }
 
-fn mf_read(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
+fn mf_read(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
     unsafe {
         if mfp.mf_fd < 0 {
             return false;
         }
 
         let page_size = mfp.mf_page_size;
-        let offset = i64::from(page_size).wrapping_mul((*hp).bh_bnum);
+        let offset = i64::from(page_size).wrapping_mul(hp.bh_bnum);
         if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
             perror_msg(c"E294: Seek error in swap file read");
             return false;
         }
-        assert!((*hp).bh_page_count <= c_uint::MAX / page_size);
-        let size = (page_size * (*hp).bh_page_count) as usize;
-        let nread = read_eintr(mfp.mf_fd, (*hp).data_ptr().cast(), size);
+        assert!(hp.bh_page_count <= c_uint::MAX / page_size);
+        let size = (page_size * hp.bh_page_count) as usize;
+        let nread = read_eintr(mfp.mf_fd, hp.data_ptr().cast(), size);
         if (nread as usize) != size {
             perror_msg(c"E295: Read error in swap file");
             return false;
@@ -462,7 +462,7 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
             return false;
         }
 
-        if (*hp).bh_bnum < 0 && !mf_trans_add(&raw mut *mfp, hp) {
+        if (*hp).bh_bnum < 0 && !mf_trans_add(&mut *mfp,  &mut *hp) {
             return false;
         }
 
@@ -543,14 +543,14 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
     }
 }
 
-fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> bool {
-    unsafe {
-        if (*hp).bh_bnum >= 0 {
+fn mf_trans_add(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
+     {
+        if hp.bh_bnum >= 0 {
             return true;
         }
 
-        let page_count = (*hp).bh_page_count;
-        let new_bnum: blocknr_T = if let Some(freep) = (*mfp).mf_free_list.last_mut()
+        let page_count = hp.bh_page_count;
+        let new_bnum: blocknr_T = if let Some(freep) = mfp.mf_free_list.last_mut()
             && freep.bh_page_count >= page_count
         {
             let bnum = freep.bh_bnum;
@@ -558,22 +558,22 @@ fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> bool {
                 freep.bh_bnum += i64::from(page_count);
                 freep.bh_page_count -= page_count;
             } else {
-                let _ = (*mfp).mf_free_list.pop();
+                let _ = mfp.mf_free_list.pop();
             }
             bnum
         } else {
-            let bnum = (*mfp).mf_blocknr_max;
-            (*mfp).mf_blocknr_max += i64::from(page_count);
+            let bnum = mfp.mf_blocknr_max;
+            mfp.mf_blocknr_max += i64::from(page_count);
             bnum
         };
 
-        let old_bnum = (*hp).bh_bnum;
-        if let Some(mut boxed) = (*mfp).mf_hash.remove(&old_bnum) {
+        let old_bnum = hp.bh_bnum;
+        if let Some(mut boxed) = mfp.mf_hash.remove(&old_bnum) {
             boxed.bh_bnum = new_bnum;
-            (*mfp).mf_hash.insert(new_bnum, boxed);
+            mfp.mf_hash.insert(new_bnum, boxed);
         }
 
-        (*mfp).mf_trans.insert(old_bnum, new_bnum);
+        mfp.mf_trans.insert(old_bnum, new_bnum);
 
         true
     }

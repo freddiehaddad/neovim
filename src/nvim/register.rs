@@ -1083,7 +1083,7 @@ pub fn clear_registers() {
 }
 
 fn yank_copy_line(
-    reg: *mut yankreg_T,
+    reg: &mut yankreg_T,
     bd: &mut block_def,
     y_idx: usize,
     exclude_trailing_space: bool,
@@ -1111,7 +1111,7 @@ fn yank_copy_line(
         }
         *pnew = NUL;
         let out_size = (pnew as usize) - (buf_vec.as_ptr() as usize);
-        (&mut *reg).y_array[y_idx] = cbuf_to_string(buf_vec.as_ptr(), out_size);
+        (reg).y_array[y_idx] = cbuf_to_string(buf_vec.as_ptr(), out_size);
     }
 }
 
@@ -1175,7 +1175,7 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
             match (*reg).y_type {
                 MotionType::kMTBlockWise => {
                     block_prep(oap, &mut bd, lnum, false);
-                    yank_copy_line(reg, &mut bd, y_idx, oap.excl_tr_ws);
+                    yank_copy_line( &mut *reg, &mut bd, y_idx, oap.excl_tr_ws);
                 }
                 MotionType::kMTLineWise => {
                     (&mut *reg).y_array[y_idx] =
@@ -1193,7 +1193,7 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
                     if tmp < bd.textlen {
                         bd.textlen = tmp;
                     }
-                    yank_copy_line(reg, &mut bd, y_idx, false);
+                    yank_copy_line( &mut *reg, &mut bd, y_idx, false);
                 }
                 MotionType::kMTUnknown => std::process::abort(),
             }
@@ -1561,7 +1561,7 @@ pub fn do_put(
         let mut nr_lines: linenr_T = 0;
         let orig_start = curbuf_mut().b_op_start;
         let orig_end = curbuf_mut().b_op_end;
-        let cur_ve_flags = get_ve_flags(curwin_ptr());
+        let cur_ve_flags = get_ve_flags(curwin_mut());
 
         if ins_compl_preinsert_effect() {
             ins_compl_delete(false);
@@ -2319,7 +2319,7 @@ pub fn do_put(
                             }
                             if y_type == MotionType::kMTCharWise {
                                 extmark_splice(
-                                    g_st().curbuf,
+                                    curbuf_mut(),
                                     new_cursor.lnum - 1,
                                     col,
                                     0,
@@ -2334,7 +2334,7 @@ pub fn do_put(
                                 && (flags & PUT_LINE_SPLIT) != 0
                             {
                                 extmark_splice(
-                                    g_st().curbuf,
+                                    curbuf_mut(),
                                     new_cursor.lnum - 1,
                                     split_pos,
                                     0,
@@ -2952,8 +2952,8 @@ fn str_to_reg(
     }
 }
 
-fn finish_write_reg(name: c_int, reg: *mut yankreg_T, old_y_previous: *mut yankreg_T) {
-    set_clipboard(name, unsafe { &*reg });
+fn finish_write_reg(name: c_int, reg: &mut yankreg_T, old_y_previous: *mut yankreg_T) {
+    set_clipboard(name,  reg);
         if name != c_int::from(b'"') {
             reg_st().y_previous = old_y_previous;
         }
@@ -2999,7 +2999,7 @@ pub fn write_reg_contents_lst(
         }
 
         str_to_reg(&mut *reg, yank_type, strings.cast::<c_char>(), 0, block_len, true);
-        finish_write_reg(name, reg, old_y_previous);
+        finish_write_reg(name,  &mut *reg, old_y_previous);
     }
 }
 
@@ -3074,7 +3074,7 @@ pub fn write_reg_contents_ex(
             return;
         }
         str_to_reg(&mut *reg, yank_type, str_, len as usize, block_len, false);
-        finish_write_reg(name, reg, old_y_previous);
+        finish_write_reg(name,  &mut *reg, old_y_previous);
     }
 }
 

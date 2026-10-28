@@ -186,7 +186,7 @@ pub fn virtual_active(wp: *mut win_T) -> bool {
             return true;
         }
 
-        let cur_ve_flags = get_ve_flags(wp);
+        let cur_ve_flags = get_ve_flags(unsafe { &mut *wp });
 
         if cur_ve_flags == kOptVeFlagAll
             || ((cur_ve_flags & kOptVeFlagInsert) != 0 && (g_st().State & MODE_INSERT) != 0)

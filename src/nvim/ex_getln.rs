@@ -1388,33 +1388,33 @@ fn command_line_check(s: &mut CommandLineState) -> c_int {
 }
 
 /// Handle `CTRL-\` pressed in Command-line mode.
-fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
-    unsafe {
+fn command_line_handle_ctrl_bsl(s: &mut CommandLineState) -> c_int {
+     {
         g_st().no_mapping += 1;
         g_st().allow_keys += 1;
-        (*s).c = plain_vgetc();
+        s.c = plain_vgetc();
         g_st().no_mapping -= 1;
         g_st().allow_keys -= 1;
 
-        if (*s).c != Ctrl_N
-            && (*s).c != Ctrl_G
-            && ((*s).c != b'e' as c_int
+        if s.c != Ctrl_N
+            && s.c != Ctrl_G
+            && (s.c != b'e' as c_int
                 || (getln_st().ccline.cmdfirstc == b'=' as c_int && g_st().KeyTyped)
                 || g_st().cmdline_star > 0)
         {
-            vungetc((*s).c);
+            vungetc(s.c);
             return PROCESS_NEXT_KEY;
         }
 
-        if (*s).c == b'e' as c_int {
+        if s.c == b'e' as c_int {
             if getln_st().ccline.cmdpos == getln_st().ccline.cmdlen {
                 getln_st().new_cmdpos = 99999;
             } else {
                 getln_st().new_cmdpos = getln_st().ccline.cmdpos;
             }
 
-            (*s).c = get_expr_register();
-            if (*s).c == b'=' as c_int {
+            s.c = get_expr_register();
+            if s.c == b'=' as c_int {
                 g_st().textlock += 1;
                 let p = get_expr_line();
                 g_st().textlock -= 1;
@@ -1440,7 +1440,7 @@ fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
             return CMDLINE_NOT_CHANGED;
         }
 
-        (*s).gotesc = true;
+        s.gotesc = true;
         GOTO_NORMAL_MODE
     }
 }
@@ -1817,7 +1817,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
         }
 
         if s.c == Ctrl_BSL {
-            match command_line_handle_ctrl_bsl(&raw mut *s) {
+            match command_line_handle_ctrl_bsl(&mut *s) {
                 CMDLINE_CHANGED => return command_line_changed(s),
                 CMDLINE_NOT_CHANGED => return command_line_not_changed(s),
                 GOTO_NORMAL_MODE => return 0,

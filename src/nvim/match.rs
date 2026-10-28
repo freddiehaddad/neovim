@@ -378,22 +378,22 @@ pub fn init_search_hl(wp: &mut win_T, search_hl: &mut match_T) {
         search_hl.buf = wp.w_buffer;
         search_hl.lnum = 0;
         search_hl.first_lnum = 0;
-        search_hl.attr = win_hl_attr(&raw mut *wp, HLF_L as c_int);
+        search_hl.attr = win_hl_attr(&mut *wp, HLF_L as c_int);
 }
 
 fn next_search_hl_pos(
     shl: &mut match_T,
     lnum: linenr_T,
-    match_item: *mut matchitem_T,
+    match_item: &mut matchitem_T,
     mincol: colnr_T,
 ) -> c_int {
-    unsafe {
+     {
         let mut found: isize = -1;
 
         shl.lnum = 0;
-        let mit_pos = &mut (*match_item).mit_pos;
+        let mit_pos = &mut match_item.mit_pos;
         let pos_count = mit_pos.len() as c_int;
-        for i in (*match_item).mit_pos_cur..pos_count {
+        for i in match_item.mit_pos_cur..pos_count {
             let pos = mit_pos[i as usize];
             if pos.lnum == 0 {
                 break;
@@ -411,7 +411,7 @@ fn next_search_hl_pos(
                 }
             }
         }
-        (*match_item).mit_pos_cur = 0;
+        match_item.mit_pos_cur = 0;
         if found >= 0 {
             let found_pos = mit_pos[found as usize];
             let start = if found_pos.col == 0 {
@@ -432,7 +432,7 @@ fn next_search_hl_pos(
             shl.rm.endpos[0].col = end;
             shl.is_addpos = true;
             shl.has_cursor = false;
-            (*match_item).mit_pos_cur = (found as c_int) + 1;
+            match_item.mit_pos_cur = (found as c_int) + 1;
             return 1;
         }
         0
@@ -518,7 +518,7 @@ fn next_search_hl(
                     break;
                 }
             } else if !cur.is_null() {
-                nmatched = next_search_hl_pos(shl, lnum, cur, matchcol);
+                nmatched = next_search_hl_pos(shl, lnum,  &mut *cur, matchcol);
             }
             if nmatched == 0 {
                 shl.lnum = 0;
@@ -751,7 +751,7 @@ pub fn update_search_hl(
                         (*shl).endcol = next_col;
                     }
                     if ptr::eq(shl, (&raw mut *search_hl)) && (*shl).has_cursor {
-                        (*shl).attr_cur = win_hl_attr(&raw mut *wp, HLF_LC as c_int);
+                        (*shl).attr_cur = win_hl_attr(&mut *wp, HLF_LC as c_int);
                         if (*shl).attr_cur != (*shl).attr {
                             g_st().search_hl_has_cursor_lnum = lnum;
                         }

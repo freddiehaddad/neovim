@@ -168,14 +168,14 @@ pub fn isclosecap(cap: *const Capture) -> bool {
 }
 
 #[inline]
-pub fn isopencap(cap: *const Capture) -> bool {
-    unsafe { (*cap).siz == 0 }
+pub fn isopencap(cap: &Capture) -> bool {
+     cap.siz == 0
 }
 
 #[inline]
 pub fn capinside(c1: *const Capture, c2: *const Capture) -> bool {
     unsafe {
-        if isopencap(c1) {
+        if isopencap( &*c1) {
             !isclosecap(c2)
         } else {
             (*c2).index < (*c1).index + Index_t::from((*c1).siz) - 1
@@ -326,13 +326,13 @@ pub union Instruction {
 }
 
 #[inline]
-pub fn getkind(op: *const Instruction) -> c_int {
-    unsafe { c_int::from((*op).i.aux1 & 0xF) }
+pub fn getkind(op: &Instruction) -> c_int {
+    unsafe { c_int::from(op.i.aux1 & 0xF) }
 }
 
 #[inline]
-pub fn getoff(op: *const Instruction) -> c_int {
-    unsafe { c_int::from(((*op).i.aux1 >> 4) & 0xF) }
+pub fn getoff(op: &Instruction) -> c_int {
+    unsafe { c_int::from((op.i.aux1 >> 4) & 0xF) }
 }
 
 #[inline]
@@ -341,8 +341,8 @@ pub const fn joinkindoff(k: c_int, o: c_int) -> c_int {
 }
 
 #[inline]
-pub fn utf_to(inst: *const Instruction) -> c_int {
-    unsafe { (c_int::from((*inst).i.aux2.key) << 8) | c_int::from((*inst).i.aux1) }
+pub fn utf_to(inst: &Instruction) -> c_int {
+    unsafe { (c_int::from(inst.i.aux2.key) << 8) | c_int::from(inst.i.aux1) }
 }
 
 #[repr(C)]

@@ -647,7 +647,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
                         false,
                     )
                 && curwin_mut().w_wrow
-                    == curwin_mut().w_view_height - 1 - (get_scrolloff_value(curwin_ptr()) as c_int)
+                    == curwin_mut().w_view_height - 1 - (get_scrolloff_value(curwin_mut()) as c_int)
                 && (curwin_mut().w_cursor.lnum != curwin_mut().w_topline || curwin_mut().w_topfill > 0)
             {
                 if curwin_mut().w_topfill > 0 {
@@ -912,7 +912,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     insert_do_complete(&mut *s);
                 } else if !echeck_abbr(Ctrl_O + ABBR_OFF) {
                     ins_ctrl_o();
-                    if (get_ve_flags(curwin_ptr()) & kOptVeFlagOnemore) != 0 {
+                    if (get_ve_flags(curwin_mut()) & kOptVeFlagOnemore) != 0 {
                         g_st().ins_at_eol = false;
                         s.nomove = true;
                     }
@@ -1405,7 +1405,7 @@ pub fn ins_redraw(ready: bool) {
             && (g_st().last_cursormoved_win != curwin_ptr() || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
             && !pum_visible()
         {
-            if syntax_present(curwin_ptr()) && g_st().must_redraw != 0 {
+            if syntax_present(curwin_mut()) && g_st().must_redraw != 0 {
                 update_screen();
             }
             update_curswant();
@@ -1625,7 +1625,7 @@ fn init_prompt(cmdchar_todo: c_int) {
                 .col
                 .max(curbuf_mut().b_prompt_start.mark.col);
         }
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
     }
 }
 
@@ -2300,7 +2300,7 @@ pub fn oneright() -> bool {
         }
 
         let l = utfc_ptr2len(ptr);
-        if *ptr.add(l as usize) == NUL && (get_ve_flags(curwin_ptr()) & kOptVeFlagOnemore) == 0 {
+        if *ptr.add(l as usize) == NUL && (get_ve_flags(curwin_mut()) & kOptVeFlagOnemore) == 0 {
             return false;
         }
         curwin_mut().w_cursor.col += l;
@@ -2716,7 +2716,7 @@ fn ins_reg() {
             g_st().u_sync_once = 2;
             regname = get_expr_register();
             curwin_mut().w_cursor = curpos;
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
         }
         if regname == NUL as c_int || !valid_yank_reg(regname, false) {
             vim_beep(kOptBoFlagRegister);
@@ -2880,7 +2880,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             && (g_st().restart_edit == NUL as c_int || (gchar_cursor() == NUL as c_int && !g_st().Visual.active))
             && !g_st().Ins.revins_on
         {
-            if curwin_mut().w_cursor.coladd > 0 || get_ve_flags(curwin_ptr()) == kOptVeFlagAll {
+            if curwin_mut().w_cursor.coladd > 0 || get_ve_flags(curwin_mut()) == kOptVeFlagAll {
                 oneleft();
                 if g_st().restart_edit != NUL as c_int {
                     curwin_mut().w_cursor.coladd += 1;

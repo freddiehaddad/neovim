@@ -1786,7 +1786,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
 
                 let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };
                 alist_add(
-                    &raw mut g_st().global_alist,
+                    &mut g_st().global_alist,
                     crate::memory::cstr_to_cstring(p_vec.as_ptr()),
                     alist_fnum_flag,
                 );

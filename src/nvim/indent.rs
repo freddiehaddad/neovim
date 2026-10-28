@@ -346,14 +346,14 @@ pub fn tabstop_first(ts: &[colnr_T]) -> c_int {
 
 /// Return the effective shiftwidth value for current buffer (`get_sw_value`).
 pub fn get_sw_value(buf: *mut buf_T) -> c_int {
-    get_sw_value_col(buf, 0, false)
+    get_sw_value_col(unsafe { &mut *buf }, 0, false)
 }
 
 fn get_sw_value_pos(buf: *mut buf_T, pos: &pos_T, left: bool) -> c_int {
      {
         let save_cursor = curwin_mut().w_cursor;
         curwin_mut().w_cursor = *pos;
-        let sw_value = get_sw_value_col(buf, get_nolist_virtcol(), left);
+        let sw_value = get_sw_value_col(unsafe { &mut *buf }, get_nolist_virtcol(), left);
         curwin_mut().w_cursor = save_cursor;
         sw_value
     }
@@ -369,12 +369,12 @@ pub fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
 }
 
 /// Return the effective shiftwidth value using virtual column `col` (`get_sw_value_col`).
-pub fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: bool) -> c_int {
-    unsafe {
-        if (*buf).b_p_sw != 0 {
-            (*buf).b_p_sw as c_int
+pub fn get_sw_value_col(buf: &mut buf_T, col: colnr_T, left: bool) -> c_int {
+     {
+        if buf.b_p_sw != 0 {
+            buf.b_p_sw as c_int
         } else {
-            tabstop_at(col, (*buf).b_p_ts, &(*buf).b_p_vts_array, left)
+            tabstop_at(col, buf.b_p_ts, &buf.b_p_vts_array, left)
         }
     }
 }
@@ -1631,7 +1631,7 @@ pub fn get_expr_indent() -> c_int {
         curwin_mut().w_cursor = save_pos;
         curwin_mut().w_curswant = save_curswant;
         curwin_mut().w_set_curswant = save_set_curswant;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         g_st().State = save_State;
 
         if g_st().did_throw && (vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() || g_st().trylevel == 0) {

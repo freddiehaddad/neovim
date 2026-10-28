@@ -550,7 +550,7 @@ fn stacktrace_push_item(
         };
 
         if !fp.is_null() {
-            tv_dict_add_func(d, c"funcref", fp);
+            tv_dict_add_func(d, c"funcref", unsafe { &mut *fp });
         }
         if !event.is_null() {
             tv_dict_add_str(d, c"event", event);

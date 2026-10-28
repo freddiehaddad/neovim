@@ -1240,7 +1240,7 @@ fn check_closed(
             if *maybe_smallp {
                 fp.fd_small = kNone;
             }
-            checkSmall(wp, fp, lnum_off);
+            checkSmall( &mut *wp, fp, lnum_off);
             if fp.fd_small == kTrue {
                 closed = false;
             }
@@ -1249,21 +1249,21 @@ fn check_closed(
     }
 }
 
-fn checkSmall(wp: *mut win_T, fp: &mut fold_T, lnum_off: linenr_T) {
-    unsafe {
+fn checkSmall(wp: &mut win_T, fp: &mut fold_T, lnum_off: linenr_T) {
+     {
         if fp.fd_small != kNone {
             return;
         }
 
         setSmallMaybe(&mut fp.fd_nested);
 
-        if i64::from(fp.fd_len) > (*wp).w_onebuf_opt.wo_fml {
+        if i64::from(fp.fd_len) > wp.w_onebuf_opt.wo_fml {
             fp.fd_small = kFalse;
         } else {
             let mut count: c_int = 0;
             for n in 0..fp.fd_len {
-                count += plines_win_nofold(&mut *wp, fp.fd_top + lnum_off + n);
-                if i64::from(count) > (*wp).w_onebuf_opt.wo_fml {
+                count += plines_win_nofold(wp, fp.fd_top + lnum_off + n);
+                if i64::from(count) > wp.w_onebuf_opt.wo_fml {
                     fp.fd_small = kFalse;
                     return;
                 }

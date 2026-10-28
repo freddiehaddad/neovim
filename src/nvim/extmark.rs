@@ -318,7 +318,7 @@ fn extmark_setraw(buf: &mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: 
             row1 = alt.pos.row.min(key.pos.row.min(row));
             row2 = alt.pos.row.max(key.pos.row.max(row));
             buf_signcols_count_range(
-                &raw mut *buf,
+                &mut *buf,
                 row1,
                 (curbuf_mut().b_ml.ml_line_count - 1).min(row2),
                 0,
@@ -342,7 +342,7 @@ fn extmark_setraw(buf: &mut buf_T, mark: u64, row: c_int, col: colnr_T, revive: 
             && buf.b_signcols.autom
         {
             buf_signcols_count_range(
-                &raw mut *buf,
+                &mut *buf,
                 row1,
                 (curbuf_mut().b_ml.ml_line_count - 1).min(row2),
                 0,
@@ -555,7 +555,7 @@ pub fn extmark_from_id(buf: &mut buf_T, ns_id: u32, id: u32) -> MTPair {
 
 /// Creates or updates point extmark (`extmark_set_pos`).
 pub fn extmark_set_pos(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     ns_id: u32,
     mark: &mut u32,
     pos: pos_T,
@@ -563,7 +563,7 @@ pub fn extmark_set_pos(
     no_undo: bool,
     ui_watched: bool,
 ) {
-    unsafe {
+     {
         let mut decor = DecorInline {
             data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
@@ -571,7 +571,7 @@ pub fn extmark_set_pos(
             decor.data.hl_mut().flags = kSHUIWatched | kSHUIWatchedOverlay;
         }
         extmark_set(
-            &mut *buf,
+            buf,
             ns_id,
             Some(&mut *mark),
             pos.lnum - 1,
@@ -589,9 +589,9 @@ pub fn extmark_set_pos(
 }
 
 /// Gets the position of an extmark, shifted by buffer edits since it was set (`extmark_get_pos`).
-pub fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: &mut pos_T) -> bool {
-    unsafe {
-        let mtp = extmark_from_id(&mut *buf, ns_id, id);
+pub fn extmark_get_pos(buf: &mut buf_T, ns_id: u32, id: u32, pos: &mut pos_T) -> bool {
+     {
+        let mtp = extmark_from_id(buf, ns_id, id);
         if mtp.start.id == 0 {
             return false;
         }
@@ -790,25 +790,25 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
 
 /// Adjust extmark row for inserted/deleted rows (`extmark_adjust`).
 pub fn extmark_adjust(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
     amount_after: linenr_T,
     undo: ExtmarkOp,
 ) {
-    unsafe {
+     {
         if g_st().curbuf_splice_pending != 0 {
             return;
         }
-        let start_byte = ml_find_line_or_offset(&mut *buf, line1, None, true) as bcount_t;
+        let start_byte = ml_find_line_or_offset(buf, line1, None, true) as bcount_t;
         let mut old_byte: bcount_t = 0;
         let mut new_byte: bcount_t = 0;
         let old_row: c_int;
         let new_row: c_int;
         if amount == MAXLNUM {
             old_row = line2 - line1 + 1;
-            old_byte = (*buf).deleted_bytes2 as bcount_t;
+            old_byte = buf.deleted_bytes2 as bcount_t;
             new_row = amount_after + old_row;
         } else {
             debug_assert_eq!(line2, MAXLNUM);
@@ -816,12 +816,12 @@ pub fn extmark_adjust(
             new_row = amount as c_int;
         }
         if new_row > 0 {
-            new_byte = (ml_find_line_or_offset(&mut *buf, line1 + new_row, None, true)
+            new_byte = (ml_find_line_or_offset(buf, line1 + new_row, None, true)
                 as bcount_t)
                 - start_byte;
         }
         extmark_splice_impl(
-            &mut *buf,
+            buf,
             line1 - 1,
             0,
             start_byte,
@@ -838,7 +838,7 @@ pub fn extmark_adjust(
 
 /// Adjusts extmarks after a text edit, and emits the `on_bytes` event (`extmark_splice`).
 pub fn extmark_splice(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     start_row: c_int,
     start_col: colnr_T,
     old_row: c_int,
@@ -849,13 +849,13 @@ pub fn extmark_splice(
     new_byte: bcount_t,
     undo: ExtmarkOp,
 ) {
-    unsafe {
-        let mut offset = ml_find_line_or_offset(&mut *buf, start_row + 1, None, true);
-        if offset < 0 && (*buf).b_ml.ml_chunksize.is_empty() {
+     {
+        let mut offset = ml_find_line_or_offset(buf, start_row + 1, None, true);
+        if offset < 0 && buf.b_ml.ml_chunksize.is_empty() {
             offset = 0;
         }
         extmark_splice_impl(
-            &mut *buf,
+            buf,
             start_row,
             start_col,
             (offset + start_col) as bcount_t,
@@ -910,7 +910,7 @@ pub fn extmark_splice_impl(
                 buf.b_ml.ml_line_count
             };
             buf_signcols_count_range(
-                buf,
+                 &mut *buf,
                 start_row,
                 (count - 1).min(start_row + old_row),
                 0,
@@ -931,7 +931,7 @@ pub fn extmark_splice_impl(
 
         if old_row > 0 || new_row > 0 {
             let row2 = (buf.b_ml.ml_line_count - 1).min(start_row + new_row);
-            buf_signcols_count_range(buf, start_row, row2, 0, kNone);
+            buf_signcols_count_range( &mut *buf, start_row, row2, 0, kNone);
         }
 
         if undo == kExtmarkUndo {
@@ -996,7 +996,7 @@ pub fn extmark_splice_cols(
     undo: ExtmarkOp,
 ) {
     extmark_splice(
-            buf,
+            unsafe { &mut *buf },
             start_row,
             start_col,
             0,
@@ -1038,7 +1038,7 @@ pub fn extmark_move_region(
 
         let row1 = start_row.min(new_row);
         let row2 = start_row.max(new_row) + extent_row;
-        buf_signcols_count_range(&raw mut *buf, row1, row2, 0, kTrue);
+        buf_signcols_count_range(&mut *buf, row1, row2, 0, kTrue);
 
         marktree_move_region(
             &mut buf.b_marktree,
@@ -1050,7 +1050,7 @@ pub fn extmark_move_region(
             new_col,
         );
 
-        buf_signcols_count_range(&raw mut *buf, row1, row2, 0, kNone);
+        buf_signcols_count_range(&mut *buf, row1, row2, 0, kNone);
 
         buf_updates_send_splice(
             &mut *buf,

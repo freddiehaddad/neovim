@@ -860,7 +860,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%02X",
-                                tv_blob_get(blob, i) as c_int,
+                                tv_blob_get( &*blob, i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }
@@ -883,7 +883,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%d",
-                                tv_blob_get(blob, i) as c_int,
+                                tv_blob_get( &*blob, i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }

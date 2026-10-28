@@ -3564,8 +3564,8 @@ pub fn vim_regexec_multi(
         re_st().rex_in_use = true;
 
         let mut result = match (*rmp.regprog).engine {
-            RegProgEngine::Bt(_) => bt_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.as_deref_mut().unwrap() })),
-            RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.as_deref_mut().unwrap() })),
+            RegProgEngine::Bt(_) => bt_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap())),
+            RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap())),
         };
         (*rmp.regprog).re_in_use = false;
 
@@ -3588,10 +3588,10 @@ pub fn vim_regexec_multi(
                 (*rmp.regprog).re_in_use = true;
                 result = match (*rmp.regprog).engine {
                     RegProgEngine::Bt(_) => {
-                        bt_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.as_deref_mut().unwrap() }))
+                        bt_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.as_deref_mut().unwrap()))
                     }
                     RegProgEngine::Nfa(_) => {
-                        nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.unwrap() }))
+                        nfa_regexec_multi(rmp, win, buf, lnum, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.unwrap()))
                     }
                 };
                 (*rmp.regprog).re_in_use = false;

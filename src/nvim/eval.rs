@@ -381,8 +381,8 @@ fn tv_list_item_tv(li: &mut listitem_T) -> *mut typval_T {
 }
 
 #[inline]
-fn tv_list_item_next(li: *const listitem_T) -> *mut listitem_T {
-    unsafe { (*li).li_next }
+fn tv_list_item_next(li: &listitem_T) -> *mut listitem_T {
+     li.li_next
 }
 
 pub fn get_v_event(sve: &mut save_v_event_T) -> *mut dict_T {
@@ -1865,7 +1865,7 @@ pub fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                 if item.is_null() {
                     return false;
                 }
-                lw.lw_item.set(tv_list_item_next(item));
+                lw.lw_item.set(tv_list_item_next( &*item));
                 ex_let_vars(
                     arg,
                     &mut *tv_list_item_tv(&mut *item),
@@ -5571,7 +5571,7 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
                 ret.push(if *s == b'\n' as c_char { NUL } else { *s });
                 s = s.add(1);
             }
-            if endnl || !tv_list_item_next(li).is_null() {
+            if endnl || !tv_list_item_next( &*li).is_null() {
                 if crlf {
                     ret.push(b'\r' as c_char);
                 }
@@ -5763,7 +5763,7 @@ pub fn var2fpos(
                 };
                 return &raw mut eval_st().VAR2FPOS_POS;
             } else if *name.add(1) == b'$' as c_char {
-                validate_botline_win(&raw mut *wp);
+                validate_botline_win(&mut *wp);
                 eval_st().VAR2FPOS_POS.lnum = if wp.w_botline > 0 {
                     wp.w_botline - 1
                 } else {

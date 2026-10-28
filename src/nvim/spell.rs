@@ -297,7 +297,7 @@ pub fn spell_check(
         mi.mi_fend = ptr;
         if spell_iswordp(mi.mi_fend, &*wp) {
             if use_camel_case {
-                mi.mi_fend = advance_camelcase_word(ptr, wp, &mut is_camel_case);
+                mi.mi_fend = advance_camelcase_word(ptr,  &mut *wp, &mut is_camel_case);
             } else {
                 loop {
                     mb_ptr_adv(&mut mi.mi_fend);
@@ -324,7 +324,7 @@ pub fn spell_check(
             mb_ptr_adv(&mut mi.mi_fend);
         }
         spell_casefold(
-            wp,
+             &*wp,
             ptr,
             mi.mi_fend.offset_from(ptr) as c_int,
             (&raw mut mi.mi_fword).cast(),
@@ -366,7 +366,7 @@ pub fn spell_check(
                 if mi.mi_result == SP_BAD || mi.mi_result == SP_BANNED {
                     return nrlen;
                 }
-            } else if !spell_iswordp_nmw(ptr, wp) {
+            } else if !spell_iswordp_nmw(ptr,  &mut *wp) {
                 if let Some(capcol) = capcol
                     && (*w_s).b_cap_prog.is_some()
                 {
@@ -430,7 +430,7 @@ fn get_char_type(c: c_int) -> c_int {
 }
 fn advance_camelcase_word(
     str_: *mut c_char,
-    wp: *mut win_T,
+    wp: &mut win_T,
     is_camel_case: &mut bool,
 ) -> *mut c_char {
     unsafe {
@@ -443,7 +443,7 @@ fn advance_camelcase_word(
         mb_ptr_adv(&mut end);
         let mut last_last_type: c_int = -1;
         let mut last_type = get_char_type(c);
-        while *end != NUL && spell_iswordp(end, &*wp) {
+        while *end != NUL && spell_iswordp(end, wp) {
             c = utf_ptr2char(end);
             let this_type = get_char_type(c);
             if last_last_type == CHAR_UPPER && last_type == CHAR_UPPER && this_type == CHAR_OTHER {
@@ -695,7 +695,7 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
                         }
                         if capflags != WF_ALLCAP {
                             mb_ptr_back(mip.mi_word, &mut p);
-                            if if spell_iswordp_nmw(p, mip.mi_win) {
+                            if if spell_iswordp_nmw(p,  &mut *mip.mi_win) {
                                 capflags == WF_ONECAP
                             } else {
                                 (flags & WF_ONECAP as u32) != 0 && capflags != WF_ONECAP
@@ -711,7 +711,7 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
                         if slang.sl_compsylmax < MAXWLEN as c_int {
                             if ptr == mip.mi_word {
                                 spell_casefold(
-                                    mip.mi_win,
+                                     &*mip.mi_win,
                                     ptr,
                                     wlen,
                                     (&raw mut fword).cast(),
@@ -1044,7 +1044,7 @@ fn fold_more(mip: &mut matchinf_T) -> c_int {
             .cast::<c_char>()
             .add(mip.mi_fwordlen as usize);
         spell_casefold(
-            mip.mi_win,
+             &*mip.mi_win,
             p,
             mip.mi_fend.offset_from(p) as c_int,
             dst,
@@ -1117,7 +1117,7 @@ pub fn spell_move_to(
         };
         let mut found_len: usize = 0;
         let mut attr: hlf_T = HLF_COUNT;
-        let has_syntax = syntax_present(&raw mut *wp);
+        let has_syntax = syntax_present(&mut *wp);
         let mut buf_vec: Vec<c_char>;
         let mut buf: *mut c_char = ptr::null_mut();
         let mut buflen: usize = 0;
@@ -1786,7 +1786,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                                 lp_replang: ptr::null_mut(),
                                 lp_region: region_mask,
                             });
-                            use_midword(slang, wp);
+                            use_midword(slang,  &mut *wp);
                             if slang.sl_nobreak {
                                 nobreak = true;
                             }
@@ -1866,7 +1866,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             lp_replang: ptr::null_mut(),
                             lp_region: region_mask,
                         });
-                        use_midword(slang, wp);
+                        use_midword(slang,  &mut *wp);
                     }
                 }
             }
@@ -1920,12 +1920,12 @@ fn clear_midword(wp: &mut win_T) {
         (*w_s).b_spell_ismw_mb = None;
     }
 }
-fn use_midword(lp: &mut slang_T, wp: *mut win_T) {
+fn use_midword(lp: &mut slang_T, wp: &mut win_T) {
     unsafe {
         let Some(ref sl_midword) = lp.sl_midword else {
             return;
         };
-        let w_s = (*wp).w_s_ptr();
+        let w_s = wp.w_s_ptr();
         let mut p = sl_midword.as_ptr();
         while *p != NUL {
             let c = utf_ptr2char(p);
@@ -1962,7 +1962,7 @@ fn find_region(rp: *const c_char, region: *const c_char) -> c_int {
 pub fn captype(word: *const c_char, end: *const c_char) -> c_int {
     unsafe {
         let mut p = word;
-        while !spell_iswordp_nmw(p, curwin_ptr()) {
+        while !spell_iswordp_nmw(p, curwin_mut()) {
             if if end.is_null() { *p == NUL } else { p >= end } {
                 return 0;
             }
@@ -1973,7 +1973,7 @@ pub fn captype(word: *const c_char, end: *const c_char) -> c_int {
         let firstcap = allcap;
         let mut past_second = false;
         while if end.is_null() { *p != NUL } else { p < end } {
-            if spell_iswordp_nmw(p, curwin_ptr()) {
+            if spell_iswordp_nmw(p, curwin_mut()) {
                 c = utf_ptr2char(p);
                 if !spell_isupper(c) {
                     if past_second && allcap {
@@ -2049,7 +2049,7 @@ pub fn open_spellbuf() -> Box<buf_T> {
 }
 pub fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
     if let Some(mut b) = buf.take() {
-            ml_close(&raw mut *b, 1);
+            ml_close(&mut b, 1);
         }
 }
 pub fn clear_spell_chartab(sp: &mut spelltab_T) {
@@ -2113,11 +2113,11 @@ pub fn spell_iswordp(p: *const c_char, wp: &win_T) -> bool {
         c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
-pub fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool {
-    unsafe {
+pub fn spell_iswordp_nmw(p: *const c_char, wp: &mut win_T) -> bool {
+     {
         let c = utf_ptr2char(p);
         if c > 255 {
-            return spell_mb_isword_class(mb_get_class(p), &*wp);
+            return spell_mb_isword_class(mb_get_class(p), wp);
         }
         c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
@@ -2153,7 +2153,7 @@ fn spell_iswordp_w(p: *const c_int, wp: &win_T) -> bool {
     }
 }
 pub fn spell_casefold(
-    wp: *const win_T,
+    wp: &win_T,
     str_: *const c_char,
     len: c_int,
     buf: *mut c_char,
@@ -2174,7 +2174,7 @@ pub fn spell_casefold(
             }
             let mut c = mb_cptr2char_adv(&raw mut p);
             if c == 0x03a3 || c == 0x03c2 {
-                if p == end || !spell_iswordp(p, &*wp) {
+                if p == end || !spell_iswordp(p, wp) {
                     c = 0x03c2;
                 } else {
                     c = 0x03c3;
@@ -2227,7 +2227,7 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
             let mut p = line.add(endcol as usize);
             loop {
                 mb_ptr_back(line, &mut p);
-                if p == line || spell_iswordp_nmw(p, &raw mut *wp) {
+                if p == line || spell_iswordp_nmw(p, &mut *wp) {
                     break;
                 }
                 if vim_regexec(&mut regmatch, p, 0)
@@ -2413,7 +2413,7 @@ pub fn spell_soundfold(
                 inword
             } else {
                 spell_casefold(
-                    curwin_ptr(),
+                    curwin_mut(),
                     inword,
                     crate::memory::cstr_len(inword) as c_int,
                     (&raw mut fword).cast(),
@@ -2471,7 +2471,7 @@ fn spell_soundfold_wsal(slang: &mut slang_T, inword: *const c_char, res: *mut c_
                     did_white = true;
                 } else {
                     did_white = false;
-                    if !spell_iswordp_nmw(t, curwin_ptr()) {
+                    if !spell_iswordp_nmw(t, curwin_mut()) {
                         continue;
                     }
                 }
@@ -3200,7 +3200,7 @@ pub fn spell_word_start(startcol: c_int) -> c_int {
         let mut p = line.add(startcol as usize);
         while p > line {
             mb_ptr_back(line, &mut p);
-            if spell_iswordp_nmw(p, curwin_ptr()) {
+            if spell_iswordp_nmw(p, curwin_mut()) {
                 break;
             }
         }

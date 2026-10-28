@@ -176,12 +176,12 @@ fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
 }
 
 fn buf_set_sign(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     id: &mut u32,
     group: *mut c_char,
     prio: c_int,
     lnum: linenr_T,
-    sp: *mut sign_T,
+    sp: &mut sign_T,
 ) {
     unsafe {
         if !group.is_null() && find_ns_by_name(group) == 0 {
@@ -198,16 +198,16 @@ fn buf_set_sign(
         let mut sign = DECOR_SIGN_HIGHLIGHT_INIT;
 
         sign.flags |= kSHIsSign;
-        sign.text = (*sp).sn_text;
-        sign.sign_name = Some((*sp).sn_name.clone());
-        sign.hl_id = (*sp).sn_text_hl;
-        sign.line_hl_id = (*sp).sn_line_hl;
-        sign.number_hl_id = (*sp).sn_num_hl;
-        sign.cursorline_hl_id = (*sp).sn_cul_hl;
+        sign.text = sp.sn_text;
+        sign.sign_name = Some(sp.sn_name.clone());
+        sign.hl_id = sp.sn_text_hl;
+        sign.line_hl_id = sp.sn_line_hl;
+        sign.number_hl_id = sp.sn_num_hl;
+        sign.cursorline_hl_id = sp.sn_cul_hl;
         sign.priority = prio as DecorPriority;
 
-        let has_hl = (*sp).sn_line_hl != 0 || (*sp).sn_num_hl != 0 || (*sp).sn_cul_hl != 0;
-        let decor_flags = if (*sp).sn_text[0] != 0 {
+        let has_hl = sp.sn_line_hl != 0 || sp.sn_num_hl != 0 || sp.sn_cul_hl != 0;
+        let decor_flags = if sp.sn_text[0] != 0 {
             MT_FLAG_DECOR_SIGNTEXT
         } else {
             0
@@ -220,10 +220,10 @@ fn buf_set_sign(
             }),
         };
         extmark_set(
-            &mut *buf,
+            buf,
             ns,
             Some(&mut *id),
-            (*buf).b_ml.ml_line_count.min(lnum) - 1,
+            buf.b_ml.ml_line_count.min(lnum) - 1,
             0,
             -1,
             -1,
@@ -252,19 +252,19 @@ fn buf_mod_sign(
 
         let mark = marktree_lookup_ns(&(*buf).b_marktree, ns as u32, *id, false, None);
         if mark.pos.row >= 0 {
-            buf_set_sign(buf, id, group, prio, mark.pos.row + 1, sp);
+            buf_set_sign( &mut *buf, id, group, prio, mark.pos.row + 1,  &mut *sp);
         }
         mark.pos.row + 1
     }
 }
 
-fn buf_findsign(buf: *mut buf_T, id: c_int, group: *mut c_char) -> c_int {
-    unsafe {
+fn buf_findsign(buf: &mut buf_T, id: c_int, group: *mut c_char) -> c_int {
+     {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
             return 0;
         }
-        marktree_lookup_ns(&(*buf).b_marktree, ns as u32, id as u32, false, None)
+        marktree_lookup_ns(&buf.b_marktree, ns as u32, id as u32, false, None)
             .pos
             .row
             + 1
@@ -289,12 +289,12 @@ fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
 }
 
 fn buf_delete_signs(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     group: *mut c_char,
     id: c_int,
     atlnum: linenr_T,
 ) -> bool {
-    unsafe {
+     {
         let ns = group_get_ns(group);
         if ns < 0 {
             return false;
@@ -305,12 +305,12 @@ fn buf_delete_signs(
         let mut signs: Vec<MTKey> = Vec::new();
 
         if atlnum > 0 {
-            if !marktree_itr_get_overlap(&(*buf).b_marktree, row, 0, &mut itr) {
+            if !marktree_itr_get_overlap(&buf.b_marktree, row, 0, &mut itr) {
                 return false;
             }
 
             let mut pair: MTPair = MTPair::new();
-            while marktree_itr_step_overlap(&(*buf).b_marktree, &mut itr, &mut pair) {
+            while marktree_itr_step_overlap(&buf.b_marktree, &mut itr, &mut pair) {
                 if (ns == i64::from(u32::MAX) || ns == i64::from(pair.start.ns))
                     && mt_decor_sign(pair.start)
                 {
@@ -318,11 +318,11 @@ fn buf_delete_signs(
                 }
             }
         } else {
-            marktree_itr_get(&(*buf).b_marktree, 0, 0, &mut itr);
+            marktree_itr_get(&buf.b_marktree, 0, 0, &mut itr);
         }
 
         while itr.x.is_some() {
-            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
+            let mark = marktree_itr_current(&buf.b_marktree, &itr);
             if row != 0 && mark.pos.row > row {
                 break;
             }
@@ -333,19 +333,19 @@ fn buf_delete_signs(
             {
                 if atlnum > 0 {
                     signs.push(mark);
-                    marktree_itr_next(&(*buf).b_marktree, &mut itr);
+                    marktree_itr_next(&buf.b_marktree, &mut itr);
                 } else {
-                    extmark_del(&mut *buf, &mut itr, mark, true);
+                    extmark_del(buf, &mut itr, mark, true);
                 }
             } else {
-                marktree_itr_next(&(*buf).b_marktree, &mut itr);
+                marktree_itr_next(&buf.b_marktree, &mut itr);
             }
         }
 
         if !signs.is_empty() {
             signs.sort_by(sign_row_cmp_slice);
             let first = signs[0];
-            extmark_del_id(&mut *buf, first.ns, first.id);
+            extmark_del_id(buf, first.ns, first.id);
         } else if atlnum > 0 {
             return false;
         }
@@ -354,8 +354,8 @@ fn buf_delete_signs(
     }
 }
 
-pub fn buf_has_signs(buf: *const buf_T) -> bool {
-    unsafe { buf_meta_total(&*buf, kMTMetaSignHL) + buf_meta_total(&*buf, kMTMetaSignText) != 0 }
+pub fn buf_has_signs(buf: &buf_T) -> bool {
+     buf_meta_total(buf, kMTMetaSignHL) + buf_meta_total(buf, kMTMetaSignText) != 0
 }
 
 fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
@@ -369,7 +369,7 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
         msg_puts_title(gettext(c"\n--- Signs ---"));
 
         while !buf.is_null() && !g_st().got_int {
-            if buf_has_signs(buf) {
+            if buf_has_signs( &*buf) {
                 msg_putchar(b'\n' as c_int);
                 let fname = if !(*buf).b_fname.is_null() {
                     (*buf).b_fname.cast_const()
@@ -607,7 +607,7 @@ fn sign_define_by_name(
                     sh.cursorline_hl_id = (*sp).sn_cul_hl;
                     if !did_redraw {
                         for wp in for_all_windows_mut() {
-                            if buf_has_signs(wp.w_buffer) {
+                            if buf_has_signs(wp.buf_mut()) {
                                 redraw_buf_later(wp.w_buffer, UPD_NOT_VALID);
                             }
                         }
@@ -718,7 +718,7 @@ fn sign_place(
         }
 
         if lnum > 0 {
-            buf_set_sign(buf, id, group, prio, lnum, sp);
+            buf_set_sign( &mut *buf, id, group, prio, lnum,  &mut *sp);
         } else {
             lnum = buf_mod_sign(buf, &mut *id, group, prio, sp);
         }
@@ -741,12 +741,12 @@ fn sign_unplace_inner(
     atlnum: linenr_T,
 ) -> bool {
     unsafe {
-        if !buf_has_signs(buf) {
+        if !buf_has_signs( &*buf) {
             return false;
         }
 
         if id == 0 || atlnum > 0 || (!group.is_null() && *group == b'*' as c_char) {
-            if !buf_delete_signs(buf, group, id, atlnum) {
+            if !buf_delete_signs( &mut *buf, group, id, atlnum) {
                 return false;
             }
         } else {
@@ -778,7 +778,7 @@ fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T
 
 fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
     unsafe {
-        let lnum = buf_findsign(buf, id, group);
+        let lnum = buf_findsign( &mut *buf, id, group);
         if lnum <= 0 {
             semsg!(gettext(c"E157: Invalid sign ID: %d"), id);
             return -1;
@@ -1184,7 +1184,7 @@ fn sign_get_placed_in_buf(
         tv_dict_add_list(d, c"signs", l);
 
         let ns = group_get_ns(group);
-        if !buf_has_signs(buf) || ns < 0 {
+        if !buf_has_signs( &*buf) || ns < 0 {
             return;
         }
 
@@ -1232,7 +1232,7 @@ fn sign_get_placed(
             sign_get_placed_in_buf(buf, lnum, id, group, &mut *retlist);
         } else {
             for cbuf in for_all_buffers_ptr() {
-                if buf_has_signs(cbuf) {
+                if buf_has_signs( &*cbuf) {
                     sign_get_placed_in_buf(cbuf, 0, id, group, &mut *retlist);
                 }
             }

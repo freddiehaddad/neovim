@@ -139,23 +139,23 @@ fn aarglist(al: &mut alist_T) -> *mut aentry_T {
 }
 
 #[inline]
-fn warglist(wp: *const win_T) -> *mut aentry_T {
-    unsafe { aarglist(&mut *win_alist(&*wp)) }
+fn warglist(wp: &win_T) -> *mut aentry_T {
+    unsafe { aarglist(&mut *win_alist(wp)) }
 }
 
 #[inline]
-fn wargcount(wp: *const win_T) -> c_int {
-    unsafe { (*win_alist(&*wp)).al_ga.len() as c_int }
+fn wargcount(wp: &win_T) -> c_int {
+    unsafe { (*win_alist(wp)).al_ga.len() as c_int }
 }
 
 #[inline]
 pub fn arglist() -> *mut aentry_T {
-     warglist(curwin_ptr())
+     warglist(curwin_mut())
 }
 
 #[inline]
 pub fn argcount() -> c_int {
-     wargcount(curwin_ptr())
+     wargcount(curwin_mut())
 }
 
 #[inline]
@@ -182,12 +182,12 @@ fn check_arglist_locked() -> bool {
 }
 
 /// Clear an argument list: free all file names and reset it to zero entries (`alist_clear`).
-pub fn alist_clear(al: *mut alist_T) {
-    unsafe {
+pub fn alist_clear(al: &mut alist_T) {
+     {
         if !check_arglist_locked() {
             return;
         }
-        (*al).al_ga = Vec::new();
+        al.al_ga = Vec::new();
     }
 }
 
@@ -209,7 +209,7 @@ fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
             return;
         }
 
-        alist_clear(al);
+        alist_clear( &mut *al);
         (*al).al_ga.reserve(files.len());
         for fname in files {
             if g_st().got_int {
@@ -217,7 +217,7 @@ fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
             }
 
             if !fname.as_bytes().is_empty() {
-                alist_add(al, fname, if use_curbuf != 0 { 2 } else { 1 });
+                alist_add( &mut *al, fname, if use_curbuf != 0 { 2 } else { 1 });
             }
             os_breakcheck();
         }
@@ -229,7 +229,7 @@ fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
 }
 
 /// Add file `fname` to argument list `al` (`alist_add`).
-pub fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
+pub fn alist_add(al: &mut alist_T, ae_fname: CString, set_fnum: c_int) {
     unsafe {
         let wp = curwin_ptr();
         if !check_arglist_locked() {
@@ -246,7 +246,7 @@ pub fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
         } else {
             0
         };
-        (*al).al_ga.push(aentry_T {
+        al.al_ga.push(aentry_T {
             ae_fname: Some(ae_fname),
             ae_fnum,
         });
@@ -478,10 +478,10 @@ pub fn set_arglist(str_: *mut c_char) {
 pub fn editing_arg_idx(win: &mut win_T) -> bool {
     unsafe {
         let idx = win.w_arg_idx;
-        if idx >= wargcount(&raw mut *win) {
+        if idx >= wargcount(&*win) {
             return false;
         }
-        let entry = warglist(&raw mut *win).add(idx as usize);
+        let entry = warglist(&*win).add(idx as usize);
         if win.buf_mut().b_fnum == (*entry).ae_fnum {
             return true;
         }
@@ -493,7 +493,7 @@ pub fn editing_arg_idx(win: &mut win_T) -> bool {
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
 pub fn check_arg_idx(win: &mut win_T) {
     unsafe {
-        let wcount = wargcount(&raw mut *win);
+        let wcount = wargcount(&*win);
         if wcount > 1 && !editing_arg_idx(win) {
             win.w_arg_idx_invalid = true;
             let gcount = gargcount();
@@ -1229,7 +1229,7 @@ pub fn f_argc(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         } else {
             let wp = find_win_by_nr_or_id(&argvars[0]);
             rettv.vval = crate::eval::typval::TypvalVval::Number(if !wp.is_null() {
-                wargcount(wp) as varnumber_T
+                wargcount(unsafe { &*wp }) as varnumber_T
             } else {
                 -1
             });
@@ -1290,8 +1290,8 @@ pub fn f_argv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         } else {
             let wp = find_win_by_nr_or_id(&argvars[1]);
             if !wp.is_null() {
-                al_ptr = warglist(wp);
-                count = wargcount(wp);
+                al_ptr = warglist( &*wp);
+                count = wargcount( &*wp);
             }
         }
 
@@ -1313,7 +1313,7 @@ mod tests {
     fn alist_init_and_clear_work() {
         let mut al = alist_T::new();
             assert!(al.al_ga.is_empty());
-            alist_clear(&raw mut al);
+            alist_clear(&mut al);
             assert!(al.al_ga.is_empty());
     }
 }

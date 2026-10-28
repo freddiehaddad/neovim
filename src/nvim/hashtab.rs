@@ -228,8 +228,8 @@ pub fn hash_add_item(
 ///
 /// # Safety
 /// `ht` and `hi` must be valid pointers, with `hi` pointing to an active item in `ht`.
-pub fn hash_remove(ht: &mut hashtab_T, hi: *mut hashitem_T) {
-    let hi_ref = unsafe { &mut *hi };
+pub fn hash_remove(ht: &mut hashtab_T, hi: &mut hashitem_T) {
+    let hi_ref =  { hi };
     ht.ht_used -= 1;
     ht.ht_changed += 1;
     hi_ref.hi_removed = true;
@@ -410,7 +410,7 @@ mod tests {
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
             for k in &keys {
                 let hi = hash_find(&*ht, k.as_ptr());
-                hash_remove(&mut *ht, hi);
+                hash_remove(&mut *ht, &mut *hi);
             }
             assert_eq!((*ht).ht_used, 0);
             assert_eq!((*ht).ht_mask, HT_INIT_SIZE - 1);

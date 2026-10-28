@@ -692,8 +692,8 @@ pub fn free_all_mem() {
             do_cmdline_cmd(c"tlunmenu *");
             do_cmdline_cmd(c"menutranslate clear");
 
-            map_clear_mode(g_st().curbuf, MAP_ALL_MODES, false, false);
-            map_clear_mode(g_st().curbuf, MAP_ALL_MODES, false, true);
+            map_clear_mode(curbuf_mut(), MAP_ALL_MODES, false, false);
+            map_clear_mode(curbuf_mut(), MAP_ALL_MODES, false, true);
             do_cmdline_cmd(c"breakdel *");
             do_cmdline_cmd(c"profdel *");
             do_cmdline_cmd(c"set keymap=");
@@ -704,7 +704,7 @@ pub fn free_all_mem() {
 
         free_all_autocmds();
         free_all_marks();
-        alist_clear(&raw mut g_st().global_alist);
+        alist_clear(&mut g_st().global_alist);
         free_homedir();
         free_users();
         free_search_patterns();

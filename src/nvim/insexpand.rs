@@ -2061,7 +2061,7 @@ pub fn ins_compl_show_pum() {
         );
         curwin_mut().w_cursor.col = col;
 
-        if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_ptr()) {
+        if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
             redrawWinline(curwin_ptr(), curwin_mut().w_cursor.lnum);
         }
 
@@ -3361,7 +3361,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         g_st().textlock -= 1;
 
         curwin_mut().w_cursor = pos;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         validate_cursor(curwin_ptr());
         if !equalpos(curwin_mut().w_cursor, pos) {
             emsg(gettext(E_COMPLDEL));
@@ -3614,7 +3614,7 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
 
-        if !undo_allowed(g_st().curbuf) {
+        if !undo_allowed(curbuf_mut()) {
             return;
         }
 
@@ -6200,7 +6200,7 @@ fn get_userdefined_compl_info(
 
         g_st().State = save_State;
         curwin_mut().w_cursor = pos;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         validate_cursor(curwin_ptr());
         if !equalpos(curwin_mut().w_cursor, pos) {
             emsg(gettext(E_COMPLDEL));

@@ -2373,15 +2373,15 @@ fn nfa_postprocess(prog: &mut nfa_regprog_T) {
 }
 
 #[inline]
-fn copy_pim(to: &mut nfa_pim_T, from: *mut nfa_pim_T) {
-    unsafe {
-        to.result = (*from).result;
-        to.state = (*from).state;
-        copy_sub(&mut to.subs.norm, &mut (*from).subs.norm);
+fn copy_pim(to: &mut nfa_pim_T, from: &mut nfa_pim_T) {
+     {
+        to.result = from.result;
+        to.state = from.state;
+        copy_sub(&mut to.subs.norm, &mut from.subs.norm);
         if re_st().rex.nfa_has_zsubexpr != 0 {
-            copy_sub(&mut to.subs.synt, &mut (*from).subs.synt);
+            copy_sub(&mut to.subs.synt, &mut from.subs.synt);
         }
-        to.end = (*from).end;
+        to.end = from.end;
     }
 }
 
@@ -2539,19 +2539,19 @@ fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
 
 #[inline]
 fn has_state_with_pos(
-    l: *mut nfa_list_T,
+    l: &mut nfa_list_T,
     state: usize,
-    subs: *mut regsubs_T,
+    subs: &mut regsubs_T,
     pim: *mut nfa_pim_T,
 ) -> bool {
     unsafe {
-        let tp = (*l).t.as_mut_ptr();
-        for i in 0..(*l).n as usize {
+        let tp = l.t.as_mut_ptr();
+        for i in 0..l.n as usize {
             let thread = tp.add(i);
             if (*thread).state == Some(state)
-                && sub_equal(&mut (*thread).subs.norm, &mut (*subs).norm)
+                && sub_equal(&mut (*thread).subs.norm, &mut subs.norm)
                 && (re_st().rex.nfa_has_zsubexpr == 0
-                    || sub_equal(&mut (*thread).subs.synt, &mut (*subs).synt))
+                    || sub_equal(&mut (*thread).subs.synt, &mut subs.synt))
                 && pim_equal(Some(&(*thread).pim), pim)
             {
                 return true;
@@ -2643,7 +2643,7 @@ fn state_in_list(
         };
         if states[state_idx].lastlist[re_st().nfa_ll_index] == (*l).id
             && (re_st().rex.nfa_has_backref == 0
-                || has_state_with_pos(l, state_idx, subs, ptr::null_mut()))
+                || has_state_with_pos( &mut *l, state_idx,  &mut *subs, ptr::null_mut()))
         {
             return true;
         }
@@ -2731,7 +2731,7 @@ fn addstate_idx(
                         } else {
                             return subs_arg;
                         }
-                    } else if has_state_with_pos(l, state_idx, subs_arg, pim) {
+                    } else if has_state_with_pos( &mut *l, state_idx,  &mut *subs_arg, pim) {
                         return subs_arg;
                     }
                 }
@@ -2765,7 +2765,7 @@ fn addstate_idx(
                 if pim.is_null() {
                     thread.pim.result = NFA_PIM_UNUSED;
                 } else {
-                    copy_pim(&mut thread.pim, pim);
+                    copy_pim(&mut thread.pim,  &mut *pim);
                     (*l).has_pim = 1;
                 }
                 copy_sub(&mut thread.subs.norm, &mut (*subs).norm);
@@ -4455,7 +4455,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
 
                     if pim == &raw mut (*t).pim {
                         pim_copy = nfa_pim_T::new();
-                        copy_pim(&mut pim_copy, pim);
+                        copy_pim(&mut pim_copy,  &mut *pim);
                         pim = &raw mut pim_copy;
                     }
 
@@ -4825,7 +4825,7 @@ fn nfa_regexec_both(
             st.lastlist[1] = 0;
         }
 
-        retval = nfa_regtry(&mut *prog, col, tm, (timed_out.is_some()).then(||  { &mut *timed_out.unwrap() }));
+        retval = nfa_regtry(&mut *prog, col, tm, (timed_out.is_some()).then(||  &mut *timed_out.unwrap()));
         finish_nfa_regexec(retval, col)
     }
 }

@@ -3362,7 +3362,7 @@ pub fn string_convert_ext(
                 out.push(0);
                 Some(out)
             }
-            CONV_ICONV => iconv_string(vcp, ptr, len, unconvlenp, (lenp.is_some()).then(||  { &mut *lenp.unwrap() })),
+            CONV_ICONV => iconv_string(vcp, ptr, len, unconvlenp, (lenp.is_some()).then(||  &mut *lenp.unwrap())),
             _ => None,
         }
     }

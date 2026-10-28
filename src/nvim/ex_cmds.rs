@@ -924,7 +924,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
 
             if change_occurred || deleted != 0 {
                 extmark_splice(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     eap.line1 - 1,
                     0,
                     count as c_int,
@@ -2012,7 +2012,7 @@ pub fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
                 numbuf.as_mut_ptr(),
                 30,
                 c"%*d ",
-                number_width(curwin_ptr()),
+                number_width(curwin_mut()),
                 lnum,
             );
             msg_puts_hl(numbuf.as_ptr(), HLF_N + 1, false);
@@ -2887,7 +2887,7 @@ pub fn do_ecmd(
                 }
 
                 if (oldbuf && newlnum == ECMD_LASTL) || newlnum == ECMD_LAST {
-                    let pos = &raw mut (*buflist_findfmark(buf)).mark;
+                    let pos = &raw mut (*buflist_findfmark( &mut *buf)).mark;
                     newlnum = (*pos).lnum;
                     solcol = (*pos).col;
                 }
@@ -3017,7 +3017,7 @@ pub fn do_ecmd(
             curbuf_mut().b_did_filetype = false;
 
             if !other_file && !oldbuf {
-                set_last_cursor(curwin_ptr());
+                set_last_cursor(curwin_mut());
                 if newlnum == ECMD_LAST || newlnum == ECMD_LASTL {
                     newlnum = curwin_mut().w_cursor.lnum;
                     solcol = curwin_mut().w_cursor.col;
@@ -3163,7 +3163,7 @@ pub fn do_ecmd(
                 if newcol >= 0 {
                     curwin_mut().w_cursor.lnum = newlnum;
                     curwin_mut().w_cursor.col = newcol;
-                    check_cursor(curwin_ptr());
+                    check_cursor(curwin_mut());
                 } else if newlnum > 0 {
                     curwin_mut().w_cursor.lnum = newlnum;
                     check_cursor_lnum(curwin_mut());
@@ -4584,7 +4584,7 @@ fn do_sub(
 
                             for m in line_matches.drain(..) {
                                 extmark_splice(
-                                    g_st().curbuf,
+                                    curbuf_mut(),
                                     m.lnum_before - 1,
                                     m.start_col,
                                     m.end.lnum - m.start.lnum,
@@ -5022,7 +5022,7 @@ pub fn global_exe(cmd: *mut c_char) {
         if excmds_st().global_need_beginline {
             beginline(BL_WHITE | BL_FIX);
         } else {
-            check_cursor(curwin_ptr());
+            check_cursor(curwin_mut());
         }
 
         changed_line_abv_curs();
@@ -5210,7 +5210,7 @@ fn show_sub(
                 linenr_origbuf = m.end.lnum;
 
                 bufhl_add_hl_pos_offset(
-                    cmdpreview_buf,
+                     &mut *cmdpreview_buf,
                     cmdpreview_ns,
                     hl_id,
                     p_start,
@@ -5218,7 +5218,7 @@ fn show_sub(
                     col_width,
                 );
             }
-            bufhl_add_hl_pos_offset(orig_buf, cmdpreview_ns, hl_id, m.start, m.end, 0);
+            bufhl_add_hl_pos_offset( &mut *orig_buf, cmdpreview_ns, hl_id, m.start, m.end, 0);
         }
 
         set_option_direct(kOptShortmess, cstr_as_obj(save_shm_p.as_ptr()), 0, SID_NONE);

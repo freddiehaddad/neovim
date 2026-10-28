@@ -1119,7 +1119,7 @@ fn syn_update_ends(startofline: bool) {
 
 fn syn_stack_free_block(block: *mut synblock_T) {
     unsafe {
-        idl_cache_clear(block);
+        idl_cache_clear( &mut *block);
         (&mut *block).b_sst_array = Vec::new();
         (*block).b_sst_max = 0;
         (*block).b_sst_search = 0;
@@ -3124,7 +3124,7 @@ fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
         }
 
         msg_ext_set_kind(c"list_cmd");
-        if !syntax_present(curwin_ptr()) {
+        if !syntax_present(curwin_mut()) {
             msg(gettext(msg_no_items), 0);
             return;
         }
@@ -4923,9 +4923,9 @@ fn idl_contains(e: &idl_entry_T, id: i16) -> bool {
     e.idl_ids.binary_search(&id).is_ok()
 }
 
-fn idl_cache_clear(block: *mut synblock_T) {
-    unsafe {
-        (*block).b_idlist_cache = None;
+fn idl_cache_clear(block: &mut synblock_T) {
+     {
+        block.b_idlist_cache = None;
     }
 }
 
@@ -5133,12 +5133,12 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
     }
 }
 
-pub fn syntax_present(win: *mut win_T) -> bool {
+pub fn syntax_present(win: &mut win_T) -> bool {
     unsafe {
-        !(*win_s(&mut *win)).b_syn_patterns.is_empty()
-            || !(*win_s(&mut *win)).b_syn_clusters.is_empty()
-            || !(*win_s(&mut *win)).b_keywtab.is_empty()
-            || !(*win_s(&mut *win)).b_keywtab_ic.is_empty()
+        !(*win_s(win)).b_syn_patterns.is_empty()
+            || !(*win_s(win)).b_syn_clusters.is_empty()
+            || !(*win_s(win)).b_keywtab.is_empty()
+            || !(*win_s(win)).b_keywtab_ic.is_empty()
     }
 }
 
@@ -5402,7 +5402,7 @@ fn syn_clear_time(st: &mut syn_time_T) {
 
 fn syntime_clear() {
     unsafe {
-        if !syntax_present(curwin_ptr()) {
+        if !syntax_present(curwin_mut()) {
             msg(gettext(msg_no_items), 0);
             return;
         }
@@ -5428,7 +5428,7 @@ fn syn_compare_syntime(s1: &time_entry_T, s2: &time_entry_T) -> std::cmp::Orderi
 
 fn syntime_report() {
     unsafe {
-        if !syntax_present(curwin_ptr()) {
+        if !syntax_present(curwin_mut()) {
             msg(gettext(msg_no_items), 0);
             return;
         }

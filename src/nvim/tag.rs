@@ -556,7 +556,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
                             mark_view_restore(&raw mut saved_fmark);
                         }
-                        check_cursor(curwin_ptr());
+                        check_cursor(curwin_mut());
                         if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
                             foldOpenCursor();
                         }
@@ -1333,7 +1333,7 @@ fn find_tagfunc_tags(
             FAIL
         };
         curwin_mut().w_cursor = save_pos;
-        check_cursor(curwin_ptr());
+        check_cursor(curwin_mut());
         (*d).dv_refcount -= 1;
 
         if result == FAIL {
@@ -2945,7 +2945,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                     opt_vars().p_ic = save_p_ic;
                     opt_vars().p_scs = save_p_scs;
 
-                    check_cursor(curwin_ptr());
+                    check_cursor(curwin_mut());
                 } else {
                     let save_secure = g_st().secure;
 
