@@ -435,19 +435,20 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         while (col as Integer) < endcol {
             let mut until: c_int = 0;
             for &g in l.iter() {
-                let grid_width = (*g).cols.min((*g).comp_width);
-                let grid_height = (*g).rows.min((*g).comp_height);
-                if ((*g).comp_row as Integer) > row
-                    || row >= ((*g).comp_row + grid_height) as Integer
-                    || (*g).comp_disabled
+                let g = &mut *g;
+                let grid_width = g.cols.min(g.comp_width);
+                let grid_height = g.rows.min(g.comp_height);
+                if (g.comp_row as Integer) > row
+                    || row >= (g.comp_row + grid_height) as Integer
+                    || g.comp_disabled
                 {
                     continue;
                 }
-                if (*g).comp_col <= col && col < (*g).comp_col + grid_width {
+                if g.comp_col <= col && col < g.comp_col + grid_width {
                     grid = g;
-                    until = (*g).comp_col + grid_width;
-                } else if (*g).comp_col > col {
-                    until = until.min((*g).comp_col);
+                    until = g.comp_col + grid_width;
+                } else if g.comp_col > col {
+                    until = until.min(g.comp_col);
                 }
             }
             until = until.min(endcol as c_int);
@@ -788,15 +789,16 @@ fn curgrid_covered_above(top: c_int, bot: c_int, left: c_int, right: c_int) -> b
             .iter()
             .skip({ &mut *comp().curgrid }.comp_index + 1)
         {
-            let grid_top = (*g).comp_row
+            let g = &*g;
+            let grid_top = g.comp_row
                 - if ptr::eq(g, &raw const g_st().msg_grid) && comp().msg_was_scrolled {
                     1
                 } else {
                     0
                 };
-            let grid_bot = (*g).comp_row + (*g).comp_height - 1;
-            let grid_left = (*g).comp_col;
-            let grid_right = (*g).comp_col + (*g).comp_width - 1;
+            let grid_bot = g.comp_row + g.comp_height - 1;
+            let grid_left = g.comp_col;
+            let grid_right = g.comp_col + g.comp_width - 1;
 
             if right >= grid_left && left <= grid_right && bot >= grid_top && top <= grid_bot {
                 return true;

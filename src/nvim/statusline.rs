@@ -538,20 +538,21 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             opt_idx = K_OPT_TABLINE;
             click_defs = g_st().tab_page_click_defs.as_mut_ptr();
         } else if draw_winbar {
+            let wp = &mut *wp;
             opt_idx = K_OPT_WINBAR;
-            stl = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_wbr) {
-                (*wp).w_onebuf_opt.wo_wbr
+            stl = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
+                wp.w_onebuf_opt.wo_wbr
             } else {
                 opt_vars().p_wbr
             };
-            opt_scope = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_wbr) {
+            opt_scope = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
                 OPT_LOCAL
             } else {
                 0
             };
             row = -1;
             col = 0;
-            grid = grid_adjust(&mut (*wp).w_grid, &mut row, &mut col);
+            grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
 
             if row < 0 {
                 stl_st().stl_expr_entered = false;
@@ -562,16 +563,16 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 return;
             }
 
-            fillchar = (*wp).w_p_fcs_chars.wbr;
-            group = if wp == curwin_ptr() {
+            fillchar = wp.w_p_fcs_chars.wbr;
+            group = if std::ptr::eq(wp, curwin_ptr()) {
                 HLF_WBR
             } else {
                 HLF_WBRNC
             };
             attr = win_hl_attr(&mut *wp, group);
-            maxwidth = (*wp).w_view_width;
-            stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
-            click_defs = stl_alloc_click_defs(&mut (*wp).w_winbar_click_defs, maxwidth);
+            maxwidth = wp.w_view_width;
+            stl_clear_click_defs(&mut wp.w_winbar_click_defs);
+            click_defs = stl_alloc_click_defs(&mut wp.w_winbar_click_defs, maxwidth);
         } else if draw_ruler && ui_event {
             stl = opt_vars().p_ruf;
             opt_idx = K_OPT_RULERFORMAT;

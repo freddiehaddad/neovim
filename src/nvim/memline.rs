@@ -933,7 +933,8 @@ pub fn ml_recover(checkext: bool) {
             ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
             return;
         }
-        (*mfp).mf_page_size = MIN_SWAP_PAGE_SIZE;
+        let mfp = &mut *mfp;
+        mfp.mf_page_size = MIN_SWAP_PAGE_SIZE;
 
         let hl_id = HLF_E;
         msg_ext_set_kind(c"emsg");
@@ -942,10 +943,7 @@ pub fn ml_recover(checkext: bool) {
             msg_start();
             msg_puts_hl(tr(c"Unable to read block 0 from "), hl_id, true);
             msg_outtrans(
-                (*mfp)
-                    .mf_fname
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                 hl_id,
                 true,
             );
@@ -955,7 +953,13 @@ pub fn ml_recover(checkext: bool) {
                 true,
             );
             msg_end();
-            ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                Some(&mut *mfp),
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         let mut b0p = (*hp).data_ptr().cast::<ZeroBlock>();
@@ -972,37 +976,40 @@ pub fn ml_recover(checkext: bool) {
         {
             msg_start();
             msg_outtrans(
-                (*mfp)
-                    .mf_fname
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                 0,
                 true,
             );
             msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
             msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
             msg_end();
-            ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                Some(&mut *mfp),
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         if !ml_check_b0_id(&*b0p) {
             semsg!(
                 tr(c"E307: %s does not look like a Nvim swap file"),
-                (*mfp)
-                    .mf_fname
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
             );
-            ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                Some(&mut *mfp),
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
         if b0_magic_wrong(&*b0p) {
             msg_start();
             msg_outtrans(
-                (*mfp)
-                    .mf_fname
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                 hl_id,
                 true,
             );
@@ -1012,21 +1019,24 @@ pub fn ml_recover(checkext: bool) {
             msg_puts_hl((&raw const (*b0p).b0_hname).cast(), hl_id, true);
             msg_puts_hl(tr(c",\nor the file has been damaged."), hl_id, true);
             msg_end();
-            ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+            ml_recover_theend(
+                Some(&mut *mfp),
+                hp,
+                buf_box,
+                serious_error,
+                called_from_main,
+            );
             return;
         }
 
         let b0_page_size = char_to_long((&raw const (*b0p).b0_page_size).cast()) as c_uint;
-        if (*mfp).mf_page_size != b0_page_size {
-            let previous_page_size = (*mfp).mf_page_size;
+        if mfp.mf_page_size != b0_page_size {
+            let previous_page_size = mfp.mf_page_size;
             mf_new_page_size(&mut *mfp, b0_page_size);
-            if (*mfp).mf_page_size < previous_page_size {
+            if mfp.mf_page_size < previous_page_size {
                 msg_start();
                 msg_outtrans(
-                    (*mfp)
-                        .mf_fname
-                        .as_ref()
-                        .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                    mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                     hl_id,
                     true,
                 );
@@ -1036,18 +1046,24 @@ pub fn ml_recover(checkext: bool) {
                     true,
                 );
                 msg_end();
-                ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+                ml_recover_theend(
+                    Some(&mut *mfp),
+                    hp,
+                    buf_box,
+                    serious_error,
+                    called_from_main,
+                );
                 return;
             }
-            let size: Off = vim_lseek((*mfp).mf_fd, 0, SEEK_END);
-            (*mfp).mf_blocknr_max = if size <= 0 {
+            let size: Off = vim_lseek(mfp.mf_fd, 0, SEEK_END);
+            mfp.mf_blocknr_max = if size <= 0 {
                 0
             } else {
-                size / i64::from((*mfp).mf_page_size)
+                size / i64::from(mfp.mf_page_size)
             };
-            (*mfp).mf_infile_count = (*mfp).mf_blocknr_max;
+            mfp.mf_infile_count = mfp.mf_blocknr_max;
 
-            (*hp).bh_data.resize((*mfp).mf_page_size as usize, 0);
+            (*hp).bh_data.resize(mfp.mf_page_size as usize, 0);
             b0p = (*hp).data_ptr().cast::<ZeroBlock>();
         }
 
@@ -1061,14 +1077,20 @@ pub fn ml_recover(checkext: bool) {
                 MAXPATHL as c_int,
             );
             if !setfname(curbuf_mut(), namebuff_ptr, ptr::null_mut(), true) {
-                ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+                ml_recover_theend(
+                    Some(&mut *mfp),
+                    hp,
+                    buf_box,
+                    serious_error,
+                    called_from_main,
+                );
                 return;
             }
         }
 
         msg_ext_set_kind(c"wmsg");
         g_st().msg_ext_skip_flush = true;
-        let mf_fname_ptr = (*mfp)
+        let mf_fname_ptr = mfp
             .mf_fname
             .as_ref()
             .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
@@ -1169,12 +1191,15 @@ pub fn ml_recover(checkext: bool) {
                 if bnum == 1 {
                     semsg!(
                         tr(c"E309: Unable to read block 1 from %s"),
-                        (*mfp)
-                            .mf_fname
-                            .as_ref()
-                            .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                        mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                     );
-                    ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+                    ml_recover_theend(
+                        Some(&mut *mfp),
+                        hp,
+                        buf_box,
+                        serious_error,
+                        called_from_main,
+                    );
                     return;
                 }
                 error += 1;
@@ -1256,7 +1281,7 @@ pub fn ml_recover(checkext: bool) {
                         page_count = pe.pe_page_count as c_uint;
                         if page_count < 1
                             || bnum.saturating_add(i64::from(page_count))
-                                > (*mfp).mf_blocknr_max.saturating_add(1)
+                                > mfp.mf_blocknr_max.saturating_add(1)
                         {
                             error += 1;
                             ml_append(lnum, tr(c"???ILLEGAL BLOCK NUMBER"), 0, true);
@@ -1278,13 +1303,10 @@ pub fn ml_recover(checkext: bool) {
                         if bnum == 1 {
                             semsg!(
                                 tr(c"E310: Block 1 ID wrong (%s not a .swp file?)"),
-                                (*mfp)
-                                    .mf_fname
-                                    .as_ref()
-                                    .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                                mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
                             );
                             ml_recover_theend(
-                                mfp.as_mut(),
+                                Some(&mut *mfp),
                                 hp,
                                 buf_box,
                                 serious_error,
@@ -1304,7 +1326,7 @@ pub fn ml_recover(checkext: bool) {
                             page_count = (*hp).bh_page_count;
                         }
 
-                        if page_count.wrapping_mul((*mfp).mf_page_size) != dp.db_txt_end {
+                        if page_count.wrapping_mul(mfp.mf_page_size) != dp.db_txt_end {
                             ml_append(
                                 lnum,
                                 tr(c"??? from here until ???END lines may be messed up"),
@@ -1314,7 +1336,7 @@ pub fn ml_recover(checkext: bool) {
                             lnum += 1;
                             error += 1;
                             has_error = true;
-                            dp.db_txt_end = page_count.wrapping_mul((*mfp).mf_page_size);
+                            dp.db_txt_end = page_count.wrapping_mul(mfp.mf_page_size);
                         }
 
                         if (dp.db_txt_start as usize) < HEADER_SIZE
@@ -1466,7 +1488,13 @@ pub fn ml_recover(checkext: bool) {
         }
         redraw_curbuf_later(UPD_NOT_VALID);
 
-        ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
+        ml_recover_theend(
+            Some(&mut *mfp),
+            hp,
+            buf_box,
+            serious_error,
+            called_from_main,
+        );
     }
 }
 

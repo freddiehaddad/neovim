@@ -1698,37 +1698,38 @@ fn syn_current_attr(
                             push_current_state(KEYWORD_IDX);
                             let len = cur_state_len();
                             cur_si = cur_state_at(len - 1);
-                            (*cur_si).si_m_startcol = syn_st().current_col;
-                            (*cur_si).si_h_startpos.lnum = syn_st().current_lnum;
-                            (*cur_si).si_h_startpos.col = 0;
-                            (*cur_si).si_m_endpos.lnum = syn_st().current_lnum;
-                            (*cur_si).si_m_endpos.col = endcol;
-                            (*cur_si).si_h_endpos.lnum = syn_st().current_lnum;
-                            (*cur_si).si_h_endpos.col = endcol;
-                            (*cur_si).si_ends = 1;
-                            (*cur_si).si_end_idx = 0;
-                            (*cur_si).si_flags = flags;
-                            (*cur_si).si_seqnr = syn_st().next_seqnr;
+                            let cur_si = &mut *cur_si;
+                            cur_si.si_m_startcol = syn_st().current_col;
+                            cur_si.si_h_startpos.lnum = syn_st().current_lnum;
+                            cur_si.si_h_startpos.col = 0;
+                            cur_si.si_m_endpos.lnum = syn_st().current_lnum;
+                            cur_si.si_m_endpos.col = endcol;
+                            cur_si.si_h_endpos.lnum = syn_st().current_lnum;
+                            cur_si.si_h_endpos.col = endcol;
+                            cur_si.si_ends = 1;
+                            cur_si.si_end_idx = 0;
+                            cur_si.si_flags = flags;
+                            cur_si.si_seqnr = syn_st().next_seqnr;
                             syn_st().next_seqnr += 1;
-                            (*cur_si).si_cchar = cchar;
+                            cur_si.si_cchar = cchar;
                             if len > 1 {
-                                (*cur_si).si_flags |= cur_state_at(len - 2).si_flags & HL_CONCEAL;
+                                cur_si.si_flags |= cur_state_at(len - 2).si_flags & HL_CONCEAL;
                             }
-                            (*cur_si).si_id = syn_id;
-                            (*cur_si).si_trans_id = syn_id;
+                            cur_si.si_id = syn_id;
+                            cur_si.si_trans_id = syn_id;
                             if (flags & HL_TRANSP) != 0 {
                                 if len < 2 {
-                                    (*cur_si).si_attr = 0;
-                                    (*cur_si).si_trans_id = 0;
+                                    cur_si.si_attr = 0;
+                                    cur_si.si_trans_id = 0;
                                 } else {
-                                    (*cur_si).si_attr = cur_state_at(len - 2).si_attr;
-                                    (*cur_si).si_trans_id = cur_state_at(len - 2).si_trans_id;
+                                    cur_si.si_attr = cur_state_at(len - 2).si_attr;
+                                    cur_si.si_trans_id = cur_state_at(len - 2).si_trans_id;
                                 }
                             } else {
-                                (*cur_si).si_attr = syn_id2attr(syn_id);
+                                cur_si.si_attr = syn_id2attr(syn_id);
                             }
-                            (*cur_si).si_cont_list = None;
-                            (*cur_si).si_next_list = next_list.take();
+                            cur_si.si_cont_list = None;
+                            cur_si.si_next_list = next_list.take();
                             check_keepend();
                         }
                     }

@@ -80,16 +80,17 @@ pub fn win_new_float(
                 });
             }
             wp = win_alloc(tp_last, false);
-            win_init(&mut *wp, curwin_mut(), 0);
-            if !(*wp).w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
-                if (*wp).w_onebuf_opt.wo_wbr != empty_opt {
-                    free_string_option((*wp).w_onebuf_opt.wo_wbr);
+            let wp = &mut *wp;
+            win_init(wp, curwin_mut(), 0);
+            if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
+                if wp.w_onebuf_opt.wo_wbr != empty_opt {
+                    free_string_option(wp.w_onebuf_opt.wo_wbr);
                 }
-                (*wp).w_onebuf_opt.wo_wbr = empty_opt;
+                wp.w_onebuf_opt.wo_wbr = empty_opt;
             }
-            if !(*wp).w_onebuf_opt.wo_stl.is_null() && (*wp).w_onebuf_opt.wo_stl != empty_opt {
-                free_string_option((*wp).w_onebuf_opt.wo_stl);
-                (*wp).w_onebuf_opt.wo_stl = empty_opt;
+            if !wp.w_onebuf_opt.wo_stl.is_null() && wp.w_onebuf_opt.wo_stl != empty_opt {
+                free_string_option(wp.w_onebuf_opt.wo_stl);
+                wp.w_onebuf_opt.wo_stl = empty_opt;
             }
         } else {
             debug_assert!(!last);

@@ -508,7 +508,8 @@ pub fn spell_load_file(
         } else {
             None
         };
-        let mut lp: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
+        let mut lp_ptr: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
+        let lp = &mut *lp_ptr;
 
         estack_push(ETYPE_SPELL, fname, 0);
         let did_estack_push = true;
@@ -564,11 +565,11 @@ pub fn spell_load_file(
             match n {
                 SN_INFO => {
                     let Some(raw) = read_string(fd, len as usize) else {
-                        (*lp).sl_info = None;
+                        lp.sl_info = None;
                         fail = true;
                         break;
                     };
-                    (*lp).sl_info = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
+                    lp.sl_info = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
                 }
                 SN_REGION => {
                     res = read_region_section(fd, &mut *lp, len);
@@ -578,11 +579,11 @@ pub fn spell_load_file(
                 }
                 SN_MIDWORD => {
                     let Some(raw) = read_string(fd, len as usize) else {
-                        (*lp).sl_midword = None;
+                        lp.sl_midword = None;
                         fail = true;
                         break;
                     };
-                    (*lp).sl_midword = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
+                    lp.sl_midword = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
                 }
                 SN_PREFCOND => {
                     res = read_prefcond_section(fd, &mut *lp);
@@ -590,15 +591,15 @@ pub fn spell_load_file(
                 SN_REP => {
                     res = read_rep_section(
                         fd,
-                        &mut (*lp).sl_rep,
-                        (&raw mut (*lp).sl_rep_first).cast::<i16>(),
+                        &mut lp.sl_rep,
+                        (&raw mut lp.sl_rep_first).cast::<i16>(),
                     );
                 }
                 SN_REPSAL => {
                     res = read_rep_section(
                         fd,
-                        &mut (*lp).sl_repsal,
-                        (&raw mut (*lp).sl_repsal_first).cast::<i16>(),
+                        &mut lp.sl_repsal,
+                        (&raw mut lp.sl_repsal_first).cast::<i16>(),
                     );
                 }
                 SN_SAL => {
@@ -618,27 +619,27 @@ pub fn spell_load_file(
                     res = read_words_section(fd, &mut *lp, len);
                 }
                 SN_SUGFILE => {
-                    (*lp).sl_sugtime = get8ctime(fd);
+                    lp.sl_sugtime = get8ctime(fd);
                 }
                 SN_NOSPLITSUGS => {
-                    (*lp).sl_nosplitsugs = true;
+                    lp.sl_nosplitsugs = true;
                 }
                 SN_NOCOMPOUNDSUGS => {
-                    (*lp).sl_nocompoundsugs = true;
+                    lp.sl_nocompoundsugs = true;
                 }
                 SN_COMPOUND => {
                     res = read_compound(fd, &mut *lp, len);
                 }
                 SN_NOBREAK => {
-                    (*lp).sl_nobreak = true;
+                    lp.sl_nobreak = true;
                 }
                 SN_SYLLABLE => {
                     let Some(raw) = read_string(fd, len as usize) else {
-                        (*lp).sl_syllable = None;
+                        lp.sl_syllable = None;
                         fail = true;
                         break;
                     };
-                    (*lp).sl_syllable = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
+                    lp.sl_syllable = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
                     if init_syl_tab(&mut *lp) != OK {
                         fail = true;
                         break;
@@ -666,14 +667,14 @@ pub fn spell_load_file(
         }
 
         if !fail && !check_someerror {
-            res = spell_read_tree(fd, &mut (*lp).sl_fbyts, &mut (*lp).sl_fidxs, false, 0);
+            res = spell_read_tree(fd, &mut lp.sl_fbyts, &mut lp.sl_fidxs, false, 0);
             if res != 0 {
                 check_someerror = true;
             }
         }
 
         if !fail && !check_someerror {
-            res = spell_read_tree(fd, &mut (*lp).sl_kbyts, &mut (*lp).sl_kidxs, false, 0);
+            res = spell_read_tree(fd, &mut lp.sl_kbyts, &mut lp.sl_kidxs, false, 0);
             if res != 0 {
                 check_someerror = true;
             }
@@ -682,10 +683,10 @@ pub fn spell_load_file(
         if !fail && !check_someerror {
             res = spell_read_tree(
                 fd,
-                &mut (*lp).sl_pbyts,
-                &mut (*lp).sl_pidxs,
+                &mut lp.sl_pbyts,
+                &mut lp.sl_pidxs,
                 true,
-                (*lp).sl_prefprog.len() as c_int,
+                lp.sl_prefprog.len() as c_int,
             );
             if res != 0 {
                 check_someerror = true;
@@ -711,14 +712,14 @@ pub fn spell_load_file(
                 spell_priv_st()
                     .first_lang
                     .push(crate::spell::OwnedSlang(boxed_lp));
-                lp = &raw mut **spell_priv_st().first_lang.last_mut().unwrap();
+                lp_ptr = &raw mut **spell_priv_st().first_lang.last_mut().unwrap();
             }
         } else {
             if !lang.is_null() {
                 *lang = NUL;
             }
             drop(owned_lp);
-            lp = ptr::null_mut();
+            lp_ptr = ptr::null_mut();
         }
 
         if !fd.is_null() {
@@ -728,7 +729,7 @@ pub fn spell_load_file(
             estack_pop();
         }
 
-        lp
+        lp_ptr
     }
 }
 
