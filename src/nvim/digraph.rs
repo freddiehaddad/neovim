@@ -2032,18 +2032,16 @@ pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `digraph_getlist()` function (`f_digraph_getlist`).
 pub fn f_digraph_getlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        if tv_check_for_opt_bool_arg(argvars_slice, 0) == FAIL {
+     {
+        if tv_check_for_opt_bool_arg(argvars, 0) == FAIL {
             return;
         }
 
-        let flag_list_all = if (*argvars).v_type == VarType::VAR_UNKNOWN {
+        let flag_list_all = if argvars[0].v_type == VarType::VAR_UNKNOWN {
             false
         } else {
-            tv_get_bool(&argvars_slice[0]) != 0
+            tv_get_bool(&argvars[0]) != 0
         };
 
         digraph_getlist_common(flag_list_all, rettv);
@@ -2064,21 +2062,19 @@ pub fn f_digraph_set(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
 pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_BOOL;
         rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
 
-        if (*argvars).v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VAR_LIST {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS.as_ptr(),
             ));
             return;
         }
 
-        let pl = (*argvars).vval.v_list();
+        let pl = argvars[0].vval.v_list();
         if pl.is_null() {
             rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
             return;

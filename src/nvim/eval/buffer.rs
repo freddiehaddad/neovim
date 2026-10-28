@@ -433,8 +433,6 @@ pub fn invoke_prompt_interrupt() -> bool {
 /// `prompt_appendbuf({buffer}, string/list)` function (`f_prompt_appendbuf`).
 pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
     _fptr: EvalFuncData,){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let did_emsg_before = g_st().did_emsg;
@@ -442,13 +440,13 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
         rettv.v_type = VarType::VAR_NUMBER;
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 
-        let buf = tv_get_buf_from_arg(&mut *argvars);
+        let buf = tv_get_buf_from_arg(&mut argvars[0]);
         if buf.is_null() || !bt_prompt(buf) {
             return;
         }
 
         let lnum = ((*buf).b_prompt_start.mark.lnum - 1).max(0);
-        let lines = argvars.add(1);
+        let lines = (&raw mut argvars[1]);
         let mut did_concat = false;
 
         if !(*buf).b_prompt_append_new_line {
@@ -562,15 +560,13 @@ pub fn f_bufloaded(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// `bufname(expr)` function (`f_bufname`).
 pub fn f_bufname(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_set_string(rettv, ptr::null());
-        let buf: *const buf_T = if (*argvars).v_type == VarType::VAR_UNKNOWN {
+        let buf: *const buf_T = if argvars[0].v_type == VarType::VAR_UNKNOWN {
             g_st().curbuf
         } else {
-            tv_get_buf_from_arg(&mut *argvars)
+            tv_get_buf_from_arg(&mut argvars[0])
         };
         if !buf.is_null() && !(*buf).b_fname.is_null() {
             tv_set_string(rettv, (*buf).b_fname);
@@ -580,32 +576,30 @@ pub fn f_bufname(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// `bufnr(expr)` function (`f_bufnr`).
 pub fn f_bufnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut error = false;
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        let mut buf: *const buf_T = if (*argvars).v_type == VarType::VAR_UNKNOWN {
+        let mut buf: *const buf_T = if argvars[0].v_type == VarType::VAR_UNKNOWN {
             g_st().curbuf
         } else {
-            if !tv_check_str_or_nr(&argvars_slice[0]) {
+            if !tv_check_str_or_nr(&argvars[0]) {
                 return;
             }
             g_st().emsg_off += 1;
-            let b = tv_get_buf(&mut *argvars, 0);
+            let b = tv_get_buf(&mut argvars[0], 0);
             g_st().emsg_off -= 1;
             b
         };
 
         if buf.is_null()
-            && (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
-            && tv_get_bool_chk(&argvars_slice[1], &mut error) != 0
+            && argvars[1].v_type != VarType::VAR_UNKNOWN
+            && tv_get_bool_chk(&argvars[1], &mut error) != 0
             && !error
         {
-            let name = tv_get_string_chk(&argvars_slice[0]);
+            let name = tv_get_string_chk(&argvars[0]);
             if !name.is_null() {
                 buf = buflist_new(name.cast_mut(), ptr::null_mut(), 1, 0);
             }
@@ -658,23 +652,21 @@ pub fn f_bufwinnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `deletebufline()` function (`f_deletebufline`).
 pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let did_emsg_before = g_st().did_emsg;
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL by default
-        let buf = tv_get_buf(&mut *argvars, 0);
+        let buf = tv_get_buf(&mut argvars[0], 0);
         if buf.is_null() {
             return;
         }
 
-        let first = tv_get_lnum_buf(&argvars_slice[1], buf);
+        let first = tv_get_lnum_buf(&argvars[1], buf);
         if g_st().did_emsg > did_emsg_before {
             return;
         }
-        let mut last = if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            tv_get_lnum_buf(&argvars_slice[2], buf)
+        let mut last = if argvars[2].v_type != VarType::VAR_UNKNOWN {
+            tv_get_lnum_buf(&argvars[2], buf)
         } else {
             first
         };
@@ -820,8 +812,6 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
 
 /// `getbufinfo()` function (`f_getbufinfo`).
 pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut argbuf: *mut buf_T = ptr::null_mut();
@@ -832,16 +822,16 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
-        if (*argvars).v_type == VarType::VAR_DICT {
-            let sel_d = (*argvars).vval.v_dict();
+        if argvars[0].v_type == VarType::VAR_DICT {
+            let sel_d = argvars[0].vval.v_dict();
             if !sel_d.is_null() {
                 filtered = true;
                 sel_buflisted = tv_dict_get_bool(sel_d, c"buflisted".as_ptr(), 0) != 0;
                 sel_bufloaded = tv_dict_get_bool(sel_d, c"bufloaded".as_ptr(), 0) != 0;
                 sel_bufmodified = tv_dict_get_bool(sel_d, c"bufmodified".as_ptr(), 0) != 0;
             }
-        } else if (*argvars).v_type != VarType::VAR_UNKNOWN {
-            argbuf = tv_get_buf_from_arg(&mut *argvars);
+        } else if argvars[0].v_type != VarType::VAR_UNKNOWN {
+            argbuf = tv_get_buf_from_arg(&mut argvars[0]);
             if argbuf.is_null() {
                 return;
             }
@@ -924,22 +914,20 @@ fn get_buffer_lines(
 }
 
 fn getbufline(argvars: &mut [typval_T],rettv: &mut typval_T, retlist: bool) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
-    unsafe {
+     {
         let mut lnum: linenr_T = 1;
         let mut end: linenr_T = 1;
         let did_emsg_before = g_st().did_emsg;
-        let buf = tv_get_buf_from_arg(&mut *argvars);
+        let buf = tv_get_buf_from_arg(&mut argvars[0]);
         if !buf.is_null() {
-            lnum = tv_get_lnum_buf(&argvars_slice[1], buf);
+            lnum = tv_get_lnum_buf(&argvars[1], buf);
             if g_st().did_emsg > did_emsg_before {
                 return;
             }
-            end = if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
+            end = if argvars[2].v_type == VarType::VAR_UNKNOWN {
                 lnum
             } else {
-                tv_get_lnum_buf(&argvars_slice[2], buf)
+                tv_get_lnum_buf(&argvars[2], buf)
             };
         }
 
@@ -959,15 +947,13 @@ pub fn f_getbufoneline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// `getline(lnum, [end])` function (`f_getline`).
 pub fn f_getline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        let lnum = tv_get_lnum(&argvars_slice[0]);
-        let (end, retlist) = if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
+     {
+        let lnum = tv_get_lnum(&argvars[0]);
+        let (end, retlist) = if argvars[1].v_type == VarType::VAR_UNKNOWN {
             (lnum, false)
         } else {
-            (tv_get_lnum(&argvars_slice[1]), true)
+            (tv_get_lnum(&argvars[1]), true)
         };
 
         get_buffer_lines(g_st().curbuf, lnum, end, retlist, &mut *rettv);

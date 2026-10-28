@@ -5797,8 +5797,6 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
 
 /// "getcompletion()" function.
 pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut xpc: expand_T = expand_T::new();
@@ -5806,13 +5804,13 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut options =
             WILD_SILENT | WILD_USE_NL | WILD_ADD_SLASH | WILD_NO_BEEP | WILD_HOME_REPLACE;
 
-        if tv_check_for_string_arg(argvars_slice, 1) == FAIL {
+        if tv_check_for_string_arg(argvars, 1) == FAIL {
             return;
         }
-        let type_str = tv_get_string(&argvars_slice[1]);
+        let type_str = tv_get_string(&argvars[1]);
 
-        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            filtered = tv_get_bool_chk(&argvars_slice[2], ptr::null_mut()) != 0;
+        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+            filtered = tv_get_bool_chk(&argvars[2], ptr::null_mut()) != 0;
         }
 
         if opt_vars().p_wic != 0 {
@@ -5823,13 +5821,13 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             options |= WILD_KEEP_ALL;
         }
 
-        if (*argvars).v_type != VarType::VAR_STRING {
-            if !tv_get_string_chk(&argvars_slice[0]).is_null() {
+        if argvars[0].v_type != VarType::VAR_STRING {
+            if !tv_get_string_chk(&argvars[0]).is_null() {
                 emsg(gettext(e_invarg.as_ptr()));
             }
             return;
         }
-        let pattern = tv_get_string(&argvars_slice[0]);
+        let pattern = tv_get_string(&argvars[0]);
         let mut pattern_start = pattern;
 
         if std::ffi::CStr::from_ptr(type_str).to_bytes() == b"cmdline" {

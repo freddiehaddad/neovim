@@ -3254,13 +3254,11 @@ fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
 
 /// "getscriptinfo()" function
 pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_list_alloc_ret(rettv, script_items_len() as isize);
 
-        if tv_check_for_opt_dict_arg(argvars_slice, 0) == FAIL {
+        if tv_check_for_opt_dict_arg(argvars, 0) == FAIL {
             return;
         }
 
@@ -3272,8 +3270,8 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut sid: varnumber_T = -1;
 
         let mut pat_owned: Option<std::ffi::CString> = None;
-        if (*argvars).v_type == VarType::VAR_DICT {
-            let arg_dict = (*argvars).vval.v_dict();
+        if argvars[0].v_type == VarType::VAR_DICT {
+            let arg_dict = argvars[0].vval.v_dict();
             let sid_di = tv_dict_find(arg_dict, c"sid".as_ptr(), 3);
             if !sid_di.is_null() {
                 let mut error = false;

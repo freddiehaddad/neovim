@@ -587,51 +587,46 @@ fn count_dict(d: *mut dict_T, needle: &typval_T, ic: bool) -> i64 {
 }
 
 /// `"count()"` function (`f_count`).
-pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
+pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    let mut n: i64 = 0;
+    let mut ic = false;
+    let mut error = false;
 
-    unsafe {
-        let mut n: i64 = 0;
-        let mut ic = false;
-        let mut error = false;
+    let arg0 = &argvars[0];
+    let arg1 = &argvars[1];
+    let arg2 = &argvars[2];
+    let arg3 = &argvars[3];
 
-        let arg0 = &argvars_slice[0];
-        let arg1 = argvars.add(1);
-        let arg2 = &argvars_slice[2];
-        let arg3 = &argvars_slice[3];
-
-        if arg2.v_type != VarType::VAR_UNKNOWN {
-            ic = tv_get_bool_chk(arg2, &mut error) != 0;
-        }
-
-        if !error && arg0.v_type == VarType::VAR_STRING {
-            n = count_string(arg0.vval.v_string(), tv_get_string_chk(&*arg1), ic);
-        } else if !error && arg0.v_type == VarType::VAR_LIST {
-            let mut idx: i64 = 0;
-            if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
-                idx = tv_get_number_chk(arg3, &mut error);
-            }
-            if !error {
-                n = count_list(arg0.vval.v_list(), &*arg1, idx, ic);
-            }
-        } else if !error && arg0.v_type == VarType::VAR_DICT {
-            let d = arg0.vval.v_dict();
-            if !d.is_null() {
-                if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
-                    emsg(e_invarg.as_ptr());
-                } else {
-                    n = count_dict(d, &*arg1, ic);
-                }
-            }
-        } else if !error {
-            semsg!(
-                c"E706: Argument of %s must be a List, String or Dictionary".as_ptr(),
-                c"count()".as_ptr(),
-            );
-        }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(n);
+    if arg2.v_type != VarType::VAR_UNKNOWN {
+        ic = tv_get_bool_chk(arg2, &mut error) != 0;
     }
+
+    if !error && arg0.v_type == VarType::VAR_STRING {
+        n = count_string(arg0.vval.v_string(), tv_get_string_chk(arg1), ic);
+    } else if !error && arg0.v_type == VarType::VAR_LIST {
+        let mut idx: i64 = 0;
+        if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
+            idx = tv_get_number_chk(arg3, &mut error);
+        }
+        if !error {
+            n = count_list(arg0.vval.v_list(), arg1, idx, ic);
+        }
+    } else if !error && arg0.v_type == VarType::VAR_DICT {
+        let d = arg0.vval.v_dict();
+        if !d.is_null() {
+            if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
+                emsg(e_invarg.as_ptr());
+            } else {
+                n = count_dict(d, arg1, ic);
+            }
+        }
+    } else if !error {
+        semsg!(
+            c"E706: Argument of %s must be a List, String or Dictionary".as_ptr(),
+            c"count()".as_ptr(),
+        );
+    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(n);
 }
 
 fn extend_dict(argvars: &mut [typval_T],
@@ -639,10 +634,8 @@ fn extend_dict(argvars: &mut [typval_T],
     is_new: bool,
     rettv: &mut typval_T,
 ) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        let mut d1 = (*argvars).vval.v_dict();
+        let mut d1 = argvars[0].vval.v_dict();
         if d1.is_null() {
             let locked = value_check_lock(VAR_FIXED, arg_errmsg, TV_TRANSLATE);
             assert!(locked);
@@ -660,10 +653,10 @@ fn extend_dict(argvars: &mut [typval_T],
             }
         }
 
-        let d2 = (*argvars.add(1)).vval.v_dict();
+        let d2 = argvars[1].vval.v_dict();
         if !d2.is_null() {
             let mut action = c"force".as_ptr();
-            let arg2 = &argvars_slice[2];
+            let arg2 = &argvars[2];
             if arg2.v_type != VarType::VAR_UNKNOWN {
                 action = tv_get_string_chk(arg2);
                 if action.is_null() {
@@ -691,7 +684,7 @@ fn extend_dict(argvars: &mut [typval_T],
                 vval: TypvalVval::Dict(d1),
             };
         } else {
-            tv_copy(&argvars_slice[0], &mut *rettv);
+            tv_copy(&argvars[0], &mut *rettv);
         }
     }
 }
@@ -701,11 +694,9 @@ fn extend_list(argvars: &mut [typval_T],
     is_new: bool,
     rettv: &mut typval_T,
 ) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
-    unsafe {
+     {
         let mut error = false;
-        let mut l1 = (*argvars).vval.v_list();
+        let mut l1 = argvars[0].vval.v_list();
 
         if !is_new && value_check_lock(tv_list_locked(l1), arg_errmsg, TV_TRANSLATE) {
             return;
@@ -718,10 +709,10 @@ fn extend_list(argvars: &mut [typval_T],
             }
         }
 
-        let l2 = (*argvars.add(1)).vval.v_list();
+        let l2 = argvars[1].vval.v_list();
         if !l2.is_null() {
             let mut item: *mut listitem_T = std::ptr::null_mut();
-            let arg2 = &argvars_slice[2];
+            let arg2 = &argvars[2];
             if arg2.v_type != VarType::VAR_UNKNOWN {
                 let before = tv_get_number_chk(arg2, &mut error) as c_int;
                 if error {
@@ -751,7 +742,7 @@ fn extend_list(argvars: &mut [typval_T],
                 vval: TypvalVval::List(l1),
             };
         } else {
-            tv_copy(&argvars_slice[0], &mut *rettv);
+            tv_copy(&argvars[0], &mut *rettv);
         }
     }
 }
@@ -761,15 +752,13 @@ fn extend_impl(argvars: &mut [typval_T],
     arg_errmsg: *const c_char,
     is_new: bool,
 ) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
-    unsafe {
-        let t0 = (*argvars).v_type;
-        let t1 = (*argvars.add(1)).v_type;
+     {
+        let t0 = argvars[0].v_type;
+        let t1 = argvars[1].v_type;
         if t0 == VarType::VAR_LIST && t1 == VarType::VAR_LIST {
-            extend_list(argvars_slice, arg_errmsg, is_new, rettv);
+            extend_list(argvars, arg_errmsg, is_new, rettv);
         } else if t0 == VarType::VAR_DICT && t1 == VarType::VAR_DICT {
-            extend_dict(argvars_slice, arg_errmsg, is_new, rettv);
+            extend_dict(argvars, arg_errmsg, is_new, rettv);
         } else {
             semsg!(
                 e_listdictarg.as_ptr(),
@@ -794,15 +783,12 @@ pub fn f_extendnew(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 }
 
 /// `"insert()"` function (`f_insert`).
-pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
-
+pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut error = false;
-        let arg0 = &argvars_slice[0];
-        let arg1 = argvars.add(1);
-        let arg2 = argvars.add(2);
+        let [arg0, arg1, arg2, ..] = argvars else {
+            unreachable!()
+        };
 
         if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
@@ -815,22 +801,22 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let mut before: c_int = 0;
             let len = tv_blob_len(b);
 
-            if (*arg2).v_type != VarType::VAR_UNKNOWN {
-                before = tv_get_number_chk(&*arg2, &mut error) as c_int;
+            if arg2.v_type != VarType::VAR_UNKNOWN {
+                before = tv_get_number_chk(arg2, &mut error) as c_int;
                 if error {
                     return;
                 }
                 if before < 0 || before > len {
-                    semsg!(e_invarg2.as_ptr(), tv_get_string(&*arg2));
+                    semsg!(e_invarg2.as_ptr(), tv_get_string(arg2));
                     return;
                 }
             }
-            let val = tv_get_number_chk(&*arg1, &mut error) as c_int;
+            let val = tv_get_number_chk(arg1, &mut error) as c_int;
             if error {
                 return;
             }
             if !(0..=255).contains(&val) {
-                semsg!(e_invarg2.as_ptr(), tv_get_string(&*arg1));
+                semsg!(e_invarg2.as_ptr(), tv_get_string(arg1));
                 return;
             }
 
@@ -838,7 +824,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             let bv = &mut (*b).bv_ga;
             bv.insert(before as usize, val as u8);
 
-            tv_copy(&argvars_slice[0], rettv);
+            tv_copy(arg0, rettv);
         } else if arg0.v_type != VarType::VAR_LIST {
             semsg!(e_listblobarg.as_ptr(), c"insert()".as_ptr());
         } else {
@@ -852,8 +838,8 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
 
             let mut before: i64 = 0;
-            if (*arg2).v_type != VarType::VAR_UNKNOWN {
-                before = tv_get_number_chk(&*arg2, &mut error);
+            if arg2.v_type != VarType::VAR_UNKNOWN {
+                before = tv_get_number_chk(arg2, &mut error);
             }
             if error {
                 return;
@@ -868,8 +854,8 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 }
             }
             if !l.is_null() {
-                tv_list_insert_tv(l, &mut *arg1, item);
-                tv_copy(&argvars_slice[0], rettv);
+                tv_list_insert_tv(l, arg1, item);
+                tv_copy(arg0, rettv);
             }
         }
     }
@@ -877,15 +863,13 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// `"remove()"` function (`f_remove`).
 pub fn f_remove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
+     {
         let arg_errmsg = c"remove() argument".as_ptr();
-        match (*argvars).v_type {
-            VarType::VAR_DICT => tv_dict_remove(argvars_slice, rettv, arg_errmsg),
-            VarType::VAR_BLOB => tv_blob_remove(argvars_slice, rettv, arg_errmsg),
-            VarType::VAR_LIST => tv_list_remove(argvars_slice, rettv, arg_errmsg),
+        match argvars[0].v_type {
+            VarType::VAR_DICT => tv_dict_remove(argvars, rettv, arg_errmsg),
+            VarType::VAR_BLOB => tv_blob_remove(argvars, rettv, arg_errmsg),
+            VarType::VAR_LIST => tv_list_remove(argvars, rettv, arg_errmsg),
             _ => {
                 semsg!(e_listdictblobarg.as_ptr(), c"remove()".as_ptr());
             }

@@ -3020,13 +3020,11 @@ pub fn f_undofile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `"undotree(expr)"` function.
 pub fn f_undotree(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_dict_alloc_ret(rettv);
 
-        let tv = argvars;
+        let tv = (&raw mut argvars[0]);
         let buf = if (*tv).v_type == VarType::VAR_UNKNOWN {
             g_st().curbuf
         } else {

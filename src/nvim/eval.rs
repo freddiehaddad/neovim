@@ -3473,23 +3473,21 @@ fn check_can_index(rettv: &mut typval_T, evaluate: bool, verbose: bool) -> c_int
 
 /// slice() function
 pub fn f_slice(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        if check_can_index(&mut *argvars, true, false) != OK {
+     {
+        if check_can_index(&mut argvars[0], true, false) != OK {
             return;
         }
 
-        tv_copy(&argvars_slice[0], rettv);
+        tv_copy(&argvars[0], rettv);
         eval_index_inner(
             &mut *rettv,
             true,
-            argvars.add(1),
-            if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
+            (&raw mut argvars[1]),
+            if argvars[2].v_type == VarType::VAR_UNKNOWN {
                 ptr::null_mut()
             } else {
-                argvars.add(2)
+                (&raw mut argvars[2])
             },
             true,
             ptr::null(),
@@ -5066,8 +5064,6 @@ fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -> *mut 
 }
 
 fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, retlist: bool) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut wait_time: proftime_T = 0;
         let profiling = g_st().do_profiling == PROF_YES;
@@ -5079,12 +5075,12 @@ fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, re
             return;
         }
 
-        let Some(input) = save_tv_as_string(&mut *argvars.add(1), false, false) else {
+        let Some(input) = save_tv_as_string(&mut argvars[1], false, false) else {
             return;
         };
 
         let mut executable = true;
-        let argv = tv_to_argv(&mut *argvars, None, &raw mut executable);
+        let argv = tv_to_argv(&mut argvars[0], None, &raw mut executable);
         if argv.is_empty() {
             if !executable {
                 set_vim_var_nr(VV_SHELL_ERROR, -1);
@@ -5139,10 +5135,10 @@ fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, re
 
         if retlist {
             let mut keepempty: c_int = 0;
-            if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
-                && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+            if argvars[1].v_type != VarType::VAR_UNKNOWN
+                && argvars[2].v_type != VarType::VAR_UNKNOWN
             {
-                keepempty = tv_get_number(&argvars_slice[2]) as c_int;
+                keepempty = tv_get_number(&argvars[2]) as c_int;
             }
             rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(res.as_ptr(), res.len(), keepempty != 0));
             tv_list_ref(rettv.vval.v_list());
@@ -6974,21 +6970,19 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
 }
 
 pub fn script_host_eval(name: *mut c_char,argvars: &mut [typval_T],rettv: &mut typval_T) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         if check_secure() {
             return;
         }
 
-        if (*argvars).v_type != VarType::VAR_STRING {
+        if argvars[0].v_type != VarType::VAR_STRING {
             emsg(gettext((&raw const e_invarg).cast()));
             return;
         }
 
         let args = tv_list_alloc(1);
-        tv_list_append_string(args, (*argvars).vval.v_string(), -1);
+        tv_list_append_string(args, argvars[0].vval.v_string(), -1);
         *rettv = eval_call_provider(name, c"eval".as_ptr().cast_mut(), &mut *args, false);
     }
 }

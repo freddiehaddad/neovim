@@ -4942,21 +4942,19 @@ fn set_cmdline_pos(pos: c_int) -> c_int {
 
 /// `"setcmdline()"` function.
 pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        if tv_check_for_string_arg(argvars_slice, 0) == FAIL
-            || tv_check_for_opt_number_arg(argvars_slice, 1) == FAIL
+     {
+        if tv_check_for_string_arg(argvars, 0) == FAIL
+            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
         {
             return;
         }
 
         let mut pos: c_int = -1;
-        if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
+        if argvars[1].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
 
-            pos = (tv_get_number_chk(&argvars_slice[1], &mut error) - 1) as c_int;
+            pos = (tv_get_number_chk(&argvars[1], &mut error) - 1) as c_int;
             if error {
                 return;
             }
@@ -4966,7 +4964,7 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             }
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(tv_get_string(&argvars_slice[0]), pos) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(tv_get_string(&argvars[0]), pos) as varnumber_T);
     }
 }
 
@@ -5230,8 +5228,6 @@ pub fn get_user_input(argvars: &[typval_T],
     inputdialog: bool,
     secret: bool,
 ) {
-    let argvars_slice: &[typval_T] = argvars;
-    let argvars: *const typval_T = argvars_slice.as_ptr();
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -5255,12 +5251,12 @@ pub fn get_user_input(argvars: &[typval_T],
         let mut cancelreturn_buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let mut xp_name_buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let def: [c_char; 1] = [0];
-        if (*argvars).v_type == VarType::VAR_DICT {
-            if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VAR_DICT {
+            if argvars[1].v_type != VarType::VAR_UNKNOWN {
                 emsg(gettext(c"E5050: {opts} must be the only argument".as_ptr()));
                 return;
             }
-            let dict = (*argvars).vval.v_dict();
+            let dict = argvars[0].vval.v_dict();
             prompt = tv_dict_get_string_buf_chk(
                 dict,
                 c"prompt".as_ptr(),
@@ -5302,18 +5298,18 @@ pub fn get_user_input(argvars: &[typval_T],
                 return;
             }
         } else {
-            prompt = tv_get_string_buf_chk(&argvars_slice[0], prompt_buf.as_mut_ptr());
+            prompt = tv_get_string_buf_chk(&argvars[0], prompt_buf.as_mut_ptr());
             if prompt.is_null() {
                 return;
             }
-            if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-                defstr = tv_get_string_buf_chk(&argvars_slice[1], defstr_buf.as_mut_ptr());
+            if argvars[1].v_type != VarType::VAR_UNKNOWN {
+                defstr = tv_get_string_buf_chk(&argvars[1], defstr_buf.as_mut_ptr());
                 if defstr.is_null() {
                     return;
                 }
-                if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+                if argvars[2].v_type != VarType::VAR_UNKNOWN {
                     let strarg2 =
-                        tv_get_string_buf_chk(&argvars_slice[2], cancelreturn_buf.as_mut_ptr());
+                        tv_get_string_buf_chk(&argvars[2], cancelreturn_buf.as_mut_ptr());
                     if strarg2.is_null() {
                         return;
                     }

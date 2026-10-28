@@ -1225,16 +1225,14 @@ pub fn arg_all() -> CString {
 
 /// `argc([window id])` function (`f_argc`).
 pub fn f_argc(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        if (*argvars).v_type == VarType::VAR_UNKNOWN {
+     {
+        if argvars[0].v_type == VarType::VAR_UNKNOWN {
             rettv.vval = crate::eval::typval::TypvalVval::Number(argcount() as varnumber_T);
-        } else if (*argvars).v_type == VarType::VAR_NUMBER && tv_get_number(&argvars_slice[0]) == -1 {
+        } else if argvars[0].v_type == VarType::VAR_NUMBER && tv_get_number(&argvars[0]) == -1 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as varnumber_T);
         } else {
-            let wp = find_win_by_nr_or_id(&*argvars);
+            let wp = find_win_by_nr_or_id(&argvars[0]);
             rettv.vval = crate::eval::typval::TypvalVval::Number(if !wp.is_null() {
                 wargcount(wp) as varnumber_T
             } else {
@@ -1276,28 +1274,26 @@ fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut ty
 
 /// `argv(nr)` function (`f_argv`).
 pub fn f_argv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut al_ptr: *mut aentry_T = ptr::null_mut();
         let mut count: c_int = -1;
 
-        if (*argvars).v_type == VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VAR_UNKNOWN {
             get_arglist_as_rettv(arglist(), argcount(), rettv);
             return;
         }
 
-        if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
+        if argvars[1].v_type == VarType::VAR_UNKNOWN {
             al_ptr = arglist();
             count = argcount();
-        } else if (*argvars.add(1)).v_type == VarType::VAR_NUMBER
-            && tv_get_number(&argvars_slice[1]) == -1
+        } else if argvars[1].v_type == VarType::VAR_NUMBER
+            && tv_get_number(&argvars[1]) == -1
         {
             al_ptr = garglist();
             count = gargcount();
         } else {
-            let wp = find_win_by_nr_or_id(&*argvars.add(1));
+            let wp = find_win_by_nr_or_id(&argvars[1]);
             if !wp.is_null() {
                 al_ptr = warglist(wp);
                 count = wargcount(wp);
@@ -1305,7 +1301,7 @@ pub fn f_argv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         }
 
         tv_set_string(rettv, ptr::null());
-        let idx = tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int;
+        let idx = tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int;
         if !al_ptr.is_null() && idx >= 0 && idx < count {
             tv_set_string(rettv, alist_name(&*al_ptr.add(idx as usize)));
         } else if idx == -1 {

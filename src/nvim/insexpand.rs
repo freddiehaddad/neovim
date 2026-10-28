@@ -3606,10 +3606,8 @@ fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
 }
 
 pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
+     {
         if (g_st().State & MODE_INSERT) == 0 {
             emsg(gettext(
                 c"E785: complete() can only be used in Insert mode".as_ptr(),
@@ -3621,12 +3619,12 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
 
-        if (*argvars.add(1)).v_type != VAR_LIST {
+        if argvars[1].v_type != VAR_LIST {
             emsg(gettext((&raw const e_invarg).cast()));
         } else {
-            let startcol = tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as colnr_T;
+            let startcol = tv_get_number_chk(&argvars[0], ptr::null_mut()) as colnr_T;
             if startcol > 0 {
-                set_completion(startcol - 1, (*argvars.add(1)).vval.v_list());
+                set_completion(startcol - 1, argvars[1].vval.v_list());
             }
         }
     }
@@ -3958,20 +3956,18 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
 }
 
 pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_dict_alloc_ret(rettv);
 
         let mut what_list: *mut list_T = ptr::null_mut();
 
-        if (*argvars).v_type != VAR_UNKNOWN {
-            if (*argvars).v_type != VAR_LIST {
+        if argvars[0].v_type != VAR_UNKNOWN {
+            if argvars[0].v_type != VAR_LIST {
                 emsg(gettext((&raw const e_listreq).cast()));
                 return;
             }
-            what_list = (*argvars).vval.v_list();
+            what_list = argvars[0].vval.v_list();
         }
         get_complete_info(what_list, &mut *rettv.vval.v_dict());
     }

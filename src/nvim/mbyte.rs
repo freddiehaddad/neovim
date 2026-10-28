@@ -3388,16 +3388,14 @@ fn first_list_number(l: &list_T) -> varnumber_T {
 }
 
 pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if (*argvars).v_type != VarType::VAR_LIST || (*argvars).vval.v_list().is_null() {
+        if argvars[0].v_type != VarType::VAR_LIST || argvars[0].vval.v_list().is_null() {
             emsg((&raw const e_listreq).cast::<c_char>());
             return;
         }
 
-        let l = (*argvars).vval.v_list();
+        let l = argvars[0].vval.v_list();
         let table_size = tv_list_len(l) as usize;
         let mut table: Vec<cw_interval_T> = Vec::with_capacity(table_size);
         if table_size != 0 {
@@ -3497,14 +3495,12 @@ pub fn f_getcellwidths(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
 }
 
 pub fn f_charclass(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        if tv_check_for_string_arg(argvars_slice, 0) == FAIL || (*argvars).vval.v_string().is_null() {
+     {
+        if tv_check_for_string_arg(argvars, 0) == FAIL || argvars[0].vval.v_string().is_null() {
             return;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class((*argvars).vval.v_string())));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class(argvars[0].vval.v_string())));
     }
 }
 

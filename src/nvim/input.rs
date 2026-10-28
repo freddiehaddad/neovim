@@ -1884,8 +1884,6 @@ pub fn char_avail() -> bool {
 }
 
 fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_number: bool) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut n: varnumber_T;
         let called_emsg_start = g_st().called_emsg;
@@ -1893,14 +1891,14 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
         let mut simplify = true;
         let mut cursor_flag: c_char = NUL as c_char;
 
-        if (*argvars).v_type != VarType::VAR_UNKNOWN
-            && tv_check_for_opt_dict_arg(argvars_slice, 1) == FAIL
+        if argvars[0].v_type != VarType::VAR_UNKNOWN
+            && tv_check_for_opt_dict_arg(argvars, 1) == FAIL
         {
             return;
         }
 
-        let arg1 = argvars.add(1);
-        if (*argvars).v_type != VarType::VAR_UNKNOWN && (*arg1).v_type == VarType::VAR_DICT {
+        let arg1 = (&raw mut argvars[1]);
+        if argvars[0].v_type != VarType::VAR_UNKNOWN && (*arg1).v_type == VarType::VAR_DICT {
             let d = (*arg1).vval.v_dict();
 
             if allow_number {
@@ -1948,8 +1946,8 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                 ui_cursor_goto(g_st().msg_row, g_st().msg_col);
             }
 
-            if (*argvars).v_type == VarType::VAR_UNKNOWN
-                || ((*argvars).v_type == VarType::VAR_NUMBER && (*argvars).vval.v_number() == -1)
+            if argvars[0].v_type == VarType::VAR_UNKNOWN
+                || (argvars[0].v_type == VarType::VAR_NUMBER && argvars[0].vval.v_number() == -1)
             {
                 if !char_avail() {
                     ui_flush();
@@ -1961,7 +1959,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                     }
                 }
                 n = varnumber_T::from(safe_vgetc());
-            } else if tv_get_bool_chk(&argvars_slice[0], &mut error) != 0 {
+            } else if tv_get_bool_chk(&argvars[0], &mut error) != 0 {
                 n = varnumber_T::from(vpeekc_any());
             } else if error || vpeekc_any() == NUL {
                 n = 0;

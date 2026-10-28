@@ -101,24 +101,22 @@ pub fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
 }
 
 fn win_getid(argvars: &mut [typval_T]) -> c_int {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        if (*argvars).v_type == VarType::VAR_UNKNOWN {
+        if argvars[0].v_type == VarType::VAR_UNKNOWN {
             return (**curwin.as_ptr()).handle;
         }
-        let mut winnr = tv_get_number(&argvars_slice[0]) as c_int;
+        let mut winnr = tv_get_number(&argvars[0]) as c_int;
         if winnr <= 0 {
             return 0;
         }
 
         let mut tp: *mut tabpage_T = ptr::null_mut();
         let mut wp: *mut win_T;
-        if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
+        if argvars[1].v_type == VarType::VAR_UNKNOWN {
             tp = g_st().curtab;
             wp = g_st().firstwin;
         } else {
-            let mut tabnr = tv_get_number(&argvars_slice[1]) as c_int;
+            let mut tabnr = tv_get_number(&argvars[1]) as c_int;
             let mut tp2 = g_st().first_tabpage;
             while !tp2.is_null() {
                 tabnr -= 1;
@@ -519,23 +517,21 @@ fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
 
 /// `gettabinfo()` function (`f_gettabinfo`).
 pub fn f_gettabinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut tparg: *mut tabpage_T = ptr::null_mut();
 
         tv_list_alloc_ret(
             rettv,
-            if (*argvars).v_type == VarType::VAR_UNKNOWN {
+            if argvars[0].v_type == VarType::VAR_UNKNOWN {
                 1
             } else {
                 kListLenMayKnow
             },
         );
 
-        if (*argvars).v_type != VarType::VAR_UNKNOWN {
-            tparg = find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int);
+        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+            tparg = find_tabpage(tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int);
             if tparg.is_null() {
                 return;
             }
@@ -561,16 +557,14 @@ pub fn f_gettabinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// `getwininfo()` function (`f_getwininfo`).
 pub fn f_getwininfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut wparg: *mut win_T = ptr::null_mut();
 
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
-        if (*argvars).v_type != VarType::VAR_UNKNOWN {
-            wparg = win_id2wp(tv_get_number(&argvars_slice[0]) as c_int);
+        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+            wparg = win_id2wp(tv_get_number(&argvars[0]) as c_int);
             if wparg.is_null() {
                 return;
             }
@@ -620,14 +614,12 @@ pub fn f_getwinposy(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `tabpagenr()` function (`f_tabpagenr`).
 pub fn f_tabpagenr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut nr: c_int = 0;
 
-        if (*argvars).v_type != VarType::VAR_UNKNOWN {
-            let arg = tv_get_string_chk(&argvars_slice[0]);
+        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+            let arg = tv_get_string_chk(&argvars[0]);
             if !arg.is_null() {
                 let bytes = CStr::from_ptr(arg).to_bytes();
                 if bytes == b"$" {
@@ -813,12 +805,10 @@ pub fn f_win_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// `win_splitmove()` function (`f_win_splitmove`).
 pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let wp = find_win_by_nr_or_id(&*argvars);
-        let targetwin = find_win_by_nr_or_id(&*argvars.add(1));
+        let wp = find_win_by_nr_or_id(&argvars[0]);
+        let targetwin = find_win_by_nr_or_id(&argvars[1]);
         let oldwin = *curwin.as_ptr();
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -837,12 +827,12 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut flags: c_int = 0;
         let mut size: c_int = 0;
 
-        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars_slice, 2) == FAIL {
+        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+            if tv_check_for_nonnull_dict_arg(argvars, 2) == FAIL {
                 return;
             }
 
-            let d = (*argvars.add(2)).vval.v_dict();
+            let d = argvars[2].vval.v_dict();
             if tv_dict_get_bool(d, c"vertical".as_ptr(), 0) != 0 {
                 flags |= WSP_VERT;
             }
@@ -881,15 +871,13 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// `win_gettype(nr)` function (`f_win_gettype`).
 pub fn f_win_gettype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut wp = *curwin.as_ptr();
 
         tv_set_string(rettv, ptr::null());
-        if (*argvars).v_type != VarType::VAR_UNKNOWN {
-            wp = find_win_by_nr_or_id(&*argvars);
+        if argvars[0].v_type != VarType::VAR_UNKNOWN {
+            wp = find_win_by_nr_or_id(&argvars[0]);
             if wp.is_null() {
                 tv_set_string(rettv, c"unknown".as_ptr());
                 return;
@@ -958,16 +946,14 @@ pub fn f_winheight(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// `winlayout()` function (`f_winlayout`).
 pub fn f_winlayout(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_list_alloc_ret(rettv, 2);
 
-        let tp = if (*argvars).v_type == VarType::VAR_UNKNOWN {
+        let tp = if argvars[0].v_type == VarType::VAR_UNKNOWN {
             g_st().curtab
         } else {
-            let found = find_tabpage(tv_get_number(&argvars_slice[0]) as c_int);
+            let found = find_tabpage(tv_get_number(&argvars[0]) as c_int);
             if found.is_null() {
                 return;
             }
@@ -1023,15 +1009,13 @@ pub fn f_winrestcmd(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `winrestview()` function (`f_winrestview`).
 pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_nonnull_dict_arg(argvars_slice, 0) == FAIL {
+        if tv_check_for_nonnull_dict_arg(argvars, 0) == FAIL {
             return;
         }
 
-        let dict = (*argvars).vval.v_dict();
+        let dict = argvars[0].vval.v_dict();
         let di = tv_dict_find(dict, c"lnum".as_ptr(), 4);
         if !di.is_null() {
             (**curwin.as_ptr()).w_cursor.lnum = tv_get_number(&(*di).di_tv) as linenr_T;

@@ -2084,19 +2084,17 @@ pub fn check_map(
 
 /// "hasmapto()" function
 pub fn f_hasmapto(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        let name = tv_get_string(&argvars_slice[0]);
+     {
+        let name = tv_get_string(&argvars[0]);
         let mut abbr = false;
         let mut buf = [0 as c_char; NUMBUFLEN];
-        let mode = if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
+        let mode = if argvars[1].v_type == VarType::VAR_UNKNOWN {
             c"nvo".as_ptr()
         } else {
-            let m = tv_get_string_buf(&argvars_slice[1], buf.as_mut_ptr());
-            if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                abbr = tv_get_bool(&argvars_slice[2]) != 0;
+            let m = tv_get_string_buf(&argvars[1], buf.as_mut_ptr());
+            if argvars[2].v_type != VarType::VAR_UNKNOWN {
+                abbr = tv_get_bool(&argvars[2]) != 0;
             }
             m
         };
@@ -2205,13 +2203,11 @@ fn mapblock_fill_dict(
 }
 
 fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        let keys = tv_get_string(&argvars_slice[0]) as *mut c_char;
+        let keys = tv_get_string(&argvars[0]) as *mut c_char;
         if *keys == NUL {
             return;
         }
@@ -2220,12 +2216,12 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
         let mut abbr = false;
         let mut get_dict = false;
 
-        let which = if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-            let w = tv_get_string_buf_chk(&argvars_slice[1], buf.as_mut_ptr());
-            if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                abbr = tv_get_bool(&argvars_slice[2]) != 0;
-                if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
-                    get_dict = tv_get_bool(&argvars_slice[3]) != 0;
+        let which = if argvars[1].v_type != VarType::VAR_UNKNOWN {
+            let w = tv_get_string_buf_chk(&argvars[1], buf.as_mut_ptr());
+            if argvars[2].v_type != VarType::VAR_UNKNOWN {
+                abbr = tv_get_bool(&argvars[2]) != 0;
+                if argvars[3].v_type != VarType::VAR_UNKNOWN {
+                    get_dict = tv_get_bool(&argvars[3]) != 0;
                 }
             }
             w
@@ -2379,8 +2375,6 @@ fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
 
 /// "mapset()" function
 pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if check_secure() {
@@ -2388,10 +2382,10 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         }
 
         let mut buf = [0 as c_char; NUMBUFLEN];
-        let dict_only = (*argvars).v_type == VarType::VAR_DICT;
+        let dict_only = argvars[0].v_type == VarType::VAR_DICT;
 
         let (which, is_abbr, d) = if dict_only {
-            let d = (*argvars).vval.v_dict();
+            let d = argvars[0].vval.v_dict();
             let which = tv_dict_get_string(d, c"mode".as_ptr());
             let is_abbr = tv_dict_get_bool(d, c"abbr".as_ptr(), -1) as c_int;
             if which.is_null() || is_abbr < 0 {
@@ -2400,15 +2394,15 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             }
             (which as *const c_char, is_abbr, d)
         } else {
-            let which = tv_get_string_buf_chk(&argvars_slice[0], buf.as_mut_ptr());
+            let which = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
             if which.is_null() {
                 return;
             }
-            let is_abbr = tv_get_bool(&argvars_slice[1]) as c_int;
-            if tv_check_for_dict_arg(argvars_slice, 2) == FAIL {
+            let is_abbr = tv_get_bool(&argvars[1]) as c_int;
+            if tv_check_for_dict_arg(argvars, 2) == FAIL {
                 return;
             }
-            let d = (*argvars.add(2)).vval.v_dict();
+            let d = argvars[2].vval.v_dict();
             (which, is_abbr, d)
         };
         let mode = get_map_mode_string(which, is_abbr != 0);
@@ -2521,12 +2515,10 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
 
 /// "maplist()" function
 pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-        let abbr = (*argvars).v_type != VarType::VAR_UNKNOWN && tv_get_bool(&argvars_slice[0]) != 0;
+        let abbr = argvars[0].v_type != VarType::VAR_UNKNOWN && tv_get_bool(&argvars[0]) != 0;
 
         tv_list_alloc_ret(rettv, kListLenUnknown);
 

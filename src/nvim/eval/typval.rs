@@ -1519,10 +1519,8 @@ pub fn tv_list_flatten(
 
 /// "items(blob)" function.
 fn tv_blob2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        let blob = (*argvars).vval.v_blob();
+        let blob = argvars[0].vval.v_blob();
 
         tv_list_alloc_ret(&mut *rettv, tv_blob_len_inline(blob) as isize);
 
@@ -1542,10 +1540,8 @@ fn tv_dict2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 
 /// "items(list)" function.
 fn tv_list2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        let l = (*argvars).vval.v_list();
+        let l = argvars[0].vval.v_list();
 
         tv_list_alloc_ret(&mut *rettv, tv_list_len_inline(l) as isize);
         if l.is_null() {
@@ -1567,10 +1563,8 @@ fn tv_list2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 
 /// "items(string)" function.
 fn tv_string2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        let mut p: *const c_char = (*argvars).vval.v_string();
+        let mut p: *const c_char = argvars[0].vval.v_string();
 
         tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
         if p.is_null() {
@@ -1780,25 +1774,23 @@ pub fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_char) -
 
 /// "join()" function.
 pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        if (*argvars).v_type != VarType::VAR_LIST {
+     {
+        if argvars[0].v_type != VarType::VAR_LIST {
             emsg(tr(e_listreq.as_ptr()));
             return;
         }
-        let sep = if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
+        let sep = if argvars[1].v_type == VarType::VAR_UNKNOWN {
             c" ".as_ptr()
         } else {
-            tv_get_string_chk(&argvars_slice[1])
+            tv_get_string_chk(&argvars[1])
         };
 
         rettv.v_type = VarType::VAR_STRING;
 
         if !sep.is_null() {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
-            tv_list_join(&mut out, (*argvars).vval.v_list(), sep);
+            tv_list_join(&mut out, argvars[0].vval.v_list(), sep);
             tv_set_string_len(rettv, out.as_ptr(), out.len());
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -1808,18 +1800,16 @@ pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
 /// "list2str()" function.
 pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        if (*argvars).v_type != VarType::VAR_LIST {
+        if argvars[0].v_type != VarType::VAR_LIST {
             emsg(tr(e_invarg.as_ptr()));
             return;
         }
 
-        let l = (*argvars).vval.v_list();
+        let l = argvars[0].vval.v_list();
         if l.is_null() {
             return;
         }
@@ -1844,17 +1834,15 @@ pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
-        let l = (*argvars).vval.v_list();
+        let l = argvars[0].vval.v_list();
         if value_check_lock(tv_list_locked_inline(l), arg_errmsg, TV_TRANSLATE) {
             return;
         }
 
         let mut error = false;
-        let idx = tv_get_number_chk(&argvars_slice[1], &mut error);
+        let idx = tv_get_number_chk(&argvars[1], &mut error);
 
         if error {
             return;
@@ -1862,12 +1850,12 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
         let item = tv_list_find(l, idx as c_int);
         if item.is_null() {
             semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), idx);
-        } else if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
+        } else if argvars[2].v_type == VarType::VAR_UNKNOWN {
             tv_list_drop_items(l, item, item);
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
             drop(Box::from_raw(item));
         } else {
-            let end = tv_get_number_chk(&argvars_slice[2], &mut error);
+            let end = tv_get_number_chk(&argvars[2], &mut error);
             if error {
                 return;
             }
@@ -2228,8 +2216,6 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
 }
 
 fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_int {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         info.item_compare_ic = 0;
         info.item_compare_lc = false;
@@ -2241,27 +2227,27 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
         info.item_compare_selfdict = ptr::null_mut();
         info.item_compare_keys_ready = false;
 
-        if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
+        if argvars[1].v_type == VarType::VAR_UNKNOWN {
             return OK;
         }
 
-        if (*argvars.add(1)).v_type == VarType::VAR_FUNC {
-            let s = (*argvars.add(1)).vval.v_string();
+        if argvars[1].v_type == VarType::VAR_FUNC {
+            let s = argvars[1].vval.v_string();
             if !s.is_null() {
                 info.item_compare_func = Some(CStr::from_ptr(s).to_owned());
             }
-        } else if (*argvars.add(1)).v_type == VarType::VAR_PARTIAL {
-            info.item_compare_partial = (*argvars.add(1)).vval.v_partial();
+        } else if argvars[1].v_type == VarType::VAR_PARTIAL {
+            info.item_compare_partial = argvars[1].vval.v_partial();
         } else {
             let mut error = false;
-            let nr = tv_get_number_chk(&argvars_slice[1], &mut error) as c_int;
+            let nr = tv_get_number_chk(&argvars[1], &mut error) as c_int;
             if error {
                 return FAIL;
             }
             if nr == 1 {
                 info.item_compare_ic = 1;
-            } else if (*argvars.add(1)).v_type != VarType::VAR_NUMBER {
-                let s = tv_get_string(&argvars_slice[1]);
+            } else if argvars[1].v_type != VarType::VAR_NUMBER {
+                let s = tv_get_string(&argvars[1]);
                 if !s.is_null() {
                     info.item_compare_func = Some(CStr::from_ptr(s).to_owned());
                 }
@@ -2297,11 +2283,11 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
             }
         }
 
-        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_dict_arg(argvars_slice, 2) == FAIL {
+        if argvars[2].v_type != VarType::VAR_UNKNOWN {
+            if tv_check_for_dict_arg(argvars, 2) == FAIL {
                 return FAIL;
             }
-            info.item_compare_selfdict = (*argvars.add(2)).vval.v_dict();
+            info.item_compare_selfdict = argvars[2].vval.v_dict();
         }
 
         OK
@@ -2309,10 +2295,8 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
 }
 
 fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
-    unsafe {
-        if (*argvars).v_type != VarType::VAR_LIST {
+     {
+        if argvars[0].v_type != VarType::VAR_LIST {
             semsg!(
                 tr(e_listarg.as_ptr()),
                 if sort {
@@ -2331,12 +2315,12 @@ fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
         } else {
             c"uniq() argument".as_ptr()
         };
-        let l = (*argvars).vval.v_list();
+        let l = argvars[0].vval.v_list();
         if !value_check_lock(tv_list_locked_inline(l), arg_errmsg, TV_TRANSLATE) {
             tv_list_set_ret_inline(rettv, l);
 
             let len = tv_list_len_inline(l);
-            if len > 1 && parse_sort_uniq_args(argvars_slice, &mut info) != FAIL {
+            if len > 1 && parse_sort_uniq_args(argvars, &mut info) != FAIL {
                 if sort {
                     do_sort(l, &mut info);
                 } else {
@@ -3717,16 +3701,14 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
     rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        let b = (*argvars).vval.v_blob();
+        let b = argvars[0].vval.v_blob();
         if !b.is_null() && value_check_lock((*b).bv_lock, arg_errmsg, TV_TRANSLATE) {
             return;
         }
 
         let mut error = false;
-        let mut idx = tv_get_number_chk(&argvars_slice[1], &mut error);
+        let mut idx = tv_get_number_chk(&argvars[1], &mut error);
 
         if !error {
             let len = i64::from(tv_blob_len_inline(b));
@@ -3737,12 +3719,12 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
                 semsg!(tr(e_blobidx.as_ptr()), idx);
                 return;
             }
-            if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
+            if argvars[2].v_type == VarType::VAR_UNKNOWN {
                 let bv = &mut (*b).bv_ga;
                 let removed = bv.remove(idx as usize);
                 rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
             } else {
-                let mut end = tv_get_number_chk(&argvars_slice[2], &mut error);
+                let mut end = tv_get_number_chk(&argvars[2], &mut error);
                 if error {
                     return;
                 }
@@ -3765,17 +3747,15 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
 
 /// blob2list() function.
 pub fn f_blob2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
-        if tv_check_for_blob_arg(argvars_slice, 0) == FAIL {
+        if tv_check_for_blob_arg(argvars, 0) == FAIL {
             return;
         }
 
-        let blob = (*argvars).vval.v_blob();
+        let blob = argvars[0].vval.v_blob();
         let l = rettv.vval.v_list();
         for i in 0..tv_blob_len_inline(blob) {
             tv_list_append_number(l, i64::from(tv_blob_get_inline(&*blob, i)));
@@ -3785,17 +3765,15 @@ pub fn f_blob2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// list2blob() function.
 pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let blob = tv_blob_alloc_ret(rettv);
 
-        if tv_check_for_list_arg(argvars_slice, 0) == FAIL {
+        if tv_check_for_list_arg(argvars, 0) == FAIL {
             return;
         }
 
-        let l = (*argvars).vval.v_list();
+        let l = argvars[0].vval.v_list();
         if l.is_null() {
             return;
         }
@@ -3848,15 +3826,13 @@ pub fn tv_dict_alloc_ret(ret_tv: &mut typval_T) {
 }
 
 fn tv_dict2list(argvars: &mut [typval_T], rettv: &mut typval_T, what: DictListType) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        if tv_check_for_dict_arg(argvars_slice, 0) == FAIL {
+        if tv_check_for_dict_arg(argvars, 0) == FAIL {
             tv_list_alloc_ret(&mut *rettv, 0);
             return;
         }
 
-        let d = (*argvars).vval.v_dict();
+        let d = argvars[0].vval.v_dict();
         tv_list_alloc_ret(&mut *rettv, tv_dict_len_inline(d));
         if d.is_null() {
             return;
@@ -3897,15 +3873,13 @@ fn tv_dict2list(argvars: &mut [typval_T], rettv: &mut typval_T, what: DictListTy
 
 /// "items()" function.
 pub fn f_items(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        match (*argvars).v_type {
-            VarType::VAR_STRING => tv_string2items(argvars_slice, rettv),
-            VarType::VAR_LIST => tv_list2items(argvars_slice, rettv),
-            VarType::VAR_BLOB => tv_blob2items(argvars_slice, rettv),
-            VarType::VAR_DICT => tv_dict2items(argvars_slice, rettv),
+     {
+        match argvars[0].v_type {
+            VarType::VAR_STRING => tv_string2items(argvars, rettv),
+            VarType::VAR_LIST => tv_list2items(argvars, rettv),
+            VarType::VAR_BLOB => tv_blob2items(argvars, rettv),
+            VarType::VAR_DICT => tv_dict2items(argvars, rettv),
             _ => {
                 semsg!(
                     tr(E_LIST_DICT_BLOB_OR_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
@@ -3928,20 +3902,18 @@ pub fn f_values(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// "has_key()" function.
 pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
-    unsafe {
-        if tv_check_for_dict_arg(argvars_slice, 0) == FAIL {
+     {
+        if tv_check_for_dict_arg(argvars, 0) == FAIL {
             return;
         }
 
-        if (*argvars).vval.v_dict().is_null() {
+        if argvars[0].vval.v_dict().is_null() {
             return;
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(
-            !tv_dict_find((*argvars).vval.v_dict(), tv_get_string(&argvars_slice[1]), -1).is_null(),
+            !tv_dict_find(argvars[0].vval.v_dict(), tv_get_string(&argvars[1]), -1).is_null(),
         ));
     }
 }
@@ -3950,16 +3922,14 @@ pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
-        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+        if argvars[2].v_type != VarType::VAR_UNKNOWN {
             semsg!(tr(e_toomanyarg.as_ptr()), c"remove()".as_ptr());
         } else {
-            let d = (*argvars).vval.v_dict();
+            let d = argvars[0].vval.v_dict();
             if !d.is_null() && !value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE) {
-                let key = tv_get_string_chk(&argvars_slice[1]);
+                let key = tv_get_string_chk(&argvars[1]);
                 if !key.is_null() {
                     let di = tv_dict_find(d, key, -1);
                     if di.is_null() {

@@ -3564,21 +3564,19 @@ fn set_option_from_tv(varname: *const c_char,varp: &mut typval_T) {
 
 /// "setwinvar()" and "settabwinvar()" functions.
 fn setwinvar(argvars: &mut [typval_T], off: usize) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         if check_secure() {
             return;
         }
 
         let tp = if off == 1 {
-            find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int)
+            find_tabpage(tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int)
         } else {
             g_st().curtab
         };
-        let win = find_win_by_nr(&*argvars.add(off), tp);
-        let varname = tv_get_string_chk(&argvars_slice[off + 1]);
-        let varp = argvars.add(off + 2);
+        let win = find_win_by_nr(&argvars[off], tp);
+        let varname = tv_get_string_chk(&argvars[off + 1]);
+        let varp = (&raw mut argvars[off + 2]);
 
         if win.is_null() || varname.is_null() {
             return;
@@ -3871,17 +3869,15 @@ pub fn f_getbufvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// "settabvar()" function.
 pub fn f_settabvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if check_secure() {
             return;
         }
 
-        let tp = find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int);
-        let varname = tv_get_string_chk(&argvars_slice[1]);
-        let varp = argvars.add(2);
+        let tp = find_tabpage(tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int);
+        let varname = tv_get_string_chk(&argvars[1]);
+        let varp = (&raw mut argvars[2]);
 
         if varname.is_null() || tp.is_null() {
             return;
@@ -3919,16 +3915,14 @@ pub fn f_setwinvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
 
 /// "setbufvar()" function.
 pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if check_secure() || !tv_check_str_or_nr(&argvars_slice[0]) {
+        if check_secure() || !tv_check_str_or_nr(&argvars[0]) {
             return;
         }
-        let varname = tv_get_string_chk(&argvars_slice[1]);
-        let buf = tv_get_buf(&mut *argvars, 0);
-        let varp = argvars.add(2);
+        let varname = tv_get_string_chk(&argvars[1]);
+        let buf = tv_get_buf(&mut argvars[0], 0);
+        let varp = (&raw mut argvars[2]);
 
         if buf.is_null() || varname.is_null() {
             return;
