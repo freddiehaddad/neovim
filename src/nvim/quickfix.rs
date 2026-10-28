@@ -7821,7 +7821,8 @@ pub fn f_getqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
     }
 }
 
-fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: &mut typval_T) {
+fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
+    let args: *mut typval_T = args.as_mut_ptr();
     unsafe {
         let mut title: *const c_char = ptr::null();
         let mut action: c_char = b' ' as c_char;
@@ -7892,22 +7893,16 @@ fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: &mut typval_T) {
     }
 }
 
-pub fn f_setloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+pub fn f_setloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-
-        let win = find_win_by_nr_or_id(argvars);
-        if !win.is_null() {
-            set_qf_ll_list(win, argvars.add(1), rettv);
-        }
+    let win = find_win_by_nr_or_id(&raw mut argvars[0]);
+    if !win.is_null() {
+        set_qf_ll_list(win, &mut argvars[1..], rettv);
     }
 }
 
 pub fn f_setqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     set_qf_ll_list(ptr::null_mut(), argvars, rettv);
 }
 

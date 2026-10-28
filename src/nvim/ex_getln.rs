@@ -4942,7 +4942,8 @@ fn set_cmdline_pos(pos: c_int) -> c_int {
 
 /// `"setcmdline()"` function.
 pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if tv_check_for_string_arg(argvars, 0) == FAIL
@@ -4971,7 +4972,8 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// `"setcmdpos()"` function.
 pub fn f_setcmdpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     let pos = (tv_get_number(argvars) - 1) as c_int;
 
@@ -5225,12 +5227,12 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
 }
 
 /// Used by `f_input()` and `f_inputdialog()` functions.
-pub fn get_user_input(
-    argvars: *const typval_T,
+pub fn get_user_input(argvars: &[typval_T],
     rettv: &mut typval_T,
     inputdialog: bool,
     secret: bool,
 ) {
+    let argvars: *const typval_T = argvars.as_ptr();
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());

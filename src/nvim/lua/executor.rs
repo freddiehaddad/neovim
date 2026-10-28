@@ -1557,7 +1557,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
         loop {
             lua_settop(lstate, 0);
             let mut input: typval_T = typval_T::new();
-            get_user_input(input_args.as_ptr(), &mut input, false, false);
+            get_user_input(&input_args, &mut input, false, false);
 
             if ui_has(kUICmdline) {
                 vim_snprintf!(

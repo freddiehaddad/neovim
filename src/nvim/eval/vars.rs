@@ -3379,7 +3379,9 @@ fn get_var_from(
 }
 
 /// getwinvar() and gettabwinvar().
-fn getwinvar(argvars: *mut typval_T, rettv: *mut typval_T, off: usize) {
+fn getwinvar(argvars: &mut [typval_T],rettv: &mut typval_T, off: usize) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let tp = if off == 1 {
             find_tabpage(tv_get_number_chk(argvars, ptr::null_mut()) as c_int)
@@ -3560,7 +3562,8 @@ fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
 }
 
 /// "setwinvar()" and "settabwinvar()" functions.
-fn setwinvar(argvars: *mut typval_T, off: usize) {
+fn setwinvar(argvars: &mut [typval_T], off: usize) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         if check_secure() {
             return;
@@ -3809,7 +3812,8 @@ pub fn var_redir_stop() {
 
 /// "gettabvar()" function.
 pub fn f_gettabvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let varname = tv_get_string_chk(argvars.add(1));
@@ -3837,22 +3841,19 @@ pub fn f_gettabvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 }
 
 /// "gettabwinvar()" function.
-pub fn f_gettabwinvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
+pub fn f_gettabwinvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     getwinvar(argvars, rettv, 1);
 }
 
 /// "getwinvar()" function.
-pub fn f_getwinvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
+pub fn f_getwinvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     getwinvar(argvars, rettv, 0);
 }
 
 /// "getbufvar()" function.
 pub fn f_getbufvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let varname = tv_get_string_chk(argvars.add(1));
@@ -3872,7 +3873,8 @@ pub fn f_getbufvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// "settabvar()" function.
 pub fn f_settabvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if check_secure() {
@@ -3908,22 +3910,19 @@ pub fn f_settabvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
 }
 
 /// "settabwinvar()" function.
-pub fn f_settabwinvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
+pub fn f_settabwinvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData) {
     setwinvar(argvars, 1);
 }
 
 /// "setwinvar()" function.
-pub fn f_setwinvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
+pub fn f_setwinvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData) {
     setwinvar(argvars, 0);
 }
 
 /// "setbufvar()" function.
 pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if check_secure() || !tv_check_str_or_nr(argvars) {

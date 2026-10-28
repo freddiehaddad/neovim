@@ -203,7 +203,7 @@ fn fill_assert_error(
                         let hi_key = (&*hi).key_ptr();
                         let item2 = tv_dict_find(got_d, hi_key, -1);
                         if item2.is_null()
-                            || !tv_equal(&mut (*di1).di_tv, &mut (*item2).di_tv, false)
+                            || !tv_equal(&(*di1).di_tv, &(*item2).di_tv, false)
                         {
                             let key_len = CStr::from_ptr(hi_key).to_bytes().len();
                             tv_dict_add_tv(new_exp_d, hi_key, key_len, &mut (*di1).di_tv);
@@ -280,9 +280,10 @@ fn fill_assert_error(
     }
 }
 
-fn assert_equal_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
+fn assert_equal_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
-        if tv_equal(argvars, argvars.add(1), false) != (atype == AssertType::Equal) {
+        if tv_equal(&*argvars, &*argvars.add(1), false) != (atype == AssertType::Equal) {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             fill_assert_error(
@@ -300,7 +301,8 @@ fn assert_equal_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
     }
 }
 
-fn assert_match_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
+fn assert_match_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
@@ -328,7 +330,8 @@ fn assert_match_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
     }
 }
 
-fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
+fn assert_bool(argvars: &mut [typval_T], is_true: bool) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut error = false;
         let arg0 = &*argvars;
@@ -363,7 +366,8 @@ fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
     }
 }
 
-fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: *mut typval_T, cmd: *const c_char) {
+fn assert_append_cmd_or_arg(gap: &mut Vec<u8>,argvars: &mut [typval_T], cmd: *const c_char) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
@@ -376,7 +380,8 @@ fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: *mut typval_T, cmd: *con
     }
 }
 
-fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
+fn assert_beeps(argvars: &mut [typval_T], no_beep: bool) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     let cmd = tv_get_string_chk(argvars);
         let mut ret: c_int = 0;
 
@@ -405,26 +410,21 @@ fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
 
 /// `"assert_beeps(cmd [, error])"` function (`f_assert_beeps`).
 pub fn f_assert_beeps(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_beeps(argvars, false) as i64);
 }
 
 /// `"assert_nobeep(cmd [, error])"` function (`f_assert_nobeep`).
 pub fn f_assert_nobeep(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_beeps(argvars, true) as i64);
 }
 
 /// `"assert_equal(expected, actual[, msg])"` function (`f_assert_equal`).
 pub fn f_assert_equal(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_equal_common(argvars, AssertType::Equal) as i64);
 }
 
-fn assert_equalfile(argvars: *mut typval_T) -> c_int {
+fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
         let mut buf2 = [0 as c_char; NUMBUFLEN];
@@ -537,15 +537,11 @@ fn assert_equalfile(argvars: *mut typval_T) -> c_int {
 /// `"assert_equalfile(fname-one, fname-two[, msg])"` function (`f_assert_equalfile`).
 pub fn f_assert_equalfile(argvars: &mut [typval_T], rettv: &mut typval_T,
     _fptr: EvalFuncData,){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_equalfile(argvars) as i64);
 }
 
 /// `"assert_notequal(expected, actual[, msg])"` function (`f_assert_notequal`).
 pub fn f_assert_notequal(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_equal_common(argvars, AssertType::NotEqual) as i64);
 }
 
@@ -591,7 +587,8 @@ pub fn f_assert_exception(argvars: &mut [typval_T], rettv: &mut typval_T,
 
 /// `"assert_fails(cmd [, error [, msg]])"` function (`f_assert_fails`).
 pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let save_trylevel = g_st().trylevel;
@@ -625,7 +622,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             ga_concat_literal(&mut ga, b"command did not fail: ");
-            assert_append_cmd_or_arg(&mut ga, argvars, cmd);
+            assert_append_cmd_or_arg(&mut ga, argvars_slice, cmd);
             assert_error(&ga);
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         } else if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
@@ -764,7 +761,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                     AssertType::Fails,
                 );
                 ga_concat_literal(&mut ga, b": ");
-                assert_append_cmd_or_arg(&mut ga, argvars, cmd);
+                assert_append_cmd_or_arg(&mut ga, argvars_slice, cmd);
                 assert_error(&ga);
                 rettv.vval = crate::eval::typval::TypvalVval::Number(1);
             }
@@ -792,12 +789,11 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
 /// `"assert_false(actual[, msg])"` function (`f_assert_false`).
 pub fn f_assert_false(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_bool(argvars, false) as i64);
 }
 
-fn assert_inrange(argvars: *mut typval_T) -> c_int {
+fn assert_inrange(argvars: &mut [typval_T]) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut error = false;
         let arg0 = &*argvars;
@@ -864,7 +860,8 @@ fn assert_inrange(argvars: *mut typval_T) -> c_int {
 
 /// `"assert_inrange(lower, upper, actual[, msg])"` function (`f_assert_inrange`).
 pub fn f_assert_inrange(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     if tv_check_for_float_or_nr_arg(argvars, 0) == FAIL
             || tv_check_for_float_or_nr_arg(argvars, 1) == FAIL
@@ -873,20 +870,16 @@ pub fn f_assert_inrange(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
         {
             return;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(assert_inrange(argvars) as i64);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(assert_inrange(argvars_slice) as i64);
 }
 
 /// `"assert_match(pattern, actual[, msg])"` function (`f_assert_match`).
 pub fn f_assert_match(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_match_common(argvars, AssertType::Match) as i64);
 }
 
 /// `"assert_notmatch(pattern, actual[, msg])"` function (`f_assert_notmatch`).
 pub fn f_assert_notmatch(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_match_common(argvars, AssertType::NotMatch) as i64);
 }
 
@@ -903,8 +896,6 @@ pub fn f_assert_report(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// `"assert_true(actual[, msg])"` function (`f_assert_true`).
 pub fn f_assert_true(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_bool(argvars, true) as i64);
 }
 

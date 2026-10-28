@@ -1518,7 +1518,8 @@ pub fn tv_list_flatten(
 }
 
 /// "items(blob)" function.
-fn tv_blob2items(argvars: *mut typval_T, rettv: &mut typval_T) {
+fn tv_blob2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let blob = (*argvars).vval.v_blob();
 
@@ -1534,12 +1535,13 @@ fn tv_blob2items(argvars: *mut typval_T, rettv: &mut typval_T) {
 }
 
 /// "items(dict)" function.
-fn tv_dict2items(argvars: *mut typval_T, rettv: &mut typval_T) {
+fn tv_dict2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
     tv_dict2list(argvars, rettv, DictListType::Items);
 }
 
 /// "items(list)" function.
-fn tv_list2items(argvars: *mut typval_T, rettv: &mut typval_T) {
+fn tv_list2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let l = (*argvars).vval.v_list();
 
@@ -1562,7 +1564,8 @@ fn tv_list2items(argvars: *mut typval_T, rettv: &mut typval_T) {
 }
 
 /// "items(string)" function.
-fn tv_string2items(argvars: *mut typval_T, rettv: &mut typval_T) {
+fn tv_string2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut p: *const c_char = (*argvars).vval.v_string();
 
@@ -1833,11 +1836,11 @@ pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 }
 
 /// "remove({list})" function.
-pub fn tv_list_remove(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
+pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let l = (*argvars).vval.v_list();
         if value_check_lock(tv_list_locked_inline(l), arg_errmsg, TV_TRANSLATE) {
@@ -2218,7 +2221,8 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
     }
 }
 
-fn parse_sort_uniq_args(argvars: *mut typval_T, info: &mut sortinfo_T) -> c_int {
+fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         info.item_compare_ic = 0;
         info.item_compare_lc = false;
@@ -2297,7 +2301,9 @@ fn parse_sort_uniq_args(argvars: *mut typval_T, info: &mut sortinfo_T) -> c_int 
     }
 }
 
-fn do_sort_uniq(argvars: *mut typval_T, rettv: &mut typval_T, sort: bool) {
+fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
             semsg!(
@@ -2323,7 +2329,7 @@ fn do_sort_uniq(argvars: *mut typval_T, rettv: &mut typval_T, sort: bool) {
             tv_list_set_ret_inline(rettv, l);
 
             let len = tv_list_len_inline(l);
-            if len > 1 && parse_sort_uniq_args(argvars, &mut info) != FAIL {
+            if len > 1 && parse_sort_uniq_args(argvars_slice, &mut info) != FAIL {
                 if sort {
                     do_sort(l, &mut info);
                 } else {
@@ -2336,15 +2342,11 @@ fn do_sort_uniq(argvars: *mut typval_T, rettv: &mut typval_T, sort: bool) {
 
 /// "sort({list})" function.
 pub fn f_sort(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     do_sort_uniq(argvars, rettv, true);
 }
 
 /// "uniq({list})" function.
 pub fn f_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     do_sort_uniq(argvars, rettv, false);
 }
 
@@ -2367,7 +2369,7 @@ pub fn tv_list_equal(l1: *mut list_T, l2: *mut list_T, ic: bool) -> bool {
         let mut item1 = tv_list_first_inline(l1);
         let mut item2 = tv_list_first_inline(l2);
         while !item1.is_null() && !item2.is_null() {
-            if !tv_equal(&raw mut (*item1).li_tv, &raw mut (*item2).li_tv, ic) {
+            if !tv_equal(&(*item1).li_tv, &(*item2).li_tv, ic) {
                 return false;
             }
             item1 = (*item1).li_next;
@@ -3424,7 +3426,7 @@ pub fn tv_dict_equal(d1: *mut dict_T, d2: *mut dict_T, ic: bool) -> bool {
                 if di2.is_null() {
                     return false;
                 }
-                if !tv_equal(&raw mut (*di1).di_tv, &raw mut (*di2).di_tv, ic) {
+                if !tv_equal(&(*di1).di_tv, &(*di2).di_tv, ic) {
                     return false;
                 }
             }
@@ -3703,11 +3705,11 @@ pub fn tv_blob_set_append(blob: &mut blob_T, idx: c_int, byte: u8) {
 }
 
 /// "remove({blob})" function.
-pub fn tv_blob_remove(
-    argvars: *mut typval_T,
+pub fn tv_blob_remove(argvars: &mut [typval_T],
     rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let b = (*argvars).vval.v_blob();
         if !b.is_null() && value_check_lock((*b).bv_lock, arg_errmsg, TV_TRANSLATE) {
@@ -3834,7 +3836,8 @@ pub fn tv_dict_alloc_ret(ret_tv: *mut typval_T) {
         tv_dict_set_ret_inline(ret_tv, d);
 }
 
-fn tv_dict2list(argvars: *mut typval_T, rettv: &mut typval_T, what: DictListType) {
+fn tv_dict2list(argvars: &mut [typval_T], rettv: &mut typval_T, what: DictListType) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         if tv_check_for_dict_arg(argvars, 0) == FAIL {
             tv_list_alloc_ret(&mut *rettv, 0);
@@ -3882,14 +3885,15 @@ fn tv_dict2list(argvars: *mut typval_T, rettv: &mut typval_T, what: DictListType
 
 /// "items()" function.
 pub fn f_items(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         match (*argvars).v_type {
-            VarType::VAR_STRING => tv_string2items(argvars, rettv),
-            VarType::VAR_LIST => tv_list2items(argvars, rettv),
-            VarType::VAR_BLOB => tv_blob2items(argvars, rettv),
-            VarType::VAR_DICT => tv_dict2items(argvars, rettv),
+            VarType::VAR_STRING => tv_string2items(argvars_slice, rettv),
+            VarType::VAR_LIST => tv_list2items(argvars_slice, rettv),
+            VarType::VAR_BLOB => tv_blob2items(argvars_slice, rettv),
+            VarType::VAR_DICT => tv_dict2items(argvars_slice, rettv),
             _ => {
                 semsg!(
                     tr(E_LIST_DICT_BLOB_OR_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
@@ -3902,15 +3906,11 @@ pub fn f_items(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
 /// "keys()" function.
 pub fn f_keys(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     tv_dict2list(argvars, rettv, DictListType::Keys);
 }
 
 /// "values(dict)" function.
 pub fn f_values(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     tv_dict2list(argvars, rettv, DictListType::Values);
 }
 
@@ -3934,11 +3934,11 @@ pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 }
 
 /// "remove({dict})" function.
-pub fn tv_dict_remove(
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
+pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
     arg_errmsg: *const c_char,
 ) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             semsg!(tr(e_toomanyarg.as_ptr()), c"remove()".as_ptr());
@@ -4588,7 +4588,9 @@ pub fn value_check_lock(
 }
 
 /// Compare two Vimscript values.
-pub fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
+pub fn tv_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
+    let tv1: *const typval_T = &raw const *tv1;
+    let tv2: *const typval_T = &raw const *tv2;
     unsafe {
         static RECURSIVE_CNT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
@@ -4625,7 +4627,7 @@ pub fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
                     return false;
                 }
                 RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let r = func_equal(tv1, tv2, ic);
+                let r = func_equal(&*tv1, &*tv2, ic);
                 RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
@@ -5479,13 +5481,13 @@ mod tests {
                 b"5"
             );
 
-            let mut tv_flt = typval_T {
+            let tv_flt = typval_T {
                 v_type: VarType::VAR_FLOAT,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Float(5.0),
             };
-            assert!(!tv_equal(&raw mut tv, &raw mut tv_flt, false));
-            assert!(tv_equal(&raw mut tv_flt, &raw mut tv_flt, false));
+            assert!(!tv_equal(&tv, &tv_flt, false));
+            assert!(tv_equal(&tv_flt, &tv_flt, false));
             assert_eq!(tv_get_float(&raw const tv_flt), 5.0);
 
             let mut tv_str = typval_T {

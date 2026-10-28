@@ -645,7 +645,8 @@ pub fn f_filewritable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_file_is_writable(filename)));
 }
 
-fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: c_int) {
+fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
         let mut path = if *(*g_st().curbuf).b_p_path == NUL {
@@ -736,15 +737,11 @@ fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: c_int) 
 
 /// "finddir({fname}[, {path}[, {count}]])" function
 pub fn f_finddir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     findfilendir(argvars, rettv, FINDFILE_DIR);
 }
 
 /// "findfile({fname}[, {path}[, {count}]])" function
 pub fn f_findfile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     findfilendir(argvars, rettv, FINDFILE_FILE);
 }
 
@@ -793,14 +790,14 @@ pub fn f_fnamemodify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// Resolves the `[{winnr}[, {tabnr}[, {bufnr}]]]` arguments of `getcwd()`/`haslocaldir()` to the
 /// requested scope and the scope objects to inspect.
-fn getcwd_scope_args(
-    argvars: *mut typval_T,
+fn getcwd_scope_args(argvars: &mut [typval_T],
     default_scope: c_int,
     scope: &mut c_int,
     win: *mut *mut win_T,
     tp: *mut *mut tabpage_T,
     buf: *mut *mut buf_T,
 ) -> bool {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         const kWinArg: usize = 0;
         const kTabArg: usize = 1;
@@ -914,8 +911,6 @@ fn getcwd_scope_args(
 
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
 pub fn f_getcwd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     unsafe {
         let mut scope: c_int = kCdScopeInvalid;
         let mut win: *mut win_T = ptr::null_mut();
@@ -1234,8 +1229,6 @@ pub fn f_glob2regpat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
 pub fn f_haslocaldir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     unsafe {
         let mut scope: c_int = kCdScopeWindow;
         let mut win: *mut win_T = ptr::null_mut();
@@ -1516,7 +1509,8 @@ fn read_blob(
 }
 
 /// "readfile()" or "readblob()" function
-fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always_blob: bool) {
+fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob: bool) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut binary = false;
         let mut blob = always_blob;
@@ -1690,8 +1684,6 @@ fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always_blob: 
 
 /// "readblob()" function
 pub fn f_readblob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     if check_secure() {
             return;
         }
@@ -1701,8 +1693,6 @@ pub fn f_readblob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// "readfile()" function
 pub fn f_readfile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     if check_secure() {
             return;
         }

@@ -3469,7 +3469,8 @@ fn check_can_index(rettv: *mut typval_T, evaluate: bool, verbose: bool) -> c_int
 
 /// slice() function
 pub fn f_slice(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if check_can_index(argvars, true, false) != OK {
@@ -4209,7 +4210,9 @@ fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_
     }
 }
 
-pub fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
+pub fn func_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
+    let tv1: *const typval_T = &raw const *tv1;
+    let tv2: *const typval_T = &raw const *tv2;
     unsafe {
         let mut s1 = if (*tv1).v_type == VarType::VAR_FUNC {
             (*tv1).vval.v_string()
@@ -4268,8 +4271,8 @@ pub fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool {
         }
         for i in 0..(a1 as usize) {
             if !tv_equal(
-                &raw mut (&mut (*tv_partial(&*tv1)).pt_argv)[i],
-                &raw mut (&mut (*tv_partial(&*tv2)).pt_argv)[i],
+                &(&(*tv_partial(&*tv1)).pt_argv)[i],
+                &(&(*tv_partial(&*tv2)).pt_argv)[i],
                 ic,
             ) {
                 return false;
@@ -5057,7 +5060,8 @@ fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -> *mut 
     }
 }
 
-fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: &mut typval_T, retlist: bool) {
+fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, retlist: bool) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut wait_time: proftime_T = 0;
         let profiling = g_st().do_profiling == PROF_YES;
@@ -5160,15 +5164,11 @@ fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: &mut typval_T, retl
 }
 
 /// f_system - the Vimscript system() function
-pub fn f_system(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
+pub fn f_system(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     get_system_output_as_rettv(argvars, rettv, false);
 }
 
-pub fn f_systemlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
+pub fn f_systemlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     get_system_output_as_rettv(argvars, rettv, true);
 }
 
@@ -6965,7 +6965,9 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
     }
 }
 
-pub fn script_host_eval(name: *mut c_char, argvars: *mut typval_T, rettv: *mut typval_T) {
+pub fn script_host_eval(name: *mut c_char,argvars: &mut [typval_T],rettv: &mut typval_T) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         if check_secure() {
             return;
@@ -7299,7 +7301,7 @@ pub fn typval_compare(
                 tv_partial(&*typ1) == tv_partial(&*typ2)
             } else if type_is {
                 if (*typ1).v_type == VarType::VAR_FUNC && (*typ2).v_type == VarType::VAR_FUNC {
-                    tv_equal(typ1, typ2, ic)
+                    tv_equal(&*typ1, &*typ2, ic)
                 } else if (*typ1).v_type == VarType::VAR_PARTIAL
                     && (*typ2).v_type == VarType::VAR_PARTIAL
                 {
@@ -7308,7 +7310,7 @@ pub fn typval_compare(
                     false
                 }
             } else {
-                tv_equal(typ1, typ2, ic)
+                tv_equal(&*typ1, &*typ2, ic)
             };
             if expr_type == EXPR_NEQUAL || expr_type == EXPR_ISNOT {
                 eq = !eq;

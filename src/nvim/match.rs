@@ -962,8 +962,6 @@ fn matchadd_dict_arg(
 
 /// `clearmatches()` function (`f_clearmatches`).
 pub fn f_clearmatches(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     unsafe {
         let win = get_optional_window(argvars, 0);
         if !win.is_null() {
@@ -974,8 +972,6 @@ pub fn f_clearmatches(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Ev
 
 /// `getmatches()` function (`f_getmatches`).
 pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     unsafe {
         let win = get_optional_window(argvars, 0);
 
@@ -1033,11 +1029,12 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// `setmatches()` function (`f_setmatches`).
 pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut s: *mut list_T = ptr::null_mut();
-        let win = get_optional_window(argvars, 1);
+        let win = get_optional_window(argvars_slice, 1);
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         if (*argvars).v_type != VarType::VAR_LIST {
@@ -1276,10 +1273,11 @@ pub fn f_matcharg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let win = get_optional_window(argvars, 1);
+        let win = get_optional_window(argvars_slice, 1);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
             -1
         } else {

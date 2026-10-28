@@ -568,7 +568,8 @@ fn fuzzy_match_in_list(
     }
 }
 
-fn do_fuzzymatch(argvars: *const typval_T, rettv: &mut typval_T, retmatchpos: bool) {
+fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) {
+    let argvars: *const typval_T = argvars.as_ptr();
     unsafe {
         let arg0 = &*argvars;
         let arg1 = &*argvars.add(1);
@@ -660,15 +661,11 @@ fn do_fuzzymatch(argvars: *const typval_T, rettv: &mut typval_T, retmatchpos: bo
 
 /// `"matchfuzzy()"` function (`f_matchfuzzy`).
 pub fn f_matchfuzzy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     do_fuzzymatch(argvars, rettv, false);
 }
 
 /// `"matchfuzzypos()"` function (`f_matchfuzzypos`).
 pub fn f_matchfuzzypos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     do_fuzzymatch(argvars, rettv, true);
 }
 

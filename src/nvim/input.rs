@@ -1883,7 +1883,8 @@ pub fn char_avail() -> bool {
     }
 }
 
-fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow_number: bool) {
+fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_number: bool) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut n: varnumber_T;
         let called_emsg_start = g_st().called_emsg;
@@ -2048,15 +2049,11 @@ fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow_number
 
 /// `"getchar()"` function.
 pub fn f_getchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     getchar_common(argvars, rettv, true);
 }
 
 /// `"getcharstr()"` function.
 pub fn f_getcharstr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     getchar_common(argvars, rettv, false);
 }
 

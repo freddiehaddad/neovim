@@ -100,7 +100,8 @@ pub fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
     }
 }
 
-fn win_getid(argvars: *mut typval_T) -> c_int {
+fn win_getid(argvars: &mut [typval_T]) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
             return (**curwin.as_ptr()).handle;
@@ -142,7 +143,8 @@ fn win_getid(argvars: *mut typval_T) -> c_int {
     }
 }
 
-fn win_id2tabwin(argvars: *mut typval_T, rettv: &mut typval_T) {
+fn win_id2tabwin(argvars: &mut [typval_T], rettv: &mut typval_T) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     let id = tv_get_number(argvars) as handle_T;
 
     let mut winnr: c_int = 1;
@@ -179,7 +181,8 @@ pub fn win_id2wp_tp(id: c_int, tpp: *mut *mut tabpage_T) -> *mut win_T {
     }
 }
 
-fn win_id2win(argvars: *mut typval_T) -> c_int {
+fn win_id2win(argvars: &mut [typval_T]) -> c_int {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut nr: c_int = 1;
         let id = tv_get_number(argvars) as c_int;
@@ -196,7 +199,8 @@ fn win_id2win(argvars: *mut typval_T) -> c_int {
     }
 }
 
-pub fn win_findbuf(argvars: *mut typval_T, list: *mut list_T) {
+pub fn win_findbuf(argvars: &mut [typval_T], list: *mut list_T) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let bufnr = tv_get_number(argvars) as c_int;
 
@@ -661,7 +665,8 @@ pub fn f_tabpagewinnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
 /// `win_execute(win_id, command)` function (`f_win_execute`).
 pub fn f_win_execute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -681,23 +686,19 @@ pub fn f_win_execute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             ptr::null_mut(),
             kCtxNoDisplay | kCtxKeepCwd | kCtxValidate,
         ) {
-            execute_common(argvars, rettv, 1);
+            execute_common(argvars_slice, rettv, 1);
         }
         ctx_restore(&mut cs);
 }
 
 /// `win_findbuf()` function (`f_win_findbuf`).
 pub fn f_win_findbuf(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     tv_list_alloc_ret(rettv, kListLenMayKnow);
         win_findbuf(argvars, rettv.vval.v_list());
 }
 
 /// `win_getid()` function (`f_win_getid`).
 pub fn f_win_getid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(win_getid(argvars) as varnumber_T);
 }
 
@@ -736,15 +737,11 @@ pub fn f_win_gotoid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// `win_id2tabwin()` function (`f_win_id2tabwin`).
 pub fn f_win_id2tabwin(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     win_id2tabwin(argvars, &mut *rettv);
 }
 
 /// `win_id2win()` function (`f_win_id2win`).
 pub fn f_win_id2win(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     rettv.vval = crate::eval::typval::TypvalVval::Number(win_id2win(argvars) as varnumber_T);
 }
 

@@ -2203,7 +2203,8 @@ fn mapblock_fill_dict(
         dict
 }
 
-fn get_maparg(argvars: *mut typval_T, rettv: &mut typval_T, exact: c_int) {
+fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -2586,15 +2587,11 @@ pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// "maparg()" function
 pub fn f_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     get_maparg(argvars, rettv, 1);
 }
 
 /// "mapcheck()" function
 pub fn f_mapcheck(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     get_maparg(argvars, rettv, 0);
 }
 

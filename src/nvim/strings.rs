@@ -2275,7 +2275,8 @@ pub fn strrep(
     Some(crate::memory::cstr_from_bytes(&ret))
 }
 
-fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: bool) {
+fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -2332,14 +2333,10 @@ fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: bool) {
 }
 
 pub fn f_byteidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     byteidx_common(argvars, rettv, false);
 }
 
 pub fn f_byteidxcomp(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     byteidx_common(argvars, rettv, true);
 }
 
@@ -2564,7 +2561,8 @@ pub fn f_strlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     }
 }
 
-fn strchar_common(argvars: *mut typval_T, rettv: &mut typval_T, skipcc: bool) {
+fn strchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, skipcc: bool) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let mut s = tv_get_string(argvars);
         let mut len: varnumber_T = 0;
@@ -2582,13 +2580,12 @@ fn strchar_common(argvars: *mut typval_T, rettv: &mut typval_T, skipcc: bool) {
 }
 
 pub fn f_strcharlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     strchar_common(argvars, rettv, true);
 }
 
 pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut skipcc: varnumber_T = 0;
@@ -2606,7 +2603,7 @@ pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 return;
             }
         }
-        strchar_common(argvars, rettv, skipcc != 0);
+        strchar_common(argvars_slice, rettv, skipcc != 0);
     }
 }
 

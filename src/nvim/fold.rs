@@ -2692,7 +2692,8 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
     }
 }
 
-fn foldclosed_both(argvars: *mut typval_T, rettv: &mut typval_T, end: bool) {
+fn foldclosed_both(argvars: &mut [typval_T], rettv: &mut typval_T, end: bool) {
+    let argvars: *mut typval_T = argvars.as_mut_ptr();
     unsafe {
         let lnum = tv_get_lnum(&*argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
@@ -2709,15 +2710,11 @@ fn foldclosed_both(argvars: *mut typval_T, rettv: &mut typval_T, end: bool) {
 
 /// "foldclosed()" function
 pub fn f_foldclosed(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     foldclosed_both(argvars, rettv, false);
 }
 
 /// "foldclosedend()" function
 pub fn f_foldclosedend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
-
     foldclosed_both(argvars, rettv, true);
 }
 
