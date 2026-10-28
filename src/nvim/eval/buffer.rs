@@ -734,8 +734,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         tv_dict_add_nr(dict, c"bufnr", buf.b_fnum as varnumber_T);
         tv_dict_add_str(
             dict,
-            c"name".as_ptr(),
-            4,
+            c"name",
             if !buf.b_ffname.is_null() {
                 buf.b_ffname
             } else {
@@ -776,7 +775,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
             varnumber_T::from(bt_cmdwin(&raw mut *buf)),
         );
 
-        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, buf.b_vars());
+        tv_dict_add_dict(dict, c"variables", buf.b_vars());
 
         let windows = tv_list_alloc(kListLenMayKnow);
         let mut tp = g_st().first_tabpage;
@@ -790,10 +789,10 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
             }
             tp = (*tp).tp_next;
         }
-        tv_dict_add_list(dict, c"windows".as_ptr(), 7, windows);
+        tv_dict_add_list(dict, c"windows", windows);
 
         if buf_has_signs(&raw mut *buf) {
-            tv_dict_add_list(dict, c"signs".as_ptr(), 5, get_buffer_signs(buf));
+            tv_dict_add_list(dict, c"signs", get_buffer_signs(buf));
         }
 
         tv_dict_add_nr(dict, c"lastused", buf.b_last_used);

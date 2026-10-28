@@ -3435,7 +3435,7 @@ pub fn find_pattern_in_path(
                         files = bigger;
                     }
                     let fp = crate::os::fs::CFile::from_raw(
-                        os_fopen(nf_cstr.as_ptr(), c"r".as_ptr()).cast::<FILE>(),
+                        os_fopen(nf_cstr.as_ptr(), c"r").cast::<FILE>(),
                     );
                     let opened = fp.is_some();
                     files[(depth + 1) as usize].fp = fp;

@@ -1184,7 +1184,7 @@ pub fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 pub fn os_setenv_append_path(fname: *const c_char) -> bool {
     unsafe {
         if !path_is_absolute(fname) {
-            internal_error(c"os_setenv_append_path()".as_ptr());
+            internal_error(c"os_setenv_append_path()");
             return false;
         }
         let tail = path_tail_with_sep(fname.cast_mut());

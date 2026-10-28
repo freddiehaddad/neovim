@@ -4274,7 +4274,7 @@ fn shada_removable(name: *const c_char) -> bool {
         let new_name = home_replace_save(ptr::null_mut(), name);
         let mut p = opt_vars().p_shada;
         while *p != 0 {
-            copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ".as_ptr());
+            copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ");
             if part[0] == (b'r' as c_char) {
                 let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let n = home_replace(

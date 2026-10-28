@@ -1104,32 +1104,32 @@ pub fn ex_sign(eap: &mut exarg_T) {
 fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
     let d = tv_dict_alloc();
 
-        tv_dict_add_str(d, c"name".as_ptr(), 4, sp.sn_name.as_ptr());
+        tv_dict_add_str(d, c"name", sp.sn_name.as_ptr());
 
         if let Some(ref icon) = sp.sn_icon {
-            tv_dict_add_str(d, c"icon".as_ptr(), 4, icon.as_ptr());
+            tv_dict_add_str(d, c"icon", icon.as_ptr());
         }
         if sp.sn_text[0] != 0 {
             let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
             describe_sign_text(buf.as_mut_ptr(), sp.sn_text.as_mut_ptr());
-            tv_dict_add_str(d, c"text".as_ptr(), 4, buf.as_ptr());
+            tv_dict_add_str(d, c"text", buf.as_ptr());
         }
         if sp.sn_priority > 0 {
             tv_dict_add_nr(d, c"priority", i64::from(sp.sn_priority));
         }
         let args = [
-            (c"linehl".as_ptr(), 6usize, sp.sn_line_hl),
-            (c"texthl".as_ptr(), 6usize, sp.sn_text_hl),
-            (c"culhl".as_ptr(), 5usize, sp.sn_cul_hl),
-            (c"numhl".as_ptr(), 5usize, sp.sn_num_hl),
+            (c"linehl", sp.sn_line_hl),
+            (c"texthl", sp.sn_text_hl),
+            (c"culhl", sp.sn_cul_hl),
+            (c"numhl", sp.sn_num_hl),
         ];
-        for (name, len, hl) in args {
+        for (name, hl) in args {
             if hl > 0 {
                 let p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), hl - 1, false);
                 if p.is_null() {
-                    tv_dict_add_str_len(d, name, len, c"NONE".as_ptr(), 4);
+                    tv_dict_add_str_len(d, name, c"NONE".as_ptr(), 4);
                 } else {
-                    tv_dict_add_str(d, name, len, p);
+                    tv_dict_add_str(d, name, p);
                 }
             }
         }
@@ -1140,12 +1140,11 @@ fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     let d = tv_dict_alloc();
         let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
-        tv_dict_add_str(d, c"name".as_ptr(), 4, sign_get_name(sh));
+        tv_dict_add_str(d, c"name", sign_get_name(sh));
         tv_dict_add_nr(d, c"id", i64::from(mark.id as c_int));
         tv_dict_add_str(
             d,
-            c"group".as_ptr(),
-            5,
+            c"group",
             describe_ns(mark.ns as c_int, c""),
         );
         tv_dict_add_nr(d, c"lnum", i64::from(mark.pos.row + 1));
@@ -1186,7 +1185,7 @@ fn sign_get_placed_in_buf(
         tv_dict_add_nr(d, c"bufnr", i64::from((*buf).b_fnum));
 
         let l = tv_list_alloc(kListLenMayKnow);
-        tv_dict_add_list(d, c"signs".as_ptr(), 5, l);
+        tv_dict_add_list(d, c"signs", l);
 
         let ns = group_get_ns(group);
         if !buf_has_signs(buf) || ns < 0 {

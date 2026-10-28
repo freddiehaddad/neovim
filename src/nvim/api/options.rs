@@ -522,7 +522,7 @@ pub fn nvim__option_to_object(
             let item = item_buf.as_mut_ptr();
             p = str_ptr;
             while *p != NUL {
-                copy_option_part(&raw mut p, item, str_len + 1, c",".as_ptr().cast_mut());
+                copy_option_part(&raw mut p, item, str_len + 1, c",");
                 if *item == NUL {
                     continue;
                 }

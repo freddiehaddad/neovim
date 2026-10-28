@@ -637,7 +637,7 @@ pub fn u_get_undo_file_name(
                 &raw mut dirp,
                 dir_name.as_mut_ptr(),
                 MAXPATHL,
-                c",".as_ptr(),
+                c",",
             );
             if dir_len == 1 && dir_name[0] == b'.' as c_char {
                 let mut ufn_vec: Vec<c_char> = vec![0; ffname_len + 6];
@@ -710,10 +710,10 @@ pub fn u_get_undo_file_name(
     }
 }
 
-fn corruption_error(mesg: *const c_char, file_name: *const c_char) {
+fn corruption_error(mesg: &std::ffi::CStr, file_name: *const c_char) {
     semsg!(
             gettext(c"E825: Corrupted undo file (%s): %s".as_ptr()),
-            mesg,
+            mesg.as_ptr(),
             file_name,
         );
 }
@@ -841,7 +841,7 @@ fn unserialize_uhp(
         ];
         uhp.uh_seq = undo_read_4c(bi);
         if uhp.uh_seq <= 0 {
-            corruption_error(c"uh_seq".as_ptr(), file_name);
+            corruption_error(c"uh_seq", file_name);
             return None;
         }
         unserialize_pos(bi, &mut uhp.uh_cursor);
@@ -859,7 +859,7 @@ fn unserialize_uhp(
         loop {
             let mut len = undo_read_byte(bi);
             if len == EOF {
-                corruption_error(c"truncated".as_ptr(), file_name);
+                corruption_error(c"truncated", file_name);
                 return None;
             }
             if len == 0 {
@@ -892,7 +892,7 @@ fn unserialize_uhp(
             c = undo_read_2c(bi);
         }
         if c != UF_ENTRY_END_MAGIC {
-            corruption_error(c"entry end".as_ptr(), file_name);
+            corruption_error(c"entry end", file_name);
             return None;
         }
 
@@ -903,7 +903,7 @@ fn unserialize_uhp(
             c = undo_read_2c(bi);
         }
         if c != UF_ENTRY_END_MAGIC {
-            corruption_error(c"entry end".as_ptr(), file_name);
+            corruption_error(c"entry end", file_name);
             return None;
         }
 
@@ -995,7 +995,7 @@ fn unserialize_uep(
             ue_array: Vec::new(),
         };
         if uep.ue_top < 0 || uep.ue_bot < 0 || uep.ue_lcount < 0 {
-            corruption_error(c"entry lnum".as_ptr(), file_name);
+            corruption_error(c"entry lnum", file_name);
             *error = true;
             return uep;
         }
@@ -1323,7 +1323,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
             verbose_leave();
         }
 
-        let fp_opt = crate::os::fs::CFile::from_raw(os_fopen(file_name, c"r".as_ptr()));
+        let fp_opt = crate::os::fs::CFile::from_raw(os_fopen(file_name, c"r"));
         'theend: {
             'error: {
                 let Some(bi_fp) = fp_opt else {
@@ -1367,7 +1367,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
 
                 let mut read_hash = [0u8; UNDO_HASH_SIZE];
                 if !undo_read(&mut bi, read_hash.as_mut_ptr(), UNDO_HASH_SIZE) {
-                    corruption_error(c"hash".as_ptr(), file_name);
+                    corruption_error(c"hash", file_name);
                     break 'error;
                 }
                 let line_count = undo_read_4c(&mut bi) as linenr_T;
@@ -1397,7 +1397,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
 
                 if str_len > 0 {
                     let Some(s) = undo_read_string(&mut bi, str_len as usize) else {
-                        corruption_error(c"truncated".as_ptr(), file_name);
+                        corruption_error(c"truncated", file_name);
                         break 'error;
                     };
                     line_ptr = Some(s);
@@ -1405,7 +1405,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                 let line_lnum = undo_read_4c(&mut bi) as linenr_T;
                 let line_colnr = undo_read_4c(&mut bi) as colnr_T;
                 if line_lnum < 0 || line_colnr < 0 {
-                    corruption_error(c"line lnum/col".as_ptr(), file_name);
+                    corruption_error(c"line lnum/col", file_name);
                     break 'error;
                 }
 
@@ -1449,7 +1449,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                 let mut c = undo_read_2c(&mut bi);
                 while c == UF_HEADER_MAGIC {
                     if num_read_uhps >= num_head {
-                        corruption_error(c"num_head too small".as_ptr(), file_name);
+                        corruption_error(c"num_head too small", file_name);
                         break 'error;
                     }
 
@@ -1462,11 +1462,11 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                 }
 
                 if num_read_uhps != num_head {
-                    corruption_error(c"num_head".as_ptr(), file_name);
+                    corruption_error(c"num_head", file_name);
                     break 'error;
                 }
                 if c != UF_HEADER_END_MAGIC {
-                    corruption_error(c"end marker".as_ptr(), file_name);
+                    corruption_error(c"end marker", file_name);
                     break 'error;
                 }
 
@@ -1476,7 +1476,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
 
                 for i in 0..(num_head - 1) {
                     if uhp_table[i as usize].0.uh_seq == uhp_table[(i + 1) as usize].0.uh_seq {
-                        corruption_error(c"duplicate uh_seq".as_ptr(), file_name);
+                        corruption_error(c"duplicate uh_seq", file_name);
                         break 'error;
                     }
                 }
@@ -1596,9 +1596,9 @@ fn undo_read_len(
         if len < 0 || (bi.bi_fsize > 0 && (pos < 0 || (len as off_T) > bi.bi_fsize - pos)) {
             corruption_error(
                 if feof(fp) != 0 {
-                    c"truncated".as_ptr()
+                    c"truncated"
                 } else {
-                    what.as_ptr()
+                    what
                 },
                 file_name,
             );
@@ -2047,7 +2047,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
 
                     uhp = prev;
                     if uhp.is_none_or(|p| uhp_ref(&*g_st().curbuf, p).uh_walk != mark) {
-                        internal_error(c"undo_time()".as_ptr());
+                        internal_error(c"undo_time()");
                         break;
                     }
                 }
@@ -2986,7 +2986,7 @@ fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
             let alt_next = uhp_ref(&*buf, uh).uh_alt_next;
             let prev = uhp_ref(&*buf, uh).uh_prev;
             if alt_next.is_some() {
-                tv_dict_add_list(dict, c"alt".as_ptr(), 3, u_eval_tree(buf, alt_next));
+                tv_dict_add_list(dict, c"alt", u_eval_tree(buf, alt_next));
             }
 
             tv_list_append_dict(list, dict);
@@ -3064,8 +3064,7 @@ pub fn f_undotree(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
         tv_dict_add_list(
             dict,
-            c"entries".as_ptr(),
-            7,
+            c"entries",
             u_eval_tree(&mut *buf, (*buf).b_u_oldhead),
         );
     }

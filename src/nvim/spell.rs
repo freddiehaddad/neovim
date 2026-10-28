@@ -1666,7 +1666,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     &raw mut splp,
                     (&raw mut lang).cast(),
                     MAXWLEN,
-                    c",".as_ptr(),
+                    c",",
                 ) as c_int;
                 let mut region: *mut c_char = ptr::null_mut();
                 let lang_ptr = (&raw mut lang).cast::<c_char>();
@@ -1809,7 +1809,7 @@ pub fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     }
                     int_wordlist_spl(spf_ptr);
                 } else {
-                    let len = copy_option_part(&raw mut spf, spf_ptr, MAXPATHL - 4, c",".as_ptr());
+                    let len = copy_option_part(&raw mut spf, spf_ptr, MAXPATHL - 4, c",");
                     crate::memory::cstr_cpy(spf_ptr.add(len), c".spl".as_ptr());
                     let mut c = 0;
                     while c < ga.len() {
@@ -3246,7 +3246,7 @@ pub fn valid_spellfile(val: *const c_char) -> bool {
                 &raw mut spf,
                 (&raw mut spf_name).cast(),
                 MAXPATHL,
-                c",".as_ptr(),
+                c",",
             );
             let spf_ptr = (&raw mut spf_name).cast::<c_char>();
             if !(4..(MAXPATHL - 4)).contains(&l)

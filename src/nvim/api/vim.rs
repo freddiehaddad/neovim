@@ -310,7 +310,7 @@ fn validate_s(cond: bool, name: &std::ffi::CStr, val: *const c_char, err: &mut E
 #[inline]
 fn validate_r(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
     if !cond {
-        api_err_required(err, name.as_ptr());
+        api_err_required(err, name);
         false
     } else {
         true

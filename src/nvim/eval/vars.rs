@@ -926,7 +926,7 @@ pub fn restore_vimvar(idx: c_int,save_tv: &mut typval_T) {
 
         let hi = hash_find(&vars_st().vimvardict.dv_hashtab, (*p).vv_di.di_key.as_ptr());
         if hashitem_empty(&*hi) {
-            internal_error(c"restore_vimvar()".as_ptr());
+            internal_error(c"restore_vimvar()");
         } else {
             hash_remove(&mut vars_st().vimvardict.dv_hashtab, hi);
         }
@@ -1403,7 +1403,7 @@ pub fn ex_let_vars(
                 }
                 break;
             } else if *arg != b',' as c_char && *arg != b']' as c_char {
-                internal_error(c"ex_let_vars()".as_ptr());
+                internal_error(c"ex_let_vars()");
                 return false;
             }
         }
@@ -2135,7 +2135,7 @@ pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> bool {
                     d = (*di).di_tv.vval.v_dict();
                 }
                 if d.is_null() {
-                    internal_error(c"do_unlet()".as_ptr());
+                    internal_error(c"do_unlet()");
                     return false;
                 }
             }

@@ -1912,7 +1912,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
                     &raw mut p,
                     (&raw mut lead_end).cast(),
                     COM_MAX_LEN,
-                    c",".as_ptr(),
+                    c",",
                 ) as c_int;
                 while middle_len > 0
                     && ascii_iswhite(lead_end[(middle_len - 1) as usize] as u8 as c_int)
@@ -1927,7 +1927,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
                     &raw mut p,
                     (&raw mut lead_end).cast(),
                     COM_MAX_LEN,
-                    c",".as_ptr(),
+                    c",",
                 ) as c_int;
 
                 i = (**curwin.as_ptr()).w_cursor.col;

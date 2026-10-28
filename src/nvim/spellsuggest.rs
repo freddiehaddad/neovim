@@ -568,20 +568,20 @@ pub fn spell_check_sps(
                     if s.cast_const() != key.add(keylen) {
                         f = -1;
                     }
-                } else if option_slice_eq(key, keylen, c"best".as_ptr()) {
+                } else if option_slice_eq(key, keylen, c"best") {
                     f = SPS_BEST;
-                } else if option_slice_eq(key, keylen, c"fast".as_ptr()) {
+                } else if option_slice_eq(key, keylen, c"fast") {
                     f = SPS_FAST;
-                } else if option_slice_eq(key, keylen, c"double".as_ptr()) {
+                } else if option_slice_eq(key, keylen, c"double") {
                     f = SPS_DOUBLE;
                 } else {
                     f = -1;
                 }
-            } else if option_slice_eq(key, keylen, c"expr".as_ptr())
-                || option_slice_eq(key, keylen, c"file".as_ptr())
+            } else if option_slice_eq(key, keylen, c"expr")
+                || option_slice_eq(key, keylen, c"file")
             {
                 // consumed later in spell_find_suggest()
-            } else if option_slice_eq(key, keylen, c"timeout".as_ptr()) {
+            } else if option_slice_eq(key, keylen, c"timeout") {
                 let mut v = val;
                 let mut vl = vallen;
                 if vl > 0 && *v == b'-' as c_char {
@@ -634,12 +634,12 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
                     word.add(stp.st_wordlen as usize),
                     el as usize,
                 );
-                tv_dict_add_str(d, c"word".as_ptr(), 4, word);
+                tv_dict_add_str(d, c"word", word);
             } else {
-                tv_dict_add_str(d, c"word".as_ptr(), 4, stp.st_word.as_ptr());
+                tv_dict_add_str(d, c"word", stp.st_word.as_ptr());
             }
             if sug.su_badlen < stp.st_orglen {
-                tv_dict_add_str_len(d, c"extra".as_ptr(), 5, sug.su_badptr, stp.st_orglen);
+                tv_dict_add_str_len(d, c"extra", sug.su_badptr, stp.st_orglen);
             }
             tv_dict_add_nr(d, c"score", stp.st_score as i64);
             if (sps_st().sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
@@ -965,7 +965,7 @@ fn spell_find_suggest(
         let sps_copy = crate::memory::cstr_to_cstring(opt_vars().p_sps);
         let mut p = sps_copy.as_ptr().cast_mut();
         while *p != NUL {
-            copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",".as_ptr());
+            copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",");
             let buf_ptr = (&raw mut buf).cast::<c_char>();
             if crate::memory::cstr_prefix_bytes(buf_ptr, 5) == &b"expr:"[..5] {
                 if !sps_st().expr_busy {
@@ -1025,7 +1025,7 @@ fn spell_suggest_file(su: &mut suginfo_T, fname: *mut c_char) {
     unsafe {
         let mut line: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let fd = os_fopen(fname, c"r".as_ptr());
+        let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             semsg!(gettext(e_notopen.as_ptr()), fname);
             return;
@@ -2532,7 +2532,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
         }
         let sfwordnr = soundfold_find(slang, goodword);
         if sfwordnr < 0 {
-            internal_error(c"add_sound_suggest()".as_ptr());
+            internal_error(c"add_sound_suggest()");
             return;
         }
         let sugbuf = slang

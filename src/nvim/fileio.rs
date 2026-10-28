@@ -4554,7 +4554,7 @@ pub fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_ch
         let mut p = list;
         while *p != NUL {
             let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-            copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
+            copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
             let mut allow_dirs: c_char = 0;
             let Some(regpat) =
                 file_pat_to_reg_pat(buf.as_ptr(), ptr::null(), &raw mut allow_dirs, 0)

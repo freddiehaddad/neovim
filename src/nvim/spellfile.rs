@@ -478,7 +478,7 @@ pub fn spell_load_file(
     silent: bool,
 ) -> *mut slang_T {
     unsafe {
-        let fd = os_fopen(fname, c"r".as_ptr());
+        let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             if !silent {
                 semsg!(gettext(e_notopen.as_ptr()), fname);
@@ -805,7 +805,7 @@ pub fn suggest_load_files() {
                 sug_bytes.extend_from_slice(b".sug");
                 let sug_fname = std::ffi::CString::new(sug_bytes).unwrap();
                 let sug_ptr = sug_fname.as_ptr();
-                let fd = os_fopen(sug_ptr, c"r".as_ptr());
+                let fd = os_fopen(sug_ptr, c"r");
                 if !fd.is_null() {
                     let mut ok = true;
                     for slot in buf.iter_mut().take(VIMSUGMAGICL) {
@@ -1735,7 +1735,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
         let mut sofofrom: Option<std::ffi::CString> = None;
         let mut sofoto: Option<std::ffi::CString> = None;
 
-        let fd = os_fopen(fname, c"r".as_ptr());
+        let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             semsg!(gettext(e_notopen.as_ptr()), fname);
             return None;
@@ -2946,7 +2946,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
         let mut duplicate: c_int = 0;
         let mut last_msg_time: Timestamp = 0;
 
-        let fd = os_fopen(fname, c"r".as_ptr());
+        let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             semsg!(gettext(e_notopen.as_ptr()), fname);
             return false;
@@ -3566,7 +3566,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
         let mut did_word = false;
         let mut non_ascii: c_int = 0;
 
-        let fd = os_fopen(fname, c"r".as_ptr());
+        let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             semsg!(gettext(e_notopen.as_ptr()), fname);
             return false;
@@ -4185,7 +4185,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
     unsafe {
         let mut retval = true;
 
-        let fd = os_fopen(fname, c"w".as_ptr());
+        let fd = os_fopen(fname, c"w");
         if fd.is_null() {
             semsg!(gettext(e_notopen.as_ptr()), fname);
             return false;
@@ -4894,7 +4894,7 @@ fn offset2bytes(nr: c_int, buf_in: *mut c_char) -> c_int {
 
 fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
     unsafe {
-        let fd = os_fopen(fname, c"w".as_ptr());
+        let fd = os_fopen(fname, c"w");
         if fd.is_null() {
             semsg!(gettext(e_notopen.as_ptr()), fname);
             return;
@@ -5258,7 +5258,7 @@ pub fn spell_add_word(
             let mut spf = (*win_s(&mut **curwin.as_ptr())).b_p_spf;
             let mut i: c_int = 1;
             while *spf != NUL {
-                copy_option_part(&raw mut spf, fnamebuf, MAXPATHL, c",".as_ptr());
+                copy_option_part(&raw mut spf, fnamebuf, MAXPATHL, c",");
                 if i == idx {
                     break;
                 }
@@ -5286,7 +5286,7 @@ pub fn spell_add_word(
 
         if what == SPELL_ADD_BAD || undo {
             let mut fpos_next: c_long = 0;
-            fd = os_fopen(fname, c"r".as_ptr());
+            fd = os_fopen(fname, c"r");
             if !fd.is_null() {
                 while !vim_fgets(line.as_mut_ptr(), (MAXWLEN * 2) as c_int, fd) {
                     let fpos = fpos_next;
@@ -5301,7 +5301,7 @@ pub fn spell_add_word(
                         && (line[ulen] == b'/' as c_char || (line[ulen] as u8) < b' ')
                     {
                         fclose(fd);
-                        fd = os_fopen(fname, c"r+".as_ptr());
+                        fd = os_fopen(fname, c"r+");
                         if fd.is_null() {
                             break;
                         }
@@ -5342,7 +5342,7 @@ pub fn spell_add_word(
         }
 
         if !undo {
-            fd = os_fopen(fname, c"a".as_ptr());
+            fd = os_fopen(fname, c"a");
             if fd.is_null() && new_spf && !dir_of_file_exists(fname) {
                 let p = path_tail_with_sep(fname);
                 if p != fname {
@@ -5350,7 +5350,7 @@ pub fn spell_add_word(
                     *p = NUL;
                     os_mkdir(fname, 0o755);
                     *p = c;
-                    fd = os_fopen(fname, c"a".as_ptr());
+                    fd = os_fopen(fname, c"a");
                 }
             }
 

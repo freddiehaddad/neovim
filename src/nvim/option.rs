@@ -6501,7 +6501,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> bool {
                         if !put_set(fd, cmd, opt_idx, varp) {
                             return false;
                         }
-                        if do_endif && !put_line(fd.cast(), c"endif".as_ptr().cast_mut()) {
+                        if do_endif && !put_line(fd.cast(), c"endif") {
                             return false;
                         }
 
@@ -6651,7 +6651,7 @@ fn put_set_value(
                                 if fprintf!(fd, c"%s %s+=".as_ptr(), cmd, name) < 0 {
                                     return false;
                                 }
-                                copy_option_part(&raw mut p, part, size, c",".as_ptr().cast_mut());
+                                copy_option_part(&raw mut p, part, size, c",");
                                 if !put_escstr(fd.cast(), part, 2)
                                     || !put_eol(fd.cast())
                                 {
@@ -8476,7 +8476,7 @@ pub fn copy_option_part(
     option: *mut *mut c_char,
     buf: *mut c_char,
     maxlen: usize,
-    sep_chars: *const c_char,
+    sep_chars: &std::ffi::CStr,
 ) -> usize {
     unsafe {
         let mut len: usize = 0;
@@ -8487,8 +8487,8 @@ pub fn copy_option_part(
             len += 1;
             p = p.add(1);
         }
-        while *p != NUL && vim_strchr(sep_chars, *p as u8 as c_int).is_null() {
-            if *p == b'\\' as c_char && !vim_strchr(sep_chars, *p.add(1) as u8 as c_int).is_null() {
+        while *p != NUL && vim_strchr(sep_chars.as_ptr(), *p as u8 as c_int).is_null() {
+            if *p == b'\\' as c_char && !vim_strchr(sep_chars.as_ptr(), *p.add(1) as u8 as c_int).is_null() {
                 p = p.add(1);
             }
             if len < maxlen - 1 {
@@ -8550,8 +8550,8 @@ pub fn option_next_keyval(
 }
 
 /// Compare a (non-NUL-terminated) slice from option_next_keyval() against a name.
-pub fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *const c_char) -> bool {
-     !slice.is_null() && crate::memory::cstr_len(name) == slicelen && (crate::memory::cstr_prefix_bytes(slice, slicelen) == crate::memory::cstr_prefix_bytes(name, slicelen))
+pub fn option_slice_eq(slice: *const c_char, slicelen: usize, name: &std::ffi::CStr) -> bool {
+     !slice.is_null() && name.to_bytes().len() == slicelen && (crate::memory::cstr_prefix_bytes(slice, slicelen) == crate::memory::cstr_prefix_bytes(name.as_ptr(), slicelen))
 }
 
 /// Return true when 'shell' has "csh" in the tail.

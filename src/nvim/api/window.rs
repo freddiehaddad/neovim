@@ -744,7 +744,7 @@ pub fn nvim_win_resize(
         }
 
         if !(height >= 0 || width >= 0) {
-            api_err_required(err, c"'height' or 'width'".as_ptr());
+            api_err_required(err, c"'height' or 'width'");
             return;
         }
 

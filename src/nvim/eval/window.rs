@@ -476,7 +476,7 @@ fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
             varnumber_T::from(bt_quickfix(wp.w_buffer) && !wp.w_llist_ref.is_null()),
         );
 
-        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, wp.w_vars());
+        tv_dict_add_dict(dict, c"variables", wp.w_vars());
 
         dict
     }
@@ -495,9 +495,9 @@ fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
             tv_list_append_number(l, (*wp).handle as varnumber_T);
             wp = (*wp).w_next;
         }
-        tv_dict_add_list(dict, c"windows".as_ptr(), 7, l);
+        tv_dict_add_list(dict, c"windows", l);
 
-        tv_dict_add_dict(dict, c"variables".as_ptr(), 9, tp.tp_vars());
+        tv_dict_add_dict(dict, c"variables", tp.tp_vars());
 
         dict
     }

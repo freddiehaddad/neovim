@@ -616,21 +616,21 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn convert_one_value_err_name(&self) -> *const c_char {
+    fn convert_one_value_err_name(&self) -> &'static std::ffi::CStr {
         match self {
             Self::Text {
                 mode: TextEncodeMode::String,
                 ..
-            } => c"_typval_encode_string_convert_one_value()".as_ptr(),
+            } => c"_typval_encode_string_convert_one_value()",
             Self::Text {
                 mode: TextEncodeMode::Echo,
                 ..
-            } => c"_typval_encode_echo_convert_one_value()".as_ptr(),
+            } => c"_typval_encode_echo_convert_one_value()",
             Self::Text {
                 mode: TextEncodeMode::Json,
                 ..
-            } => c"_typval_encode_json_convert_one_value()".as_ptr(),
-            Self::Msgpack { .. } => c"_typval_encode_msgpack_convert_one_value()".as_ptr(),
+            } => c"_typval_encode_json_convert_one_value()",
+            Self::Msgpack { .. } => c"_typval_encode_msgpack_convert_one_value()",
         }
     }
 
@@ -929,7 +929,7 @@ impl EncodeBackend<'_> {
                     mode: TextEncodeMode::String | TextEncodeMode::Echo,
                 } => {
                     if fun.is_null() {
-                        internal_error(c"string(): NULL function name".as_ptr());
+                        internal_error(c"string(): NULL function name");
                         ga_concat_literal(gap, b"function(NULL");
                     } else {
                         ga_concat_literal(gap, b"function(");

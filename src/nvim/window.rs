@@ -4024,7 +4024,7 @@ pub fn win_close_othertab(
                     ptp = (*ptp).tp_next;
                 }
                 if ptp.is_null() {
-                    internal_error(c"win_close_othertab()".as_ptr());
+                    internal_error(c"win_close_othertab()");
                     return false;
                 }
                 (*ptp).tp_next = (*tp).tp_next;
@@ -6657,7 +6657,8 @@ fn check_window_scroll_resize(
                     c"%d".as_ptr(),
                     (*wp).handle,
                 );
-                if !tv_dict_add_dict(v_event, winid.as_ptr(), key_len as usize, d) {
+                let _ = key_len;
+                if !tv_dict_add_dict(v_event, std::ffi::CStr::from_ptr(winid.as_ptr()), d) {
                     tv_dict_unref(d);
                     break;
                 }
@@ -6684,7 +6685,7 @@ fn check_window_scroll_resize(
                 tot_skipcol,
             );
             if !alldict.is_null() {
-                if !tv_dict_add_dict(v_event, c"all".as_ptr(), 3, alldict) {
+                if !tv_dict_add_dict(v_event, c"all", alldict) {
                     tv_dict_unref(alldict);
                 } else {
                     (*alldict).dv_refcount -= 1;
@@ -6783,7 +6784,7 @@ pub fn may_trigger_win_scrolled_resized() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&mut save_v_event);
 
-            if tv_dict_add_list(v_event, c"windows".as_ptr(), 7, windows_list) {
+            if tv_dict_add_list(v_event, c"windows", windows_list) {
                 tv_dict_set_keys_readonly(&mut *v_event);
                 let buf = if bufref_valid(Some(&resize_bufref)) {
                     resize_bufref.br_buf

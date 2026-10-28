@@ -428,7 +428,7 @@ fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
 
         let mut iobuf = [0 as c_char; IOSIZE];
         let mut iobuflen = 0usize;
-        let fd1 = os_fopen(fname1, c"rb".as_ptr());
+        let fd1 = os_fopen(fname1, c"rb");
         let mut line1 = [0 as c_char; 200];
         let mut line2 = [0 as c_char; 200];
         let mut lineidx: usize = 0;
@@ -441,7 +441,7 @@ fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
                 fname1,
             );
         } else {
-            let fd2 = os_fopen(fname2, c"rb".as_ptr());
+            let fd2 = os_fopen(fname2, c"rb");
             if fd2.is_null() {
                 fclose(fd1);
                 iobuflen = vim_snprintf_safelen!(

@@ -5512,7 +5512,7 @@ fn buf_has_cstyle_comments() -> bool {
                 &raw mut list,
                 part_buf.as_mut_ptr(),
                 COM_MAX_LEN,
-                c",".as_ptr(),
+                c",",
             );
             let string = vim_strchr(part_buf.as_ptr(), b':' as c_int);
             if !string.is_null()

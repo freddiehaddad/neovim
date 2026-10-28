@@ -598,12 +598,12 @@ pub fn do_record(c: c_int) -> bool {
             let mut p_vec = get_recorded().into_bytes_with_nul();
             let p = p_vec.as_mut_ptr().cast::<c_char>();
             vim_unescape_ks(p);
-            tv_dict_add_str(dict, c"regcontents".as_ptr(), 11, p);
+            tv_dict_add_str(dict, c"regcontents", p);
 
             let mut buf = [0 as c_char; NUMBUFLEN + 2];
             buf[0] = reg_st().do_record_regname as u8 as c_char;
             buf[1] = NUL;
-            tv_dict_add_str(dict, c"regname".as_ptr(), 7, buf.as_ptr());
+            tv_dict_add_str(dict, c"regname", buf.as_ptr());
             tv_dict_set_keys_readonly(&mut *dict);
 
             apply_autocmds(
@@ -1363,7 +1363,7 @@ fn add_regtype_to_dict(
             buf,
             bufsize,
         );
-        tv_dict_add_str_len(dict, c"regtype".as_ptr(), 7, buf, len as c_int);
+        tv_dict_add_str_len(dict, c"regtype", buf, len as c_int);
     }
 }
 
@@ -1383,14 +1383,14 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
             tv_list_append_string(list, item.data, item.size as isize);
         }
         (*list).lv_lock = VAR_FIXED;
-        tv_dict_add_list(dict, c"regcontents".as_ptr(), 11, list);
+        tv_dict_add_list(dict, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         add_regtype_to_dict(&raw mut *reg, dict, buf.as_mut_ptr(), buf.len());
 
         buf[0] = oap.regname as u8 as c_char;
         buf[1] = NUL;
-        tv_dict_add_str(dict, c"regname".as_ptr(), 7, buf.as_ptr());
+        tv_dict_add_str(dict, c"regname", buf.as_ptr());
 
         tv_dict_add_bool(
             dict,
@@ -1404,7 +1404,7 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
 
         buf[0] = get_op_char(oap.op_type) as u8 as c_char;
         buf[1] = NUL;
-        tv_dict_add_str(dict, c"operator".as_ptr(), 8, buf.as_ptr());
+        tv_dict_add_str(dict, c"operator", buf.as_ptr());
 
         tv_dict_add_bool(
             dict,
@@ -1471,17 +1471,17 @@ fn put_do_autocmd(
         }
 
         (*list).lv_lock = VAR_FIXED;
-        tv_dict_add_list(v_event, c"regcontents".as_ptr(), 11, list);
+        tv_dict_add_list(v_event, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         buf[0] = regname as u8 as c_char;
         buf[1] = NUL;
         let buflen = if buf[0] == NUL { 0 } else { 1 };
-        tv_dict_add_str_len(v_event, c"regname".as_ptr(), 7, buf.as_ptr(), buflen);
+        tv_dict_add_str_len(v_event, c"regname", buf.as_ptr(), buflen);
 
         buf[0] = if dir == BACKWARD { b'P' } else { b'p' } as c_char;
         buf[1] = NUL;
-        tv_dict_add_str_len(v_event, c"operator".as_ptr(), 8, buf.as_ptr(), 1);
+        tv_dict_add_str_len(v_event, c"operator", buf.as_ptr(), 1);
 
         add_regtype_to_dict(reg, v_event, buf.as_mut_ptr(), buf.len());
 

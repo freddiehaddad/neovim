@@ -1231,7 +1231,7 @@ pub fn open_line(
                             &raw mut p,
                             lead_middle.as_mut_ptr(),
                             COM_MAX_LEN,
-                            c",".as_ptr(),
+                            c",",
                         );
                         require_blank = false;
                     }
@@ -1246,7 +1246,7 @@ pub fn open_line(
                         &raw mut p,
                         lead_middle.as_mut_ptr(),
                         COM_MAX_LEN,
-                        c",".as_ptr(),
+                        c",",
                     ) as c_int;
 
                     while *p != NUL && *p.sub(1) != b':' as c_char {
@@ -1259,7 +1259,7 @@ pub fn open_line(
                         &raw mut p,
                         lead_end.as_mut_ptr(),
                         COM_MAX_LEN,
-                        c",".as_ptr(),
+                        c",",
                     );
 
                     if g_st().Ins.end_comment_pending == -1 {
@@ -1920,7 +1920,7 @@ pub fn get_leader_len(
                     &raw mut list,
                     part_buf.as_mut_ptr(),
                     COM_MAX_LEN,
-                    c",".as_ptr(),
+                    c",",
                 );
                 let mut string = vim_strchr(part_buf.as_ptr(), b':' as c_int);
                 if string.is_null() {
@@ -2041,7 +2041,7 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
                     &raw mut list,
                     part_buf.as_mut_ptr(),
                     COM_MAX_LEN,
-                    c",".as_ptr(),
+                    c",",
                 );
                 let mut string = vim_strchr(part_buf.as_ptr(), b':' as c_int);
                 if string.is_null() {
@@ -2115,7 +2115,7 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
                         &raw mut list,
                         part_buf2.as_mut_ptr(),
                         COM_MAX_LEN,
-                        c",".as_ptr(),
+                        c",",
                     );
                     if flags_save == com_flags {
                         continue;

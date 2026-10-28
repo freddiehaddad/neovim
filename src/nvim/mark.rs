@@ -2178,8 +2178,7 @@ pub fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
 /// Add information about mark `mname` to list `l` (`add_mark`).
 fn add_mark(
     l: *mut list_T,
-    mname: *const c_char,
-    mnamelen: usize,
+    mname: &std::ffi::CStr,
     pos: &pos_T,
     bufnr: c_int,
     fname: *const c_char,
@@ -2205,9 +2204,9 @@ fn add_mark(
         );
         tv_list_append_number(lpos, i64::from(pos.coladd));
 
-        if !tv_dict_add_str_len(d, c"mark".as_ptr(), 4, mname, mnamelen as c_int)
-            || !tv_dict_add_list(d, c"pos".as_ptr(), 3, lpos)
-            || (!fname.is_null() && !tv_dict_add_str(d, c"file".as_ptr(), 4, fname))
+        if !tv_dict_add_str_len(d, c"mark", mname.as_ptr(), mname.to_bytes().len() as c_int)
+            || !tv_dict_add_list(d, c"pos", lpos)
+            || (!fname.is_null() && !tv_dict_add_str(d, c"file", fname))
         {
             return false;
         }
@@ -2225,8 +2224,7 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
             mname[1] = (b'a' + i as u8) as c_char;
             add_mark(
                 l,
-                mname.as_ptr(),
-                2,
+                std::ffi::CStr::from_ptr(mname.as_ptr()),
                 &buf.b_namedm[i].mark,
                 buf.b_fnum,
                 ptr::null(),
@@ -2235,48 +2233,42 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
 
         add_mark(
             l,
-            c"''".as_ptr(),
-            2,
+            c"''",
             &(**curwin.as_ptr()).w_pcmark,
             (*g_st().curbuf).b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
-            c"'\"".as_ptr(),
-            2,
+            c"'\"",
             &buf.b_last_cursor.mark,
             buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
-            c"'[".as_ptr(),
-            2,
+            c"'[",
             &buf.b_op_start,
             buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
-            c"']".as_ptr(),
-            2,
+            c"']",
             &buf.b_op_end,
             buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
-            c"'^".as_ptr(),
-            2,
+            c"'^",
             &buf.b_last_insert.mark,
             buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
-            c"'.".as_ptr(),
-            2,
+            c"'.",
             &buf.b_last_change.mark,
             buf.b_fnum,
             ptr::null(),
@@ -2284,8 +2276,7 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
         if bt_prompt((&raw const *buf).cast_mut()) {
             add_mark(
                 l,
-                c"':".as_ptr(),
-                2,
+                c"':",
                 &buf.b_prompt_start.mark,
                 buf.b_fnum,
                 ptr::null(),
@@ -2293,16 +2284,14 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
         }
         add_mark(
             l,
-            c"'<".as_ptr(),
-            2,
+            c"'<",
             &buf.b_visual.vi_start,
             buf.b_fnum,
             ptr::null(),
         );
         add_mark(
             l,
-            c"'>".as_ptr(),
-            2,
+            c"'>",
             &buf.b_visual.vi_end,
             buf.b_fnum,
             ptr::null(),
@@ -2345,8 +2334,7 @@ pub fn get_global_marks(l: *mut list_T) {
 
                 add_mark(
                     l,
-                    mname.as_ptr(),
-                    2,
+                    std::ffi::CStr::from_ptr(mname.as_ptr()),
                     &fm.fmark.mark,
                     fm.fmark.fnum,
                     name,

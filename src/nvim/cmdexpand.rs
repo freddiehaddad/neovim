@@ -5516,7 +5516,7 @@ pub fn globpath(
         let filelen = crate::memory::cstr_len(file);
 
         while *path != NUL {
-            let mut pathlen = copy_option_part(&raw mut path, buf, MAXPATHL, c",".as_ptr());
+            let mut pathlen = copy_option_part(&raw mut path, buf, MAXPATHL, c",");
             let seplen = if *buf != NUL && after_pathsep(buf, buf.add(pathlen)) == 0 {
                 PATHSEPSTR.len()
             } else {
@@ -5982,8 +5982,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
         let retdict = rettv.vval.v_dict();
         let mut ret = tv_dict_add_str_len(
             retdict,
-            c"cmdline_orig".as_ptr(),
-            12,
+            c"cmdline_orig",
             orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast::<c_char>()),
             orig_ref.map_or(0, |v| v.len() as c_int),
         );
@@ -6003,7 +6002,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
         }
         if ret {
             let li = tv_list_alloc((*(*ccline).xpc).xp_numfiles as isize);
-            ret = tv_dict_add_list(retdict, c"matches".as_ptr(), 7, li);
+            ret = tv_dict_add_list(retdict, c"matches", li);
             let files = (*(*ccline).xpc).xp_files.as_slice();
             let mut idx: usize = 0;
             while ret && (idx as c_int) < (*(*ccline).xpc).xp_numfiles {

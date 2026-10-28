@@ -231,7 +231,7 @@ pub fn get_op_type(char1: c_int, char2: c_int) -> c_int {
                 break;
             }
             if i == OPCHARS.len() - 1 {
-                internal_error(c"get_op_type()".as_ptr());
+                internal_error(c"get_op_type()");
                 break;
             }
             i += 1;

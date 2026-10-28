@@ -884,7 +884,7 @@ fn expand_path_option(
         let mut curdirlen: usize = 0;
 
         while *path_option != NUL {
-            let mut buflen = copy_option_part(&mut path_option, buf, MAXPATHL, c" ,".as_ptr());
+            let mut buflen = copy_option_part(&mut path_option, buf, MAXPATHL, c" ,");
 
             if !vim_strchr(buf, b'`' as c_int).is_null() {
                 continue;
@@ -2116,7 +2116,7 @@ pub fn match_suffix(fname: *mut c_char) -> bool {
         let mut setsuf = opt_vars().p_su;
         while *setsuf != NUL {
             setsuflen =
-                copy_option_part(&mut setsuf, suf_buf.as_mut_ptr(), MAXSUFLEN, c".,".as_ptr());
+                copy_option_part(&mut setsuf, suf_buf.as_mut_ptr(), MAXSUFLEN, c".,");
             if setsuflen == 0 {
                 let tail = path_tail(fname);
                 if vim_strchr(tail, b'.' as c_int).is_null() {

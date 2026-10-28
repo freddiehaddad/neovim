@@ -3308,7 +3308,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 *(&raw mut re_st().brace_max).cast::<i64>().add(no) = OPERAND_MAX(scan);
                                 *(&raw mut re_st().brace_count).cast::<c_int>().add(no) = 0;
                             } else {
-                                internal_error(c"BRACE_LIMITS".as_ptr());
+                                internal_error(c"BRACE_LIMITS");
                                 status = RA_FAIL;
                             }
                         }

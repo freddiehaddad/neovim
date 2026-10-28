@@ -291,7 +291,7 @@ pub fn cin_is_cinword(mut line: *const c_char) -> bool {
                 &raw mut cinw,
                 cinw_buf.as_mut_ptr(),
                 cinw_len,
-                c",".as_ptr(),
+                c",",
             );
             if (crate::memory::cstr_prefix_bytes(line, len) == crate::memory::cstr_prefix_bytes(cinw_buf.as_ptr(), len))
                 && (!vim_iswordc(*line.add(len) as u8 as c_int)
@@ -518,21 +518,21 @@ fn cin_is_compound_init(s: *const c_char) -> bool {
 }
 fn cin_isinit() -> bool {
     unsafe {
-        const SKIP: [(&[u8], *const c_char); 4] = [
-            (b"static", c"static".as_ptr()),
-            (b"public", c"public".as_ptr()),
-            (b"protected", c"protected".as_ptr()),
-            (b"private", c"private".as_ptr()),
+        const SKIP: [&std::ffi::CStr; 4] = [
+            c"static",
+            c"public",
+            c"protected",
+            c"private",
         ];
         let mut s = cin_skipcomment(get_cursor_line_ptr());
-        if cin_starts_with(s, c"typedef".as_ptr()) {
+        if cin_starts_with(s, c"typedef") {
             s = cin_skipcomment(s.add(7));
         }
         loop {
             let mut matched = false;
-            for &(bytes, word) in &SKIP {
+            for &word in &SKIP {
                 if cin_starts_with(s, word) {
-                    s = cin_skipcomment(s.add(bytes.len()));
+                    s = cin_skipcomment(s.add(word.to_bytes().len()));
                     matched = true;
                     break;
                 }
@@ -541,7 +541,7 @@ fn cin_isinit() -> bool {
                 break;
             }
         }
-        if cin_starts_with(s, c"enum".as_ptr()) {
+        if cin_starts_with(s, c"enum") {
             return true;
         }
         cin_is_compound_init(s)
@@ -550,7 +550,7 @@ fn cin_isinit() -> bool {
 fn cin_iscase(mut s: *const c_char, strict: bool) -> bool {
     unsafe {
         s = cin_skipcomment(s);
-        if cin_starts_with(s, c"case".as_ptr()) {
+        if cin_starts_with(s, c"case") {
             s = s.add(4);
             while *s != NUL {
                 s = cin_skipcomment(s);
@@ -607,7 +607,7 @@ fn cin_isscopedecl(p: *const c_char) -> bool {
                 &raw mut cinsd,
                 cinsd_buf.as_mut_ptr(),
                 cinsd_len,
-                c",".as_ptr(),
+                c",",
             );
             if crate::memory::cstr_prefix_bytes(s, len) == crate::memory::cstr_prefix_bytes(cinsd_buf.as_ptr(), len) {
                 let skip = cin_skipcomment(s.add(len));
@@ -1010,18 +1010,18 @@ fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum: linenr
     }
 }
 fn cin_isif(p: *const c_char) -> bool {
-    cin_starts_with(p, c"if".as_ptr())
+    cin_starts_with(p, c"if")
 }
 fn cin_iselse(mut p: *const c_char) -> bool {
     unsafe {
         if *p == b'}' as c_char {
             p = cin_skipcomment(p.add(1));
         }
-        cin_starts_with(p, c"else".as_ptr())
+        cin_starts_with(p, c"else")
     }
 }
 fn cin_isdo(p: *const c_char) -> bool {
-    cin_starts_with(p, c"do".as_ptr())
+    cin_starts_with(p, c"do")
 }
 fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
     unsafe {
@@ -1030,7 +1030,7 @@ fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
         if *p == b'}' as c_char {
             p = cin_skipcomment(p.add(1));
         }
-        if cin_starts_with(p, c"while".as_ptr()) {
+        if cin_starts_with(p, c"while") {
             let cursor_save = (**curwin.as_ptr()).w_cursor;
             (**curwin.as_ptr()).w_cursor.lnum = lnum;
             (**curwin.as_ptr()).w_cursor.col = 0;
@@ -1109,7 +1109,7 @@ fn cin_iswhileofdo_end(terminated: c_int) -> bool {
                         if *s2 == b'}' as c_char {
                             s2 = cin_skipcomment(s2.add(1));
                         }
-                        if cin_starts_with(s2, c"while".as_ptr()) {
+                        if cin_starts_with(s2, c"while") {
                             (**curwin.as_ptr()).w_cursor.lnum = (*trypos).lnum;
                             return true;
                         }
@@ -1126,7 +1126,7 @@ fn cin_iswhileofdo_end(terminated: c_int) -> bool {
     }
 }
 fn cin_isbreak(p: *const c_char) -> bool {
-    cin_starts_with(p, c"break".as_ptr())
+    cin_starts_with(p, c"break")
 }
 fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
     unsafe {
@@ -1302,9 +1302,9 @@ fn cin_ends_in(s: *const c_char, find: &std::ffi::CStr) -> bool {
         false
     }
 }
-fn cin_starts_with(s: *const c_char, word: *const c_char) -> bool {
+fn cin_starts_with(s: *const c_char, word: &std::ffi::CStr) -> bool {
     unsafe {
-        let wb = crate::memory::cstr_as_bytes(word);
+        let wb = word.to_bytes();
         let l = wb.len();
         crate::memory::xstrnlen(s, l) == l
             && std::slice::from_raw_parts(s.cast::<u8>(), l) == wb
@@ -1785,7 +1785,7 @@ pub fn get_c_indent() -> c_int {
                             &raw mut p,
                             (&raw mut lead_end).cast(),
                             COM_MAX_LEN,
-                            c",".as_ptr(),
+                            c",",
                         ) as c_int;
                         if what == COM_START as u8 as c_int {
                             crate::memory::cstr_cpy((&raw mut lead_start).cast(), (&raw const lead_end).cast());

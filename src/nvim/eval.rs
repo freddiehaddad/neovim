@@ -6484,7 +6484,7 @@ pub fn var_item_copy(
                 }
             }
             VarType::VAR_UNKNOWN => {
-                internal_error(c"var_item_copy(UNKNOWN)".as_ptr());
+                internal_error(c"var_item_copy(UNKNOWN)");
                 ret = false;
             }
         }

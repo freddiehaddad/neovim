@@ -1877,7 +1877,7 @@ fn lisp_match(p: *const c_char) -> bool {
         };
 
         while *word != NUL {
-            let len = copy_option_part(&raw mut word, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
+            let len = copy_option_part(&raw mut word, buf.as_mut_ptr(), buf.len(), c",");
             if (crate::memory::cstr_prefix_bytes(buf.as_ptr(), len) == crate::memory::cstr_prefix_bytes(p, len)) && ascii_iswhite_or_nul(*p.add(len)) {
                 return true;
             }

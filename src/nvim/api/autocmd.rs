@@ -153,7 +153,7 @@ fn api_err_int(err: &mut Error, name: &std::ffi::CStr, val_n: i64) {
 
 #[inline]
 fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
-    api_err_required(err, name.as_ptr());
+    api_err_required(err, name);
 }
 
 #[inline]

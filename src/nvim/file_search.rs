@@ -769,7 +769,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                         &raw mut suf,
                                         file_path.data.add(len),
                                         MAXPATHL - len,
-                                        c",".as_ptr(),
+                                        c",",
                                     );
                             }
                         }
@@ -1315,7 +1315,7 @@ pub fn find_file_in_path_option(
                             &raw mut suffix,
                             name_buff.add(l),
                             MAXPATHL - l,
-                            c",".as_ptr(),
+                            c",",
                         );
                     }
                     run += 1;
@@ -1342,7 +1342,7 @@ pub fn find_file_in_path_option(
                     }
 
                     let mut buf = [0 as c_char; MAXPATHL];
-                    copy_option_part(&raw mut ff_opt.dir, buf.as_mut_ptr(), MAXPATHL, c" ,".as_ptr());
+                    copy_option_part(&raw mut ff_opt.dir, buf.as_mut_ptr(), MAXPATHL, c" ,");
 
                     let r_ptr = vim_findfile_stopdir(buf.as_mut_ptr());
                     *search_ctx = vim_findfile_init(
@@ -1690,11 +1690,11 @@ pub fn do_autocmd_dirchanged(
         xstrlcpy(buf.as_mut_ptr(), scope_cstr.as_ptr(), buf.len());
 
         if pre {
-            tv_dict_add_str(dict, c"directory".as_ptr(), "directory".len(), new_dir);
+            tv_dict_add_str(dict, c"directory", new_dir);
         } else {
-            tv_dict_add_str(dict, c"cwd".as_ptr(), "cwd".len(), new_dir);
+            tv_dict_add_str(dict, c"cwd", new_dir);
         }
-        tv_dict_add_str(dict, c"scope".as_ptr(), "scope".len(), buf.as_ptr());
+        tv_dict_add_str(dict, c"scope", buf.as_ptr());
         tv_dict_add_bool(
             dict,
             c"changed_window",

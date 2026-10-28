@@ -830,7 +830,7 @@ pub fn buf_get_backup_name(
     unsafe {
         let mut backup: Option<std::ffi::CString> = None;
         let iobuf = (&raw mut g_st().IObuff).cast::<c_char>();
-        let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",".as_ptr());
+        let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",");
         let p = iobuf.add(dir_len);
         if **dirp == NUL && !os_isdir(iobuf) {
             let mut failed_dir: Option<std::ffi::CString> = None;

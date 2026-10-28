@@ -1066,7 +1066,7 @@ fn check_external_diff(diffio: &mut diffio_T) -> bool {
         let diff_fname = diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr();
         loop {
             ok = kFalse;
-            let mut fd = os_fopen(orig_fname, c"w".as_ptr());
+            let mut fd = os_fopen(orig_fname, c"w");
             if fd.is_null() {
                 io_error = true;
             } else {
@@ -1074,7 +1074,7 @@ fn check_external_diff(diffio: &mut diffio_T) -> bool {
                     io_error = true;
                 }
                 fclose(fd);
-                fd = os_fopen(new_fname, c"w".as_ptr());
+                fd = os_fopen(new_fname, c"w");
                 if fd.is_null() {
                     io_error = true;
                 } else {
@@ -1083,7 +1083,7 @@ fn check_external_diff(diffio: &mut diffio_T) -> bool {
                     }
                     fclose(fd);
                     fd = if diff_file(diffio) {
-                        os_fopen(diff_fname, c"r".as_ptr())
+                        os_fopen(diff_fname, c"r")
                     } else {
                         ptr::null_mut()
                     };
@@ -1765,7 +1765,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
         let mut notset = true;
         let mut diffstyle = diffstyle_T::DIFF_NONE;
         if dio.dio_internal == 0 {
-            fd = os_fopen((*dout).dout_fname.as_ref().unwrap().as_ptr(), c"r".as_ptr());
+            fd = os_fopen((*dout).dout_fname.as_ref().unwrap().as_ptr(), c"r");
             if fd.is_null() {
                 emsg(gettext(c"E98: Cannot read diff output".as_ptr()));
                 return;

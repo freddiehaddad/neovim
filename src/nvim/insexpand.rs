@@ -890,7 +890,7 @@ pub fn vim_is_ctrl_x_key(c: c_int) -> bool {
             CTRL_X_BUFNAMES => c == Ctrl_P || c == Ctrl_N,
             CTRL_X_REGISTER => c == Ctrl_R || c == Ctrl_P || c == Ctrl_N,
             _ => {
-                internal_error(c"vim_is_ctrl_x_key()".as_ptr());
+                internal_error(c"vim_is_ctrl_x_key()");
                 false
             }
         }
@@ -926,13 +926,12 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
         {
             tv_dict_add_str_len(
                 v_event,
-                c"complete_word".as_ptr(),
-                13,
+                c"complete_word",
                 word.data,
                 word.size as c_int,
             );
         } else {
-            tv_dict_add_str_len(v_event, c"complete_word".as_ptr(), 13, c"".as_ptr(), 0);
+            tv_dict_add_str_len(v_event, c"complete_word", c"".as_ptr(), 0);
         }
 
         let idx = (mode & !CTRL_X_WANT_IDENT) as usize;
@@ -940,14 +939,13 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
             Some(mode_cstr) => {
                 tv_dict_add_str_len(
                     v_event,
-                    c"complete_type".as_ptr(),
-                    13,
+                    c"complete_type",
                     mode_cstr.as_ptr(),
                     mode_cstr.to_bytes().len() as c_int,
                 );
             }
             None => {
-                tv_dict_add_str_len(v_event, c"complete_type".as_ptr(), 13, c"".as_ptr(), 0);
+                tv_dict_add_str_len(v_event, c"complete_type", c"".as_ptr(), 0);
             }
         }
 
@@ -958,7 +956,7 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
         } else {
             c"discard".as_ptr()
         };
-        tv_dict_add_str(v_event, c"reason".as_ptr(), 6, reason);
+        tv_dict_add_str(v_event, c"reason", reason);
         tv_dict_set_keys_readonly(&mut *v_event);
 
         ins_apply_autocmds(EVENT_COMPLETEDONE);
@@ -1660,7 +1658,7 @@ fn trigger_complete_changed_event(cur: c_int) {
         };
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&mut save_v_event);
-        tv_dict_add_dict(v_event, c"completed_item".as_ptr(), 14, item);
+        tv_dict_add_dict(v_event, c"completed_item", item);
         pum_set_event_info(v_event);
         tv_dict_set_keys_readonly(&mut *v_event);
 
@@ -2151,7 +2149,7 @@ fn ins_compl_dictionaries(
             if flags == DICT_EXACT {
                 count = 1;
             } else {
-                copy_option_part(&raw mut dict, buf, LSIZE, c",".as_ptr());
+                copy_option_part(&raw mut dict, buf, LSIZE, c",");
                 if !thesaurus && crate::memory::cstr_as_bytes(buf) == b"spell" {
                     count = -1;
                 } else if !vim_strchr(buf, b'`' as c_int).is_null()
@@ -2273,7 +2271,7 @@ fn ins_compl_files(
             if g_st().got_int || ins_compl_interrupted() {
                 break;
             }
-            let fp = os_fopen(file, c"r".as_ptr());
+            let fp = os_fopen(file, c"r");
             if flags != DICT_EXACT && !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
                 let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                 vim_snprintf!(
@@ -3165,7 +3163,7 @@ fn get_cpt_sources_count(cpt: *mut c_char) -> c_int {
                 p = p.add(1);
             }
             if *p != NUL {
-                let _ = copy_option_part(&raw mut p, dummy.as_mut_ptr(), LSIZE, c",".as_ptr());
+                let _ = copy_option_part(&raw mut p, dummy.as_mut_ptr(), LSIZE, c",");
                 count += 1;
             }
         }
@@ -3226,7 +3224,7 @@ fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
                 p = p.add(1);
             }
             if *p != NUL {
-                let slen = copy_option_part(&raw mut p, buf.as_mut_ptr(), LSIZE, c",".as_ptr());
+                let slen = copy_option_part(&raw mut p, buf.as_mut_ptr(), LSIZE, c",");
                 if slen > 0 && buf[0] == b'F' as c_char && buf[1] != NUL {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as c_int);
                     if !caret.is_null() {
@@ -3723,23 +3721,20 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
     unsafe {
         tv_dict_add_str_len(
             di,
-            c"word".as_ptr(),
-            4,
+            c"word",
             (*match_).cp_str.data,
             (*match_).cp_str.size as c_int,
         );
         tv_dict_add_str(
             di,
-            c"abbr".as_ptr(),
-            4,
+            c"abbr",
             (*match_).cp_text[CPT_ABBR]
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
         tv_dict_add_str(
             di,
-            c"menu".as_ptr(),
-            4,
+            c"menu",
             (*match_).cp_text[CPT_MENU].as_ref().map_or_else(
                 || {
                     (*match_)
@@ -3752,30 +3747,26 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
         );
         tv_dict_add_str(
             di,
-            c"kind".as_ptr(),
-            4,
+            c"kind",
             (*match_).cp_text[CPT_KIND]
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
         tv_dict_add_str(
             di,
-            c"info".as_ptr(),
-            4,
+            c"info",
             (*match_).cp_text[CPT_INFO]
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
         tv_dict_add_str(
             di,
-            c"abbr_hlgroup".as_ptr(),
-            12,
+            c"abbr_hlgroup",
             syn_id2name((*match_).cp_user_abbr_hl_id),
         );
         tv_dict_add_str(
             di,
-            c"kind_hlgroup".as_ptr(),
-            12,
+            c"kind_hlgroup",
             syn_id2name((*match_).cp_user_kind_hl_id),
         );
         if add_match {
@@ -3792,10 +3783,10 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
             tv_dict_add_nr(di, c"preselect", 1);
         }
         if let Some(ref commit_chars) = (*match_).cp_commit_chars {
-            tv_dict_add_str(di, c"commit_chars".as_ptr(), 12, commit_chars.as_ptr());
+            tv_dict_add_str(di, c"commit_chars", commit_chars.as_ptr());
         }
         if (*match_).cp_user_data.v_type == VAR_UNKNOWN {
-            tv_dict_add_str_len(di, c"user_data".as_ptr(), 9, c"".as_ptr(), 0);
+            tv_dict_add_str_len(di, c"user_data", c"".as_ptr(), 0);
         } else {
             tv_dict_add_tv(
                 di,
@@ -3842,7 +3833,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
         let mut ret = true;
         if (what_flag & CI_WHAT_MODE) != 0 {
             let mode = ins_compl_mode();
-            ret = tv_dict_add_str_len(retdict, c"mode".as_ptr(), 4, mode.data, mode.size as c_int);
+            ret = tv_dict_add_str_len(retdict, c"mode", mode.data, mode.size as c_int);
         }
 
         if ret && (what_flag & CI_WHAT_PUM_VISIBLE) != 0 {
@@ -3866,8 +3857,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             let len = insexp().compl_ins_end_col - (**curwin.as_ptr()).w_cursor.col;
             ret = tv_dict_add_str_len(
                 retdict,
-                c"preinserted_text".as_ptr(),
-                16,
+                c"preinserted_text",
                 if len > 0 {
                     line.add((**curwin.as_ptr()).w_cursor.col as usize)
                 } else {
@@ -3894,7 +3884,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                 } else {
                     c"items"
                 };
-                ret = tv_dict_add_list(retdict, key.as_ptr(), key.to_bytes().len(), li);
+                ret = tv_dict_add_list(retdict, key, li);
             }
             if ret
                 && (what_flag & CI_WHAT_SELECTED) != 0
@@ -3946,7 +3936,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             if ret && selected_idx != -1 && has_completed {
                 let di = tv_dict_alloc();
                 fill_complete_info_dict(&mut *di, compl_opt(insexp().compl_curr_idx), false);
-                let _ = tv_dict_add_dict(retdict, c"completed".as_ptr(), 9, di);
+                let _ = tv_dict_add_dict(retdict, c"completed", di);
             }
         }
     }
@@ -4134,7 +4124,7 @@ fn process_next_cpt_value(
 
             let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
             let mut cpt_ptr = st.e_cpt_ptr();
-            copy_option_part(&raw mut cpt_ptr, iobuff_ptr, IOSIZE, c",".as_ptr());
+            copy_option_part(&raw mut cpt_ptr, iobuff_ptr, IOSIZE, c",");
             st.e_cpt_idx = cpt_ptr.offset_from(st.e_cpt_copy.as_ptr()) as usize;
             *advance_cpt_idx = may_advance_cpt_index(cpt_ptr);
 
@@ -5062,7 +5052,7 @@ fn prepare_cpt_compl_funcs() {
             }
 
             let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-            let _ = copy_option_part(&raw mut p, iobuff_ptr, IOSIZE, c",".as_ptr());
+            let _ = copy_option_part(&raw mut p, iobuff_ptr, IOSIZE, c",");
             idx += 1;
         }
     }
@@ -6319,7 +6309,7 @@ fn compl_get_info(
             }
             *line_invalid = true;
         } else {
-            internal_error(c"ins_complete()".as_ptr());
+            internal_error(c"ins_complete()");
             return false;
         }
 
@@ -6816,7 +6806,7 @@ fn setup_cpt_sources() {
             if *p != NUL {
                 sources[idx].cs_flag = *p;
                 buf.fill(0);
-                let slen = copy_option_part(&raw mut p, buf.as_mut_ptr(), LSIZE, c",".as_ptr());
+                let slen = copy_option_part(&raw mut p, buf.as_mut_ptr(), LSIZE, c",");
                 if slen > 0 {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as c_int);
                     if !caret.is_null() {
@@ -6971,7 +6961,7 @@ fn cpt_compl_refresh() {
             }
 
             let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-            let _ = copy_option_part(&raw mut p, iobuff_ptr, IOSIZE, c",".as_ptr());
+            let _ = copy_option_part(&raw mut p, iobuff_ptr, IOSIZE, c",");
             if may_advance_cpt_index(p) {
                 let _ = advance_cpt_sources_index_safe();
             }

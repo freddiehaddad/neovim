@@ -2581,9 +2581,9 @@ fn foldlevelSyntax(flp: &mut fline_T) {
 pub fn put_folds(fd: *mut FILE, wp: *mut win_T) -> bool {
     unsafe {
         if foldmethodIsManual(&mut *wp)
-            && (!put_line(fd, c"silent! normal! zE".as_ptr() as *mut c_char)
+            && (!put_line(fd, c"silent! normal! zE")
                 || !put_folds_recurse(fd, &(*wp).w_folds, 0)
-                || !put_line(fd, c"let &fdl = &fdl".as_ptr() as *mut c_char))
+                || !put_line(fd, c"let &fdl = &fdl"))
         {
             return false;
         }
@@ -2637,7 +2637,7 @@ fn put_foldopen_recurse(
                     );
                     if fputs(buf.as_ptr(), fd) < 0
                         || !put_eol(fd)
-                        || !put_line(fd, c"sil! normal! zo".as_ptr() as *mut c_char)
+                        || !put_line(fd, c"sil! normal! zo")
                     {
                         return false;
                     }

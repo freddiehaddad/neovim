@@ -1122,7 +1122,7 @@ fn command_line_enter(
                 let mut save_v_event: save_v_event_T = save_v_event_T::new();
                 let dict = get_v_event(&mut save_v_event);
 
-                tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
+                tv_dict_add_str(dict, c"cmdtype", firstcbuf.as_ptr());
                 tv_dict_add_nr(dict, c"cmdlevel", getln_st().ccline.level as varnumber_T);
                 tv_dict_set_keys_readonly(&mut *dict);
                 let mut tstate = TryState::new();
@@ -1203,7 +1203,7 @@ fn command_line_enter(
                 let mut save_v_event: save_v_event_T = save_v_event_T::new();
                 let dict = get_v_event(&mut save_v_event);
 
-                tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
+                tv_dict_add_str(dict, c"cmdtype", firstcbuf.as_ptr());
                 tv_dict_add_nr(dict, c"cmdlevel", getln_st().ccline.level as varnumber_T);
                 tv_dict_set_keys_readonly(&mut *dict);
                 tv_dict_add_bool(
@@ -3237,7 +3237,7 @@ fn do_autocmd_cmdlinechanged(firstc: c_int) {
 
             let mut firstcbuf: [c_char; 2] = [firstc as c_char, 0];
 
-            tv_dict_add_str(dict, c"cmdtype".as_ptr(), 7, firstcbuf.as_ptr());
+            tv_dict_add_str(dict, c"cmdtype", firstcbuf.as_ptr());
             tv_dict_add_nr(dict, c"cmdlevel", getln_st().ccline.level as varnumber_T);
             tv_dict_set_keys_readonly(&mut *dict);
             let mut tstate = TryState::new();

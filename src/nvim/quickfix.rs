@@ -1490,7 +1490,7 @@ fn qf_setup_state(
             let raw_fd = if crate::memory::cstr_as_opt_bytes(efile) == Some(b"-") {
                 fdopen(os_open_stdin_fd(), c"r".as_ptr())
             } else {
-                os_fopen(efile, c"r".as_ptr()).cast::<FILE>()
+                os_fopen(efile, c"r").cast::<FILE>()
             };
             let Some(fd) = crate::os::fs::CFile::from_raw(raw_fd) else {
                 semsg!(gettext(e_openerrf.as_ptr()), efile);
@@ -4531,13 +4531,13 @@ fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_win
 
         if old_count == 0 {
             if !ptr::eq(buf, g_st().curbuf) {
-                internal_error(c"qf_fill_buffer()".as_ptr());
+                internal_error(c"qf_fill_buffer()");
                 return;
             }
 
             while ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) == 0 {
                 if !ml_delete(1) {
-                    internal_error(c"qf_fill_buffer()".as_ptr());
+                    internal_error(c"qf_fill_buffer()");
                     return;
                 }
             }
@@ -6139,18 +6139,16 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
             || !tv_dict_add_nr(dict, c"nr", varnumber_T::from(qfp.qf_nr))
             || !tv_dict_add_str(
                 dict,
-                c"module".as_ptr(),
-                6,
+                c"module",
                 qfp.qf_module.as_ref().map_or(empty, |s| s.as_ptr()),
             )
             || !tv_dict_add_str(
                 dict,
-                c"pattern".as_ptr(),
-                7,
+                c"pattern",
                 qfp.qf_pattern.as_ref().map_or(empty, |s| s.as_ptr()),
             )
-            || !tv_dict_add_str(dict, c"text".as_ptr(), 4, qfp.qf_text.as_ptr())
-            || !tv_dict_add_str_len(dict, c"type".as_ptr(), 4, buf.as_ptr(), buflen as c_int)
+            || !tv_dict_add_str(dict, c"text", qfp.qf_text.as_ptr())
+            || !tv_dict_add_str_len(dict, c"type", buf.as_ptr(), buflen as c_int)
             || (qfp.qf_user_data.v_type != VarType::VAR_UNKNOWN
                 && !tv_dict_add_tv(dict, c"user_data".as_ptr(), 9, &mut qfp.qf_user_data))
             || !tv_dict_add_nr(
@@ -6267,7 +6265,7 @@ fn qf_get_list_from_lines(
             get_errorlist(Some(&mut qi), ptr::null_mut(), 0, 0, l);
         }
 
-        tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
+        tv_dict_add_list(retdict, c"items", l);
         true
     }
 }
@@ -6391,11 +6389,11 @@ fn qf_getprop_defaults(
         let empty = c"".as_ptr();
 
         if (flags & QF_GETLIST_TITLE) != 0 {
-            status = tv_dict_add_str_len(retdict, c"title".as_ptr(), 5, empty, 0);
+            status = tv_dict_add_str_len(retdict, c"title", empty, 0);
         }
         if status && (flags & QF_GETLIST_ITEMS) != 0 {
             let l = tv_list_alloc(kListLenMayKnow);
-            status = tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
+            status = tv_dict_add_list(retdict, c"items", l);
         }
         if status && (flags & QF_GETLIST_NR) != 0 {
             status = tv_dict_add_nr(retdict, c"nr", 0);
@@ -6408,7 +6406,7 @@ fn qf_getprop_defaults(
             );
         }
         if status && (flags & QF_GETLIST_CONTEXT) != 0 {
-            status = tv_dict_add_str_len(retdict, c"context".as_ptr(), 7, empty, 0);
+            status = tv_dict_add_str_len(retdict, c"context", empty, 0);
         }
         if status && (flags & QF_GETLIST_ID) != 0 {
             status = tv_dict_add_nr(retdict, c"id", 0);
@@ -6429,7 +6427,7 @@ fn qf_getprop_defaults(
             status = qf_getprop_qfbufnr(&raw mut *qi, &mut *retdict);
         }
         if status && (flags & QF_GETLIST_QFTF) != 0 {
-            status = tv_dict_add_str_len(retdict, c"quickfixtextfunc".as_ptr(), 16, empty, 0);
+            status = tv_dict_add_str_len(retdict, c"quickfixtextfunc", empty, 0);
         }
 
         status
@@ -6439,8 +6437,7 @@ fn qf_getprop_defaults(
 fn qf_getprop_title(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
     tv_dict_add_str(
             retdict,
-            c"title".as_ptr(),
-            5,
+            c"title",
             qfl.qf_title.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
         )
 }
@@ -6473,7 +6470,7 @@ fn qf_getprop_items(
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         get_errorlist(Some(&mut *qi), ptr::null_mut(), qf_idx, eidx, l);
-        tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
+        tv_dict_add_list(retdict, c"items", l);
         true
     }
 }
@@ -6489,7 +6486,7 @@ fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
             }
             status
         } else {
-            tv_dict_add_str_len(retdict, c"context".as_ptr(), 7, c"".as_ptr(), 0)
+            tv_dict_add_str_len(retdict, c"context", c"".as_ptr(), 0)
         }
     }
 }
@@ -6512,7 +6509,7 @@ fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
             tv_clear(&raw mut tv);
             status
         } else {
-            tv_dict_add_str_len(retdict, c"quickfixtextfunc".as_ptr(), 16, c"".as_ptr(), 0)
+            tv_dict_add_str_len(retdict, c"quickfixtextfunc", c"".as_ptr(), 0)
         }
 }
 
@@ -7562,7 +7559,7 @@ fn hgr_get_ll(new_ll: &mut bool) -> *mut qf_info_T {
 
 fn hgr_search_file(qfl: &mut qf_list_T, fname: *mut c_char, p_regmatch: &mut regmatch_T) {
     unsafe {
-        let fd = os_fopen(fname, c"r".as_ptr()).cast::<FILE>();
+        let fd = os_fopen(fname, c"r").cast::<FILE>();
         if fd.is_null() {
             return;
         }
@@ -7649,7 +7646,7 @@ fn hgr_search_in_rtp(qfl: &mut qf_list_T, p_regmatch: &mut regmatch_T, lang: *co
         let mut p = opt_vars().p_rtp;
         let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
         while *p != NUL && !g_st().got_int {
-            copy_option_part(&raw mut p, name_buff_ptr, MAXPATHL, c",".as_ptr());
+            copy_option_part(&raw mut p, name_buff_ptr, MAXPATHL, c",");
             hgr_search_files_in_dir(qfl, name_buff_ptr, p_regmatch, lang);
         }
     }

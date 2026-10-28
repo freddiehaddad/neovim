@@ -792,7 +792,7 @@ fn script_dump_profile(fd: *mut FILE) {
                 fprintf!(fd, c"\n".as_ptr());
                 fprintf!(fd, c"count  total (s)   self (s)\n".as_ptr());
 
-                let sfd = os_fopen((*si).name_ptr(), c"r".as_ptr());
+                let sfd = os_fopen((*si).name_ptr(), c"r");
                 if sfd.is_null() {
                     fprintf!(fd, c"Cannot open file!\n".as_ptr());
                 } else {
@@ -843,7 +843,7 @@ pub fn profile_dump() {
             return;
         };
 
-        let fd = os_fopen(profile_fname.as_ptr(), c"w".as_ptr());
+        let fd = os_fopen(profile_fname.as_ptr(), c"w");
         if fd.is_null() {
             semsg!(e_notopen.as_ptr(), profile_fname.as_ptr());
         } else {

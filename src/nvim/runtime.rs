@@ -552,10 +552,10 @@ fn stacktrace_push_item(
             tv_dict_add_func(d, c"funcref", fp);
         }
         if !event.is_null() {
-            tv_dict_add_str(d, c"event".as_ptr(), 5, event);
+            tv_dict_add_str(d, c"event", event);
         }
         tv_dict_add_nr(d, c"lnum", varnumber_T::from(lnum));
-        tv_dict_add_str(d, c"filepath".as_ptr(), 8, filepath);
+        tv_dict_add_str(d, c"filepath", filepath);
 
         tv_list_append_tv(l, &mut tv);
 }
@@ -735,7 +735,7 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) 
 /// Find the patterns in "name" in all directories in "path" and invoke `callback`.
 pub fn do_in_path(
     path: *const c_char,
-    prefix: *const c_char,
+    prefix: &std::ffi::CStr,
     name: *mut c_char,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
@@ -749,12 +749,12 @@ pub fn do_in_path(
         {
             if opt_vars().p_verbose > 10 && !name.is_null() {
                 verbose_enter();
-                if *prefix != NUL {
+                if *prefix.as_ptr() != NUL {
                     smsg!(
                         0,
                         gettext(c"Searching for \"%s\" under \"%s\" in \"%s\"".as_ptr()),
                         name,
-                        prefix,
+                        prefix.as_ptr(),
                         path,
                     );
                 } else {
@@ -772,7 +772,7 @@ pub fn do_in_path(
 
             let mut rtp = rtp_copy.as_ptr().cast_mut();
             while *rtp != NUL && (do_all || !did_one) {
-                let buflen = copy_option_part(&mut rtp, buf, MAXPATHL, c",".as_ptr());
+                let buflen = copy_option_part(&mut rtp, buf, MAXPATHL, c",");
 
                 if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0 {
                     let is_after = path_is_after(buf, buflen);
@@ -787,19 +787,19 @@ pub fn do_in_path(
                     callback.invoke(&[crate::memory::cstr_to_cstring(buf)], do_all);
                     did_one = true;
                 } else {
-                    let prefix_len = crate::memory::cstr_len(prefix);
+                    let prefix_len = prefix.to_bytes().len();
                     let name_len = crate::memory::cstr_len(name);
                     if buflen + 2 + prefix_len + name_len < MAXPATHL {
                         add_pathsep(buf);
                         let cur_len = crate::memory::cstr_len(buf);
-                        ptr::copy_nonoverlapping(prefix, buf.add(cur_len), prefix_len + 1);
+                        ptr::copy_nonoverlapping(prefix.as_ptr(), buf.add(cur_len), prefix_len + 1);
                         let tail = buf.add(crate::memory::cstr_len(buf));
 
                         let mut np = name;
                         while *np != NUL && (do_all || !did_one) {
                             let tail_off = (tail as usize) - (buf as usize);
                             debug_assert!(MAXPATHL >= tail_off);
-                            copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ".as_ptr());
+                            copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ");
 
                             if opt_vars().p_verbose > 10 {
                                 verbose_enter();
@@ -923,7 +923,7 @@ fn do_in_cached_path(
                 while *np != NUL && (do_all || !did_one) {
                     let tail_off = (tail as usize) - (buf.as_ptr() as usize);
                     debug_assert!(MAXPATHL >= tail_off);
-                    copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ".as_ptr());
+                    copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ");
 
                     if opt_vars().p_verbose > 10 {
                         verbose_enter();
@@ -1101,32 +1101,32 @@ pub fn do_in_path_and_pp(
             } else {
                 name
             };
-            done |= do_in_path(path, c"".as_ptr(), name_arg, flags, callback);
+            done |= do_in_path(path, c"", name_arg, flags, callback);
         }
 
         if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_START) != 0 {
             let mut prefix = if (flags & DIP_AFTER) != 0 {
-                c"pack/*/start/*/after/".as_ptr()
+                c"pack/*/start/*/after/"
             } else {
-                c"pack/*/start/*/".as_ptr()
+                c"pack/*/start/*/"
             };
             done |= do_in_path(opt_vars().p_pp, prefix, name, flags & !DIP_AFTER, callback);
 
             if !done || (flags & DIP_ALL) != 0 {
                 prefix = if (flags & DIP_AFTER) != 0 {
-                    c"start/*/after/".as_ptr()
+                    c"start/*/after/"
                 } else {
-                    c"start/*/".as_ptr()
+                    c"start/*/"
                 };
                 done |= do_in_path(opt_vars().p_pp, prefix, name, flags & !DIP_AFTER, callback);
             }
         }
 
         if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_OPT) != 0 {
-            done |= do_in_path(opt_vars().p_pp, c"pack/*/opt/*/".as_ptr(), name, flags, callback);
+            done |= do_in_path(opt_vars().p_pp, c"pack/*/opt/*/", name, flags, callback);
 
             if !done || (flags & DIP_ALL) != 0 {
-                done |= do_in_path(opt_vars().p_pp, c"opt/*/".as_ptr(), name, flags, callback);
+                done |= do_in_path(opt_vars().p_pp, c"opt/*/", name, flags, callback);
             }
         }
 
@@ -1233,7 +1233,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         let mut entry = opt_vars().p_pp;
         while *entry != NUL {
             let cur_entry = entry;
-            let buflen = copy_option_part(&mut entry, buf, MAXPATHL, c",".as_ptr());
+            let buflen = copy_option_part(&mut entry, buf, MAXPATHL, c",");
 
             let the_entry = NvimString {
                 data: cur_entry,
@@ -1250,7 +1250,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         let mut rtp_entry = opt_vars().p_rtp;
         while *rtp_entry != NUL {
             let cur_entry = rtp_entry;
-            let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",".as_ptr());
+            let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",");
 
             if path_is_after(buf, buflen) {
                 rtp_entry = cur_entry;
@@ -1303,7 +1303,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
 
         while *rtp_entry != NUL {
             let cur_entry = rtp_entry;
-            let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",".as_ptr());
+            let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",");
             let pos_in_rtp = (cur_entry as usize) - (opt_vars().p_rtp as usize);
             expand_rtp_entry(
                 &mut search_path,
@@ -1470,7 +1470,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
             let mut entry: *mut c_char = opt_vars().p_rtp;
             while *entry != NUL {
                 let cur_entry = entry;
-                buf.size = copy_option_part(&mut entry, buf.data, MAXPATHL, c",".as_ptr());
+                buf.size = copy_option_part(&mut entry, buf.data, MAXPATHL, c",");
 
                 p_rtp_len += if *cur_entry.add(buf.size) == b',' as c_char {
                     buf.size + 1
@@ -1702,7 +1702,7 @@ fn add_pack_plugins(
                 let mut found = false;
                 let mut p: *mut c_char = opt_vars().p_rtp;
                 while *p != NUL {
-                    copy_option_part(&mut p, buf.as_mut_ptr(), MAXPATHL, c",".as_ptr());
+                    copy_option_part(&mut p, buf.as_mut_ptr(), MAXPATHL, c",");
                     if path_equal(buf.as_ptr(), fname, kPathCmpLiteral) {
                         found = true;
                         break;
@@ -1737,7 +1737,7 @@ fn add_pack_plugins(
 pub fn add_pack_start_dirs() {
     do_in_path(
             opt_vars().p_pp,
-            c"".as_ptr(),
+            c"",
             ptr::null_mut(),
             DIP_ALL + DIP_DIR,
             &mut RuntimeCallback::AddPackStartDir,
@@ -1781,7 +1781,7 @@ pub fn load_start_packages() {
     g_st().did_source_packages = true;
         do_in_path(
             opt_vars().p_pp,
-            c"".as_ptr(),
+            c"",
             c"pack/*/start/*".as_ptr() as *mut c_char,
             DIP_ALL + DIP_DIR,
             &mut RuntimeCallback::AddPackPlugins {
@@ -1791,7 +1791,7 @@ pub fn load_start_packages() {
         );
         do_in_path(
             opt_vars().p_pp,
-            c"".as_ptr(),
+            c"",
             c"start/*".as_ptr() as *mut c_char,
             DIP_ALL + DIP_DIR,
             &mut RuntimeCallback::AddPackPlugins {
@@ -1868,7 +1868,7 @@ pub fn ex_packadd(eap: &mut exarg_T) {
             );
             res = do_in_path(
                 opt_vars().p_pp,
-                c"".as_ptr(),
+                c"",
                 pat,
                 DIP_ALL + DIP_DIR,
                 &mut RuntimeCallback::AddPackPlugins { opt: false, action },
@@ -1884,7 +1884,7 @@ pub fn ex_packadd(eap: &mut exarg_T) {
         );
         do_in_path(
             opt_vars().p_pp,
-            c"".as_ptr(),
+            c"",
             pat,
             DIP_ALL + DIP_DIR + if !res { DIP_ERR } else { 0 },
             &mut RuntimeCallback::AddPackPlugins { opt: true, action },
@@ -3303,7 +3303,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             {
                 let d = tv_dict_alloc();
                 tv_list_append_dict(l, d);
-                tv_dict_add_str(d, c"name".as_ptr(), 4, sn.as_ptr());
+                tv_dict_add_str(d, c"name", sn.as_ptr());
                 tv_dict_add_nr(d, c"sid", i);
                 tv_dict_add_nr(d, c"version", 1);
                 tv_dict_add_bool(d, c"autoload", kFalse);
@@ -3311,11 +3311,10 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 if sid > 0 {
                     let var_dict =
                         tv_dict_copy(None, &mut (*si).sn_vars.sv_dict, true, get_copyID());
-                    tv_dict_add_dict(d, c"variables".as_ptr(), 9, var_dict);
+                    tv_dict_add_dict(d, c"variables", var_dict);
                     tv_dict_add_list(
                         d,
-                        c"functions".as_ptr(),
-                        9,
+                        c"functions",
                         get_script_local_funcs(sid as scid_T),
                     );
                 }

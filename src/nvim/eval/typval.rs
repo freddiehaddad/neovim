@@ -3103,12 +3103,11 @@ pub fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> bool {
 /// Add a list entry to dictionary.
 pub fn tv_dict_add_list(
     d: *mut dict_T,
-    key: *const c_char,
-    key_len: usize,
+    key: &std::ffi::CStr,
     list: *mut list_T,
 ) -> bool {
     unsafe {
-        let item = tv_dict_item_alloc_len(key, key_len);
+        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         (*item).di_tv.v_type = VarType::VAR_LIST;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::List(list);
         if !tv_dict_add(d, item) {
@@ -3141,12 +3140,11 @@ pub fn tv_dict_add_tv(
 /// Add a dictionary entry to dictionary.
 pub fn tv_dict_add_dict(
     d: *mut dict_T,
-    key: *const c_char,
-    key_len: usize,
+    key: &std::ffi::CStr,
     dict: *mut dict_T,
 ) -> bool {
     unsafe {
-        let item = tv_dict_item_alloc_len(key, key_len);
+        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         (*item).di_tv.v_type = VarType::VAR_DICT;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
         if !tv_dict_add(d, item) {
@@ -3216,18 +3214,16 @@ pub fn tv_dict_add_bool(
 /// Add a string entry to dictionary.
 pub fn tv_dict_add_str(
     d: *mut dict_T,
-    key: *const c_char,
-    key_len: usize,
+    key: &std::ffi::CStr,
     val: *const c_char,
 ) -> bool {
-    tv_dict_add_str_len(d, key, key_len, val, -1)
+    tv_dict_add_str_len(d, key, val, -1)
 }
 
 /// Add a string entry to dictionary.
 pub fn tv_dict_add_str_len(
     d: *mut dict_T,
-    key: *const c_char,
-    key_len: usize,
+    key: &std::ffi::CStr,
     val: *const c_char,
     len: c_int,
 ) -> bool {
@@ -3239,7 +3235,7 @@ pub fn tv_dict_add_str_len(
         } else {
             tv_alloc_string_bytes(std::slice::from_raw_parts(val.cast::<u8>(), len as usize))
         };
-        let item = tv_dict_item_alloc_len(key, key_len);
+        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         (*item).di_tv.v_type = VarType::VAR_STRING;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::String(s);
         if !tv_dict_add(d, item) {
@@ -4186,7 +4182,7 @@ fn nothing_convert_one_value(
                 mpstack.push(mpsv);
             }
             VarType::VAR_UNKNOWN => {
-                internal_error(c"_typval_encode_nothing_convert_one_value()".as_ptr());
+                internal_error(c"_typval_encode_nothing_convert_one_value()");
                 return false;
             }
         }
@@ -5298,8 +5294,8 @@ mod tests {
             (*d).dv_refcount = 1;
             assert!(tv_dict_add_nr(d, c"foo", 42));
             assert!(tv_dict_add_float(&mut *d, c"flt", 3.5));
-            assert!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()));
-            assert!(tv_dict_add_str_len(d, c"alloc".as_ptr(), 5, c"baz".as_ptr(), -1));
+            assert!(tv_dict_add_str(d, c"str", c"bar".as_ptr()));
+            assert!(tv_dict_add_str_len(d, c"alloc", c"baz".as_ptr(), -1));
             assert!(tv_dict_has_key(d, c"foo"));
             assert!(!tv_dict_has_key(d, c"missing"));
 

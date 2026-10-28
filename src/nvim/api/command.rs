@@ -639,7 +639,7 @@ pub fn nvim_cmd(
 
         'end: {
             if !has_key(mask, KEYSET_OPTIDX_cmd__cmd) {
-                api_err_required(err, c"cmd".as_ptr());
+                api_err_required(err, c"cmd");
                 break 'end;
             }
 

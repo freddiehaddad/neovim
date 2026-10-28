@@ -186,7 +186,7 @@ pub fn ex_help(eap: &mut exarg_T) {
             if !wp.is_null() && (*(*wp).w_buffer).b_nwindows > 0 {
                 win_enter(wp, true);
             } else {
-                let helpfd = os_fopen(opt_vars().p_hf, c"rb".as_ptr());
+                let helpfd = os_fopen(opt_vars().p_hf, c"rb");
                 if helpfd.is_null() {
                     smsg!(0, gettext(c"Help file \"%s\" not found".as_ptr()), opt_vars().p_hf);
                     early_ret = true;

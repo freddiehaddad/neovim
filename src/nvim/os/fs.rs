@@ -676,7 +676,7 @@ fn is_executable_ext(
 
             let mut ext_end = ext.cast_mut();
             let rem = MAXPATHL - ((buf_end as usize) - (buf as usize));
-            let ext_len = copy_option_part(&raw mut ext_end, buf_end, rem, ENV_SEPSTR.as_ptr());
+            let ext_len = copy_option_part(&raw mut ext_end, buf_end, rem, ENV_SEPSTR);
             if ext_len != 0 {
                 let in_pathext = nameext_len == ext_len && mb_strnicmp(nameext, ext, ext_len) == 0;
                 if ((in_pathext || is_unix_shell) && is_executable(name, abspath.as_deref_mut()))
@@ -798,45 +798,42 @@ impl Drop for CFile {
 }
 
 /// Compatibility wrapper conforming to `fopen(3)`.
-pub fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut crate::fileio::FILE {
-    unsafe {
-        assert!(!flags.is_null());
-        let flen = crate::memory::cstr_len(flags);
-        assert!((1..=2).contains(&flen));
+pub fn os_fopen(path: *const c_char, flags: &std::ffi::CStr) -> *mut crate::fileio::FILE {
+    let fbytes = flags.to_bytes();
+    assert!((1..=2).contains(&fbytes.len()));
 
-        let f0 = *flags as u8;
-        let f1 = *flags.add(1) as u8;
-        let iflags = if f1 == 0 || f1 == b'b' {
-            let base = match f0 {
-                b'r' => O_RDONLY,
-                b'w' => O_WRONLY | O_CREAT | O_TRUNC,
-                b'a' => O_WRONLY | O_CREAT | O_APPEND,
-                _ => std::process::abort(),
-            };
-            #[cfg(windows)]
-            {
-                if f1 == b'b' { base | O_BINARY } else { base }
-            }
-            #[cfg(not(windows))]
-            {
-                base
-            }
-        } else {
-            assert_eq!(f1, b'+');
-            match f0 {
-                b'r' => O_RDWR,
-                b'w' => O_RDWR | O_CREAT | O_TRUNC,
-                b'a' => O_RDWR | O_CREAT | O_APPEND,
-                _ => std::process::abort(),
-            }
+    let f0 = fbytes[0];
+    let f1 = fbytes.get(1).copied().unwrap_or(0);
+    let iflags = if f1 == 0 || f1 == b'b' {
+        let base = match f0 {
+            b'r' => O_RDONLY,
+            b'w' => O_WRONLY | O_CREAT | O_TRUNC,
+            b'a' => O_WRONLY | O_CREAT | O_APPEND,
+            _ => std::process::abort(),
         };
-
-        let fd = os_open(path, iflags, 0o666);
-        if fd < 0 {
-            return ptr::null_mut();
+        #[cfg(windows)]
+        {
+            if f1 == b'b' { base | O_BINARY } else { base }
         }
-        fdopen(fd, flags)
+        #[cfg(not(windows))]
+        {
+            base
+        }
+    } else {
+        assert_eq!(f1, b'+');
+        match f0 {
+            b'r' => O_RDWR,
+            b'w' => O_RDWR | O_CREAT | O_TRUNC,
+            b'a' => O_RDWR | O_CREAT | O_APPEND,
+            _ => std::process::abort(),
+        }
+    };
+
+    let fd = os_open(path, iflags, 0o666);
+    if fd < 0 {
+    return ptr::null_mut();
     }
+    unsafe { fdopen(fd, flags.as_ptr()) }
 }
 
 /// Sets file descriptor `fd` to close-on-exec (Unix) or non-inheritable (Windows).

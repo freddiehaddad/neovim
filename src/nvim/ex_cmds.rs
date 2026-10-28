@@ -2418,7 +2418,7 @@ pub fn check_overwrite(
                     dir[1] = NUL;
                 } else {
                     let mut p = opt_vars().p_dir;
-                    copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",".as_ptr());
+                    copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",");
                 }
                 if let Some(swapname) = makeswapname(fname, dir.as_mut_ptr())
                     && os_path_exists(swapname.as_ptr())

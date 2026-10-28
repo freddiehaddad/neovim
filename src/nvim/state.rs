@@ -327,11 +327,10 @@ pub fn may_trigger_modechanged() {
 
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let v_event = get_v_event(&mut save_v_event);
-        tv_dict_add_str(v_event, c"new_mode".as_ptr(), 8, curr_mode.as_ptr());
+        tv_dict_add_str(v_event, c"new_mode", curr_mode.as_ptr());
         tv_dict_add_str(
             v_event,
-            c"old_mode".as_ptr(),
-            8,
+            c"old_mode",
             ptr::addr_of!(g_st().last_mode).cast(),
         );
         tv_dict_set_keys_readonly(&mut *v_event);

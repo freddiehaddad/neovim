@@ -1534,7 +1534,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_
         };
         let mut dirp = opt_vars().p_dir;
         while *dirp != NUL {
-            dir_name.size = copy_option_part(&raw mut dirp, dir_name.data, 31000, c",".as_ptr());
+            dir_name.size = copy_option_part(&raw mut dirp, dir_name.data, 31000, c",");
 
             let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
             if *dir_name.data == b'.' as c_char && *dir_name.data.add(1) == NUL {
@@ -1670,41 +1670,36 @@ pub fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
                 == size_of::<ZeroBlock>() as isize
             {
                 if !ml_check_b0_id(&b0) {
-                    tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Not a swap file".as_ptr(), 15);
+                    tv_dict_add_str_len(d, c"error", c"Not a swap file".as_ptr(), 15);
                 } else if b0_magic_wrong(&b0) {
                     tv_dict_add_str_len(
                         d,
-                        c"error".as_ptr(),
-                        5,
+                        c"error",
                         c"Magic number mismatch".as_ptr(),
                         21,
                     );
                 } else {
                     tv_dict_add_str_len(
                         d,
-                        c"version".as_ptr(),
-                        7,
+                        c"version",
                         (&raw const b0.b0_version).cast(),
                         10,
                     );
                     tv_dict_add_str_len(
                         d,
-                        c"user".as_ptr(),
-                        4,
+                        c"user",
                         (&raw const b0.b0_uname).cast(),
                         B0_UNAME_SIZE as c_int,
                     );
                     tv_dict_add_str_len(
                         d,
-                        c"host".as_ptr(),
-                        4,
+                        c"host",
                         (&raw const b0.b0_hname).cast(),
                         B0_HNAME_SIZE as c_int,
                     );
                     tv_dict_add_str_len(
                         d,
-                        c"fname".as_ptr(),
-                        5,
+                        c"fname",
                         (&raw const b0.b0_fname).cast(),
                         B0_FNAME_SIZE_ORG as c_int,
                     );
@@ -1727,11 +1722,11 @@ pub fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
                     );
                 }
             } else {
-                tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Cannot read file".as_ptr(), 16);
+                tv_dict_add_str_len(d, c"error", c"Cannot read file".as_ptr(), 16);
             }
             close(fd);
         } else {
-            tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Cannot open file".as_ptr(), 16);
+            tv_dict_add_str_len(d, c"error", c"Cannot open file".as_ptr(), 16);
         }
     }
 }
@@ -3564,7 +3559,7 @@ fn findswapname(
         let dir_len = crate::memory::cstr_len(*dirp) + 1;
         let mut dir_name_vec: Vec<c_char> = vec![0; dir_len];
         let dir_name = dir_name_vec.as_mut_ptr();
-        copy_option_part(dirp, dir_name, dir_len, c",".as_ptr());
+        copy_option_part(dirp, dir_name, dir_len, c",");
 
         let mut fname_vec: Option<Vec<c_char>> = makeswapname(buf_fname, dir_name)
             .map(|cstr| cstr.into_bytes_with_nul().into_iter().map(|b| b as c_char).collect());

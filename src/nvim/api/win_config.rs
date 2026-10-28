@@ -1659,7 +1659,7 @@ fn parse_win_config(
                     && has_key(mask, KEYSET_OPTIDX_win_config__col))
                     && !has_key(mask, KEYSET_OPTIDX_win_config__bufpos)
                 {
-                    api_err_required(err, c"'relative' requires 'row'/'col' or 'bufpos'".as_ptr());
+                    api_err_required(err, c"'relative' requires 'row'/'col' or 'bufpos'");
                     break 'fail;
                 }
 
@@ -1678,7 +1678,7 @@ fn parse_win_config(
                 } else if wp.is_null() {
                     api_err_required(
                         err,
-                        c"'relative' or 'external' when creating a float".as_ptr(),
+                        c"'relative' or 'external' when creating a float",
                     );
                     break 'fail;
                 }
@@ -1768,7 +1768,7 @@ fn parse_win_config(
                 }
                 fconfig.width = config.width as c_int;
             } else if !reconf && !is_split {
-                api_err_required(err, c"width".as_ptr());
+                api_err_required(err, c"width");
                 break 'fail;
             }
 
@@ -1784,7 +1784,7 @@ fn parse_win_config(
                 }
                 fconfig.height = config.height as c_int;
             } else if !reconf && !is_split {
-                api_err_required(err, c"height".as_ptr());
+                api_err_required(err, c"height");
                 break 'fail;
             }
 
@@ -1834,7 +1834,7 @@ fn parse_win_config(
                     if !is_split && !has_relative && (wp.is_null() || !(*wp).w_floating) {
                         api_err_required(
                             err,
-                            c"non-float with 'win' requires 'split' or 'vertical'".as_ptr(),
+                            c"non-float with 'win' requires 'split' or 'vertical'",
                         );
                         break 'fail;
                     }
@@ -1886,7 +1886,7 @@ fn parse_win_config(
                     break 'fail;
                 }
             } else if has_key(mask, KEYSET_OPTIDX_win_config__title_pos) {
-                api_err_required(err, c"'title' requires 'title_pos'".as_ptr());
+                api_err_required(err, c"'title' requires 'title_pos'");
                 break 'fail;
             }
 
@@ -1906,7 +1906,7 @@ fn parse_win_config(
                     break 'fail;
                 }
             } else if has_key(mask, KEYSET_OPTIDX_win_config__footer_pos) {
-                api_err_required(err, c"'footer' requires 'footer_pos'".as_ptr());
+                api_err_required(err, c"'footer' requires 'footer_pos'");
                 break 'fail;
             }
 

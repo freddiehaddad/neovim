@@ -1978,7 +1978,7 @@ pub fn validate_completeitemalign(args: &mut optset_T) -> *const c_char {
         let mut count = 0;
         let mut buf = [0 as c_char; 10];
         while *p != NUL {
-            copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
+            copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
             let item = if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"abbr" {
                 CPT_ABBR
             } else if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"kind" {
@@ -3445,7 +3445,7 @@ pub fn opt_strings_check(
             }
             let Some(it) = schema
                 .iter()
-                .find(|item| option_slice_eq(key, keylen, item.name.as_ptr()))
+                .find(|item| option_slice_eq(key, keylen, item.name))
             else {
                 return opt_schema_err(errbuf, c"E474: Unknown item '%s'", key, keylen);
             };
@@ -3501,7 +3501,7 @@ pub fn opt_strings_check(
                         && it
                             .enum_values
                             .iter()
-                            .any(|&ev| option_slice_eq(v, vlen, ev.as_ptr()))
+                            .any(|&ev| option_slice_eq(v, vlen, ev))
                     {
                         continue;
                     }

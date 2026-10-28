@@ -9151,8 +9151,7 @@ fn ex_restart(eap: &mut exarg_T) {
             let extra_d = tv_dict_alloc();
             tv_dict_add_str(
                 extra_d,
-                c"quit_cmd".as_ptr(),
-                8,
+                c"quit_cmd",
                 if !eap.do_ecmd_cmd.is_null() {
                     eap.do_ecmd_cmd
                 } else {
@@ -9310,8 +9309,7 @@ fn ex_restart(eap: &mut exarg_T) {
         let env = create_environment(ptr::null(), false, false, false, ptr::null());
         tv_dict_add_str(
             env,
-            ENV_STARTREASON.as_ptr(),
-            ENV_STARTREASON.to_bytes().len(),
+            ENV_STARTREASON,
             startreason,
         );
 
@@ -11454,9 +11452,9 @@ fn ex_redir(eap: &mut exarg_T) {
             arg = arg.add(1);
             let mode = if *arg == b'>' as c_char {
                 arg = arg.add(1);
-                c"a".as_ptr().cast_mut()
+                c"a"
             } else {
-                c"w".as_ptr().cast_mut()
+                c"w"
             };
             arg = skipwhite(arg);
 
@@ -11607,31 +11605,29 @@ pub fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> bool {
     }
 }
 
-pub fn open_exfile(fname: *mut c_char, forceit: c_int, mode: *mut c_char) -> *mut FILE {
-    unsafe {
-        #[cfg(unix)]
-        if os_isdir(fname) {
-            let _ = semsg!(gettext(e_isadir2.as_ptr()), fname);
-            return ptr::null_mut();
-        }
-
-        if forceit == 0 && *mode != b'a' as c_char && os_path_exists(fname) {
-            let _ = semsg!(
-                gettext(c"E189: \"%s\" exists (add ! to override)".as_ptr()),
-                fname,
-            );
-            return ptr::null_mut();
-        }
-
-        let fd = os_fopen(fname, mode);
-        if fd.is_null() {
-            let _ = semsg!(
-                gettext(c"E190: Cannot open \"%s\" for writing".as_ptr()),
-                fname,
-            );
-        }
-        fd.cast()
+pub fn open_exfile(fname: *mut c_char, forceit: c_int, mode: &std::ffi::CStr) -> *mut FILE {
+    #[cfg(unix)]
+    if os_isdir(fname) {
+        let _ = semsg!(gettext(e_isadir2.as_ptr()), fname);
+        return ptr::null_mut();
     }
+
+    if forceit == 0 && mode.to_bytes().first() != Some(&b'a') && os_path_exists(fname) {
+        let _ = semsg!(
+            gettext(c"E189: \"%s\" exists (add ! to override)".as_ptr()),
+            fname,
+        );
+        return ptr::null_mut();
+    }
+
+    let fd = os_fopen(fname, mode);
+    if fd.is_null() {
+        let _ = semsg!(
+            gettext(c"E190: Cannot open \"%s\" for writing".as_ptr()),
+            fname,
+        );
+    }
+    fd.cast()
 }
 
 fn ex_mark(eap: &mut exarg_T) {

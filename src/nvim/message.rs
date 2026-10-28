@@ -1227,8 +1227,8 @@ pub fn iemsg(s: *const c_char) {
 }
 
 /// Give an "Internal error" message.
-pub fn internal_error(where_: *const c_char) {
-    siemsg!(gettext(e_intern2.as_ptr()), where_);
+pub fn internal_error(where_: &std::ffi::CStr) {
+    siemsg!(gettext(e_intern2.as_ptr()), where_.as_ptr());
 }
 
 pub fn msg_semsg_event(s: std::ffi::CString) {
@@ -4011,7 +4011,7 @@ pub fn verbose_open() -> bool {
     if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
             msg_st().verbose_did_open = true;
 
-            msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(opt_vars().p_vfile, c"a".as_ptr()));
+            msg_st().verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(opt_vars().p_vfile, c"a"));
             if msg_st().verbose_fd.is_none() {
                 semsg!(gettext(e_notopen.as_ptr()), opt_vars().p_vfile);
                 return false;

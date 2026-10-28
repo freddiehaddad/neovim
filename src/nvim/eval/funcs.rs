@@ -2119,7 +2119,7 @@ pub fn f_empty(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 n = tv_blob_len(argvars[0].vval.v_blob().cast()) == 0;
             }
             VarType::VAR_UNKNOWN => {
-                internal_error(c"f_empty(UNKNOWN)".as_ptr());
+                internal_error(c"f_empty(UNKNOWN)");
             }
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(n));
@@ -3100,7 +3100,7 @@ pub fn f_getcharpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 pub fn f_getcharsearch(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     tv_dict_alloc_ret(rettv);
         let dict = rettv.vval.v_dict().cast::<dict_T>();
-        tv_dict_add_str(dict, c"char".as_ptr(), 4, last_csearch());
+        tv_dict_add_str(dict, c"char", last_csearch());
         tv_dict_add_nr(
             dict,
             c"forward",
@@ -3162,7 +3162,7 @@ pub fn f_getjumplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 varnumber_T::from((*wp).w_jumplist[i].fmark.fnum),
             );
             if let Some(ref fname) = (*wp).w_jumplist[i].fname {
-                tv_dict_add_str(d, c"filename".as_ptr(), 8, fname.as_ptr());
+                tv_dict_add_str(d, c"filename", fname.as_ptr());
             }
         }
     }
@@ -4504,7 +4504,8 @@ pub fn create_environment(
                             name = namebuff;
                         }
                     }
-                    tv_dict_add_str(env, name, namelen, (*envitems.add(i)).value);
+                    let _ = namelen;
+                    tv_dict_add_str(env, std::ffi::CStr::from_ptr(name), (*envitems.add(i)).value);
                 }
                 uv_os_free_environ(envitems, envcount);
             }
@@ -4517,7 +4518,7 @@ pub fn create_environment(
                     }
                 }
                 if opt_vars().p_tgc != 0 {
-                    tv_dict_add_str(env, c"COLORTERM".as_ptr(), 9, c"truecolor".as_ptr());
+                    tv_dict_add_str(env, c"COLORTERM", c"truecolor".as_ptr());
                 }
             }
         }
@@ -4527,7 +4528,7 @@ pub fn create_environment(
             if !dv.is_null() {
                 tv_dict_item_remove(&mut *env, dv);
             }
-            tv_dict_add_str(env, c"TERM".as_ptr(), 4, pty_term_name);
+            tv_dict_add_str(env, c"TERM", pty_term_name);
         }
 
         if set_nvim_addr {
@@ -4537,7 +4538,7 @@ pub fn create_environment(
                 if !dv.is_null() {
                     tv_dict_item_remove(&mut *env, dv);
                 }
-                tv_dict_add_str(env, c"NVIM".as_ptr(), 4, nvim_addr);
+                tv_dict_add_str(env, c"NVIM", nvim_addr);
             }
         }
 
@@ -4566,8 +4567,7 @@ pub fn create_environment(
                             }
                             tv_dict_add_str(
                                 env,
-                                name,
-                                namelen,
+                                std::ffi::CStr::from_ptr(name),
                                 tv_get_string(&(*var).di_tv),
                             );
                         }
@@ -4588,7 +4588,7 @@ pub fn create_environment(
                 if dv.is_null()
                     && let Some(env_var) = os_getenv_cstr(req.as_ptr())
                 {
-                    tv_dict_add_str(env, req.as_ptr(), len, env_var.as_ptr());
+                    tv_dict_add_str(env, req, env_var.as_ptr());
                 }
             }
         }
@@ -5513,15 +5513,14 @@ fn get_matches_in_str(
 
             tv_dict_add_str_len(
                 d,
-                c"text".as_ptr(),
-                4,
+                c"text",
                 rmp.startp[0],
                 rmp.endp[0].offset_from(rmp.startp[0]) as c_int,
             );
 
             if submatches {
                 let sml = tv_list_alloc((NSUBEXP - 1) as isize);
-                tv_dict_add_list(d, c"submatches".as_ptr(), 10, sml);
+                tv_dict_add_list(d, c"submatches", sml);
                 for i in 1..NSUBEXP {
                     if rmp.endp[i].is_null() {
                         tv_list_append_string(sml, c"".as_ptr(), 0);
@@ -6384,7 +6383,7 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         if list.is_null() {
             return;
         }
-        tv_dict_add_list(dict, c"regcontents".as_ptr(), 11, list);
+        tv_dict_add_list(dict, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         let mut reglen: colnr_T = 0;
@@ -6408,7 +6407,7 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             ),
             crate::register::MotionType::kMTUnknown => std::process::abort(),
         };
-        tv_dict_add_str_len(dict, c"regtype".as_ptr(), 7, buf.as_ptr(), buflen as c_int);
+        tv_dict_add_str_len(dict, c"regtype", buf.as_ptr(), buflen as c_int);
 
         buf[0] = get_register_name(get_unname_register()) as c_char;
         buf[1] = NUL;
@@ -6416,8 +6415,7 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         if regname == b'"' as c_int {
             tv_dict_add_str_len(
                 dict,
-                c"points_to".as_ptr(),
-                9,
+                c"points_to",
                 buf.as_ptr(),
                 buflen as c_int,
             );
@@ -9158,7 +9156,7 @@ pub fn f_type(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             VarType::VAR_BOOL => n = VAR_TYPE_BOOL,
             VarType::VAR_SPECIAL => n = VAR_TYPE_SPECIAL,
             VarType::VAR_BLOB => n = VAR_TYPE_BLOB,
-            VarType::VAR_UNKNOWN => internal_error(c"f_type(UNKNOWN)".as_ptr()),
+            VarType::VAR_UNKNOWN => internal_error(c"f_type(UNKNOWN)"),
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(n);
     }

@@ -1264,7 +1264,7 @@ fn lua_convert_one_value(
                 }
             }
             VarType::VAR_UNKNOWN => {
-                internal_error(c"_typval_encode_lua_convert_one_value()".as_ptr());
+                internal_error(c"_typval_encode_lua_convert_one_value()");
                 return FAIL;
             }
         }

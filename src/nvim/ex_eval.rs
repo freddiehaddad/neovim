@@ -524,7 +524,7 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
 fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
     unsafe {
         let Some(excp) = excp else {
-            internal_error(c"discard_exception()".as_ptr());
+            internal_error(c"discard_exception()");
             return;
         };
         let ce = &raw const g_st().current_exception;
@@ -655,7 +655,7 @@ fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
             (Some(last), Some(e)) => !std::rc::Rc::ptr_eq(last, e),
             _ => true,
         } {
-            internal_error(c"finish_exception()".as_ptr());
+            internal_error(c"finish_exception()");
         }
         (*stack).pop();
         if let Some(top) = (*stack).last() {
@@ -1276,7 +1276,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                 if let Some(ref excp) = (*cstack).cs_exception[u_idx] {
                     catch_exception(excp);
                 } else {
-                    internal_error(c"catch_exception()".as_ptr());
+                    internal_error(c"catch_exception()");
                 }
                 let ce = &raw const g_st().current_exception;
                 if !match (
@@ -1287,7 +1287,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                     (None, None) => true,
                     _ => false,
                 } {
-                    internal_error(c"ex_catch()".as_ptr());
+                    internal_error(c"ex_catch()");
                 }
             } else {
                 cleanup_conditionals(&mut *cstack, CSF_TRY, 1);
@@ -1371,7 +1371,7 @@ pub fn ex_finally(eap: &mut exarg_T) {
                         _ => false,
                     }
                 {
-                    internal_error(c"ex_finally()".as_ptr());
+                    internal_error(c"ex_finally()");
                 }
             }
 

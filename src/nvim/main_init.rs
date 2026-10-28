@@ -619,9 +619,9 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             g_st().scriptout = crate::os::fs::CFile::from_raw(os_fopen(
                 scriptout_name.as_ptr(),
                 if params.scriptout_append {
-                    c"ab".as_ptr()
+                    c"ab"
                 } else {
-                    c"wb".as_ptr()
+                    c"wb"
                 },
             ));
             if !has_scriptout() {

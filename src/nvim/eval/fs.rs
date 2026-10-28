@@ -1532,7 +1532,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
             semsg!(gettext(e_notopen.as_ptr()), gettext(c"<empty>".as_ptr()));
             return;
         }
-        let fd = os_fopen(fname, c"rb".as_ptr());
+        let fd = os_fopen(fname, c"rb");
         if fd.is_null() {
             semsg!(gettext(e_notopen.as_ptr()), fname);
             return;

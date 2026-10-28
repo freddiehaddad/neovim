@@ -987,17 +987,17 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                     let mut buf = [0 as c_char; 30];
                     let len =
                         vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), (i + 1) as c_int);
-                    tv_dict_add_list(dict, buf.as_ptr(), len as usize, l);
+                    let _ = len;
+                    tv_dict_add_list(dict, std::ffi::CStr::from_ptr(buf.as_ptr()), l);
                 }
             } else {
                 tv_dict_add_str(
                     dict,
-                    c"pattern".as_ptr(),
-                    7,
+                    c"pattern",
                     cur.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
                 );
             }
-            tv_dict_add_str(dict, c"group".as_ptr(), 5, syn_id2name(cur.mit_hlg_id));
+            tv_dict_add_str(dict, c"group", syn_id2name(cur.mit_hlg_id));
             tv_dict_add_nr(
                 dict,
                 c"priority",
@@ -1009,7 +1009,7 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 let mut buf = [0 as c_char; MB_MAXCHAR + 1];
                 let buflen = utf_char2bytes(cur.mit_conceal_char, buf.as_mut_ptr());
                 buf[buflen as usize] = NUL;
-                tv_dict_add_str_len(dict, c"conceal".as_ptr(), 7, buf.as_ptr(), buflen);
+                tv_dict_add_str_len(dict, c"conceal", buf.as_ptr(), buflen);
             }
 
             tv_list_append_dict(rettv.vval.v_list(), dict);

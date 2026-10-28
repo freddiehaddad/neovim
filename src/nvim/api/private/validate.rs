@@ -524,8 +524,8 @@ pub fn api_err_exp(
 ///
 /// # Safety
 /// `err` and `name` must be valid pointers.
-pub fn api_err_required(err: &mut Error, name: *const c_char) {
-    let name_str = cstr_lossy(name);
+pub fn api_err_required(err: &mut Error, name: &std::ffi::CStr) {
+    let name_str = cstr_lossy(name.as_ptr());
     let has_space = name_str.as_bytes().contains(&b' ');
     let msg = if has_space {
         format!("Required: {name_str}")
@@ -616,7 +616,7 @@ mod tests {
             );
             api_clear_error(&mut err);
 
-            api_err_required(&mut err, c"width".as_ptr());
+            api_err_required(&mut err, c"width");
             assert_eq!(
                 err.msg.as_ref().unwrap().to_str().unwrap(),
                 "Required: 'width'"

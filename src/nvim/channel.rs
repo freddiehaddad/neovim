@@ -908,11 +908,10 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                 let reader_type = reader.reader_type.unwrap();
                 if tv_dict_find(reader.self_dict, reader_type.as_ptr(), -1).is_null() {
                     let data = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
-                    let type_len = reader_type.to_bytes().len();
+                    let _type_len = reader_type.to_bytes().len();
                     let _ = tv_dict_add_list(
                         reader.self_dict,
-                        reader_type.as_ptr(),
-                        type_len,
+                        reader_type,
                         data,
                     );
                 } else {
@@ -1182,7 +1181,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
             &mut crate::api::private::validate::Error::new(),
         );
         assert_eq!(retval.v_type, VarType::VAR_DICT);
-        let _ = tv_dict_add_dict(dict, c"info".as_ptr(), 4, retval.vval.v_dict());
+        let _ = tv_dict_add_dict(dict, c"info", retval.vval.v_dict());
         tv_dict_set_keys_readonly(&mut *dict);
 
         let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);

@@ -3449,7 +3449,7 @@ pub fn func_unref(name: *mut c_char) {
 
         let fp = find_func(name);
         if fp.is_null() && (*name as u8).is_ascii_digit() && !mem_st().entered_free_all_mem {
-            internal_error(c"func_unref()".as_ptr());
+            internal_error(c"func_unref()");
             std::process::abort();
         }
         func_ptr_unref(fp);
@@ -3476,7 +3476,7 @@ pub fn func_ref(name: *mut c_char) {
         if !fp.is_null() {
             (*fp).uf_refcount += 1;
         } else if (*name as u8).is_ascii_digit() {
-            internal_error(c"func_ref()".as_ptr());
+            internal_error(c"func_ref()");
         }
     }
 }

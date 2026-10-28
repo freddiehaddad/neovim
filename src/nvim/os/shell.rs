@@ -769,7 +769,7 @@ pub fn get_cmd_output(
 
         drop(command);
 
-        let fd = os_fopen(tempname, c"rb".as_ptr());
+        let fd = os_fopen(tempname, c"rb");
         let mut result: Option<std::ffi::CString> = None;
 
         'done: {
