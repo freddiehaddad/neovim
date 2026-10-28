@@ -893,7 +893,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             Ctrl_C => {
                 if bt_cmdwin(g_st().curbuf) {
                     g_st().got_int = false;
-                    cmdwin_do_action(c"cancel".as_ptr());
+                    cmdwin_do_action(c"cancel");
                     return 0;
                 }
                 if bt_prompt(g_st().curbuf) && invoke_prompt_interrupt() {
@@ -1179,7 +1179,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                         do_cmdline_cmd(c".ll".as_ptr());
                     }
                 } else if s.c == CAR && bt_cmdwin(g_st().curbuf) {
-                    cmdwin_do_action(c"confirm".as_ptr());
+                    cmdwin_do_action(c"confirm");
                     return 0;
                 } else if (g_st().mod_mask & MOD_MASK_SHIFT) == 0 && bt_prompt(g_st().curbuf) {
                     prompt_invoke_callback();
@@ -2844,7 +2844,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
                 start_redo_ins();
                 if cmdchar == b'r' as c_int || cmdchar == b'v' as c_int {
-                    stuffRedoReadbuff(c"\x1b".as_ptr());
+                    stuffRedoReadbuff(c"\x1b");
                 }
                 g_st().RedrawingDisabled += 1;
                 ins_st().ins_esc_disabled_redraw = true;

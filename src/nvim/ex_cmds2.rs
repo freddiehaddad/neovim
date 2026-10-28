@@ -86,39 +86,39 @@ fn curwin_arglist() -> *mut aentry_T {
 }
 
 pub fn ex_ruby(eap: &mut exarg_T) {
-    script_host_execute(c"ruby".as_ptr(), eap);
+    script_host_execute(c"ruby", eap);
 }
 
 pub fn ex_rubyfile(eap: &mut exarg_T) {
-    script_host_execute_file(c"ruby".as_ptr(), eap);
+    script_host_execute_file(c"ruby", eap);
 }
 
 pub fn ex_rubydo(eap: &mut exarg_T) {
-    script_host_do_range(c"ruby".as_ptr(), eap);
+    script_host_do_range(c"ruby", eap);
 }
 
 pub fn ex_python3(eap: &mut exarg_T) {
-    script_host_execute(c"python3".as_ptr(), eap);
+    script_host_execute(c"python3", eap);
 }
 
 pub fn ex_py3file(eap: &mut exarg_T) {
-    script_host_execute_file(c"python3".as_ptr(), eap);
+    script_host_execute_file(c"python3", eap);
 }
 
 pub fn ex_pydo3(eap: &mut exarg_T) {
-    script_host_do_range(c"python3".as_ptr(), eap);
+    script_host_do_range(c"python3", eap);
 }
 
 pub fn ex_perl(eap: &mut exarg_T) {
-    script_host_execute(c"perl".as_ptr(), eap);
+    script_host_execute(c"perl", eap);
 }
 
 pub fn ex_perlfile(eap: &mut exarg_T) {
-    script_host_execute_file(c"perl".as_ptr(), eap);
+    script_host_execute_file(c"perl", eap);
 }
 
 pub fn ex_perldo(eap: &mut exarg_T) {
-    script_host_do_range(c"perl".as_ptr(), eap);
+    script_host_do_range(c"perl", eap);
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
@@ -234,7 +234,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
         if ret == VIM_YES {
             let empty_bufname = buf.b_fname.is_null();
             if empty_bufname {
-                buf_set_name(buf.b_fnum, c"Untitled".as_ptr().cast_mut());
+                buf_set_name(buf.b_fnum, c"Untitled");
             }
 
             if check_overwrite(&mut ea, buf, buf.b_fname, buf.b_ffname, false)
@@ -752,7 +752,7 @@ pub fn ex_compiler(eap: &mut exarg_T) {
         if eap.forceit != 0 {
             do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>".as_ptr());
         } else {
-            let p = get_var_value(c"g:current_compiler".as_ptr());
+            let p = get_var_value(c"g:current_compiler");
             if !p.is_null() {
                 old_cur_comp = Some(crate::memory::cstr_to_cstring(p));
             }
@@ -774,14 +774,14 @@ pub fn ex_compiler(eap: &mut exarg_T) {
 
         do_cmdline_cmd(c":delcommand CompilerSet".as_ptr());
 
-        let p = get_var_value(c"g:current_compiler".as_ptr());
+        let p = get_var_value(c"g:current_compiler");
         if !p.is_null() {
-            set_internal_string_var(c"b:current_compiler".as_ptr(), p);
+            set_internal_string_var(c"b:current_compiler", p);
         }
 
         if eap.forceit == 0 {
             if let Some(ref old_comp) = old_cur_comp {
-                set_internal_string_var(c"g:current_compiler".as_ptr(), old_comp.as_ptr());
+                set_internal_string_var(c"g:current_compiler", old_comp.as_ptr());
             } else {
                 do_unlet(c"g:current_compiler".as_ptr(), 18, true);
             }
@@ -807,7 +807,7 @@ pub fn ex_checktime(eap: &mut exarg_T) {
     }
 }
 
-fn script_host_execute(name: *const c_char, eap: &mut exarg_T) {
+fn script_host_execute(name: &std::ffi::CStr, eap: &mut exarg_T) {
     unsafe {
         let mut len: usize = 0;
         if let Some(script) = script_get(eap, &mut len) {
@@ -816,12 +816,12 @@ fn script_host_execute(name: *const c_char, eap: &mut exarg_T) {
             tv_list_append_number(args, eap.line1 as varnumber_T);
             tv_list_append_number(args, eap.line2 as varnumber_T);
 
-            eval_call_provider(name.cast_mut(), c"execute".as_ptr().cast_mut(), &mut *args, true);
+            eval_call_provider(name.as_ptr().cast_mut(), c"execute", &mut *args, true);
         }
     }
 }
 
-fn script_host_execute_file(name: *const c_char, eap: &mut exarg_T) {
+fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut exarg_T) {
     unsafe {
         if eap.skip == 0 {
             let mut buffer = [0 as c_char; MAXPATHL];
@@ -832,8 +832,8 @@ fn script_host_execute_file(name: *const c_char, eap: &mut exarg_T) {
             tv_list_append_number(args, eap.line1 as varnumber_T);
             tv_list_append_number(args, eap.line2 as varnumber_T);
             eval_call_provider(
-                name.cast_mut(),
-                c"execute_file".as_ptr().cast_mut(),
+                name.as_ptr().cast_mut(),
+                c"execute_file",
                 &mut *args,
                 true,
             );
@@ -841,14 +841,14 @@ fn script_host_execute_file(name: *const c_char, eap: &mut exarg_T) {
     }
 }
 
-fn script_host_do_range(name: *const c_char, eap: &mut exarg_T) {
+fn script_host_do_range(name: &std::ffi::CStr, eap: &mut exarg_T) {
     unsafe {
         if eap.skip == 0 {
             let args = tv_list_alloc(3);
             tv_list_append_number(args, eap.line1 as varnumber_T);
             tv_list_append_number(args, eap.line2 as varnumber_T);
             tv_list_append_string(args, eap.arg, -1);
-            eval_call_provider(name.cast_mut(), c"do_range".as_ptr().cast_mut(), &mut *args, true);
+            eval_call_provider(name.as_ptr().cast_mut(), c"do_range", &mut *args, true);
         }
     }
 }

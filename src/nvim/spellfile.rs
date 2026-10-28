@@ -1832,7 +1832,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
 
             if itemcnt > 0 {
                 let itemcnt_i = itemcnt as c_int;
-                if is_aff_rule(&items, itemcnt_i, c"SET".as_ptr(), 2) && aff.af_enc.is_none() {
+                if is_aff_rule(&items, itemcnt_i, c"SET", 2) && aff.af_enc.is_none() {
                     aff.af_enc = Some(enc_canonize(items[1]));
                     let af_enc_ptr = aff
                         .af_enc
@@ -1850,7 +1850,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         );
                     }
                     spin.si_conv.vc_fail = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"FLAG".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"FLAG", 2)
                     && aff.af_flagtype == AFT_CHAR
                 {
                     if crate::memory::cstr_as_bytes(items[1]) == b"long" {
@@ -1900,49 +1900,49 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     bytes.push(b' ');
                     bytes.extend_from_slice(crate::memory::cstr_as_bytes(items[1]));
                     spin.si_info = Some(std::ffi::CString::new(bytes).unwrap());
-                } else if is_aff_rule(&items, itemcnt_i, c"MIDWORD".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"MIDWORD", 2)
                     && midword.is_none()
                 {
                     midword = Some(crate::memory::cstr_to_cstring(items[1]));
-                } else if is_aff_rule(&items, itemcnt_i, c"TRY".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"TRY", 2) {
                     // ignored
-                } else if (is_aff_rule(&items, itemcnt_i, c"RAR".as_ptr(), 2)
-                    || is_aff_rule(&items, itemcnt_i, c"RARE".as_ptr(), 2))
+                } else if (is_aff_rule(&items, itemcnt_i, c"RAR", 2)
+                    || is_aff_rule(&items, itemcnt_i, c"RARE", 2))
                     && aff.af_rare == 0
                 {
                     aff.af_rare = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if (is_aff_rule(&items, itemcnt_i, c"KEP".as_ptr(), 2)
-                    || is_aff_rule(&items, itemcnt_i, c"KEEPCASE".as_ptr(), 2))
+                } else if (is_aff_rule(&items, itemcnt_i, c"KEP", 2)
+                    || is_aff_rule(&items, itemcnt_i, c"KEEPCASE", 2))
                     && aff.af_keepcase == 0
                 {
                     aff.af_keepcase = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if (is_aff_rule(&items, itemcnt_i, c"BAD".as_ptr(), 2)
-                    || is_aff_rule(&items, itemcnt_i, c"FORBIDDENWORD".as_ptr(), 2))
+                } else if (is_aff_rule(&items, itemcnt_i, c"BAD", 2)
+                    || is_aff_rule(&items, itemcnt_i, c"FORBIDDENWORD", 2))
                     && aff.af_bad == 0
                 {
                     aff.af_bad = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"NEEDAFFIX".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"NEEDAFFIX", 2)
                     && aff.af_needaffix == 0
                 {
                     aff.af_needaffix = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"CIRCUMFIX".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"CIRCUMFIX", 2)
                     && aff.af_circumfix == 0
                 {
                     aff.af_circumfix = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGGEST".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGGEST", 2)
                     && aff.af_nosuggest == 0
                 {
                     aff.af_nosuggest = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if (is_aff_rule(&items, itemcnt_i, c"NEEDCOMPOUND".as_ptr(), 2)
-                    || is_aff_rule(&items, itemcnt_i, c"ONLYINCOMPOUND".as_ptr(), 2))
+                } else if (is_aff_rule(&items, itemcnt_i, c"NEEDCOMPOUND", 2)
+                    || is_aff_rule(&items, itemcnt_i, c"ONLYINCOMPOUND", 2))
                     && aff.af_needcomp == 0
                 {
                     aff.af_needcomp = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDROOT".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDROOT", 2)
                     && aff.af_comproot == 0
                 {
                     aff.af_comproot = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFORBIDFLAG".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFORBIDFLAG", 2)
                     && aff.af_compforbid == 0
                 {
                     aff.af_compforbid = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
@@ -1957,7 +1957,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             lnum,
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDPERMITFLAG".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDPERMITFLAG", 2)
                     && aff.af_comppermit == 0
                 {
                     aff.af_comppermit = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
@@ -1972,13 +1972,13 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             lnum,
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFLAG".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFLAG", 2)
                     && compflags.is_none()
                 {
                     let mut bytes = crate::memory::cstr_as_bytes(items[1]).to_vec();
                     bytes.push(b'+');
                     compflags = Some(std::ffi::CString::new(bytes).unwrap());
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULES".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULES", 2) {
                     if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(items[1])) as c_int == 0 {
                         smsg!(
                             0,
@@ -1988,7 +1988,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             items[1],
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULE".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULE", 2) {
                     if compflags.is_some() || *skipdigits(items[1]) != NUL {
                         let mut bytes = compflags
                             .as_ref()
@@ -1999,7 +1999,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         bytes.extend_from_slice(crate::memory::cstr_as_bytes(items[1]));
                         compflags = Some(std::ffi::CString::new(bytes).unwrap());
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDWORDMAX".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDWORDMAX", 2)
                     && compmax == 0
                 {
                     compmax = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(items[1])) as c_int;
@@ -2012,7 +2012,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             items[1],
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDMIN".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDMIN", 2)
                     && compminlen == 0
                 {
                     compminlen = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(items[1])) as c_int;
@@ -2025,7 +2025,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             items[1],
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDSYLMAX".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDSYLMAX", 2)
                     && compsylmax == 0
                 {
                     compsylmax = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(items[1])) as c_int;
@@ -2038,15 +2038,15 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             items[1],
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDDUP".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDDUP", 1) {
                     compoptions |= COMP_CHECKDUP;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDREP".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDREP", 1) {
                     compoptions |= COMP_CHECKREP;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDCASE".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDCASE", 1) {
                     compoptions |= COMP_CHECKCASE;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDTRIPLE".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDTRIPLE", 1) {
                     compoptions |= COMP_CHECKTRIPLE;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN", 2) {
                     if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(items[1])) as c_int == 0 {
                         smsg!(
                             0,
@@ -2056,7 +2056,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             items[1],
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN".as_ptr(), 3) {
+                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN", 3) {
                     let gap = &mut spin.si_comppat;
                     let item1 = std::ffi::CStr::from_ptr(items[1]);
                     let item2 = std::ffi::CStr::from_ptr(items[2]);
@@ -2071,21 +2071,21 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         gap.push(item1.to_owned());
                         gap.push(item2.to_owned());
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"SYLLABLE".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"SYLLABLE", 2)
                     && syllable.is_none()
                 {
                     syllable = Some(crate::memory::cstr_to_cstring(items[1]));
-                } else if is_aff_rule(&items, itemcnt_i, c"NOBREAK".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOBREAK", 1) {
                     spin.si_nobreak = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"NOSPLITSUGS".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOSPLITSUGS", 1) {
                     spin.si_nosplitsugs = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"NOCOMPOUNDSUGS".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOCOMPOUNDSUGS", 1) {
                     spin.si_nocompoundsugs = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGFILE".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGFILE", 1) {
                     spin.si_nosugfile = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"PFXPOSTPONE".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"PFXPOSTPONE", 1) {
                     aff.af_pfxpostpone = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"IGNOREEXTRA".as_ptr(), 1) {
+                } else if is_aff_rule(&items, itemcnt_i, c"IGNOREEXTRA", 1) {
                     aff.af_ignoreextra = true;
                 } else if (crate::memory::cstr_as_bytes(items[0]) == b"PFX"
                     || crate::memory::cstr_as_bytes(items[0]) == b"SFX")
@@ -2382,14 +2382,14 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             }
                         }
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"FOL".as_ptr(), 2) && !has_fol {
+                } else if is_aff_rule(&items, itemcnt_i, c"FOL", 2) && !has_fol {
                     has_fol = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"LOW".as_ptr(), 2) && !has_low {
+                } else if is_aff_rule(&items, itemcnt_i, c"LOW", 2) && !has_low {
                     has_low = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"UPP".as_ptr(), 2) && !has_upp {
+                } else if is_aff_rule(&items, itemcnt_i, c"UPP", 2) && !has_upp {
                     has_upp = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"REP".as_ptr(), 2)
-                    || is_aff_rule(&items, itemcnt_i, c"REPSAL".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"REP", 2)
+                    || is_aff_rule(&items, itemcnt_i, c"REPSAL", 2)
                 {
                     if !(*items[1] as u8).is_ascii_digit() {
                         smsg!(
@@ -2432,7 +2432,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             items[2],
                         );
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"MAP".as_ptr(), 2) {
+                } else if is_aff_rule(&items, itemcnt_i, c"MAP", 2) {
                     if !found_map {
                         found_map = true;
                         if !(*items[1] as u8).is_ascii_digit() {
@@ -2471,7 +2471,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                         }
                         si_map.push(b'/' as c_char);
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"SAL".as_ptr(), 3) {
+                } else if is_aff_rule(&items, itemcnt_i, c"SAL", 3) {
                     if do_sal {
                         if crate::memory::cstr_as_bytes(items[1]) == b"followup" {
                             spin.si_followup = c_int::from(sal_to_bool(items[2]));
@@ -2488,11 +2488,11 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                             add_fromto(&mut spin.si_sal, items[1], to_s);
                         }
                     }
-                } else if is_aff_rule(&items, itemcnt_i, c"SOFOFROM".as_ptr(), 2)
+                } else if is_aff_rule(&items, itemcnt_i, c"SOFOFROM", 2)
                     && sofofrom.is_none()
                 {
                     sofofrom = Some(crate::memory::cstr_to_cstring(items[1]));
-                } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO".as_ptr(), 2) && sofoto.is_none()
+                } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO", 2) && sofoto.is_none()
                 {
                     sofoto = Some(crate::memory::cstr_to_cstring(items[1]));
                 } else if crate::memory::cstr_as_bytes(items[0]) == b"COMMON" {
@@ -2519,12 +2519,12 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
         }
 
         if compmax != 0 {
-            aff_check_number(spin.si_compmax, compmax, c"COMPOUNDWORDMAX".as_ptr());
+            aff_check_number(spin.si_compmax, compmax, c"COMPOUNDWORDMAX");
             spin.si_compmax = compmax;
         }
 
         if compminlen != 0 {
-            aff_check_number(spin.si_compminlen, compminlen, c"COMPOUNDMIN".as_ptr());
+            aff_check_number(spin.si_compminlen, compminlen, c"COMPOUNDMIN");
             spin.si_compminlen = compminlen;
         }
 
@@ -2539,7 +2539,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             aff_check_number(
                 spin.si_compsylmax,
                 compsylmax,
-                c"COMPOUNDSYLMAX".as_ptr(),
+                c"COMPOUNDSYLMAX",
             );
             spin.si_compsylmax = compsylmax;
         }
@@ -2548,7 +2548,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             aff_check_number(
                 spin.si_compoptions,
                 compoptions,
-                c"COMPOUND options".as_ptr(),
+                c"COMPOUND options",
             );
             spin.si_compoptions |= compoptions;
         }
@@ -2574,7 +2574,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             aff_check_string(
                 spin.si_syllable.as_deref(),
                 syl.as_c_str(),
-                c"SYLLABLE".as_ptr(),
+                c"SYLLABLE",
             );
             spin.si_syllable = Some(syl);
         }
@@ -2602,12 +2602,12 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                     aff_check_string(
                         spin.si_sofofr.as_deref(),
                         sf_from.as_c_str(),
-                        c"SOFOFROM".as_ptr(),
+                        c"SOFOFROM",
                     );
                     aff_check_string(
                         spin.si_sofoto.as_deref(),
                         sf_to.as_c_str(),
-                        c"SOFOTO".as_ptr(),
+                        c"SOFOTO",
                     );
                     spin.si_sofofr = Some(sf_from);
                     spin.si_sofoto = Some(sf_to);
@@ -2619,7 +2619,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
             aff_check_string(
                 spin.si_midword.as_deref(),
                 mw.as_c_str(),
-                c"MIDWORD".as_ptr(),
+                c"MIDWORD",
             );
             spin.si_midword = Some(mw);
         }
@@ -2632,11 +2632,11 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
 fn is_aff_rule(
     items: &[*mut c_char],
     itemcnt: c_int,
-    rulename: *const c_char,
+    rulename: &std::ffi::CStr,
     mincount: c_int,
 ) -> bool {
     unsafe {
-        crate::memory::cstr_as_bytes(items[0]) == crate::memory::cstr_as_bytes(rulename)
+        crate::memory::cstr_as_bytes(items[0]) == rulename.to_bytes()
             && (itemcnt == mincount
                 || (itemcnt > mincount && *items[mincount as usize] == b'#' as c_char))
     }
@@ -2877,12 +2877,12 @@ fn flag_in_afflist(flagtype: c_int, afflist: *mut c_char, flag: c_uint) -> bool 
     }
 }
 
-fn aff_check_number(spinval: c_int, affval: c_int, name: *const c_char) {
+fn aff_check_number(spinval: c_int, affval: c_int, name: &std::ffi::CStr) {
     if spinval != 0 && spinval != affval {
             smsg!(
                 0,
                 gettext(c"%s value differs from what is used in another .aff file".as_ptr()),
-                name,
+                name.as_ptr(),
             );
         }
 }
@@ -2890,7 +2890,7 @@ fn aff_check_number(spinval: c_int, affval: c_int, name: *const c_char) {
 fn aff_check_string(
     spinval: Option<&std::ffi::CStr>,
     affval: &std::ffi::CStr,
-    name: *const c_char,
+    name: &std::ffi::CStr,
 ) {
     if let Some(s) = spinval
             && s != affval
@@ -2898,7 +2898,7 @@ fn aff_check_string(
             smsg!(
                 0,
                 gettext(c"%s value differs from what is used in another .aff file".as_ptr()),
-                name,
+                name.as_ptr(),
             );
         }
 }
@@ -3993,10 +3993,10 @@ fn tree_add_word(
             }
 
             let foldroot = spin.si_foldroot;
-            wordtree_compress(spin, foldroot, c"case-folded".as_ptr());
+            wordtree_compress(spin, foldroot, c"case-folded");
             if affixID >= 0 {
                 let keeproot = spin.si_keeproot;
-                wordtree_compress(spin, keeproot, c"keep-case".as_ptr());
+                wordtree_compress(spin, keeproot, c"keep-case");
             }
         }
 
@@ -4047,7 +4047,7 @@ fn free_wordnode(spin: &mut spellinfo_T, n: usize) {
     spin.si_free_count += 1;
 }
 
-fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: *const c_char) {
+fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: &std::ffi::CStr) {
      {
                 let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
         let mut tot: c_int = 0;
@@ -4073,7 +4073,7 @@ fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: *const c
                 (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
                 gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining".as_ptr()),
-                name,
+                name.as_ptr(),
                 n,
                 tot,
                 tot - n,
@@ -4677,7 +4677,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
             );
 
             spell_message(&raw mut *spin, gettext(msg_compressing));
-            wordtree_compress(spin, spin.si_foldroot, c"case-folded".as_ptr());
+            wordtree_compress(spin, spin.si_foldroot, c"case-folded");
 
             let mut fname_buf = [0 as c_char; MAXPATHL];
             let fname = fname_buf.as_mut_ptr();
@@ -5119,11 +5119,11 @@ fn mkspell(
                 if !error && !g_st().got_int {
                     spell_message(&raw const spin, gettext(msg_compressing));
                     let foldroot = spin.si_foldroot;
-                    wordtree_compress(&mut spin, foldroot, c"case-folded".as_ptr());
+                    wordtree_compress(&mut spin, foldroot, c"case-folded");
                     let keeproot = spin.si_keeproot;
-                    wordtree_compress(&mut spin, keeproot, c"keep-case".as_ptr());
+                    wordtree_compress(&mut spin, keeproot, c"keep-case");
                     let prefroot = spin.si_prefroot;
-                    wordtree_compress(&mut spin, prefroot, c"prefixes".as_ptr());
+                    wordtree_compress(&mut spin, prefroot, c"prefixes");
                 }
 
                 if !error && !g_st().got_int {

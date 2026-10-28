@@ -1097,8 +1097,8 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
             let mut group_buf = [0 as c_char; NUMBUFLEN];
             let group = tv_dict_get_string_buf(d, c"group".as_ptr(), group_buf.as_mut_ptr());
-            let priority = tv_dict_get_number(d, c"priority".as_ptr()) as c_int;
-            let id = tv_dict_get_number(d, c"id".as_ptr()) as c_int;
+            let priority = tv_dict_get_number(d, c"priority") as c_int;
+            let id = tv_dict_get_number(d, c"id") as c_int;
             let conceal_di = tv_dict_find(d, c"conceal".as_ptr(), 7);
             let conceal = if !conceal_di.is_null() {
                 tv_get_string(&(*conceal_di).di_tv)
@@ -1314,7 +1314,7 @@ pub fn ex_match(eap: &mut exarg_T) {
                 end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
                 if eap.skip == 0 {
                     if *end != NUL && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
-                        eap.errmsg = ex_errmsg(e_trailing_arg.as_ptr(), end);
+                        eap.errmsg = ex_errmsg(e_trailing_arg, end);
                         return;
                     }
                     if *end != *p {

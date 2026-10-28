@@ -967,7 +967,7 @@ fn select_tag_match(eap: Option<&exarg_T>,
             tv_dict_add_str(d, c"file".as_ptr(), 4, fname.as_ptr());
             tv_dict_add_bool(
                 d,
-                c"cur".as_ptr(),
+                c"cur",
                 3,
                 if cur { kBoolVarTrue } else { kBoolVarFalse },
             );
@@ -991,8 +991,8 @@ fn select_tag_match(eap: Option<&exarg_T>,
         };
 
         nlua_call_excmd(
-            c"vim._core.tag".as_ptr(),
-            c"select_tag".as_ptr(),
+            c"vim._core.tag",
+            c"select_tag",
             eap.unwrap(),
             &g_st().cmdmod,
             Some(&mut extra_tv),
@@ -3488,8 +3488,8 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
                             tagstack_push_item(
                                 wp,
                                 Some(crate::memory::cstr_to_cstring(tagname)),
-                                tv_dict_get_number(itemdict, c"bufnr".as_ptr()) as c_int,
-                                tv_dict_get_number(itemdict, c"matchnr".as_ptr()) as c_int - 1,
+                                tv_dict_get_number(itemdict, c"bufnr") as c_int,
+                                tv_dict_get_number(itemdict, c"matchnr") as c_int - 1,
                                 mark,
                                 fnum,
                                 (!ud_ptr.is_null()).then(|| crate::memory::cstr_to_cstring(ud_ptr)),

@@ -1939,7 +1939,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 }
                 tv_dict_add_bool(
                     dict,
-                    c"noremenu".as_ptr(),
+                    c"noremenu",
                     8,
                     if menu.noremap[bit] == REMAP_NONE {
                         kBoolVarTrue
@@ -1949,7 +1949,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 );
                 tv_dict_add_bool(
                     dict,
-                    c"script".as_ptr(),
+                    c"script",
                     6,
                     if menu.noremap[bit] == REMAP_SCRIPT {
                         kBoolVarTrue
@@ -1959,7 +1959,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 );
                 tv_dict_add_bool(
                     dict,
-                    c"silent".as_ptr(),
+                    c"silent",
                     6,
                     if menu.silent[bit] {
                         kBoolVarTrue
@@ -1969,7 +1969,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 );
                 tv_dict_add_bool(
                     dict,
-                    c"enabled".as_ptr(),
+                    c"enabled",
                     7,
                     if (menu.enabled & (1 << bit)) != 0 {
                         kBoolVarTrue

@@ -680,15 +680,15 @@ pub struct UIClientHandler {
     pub r#fn: Option<fn(args: Array)>,
 }
 
-fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
+fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
     logmsg!(
             LOGLVL_ERR,
             ptr::null(),
-            func_name,
+            func_name.as_ptr(),
             0,
             true,
             c"Error handling ui event '%s'".as_ptr(),
-            ev_name,
+            ev_name.as_ptr(),
         );
 }
 
@@ -699,8 +699,8 @@ pub fn ui_client_event_mode_info_set(args: Array) {
             || args[1].obj_type != ObjectType::kObjectTypeArray
         {
             log_ui_event_err(
-                c"ui_client_event_mode_info_set".as_ptr(),
-                c"mode_info_set".as_ptr(),
+                c"ui_client_event_mode_info_set",
+                c"mode_info_set",
             );
             return;
         }
@@ -739,8 +739,8 @@ pub fn ui_client_event_mode_change(args: Array) {
             || args[1].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
-                c"ui_client_event_mode_change".as_ptr(),
-                c"mode_change".as_ptr(),
+                c"ui_client_event_mode_change",
+                c"mode_change",
             );
             return;
         }
@@ -771,7 +771,7 @@ pub fn ui_client_event_suspend(_args: Array) {
 pub fn ui_client_event_set_title(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
-            log_ui_event_err(c"ui_client_event_set_title".as_ptr(), c"set_title".as_ptr());
+            log_ui_event_err(c"ui_client_event_set_title", c"set_title");
             return;
         }
         tui_set_title(tui_ptr(), (*args.items).data.string());
@@ -781,7 +781,7 @@ pub fn ui_client_event_set_title(args: Array) {
 pub fn ui_client_event_set_icon(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
-            log_ui_event_err(c"ui_client_event_set_icon".as_ptr(), c"set_icon".as_ptr());
+            log_ui_event_err(c"ui_client_event_set_icon", c"set_icon");
             return;
         }
         tui_set_icon(tui_ptr(), (*args.items).data.string());
@@ -792,8 +792,8 @@ pub fn ui_client_event_screenshot(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(
-                c"ui_client_event_screenshot".as_ptr(),
-                c"screenshot".as_ptr(),
+                c"ui_client_event_screenshot",
+                c"screenshot",
             );
             return;
         }
@@ -805,8 +805,8 @@ pub fn ui_client_event_option_set(args: Array) {
     unsafe {
         if args.size < 2 || (*args.items).obj_type != ObjectType::kObjectTypeString {
             log_ui_event_err(
-                c"ui_client_event_option_set".as_ptr(),
-                c"option_set".as_ptr(),
+                c"ui_client_event_option_set",
+                c"option_set",
             );
             return;
         }
@@ -817,7 +817,7 @@ pub fn ui_client_event_option_set(args: Array) {
 pub fn ui_client_event_chdir(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
-            log_ui_event_err(c"ui_client_event_chdir".as_ptr(), c"chdir".as_ptr());
+            log_ui_event_err(c"ui_client_event_chdir", c"chdir");
             return;
         }
         tui_chdir(tui_ptr(), (*args.items).data.string());
@@ -827,7 +827,7 @@ pub fn ui_client_event_chdir(args: Array) {
 pub fn ui_client_event_ui_send(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
-            log_ui_event_err(c"ui_client_event_ui_send".as_ptr(), c"ui_send".as_ptr());
+            log_ui_event_err(c"ui_client_event_ui_send", c"ui_send");
             return;
         }
         tui_ui_send(tui_ptr(), (*args.items).data.string());
@@ -844,8 +844,8 @@ pub fn ui_client_event_default_colors_set(args: Array) {
             || args[4].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
-                c"ui_client_event_default_colors_set".as_ptr(),
-                c"default_colors_set".as_ptr(),
+                c"ui_client_event_default_colors_set",
+                c"default_colors_set",
             );
             return;
         }
@@ -869,8 +869,8 @@ pub fn ui_client_event_hl_attr_define(args: Array) {
             || args[3].obj_type != ObjectType::kObjectTypeArray
         {
             log_ui_event_err(
-                c"ui_client_event_hl_attr_define".as_ptr(),
-                c"hl_attr_define".as_ptr(),
+                c"ui_client_event_hl_attr_define",
+                c"hl_attr_define",
             );
             return;
         }
@@ -886,8 +886,8 @@ pub fn ui_client_event_grid_clear(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
             log_ui_event_err(
-                c"ui_client_event_grid_clear".as_ptr(),
-                c"grid_clear".as_ptr(),
+                c"ui_client_event_grid_clear",
+                c"grid_clear",
             );
             return;
         }
@@ -903,8 +903,8 @@ pub fn ui_client_event_grid_cursor_goto(args: Array) {
             || args[2].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
-                c"ui_client_event_grid_cursor_goto".as_ptr(),
-                c"grid_cursor_goto".as_ptr(),
+                c"ui_client_event_grid_cursor_goto",
+                c"grid_cursor_goto",
             );
             return;
         }
@@ -929,8 +929,8 @@ pub fn ui_client_event_grid_scroll(args: Array) {
             || args[6].obj_type != ObjectType::kObjectTypeInteger
         {
             log_ui_event_err(
-                c"ui_client_event_grid_scroll".as_ptr(),
-                c"grid_scroll".as_ptr(),
+                c"ui_client_event_grid_scroll",
+                c"grid_scroll",
             );
             return;
         }

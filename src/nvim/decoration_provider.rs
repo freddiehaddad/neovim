@@ -106,7 +106,7 @@ fn decor_provider_error(
     name: *const c_char,
     msg: *const c_char,
 ) {
-    let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)".as_ptr());
+    let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)");
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
@@ -130,7 +130,7 @@ fn decor_provider_error(
 /// reallocated so we need to be careful with `DecorProvider` pointers (`decor_provider_invoke`).
 fn decor_provider_invoke(
     provider_idx: c_int,
-    name: *const c_char,
+    name: &std::ffi::CStr,
     ref_: LuaRef,
     args: Array,
     default_true: bool,
@@ -142,7 +142,7 @@ fn decor_provider_invoke(
         g_st().textlock += 1;
         let ret = nlua_call_ref(
             ref_,
-            name,
+            name.as_ptr(),
             args,
             if res.is_some() {
                 kRetMulti
@@ -172,7 +172,7 @@ fn decor_provider_invoke(
         }
 
         if error_set(&err) && (*provider).error_count < CB_MAX_ERROR {
-            decor_provider_error(&mut *provider, name, err.msg_ptr());
+            decor_provider_error(&mut *provider, name.as_ptr(), err.msg_ptr());
             (*provider).error_count += 1;
 
             if (*provider).error_count >= CB_MAX_ERROR {
@@ -213,7 +213,7 @@ pub fn decor_providers_invoke_spell(wp: &mut win_T,
                 };
                 decor_provider_invoke(
                     i as c_int,
-                    c"spell".as_ptr(),
+                    c"spell",
                     spell_nav,
                     args,
                     true,
@@ -246,7 +246,7 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut win_T, row: c_int) -> bool {
                 };
                 decor_provider_invoke(
                     i as c_int,
-                    c"conceal_line".as_ptr(),
+                    c"conceal_line",
                     conceal_line,
                     args,
                     true,
@@ -275,7 +275,7 @@ pub fn decor_providers_start() {
                 };
                 let active = decor_provider_invoke(
                     i as c_int,
-                    c"start".as_ptr(),
+                    c"start",
                     redraw_start,
                     args,
                     true,
@@ -332,7 +332,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
                 };
                 if !decor_provider_invoke(
                     i as c_int,
-                    c"win".as_ptr(),
+                    c"win",
                     redraw_win,
                     args,
                     true,
@@ -367,7 +367,7 @@ pub fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
                 };
                 if !decor_provider_invoke(
                     i as c_int,
-                    c"line".as_ptr(),
+                    c"line",
                     redraw_line,
                     args,
                     true,
@@ -421,7 +421,7 @@ pub fn decor_providers_invoke_range(
                 let mut res = Array::new();
                 let status = decor_provider_invoke(
                     i as c_int,
-                    c"range".as_ptr(),
+                    c"range",
                     redraw_range,
                     args,
                     true,
@@ -480,7 +480,7 @@ pub fn decor_providers_invoke_buf(buf: &mut buf_T) {
                 };
                 decor_provider_invoke(
                     i as c_int,
-                    c"buf".as_ptr(),
+                    c"buf",
                     redraw_buf,
                     args,
                     true,
@@ -508,7 +508,7 @@ pub fn decor_providers_invoke_end() {
                 };
                 decor_provider_invoke(
                     i as c_int,
-                    c"end".as_ptr(),
+                    c"end",
                     redraw_end,
                     args,
                     true,

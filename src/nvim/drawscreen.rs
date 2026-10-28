@@ -993,7 +993,7 @@ pub fn showmode() -> c_int {
                             msg_puts_hl(gettext(c" Arabic".as_ptr()), hl_id, false);
                         } else if get_keymap_str(
                             *curwin.as_ptr(),
-                            c" (%s)".as_ptr().cast_mut(),
+                            c" (%s)",
                             (&raw mut g_st().NameBuff).cast::<c_char>(),
                             MAXPATHL as c_int,
                         ) > 0

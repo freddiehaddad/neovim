@@ -865,7 +865,7 @@ pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
 
 pub fn init_highlight(both: bool, reset: bool) {
     unsafe {
-        let p = get_var_value(c"g:colors_name".as_ptr());
+        let p = get_var_value(c"g:colors_name");
         if !p.is_null() {
             let copy_p = crate::memory::cstr_to_cstring(p);
             let okay = load_colors(copy_p.as_ptr().cast_mut());
@@ -1678,7 +1678,7 @@ fn highlight_list_one(id: c_int) {
             LIST_ATTR,
             sgp.sg_cterm,
             ptr::null(),
-            c"cterm".as_ptr(),
+            c"cterm",
         );
         didh = highlight_list_arg(
             id,
@@ -1686,7 +1686,7 @@ fn highlight_list_one(id: c_int) {
             LIST_INT,
             sgp.sg_cterm_fg,
             ptr::null(),
-            c"ctermfg".as_ptr(),
+            c"ctermfg",
         );
         didh = highlight_list_arg(
             id,
@@ -1694,7 +1694,7 @@ fn highlight_list_one(id: c_int) {
             LIST_INT,
             sgp.sg_cterm_bg,
             ptr::null(),
-            c"ctermbg".as_ptr(),
+            c"ctermbg",
         );
 
         didh = highlight_list_arg(
@@ -1703,7 +1703,7 @@ fn highlight_list_one(id: c_int) {
             LIST_ATTR,
             sgp.sg_gui,
             ptr::null(),
-            c"gui".as_ptr(),
+            c"gui",
         );
         let mut hexbuf = [0 as c_char; 8];
         didh = highlight_list_arg(
@@ -1712,7 +1712,7 @@ fn highlight_list_one(id: c_int) {
             LIST_STRING,
             0,
             coloridx_to_name(sgp.sg_rgb_fg_idx, sgp.sg_rgb_fg, hexbuf.as_mut_ptr()),
-            c"guifg".as_ptr(),
+            c"guifg",
         );
         didh = highlight_list_arg(
             id,
@@ -1720,7 +1720,7 @@ fn highlight_list_one(id: c_int) {
             LIST_STRING,
             0,
             coloridx_to_name(sgp.sg_rgb_bg_idx, sgp.sg_rgb_bg, hexbuf.as_mut_ptr()),
-            c"guibg".as_ptr(),
+            c"guibg",
         );
         didh = highlight_list_arg(
             id,
@@ -1728,7 +1728,7 @@ fn highlight_list_one(id: c_int) {
             LIST_STRING,
             0,
             coloridx_to_name(sgp.sg_rgb_sp_idx, sgp.sg_rgb_sp, hexbuf.as_mut_ptr()),
-            c"guisp".as_ptr(),
+            c"guisp",
         );
 
         didh = highlight_list_arg(
@@ -1737,7 +1737,7 @@ fn highlight_list_one(id: c_int) {
             LIST_INT,
             sgp.sg_blend + 1,
             ptr::null(),
-            c"blend".as_ptr(),
+            c"blend",
         );
 
         didh = highlight_list_arg(
@@ -1746,7 +1746,7 @@ fn highlight_list_one(id: c_int) {
             LIST_STRING,
             0,
             sgp.sg_font.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-            c"font".as_ptr(),
+            c"font",
         );
 
         if sgp.sg_link != 0 && !g_st().got_int {
@@ -1763,7 +1763,7 @@ fn highlight_list_one(id: c_int) {
         }
 
         if !didh {
-            highlight_list_arg(id, didh, LIST_STRING, 0, c"cleared".as_ptr(), c"".as_ptr());
+            highlight_list_arg(id, didh, LIST_STRING, 0, c"cleared".as_ptr(), c"");
         }
         if opt_vars().p_verbose > 0 {
             last_set_msg(sgp.sg_script_ctx);
@@ -1904,7 +1904,7 @@ fn highlight_list_arg(
     type_: c_int,
     mut iarg: c_int,
     sarg: *const c_char,
-    name: *const c_char,
+    name: &std::ffi::CStr,
 ) -> bool {
     unsafe {
         if g_st().got_int {
@@ -1947,14 +1947,14 @@ fn highlight_list_arg(
 
         syn_list_header(
             didh,
-            vim_strsize(ts) + crate::memory::cstr_len(name) as c_int + 1,
+            vim_strsize(ts) + name.to_bytes().len() as c_int + 1,
             id,
             false,
         );
         didh = true;
         if !g_st().got_int {
-            if *name != NUL {
-                msg_puts_hl(name, HLF_D, false);
+            if *name.as_ptr() != NUL {
+                msg_puts_hl(name.as_ptr(), HLF_D, false);
                 msg_puts_hl(c"=".as_ptr(), HLF_D, false);
             }
             msg_outtrans(ts, 0, false);

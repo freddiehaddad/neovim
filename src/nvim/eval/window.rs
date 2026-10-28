@@ -832,7 +832,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             }
 
             let d = argvars[2].vval.v_dict();
-            if tv_dict_get_bool(d, c"vertical".as_ptr(), 0) != 0 {
+            if tv_dict_get_bool(d, c"vertical", 0) != 0 {
                 flags |= WSP_VERT;
             }
             let di = tv_dict_find(d, c"rightbelow".as_ptr(), -1);
@@ -843,7 +843,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                     WSP_ABOVE
                 };
             }
-            size = tv_dict_get_number(d, c"size".as_ptr()) as c_int;
+            size = tv_dict_get_number(d, c"size") as c_int;
         }
 
         if is_ctx_win(wp) || text_or_buf_locked() || !check_split_disallowed(wp) {

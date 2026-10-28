@@ -2439,7 +2439,7 @@ pub fn f_expandcmd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         if argvars[1].v_type == VarType::VAR_DICT
             && tv_dict_get_bool(
                 argvars[1].vval.v_dict().cast(),
-                c"errmsg".as_ptr(),
+                c"errmsg",
                 kBoolVarFalse,
             ) != 0
         {
@@ -2911,7 +2911,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                     tv_dict_add_nr(dict, c"optional".as_ptr(), 8, varnumber_T::from(optional));
                     tv_dict_add_bool(
                         dict,
-                        c"varargs".as_ptr(),
+                        c"varargs",
                         7,
                         if varargs { kBoolVarTrue } else { kBoolVarFalse },
                     );
@@ -3259,7 +3259,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             let d = argvars[2].vval.v_dict().cast::<dict_T>();
             is_select_exclusive = tv_dict_get_bool(
                 d,
-                c"exclusive".as_ptr(),
+                c"exclusive",
                 c_int::from(*opt_vars().p_sel == b'e' as c_char),
             ) != 0;
             type_str = tv_dict_get_string(d, c"type".as_ptr());
@@ -3484,8 +3484,8 @@ pub fn f_getregionpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
         if argvars[2].v_type == VarType::VAR_DICT {
             let d = argvars[2].vval.v_dict().cast::<dict_T>();
-            allow_eol = tv_dict_get_bool(d, c"eol".as_ptr(), 0) != 0;
-            bounds_only = tv_dict_get_bool(d, c"bounds".as_ptr(), 0) != 0;
+            allow_eol = tv_dict_get_bool(d, c"eol", 0) != 0;
+            bounds_only = tv_dict_get_bool(d, c"bounds", 0) != 0;
         }
 
         let tab_p1 = crate::cursor::pos_T {
@@ -4650,12 +4650,12 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         if argvars[1].v_type == VarType::VAR_DICT {
             job_opts = argvars[1].vval.v_dict().cast();
 
-            detach = tv_dict_get_number(job_opts, c"detach".as_ptr()) != 0;
-            rpc = tv_dict_get_number(job_opts, c"rpc".as_ptr()) != 0;
-            term = tv_dict_get_number(job_opts, c"term".as_ptr()) != 0;
-            pty = term || tv_dict_get_number(job_opts, c"pty".as_ptr()) != 0;
-            clear_env = tv_dict_get_number(job_opts, c"clear_env".as_ptr()) != 0;
-            overlapped = tv_dict_get_number(job_opts, c"overlapped".as_ptr()) != 0;
+            detach = tv_dict_get_number(job_opts, c"detach") != 0;
+            rpc = tv_dict_get_number(job_opts, c"rpc") != 0;
+            term = tv_dict_get_number(job_opts, c"term") != 0;
+            pty = term || tv_dict_get_number(job_opts, c"pty") != 0;
+            clear_env = tv_dict_get_number(job_opts, c"clear_env") != 0;
+            overlapped = tv_dict_get_number(job_opts, c"overlapped") != 0;
 
             let s = tv_dict_get_string(job_opts, c"stdin".as_ptr());
             if !s.is_null() {
@@ -4722,8 +4722,8 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
         }
 
-        let mut width = tv_dict_get_number(job_opts, c"width".as_ptr()) as u16;
-        let mut height = tv_dict_get_number(job_opts, c"height".as_ptr()) as u16;
+        let mut width = tv_dict_get_number(job_opts, c"width") as u16;
+        let mut height = tv_dict_get_number(job_opts, c"height") as u16;
         let mut term_name: *const c_char = ptr::null();
 
         if term {
@@ -6178,7 +6178,7 @@ pub fn f_pumvisible(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// "py3eval()" and "pyxeval()" functions
 pub fn f_py3eval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    script_host_eval(c"python3".as_ptr().cast_mut(), argvars, rettv);
+    script_host_eval(c"python3", argvars, rettv);
 }
 
 fn init_srand(x: &mut u32) {
@@ -6326,12 +6326,12 @@ pub fn f_srand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
 /// "perleval()" function
 pub fn f_perleval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    script_host_eval(c"perl".as_ptr().cast_mut(), argvars, rettv);
+    script_host_eval(c"perl", argvars, rettv);
 }
 
 /// "rubyeval()" function
 pub fn f_rubyeval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    script_host_eval(c"ruby".as_ptr().cast_mut(), argvars, rettv);
+    script_host_eval(c"ruby", argvars, rettv);
 }
 
 /// "range()" function
@@ -6435,7 +6435,7 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         } else {
             tv_dict_add_bool(
                 dict,
-                c"isunnamed".as_ptr(),
+                c"isunnamed",
                 9,
                 if regname == c_int::from(buf[0]) {
                     kBoolVarTrue
@@ -7171,7 +7171,7 @@ pub fn f_rpcrequest(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             let mut name: *const c_char = ptr::null();
             let chan = find_channel(chan_id);
             if !chan.is_null() {
-                name = get_client_info(&mut *chan, c"name".as_ptr());
+                name = get_client_info(&mut *chan, c"name");
             }
             if !name.is_null() {
                 semsg_multiline!(
@@ -7698,7 +7698,7 @@ pub fn f_serverlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         };
         let mut lua_args = [opts, addrs_tv, tv_initial_value()];
         nlua_call_typval(
-            c"vim._core.server".as_ptr(),
+            c"vim._core.server",
             c"serverlist".as_ptr(),
             lua_args.as_mut_ptr(),
             Some(&mut *rettv),
@@ -8014,7 +8014,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                     pointreg = *stropt;
                     regname = pointreg;
                 }
-            } else if tv_dict_get_bool(d, c"isunnamed".as_ptr(), -1) > 0 {
+            } else if tv_dict_get_bool(d, c"isunnamed", -1) > 0 {
                 pointreg = regname;
             }
         } else {
@@ -8238,12 +8238,12 @@ pub fn f_sockconnect(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             let mut on_data = CallbackReader::none();
             if argvars[2].v_type == VarType::VAR_DICT {
                 let opts = argvars[2].vval.v_dict().cast::<dict_T>();
-                rpc = tv_dict_get_number(opts, c"rpc".as_ptr()) != 0;
+                rpc = tv_dict_get_number(opts, c"rpc") != 0;
 
-                if !tv_dict_get_callback(opts, c"on_data".as_ptr(), 7, &mut on_data.cb) {
+                if !tv_dict_get_callback(opts, c"on_data", 7, &mut on_data.cb) {
                     break 'cleanup;
                 }
-                on_data.buffered = tv_dict_get_number(opts, c"data_buffered".as_ptr()) != 0;
+                on_data.buffered = tv_dict_get_number(opts, c"data_buffered") != 0;
                 if on_data.buffered && on_data.cb.cb_type() == kCallbackNone {
                     on_data.self_dict = opts;
                 }
@@ -8274,16 +8274,16 @@ pub fn f_stdioopen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         let mut on_stdin = CallbackReader::none();
         let opts = argvars[0].vval.v_dict().cast::<dict_T>();
-        let rpc = tv_dict_get_number(opts, c"rpc".as_ptr()) != 0;
+        let rpc = tv_dict_get_number(opts, c"rpc") != 0;
 
-        if !tv_dict_get_callback(opts, c"on_stdin".as_ptr(), 8, &mut on_stdin.cb) {
+        if !tv_dict_get_callback(opts, c"on_stdin", 8, &mut on_stdin.cb) {
             return;
         }
-        if !tv_dict_get_callback(opts, c"on_print".as_ptr(), 8, &mut g_st().on_print) {
+        if !tv_dict_get_callback(opts, c"on_print", 8, &mut g_st().on_print) {
             return;
         }
 
-        on_stdin.buffered = tv_dict_get_number(opts, c"stdin_buffered".as_ptr()) != 0;
+        on_stdin.buffered = tv_dict_get_number(opts, c"stdin_buffered") != 0;
         if on_stdin.buffered && on_stdin.cb.cb_type() == kCallbackNone {
             on_stdin.self_dict = opts;
         }

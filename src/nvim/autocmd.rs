@@ -2102,15 +2102,15 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                         continue;
                     }
                     invalid_flags |=
-                        arg_autocmd_flag_get(&mut once, &raw mut cmd, c"++once".as_ptr(), 6);
+                        arg_autocmd_flag_get(&mut once, &raw mut cmd, c"++once", 6);
                     invalid_flags |= arg_autocmd_flag_get(
                         &mut nested,
                         &raw mut cmd,
-                        c"++nested".as_ptr(),
+                        c"++nested",
                         8,
                     );
                     invalid_flags |=
-                        arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"nested".as_ptr(), 6);
+                        arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"nested", 6);
                 }
 
                 if invalid_flags {
@@ -3853,15 +3853,15 @@ fn arg_augroup_get(argp: *mut *mut c_char) -> c_int {
 fn arg_autocmd_flag_get(
     flag: &mut bool,
     cmd_ptr: *mut *mut c_char,
-    pattern: *const c_char,
+    pattern: &std::ffi::CStr,
     len: c_int,
 ) -> bool {
     unsafe {
         let cmd_bytes = crate::memory::cstr_as_bytes(*cmd_ptr);
-        let pat_slice = std::slice::from_raw_parts(pattern.cast::<u8>(), len as usize);
+        let pat_slice = std::slice::from_raw_parts(pattern.as_ptr().cast::<u8>(), len as usize);
         if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(*(*cmd_ptr).add(len as usize)) {
             if *flag {
-                semsg!(tr(e_duparg2), pattern);
+                semsg!(tr(e_duparg2), pattern.as_ptr());
                 return true;
             }
             *flag = true;

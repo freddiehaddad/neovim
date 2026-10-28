@@ -1713,13 +1713,13 @@ fn encode_vim_with_backend(
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
 pub fn encode_vim_to_echo(
     gap: &mut Vec<u8>,tv: &mut typval_T,
-    objname: *const c_char,
+    objname: &std::ffi::CStr,
 ) -> bool {
     let mut backend = EncodeBackend::Text {
             gap,
             mode: TextEncodeMode::Echo,
         };
-        encode_vim_with_backend(&mut backend, tv, objname)
+        encode_vim_with_backend(&mut backend, tv, objname.as_ptr())
 }
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
@@ -1759,7 +1759,7 @@ pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::C
                 buf_concat_cstr(&mut ga, tv.vval.v_string());
             }
         } else {
-            let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument".as_ptr());
+            let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument");
             assert!(eve_ret);
         }
         if let Some(len) = len {

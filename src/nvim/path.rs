@@ -1773,14 +1773,14 @@ pub fn path_with_url(fname: *const c_char) -> c_int {
     }
 }
 
-pub fn path_with_extension(path: *const c_char, extension: *const c_char) -> bool {
+pub fn path_with_extension(path: *const c_char, extension: &std::ffi::CStr) -> bool {
     unsafe {
         let bytes = crate::memory::cstr_as_bytes(path);
         let Some(pos) = bytes.iter().rposition(|&b| b == b'.') else {
             return false;
         };
         let last_dot = path.add(pos);
-        mb_strcmp_ic(opt_vars().p_fic != 0, last_dot.add(1), extension) == 0
+        mb_strcmp_ic(opt_vars().p_fic != 0, last_dot.add(1), extension.as_ptr()) == 0
     }
 }
 
@@ -2546,24 +2546,24 @@ mod tests {
             opt_vars().p_fic = 0;
             assert!(path_with_extension(
                 c"/some/path/file.lua".as_ptr(),
-                c"lua".as_ptr()
+                c"lua"
             ));
             assert!(!path_with_extension(
                 c"/some/path/file.vim".as_ptr(),
-                c"lua".as_ptr()
+                c"lua"
             ));
             assert!(!path_with_extension(
                 c"/some/path/file".as_ptr(),
-                c"lua".as_ptr()
+                c"lua"
             ));
             assert!(!path_with_extension(
                 c"/some/path/file.LUA".as_ptr(),
-                c"lua".as_ptr()
+                c"lua"
             ));
             opt_vars().p_fic = 1;
             assert!(path_with_extension(
                 c"/some/path/file.LUA".as_ptr(),
-                c"lua".as_ptr()
+                c"lua"
             ));
             opt_vars().p_fic = saved_fic;
 

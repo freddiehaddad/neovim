@@ -2630,13 +2630,13 @@ fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
     unibi_from_dirs(UNIBI_TERMINFO_DIRS, term)
 }
 
-pub fn terminfo_is_term_family(term: *const c_char, family: *const c_char) -> bool {
+pub fn terminfo_is_term_family(term: *const c_char, family: &std::ffi::CStr) -> bool {
     if term.is_null() {
         return false;
     }
      {
         let term_bytes = crate::memory::cstr_as_bytes(term);
-        let fam_bytes = crate::memory::cstr_as_bytes(family);
+        let fam_bytes = family.to_bytes();
         let tlen = term_bytes.len();
         let flen = fam_bytes.len();
         tlen >= flen
@@ -2673,52 +2673,52 @@ pub fn terminfo_from_builtin(
     if (crate::memory::cstr_as_opt_bytes(term) == Some(b"ghostty")) || (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm-ghostty")) {
             *termname = Some(c"ghostty".to_owned());
             GHOSTTY_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"xterm".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"xterm") {
             *termname = Some(c"xterm".to_owned());
             XTERM_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"screen".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"screen") {
             *termname = Some(c"screen".to_owned());
             SCREEN_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"tmux".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"tmux") {
             *termname = Some(c"tmux".to_owned());
             TMUX_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"rxvt".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"rxvt") {
             *termname = Some(c"rxvt".to_owned());
             RXVT_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"putty".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"putty") {
             *termname = Some(c"putty".to_owned());
             PUTTY_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"linux".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"linux") {
             *termname = Some(c"linux".to_owned());
             LINUX_16COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"interix".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"interix") {
             *termname = Some(c"interix".to_owned());
             INTERIX_8COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"iterm".as_ptr())
-            || terminfo_is_term_family(term, c"iterm2".as_ptr())
-            || terminfo_is_term_family(term, c"iTerm.app".as_ptr())
-            || terminfo_is_term_family(term, c"iTerm2.app".as_ptr())
+        } else if terminfo_is_term_family(term, c"iterm")
+            || terminfo_is_term_family(term, c"iterm2")
+            || terminfo_is_term_family(term, c"iTerm.app")
+            || terminfo_is_term_family(term, c"iTerm2.app")
         {
             *termname = Some(c"iterm".to_owned());
             ITERM_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"st".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"st") {
             *termname = Some(c"st".to_owned());
             ST_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"gnome".as_ptr())
-            || terminfo_is_term_family(term, c"vte".as_ptr())
+        } else if terminfo_is_term_family(term, c"gnome")
+            || terminfo_is_term_family(term, c"vte")
         {
             *termname = Some(c"vte".to_owned());
             VTE_256COLOUR_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"cygwin".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"cygwin") {
             *termname = Some(c"cygwin".to_owned());
             CYGWIN_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"win32con".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"win32con") {
             *termname = Some(c"win32con".to_owned());
             WIN32CON_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"conemu".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"conemu") {
             *termname = Some(c"conemu".to_owned());
             CONEMU_TERMINFO.to_entry()
-        } else if terminfo_is_term_family(term, c"vtpcon".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"vtpcon") {
             *termname = Some(c"vtpcon".to_owned());
             VTPCON_TERMINFO.to_entry()
         } else {

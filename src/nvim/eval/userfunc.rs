@@ -983,9 +983,9 @@ fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: &ufunc_T) -> c_int {
 }
 
 /// Add a number variable `name` to dict `dp` with value `nr`.
-fn add_nr_var(dp: &mut dict_T, name: *const c_char, nr: varnumber_T) {
+fn add_nr_var(dp: &mut dict_T, name: &std::ffi::CStr, nr: varnumber_T) {
     unsafe {
-        let v = tv_dict_item_alloc(name);
+        let v = tv_dict_item_alloc(name.as_ptr());
         (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         (*v).di_tv.v_type = VarType::VAR_NUMBER;
         (*v).di_tv.v_lock = VAR_FIXED;
@@ -1261,7 +1261,7 @@ pub fn call_user_func(
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
             add_nr_var(
                 &mut (*fc).fc_l_avars,
-                c"0".as_ptr(),
+                c"0",
                 if argcount >= uf_args_len {
                     varnumber_T::from(argcount - uf_args_len)
                 } else {
@@ -1284,12 +1284,12 @@ pub fn call_user_func(
         if ((*fp).uf_flags & FC_NOARGS) == 0 {
             add_nr_var(
                 &mut (*fc).fc_l_avars,
-                c"firstline".as_ptr(),
+                c"firstline",
                 varnumber_T::from(firstline),
             );
             add_nr_var(
                 &mut (*fc).fc_l_avars,
-                c"lastline".as_ptr(),
+                c"lastline",
                 varnumber_T::from(lastline),
             );
         }
@@ -2691,7 +2691,7 @@ fn get_function_body(
                     p = p.add(1);
                 }
 
-                if checkforcmd(&raw mut p, c"endfunction".as_ptr(), 4) {
+                if checkforcmd(&raw mut p, c"endfunction", 4) {
                     let prev_nesting = nesting;
                     nesting -= 1;
                     if prev_nesting == 0 {
@@ -2738,7 +2738,7 @@ fn get_function_body(
                     indent += 2;
                 }
 
-                if checkforcmd(&raw mut p, c"function".as_ptr(), 2) {
+                if checkforcmd(&raw mut p, c"function", 2) {
                     if *p == b'!' as c_char {
                         p = skipwhite(p.add(1));
                     }
@@ -2757,9 +2757,9 @@ fn get_function_body(
 
                 p = skip_range(p, None);
                 let tp = p;
-                if (checkforcmd(&raw mut p, c"append".as_ptr(), 1)
-                    || checkforcmd(&raw mut p, c"change".as_ptr(), 1)
-                    || checkforcmd(&raw mut p, c"insert".as_ptr(), 1))
+                if (checkforcmd(&raw mut p, c"append", 1)
+                    || checkforcmd(&raw mut p, c"change", 1)
+                    || checkforcmd(&raw mut p, c"insert", 1))
                     && (*p == b'!' as c_char
                         || *p == b'|' as c_char
                         || ascii_iswhite_nl_or_nul(*p as c_int))
@@ -2815,8 +2815,8 @@ fn get_function_body(
 
                 if !is_heredoc {
                     arg = p;
-                    if checkforcmd(&raw mut arg, c"let".as_ptr(), 2)
-                        || checkforcmd(&raw mut p, c"const".as_ptr(), 5)
+                    if checkforcmd(&raw mut arg, c"let", 2)
+                        || checkforcmd(&raw mut p, c"const", 5)
                     {
                         let mut var_count = 0;
                         let mut semicolon = 0;
@@ -4235,7 +4235,7 @@ pub fn list_func_vars(first: &mut c_int) {
         if !uf_st().current_funccal.is_null() && (*uf_st().current_funccal).fc_l_vars.dv_refcount > 0 {
             list_hashtable_vars(
                 &mut (*uf_st().current_funccal).fc_l_vars.dv_hashtab,
-                c"l:".as_ptr(),
+                c"l:",
                 0,
                 &mut *first,
             );

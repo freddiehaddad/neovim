@@ -1331,7 +1331,7 @@ pub fn msg_progress(
         msg_with_id(
             s,
             id,
-            c"progress".as_ptr(),
+            c"progress",
             Some(&mut data),
             hl_id,
             hist,
@@ -1344,7 +1344,7 @@ pub fn msg_progress(
 pub fn msg_with_id(
     mut s: *mut c_char,
     id: *mut c_char,
-    kind: *const c_char,data: Option<&mut MessageData>,
+    kind: &std::ffi::CStr,data: Option<&mut MessageData>,
     hl_id: c_int,
     hist: bool,
     trunc: bool,
@@ -1372,7 +1372,7 @@ pub fn msg_with_id(
         msg_multihl(
             id_obj,
             &mut chunks,
-            kind,
+            kind.as_ptr(),
             false,
             err,
             data,
@@ -2061,9 +2061,9 @@ pub fn msg_ext_set_append(append: bool) {
         msg_st().msg_ext_append = append;
 }
 
-pub fn msg_ext_set_trigger(trigger: *const c_char) {
+pub fn msg_ext_set_trigger(trigger: &std::ffi::CStr) {
     msg_ext_ui_flush();
-        msg_st().msg_ext_trigger = trigger;
+        msg_st().msg_ext_trigger = trigger.as_ptr();
 }
 
 // Should be executed at all callsites emitting non-internal messages.

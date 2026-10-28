@@ -450,7 +450,7 @@ fn stringcap(b: &mut luaL_Buffer, cs: &mut CapState) {
                             StrAux::Capture(cp) => {
                                 let curr = cs.cap;
                                 cs.cap = cp;
-                                if addonestring(b, cs, c"capture".as_ptr()) == 0 {
+                                if addonestring(b, cs, c"capture") == 0 {
                                     luaL_error(
                                         cs.L,
                                         c"no values in capture index %d".as_ptr(),
@@ -477,7 +477,7 @@ fn substcap(b: &mut luaL_Buffer, cs: &mut CapState) {
             let cap = cs.cap;
             let caps = cs.s.add((*cap).index as usize);
             luaL_addlstring(b, curr, caps.offset_from(curr) as usize);
-            if addonestring(b, cs, c"replacement".as_ptr()) != 0 {
+            if addonestring(b, cs, c"replacement") != 0 {
                 curr = caps.add(capsize(cap, cs.cap.sub(1)) as usize);
             } else {
                 curr = caps;
@@ -489,7 +489,7 @@ fn substcap(b: &mut luaL_Buffer, cs: &mut CapState) {
     }
 }
 
-fn addonestring(b: &mut luaL_Buffer, cs: &mut CapState, what: *const c_char) -> c_int {
+fn addonestring(b: &mut luaL_Buffer, cs: &mut CapState, what: &std::ffi::CStr) -> c_int {
     unsafe {
         match captype(cs.cap) {
             Cstring => {
@@ -515,7 +515,7 @@ fn addonestring(b: &mut luaL_Buffer, cs: &mut CapState, what: *const c_char) -> 
                         return luaL_error(
                             l,
                             c"invalid %s value (a %s)".as_ptr(),
-                            what,
+                            what.as_ptr(),
                             luaL_typename(l, -1),
                         );
                     }

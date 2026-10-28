@@ -927,7 +927,7 @@ pub fn set_init_1(clean_arg: bool) {
         );
         set_string_default(
             kOptPacklockfile,
-            stdpaths_user_conf_subpath(c"nvim-pack-lock.json".as_ptr()).as_ptr(),
+            stdpaths_user_conf_subpath(c"nvim-pack-lock.json").as_ptr(),
         );
         if let Some(rtp) = runtimepath_default(clean_arg) {
             set_string_default(kOptRuntimepath, rtp.as_ptr());
@@ -3871,13 +3871,13 @@ pub fn get_tty_option(name: *const c_char) -> Object {
     }
 }
 
-pub fn set_tty_option(name: *const c_char, value: Option<std::ffi::CString>) -> bool {
-    if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
+pub fn set_tty_option(name: &std::ffi::CStr, value: Option<std::ffi::CString>) -> bool {
+    if Some(name.to_bytes()) == Some(b"term") {
             opt_st().P_TERM = value;
             return true;
         }
 
-        if crate::memory::cstr_as_opt_bytes(name) == Some(b"ttytype") {
+        if Some(name.to_bytes()) == Some(b"ttytype") {
             opt_st().P_TTYTYPE = value;
             return true;
         }
@@ -8212,14 +8212,13 @@ pub fn shortmess(x: c_int) -> bool {
                     && !vim_strchr(SHM_ALL_ABBREVIATIONS, x).is_null()))
 }
 
-pub fn vimrc_found(fname: *mut c_char, envname: *mut c_char) {
+pub fn vimrc_found(fname: *mut c_char, envname: &std::ffi::CStr) {
     if !fname.is_null()
-            && !envname.is_null()
-            && vim_getenv(envname).is_none()
-            && let Some(p) = FullName_save(fname, false)
-        {
-            os_setenv(envname, p.as_ptr(), 1);
-        }
+        && vim_getenv(envname.as_ptr().cast_mut()).is_none()
+        && let Some(p) = FullName_save(fname, false)
+    {
+        os_setenv(envname.as_ptr().cast_mut(), p.as_ptr(), 1);
+    }
 }
 
 /// Check whether global option has been set.

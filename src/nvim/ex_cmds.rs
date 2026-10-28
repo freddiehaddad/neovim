@@ -5337,8 +5337,8 @@ pub fn skip_vimgrep_pat(
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).
 pub fn ex_oldfiles(eap: &mut exarg_T) {
     nlua_call_excmd(
-            c"vim._core.ex_cmd".as_ptr(),
-            c"ex_oldfiles".as_ptr(),
+            c"vim._core.ex_cmd",
+            c"ex_oldfiles",
             eap,
             &g_st().cmdmod,
             None,

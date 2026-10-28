@@ -424,7 +424,7 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                                 groupbuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
                                 gettext(c"  group=%s".as_ptr()),
-                                describe_ns(mark.ns as c_int, c"".as_ptr()),
+                                describe_ns(mark.ns as c_int, c""),
                             );
                         }
                         vim_snprintf!(
@@ -1146,7 +1146,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
             d,
             c"group".as_ptr(),
             5,
-            describe_ns(mark.ns as c_int, c"".as_ptr()),
+            describe_ns(mark.ns as c_int, c""),
         );
         tv_dict_add_nr(d, c"lnum".as_ptr(), 4, i64::from(mark.pos.row + 1));
         tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from(sh.priority));
@@ -1271,7 +1271,7 @@ fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
         let ns_ptr = &raw const sign_st().sign_ns;
         let ns_slice = (*ns_ptr).as_slice();
         ns_slice.get(idx as usize).map_or(ptr::null_mut(), |&ns| {
-            describe_ns(ns as NS, c"".as_ptr()).cast_mut()
+            describe_ns(ns as NS, c"").cast_mut()
         })
     }
 }
@@ -1815,7 +1815,7 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_i
                 }
             }
             if !tv_dict_find(dict, c"id".as_ptr(), -1).is_null() {
-                id = tv_dict_get_number(dict, c"id".as_ptr()) as c_int;
+                id = tv_dict_get_number(dict, c"id") as c_int;
                 if id <= 0 {
                     emsg(gettext(e_invarg.as_ptr()));
                     return -1;

@@ -737,7 +737,7 @@ pub fn garbage_collect_scriptvars(copyID: c_int) -> bool {
 }
 
 /// Set an internal variable to a string value.
-pub fn set_internal_string_var(name: *const c_char, value: *const c_char) {
+pub fn set_internal_string_var(name: &std::ffi::CStr, value: *const c_char) {
      {
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
@@ -745,7 +745,7 @@ pub fn set_internal_string_var(name: *const c_char, value: *const c_char) {
             vval: TypvalVval::String(value.cast_mut()),
         };
 
-        set_var(name, crate::memory::cstr_len(name), &mut tv, true);
+        set_var(name.as_ptr(), name.to_bytes().len(), &mut tv, true);
     }
 }
 
@@ -937,7 +937,7 @@ pub fn restore_vimvar(idx: c_int,save_tv: &mut typval_T) {
 fn list_vim_vars(first: &mut c_int) {
     list_hashtable_vars(
             &mut vars_st().vimvardict.dv_hashtab,
-            c"v:".as_ptr(),
+            c"v:",
             false as c_int,
             &mut *first,
         );
@@ -949,7 +949,7 @@ fn list_script_vars(first: &mut c_int) {
         if crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
             list_hashtable_vars(
                 &mut *script_vars_ht(g_st().current_sctx.sc_sid),
-                c"s:".as_ptr(),
+                c"s:",
                 false as c_int,
                 &mut *first,
             );
@@ -1477,7 +1477,7 @@ fn skip_var_one(arg: *const c_char) -> *const c_char {
 /// List variables for hashtab "ht" with prefix "prefix".
 pub fn list_hashtable_vars(
     ht: &mut hashtab_T,
-    prefix: *const c_char,
+    prefix: &std::ffi::CStr,
     empty: c_int,first: &mut c_int,
 ) {
     unsafe {
@@ -1489,7 +1489,7 @@ pub fn list_hashtable_vars(
                 let di = tv_dict_hi2di(hi);
                 let mut buf = [0 as c_char; IOSIZE];
 
-                xstrlcpy(buf.as_mut_ptr(), prefix, IOSIZE);
+                xstrlcpy(buf.as_mut_ptr(), prefix.as_ptr(), IOSIZE);
                 { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), (*di).di_key.as_ptr(), _dsize - _dlen); };
                 if message_filtered(buf.as_ptr()) {
                     hi = hi.add(1);
@@ -1500,7 +1500,7 @@ pub fn list_hashtable_vars(
                     || (*di).di_tv.v_type != VarType::VAR_STRING
                     || !(*di).di_tv.vval.v_string().is_null()
                 {
-                    list_one_var(&mut *di, prefix, first);
+                    list_one_var(&mut *di, prefix.as_ptr(), first);
                 }
             }
             hi = hi.add(1);
@@ -1511,7 +1511,7 @@ pub fn list_hashtable_vars(
 fn list_glob_vars(first: &mut c_int) {
     list_hashtable_vars(
             &mut vars_st().globvardict.dv_hashtab,
-            c"".as_ptr(),
+            c"",
             true as c_int,
             &mut *first,
         );
@@ -1521,7 +1521,7 @@ fn list_buf_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
             &mut (*(*g_st().curbuf).b_vars()).dv_hashtab,
-            c"b:".as_ptr(),
+            c"b:",
             true as c_int,
             &mut *first,
         );
@@ -1532,7 +1532,7 @@ fn list_win_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
             &mut (*(**curwin.as_ptr()).w_vars()).dv_hashtab,
-            c"w:".as_ptr(),
+            c"w:",
             true as c_int,
             &mut *first,
         );
@@ -1543,7 +1543,7 @@ fn list_tab_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
             &mut (*(*g_st().curtab).tp_vars()).dv_hashtab,
-            c"t:".as_ptr(),
+            c"t:",
             true as c_int,
             &mut *first,
         );
@@ -2837,9 +2837,9 @@ pub fn find_var_ht(
 }
 
 /// Return the string value of a (global/local) variable or NULL when it doesn't exist.
-pub fn get_var_value(name: *const c_char) -> *mut c_char {
+pub fn get_var_value(name: &std::ffi::CStr) -> *mut c_char {
     unsafe {
-        let v = find_var(name, crate::memory::cstr_len(name), ptr::null_mut(), 0);
+        let v = find_var(name.as_ptr(), name.to_bytes().len(), ptr::null_mut(), 0);
         if v.is_null() {
             return ptr::null_mut();
         }

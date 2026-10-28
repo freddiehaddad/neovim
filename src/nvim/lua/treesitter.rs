@@ -1008,7 +1008,7 @@ fn parser_check(L: *mut lua_State, index: c_int) -> *mut TSParser {
             L,
             !(*ud).is_null(),
             index,
-            c"Parser has been deleted".as_ptr(),
+            c"Parser has been deleted",
         );
         *ud
     }
@@ -1344,7 +1344,7 @@ unsafe extern "C-unwind" fn parser_set_ranges(L: *mut lua_State) -> c_int {
         }
 
         let p = parser_check(L, 1);
-        luaL_argcheck(L, lua_istable(L, 2), 2, c"table expected.".as_ptr());
+        luaL_argcheck(L, lua_istable(L, 2), 2, c"table expected.");
 
         let tbl_len = lua_objlen(L, 2);
         let mut ranges: Vec<TSRange> = vec![TSRange::new(); tbl_len];
@@ -1404,9 +1404,9 @@ unsafe extern "C-unwind" fn parser_set_logger(L: *mut lua_State) -> c_int {
     unsafe {
         let p = parser_check(L, 1);
 
-        luaL_argcheck(L, lua_isboolean(L, 2), 2, c"boolean expected".as_ptr());
-        luaL_argcheck(L, lua_isboolean(L, 3), 3, c"boolean expected".as_ptr());
-        luaL_argcheck(L, lua_isfunction(L, 4), 4, c"function expected".as_ptr());
+        luaL_argcheck(L, lua_isboolean(L, 2), 2, c"boolean expected");
+        luaL_argcheck(L, lua_isboolean(L, 3), 3, c"boolean expected");
+        luaL_argcheck(L, lua_isfunction(L, 4), 4, c"function expected");
 
         lua_pushvalue(L, 4);
         let ref_ = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -2030,7 +2030,7 @@ unsafe extern "C-unwind" fn tslua_push_querycursor(L: *mut lua_State) -> c_int {
         let cursor = ts_query_cursor_new();
 
         if lua_gettop(L) >= 3 && !lua_isnil(L, 3) {
-            luaL_argcheck(L, lua_istable(L, 3), 3, c"table expected".as_ptr());
+            luaL_argcheck(L, lua_istable(L, 3), 3, c"table expected");
         }
 
         lua_getfield(L, 3, c"start_row".as_ptr());
@@ -2146,7 +2146,7 @@ fn querycursor_check(L: *mut lua_State, index: c_int) -> *mut TSQueryCursor {
             L,
             !(*ud).is_null(),
             index,
-            c"TSQueryCursor expected".as_ptr(),
+            c"TSQueryCursor expected",
         );
         *ud
     }
@@ -2353,7 +2353,7 @@ fn query_err_string(
 fn query_check(L: *mut lua_State, index: c_int) -> *mut TSQuery {
     unsafe {
         let ud = luaL_checkudata(L, index, TS_META_QUERY).cast::<*mut TSQuery>();
-        luaL_argcheck(L, !(*ud).is_null(), index, c"TSQuery expected".as_ptr());
+        luaL_argcheck(L, !(*ud).is_null(), index, c"TSQuery expected");
         *ud
     }
 }

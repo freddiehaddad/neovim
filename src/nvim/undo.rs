@@ -1000,7 +1000,7 @@ fn unserialize_uep(
             return uep;
         }
 
-        let size = undo_read_len(bi, c"entry size".as_ptr(), file_name);
+        let size = undo_read_len(bi, c"entry size", file_name);
         if size < 0 {
             *error = true;
             return uep;
@@ -1011,7 +1011,7 @@ fn unserialize_uep(
         }
 
         for _ in 0..size as usize {
-            let line_len = undo_read_len(bi, c"line length".as_ptr(), file_name);
+            let line_len = undo_read_len(bi, c"line length", file_name);
             let Some(line) = (line_len >= 0)
                 .then(|| undo_read_string(bi, line_len as usize))
                 .flatten()
@@ -1390,7 +1390,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                     break 'error;
                 }
 
-                let str_len = undo_read_len(&mut bi, c"line length".as_ptr(), file_name);
+                let str_len = undo_read_len(&mut bi, c"line length", file_name);
                 if str_len < 0 {
                     break 'error;
                 }
@@ -1412,7 +1412,7 @@ pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char)
                 let old_header_seq = undo_read_4c(&mut bi);
                 let new_header_seq = undo_read_4c(&mut bi);
                 let cur_header_seq = undo_read_4c(&mut bi);
-                let num_head = undo_read_len(&mut bi, c"num_head".as_ptr(), file_name);
+                let num_head = undo_read_len(&mut bi, c"num_head", file_name);
                 if num_head < 0 {
                     break 'error;
                 }
@@ -1586,7 +1586,7 @@ fn undo_read_4c(bi: &mut bufinfo_T) -> c_int {
 
 fn undo_read_len(
     bi: &mut bufinfo_T,
-    what: *const c_char,
+    what: &std::ffi::CStr,
     file_name: *const c_char,
 ) -> c_int {
     unsafe {
@@ -1598,7 +1598,7 @@ fn undo_read_len(
                 if feof(fp) != 0 {
                     c"truncated".as_ptr()
                 } else {
-                    what
+                    what.as_ptr()
                 },
                 file_name,
             );

@@ -988,7 +988,7 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
         api_free_dict((*ct).rpc.info);
         (*ct).rpc.info = info;
 
-        let r#type = get_client_info(&mut *chan, c"type".as_ptr());
+        let r#type = get_client_info(&mut *chan, c"type");
         (*ct).rpc.client_type = if r#type.is_null() {
             kClientTypeRemote
         } else {
@@ -1007,13 +1007,13 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
     }
 }
 
-pub fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const c_char {
+pub fn get_client_info(chan: &mut Channel, key: &std::ffi::CStr) -> *const c_char {
     unsafe {
         let ct = chan;
         if !ct.is_rpc {
             return ptr::null();
         }
-        let key_bytes = crate::memory::cstr_as_bytes(key);
+        let key_bytes = key.to_bytes();
         let info = ct.rpc.info;
         for i in 0..info.size {
             let item = &*info.items.add(i);

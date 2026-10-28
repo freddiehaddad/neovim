@@ -935,7 +935,7 @@ pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimStri
                 }
             } else {
                 NvimString {
-                    data: alloc_cstring(c"".as_ptr()),
+                    data: alloc_cstring(c""),
                     size: 0,
                 }
             }

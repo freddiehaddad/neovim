@@ -363,7 +363,7 @@ fn json_encode_exception(
     l: *mut lua_State,
     ctx: &mut json_encode_t,
     lindex: c_int,
-    reason: *const c_char,
+    reason: &std::ffi::CStr,
 ) -> ! {
     unsafe {
         if (*ctx.options).sort_keys != 0 {
@@ -374,7 +374,7 @@ fn json_encode_exception(
             l,
             c"Cannot serialise %s: %s".as_ptr(),
             lua_typename(l, lua_type(l, lindex)),
-            reason,
+            reason.as_ptr(),
         );
         unreachable!()
     }
@@ -446,7 +446,7 @@ fn lua_array_length(l: *mut lua_State, ctx: &mut json_encode_t) -> c_int {
         }
 
         if max > items * DEFAULT_SPARSE_RATIO && max > DEFAULT_SPARSE_SAFE {
-            json_encode_exception(l, ctx, -1, c"excessively sparse array".as_ptr());
+            json_encode_exception(l, ctx, -1, c"excessively sparse array");
         }
 
         max
@@ -555,7 +555,7 @@ fn json_append_number(
         };
 
         if num.is_infinite() || num.is_nan() {
-            json_encode_exception(l, ctx, lindex, c"must not be NaN or Infinity".as_ptr());
+            json_encode_exception(l, ctx, lindex, c"must not be NaN or Infinity");
         }
 
         let mut buf = [0u8; FPCONV_G_FMT_BUFSIZE];
@@ -613,7 +613,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth:
                         l,
                         ctx,
                         -2,
-                        c"table key must be number or string".as_ptr(),
+                        c"table key must be number or string",
                     );
                 }
                 key_entry.length = strbuf_length(&(*keybuf).buf) - key_entry.offset;
@@ -696,7 +696,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth:
                         l,
                         ctx,
                         -2,
-                        c"table key must be a number or string".as_ptr(),
+                        c"table key must be a number or string",
                     );
                 }
                 if !(*ctx.options).indent.is_null() {
@@ -825,11 +825,11 @@ fn json_append_data(
                 if is_nil {
                     strbuf_append_mem(json, c"null".as_ptr(), 4);
                 } else {
-                    json_encode_exception(l, ctx, -1, c"type not supported".as_ptr());
+                    json_encode_exception(l, ctx, -1, c"type not supported");
                 }
             }
             _ => {
-                json_encode_exception(l, ctx, -1, c"type not supported".as_ptr());
+                json_encode_exception(l, ctx, -1, c"type not supported");
             }
         }
         0
@@ -1006,12 +1006,12 @@ fn json_append_unicode_escape(json: &mut json_parse_t) -> c_int {
 fn json_set_token_error(
     token: &mut json_token_t,
     json: &json_parse_t,
-    errtype: *const c_char,
+    errtype: &std::ffi::CStr,
 ) {
     unsafe {
         token.r#type = T_ERROR;
         token.index = json.ptr.offset_from(json.data) as usize;
-        token.value = JsonTokenValue::String(errtype);
+        token.value = JsonTokenValue::String(errtype.as_ptr());
     }
 }
 
@@ -1028,7 +1028,7 @@ fn json_next_string_token(json: &mut json_parse_t, token: &mut json_token_t) {
                 break;
             }
             if ch == 0 {
-                json_set_token_error(token, json, c"unexpected end of string".as_ptr());
+                json_set_token_error(token, json, c"unexpected end of string");
                 return;
             }
 
@@ -1039,11 +1039,11 @@ fn json_next_string_token(json: &mut json_parse_t, token: &mut json_token_t) {
                     if json_append_unicode_escape(json) == 0 {
                         continue;
                     }
-                    json_set_token_error(token, json, c"invalid unicode escape code".as_ptr());
+                    json_set_token_error(token, json, c"invalid unicode escape code");
                     return;
                 }
                 if ch == 0 {
-                    json_set_token_error(token, json, c"invalid escape code".as_ptr());
+                    json_set_token_error(token, json, c"invalid escape code");
                     return;
                 }
                 json.ptr = json.ptr.add(1);
@@ -1160,7 +1160,7 @@ fn json_next_number_token(json: &mut json_parse_t, token: &mut json_token_t) {
             token.r#type = T_NUMBER;
             token.value = JsonTokenValue::Number(fpconv_strtod(json.ptr, &mut endptr));
             if json.ptr == endptr.cast_const() {
-                json_set_token_error(token, json, c"invalid number".as_ptr());
+                json_set_token_error(token, json, c"invalid number");
                 return;
             }
         } else if tmpval > (isize::MAX as c_longlong) || tmpval < (isize::MIN as c_longlong) {
@@ -1210,7 +1210,7 @@ fn json_next_token(json: &mut json_parse_t, token: &mut json_token_t) {
                 json.ptr = json.ptr.add(2);
                 loop {
                     if *json.ptr == 0 {
-                        json_set_token_error(token, json, c"unclosed multi-line comment".as_ptr());
+                        json_set_token_error(token, json, c"unclosed multi-line comment");
                         return;
                     }
                     if *json.ptr == b'*' as c_char && *json.ptr.add(1) == b'/' as c_char {
@@ -1225,7 +1225,7 @@ fn json_next_token(json: &mut json_parse_t, token: &mut json_token_t) {
         token.index = json.ptr.offset_from(json.data) as usize;
 
         if token.r#type == T_ERROR {
-            json_set_token_error(token, json, c"invalid token".as_ptr());
+            json_set_token_error(token, json, c"invalid token");
             return;
         }
 
@@ -1264,14 +1264,14 @@ fn json_next_token(json: &mut json_parse_t, token: &mut json_token_t) {
             return;
         }
 
-        json_set_token_error(token, json, c"invalid token".as_ptr());
+        json_set_token_error(token, json, c"invalid token");
     }
 }
 
 fn json_throw_parse_error(
     l: *mut lua_State,
     json: &mut json_parse_t,
-    exp: *const c_char,
+    exp: &std::ffi::CStr,
     token: &json_token_t,
 ) -> ! {
     unsafe {
@@ -1285,7 +1285,7 @@ fn json_throw_parse_error(
         luaL_error(
             l,
             c"Expected %s but found %s at character %d".as_ptr(),
-            exp,
+            exp.as_ptr(),
             found,
             (token.index + 1) as c_int,
         );
@@ -1332,14 +1332,14 @@ fn json_parse_object_context(l: *mut lua_State, json: &mut json_parse_t) {
 
         loop {
             if token.r#type != T_STRING {
-                json_throw_parse_error(l, json, c"object key string".as_ptr(), &token);
+                json_throw_parse_error(l, json, c"object key string", &token);
             }
 
             lua_pushlstring(l, token.value.as_string(), token.string_len);
 
             json_next_token(json, &mut token);
             if token.r#type != T_COLON {
-                json_throw_parse_error(l, json, c"colon".as_ptr(), &token);
+                json_throw_parse_error(l, json, c"colon", &token);
             }
 
             json_next_token(json, &mut token);
@@ -1353,7 +1353,7 @@ fn json_parse_object_context(l: *mut lua_State, json: &mut json_parse_t) {
                 return;
             }
             if token.r#type != T_COMMA {
-                json_throw_parse_error(l, json, c"comma or object end".as_ptr(), &token);
+                json_throw_parse_error(l, json, c"comma or object end", &token);
             }
 
             json_next_token(json, &mut token);
@@ -1386,7 +1386,7 @@ fn json_parse_array_context(l: *mut lua_State, json: &mut json_parse_t) {
                 return;
             }
             if token.r#type != T_COMMA {
-                json_throw_parse_error(l, json, c"comma or array end".as_ptr(), &token);
+                json_throw_parse_error(l, json, c"comma or array end", &token);
             }
 
             json_next_token(json, &mut token);
@@ -1429,7 +1429,7 @@ fn json_process_value(
                 }
             }
             _ => {
-                json_throw_parse_error(l, json, c"value".as_ptr(), token);
+                json_throw_parse_error(l, json, c"value", token);
             }
         }
     }
@@ -1496,7 +1496,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
 
         json_next_token(&mut json, &mut token);
         if token.r#type != T_END {
-            json_throw_parse_error(l, &mut json, c"the end".as_ptr(), &token);
+            json_throw_parse_error(l, &mut json, c"the end", &token);
         }
 
         1

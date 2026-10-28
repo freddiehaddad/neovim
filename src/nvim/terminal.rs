@@ -2070,7 +2070,7 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
         tv_list_append_string(args, &regname, 1);
         eval_call_provider(
             c"clipboard".as_ptr().cast_mut(),
-            c"set".as_ptr().cast_mut(),
+            c"set",
             &mut *args,
             true,
         );

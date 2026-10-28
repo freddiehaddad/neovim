@@ -747,16 +747,16 @@ fn extend_list(argvars: &mut [typval_T],
 
 fn extend_impl(argvars: &mut [typval_T],
     rettv: &mut typval_T,
-    arg_errmsg: *const c_char,
+    arg_errmsg: &std::ffi::CStr,
     is_new: bool,
 ) {
      {
         let t0 = argvars[0].v_type;
         let t1 = argvars[1].v_type;
         if t0 == VarType::VAR_LIST && t1 == VarType::VAR_LIST {
-            extend_list(argvars, arg_errmsg, is_new, rettv);
+            extend_list(argvars, arg_errmsg.as_ptr(), is_new, rettv);
         } else if t0 == VarType::VAR_DICT && t1 == VarType::VAR_DICT {
-            extend_dict(argvars, arg_errmsg, is_new, rettv);
+            extend_dict(argvars, arg_errmsg.as_ptr(), is_new, rettv);
         } else {
             semsg!(
                 e_listdictarg.as_ptr(),
@@ -772,12 +772,12 @@ fn extend_impl(argvars: &mut [typval_T],
 
 /// `"extend()"` function (`f_extend`).
 pub fn f_extend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    extend_impl(argvars, rettv, c"extend() argument".as_ptr(), false);
+    extend_impl(argvars, rettv, c"extend() argument", false);
 }
 
 /// `"extendnew()"` function (`f_extendnew`).
 pub fn f_extendnew(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    extend_impl(argvars, rettv, c"extendnew() argument".as_ptr(), true);
+    extend_impl(argvars, rettv, c"extendnew() argument", true);
 }
 
 /// `"insert()"` function (`f_insert`).

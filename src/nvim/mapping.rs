@@ -2385,7 +2385,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         let (which, is_abbr, d) = if dict_only {
             let d = argvars[0].vval.v_dict();
             let which = tv_dict_get_string(d, c"mode".as_ptr());
-            let is_abbr = tv_dict_get_bool(d, c"abbr".as_ptr(), -1) as c_int;
+            let is_abbr = tv_dict_get_bool(d, c"abbr", -1) as c_int;
             if which.is_null() || is_abbr < 0 {
                 emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT.as_ptr()));
                 return;
@@ -2428,24 +2428,24 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             return;
         }
 
-        let mut noremap = if tv_dict_get_number(d, c"noremap".as_ptr()) != 0 {
+        let mut noremap = if tv_dict_get_number(d, c"noremap") != 0 {
             REMAP_NONE
         } else {
             0
         };
-        if tv_dict_get_number(d, c"script".as_ptr()) != 0 {
+        if tv_dict_get_number(d, c"script") != 0 {
             noremap = REMAP_SCRIPT;
         }
         let mut args = MapArguments::new();
-        args.expr = tv_dict_get_number(d, c"expr".as_ptr()) != 0;
-        args.silent = tv_dict_get_number(d, c"silent".as_ptr()) != 0;
-        args.nowait = tv_dict_get_number(d, c"nowait".as_ptr()) != 0;
-        args.replace_keycodes = tv_dict_get_number(d, c"replace_keycodes".as_ptr()) != 0;
-        args.desc = crate::eval::typval::tv_dict_get_cstring(d, c"desc".as_ptr());
+        args.expr = tv_dict_get_number(d, c"expr") != 0;
+        args.silent = tv_dict_get_number(d, c"silent") != 0;
+        args.nowait = tv_dict_get_number(d, c"nowait") != 0;
+        args.replace_keycodes = tv_dict_get_number(d, c"replace_keycodes") != 0;
+        args.desc = crate::eval::typval::tv_dict_get_cstring(d, c"desc");
 
-        let sid = tv_dict_get_number(d, c"sid".as_ptr()) as scid_T;
-        let lnum = tv_dict_get_number(d, c"lnum".as_ptr()) as linenr_T;
-        let buffer = tv_dict_get_number(d, c"buffer".as_ptr()) != 0;
+        let sid = tv_dict_get_number(d, c"sid") as scid_T;
+        let lnum = tv_dict_get_number(d, c"lnum") as linenr_T;
+        let buffer = tv_dict_get_number(d, c"buffer") != 0;
 
         set_maparg_rhs(
             orig_rhs,
@@ -2590,14 +2590,14 @@ pub fn f_mapcheck(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 }
 
 /// Add a mapping.
-pub fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: bool) {
+pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: c_int, buffer: bool) {
     unsafe {
         let mut args = MapArguments::new();
         set_maparg_lhs_rhs(
-            lhs,
-            crate::memory::cstr_len(lhs),
-            rhs,
-            crate::memory::cstr_len(rhs),
+            lhs.as_ptr().cast_mut(),
+            lhs.to_bytes().len(),
+            rhs.as_ptr().cast_mut(),
+            rhs.to_bytes().len(),
             LUA_NOREF,
             opt_vars().p_cpo,
             &mut args,

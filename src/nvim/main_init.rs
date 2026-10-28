@@ -274,9 +274,9 @@ use crate::os::fs::MAXPATHL;
 use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 
 #[inline]
-fn time_msg_if_enabled(s: *const c_char) {
+fn time_msg_if_enabled(s: &std::ffi::CStr) {
     if has_time_fd() {
-            time_msg(s, None);
+            time_msg(s.as_ptr(), None);
         }
 }
 
@@ -317,7 +317,7 @@ pub fn event_init() {
         channel_init();
         terminal_init();
         ui_init();
-        time_msg_if_enabled(c"event init".as_ptr());
+        time_msg_if_enabled(c"event init");
     }
 }
 
@@ -372,20 +372,20 @@ fn early_init(paramp: &mut mparm_T) {
         *((&raw mut g_st().windowsVersion).cast::<c_char>().add(19)) = 0;
     }
 
-    time_msg_if_enabled(c"early init".as_ptr());
+    time_msg_if_enabled(c"early init");
 
     init_locale();
     set_init_tablocal();
 
     win_alloc_first();
-    time_msg_if_enabled(c"init first window".as_ptr());
+    time_msg_if_enabled(c"init first window");
 
     g_st().global_alist.id = 0;
 
     init_homedir();
     set_init_1(paramp.clean);
     log_init();
-    time_msg_if_enabled(c"inits 1".as_ptr());
+    time_msg_if_enabled(c"inits 1");
 
     set_lang_var();
     qf_init_stack();
@@ -460,7 +460,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         set_argf_var();
 
         nlua_init(argv, argc, params.lua_arg0);
-        time_msg_if_enabled(c"init lua interpreter".as_ptr());
+        time_msg_if_enabled(c"init lua interpreter");
 
         #[cfg(windows)]
         let mut startup_stderr_fd: c_int = -1;
@@ -551,7 +551,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             close(startup_stderr_fd);
         }
 
-        time_msg_if_enabled(c"expanding arguments".as_ptr());
+        time_msg_if_enabled(c"expanding arguments");
 
         if params.diff_mode != 0 && params.window_count == -1 {
             params.window_count = 0;
@@ -574,14 +574,14 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         g_st().msg_row = g_st().cmdline_row;
         default_grid_alloc();
         set_init_2(g_st().headless_mode);
-        time_msg_if_enabled(c"inits 2".as_ptr());
+        time_msg_if_enabled(c"inits 2");
 
         g_st().msg_scroll = 1;
         g_st().no_wait_return += 1;
 
         init_highlight(true, false);
         ui_comp_syn_init();
-        time_msg_if_enabled(c"init highlight".as_ptr());
+        time_msg_if_enabled(c"init highlight");
 
         g_st().debug_break_level = params.use_debug_break_level;
 
@@ -595,16 +595,16 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     get_vim_var_str(VV_SEND_SERVER),
                 );
             }
-            time_msg_if_enabled(c"waiting for UI".as_ptr());
+            time_msg_if_enabled(c"waiting for UI");
             remote_ui_wait_for_attach();
-            time_msg_if_enabled(c"done waiting for UI".as_ptr());
+            time_msg_if_enabled(c"done waiting for UI");
             (*g_st().firstwin).w_prev_height = (*g_st().firstwin).w_height;
         }
 
         *starting.as_ptr() = NO_BUFFERS;
         screenclear();
         win_new_screensize();
-        time_msg_if_enabled(c"clear screen".as_ptr());
+        time_msg_if_enabled(c"clear screen");
 
         if edit_stdin(&mut params) {
             params.edit_type = EDIT_STDIN;
@@ -636,7 +636,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         nlua_init_defaults();
-        time_msg_if_enabled(c"init default mappings & autocommands".as_ptr());
+        time_msg_if_enabled(c"init default mappings & autocommands");
 
         let vimrc_none = params.use_vimrc.as_deref() == Some(c"NONE");
 
@@ -669,7 +669,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             recover_names(ptr::null_mut(), false, items_tv.vval.v_list());
             let mut lua_args = [items_tv, crate::eval::typval::typval_T::new()];
             nlua_call_typval(
-                c"vim._core.swapfile".as_ptr(),
+                c"vim._core.swapfile",
                 c"list_swaps".as_ptr(),
                 lua_args.as_mut_ptr(),
                 None,
@@ -679,7 +679,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         set_init_3();
-        time_msg_if_enabled(c"inits 3".as_ptr());
+        time_msg_if_enabled(c"inits 3");
 
         if params.no_swap_file != 0 {
             opt_vars().p_uc = 0;
@@ -691,7 +691,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         if *opt_vars().p_shada != NUL {
             shada_read_everything(ptr::null(), false, true);
-            time_msg_if_enabled(c"reading ShaDa".as_ptr());
+            time_msg_if_enabled(c"reading ShaDa");
         }
         if get_vim_var_list(VV_OLDFILES).is_null() {
             set_vim_var_list(VV_OLDFILES, tv_list_alloc(0));
@@ -714,7 +714,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         g_st().no_wait_return += 1;
 
         create_windows(&mut params);
-        time_msg_if_enabled(c"opening buffers".as_ptr());
+        time_msg_if_enabled(c"opening buffers");
 
         set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
 
@@ -729,12 +729,12 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             false,
             g_st().curbuf,
         );
-        time_msg_if_enabled(c"BufEnter autocommands".as_ptr());
+        time_msg_if_enabled(c"BufEnter autocommands");
         setpcmark();
 
         if params.edit_type == EDIT_QF {
             qf_jump(ptr::null_mut(), 0, 0, 0);
-            time_msg_if_enabled(c"jump to first error".as_ptr());
+            time_msg_if_enabled(c"jump to first error");
         }
 
         edit_buffers(&mut params);
@@ -773,10 +773,10 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             false,
             g_st().curbuf,
         );
-        time_msg_if_enabled(c"VimEnter autocommands".as_ptr());
+        time_msg_if_enabled(c"VimEnter autocommands");
         if use_remote_ui {
             do_autocmd_uienter_all();
-            time_msg_if_enabled(c"UIEnter autocommands".as_ptr());
+            time_msg_if_enabled(c"UIEnter autocommands");
         }
 
         #[cfg(windows)]
@@ -792,7 +792,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_diff != 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
             update_topline(*curwin.as_ptr());
             check_scrollbind(0, 0);
-            time_msg_if_enabled(c"diff scrollbinding".as_ptr());
+            time_msg_if_enabled(c"diff scrollbinding");
         }
 
         if g_st().restart_edit != 0 {
@@ -814,7 +814,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 c"executing Lua -l script".as_ptr(),
             );
             let lua_ok = nlua_exec_file(luaf.as_ptr());
-            time_msg_if_enabled(c"executing Lua -l script".as_ptr());
+            time_msg_if_enabled(c"executing Lua -l script");
             if g_st().msg_didout {
                 msg_putchar(b'\n' as c_int);
                 g_st().msg_didout = false;
@@ -834,7 +834,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 );
                 let mut args = [crate::eval::typval::typval_T::new(); 1];
                 nlua_call_typval(
-                    c"vim._core.exmode".as_ptr(),
+                    c"vim._core.exmode",
                     c"run".as_ptr(),
                     args.as_mut_ptr(),
                     None,
@@ -851,7 +851,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             do_cmdline_cmd(c"exmode".as_ptr());
         }
 
-        time_msg_if_enabled(c"before starting main loop".as_ptr());
+        time_msg_if_enabled(c"before starting main loop");
         logmsg_str(
             LOGLVL_INF,
             ptr::null(),
@@ -1831,7 +1831,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
             set_vim_var_string(VV_SWAPCOMMAND, swcmd.as_ptr().cast(), swcmd_len as isize);
         }
 
-        time_msg_if_enabled(c"parsing arguments".as_ptr());
+        time_msg_if_enabled(c"parsing arguments");
     }
 }
 
@@ -1883,7 +1883,7 @@ fn init_startuptime(paramp: &mut mparm_T) {
                         c"Primary (or UI client)".as_ptr()
                     },
                 );
-                time_start(c"--- NVIM STARTING ---".as_ptr());
+                time_start(c"--- NVIM STARTING ---");
                 break;
             }
         }
@@ -1894,7 +1894,7 @@ fn check_and_set_isatty(_paramp: &mut mparm_T) {
     g_st().stdin_isatty = os_isatty(STDIN_FILENO);
         g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
         g_st().stderr_isatty = os_isatty(STDERR_FILENO);
-        time_msg_if_enabled(c"window checked".as_ptr());
+        time_msg_if_enabled(c"window checked");
 }
 
 fn init_path(exename: *const c_char) {
@@ -1944,7 +1944,7 @@ fn handle_quickfix(paramp: &mut mparm_T) {
                 msg_putchar(b'\n' as c_int);
                 os_exit(3);
             }
-            time_msg_if_enabled(c"reading errorfile".as_ptr());
+            time_msg_if_enabled(c"reading errorfile");
         }
 }
 
@@ -1958,7 +1958,7 @@ fn handle_tag(tagname: Option<&CStr>) {
                 tagname.as_ptr(),
             );
             do_cmdline_cmd((&raw const g_st().IObuff).cast());
-            time_msg_if_enabled(c"jumping to tag".as_ptr());
+            time_msg_if_enabled(c"jumping to tag");
 
             if g_st().swap_exists_did_quit {
                 ui_call_error_exit(1);
@@ -2025,7 +2025,7 @@ fn read_stdin() {
 
         g_st().no_wait_return = 0;
         g_st().msg_didany = save_msg_didany;
-        time_msg_if_enabled(c"reading stdin".as_ptr());
+        time_msg_if_enabled(c"reading stdin");
         check_swap_exists_action();
     }
 }
@@ -2044,11 +2044,11 @@ fn create_windows(parmp: &mut mparm_T) {
             }
             if parmp.window_layout == WIN_TABS {
                 parmp.window_count = make_tabpages(parmp.window_count);
-                time_msg_if_enabled(c"making tab pages".as_ptr());
+                time_msg_if_enabled(c"making tab pages");
             } else if (*g_st().firstwin).w_next.is_null() || (*(*g_st().firstwin).w_next).w_floating {
                 parmp.window_count =
                     make_windows(parmp.window_count, parmp.window_layout == WIN_VER);
-                time_msg_if_enabled(c"making windows".as_ptr());
+                time_msg_if_enabled(c"making windows");
             } else {
                 parmp.window_count = win_count();
             }
@@ -2238,7 +2238,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
         win_enter(win, false);
 
         g_st().autocmd_no_leave -= 1;
-        time_msg_if_enabled(c"editing files in windows".as_ptr());
+        time_msg_if_enabled(c"editing files in windows");
         if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
             win_equal(*curwin.as_ptr(), false, b'b' as c_int);
         }
@@ -2259,7 +2259,7 @@ fn exe_pre_commands(parmp: &mut mparm_T) {
         }
         estack_pop();
         g_st().current_sctx.sc_sid = 0;
-        time_msg_if_enabled(c"--cmd commands".as_ptr());
+        time_msg_if_enabled(c"--cmd commands");
     }
 }
 
@@ -2287,7 +2287,7 @@ fn exe_commands(parmp: &mut mparm_T) {
         if parmp.edit_type == EDIT_QF {
             qf_jump(ptr::null_mut(), 0, 0, 0);
         }
-        time_msg_if_enabled(c"executing command arguments".as_ptr());
+        time_msg_if_enabled(c"executing command arguments");
     }
 }
 
@@ -2342,13 +2342,13 @@ fn do_system_initialization() {
 fn do_user_initialization() -> bool {
     unsafe {
         let mut do_exrc = opt_vars().p_exrc != 0;
-        if execute_env(c"VIMINIT".as_ptr().cast_mut()) {
+        if execute_env(c"VIMINIT") {
             do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
         }
 
-        let init_lua_path = stdpaths_user_conf_subpath(c"init.lua".as_ptr());
-        let user_vimrc = stdpaths_user_conf_subpath(c"init.vim".as_ptr());
+        let init_lua_path = stdpaths_user_conf_subpath(c"init.lua");
+        let user_vimrc = stdpaths_user_conf_subpath(c"init.vim");
         let init_lua_ptr = init_lua_path.as_ptr().cast_mut();
         let user_vimrc_ptr = user_vimrc.as_ptr().cast_mut();
 
@@ -2456,7 +2456,7 @@ fn do_user_initialization() -> bool {
             }
         }
 
-        if execute_env(c"EXINIT".as_ptr().cast_mut()) {
+        if execute_env(c"EXINIT") {
             do_exrc = opt_vars().p_exrc != 0;
             return do_exrc;
         }
@@ -2503,15 +2503,15 @@ fn source_startup_scripts(parmp: &mparm_T) {
                 do_exrc_initialization();
             }
         }
-        time_msg_if_enabled(c"sourcing vimrc file(s)".as_ptr());
+        time_msg_if_enabled(c"sourcing vimrc file(s)");
 }
 
-fn execute_env(env: *mut c_char) -> bool {
-    let Some(initstr) = os_getenv_cstr(env) else {
+fn execute_env(env: &std::ffi::CStr) -> bool {
+    let Some(initstr) = os_getenv_cstr(env.as_ptr().cast_mut()) else {
             return false;
         };
 
-        estack_push(ETYPE_ENV, env, 0);
+        estack_push(ETYPE_ENV, env.as_ptr().cast_mut(), 0);
         let save_current_sctx = g_st().current_sctx;
         g_st().current_sctx.sc_sid = SID_ENV;
         g_st().current_sctx.sc_seq = 0;

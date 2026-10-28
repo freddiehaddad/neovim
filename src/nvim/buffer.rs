@@ -1946,7 +1946,7 @@ pub fn do_bufdel(
         } else {
             if addr_count == 2 {
                 if *arg != NUL {
-                    return ex_errmsg(e_trailing_arg.as_ptr(), arg);
+                    return ex_errmsg(e_trailing_arg, arg);
                 }
                 bnr = start_bnr;
             } else {
@@ -3890,7 +3890,7 @@ pub fn setfname(
 }
 
 /// Crude way of changing the name of a buffer.
-pub fn buf_set_name(fnum: c_int, name: *mut c_char) {
+pub fn buf_set_name(fnum: c_int, name: &std::ffi::CStr) {
     unsafe {
         let buf = buflist_findnr(fnum);
         if buf.is_null() {
@@ -3898,7 +3898,7 @@ pub fn buf_set_name(fnum: c_int, name: *mut c_char) {
         }
 
         (*buf).clear_fnames();
-        let name_cstr = cstr_to_cstring(name);
+        let name_cstr = name.to_owned();
         let mut ffname = name_cstr.as_ptr().cast_mut();
         let mut sfname: *mut c_char = ptr::null_mut();
         let ffname_cstr = fname_expand(buf, &raw mut ffname, &raw mut sfname);

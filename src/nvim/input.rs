@@ -854,8 +854,8 @@ pub fn stuffReadbuff(s: *const c_char) {
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
-pub fn stuffRedoReadbuff(s: *const c_char) {
-    add_buff(&mut inp_st().readbuf2, s, -1);
+pub fn stuffRedoReadbuff(s: &std::ffi::CStr) {
+    add_buff(&mut inp_st().readbuf2, s.as_ptr(), -1);
 }
 
 pub fn stuffReadbuffLen(s: *const c_char, len: isize) {
@@ -1901,12 +1901,12 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
             let d = (*arg1).vval.v_dict();
 
             if allow_number {
-                allow_number = tv_dict_get_bool(d, c"number".as_ptr(), 1) != 0;
-            } else if tv_dict_has_key(d, c"number".as_ptr()) {
+                allow_number = tv_dict_get_bool(d, c"number", 1) != 0;
+            } else if tv_dict_has_key(d, c"number") {
                 semsg!(gettext(e_invarg2.as_ptr()), c"number".as_ptr());
             }
 
-            simplify = tv_dict_get_bool(d, c"simplify".as_ptr(), 1) != 0;
+            simplify = tv_dict_get_bool(d, c"simplify", 1) != 0;
 
             let cursor_str = tv_dict_get_string(d, c"cursor".as_ptr());
             if !cursor_str.is_null() {

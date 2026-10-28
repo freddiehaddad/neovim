@@ -1581,7 +1581,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
     }
 }
 
-fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: &mut Error) {
+fn generate_api_error(wp: *mut win_T, attribute: &std::ffi::CStr, err: &mut Error) {
     unsafe {
         if !wp.is_null() && (*wp).w_floating {
             api_set_error!(
@@ -1591,7 +1591,7 @@ fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: &mut Error)
                 (*wp).handle,
             );
         } else {
-            api_err_conflict(err, attribute, c"non-float window".as_ptr());
+            api_err_conflict(err, attribute.as_ptr(), c"non-float window".as_ptr());
         }
     }
 }
@@ -1714,7 +1714,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__row) {
                 if !has_relative || is_split {
-                    generate_api_error(wp, c"row".as_ptr(), err);
+                    generate_api_error(wp, c"row", err);
                     break 'fail;
                 }
                 fconfig.row = config.row;
@@ -1722,7 +1722,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__col) {
                 if !has_relative || is_split {
-                    generate_api_error(wp, c"col".as_ptr(), err);
+                    generate_api_error(wp, c"col", err);
                     break 'fail;
                 }
                 fconfig.col = config.col;
@@ -1730,7 +1730,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__bufpos) {
                 if !has_relative || is_split {
-                    generate_api_error(wp, c"bufpos".as_ptr(), err);
+                    generate_api_error(wp, c"bufpos", err);
                     break 'fail;
                 } else {
                     if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {

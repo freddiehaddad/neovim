@@ -330,16 +330,16 @@ pub fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
 }
 
 #[inline]
-pub fn lua_setglobal(lstate: *mut lua_State, s: *const c_char) {
+pub fn lua_setglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
     unsafe {
-        lua_setfield(lstate, LUA_GLOBALSINDEX, s);
+        lua_setfield(lstate, LUA_GLOBALSINDEX, s.as_ptr());
     }
 }
 
 #[inline]
-pub fn lua_getglobal(lstate: *mut lua_State, s: *const c_char) {
+pub fn lua_getglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
     unsafe {
-        lua_getfield(lstate, LUA_GLOBALSINDEX, s);
+        lua_getfield(lstate, LUA_GLOBALSINDEX, s.as_ptr());
     }
 }
 
@@ -390,11 +390,11 @@ pub fn luaL_argcheck(
     lstate: *mut lua_State,
     cond: bool,
     numarg: c_int,
-    extramsg: *const c_char,
+    extramsg: &std::ffi::CStr,
 ) {
     if !cond {
         unsafe {
-            luaL_argerror(lstate, numarg, extramsg);
+            luaL_argerror(lstate, numarg, extramsg.as_ptr());
         }
     }
 }

@@ -164,12 +164,12 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
         let col = pos[1].data.integer();
 
         if row <= 0 || row > i64::from((*(*w).w_buffer).b_ml.ml_line_count) {
-            api_err_range(err, c"cursor line".as_ptr());
+            api_err_range(err, c"cursor line");
             return;
         }
 
         if !(0..=MAXCOL).contains(&col) {
-            api_err_range(err, c"cursor column".as_ptr());
+            api_err_range(err, c"cursor column");
             return;
         }
 
@@ -627,7 +627,7 @@ pub fn nvim_win_text_height(
             }
             start_vcol = opts.start_vcol;
             if !(0..=MAXCOL).contains(&start_vcol) {
-                api_err_range(err, c"start_vcol".as_ptr());
+                api_err_range(err, c"start_vcol");
                 return rv;
             }
         }
@@ -644,7 +644,7 @@ pub fn nvim_win_text_height(
             }
             end_vcol = opts.end_vcol;
             if !(0..=MAXCOL).contains(&end_vcol) {
-                api_err_range(err, c"end_vcol".as_ptr());
+                api_err_range(err, c"end_vcol");
                 return rv;
             }
         }
@@ -652,7 +652,7 @@ pub fn nvim_win_text_height(
         let mut max: i64 = i64::MAX;
         if has_key(mask, KEYSET_OPTIDX_win_text_height__max_height) {
             if opts.max_height <= 0 {
-                api_err_range(err, c"max_height".as_ptr());
+                api_err_range(err, c"max_height");
                 return rv;
             }
             max = opts.max_height;

@@ -866,7 +866,7 @@ pub fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: &
 }
 
 fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
-    let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)".as_ptr());
+    let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
@@ -988,7 +988,7 @@ pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
             ui_cb_update_ext();
             ui_refresh();
             if checkerr {
-                let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)".as_ptr());
+                let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)");
                 msg_schedule_semsg!(
                     c"Excessive errors in vim.ui_attach() callback (ns=%s)".as_ptr(),
                     ns,

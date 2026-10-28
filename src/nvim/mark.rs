@@ -1045,8 +1045,8 @@ fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
 /// `:marks {arg}` (`ex_marks`).
 pub fn ex_marks(eap: &mut exarg_T) {
     nlua_call_excmd(
-            c"vim._core.marks".as_ptr(),
-            c"ex_marks".as_ptr(),
+            c"vim._core.marks",
+            c"ex_marks",
             eap,
             &g_st().cmdmod,
             None,

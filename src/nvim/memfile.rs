@@ -15,7 +15,7 @@ use crate::os::fs::{
 use crate::os::input::{os_breakcheck, os_char_avail};
 use crate::path::FullName_save;
 use crate::strings::{gettext, strerror};
-use std::ffi::{c_char, c_int, c_uint};
+use std::ffi::{c_int, c_uint};
 use std::ptr;
 
 pub type blocknr_T = i64;
@@ -80,10 +80,10 @@ pub struct memfile_T {
 }
 
 #[inline]
-fn perror_msg(msg: *const c_char) {
+fn perror_msg(msg: &std::ffi::CStr) {
     unsafe {
         let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-        let _ = semsg!(c"%s: %s".as_ptr(), gettext(msg), strerror(err));
+        let _ = semsg!(c"%s: %s".as_ptr(), gettext(msg.as_ptr()), strerror(err));
     }
 }
 
@@ -443,14 +443,14 @@ fn mf_read(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
         let page_size = mfp.mf_page_size;
         let offset = i64::from(page_size).wrapping_mul((*hp).bh_bnum);
         if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
-            perror_msg(c"E294: Seek error in swap file read".as_ptr());
+            perror_msg(c"E294: Seek error in swap file read");
             return false;
         }
         assert!((*hp).bh_page_count <= c_uint::MAX / page_size);
         let size = (page_size * (*hp).bh_page_count) as usize;
         let nread = read_eintr(mfp.mf_fd, (*hp).data_ptr().cast(), size);
         if (nread as usize) != size {
-            perror_msg(c"E295: Read error in swap file".as_ptr());
+            perror_msg(c"E295: Read error in swap file");
             return false;
         }
 
@@ -490,7 +490,7 @@ fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> bool {
             for attempt in 1..=2 {
                 if mfp.mf_fd >= 0 {
                     if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
-                        perror_msg(c"E296: Seek error in swap file write".as_ptr());
+                        perror_msg(c"E296: Seek error in swap file write");
                         return false;
                     }
                     let data = if hp2.is_null() {

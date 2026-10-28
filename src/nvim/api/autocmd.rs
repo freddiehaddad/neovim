@@ -137,23 +137,23 @@ fn api_au_st() -> &'static mut ApiAutocmdState {
 }
 
 #[inline]
-fn api_err_con(err: &mut Error, name: *const c_char, name2: *const c_char) {
-    api_err_conflict(err, name, name2);
+fn api_err_con(err: &mut Error, name: &std::ffi::CStr, name2: &std::ffi::CStr) {
+    api_err_conflict(err, name.as_ptr(), name2.as_ptr());
 }
 
 #[inline]
-fn api_err_inv(err: &mut Error, name: *const c_char, val_s: *const c_char) {
-    api_err_invalid(err, name, val_s, 0, true);
+fn api_err_inv(err: &mut Error, name: &std::ffi::CStr, val_s: *const c_char) {
+    api_err_invalid(err, name.as_ptr(), val_s, 0, true);
 }
 
 #[inline]
-fn api_err_int(err: &mut Error, name: *const c_char, val_n: i64) {
-    api_err_invalid(err, name, std::ptr::null(), val_n, false);
+fn api_err_int(err: &mut Error, name: &std::ffi::CStr, val_n: i64) {
+    api_err_invalid(err, name.as_ptr(), std::ptr::null(), val_n, false);
 }
 
 #[inline]
-fn api_err_req(err: &mut Error, name: *const c_char) {
-    api_err_required(err, name);
+fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
+    api_err_required(err, name.as_ptr());
 }
 
 #[inline]
@@ -168,7 +168,7 @@ fn format_buflocal_arena(arena: &mut Arena, handle: c_int) -> NvimString {
 
 fn unpack_string_or_array(
     v: Object,
-    k: *const c_char,
+    k: &std::ffi::CStr,
     required: bool,
     arena: &mut Arena,
     err: &mut Error,
@@ -178,7 +178,7 @@ fn unpack_string_or_array(
             add_c(&mut arr, v);
             arr
         } else if v.obj_type == ObjectType::kObjectTypeArray {
-            if !check_string_array(v.data.array(), k.cast_mut(), true, err) {
+            if !check_string_array(v.data.array(), k.as_ptr().cast_mut(), true, err) {
                 return Array {
                     items: std::ptr::null_mut(),
                     size: 0,
@@ -190,7 +190,7 @@ fn unpack_string_or_array(
             if !(!required && v.obj_type == ObjectType::kObjectTypeNil) {
                 api_err_exp(
                     err,
-                    k,
+                    k.as_ptr(),
                     c"Array or String".as_ptr(),
                     api_typename(v.obj_type),
                 );
@@ -209,7 +209,7 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
             ObjectType::kObjectTypeString => {
                 let au_group = augroup_find(group.data.string().data);
                 if au_group == AUGROUP_ERROR {
-                    api_err_inv(err, c"group".as_ptr(), group.data.string().data);
+                    api_err_inv(err, c"group", group.data.string().data);
                     return AUGROUP_ERROR;
                 }
                 au_group
@@ -222,7 +222,7 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
                     augroup_name(au_group)
                 };
                 if !augroup_exists(name) {
-                    api_err_int(err, c"group".as_ptr(), i64::from(au_group));
+                    api_err_int(err, c"group", i64::from(au_group));
                     return AUGROUP_ERROR;
                 }
                 au_group
@@ -243,7 +243,7 @@ fn get_patterns_from_pattern_or_buf(
     pattern: Object,
     has_buf: bool,
     buf: Buffer,
-    fallback: *const c_char,
+    fallback: &std::ffi::CStr,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
@@ -318,8 +318,8 @@ fn get_patterns_from_pattern_or_buf(
                 };
             }
             patterns.push(string_obj(format_buflocal_arena(arena, (*b).b_fnum)));
-        } else if !fallback.is_null() {
-            patterns.push(string_obj(cstr_as_string(fallback)));
+        } else {
+            patterns.push(string_obj(cstr_as_string(fallback.as_ptr())));
         }
 
         arena_take_arraybuilder(arena, &mut patterns)
@@ -409,7 +409,7 @@ pub fn nvim_get_autocmds(
                 ObjectType::kObjectTypeString => {
                     group = augroup_find(opts.group.data.string().data);
                     if group < 0 {
-                        api_err_inv(err, c"group".as_ptr(), opts.group.data.string().data);
+                        api_err_inv(err, c"group", opts.group.data.string().data);
                         break 'body;
                     }
                 }
@@ -421,7 +421,7 @@ pub fn nvim_get_autocmds(
                         augroup_name(group)
                     };
                     if !augroup_exists(name) {
-                        api_err_int(err, c"group".as_ptr(), opts.group.data.integer());
+                        api_err_int(err, c"group", opts.group.data.integer());
                         break 'body;
                     }
                 }
@@ -449,7 +449,7 @@ pub fn nvim_get_autocmds(
                 if v.obj_type == ObjectType::kObjectTypeString {
                     let event_nr = event_name2nr_str(v.data.string());
                     if (event_nr as usize) >= NUM_EVENTS {
-                        api_err_inv(err, c"event".as_ptr(), v.data.string().data);
+                        api_err_inv(err, c"event", v.data.string().data);
                         break 'body;
                     }
                     event_set[event_nr as usize] = true;
@@ -467,7 +467,7 @@ pub fn nvim_get_autocmds(
                         }
                         let event_nr = event_name2nr_str(event_v.data.string());
                         if (event_nr as usize) >= NUM_EVENTS {
-                            api_err_inv(err, c"event".as_ptr(), event_v.data.string().data);
+                            api_err_inv(err, c"event", event_v.data.string().data);
                             break 'body;
                         }
                         event_set[event_nr as usize] = true;
@@ -493,11 +493,11 @@ pub fn nvim_get_autocmds(
             };
 
             if has_buf_key && has_buffer_key {
-                api_err_con(err, c"buf".as_ptr(), c"buffer".as_ptr());
+                api_err_con(err, c"buf", c"buffer");
                 break 'body;
             }
             if has_key(mask, KEYSET_OPTIDX_get_autocmds__pattern) && has_buf {
-                api_err_con(err, c"pattern".as_ptr(), c"buf".as_ptr());
+                api_err_con(err, c"pattern", c"buf");
                 break 'body;
             }
 
@@ -832,7 +832,7 @@ pub fn nvim_create_autocmd(
         let mut handler_fn = Callback::NONE;
 
         'body: {
-            let event_array = unpack_string_or_array(event, c"event".as_ptr(), true, arena, err);
+            let event_array = unpack_string_or_array(event, c"event", true, arena, err);
             if error_set(err) {
                 break 'body;
             }
@@ -842,7 +842,7 @@ pub fn nvim_create_autocmd(
             let has_command = has_key(mask, KEYSET_OPTIDX_create_autocmd__command);
 
             if has_callback && has_command {
-                api_err_con(err, c"callback".as_ptr(), c"command".as_ptr());
+                api_err_con(err, c"callback", c"command");
                 break 'body;
             }
 
@@ -851,11 +851,11 @@ pub fn nvim_create_autocmd(
                 match callback.obj_type {
                     ObjectType::kObjectTypeLuaRef => {
                         if callback.data.luaref() == LUA_NOREF {
-                            api_err_inv(err, c"callback".as_ptr(), c"<no value>".as_ptr());
+                            api_err_inv(err, c"callback", c"<no value>".as_ptr());
                             break 'body;
                         }
                         if !nlua_ref_is_function(callback.data.luaref()) {
-                            api_err_inv(err, c"callback".as_ptr(), c"<not a function>".as_ptr());
+                            api_err_inv(err, c"callback", c"<not a function>".as_ptr());
                             break 'body;
                         }
                         handler_fn.data =
@@ -879,7 +879,7 @@ pub fn nvim_create_autocmd(
             } else if has_command {
                 handler_cmd = Some(cstr_from_bytes(opts.command.as_bytes()));
             } else {
-                api_err_req(err, c"'command' or 'callback'".as_ptr());
+                api_err_req(err, c"'command' or 'callback'");
                 break 'body;
             }
 
@@ -898,11 +898,11 @@ pub fn nvim_create_autocmd(
             };
 
             if has_buf_key && has_buffer_key {
-                api_err_con(err, c"buf".as_ptr(), c"buffer".as_ptr());
+                api_err_con(err, c"buf", c"buffer");
                 break 'body;
             }
             if has_key(mask, KEYSET_OPTIDX_create_autocmd__pattern) && has_buf {
-                api_err_con(err, c"pattern".as_ptr(), c"buf".as_ptr());
+                api_err_con(err, c"pattern", c"buf");
                 break 'body;
             }
 
@@ -910,7 +910,7 @@ pub fn nvim_create_autocmd(
                 opts.pattern,
                 has_buf,
                 buf,
-                c"*".as_ptr(),
+                c"*",
                 arena,
                 err,
             );
@@ -932,7 +932,7 @@ pub fn nvim_create_autocmd(
             }
 
             if event_array.size == 0 {
-                api_err_req(err, c"event".as_ptr());
+                api_err_req(err, c"event");
                 break 'body;
             }
 
@@ -943,7 +943,7 @@ pub fn nvim_create_autocmd(
                 let event_str = event_array[i];
                 let event_nr = event_name2nr_str(event_str.data.string());
                 if (event_nr as usize) >= NUM_EVENTS {
-                    api_err_inv(err, c"event".as_ptr(), event_str.data.string().data);
+                    api_err_inv(err, c"event", event_str.data.string().data);
                     break 'body;
                 }
 
@@ -992,7 +992,7 @@ pub fn nvim_create_autocmd(
 // DLLEXPORT void nvim_del_autocmd(Integer id, Error *err) FUNC_API_SINCE(9);
 pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
     if id <= 0 {
-            api_err_int(err, c"autocmd id".as_ptr(), id);
+            api_err_int(err, c"autocmd id", id);
             return;
         }
         if !autocmd_delete_id(id) {
@@ -1028,7 +1028,7 @@ pub fn nvim_clear_autocmds(
 ) {
     {
         let event_array =
-            unpack_string_or_array(opts.event, c"event".as_ptr(), false, arena, err);
+            unpack_string_or_array(opts.event, c"event", false, arena, err);
         if error_set(err) {
             return;
         }
@@ -1044,11 +1044,11 @@ pub fn nvim_clear_autocmds(
         };
 
         if has_buf_key && has_buffer_key {
-            api_err_con(err, c"buf".as_ptr(), c"buffer".as_ptr());
+            api_err_con(err, c"buf", c"buffer");
             return;
         }
         if has_key(mask, KEYSET_OPTIDX_clear_autocmds__pattern) && has_buf {
-            api_err_con(err, c"pattern".as_ptr(), c"buf".as_ptr());
+            api_err_con(err, c"pattern", c"buf");
             return;
         }
 
@@ -1061,7 +1061,7 @@ pub fn nvim_clear_autocmds(
             opts.pattern,
             has_buf,
             buf,
-            c"".as_ptr(),
+            c"",
             arena,
             err,
         );
@@ -1084,7 +1084,7 @@ pub fn nvim_clear_autocmds(
                 let event_str = event_array[i];
                 let event_nr = event_name2nr_str(event_str.data.string());
                 if (event_nr as usize) >= NUM_EVENTS {
-                    api_err_inv(err, c"event".as_ptr(), event_str.data.string().data);
+                    api_err_inv(err, c"event", event_str.data.string().data);
                     return;
                 }
                 for j in 0..patterns.size {
@@ -1210,7 +1210,7 @@ pub fn nvim_exec_autocmds(
         let mut b = g_st().curbuf;
         let mut data: *mut Object = std::ptr::null_mut();
 
-        let event_array = unpack_string_or_array(event, c"event".as_ptr(), true, arena, err);
+        let event_array = unpack_string_or_array(event, c"event", true, arena, err);
         if error_set(err) {
             return;
         }
@@ -1220,7 +1220,7 @@ pub fn nvim_exec_autocmds(
             ObjectType::kObjectTypeString => {
                 au_group = augroup_find(opts.group.data.string().data);
                 if au_group == AUGROUP_ERROR {
-                    api_err_inv(err, c"group".as_ptr(), opts.group.data.string().data);
+                    api_err_inv(err, c"group", opts.group.data.string().data);
                     return;
                 }
             }
@@ -1232,7 +1232,7 @@ pub fn nvim_exec_autocmds(
                     augroup_name(au_group)
                 };
                 if !augroup_exists(name) {
-                    api_err_int(err, c"group".as_ptr(), i64::from(au_group));
+                    api_err_int(err, c"group", i64::from(au_group));
                     return;
                 }
             }
@@ -1258,13 +1258,13 @@ pub fn nvim_exec_autocmds(
         };
 
         if has_buf_key && has_buffer_key {
-            api_err_con(err, c"buf".as_ptr(), c"buffer".as_ptr());
+            api_err_con(err, c"buf", c"buffer");
             return;
         }
 
         if has_buf {
             if has_key(mask, KEYSET_OPTIDX_exec_autocmds__pattern) {
-                api_err_con(err, c"pattern".as_ptr(), c"buf".as_ptr());
+                api_err_con(err, c"pattern", c"buf");
                 return;
             }
             b = find_buffer_by_handle(buf, err);
@@ -1277,7 +1277,7 @@ pub fn nvim_exec_autocmds(
             opts.pattern,
             has_buf,
             buf,
-            c"".as_ptr(),
+            c"",
             arena,
             err,
         );
@@ -1300,7 +1300,7 @@ pub fn nvim_exec_autocmds(
             let event_str = event_array[i];
             let event_nr = event_name2nr_str(event_str.data.string());
             if (event_nr as usize) >= NUM_EVENTS {
-                api_err_inv(err, c"event".as_ptr(), event_str.data.string().data);
+                api_err_inv(err, c"event", event_str.data.string().data);
                 return;
             }
             for j in 0..patterns.size {

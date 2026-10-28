@@ -2240,7 +2240,7 @@ fn keymap_unload() {
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
 pub fn get_keymap_str(
     wp: *mut win_T,
-    fmt: *mut c_char,
+    fmt: &std::ffi::CStr,
     buf: *mut c_char,
     len: c_int,
 ) -> c_int {
@@ -2271,7 +2271,7 @@ pub fn get_keymap_str(
                 p = c"lang".as_ptr();
             }
         }
-        let mut plen = vim_snprintf!(buf, len as usize, fmt, p);
+        let mut plen = vim_snprintf!(buf, len as usize, fmt.as_ptr().cast_mut(), p);
         drop(s);
         if plen < 0 || plen > len - 1 {
             *buf = NUL;

@@ -1697,7 +1697,7 @@ pub fn do_autocmd_dirchanged(
         tv_dict_add_str(dict, c"scope".as_ptr(), "scope".len(), buf.as_ptr());
         tv_dict_add_bool(
             dict,
-            c"changed_window".as_ptr(),
+            c"changed_window",
             "changed_window".len(),
             c_int::from(cause == kCdCauseWindow),
         );

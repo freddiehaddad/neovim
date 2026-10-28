@@ -3410,11 +3410,11 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
         if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
             let d = tv.vval.v_dict();
             word = tv_dict_get_string(d, c"word".as_ptr());
-            cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d, c"abbr".as_ptr());
-            cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(d, c"menu".as_ptr());
-            cptext[CPT_KIND] = crate::eval::typval::tv_dict_get_cstring(d, c"kind".as_ptr());
-            cptext[CPT_INFO] = crate::eval::typval::tv_dict_get_cstring(d, c"info".as_ptr());
-            commit_chars = crate::eval::typval::tv_dict_get_cstring(d, c"commit_chars".as_ptr());
+            cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d, c"abbr");
+            cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(d, c"menu");
+            cptext[CPT_KIND] = crate::eval::typval::tv_dict_get_cstring(d, c"kind");
+            cptext[CPT_INFO] = crate::eval::typval::tv_dict_get_cstring(d, c"info");
+            commit_chars = crate::eval::typval::tv_dict_get_cstring(d, c"commit_chars");
 
             let user_abbr_hlname = tv_dict_get_string(d, c"abbr_hlgroup".as_ptr());
             user_hl[0] = get_user_highlight_id(user_abbr_hlname);
@@ -3422,16 +3422,16 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
             let user_kind_hlname = tv_dict_get_string(d, c"kind_hlgroup".as_ptr());
             user_hl[1] = get_user_highlight_id(user_kind_hlname);
 
-            tv_dict_get_tv(d, c"user_data".as_ptr(), &mut user_data);
+            tv_dict_get_tv(d, c"user_data", &mut user_data);
 
-            if tv_dict_get_number(d, c"icase".as_ptr()) != 0 {
+            if tv_dict_get_number(d, c"icase") != 0 {
                 flags |= CP_ICASE;
             }
-            dup = tv_dict_get_number(d, c"dup".as_ptr()) != 0;
-            empty = tv_dict_get_number(d, c"empty".as_ptr()) != 0;
-            preselect = tv_dict_get_number(d, c"preselect".as_ptr()) != 0;
+            dup = tv_dict_get_number(d, c"dup") != 0;
+            empty = tv_dict_get_number(d, c"empty") != 0;
+            preselect = tv_dict_get_number(d, c"preselect") != 0;
             if !tv_dict_get_string(d, c"equal".as_ptr()).is_null()
-                && tv_dict_get_number(d, c"equal".as_ptr()) != 0
+                && tv_dict_get_number(d, c"equal") != 0
             {
                 flags |= CP_EQUAL;
             }
@@ -3781,7 +3781,7 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
         if add_match {
             tv_dict_add_bool(
                 di,
-                c"match".as_ptr(),
+                c"match",
                 5,
                 if (*match_).cp_in_match_array { 1 } else { 0 },
             );

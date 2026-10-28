@@ -897,10 +897,10 @@ fn termkey_lookup_keyname_format(
 #[cfg(test)]
 pub fn termkey_lookup_keyname(
     tk: &TermKey,
-    str_in: *const c_char,
+    str_in: &std::ffi::CStr,
     sym: &mut TermKeySym,
 ) -> *const c_char {
-    termkey_lookup_keyname_format(tk, str_in, sym, 0)
+    termkey_lookup_keyname_format(tk, str_in.as_ptr(), sym, 0)
 }
 
 fn register_c0(
@@ -1316,8 +1316,8 @@ mod tests {
             let tk = &mut tk;
             let mut sym: TermKeySym = TERMKEY_SYM_UNKNOWN;
 
-            assert!(termkey_lookup_keyname(tk, c"SomeUnknownKey".as_ptr(), &mut sym).is_null());
-            let endp = termkey_lookup_keyname(tk, c"DownMore".as_ptr(), &mut sym);
+            assert!(termkey_lookup_keyname(tk, c"SomeUnknownKey", &mut sym).is_null());
+            let endp = termkey_lookup_keyname(tk, c"DownMore", &mut sym);
             assert!(!endp.is_null());
             assert_eq!(crate::memory::cstr_as_bytes(endp), b"More");
             assert_eq!(sym, TERMKEY_SYM_DOWN);

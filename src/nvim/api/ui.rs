@@ -576,7 +576,7 @@ fn ui_set_option(
                 std::slice::from_raw_parts(s.data.cast::<u8>(), s.size)
             };
             let term_cstr = std::ffi::CString::new(slice).unwrap();
-            set_tty_option(c"term".as_ptr(), Some(term_cstr.clone()));
+            set_tty_option(c"term", Some(term_cstr.clone()));
             ui.term_name = Some(term_cstr);
             return;
         }

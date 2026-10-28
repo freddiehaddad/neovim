@@ -135,7 +135,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
 
         let result = eval_call_provider(
             c"clipboard".as_ptr().cast_mut(),
-            c"get".as_ptr().cast_mut(),
+            c"get",
             &mut *args,
             false,
         );
@@ -266,7 +266,7 @@ pub fn set_clipboard(mut name: c_int, reg: &yankreg_T) {
 
         let _ = eval_call_provider(
             c"clipboard".as_ptr().cast_mut(),
-            c"set".as_ptr().cast_mut(),
+            c"set",
             &mut *args,
             true,
         );

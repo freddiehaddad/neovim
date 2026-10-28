@@ -136,22 +136,22 @@ pub struct MsgpackRpcRequestHandler {
 }
 
 #[inline]
-fn dlog_internal_call(channel_id: u64, func_name: *const c_char, msg: *const c_char) {
+fn dlog_internal_call(channel_id: u64, func_name: &std::ffi::CStr, msg: &std::ffi::CStr) {
     #[cfg(debug_assertions)]
     {
         if (channel_id & (1u64 << 63)) != 0 {
             let _ = crate::log::logmsg_str(
                 crate::log::LOGLVL_DBG,
                 ptr::null(),
-                func_name,
+                func_name.as_ptr(),
                 0,
                 true,
-                msg,
+                msg.as_ptr(),
             );
         }
     }
     #[cfg(not(debug_assertions))]
-    let _ = (channel_id, func_name, msg);
+    let _ = (channel_id, func_name.as_ptr(), msg.as_ptr());
 }
 
 #[inline]
@@ -3741,8 +3741,8 @@ pub fn handle_nvim_get_autocmds(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_autocmds".as_ptr(),
-            c"API: vim -> nvim_get_autocmds".as_ptr(),
+            c"handle_nvim_get_autocmds",
+            c"API: vim -> nvim_get_autocmds",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: KeyDict_get_autocmds = Default::default();
@@ -3777,8 +3777,8 @@ pub fn handle_nvim_create_autocmd(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_create_autocmd".as_ptr(),
-            c"API: vim -> nvim_create_autocmd".as_ptr(),
+            c"handle_nvim_create_autocmd",
+            c"API: vim -> nvim_create_autocmd",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_2: KeyDict_create_autocmd = Default::default();
@@ -3814,8 +3814,8 @@ pub fn handle_nvim_del_autocmd(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_autocmd".as_ptr(),
-            c"API: vim -> nvim_del_autocmd".as_ptr(),
+            c"handle_nvim_del_autocmd",
+            c"API: vim -> nvim_del_autocmd",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -3853,8 +3853,8 @@ pub fn handle_nvim_clear_autocmds(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_clear_autocmds".as_ptr(),
-            c"API: vim -> nvim_clear_autocmds".as_ptr(),
+            c"handle_nvim_clear_autocmds",
+            c"API: vim -> nvim_clear_autocmds",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: KeyDict_clear_autocmds = Default::default();
@@ -3888,8 +3888,8 @@ pub fn handle_nvim_create_augroup(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_create_augroup".as_ptr(),
-            c"API: vim -> nvim_create_augroup".as_ptr(),
+            c"handle_nvim_create_augroup",
+            c"API: vim -> nvim_create_augroup",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -3934,8 +3934,8 @@ pub fn handle_nvim_del_augroup_by_id(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_augroup_by_id".as_ptr(),
-            c"API: vim -> nvim_del_augroup_by_id".as_ptr(),
+            c"handle_nvim_del_augroup_by_id",
+            c"API: vim -> nvim_del_augroup_by_id",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -3974,8 +3974,8 @@ pub fn handle_nvim_del_augroup_by_name(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_augroup_by_name".as_ptr(),
-            c"API: vim -> nvim_del_augroup_by_name".as_ptr(),
+            c"handle_nvim_del_augroup_by_name",
+            c"API: vim -> nvim_del_augroup_by_name",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -4014,8 +4014,8 @@ pub fn handle_nvim_exec_autocmds(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_exec_autocmds".as_ptr(),
-            c"API: vim -> nvim_exec_autocmds".as_ptr(),
+            c"handle_nvim_exec_autocmds",
+            c"API: vim -> nvim_exec_autocmds",
         );
         let ret = OBJECT_NIL;
         let mut arg_2: KeyDict_exec_autocmds = Default::default();
@@ -4050,8 +4050,8 @@ pub fn handle_nvim_buf_line_count(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_line_count".as_ptr(),
-            c"API: vim -> nvim_buf_line_count".as_ptr(),
+            c"handle_nvim_buf_line_count",
+            c"API: vim -> nvim_buf_line_count",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4092,8 +4092,8 @@ pub fn handle_nvim_buf_attach(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_attach".as_ptr(),
-            c"API: vim -> nvim_buf_attach".as_ptr(),
+            c"handle_nvim_buf_attach",
+            c"API: vim -> nvim_buf_attach",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4147,8 +4147,8 @@ pub fn handle_nvim_buf_detach(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_detach".as_ptr(),
-            c"API: vim -> nvim_buf_detach".as_ptr(),
+            c"handle_nvim_buf_detach",
+            c"API: vim -> nvim_buf_detach",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4188,8 +4188,8 @@ pub fn handle_nvim_buf_get_lines(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_lines".as_ptr(),
-            c"API: vim -> nvim_buf_get_lines".as_ptr(),
+            c"handle_nvim_buf_get_lines",
+            c"API: vim -> nvim_buf_get_lines",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4268,8 +4268,8 @@ pub fn handle_nvim_buf_set_lines(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_lines".as_ptr(),
-            c"API: vim -> nvim_buf_set_lines".as_ptr(),
+            c"handle_nvim_buf_set_lines",
+            c"API: vim -> nvim_buf_set_lines",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4352,8 +4352,8 @@ pub fn handle_nvim_buf_set_text(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_text".as_ptr(),
-            c"API: vim -> nvim_buf_set_text".as_ptr(),
+            c"handle_nvim_buf_set_text",
+            c"API: vim -> nvim_buf_set_text",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4444,8 +4444,8 @@ pub fn handle_nvim_buf_get_text(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_text".as_ptr(),
-            c"API: vim -> nvim_buf_get_text".as_ptr(),
+            c"handle_nvim_buf_get_text",
+            c"API: vim -> nvim_buf_get_text",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4537,8 +4537,8 @@ pub fn handle_nvim_buf_get_offset(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_offset".as_ptr(),
-            c"API: vim -> nvim_buf_get_offset".as_ptr(),
+            c"handle_nvim_buf_get_offset",
+            c"API: vim -> nvim_buf_get_offset",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4589,8 +4589,8 @@ pub fn handle_nvim_buf_get_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_var".as_ptr(),
-            c"API: vim -> nvim_buf_get_var".as_ptr(),
+            c"handle_nvim_buf_get_var",
+            c"API: vim -> nvim_buf_get_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4639,8 +4639,8 @@ pub fn handle_nvim_buf_get_changedtick(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_changedtick".as_ptr(),
-            c"API: vim -> nvim_buf_get_changedtick".as_ptr(),
+            c"handle_nvim_buf_get_changedtick",
+            c"API: vim -> nvim_buf_get_changedtick",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4681,8 +4681,8 @@ pub fn handle_nvim_buf_get_keymap(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_keymap".as_ptr(),
-            c"API: vim -> nvim_buf_get_keymap".as_ptr(),
+            c"handle_nvim_buf_get_keymap",
+            c"API: vim -> nvim_buf_get_keymap",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4733,8 +4733,8 @@ pub fn handle_nvim_buf_set_keymap(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_keymap".as_ptr(),
-            c"API: vim -> nvim_buf_set_keymap".as_ptr(),
+            c"handle_nvim_buf_set_keymap",
+            c"API: vim -> nvim_buf_set_keymap",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4817,8 +4817,8 @@ pub fn handle_nvim_buf_del_keymap(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_del_keymap".as_ptr(),
-            c"API: vim -> nvim_buf_del_keymap".as_ptr(),
+            c"handle_nvim_buf_del_keymap",
+            c"API: vim -> nvim_buf_del_keymap",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4883,8 +4883,8 @@ pub fn handle_nvim_buf_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_var".as_ptr(),
-            c"API: vim -> nvim_buf_set_var".as_ptr(),
+            c"handle_nvim_buf_set_var",
+            c"API: vim -> nvim_buf_set_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4933,8 +4933,8 @@ pub fn handle_nvim_buf_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_del_var".as_ptr(),
-            c"API: vim -> nvim_buf_del_var".as_ptr(),
+            c"handle_nvim_buf_del_var",
+            c"API: vim -> nvim_buf_del_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -4982,8 +4982,8 @@ pub fn handle_nvim_buf_get_name(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_name".as_ptr(),
-            c"API: vim -> nvim_buf_get_name".as_ptr(),
+            c"handle_nvim_buf_get_name",
+            c"API: vim -> nvim_buf_get_name",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5023,8 +5023,8 @@ pub fn handle_nvim_buf_set_name(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_name".as_ptr(),
-            c"API: vim -> nvim_buf_set_name".as_ptr(),
+            c"handle_nvim_buf_set_name",
+            c"API: vim -> nvim_buf_set_name",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5072,8 +5072,8 @@ pub fn handle_nvim_buf_is_loaded(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_is_loaded".as_ptr(),
-            c"API: vim -> nvim_buf_is_loaded".as_ptr(),
+            c"handle_nvim_buf_is_loaded",
+            c"API: vim -> nvim_buf_is_loaded",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5110,8 +5110,8 @@ pub fn handle_nvim_buf_delete(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_delete".as_ptr(),
-            c"API: vim -> nvim_buf_delete".as_ptr(),
+            c"handle_nvim_buf_delete",
+            c"API: vim -> nvim_buf_delete",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5159,8 +5159,8 @@ pub fn handle_nvim_buf_is_valid(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_is_valid".as_ptr(),
-            c"API: vim -> nvim_buf_is_valid".as_ptr(),
+            c"handle_nvim_buf_is_valid",
+            c"API: vim -> nvim_buf_is_valid",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5197,8 +5197,8 @@ pub fn handle_nvim_buf_del_mark(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_del_mark".as_ptr(),
-            c"API: vim -> nvim_buf_del_mark".as_ptr(),
+            c"handle_nvim_buf_del_mark",
+            c"API: vim -> nvim_buf_del_mark",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5247,8 +5247,8 @@ pub fn handle_nvim_buf_set_mark(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_mark".as_ptr(),
-            c"API: vim -> nvim_buf_set_mark".as_ptr(),
+            c"handle_nvim_buf_set_mark",
+            c"API: vim -> nvim_buf_set_mark",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5320,8 +5320,8 @@ pub fn handle_nvim_buf_get_mark(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_mark".as_ptr(),
-            c"API: vim -> nvim_buf_get_mark".as_ptr(),
+            c"handle_nvim_buf_get_mark",
+            c"API: vim -> nvim_buf_get_mark",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5370,8 +5370,8 @@ pub fn handle_nvim__buf_stats(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__buf_stats".as_ptr(),
-            c"API: vim -> nvim__buf_stats".as_ptr(),
+            c"handle_nvim__buf_stats",
+            c"API: vim -> nvim__buf_stats",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5411,8 +5411,8 @@ pub fn handle_nvim_parse_cmd(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_parse_cmd".as_ptr(),
-            c"API: vim -> nvim_parse_cmd".as_ptr(),
+            c"handle_nvim_parse_cmd",
+            c"API: vim -> nvim_parse_cmd",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -5469,8 +5469,8 @@ pub fn handle_nvim_cmd(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_cmd".as_ptr(),
-            c"API: vim -> nvim_cmd".as_ptr(),
+            c"handle_nvim_cmd",
+            c"API: vim -> nvim_cmd",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: KeyDict_cmd = Default::default();
@@ -5523,8 +5523,8 @@ pub fn handle_nvim_create_user_command(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_create_user_command".as_ptr(),
-            c"API: vim -> nvim_create_user_command".as_ptr(),
+            c"handle_nvim_create_user_command",
+            c"API: vim -> nvim_create_user_command",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -5569,8 +5569,8 @@ pub fn handle_nvim_del_user_command(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_user_command".as_ptr(),
-            c"API: vim -> nvim_del_user_command".as_ptr(),
+            c"handle_nvim_del_user_command",
+            c"API: vim -> nvim_del_user_command",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -5609,8 +5609,8 @@ pub fn handle_nvim_buf_create_user_command(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_create_user_command".as_ptr(),
-            c"API: vim -> nvim_buf_create_user_command".as_ptr(),
+            c"handle_nvim_buf_create_user_command",
+            c"API: vim -> nvim_buf_create_user_command",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5653,8 +5653,8 @@ pub fn handle_nvim_buf_del_user_command(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_del_user_command".as_ptr(),
-            c"API: vim -> nvim_buf_del_user_command".as_ptr(),
+            c"handle_nvim_buf_del_user_command",
+            c"API: vim -> nvim_buf_del_user_command",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5704,8 +5704,8 @@ pub fn handle_nvim_get_commands(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_commands".as_ptr(),
-            c"API: vim -> nvim_get_commands".as_ptr(),
+            c"handle_nvim_get_commands",
+            c"API: vim -> nvim_get_commands",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: KeyDict_get_commands = Default::default();
@@ -5740,8 +5740,8 @@ pub fn handle_nvim_buf_get_commands(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_commands".as_ptr(),
-            c"API: vim -> nvim_buf_get_commands".as_ptr(),
+            c"handle_nvim_buf_get_commands",
+            c"API: vim -> nvim_buf_get_commands",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5787,8 +5787,8 @@ pub fn handle_nvim_exec(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_exec".as_ptr(),
-            c"API: vim -> nvim_exec".as_ptr(),
+            c"handle_nvim_exec",
+            c"API: vim -> nvim_exec",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -5836,8 +5836,8 @@ pub fn handle_nvim_command_output(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_command_output".as_ptr(),
-            c"API: vim -> nvim_command_output".as_ptr(),
+            c"handle_nvim_command_output",
+            c"API: vim -> nvim_command_output",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -5877,8 +5877,8 @@ pub fn handle_nvim_execute_lua(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_execute_lua".as_ptr(),
-            c"API: vim -> nvim_execute_lua".as_ptr(),
+            c"handle_nvim_execute_lua",
+            c"API: vim -> nvim_execute_lua",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -5926,8 +5926,8 @@ pub fn handle_nvim_buf_get_number(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_number".as_ptr(),
-            c"API: vim -> nvim_buf_get_number".as_ptr(),
+            c"handle_nvim_buf_get_number",
+            c"API: vim -> nvim_buf_get_number",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -5968,8 +5968,8 @@ pub fn handle_nvim_buf_clear_highlight(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_clear_highlight".as_ptr(),
-            c"API: vim -> nvim_buf_clear_highlight".as_ptr(),
+            c"handle_nvim_buf_clear_highlight",
+            c"API: vim -> nvim_buf_clear_highlight",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6039,8 +6039,8 @@ pub fn handle_nvim_buf_add_highlight(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_add_highlight".as_ptr(),
-            c"API: vim -> nvim_buf_add_highlight".as_ptr(),
+            c"handle_nvim_buf_add_highlight",
+            c"API: vim -> nvim_buf_add_highlight",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6131,8 +6131,8 @@ pub fn handle_nvim_buf_set_virtual_text(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_virtual_text".as_ptr(),
-            c"API: vim -> nvim_buf_set_virtual_text".as_ptr(),
+            c"handle_nvim_buf_set_virtual_text",
+            c"API: vim -> nvim_buf_set_virtual_text",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6208,8 +6208,8 @@ pub fn handle_nvim_get_hl_by_id(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_hl_by_id".as_ptr(),
-            c"API: vim -> nvim_get_hl_by_id".as_ptr(),
+            c"handle_nvim_get_hl_by_id",
+            c"API: vim -> nvim_get_hl_by_id",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -6257,8 +6257,8 @@ pub fn handle_nvim_get_hl_by_name(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_hl_by_name".as_ptr(),
-            c"API: vim -> nvim_get_hl_by_name".as_ptr(),
+            c"handle_nvim_get_hl_by_name",
+            c"API: vim -> nvim_get_hl_by_name",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -6308,8 +6308,8 @@ pub fn handle_buffer_insert(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_insert".as_ptr(),
-            c"API: vim -> buffer_insert".as_ptr(),
+            c"handle_buffer_insert",
+            c"API: vim -> buffer_insert",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6367,8 +6367,8 @@ pub fn handle_buffer_get_line(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_get_line".as_ptr(),
-            c"API: vim -> buffer_get_line".as_ptr(),
+            c"handle_buffer_get_line",
+            c"API: vim -> buffer_get_line",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6417,8 +6417,8 @@ pub fn handle_buffer_set_line(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_set_line".as_ptr(),
-            c"API: vim -> buffer_set_line".as_ptr(),
+            c"handle_buffer_set_line",
+            c"API: vim -> buffer_set_line",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6475,8 +6475,8 @@ pub fn handle_buffer_del_line(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_del_line".as_ptr(),
-            c"API: vim -> buffer_del_line".as_ptr(),
+            c"handle_buffer_del_line",
+            c"API: vim -> buffer_del_line",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6524,8 +6524,8 @@ pub fn handle_buffer_get_line_slice(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_get_line_slice".as_ptr(),
-            c"API: vim -> buffer_get_line_slice".as_ptr(),
+            c"handle_buffer_get_line_slice",
+            c"API: vim -> buffer_get_line_slice",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6606,8 +6606,8 @@ pub fn handle_buffer_set_line_slice(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_set_line_slice".as_ptr(),
-            c"API: vim -> buffer_set_line_slice".as_ptr(),
+            c"handle_buffer_set_line_slice",
+            c"API: vim -> buffer_set_line_slice",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6691,8 +6691,8 @@ pub fn handle_buffer_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_set_var".as_ptr(),
-            c"API: vim -> buffer_set_var".as_ptr(),
+            c"handle_buffer_set_var",
+            c"API: vim -> buffer_set_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6742,8 +6742,8 @@ pub fn handle_buffer_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_buffer_del_var".as_ptr(),
-            c"API: vim -> buffer_del_var".as_ptr(),
+            c"handle_buffer_del_var",
+            c"API: vim -> buffer_del_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -6792,8 +6792,8 @@ pub fn handle_window_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_window_set_var".as_ptr(),
-            c"API: vim -> window_set_var".as_ptr(),
+            c"handle_window_set_var",
+            c"API: vim -> window_set_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -6843,8 +6843,8 @@ pub fn handle_window_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_window_del_var".as_ptr(),
-            c"API: vim -> window_del_var".as_ptr(),
+            c"handle_window_del_var",
+            c"API: vim -> window_del_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -6893,8 +6893,8 @@ pub fn handle_tabpage_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_tabpage_set_var".as_ptr(),
-            c"API: vim -> tabpage_set_var".as_ptr(),
+            c"handle_tabpage_set_var",
+            c"API: vim -> tabpage_set_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -6944,8 +6944,8 @@ pub fn handle_tabpage_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_tabpage_del_var".as_ptr(),
-            c"API: vim -> tabpage_del_var".as_ptr(),
+            c"handle_tabpage_del_var",
+            c"API: vim -> tabpage_del_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -6994,8 +6994,8 @@ pub fn handle_vim_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_vim_set_var".as_ptr(),
-            c"API: vim -> vim_set_var".as_ptr(),
+            c"handle_vim_set_var",
+            c"API: vim -> vim_set_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7035,8 +7035,8 @@ pub fn handle_vim_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_vim_del_var".as_ptr(),
-            c"API: vim -> vim_del_var".as_ptr(),
+            c"handle_vim_del_var",
+            c"API: vim -> vim_del_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7075,8 +7075,8 @@ pub fn handle_nvim_get_option_info(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_option_info".as_ptr(),
-            c"API: vim -> nvim_get_option_info".as_ptr(),
+            c"handle_nvim_get_option_info",
+            c"API: vim -> nvim_get_option_info",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7116,8 +7116,8 @@ pub fn handle_nvim_set_option(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_option".as_ptr(),
-            c"API: vim -> nvim_set_option".as_ptr(),
+            c"handle_nvim_set_option",
+            c"API: vim -> nvim_set_option",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7156,8 +7156,8 @@ pub fn handle_nvim_get_option(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_option".as_ptr(),
-            c"API: vim -> nvim_get_option".as_ptr(),
+            c"handle_nvim_get_option",
+            c"API: vim -> nvim_get_option",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7196,8 +7196,8 @@ pub fn handle_nvim_buf_get_option(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_option".as_ptr(),
-            c"API: vim -> nvim_buf_get_option".as_ptr(),
+            c"handle_nvim_buf_get_option",
+            c"API: vim -> nvim_buf_get_option",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -7248,8 +7248,8 @@ pub fn handle_nvim_buf_set_option(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_option".as_ptr(),
-            c"API: vim -> nvim_buf_set_option".as_ptr(),
+            c"handle_nvim_buf_set_option",
+            c"API: vim -> nvim_buf_set_option",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -7300,8 +7300,8 @@ pub fn handle_nvim_win_get_option(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_option".as_ptr(),
-            c"API: vim -> nvim_win_get_option".as_ptr(),
+            c"handle_nvim_win_get_option",
+            c"API: vim -> nvim_win_get_option",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -7352,8 +7352,8 @@ pub fn handle_nvim_win_set_option(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_option".as_ptr(),
-            c"API: vim -> nvim_win_set_option".as_ptr(),
+            c"handle_nvim_win_set_option",
+            c"API: vim -> nvim_win_set_option",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -7404,8 +7404,8 @@ pub fn handle_nvim_call_atomic(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_call_atomic".as_ptr(),
-            c"API: vim -> nvim_call_atomic".as_ptr(),
+            c"handle_nvim_call_atomic",
+            c"API: vim -> nvim_call_atomic",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Array = Default::default();
@@ -7444,8 +7444,8 @@ pub fn handle_nvim_subscribe(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_subscribe".as_ptr(),
-            c"API: vim -> nvim_subscribe".as_ptr(),
+            c"handle_nvim_subscribe",
+            c"API: vim -> nvim_subscribe",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7480,8 +7480,8 @@ pub fn handle_nvim_unsubscribe(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_unsubscribe".as_ptr(),
-            c"API: vim -> nvim_unsubscribe".as_ptr(),
+            c"handle_nvim_unsubscribe",
+            c"API: vim -> nvim_unsubscribe",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7516,8 +7516,8 @@ pub fn handle_nvim_out_write(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_out_write".as_ptr(),
-            c"API: vim -> nvim_out_write".as_ptr(),
+            c"handle_nvim_out_write",
+            c"API: vim -> nvim_out_write",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7552,8 +7552,8 @@ pub fn handle_nvim_err_write(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_err_write".as_ptr(),
-            c"API: vim -> nvim_err_write".as_ptr(),
+            c"handle_nvim_err_write",
+            c"API: vim -> nvim_err_write",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7588,8 +7588,8 @@ pub fn handle_nvim_err_writeln(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_err_writeln".as_ptr(),
-            c"API: vim -> nvim_err_writeln".as_ptr(),
+            c"handle_nvim_err_writeln",
+            c"API: vim -> nvim_err_writeln",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7624,8 +7624,8 @@ pub fn handle_nvim_notify(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_notify".as_ptr(),
-            c"API: vim -> nvim_notify".as_ptr(),
+            c"handle_nvim_notify",
+            c"API: vim -> nvim_notify",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7682,8 +7682,8 @@ pub fn handle_nvim_win_set_height(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_height".as_ptr(),
-            c"API: vim -> nvim_win_set_height".as_ptr(),
+            c"handle_nvim_win_set_height",
+            c"API: vim -> nvim_win_set_height",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -7733,8 +7733,8 @@ pub fn handle_nvim_win_set_width(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_width".as_ptr(),
-            c"API: vim -> nvim_win_set_width".as_ptr(),
+            c"handle_nvim_win_set_width",
+            c"API: vim -> nvim_win_set_width",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -7783,8 +7783,8 @@ pub fn handle_nvim_error_event(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_error_event".as_ptr(),
-            c"API: vim -> nvim_error_event".as_ptr(),
+            c"handle_nvim_error_event",
+            c"API: vim -> nvim_error_event",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -7828,8 +7828,8 @@ pub fn handle_nvim_ui_term_event(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_term_event".as_ptr(),
-            c"API: vim -> nvim_ui_term_event".as_ptr(),
+            c"handle_nvim_ui_term_event",
+            c"API: vim -> nvim_ui_term_event",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7868,8 +7868,8 @@ pub fn handle_nvim_create_namespace(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_create_namespace".as_ptr(),
-            c"API: vim -> nvim_create_namespace".as_ptr(),
+            c"handle_nvim_create_namespace",
+            c"API: vim -> nvim_create_namespace",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -7906,8 +7906,8 @@ pub fn handle_nvim_get_namespaces(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_namespaces".as_ptr(),
-            c"API: vim -> nvim_get_namespaces".as_ptr(),
+            c"handle_nvim_get_namespaces",
+            c"API: vim -> nvim_get_namespaces",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -7934,8 +7934,8 @@ pub fn handle_nvim_buf_get_extmark_by_id(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_extmark_by_id".as_ptr(),
-            c"API: vim -> nvim_buf_get_extmark_by_id".as_ptr(),
+            c"handle_nvim_buf_get_extmark_by_id",
+            c"API: vim -> nvim_buf_get_extmark_by_id",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -8001,8 +8001,8 @@ pub fn handle_nvim_buf_get_extmarks(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_get_extmarks".as_ptr(),
-            c"API: vim -> nvim_buf_get_extmarks".as_ptr(),
+            c"handle_nvim_buf_get_extmarks",
+            c"API: vim -> nvim_buf_get_extmarks",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -8060,8 +8060,8 @@ pub fn handle_nvim_buf_set_extmark(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_set_extmark".as_ptr(),
-            c"API: vim -> nvim_buf_set_extmark".as_ptr(),
+            c"handle_nvim_buf_set_extmark",
+            c"API: vim -> nvim_buf_set_extmark",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -8137,8 +8137,8 @@ pub fn handle_nvim_buf_del_extmark(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_del_extmark".as_ptr(),
-            c"API: vim -> nvim_buf_del_extmark".as_ptr(),
+            c"handle_nvim_buf_del_extmark",
+            c"API: vim -> nvim_buf_del_extmark",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -8199,8 +8199,8 @@ pub fn handle_nvim_buf_clear_namespace(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_buf_clear_namespace".as_ptr(),
-            c"API: vim -> nvim_buf_clear_namespace".as_ptr(),
+            c"handle_nvim_buf_clear_namespace",
+            c"API: vim -> nvim_buf_clear_namespace",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -8270,8 +8270,8 @@ pub fn handle_nvim__buf_debug_extmarks(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__buf_debug_extmarks".as_ptr(),
-            c"API: vim -> nvim__buf_debug_extmarks".as_ptr(),
+            c"handle_nvim__buf_debug_extmarks",
+            c"API: vim -> nvim__buf_debug_extmarks",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -8332,8 +8332,8 @@ pub fn handle_nvim__ns_set(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__ns_set".as_ptr(),
-            c"API: vim -> nvim__ns_set".as_ptr(),
+            c"handle_nvim__ns_set",
+            c"API: vim -> nvim__ns_set",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -8384,8 +8384,8 @@ pub fn handle_nvim__ns_get(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__ns_get".as_ptr(),
-            c"API: vim -> nvim__ns_get".as_ptr(),
+            c"handle_nvim__ns_get",
+            c"API: vim -> nvim__ns_get",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -8429,8 +8429,8 @@ pub fn handle_nvim_get_option_value(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_option_value".as_ptr(),
-            c"API: vim -> nvim_get_option_value".as_ptr(),
+            c"handle_nvim_get_option_value",
+            c"API: vim -> nvim_get_option_value",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -8475,8 +8475,8 @@ pub fn handle_nvim_set_option_value(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_option_value".as_ptr(),
-            c"API: vim -> nvim_set_option_value".as_ptr(),
+            c"handle_nvim_set_option_value",
+            c"API: vim -> nvim_set_option_value",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -8522,8 +8522,8 @@ pub fn handle_nvim_get_all_options_info(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_all_options_info".as_ptr(),
-            c"API: vim -> nvim_get_all_options_info".as_ptr(),
+            c"handle_nvim_get_all_options_info",
+            c"API: vim -> nvim_get_all_options_info",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -8553,8 +8553,8 @@ pub fn handle_nvim_get_option_info2(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_option_info2".as_ptr(),
-            c"API: vim -> nvim_get_option_info2".as_ptr(),
+            c"handle_nvim_get_option_info2",
+            c"API: vim -> nvim_get_option_info2",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -8599,8 +8599,8 @@ pub fn handle_nvim_tabpage_list_wins(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_list_wins".as_ptr(),
-            c"API: vim -> nvim_tabpage_list_wins".as_ptr(),
+            c"handle_nvim_tabpage_list_wins",
+            c"API: vim -> nvim_tabpage_list_wins",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8641,8 +8641,8 @@ pub fn handle_nvim_tabpage_get_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_get_var".as_ptr(),
-            c"API: vim -> nvim_tabpage_get_var".as_ptr(),
+            c"handle_nvim_tabpage_get_var",
+            c"API: vim -> nvim_tabpage_get_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8693,8 +8693,8 @@ pub fn handle_nvim_tabpage_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_set_var".as_ptr(),
-            c"API: vim -> nvim_tabpage_set_var".as_ptr(),
+            c"handle_nvim_tabpage_set_var",
+            c"API: vim -> nvim_tabpage_set_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8745,8 +8745,8 @@ pub fn handle_nvim_tabpage_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_del_var".as_ptr(),
-            c"API: vim -> nvim_tabpage_del_var".as_ptr(),
+            c"handle_nvim_tabpage_del_var",
+            c"API: vim -> nvim_tabpage_del_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8796,8 +8796,8 @@ pub fn handle_nvim_tabpage_get_win(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_get_win".as_ptr(),
-            c"API: vim -> nvim_tabpage_get_win".as_ptr(),
+            c"handle_nvim_tabpage_get_win",
+            c"API: vim -> nvim_tabpage_get_win",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8838,8 +8838,8 @@ pub fn handle_nvim_tabpage_set_win(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_set_win".as_ptr(),
-            c"API: vim -> nvim_tabpage_set_win".as_ptr(),
+            c"handle_nvim_tabpage_set_win",
+            c"API: vim -> nvim_tabpage_set_win",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8890,8 +8890,8 @@ pub fn handle_nvim_tabpage_get_number(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_get_number".as_ptr(),
-            c"API: vim -> nvim_tabpage_get_number".as_ptr(),
+            c"handle_nvim_tabpage_get_number",
+            c"API: vim -> nvim_tabpage_get_number",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8932,8 +8932,8 @@ pub fn handle_nvim_tabpage_is_valid(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_tabpage_is_valid".as_ptr(),
-            c"API: vim -> nvim_tabpage_is_valid".as_ptr(),
+            c"handle_nvim_tabpage_is_valid",
+            c"API: vim -> nvim_tabpage_is_valid",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -8971,8 +8971,8 @@ pub fn handle_nvim_open_tabpage(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_open_tabpage".as_ptr(),
-            c"API: vim -> nvim_open_tabpage".as_ptr(),
+            c"handle_nvim_open_tabpage",
+            c"API: vim -> nvim_open_tabpage",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -9029,8 +9029,8 @@ pub fn handle_nvim_ui_attach(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_attach".as_ptr(),
-            c"API: vim -> nvim_ui_attach".as_ptr(),
+            c"handle_nvim_ui_attach",
+            c"API: vim -> nvim_ui_attach",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9086,8 +9086,8 @@ pub fn handle_ui_attach(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_ui_attach".as_ptr(),
-            c"API: vim -> ui_attach".as_ptr(),
+            c"handle_ui_attach",
+            c"API: vim -> ui_attach",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9143,8 +9143,8 @@ pub fn handle_nvim_ui_set_focus(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_set_focus".as_ptr(),
-            c"API: vim -> nvim_ui_set_focus".as_ptr(),
+            c"handle_nvim_ui_set_focus",
+            c"API: vim -> nvim_ui_set_focus",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Boolean = Default::default();
@@ -9182,8 +9182,8 @@ pub fn handle_nvim_ui_detach(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_detach".as_ptr(),
-            c"API: vim -> nvim_ui_detach".as_ptr(),
+            c"handle_nvim_ui_detach",
+            c"API: vim -> nvim_ui_detach",
         );
         let ret = OBJECT_NIL;
         if args.size != 0 {
@@ -9212,8 +9212,8 @@ pub fn handle_nvim_ui_try_resize(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_try_resize".as_ptr(),
-            c"API: vim -> nvim_ui_try_resize".as_ptr(),
+            c"handle_nvim_ui_try_resize",
+            c"API: vim -> nvim_ui_try_resize",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9262,8 +9262,8 @@ pub fn handle_nvim_ui_set_option(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_set_option".as_ptr(),
-            c"API: vim -> nvim_ui_set_option".as_ptr(),
+            c"handle_nvim_ui_set_option",
+            c"API: vim -> nvim_ui_set_option",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -9302,8 +9302,8 @@ pub fn handle_nvim_ui_try_resize_grid(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_try_resize_grid".as_ptr(),
-            c"API: vim -> nvim_ui_try_resize_grid".as_ptr(),
+            c"handle_nvim_ui_try_resize_grid",
+            c"API: vim -> nvim_ui_try_resize_grid",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9362,8 +9362,8 @@ pub fn handle_nvim_ui_pum_set_height(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_pum_set_height".as_ptr(),
-            c"API: vim -> nvim_ui_pum_set_height".as_ptr(),
+            c"handle_nvim_ui_pum_set_height",
+            c"API: vim -> nvim_ui_pum_set_height",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9402,8 +9402,8 @@ pub fn handle_nvim_ui_pum_set_bounds(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_pum_set_bounds".as_ptr(),
-            c"API: vim -> nvim_ui_pum_set_bounds".as_ptr(),
+            c"handle_nvim_ui_pum_set_bounds",
+            c"API: vim -> nvim_ui_pum_set_bounds",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Float = Default::default();
@@ -9472,8 +9472,8 @@ pub fn handle_nvim_ui_send(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_ui_send".as_ptr(),
-            c"API: vim -> nvim_ui_send".as_ptr(),
+            c"handle_nvim_ui_send",
+            c"API: vim -> nvim_ui_send",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -9511,8 +9511,8 @@ pub fn handle_nvim_get_hl_id_by_name(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_hl_id_by_name".as_ptr(),
-            c"API: vim -> nvim_get_hl_id_by_name".as_ptr(),
+            c"handle_nvim_get_hl_id_by_name",
+            c"API: vim -> nvim_get_hl_id_by_name",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -9552,8 +9552,8 @@ pub fn handle_nvim_get_hl(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_hl".as_ptr(),
-            c"API: vim -> nvim_get_hl".as_ptr(),
+            c"handle_nvim_get_hl",
+            c"API: vim -> nvim_get_hl",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9597,8 +9597,8 @@ pub fn handle_nvim_set_hl(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_hl".as_ptr(),
-            c"API: vim -> nvim_set_hl".as_ptr(),
+            c"handle_nvim_set_hl",
+            c"API: vim -> nvim_set_hl",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9656,8 +9656,8 @@ pub fn handle_nvim_get_hl_ns(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_hl_ns".as_ptr(),
-            c"API: vim -> nvim_get_hl_ns".as_ptr(),
+            c"handle_nvim_get_hl_ns",
+            c"API: vim -> nvim_get_hl_ns",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: KeyDict_get_ns = Default::default();
@@ -9700,8 +9700,8 @@ pub fn handle_nvim_set_hl_ns(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_hl_ns".as_ptr(),
-            c"API: vim -> nvim_set_hl_ns".as_ptr(),
+            c"handle_nvim_set_hl_ns",
+            c"API: vim -> nvim_set_hl_ns",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9739,8 +9739,8 @@ pub fn handle_nvim_set_hl_ns_fast(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_hl_ns_fast".as_ptr(),
-            c"API: vim -> nvim_set_hl_ns_fast".as_ptr(),
+            c"handle_nvim_set_hl_ns_fast",
+            c"API: vim -> nvim_set_hl_ns_fast",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -9779,8 +9779,8 @@ pub fn handle_nvim_feedkeys(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_feedkeys".as_ptr(),
-            c"API: vim -> nvim_feedkeys".as_ptr(),
+            c"handle_nvim_feedkeys",
+            c"API: vim -> nvim_feedkeys",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -9833,8 +9833,8 @@ pub fn handle_nvim_input(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_input".as_ptr(),
-            c"API: vim -> nvim_input".as_ptr(),
+            c"handle_nvim_input",
+            c"API: vim -> nvim_input",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -9870,8 +9870,8 @@ pub fn handle_nvim_input_mouse(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_input_mouse".as_ptr(),
-            c"API: vim -> nvim_input_mouse".as_ptr(),
+            c"handle_nvim_input_mouse",
+            c"API: vim -> nvim_input_mouse",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -9954,8 +9954,8 @@ pub fn handle_nvim_replace_termcodes(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_replace_termcodes".as_ptr(),
-            c"API: vim -> nvim_replace_termcodes".as_ptr(),
+            c"handle_nvim_replace_termcodes",
+            c"API: vim -> nvim_replace_termcodes",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10022,8 +10022,8 @@ pub fn handle_nvim_exec_lua(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_exec_lua".as_ptr(),
-            c"API: vim -> nvim_exec_lua".as_ptr(),
+            c"handle_nvim_exec_lua",
+            c"API: vim -> nvim_exec_lua",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10071,8 +10071,8 @@ pub fn handle_nvim__exec_lua_fast(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__exec_lua_fast".as_ptr(),
-            c"API: vim -> nvim__exec_lua_fast".as_ptr(),
+            c"handle_nvim__exec_lua_fast",
+            c"API: vim -> nvim__exec_lua_fast",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10121,8 +10121,8 @@ pub fn handle_nvim_strwidth(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_strwidth".as_ptr(),
-            c"API: vim -> nvim_strwidth".as_ptr(),
+            c"handle_nvim_strwidth",
+            c"API: vim -> nvim_strwidth",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10161,8 +10161,8 @@ pub fn handle_nvim_list_runtime_paths(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_list_runtime_paths".as_ptr(),
-            c"API: vim -> nvim_list_runtime_paths".as_ptr(),
+            c"handle_nvim_list_runtime_paths",
+            c"API: vim -> nvim_list_runtime_paths",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10192,8 +10192,8 @@ pub fn handle_nvim__runtime_inspect(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__runtime_inspect".as_ptr(),
-            c"API: vim -> nvim__runtime_inspect".as_ptr(),
+            c"handle_nvim__runtime_inspect",
+            c"API: vim -> nvim__runtime_inspect",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10220,8 +10220,8 @@ pub fn handle_nvim_get_runtime_file(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_runtime_file".as_ptr(),
-            c"API: vim -> nvim_get_runtime_file".as_ptr(),
+            c"handle_nvim_get_runtime_file",
+            c"API: vim -> nvim_get_runtime_file",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10271,8 +10271,8 @@ pub fn handle_nvim__get_lib_dir(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__get_lib_dir".as_ptr(),
-            c"API: vim -> nvim__get_lib_dir".as_ptr(),
+            c"handle_nvim__get_lib_dir",
+            c"API: vim -> nvim__get_lib_dir",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10299,8 +10299,8 @@ pub fn handle_nvim__get_runtime(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__get_runtime".as_ptr(),
-            c"API: vim -> nvim__get_runtime".as_ptr(),
+            c"handle_nvim__get_runtime",
+            c"API: vim -> nvim__get_runtime",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Array = Default::default();
@@ -10354,8 +10354,8 @@ pub fn handle_nvim_set_current_dir(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_current_dir".as_ptr(),
-            c"API: vim -> nvim_set_current_dir".as_ptr(),
+            c"handle_nvim_set_current_dir",
+            c"API: vim -> nvim_set_current_dir",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10394,8 +10394,8 @@ pub fn handle_nvim_get_current_line(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_current_line".as_ptr(),
-            c"API: vim -> nvim_get_current_line".as_ptr(),
+            c"handle_nvim_get_current_line",
+            c"API: vim -> nvim_get_current_line",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10425,8 +10425,8 @@ pub fn handle_nvim_set_current_line(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_current_line".as_ptr(),
-            c"API: vim -> nvim_set_current_line".as_ptr(),
+            c"handle_nvim_set_current_line",
+            c"API: vim -> nvim_set_current_line",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10469,8 +10469,8 @@ pub fn handle_nvim_del_current_line(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_current_line".as_ptr(),
-            c"API: vim -> nvim_del_current_line".as_ptr(),
+            c"handle_nvim_del_current_line",
+            c"API: vim -> nvim_del_current_line",
         );
         let ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10503,8 +10503,8 @@ pub fn handle_nvim_get_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_var".as_ptr(),
-            c"API: vim -> nvim_get_var".as_ptr(),
+            c"handle_nvim_get_var",
+            c"API: vim -> nvim_get_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10543,8 +10543,8 @@ pub fn handle_nvim_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_var".as_ptr(),
-            c"API: vim -> nvim_set_var".as_ptr(),
+            c"handle_nvim_set_var",
+            c"API: vim -> nvim_set_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10583,8 +10583,8 @@ pub fn handle_nvim_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_var".as_ptr(),
-            c"API: vim -> nvim_del_var".as_ptr(),
+            c"handle_nvim_del_var",
+            c"API: vim -> nvim_del_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10622,8 +10622,8 @@ pub fn handle_nvim_get_vvar(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_vvar".as_ptr(),
-            c"API: vim -> nvim_get_vvar".as_ptr(),
+            c"handle_nvim_get_vvar",
+            c"API: vim -> nvim_get_vvar",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10662,8 +10662,8 @@ pub fn handle_nvim_set_vvar(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_vvar".as_ptr(),
-            c"API: vim -> nvim_set_vvar".as_ptr(),
+            c"handle_nvim_set_vvar",
+            c"API: vim -> nvim_set_vvar",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -10702,8 +10702,8 @@ pub fn handle_nvim_echo(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_echo".as_ptr(),
-            c"API: vim -> nvim_echo".as_ptr(),
+            c"handle_nvim_echo",
+            c"API: vim -> nvim_echo",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Array = Default::default();
@@ -10759,8 +10759,8 @@ pub fn handle_nvim_list_bufs(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_list_bufs".as_ptr(),
-            c"API: vim -> nvim_list_bufs".as_ptr(),
+            c"handle_nvim_list_bufs",
+            c"API: vim -> nvim_list_bufs",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10787,8 +10787,8 @@ pub fn handle_nvim_get_current_buf(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_current_buf".as_ptr(),
-            c"API: vim -> nvim_get_current_buf".as_ptr(),
+            c"handle_nvim_get_current_buf",
+            c"API: vim -> nvim_get_current_buf",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10815,8 +10815,8 @@ pub fn handle_nvim_set_current_buf(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_current_buf".as_ptr(),
-            c"API: vim -> nvim_set_current_buf".as_ptr(),
+            c"handle_nvim_set_current_buf",
+            c"API: vim -> nvim_set_current_buf",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -10860,8 +10860,8 @@ pub fn handle_nvim_list_wins(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_list_wins".as_ptr(),
-            c"API: vim -> nvim_list_wins".as_ptr(),
+            c"handle_nvim_list_wins",
+            c"API: vim -> nvim_list_wins",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10888,8 +10888,8 @@ pub fn handle_nvim_get_current_win(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_current_win".as_ptr(),
-            c"API: vim -> nvim_get_current_win".as_ptr(),
+            c"handle_nvim_get_current_win",
+            c"API: vim -> nvim_get_current_win",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -10916,8 +10916,8 @@ pub fn handle_nvim_set_current_win(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_current_win".as_ptr(),
-            c"API: vim -> nvim_set_current_win".as_ptr(),
+            c"handle_nvim_set_current_win",
+            c"API: vim -> nvim_set_current_win",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -10961,8 +10961,8 @@ pub fn handle_nvim_create_buf(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_create_buf".as_ptr(),
-            c"API: vim -> nvim_create_buf".as_ptr(),
+            c"handle_nvim_create_buf",
+            c"API: vim -> nvim_create_buf",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Boolean = Default::default();
@@ -11010,8 +11010,8 @@ pub fn handle_nvim_open_term(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_open_term".as_ptr(),
-            c"API: vim -> nvim_open_term".as_ptr(),
+            c"handle_nvim_open_term",
+            c"API: vim -> nvim_open_term",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -11060,8 +11060,8 @@ pub fn handle_nvim_chan_send(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_chan_send".as_ptr(),
-            c"API: vim -> nvim_chan_send".as_ptr(),
+            c"handle_nvim_chan_send",
+            c"API: vim -> nvim_chan_send",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -11108,8 +11108,8 @@ pub fn handle_nvim_list_tabpages(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_list_tabpages".as_ptr(),
-            c"API: vim -> nvim_list_tabpages".as_ptr(),
+            c"handle_nvim_list_tabpages",
+            c"API: vim -> nvim_list_tabpages",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -11136,8 +11136,8 @@ pub fn handle_nvim_get_current_tabpage(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_current_tabpage".as_ptr(),
-            c"API: vim -> nvim_get_current_tabpage".as_ptr(),
+            c"handle_nvim_get_current_tabpage",
+            c"API: vim -> nvim_get_current_tabpage",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -11164,8 +11164,8 @@ pub fn handle_nvim_set_current_tabpage(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_current_tabpage".as_ptr(),
-            c"API: vim -> nvim_set_current_tabpage".as_ptr(),
+            c"handle_nvim_set_current_tabpage",
+            c"API: vim -> nvim_set_current_tabpage",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = Default::default();
@@ -11209,8 +11209,8 @@ pub fn handle_nvim_paste(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_paste".as_ptr(),
-            c"API: vim -> nvim_paste".as_ptr(),
+            c"handle_nvim_paste",
+            c"API: vim -> nvim_paste",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -11271,8 +11271,8 @@ pub fn handle_nvim_put(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_put".as_ptr(),
-            c"API: vim -> nvim_put".as_ptr(),
+            c"handle_nvim_put",
+            c"API: vim -> nvim_put",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Array = Default::default();
@@ -11341,8 +11341,8 @@ pub fn handle_nvim_get_color_by_name(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_color_by_name".as_ptr(),
-            c"API: vim -> nvim_get_color_by_name".as_ptr(),
+            c"handle_nvim_get_color_by_name",
+            c"API: vim -> nvim_get_color_by_name",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -11379,8 +11379,8 @@ pub fn handle_nvim_get_color_map(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_color_map".as_ptr(),
-            c"API: vim -> nvim_get_color_map".as_ptr(),
+            c"handle_nvim_get_color_map",
+            c"API: vim -> nvim_get_color_map",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -11407,8 +11407,8 @@ pub fn handle_nvim_get_context(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_context".as_ptr(),
-            c"API: vim -> nvim_get_context".as_ptr(),
+            c"handle_nvim_get_context",
+            c"API: vim -> nvim_get_context",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: KeyDict_context = Default::default();
@@ -11443,8 +11443,8 @@ pub fn handle_nvim_load_context(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_load_context".as_ptr(),
-            c"API: vim -> nvim_load_context".as_ptr(),
+            c"handle_nvim_load_context",
+            c"API: vim -> nvim_load_context",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Dict = Default::default();
@@ -11483,8 +11483,8 @@ pub fn handle_nvim_get_mode(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_mode".as_ptr(),
-            c"API: vim -> nvim_get_mode".as_ptr(),
+            c"handle_nvim_get_mode",
+            c"API: vim -> nvim_get_mode",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -11511,8 +11511,8 @@ pub fn handle_nvim_get_keymap(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_keymap".as_ptr(),
-            c"API: vim -> nvim_get_keymap".as_ptr(),
+            c"handle_nvim_get_keymap",
+            c"API: vim -> nvim_get_keymap",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -11548,8 +11548,8 @@ pub fn handle_nvim_set_keymap(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_keymap".as_ptr(),
-            c"API: vim -> nvim_set_keymap".as_ptr(),
+            c"handle_nvim_set_keymap",
+            c"API: vim -> nvim_set_keymap",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -11618,8 +11618,8 @@ pub fn handle_nvim_del_keymap(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_keymap".as_ptr(),
-            c"API: vim -> nvim_del_keymap".as_ptr(),
+            c"handle_nvim_del_keymap",
+            c"API: vim -> nvim_del_keymap",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -11671,8 +11671,8 @@ pub fn handle_nvim_get_api_info(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_api_info".as_ptr(),
-            c"API: vim -> nvim_get_api_info".as_ptr(),
+            c"handle_nvim_get_api_info",
+            c"API: vim -> nvim_get_api_info",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -11699,8 +11699,8 @@ pub fn handle_nvim_set_client_info(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_set_client_info".as_ptr(),
-            c"API: vim -> nvim_set_client_info".as_ptr(),
+            c"handle_nvim_set_client_info",
+            c"API: vim -> nvim_set_client_info",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -11776,8 +11776,8 @@ pub fn handle_nvim_chan_set(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_chan_set".as_ptr(),
-            c"API: vim -> nvim_chan_set".as_ptr(),
+            c"handle_nvim_chan_set",
+            c"API: vim -> nvim_chan_set",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -11826,8 +11826,8 @@ pub fn handle_nvim__cmdwin_set(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__cmdwin_set".as_ptr(),
-            c"API: vim -> nvim__cmdwin_set".as_ptr(),
+            c"handle_nvim__cmdwin_set",
+            c"API: vim -> nvim__cmdwin_set",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -11875,8 +11875,8 @@ pub fn handle_nvim_get_chan_info(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_chan_info".as_ptr(),
-            c"API: vim -> nvim_get_chan_info".as_ptr(),
+            c"handle_nvim_get_chan_info",
+            c"API: vim -> nvim_get_chan_info",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -11916,8 +11916,8 @@ pub fn handle_nvim_list_chans(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_list_chans".as_ptr(),
-            c"API: vim -> nvim_list_chans".as_ptr(),
+            c"handle_nvim_list_chans",
+            c"API: vim -> nvim_list_chans",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -11944,8 +11944,8 @@ pub fn handle_nvim__id(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__id".as_ptr(),
-            c"API: vim -> nvim__id".as_ptr(),
+            c"handle_nvim__id",
+            c"API: vim -> nvim__id",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 1 {
@@ -11973,8 +11973,8 @@ pub fn handle_nvim__id_array(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__id_array".as_ptr(),
-            c"API: vim -> nvim__id_array".as_ptr(),
+            c"handle_nvim__id_array",
+            c"API: vim -> nvim__id_array",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Array = Default::default();
@@ -12010,8 +12010,8 @@ pub fn handle_nvim__id_dict(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__id_dict".as_ptr(),
-            c"API: vim -> nvim__id_dict".as_ptr(),
+            c"handle_nvim__id_dict",
+            c"API: vim -> nvim__id_dict",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Dict = Default::default();
@@ -12047,8 +12047,8 @@ pub fn handle_nvim__id_float(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__id_float".as_ptr(),
-            c"API: vim -> nvim__id_float".as_ptr(),
+            c"handle_nvim__id_float",
+            c"API: vim -> nvim__id_float",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Float = Default::default();
@@ -12084,8 +12084,8 @@ pub fn handle_nvim__stats(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__stats".as_ptr(),
-            c"API: vim -> nvim__stats".as_ptr(),
+            c"handle_nvim__stats",
+            c"API: vim -> nvim__stats",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -12112,8 +12112,8 @@ pub fn handle_nvim_list_uis(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_list_uis".as_ptr(),
-            c"API: vim -> nvim_list_uis".as_ptr(),
+            c"handle_nvim_list_uis",
+            c"API: vim -> nvim_list_uis",
         );
         let mut ret = OBJECT_NIL;
         if args.size != 0 {
@@ -12140,8 +12140,8 @@ pub fn handle_nvim_get_proc_children(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_proc_children".as_ptr(),
-            c"API: vim -> nvim_get_proc_children".as_ptr(),
+            c"handle_nvim_get_proc_children",
+            c"API: vim -> nvim_get_proc_children",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -12181,8 +12181,8 @@ pub fn handle_nvim_get_proc(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_proc".as_ptr(),
-            c"API: vim -> nvim_get_proc".as_ptr(),
+            c"handle_nvim_get_proc",
+            c"API: vim -> nvim_get_proc",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -12221,8 +12221,8 @@ pub fn handle_nvim_select_popupmenu_item(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_select_popupmenu_item".as_ptr(),
-            c"API: vim -> nvim_select_popupmenu_item".as_ptr(),
+            c"handle_nvim_select_popupmenu_item",
+            c"API: vim -> nvim_select_popupmenu_item",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -12286,8 +12286,8 @@ pub fn handle_nvim__inspect_cell(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__inspect_cell".as_ptr(),
-            c"API: vim -> nvim__inspect_cell".as_ptr(),
+            c"handle_nvim__inspect_cell",
+            c"API: vim -> nvim__inspect_cell",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -12347,8 +12347,8 @@ pub fn handle_nvim__screenshot(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__screenshot".as_ptr(),
-            c"API: vim -> nvim__screenshot".as_ptr(),
+            c"handle_nvim__screenshot",
+            c"API: vim -> nvim__screenshot",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12383,8 +12383,8 @@ pub fn handle_nvim__invalidate_glyph_cache(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__invalidate_glyph_cache".as_ptr(),
-            c"API: vim -> nvim__invalidate_glyph_cache".as_ptr(),
+            c"handle_nvim__invalidate_glyph_cache",
+            c"API: vim -> nvim__invalidate_glyph_cache",
         );
         let ret = OBJECT_NIL;
         if args.size != 0 {
@@ -12410,8 +12410,8 @@ pub fn handle_nvim__unpack(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__unpack".as_ptr(),
-            c"API: vim -> nvim__unpack".as_ptr(),
+            c"handle_nvim__unpack",
+            c"API: vim -> nvim__unpack",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12450,8 +12450,8 @@ pub fn handle_nvim_del_mark(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_del_mark".as_ptr(),
-            c"API: vim -> nvim_del_mark".as_ptr(),
+            c"handle_nvim_del_mark",
+            c"API: vim -> nvim_del_mark",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12490,8 +12490,8 @@ pub fn handle_nvim_get_mark(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_get_mark".as_ptr(),
-            c"API: vim -> nvim_get_mark".as_ptr(),
+            c"handle_nvim_get_mark",
+            c"API: vim -> nvim_get_mark",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12543,8 +12543,8 @@ pub fn handle_nvim_eval_statusline(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_eval_statusline".as_ptr(),
-            c"API: vim -> nvim_eval_statusline".as_ptr(),
+            c"handle_nvim_eval_statusline",
+            c"API: vim -> nvim_eval_statusline",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12589,8 +12589,8 @@ pub fn handle_nvim__complete_set(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__complete_set".as_ptr(),
-            c"API: vim -> nvim__complete_set".as_ptr(),
+            c"handle_nvim__complete_set",
+            c"API: vim -> nvim__complete_set",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Integer = Default::default();
@@ -12635,8 +12635,8 @@ pub fn handle_nvim__redraw(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__redraw".as_ptr(),
-            c"API: vim -> nvim__redraw".as_ptr(),
+            c"handle_nvim__redraw",
+            c"API: vim -> nvim__redraw",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: KeyDict_redraw = Default::default();
@@ -12678,8 +12678,8 @@ pub fn handle_nvim__set_restart_on_crash(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim__set_restart_on_crash".as_ptr(),
-            c"API: vim -> nvim__set_restart_on_crash".as_ptr(),
+            c"handle_nvim__set_restart_on_crash",
+            c"API: vim -> nvim__set_restart_on_crash",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12725,8 +12725,8 @@ pub fn handle_nvim_exec2(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_exec2".as_ptr(),
-            c"API: vim -> nvim_exec2".as_ptr(),
+            c"handle_nvim_exec2",
+            c"API: vim -> nvim_exec2",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12778,8 +12778,8 @@ pub fn handle_nvim_command(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_command".as_ptr(),
-            c"API: vim -> nvim_command".as_ptr(),
+            c"handle_nvim_command",
+            c"API: vim -> nvim_command",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12817,8 +12817,8 @@ pub fn handle_nvim_eval(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_eval".as_ptr(),
-            c"API: vim -> nvim_eval".as_ptr(),
+            c"handle_nvim_eval",
+            c"API: vim -> nvim_eval",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12857,8 +12857,8 @@ pub fn handle_nvim_call_function(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_call_function".as_ptr(),
-            c"API: vim -> nvim_call_function".as_ptr(),
+            c"handle_nvim_call_function",
+            c"API: vim -> nvim_call_function",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -12906,8 +12906,8 @@ pub fn handle_nvim_call_dict_function(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_call_dict_function".as_ptr(),
-            c"API: vim -> nvim_call_dict_function".as_ptr(),
+            c"handle_nvim_call_dict_function",
+            c"API: vim -> nvim_call_dict_function",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_2: NvimString = Default::default();
@@ -12958,8 +12958,8 @@ pub fn handle_nvim_parse_expression(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_parse_expression".as_ptr(),
-            c"API: vim -> nvim_parse_expression".as_ptr(),
+            c"handle_nvim_parse_expression",
+            c"API: vim -> nvim_parse_expression",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = Default::default();
@@ -13019,8 +13019,8 @@ pub fn handle_nvim_open_win(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_open_win".as_ptr(),
-            c"API: vim -> nvim_open_win".as_ptr(),
+            c"handle_nvim_open_win",
+            c"API: vim -> nvim_open_win",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = Default::default();
@@ -13084,8 +13084,8 @@ pub fn handle_nvim_win_set_config(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_config".as_ptr(),
-            c"API: vim -> nvim_win_set_config".as_ptr(),
+            c"handle_nvim_win_set_config",
+            c"API: vim -> nvim_win_set_config",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13129,8 +13129,8 @@ pub fn handle_nvim_win_get_config(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_config".as_ptr(),
-            c"API: vim -> nvim_win_get_config".as_ptr(),
+            c"handle_nvim_win_get_config",
+            c"API: vim -> nvim_win_get_config",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13176,8 +13176,8 @@ pub fn handle_nvim_win_get_buf(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_buf".as_ptr(),
-            c"API: vim -> nvim_win_get_buf".as_ptr(),
+            c"handle_nvim_win_get_buf",
+            c"API: vim -> nvim_win_get_buf",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13217,8 +13217,8 @@ pub fn handle_nvim_win_set_buf(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_buf".as_ptr(),
-            c"API: vim -> nvim_win_set_buf".as_ptr(),
+            c"handle_nvim_win_set_buf",
+            c"API: vim -> nvim_win_set_buf",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13271,8 +13271,8 @@ pub fn handle_nvim_win_get_cursor(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_cursor".as_ptr(),
-            c"API: vim -> nvim_win_get_cursor".as_ptr(),
+            c"handle_nvim_win_get_cursor",
+            c"API: vim -> nvim_win_get_cursor",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13313,8 +13313,8 @@ pub fn handle_nvim_win_set_cursor(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_cursor".as_ptr(),
-            c"API: vim -> nvim_win_set_cursor".as_ptr(),
+            c"handle_nvim_win_set_cursor",
+            c"API: vim -> nvim_win_set_cursor",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13358,8 +13358,8 @@ pub fn handle_nvim_win_get_height(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_height".as_ptr(),
-            c"API: vim -> nvim_win_get_height".as_ptr(),
+            c"handle_nvim_win_get_height",
+            c"API: vim -> nvim_win_get_height",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13400,8 +13400,8 @@ pub fn handle_nvim_win_get_width(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_width".as_ptr(),
-            c"API: vim -> nvim_win_get_width".as_ptr(),
+            c"handle_nvim_win_get_width",
+            c"API: vim -> nvim_win_get_width",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13441,8 +13441,8 @@ pub fn handle_nvim_win_get_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_var".as_ptr(),
-            c"API: vim -> nvim_win_get_var".as_ptr(),
+            c"handle_nvim_win_get_var",
+            c"API: vim -> nvim_win_get_var",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13491,8 +13491,8 @@ pub fn handle_nvim_win_set_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_var".as_ptr(),
-            c"API: vim -> nvim_win_set_var".as_ptr(),
+            c"handle_nvim_win_set_var",
+            c"API: vim -> nvim_win_set_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13541,8 +13541,8 @@ pub fn handle_nvim_win_del_var(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_del_var".as_ptr(),
-            c"API: vim -> nvim_win_del_var".as_ptr(),
+            c"handle_nvim_win_del_var",
+            c"API: vim -> nvim_win_del_var",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13590,8 +13590,8 @@ pub fn handle_nvim_win_get_position(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_position".as_ptr(),
-            c"API: vim -> nvim_win_get_position".as_ptr(),
+            c"handle_nvim_win_get_position",
+            c"API: vim -> nvim_win_get_position",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13632,8 +13632,8 @@ pub fn handle_nvim_win_get_tabpage(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_tabpage".as_ptr(),
-            c"API: vim -> nvim_win_get_tabpage".as_ptr(),
+            c"handle_nvim_win_get_tabpage",
+            c"API: vim -> nvim_win_get_tabpage",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13674,8 +13674,8 @@ pub fn handle_nvim_win_get_number(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_get_number".as_ptr(),
-            c"API: vim -> nvim_win_get_number".as_ptr(),
+            c"handle_nvim_win_get_number",
+            c"API: vim -> nvim_win_get_number",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13716,8 +13716,8 @@ pub fn handle_nvim_win_is_valid(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_is_valid".as_ptr(),
-            c"API: vim -> nvim_win_is_valid".as_ptr(),
+            c"handle_nvim_win_is_valid",
+            c"API: vim -> nvim_win_is_valid",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13754,8 +13754,8 @@ pub fn handle_nvim_win_hide(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_hide".as_ptr(),
-            c"API: vim -> nvim_win_hide".as_ptr(),
+            c"handle_nvim_win_hide",
+            c"API: vim -> nvim_win_hide",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13798,8 +13798,8 @@ pub fn handle_nvim_win_close(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_close".as_ptr(),
-            c"API: vim -> nvim_win_close".as_ptr(),
+            c"handle_nvim_win_close",
+            c"API: vim -> nvim_win_close",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13851,8 +13851,8 @@ pub fn handle_nvim_win_set_hl_ns(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_set_hl_ns".as_ptr(),
-            c"API: vim -> nvim_win_set_hl_ns".as_ptr(),
+            c"handle_nvim_win_set_hl_ns",
+            c"API: vim -> nvim_win_set_hl_ns",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13901,8 +13901,8 @@ pub fn handle_nvim_win_text_height(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_text_height".as_ptr(),
-            c"API: vim -> nvim_win_text_height".as_ptr(),
+            c"handle_nvim_win_text_height",
+            c"API: vim -> nvim_win_text_height",
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();
@@ -13948,8 +13948,8 @@ pub fn handle_nvim_win_resize(
     unsafe {
         dlog_internal_call(
             channel_id,
-            c"handle_nvim_win_resize".as_ptr(),
-            c"API: vim -> nvim_win_resize".as_ptr(),
+            c"handle_nvim_win_resize",
+            c"API: vim -> nvim_win_resize",
         );
         let ret = OBJECT_NIL;
         let mut arg_1: Window = Default::default();

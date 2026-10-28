@@ -1239,7 +1239,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             c if c == Ctrl_Q || c == b'q' as c_int => {
                 reset_VIsual_and_resel();
                 cmd_with_count(
-                    c"quit".as_ptr(),
+                    c"quit",
                     cbuf.as_mut_ptr(),
                     cbuf.len(),
                     i64::from(Prenum),
@@ -1249,7 +1249,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             c if c == Ctrl_C || c == b'c' as c_int => {
                 reset_VIsual_and_resel();
                 cmd_with_count(
-                    c"close".as_ptr(),
+                    c"close",
                     cbuf.as_mut_ptr(),
                     cbuf.len(),
                     i64::from(Prenum),
@@ -1279,7 +1279,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             c if c == Ctrl_O || c == b'o' as c_int => {
                 reset_VIsual_and_resel();
                 cmd_with_count(
-                    c"only".as_ptr(),
+                    c"only",
                     cbuf.as_mut_ptr(),
                     cbuf.len(),
                     i64::from(Prenum),
@@ -1591,9 +1591,9 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
     }
 }
 
-fn cmd_with_count(cmd: *const c_char, bufp: *mut c_char, bufsize: usize, Prenum: i64) {
+fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, Prenum: i64) {
     unsafe {
-        let len = xstrlcpy(bufp, cmd, bufsize);
+        let len = xstrlcpy(bufp, cmd.as_ptr(), bufsize);
         if Prenum > 0 && len < bufsize {
             vim_snprintf!(bufp.add(len), bufsize - len, c"%lld".as_ptr(), Prenum);
         }

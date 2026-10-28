@@ -1635,11 +1635,11 @@ pub fn dict2hlattrs(
         );
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__fg) {
-            fg = object_to_color(dict.fg, c"fg".as_ptr().cast_mut(), use_rgb, err);
+            fg = object_to_color(dict.fg, c"fg", use_rgb, err);
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__foreground) {
             fg = object_to_color(
                 dict.foreground,
-                c"foreground".as_ptr().cast_mut(),
+                c"foreground",
                 use_rgb,
                 err,
             );
@@ -1649,11 +1649,11 @@ pub fn dict2hlattrs(
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__bg) {
-            bg = object_to_color(dict.bg, c"bg".as_ptr().cast_mut(), use_rgb, err);
+            bg = object_to_color(dict.bg, c"bg", use_rgb, err);
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__background) {
             bg = object_to_color(
                 dict.background,
-                c"background".as_ptr().cast_mut(),
+                c"background",
                 use_rgb,
                 err,
             );
@@ -1663,9 +1663,9 @@ pub fn dict2hlattrs(
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__sp) {
-            sp = object_to_color(dict.sp, c"sp".as_ptr().cast_mut(), true, err);
+            sp = object_to_color(dict.sp, c"sp", true, err);
         } else if has_key(is_set, KEYSET_OPTIDX_highlight__special) {
-            sp = object_to_color(dict.special, c"special".as_ptr().cast_mut(), true, err);
+            sp = object_to_color(dict.special, c"special", true, err);
         }
         if err.err_type != ErrorType::kErrorTypeNone {
             return hlattrs;
@@ -1740,14 +1740,14 @@ pub fn dict2hlattrs(
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermfg) {
-            ctermfg = object_to_color(dict.ctermfg, c"ctermfg".as_ptr().cast_mut(), false, err);
+            ctermfg = object_to_color(dict.ctermfg, c"ctermfg", false, err);
             if err.err_type != ErrorType::kErrorTypeNone {
                 return hlattrs;
             }
         }
 
         if has_key(is_set, KEYSET_OPTIDX_highlight__ctermbg) {
-            ctermbg = object_to_color(dict.ctermbg, c"ctermbg".as_ptr().cast_mut(), false, err);
+            ctermbg = object_to_color(dict.ctermbg, c"ctermbg", false, err);
             if err.err_type != ErrorType::kErrorTypeNone {
                 return hlattrs;
             }
@@ -1793,7 +1793,7 @@ pub fn dict2hlattrs(
     }
 }
 
-pub fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mut Error) -> c_int {
+pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut Error) -> c_int {
     if val.obj_type == ObjectType::kObjectTypeInteger {
             val.data.integer() as c_int
         } else if val.obj_type == ObjectType::kObjectTypeString {
@@ -1813,7 +1813,7 @@ pub fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mut Error
             }
             color
         } else {
-            api_err_exp(err, key, c"String or Integer".as_ptr(), ptr::null());
+            api_err_exp(err, key.as_ptr().cast_mut(), c"String or Integer".as_ptr(), ptr::null());
             0
         }
 }

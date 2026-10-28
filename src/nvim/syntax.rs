@@ -3079,7 +3079,7 @@ fn syn_clear_one(id: c_int, syncing: bool) {
 }
 
 fn syn_cmd_on(eap: &mut exarg_T, _syncing: c_int) {
-    syn_cmd_onoff(eap, c"syntax".as_ptr());
+    syn_cmd_onoff(eap, c"syntax");
 }
 
 fn syn_cmd_reset(eap: &mut exarg_T, _syncing: c_int) {
@@ -3090,21 +3090,21 @@ fn syn_cmd_reset(eap: &mut exarg_T, _syncing: c_int) {
 }
 
 fn syn_cmd_manual(eap: &mut exarg_T, _syncing: c_int) {
-    syn_cmd_onoff(eap, c"manual".as_ptr());
+    syn_cmd_onoff(eap, c"manual");
 }
 
 fn syn_cmd_off(eap: &mut exarg_T, _syncing: c_int) {
-    syn_cmd_onoff(eap, c"nosyntax".as_ptr());
+    syn_cmd_onoff(eap, c"nosyntax");
 }
 
-fn syn_cmd_onoff(eap: &mut exarg_T, name: *const c_char) {
+fn syn_cmd_onoff(eap: &mut exarg_T, name: &std::ffi::CStr) {
     unsafe {
         eap.nextcmd = check_nextcmd(eap.arg);
         if eap.skip == 0 {
             syn_st().did_syntax_onoff = true;
             let mut buf = [0 as c_char; 100];
             ptr::copy_nonoverlapping(c"so ".as_ptr(), buf.as_mut_ptr(), 4);
-            vim_snprintf!(buf.as_mut_ptr().add(3), 100 - 3, SYNTAX_FNAME, name);
+            vim_snprintf!(buf.as_mut_ptr().add(3), 100 - 3, SYNTAX_FNAME, name.as_ptr());
             do_cmdline_cmd(buf.as_ptr());
         }
     }
@@ -3279,12 +3279,12 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
             did_header = true;
             syn_st().last_matchgroup = 0;
             if (*spp).sp_type == SPTYPE_MATCH {
-                put_pattern(c"match".as_ptr(), b' ' as c_int, &*spp, hl_id);
+                put_pattern(c"match", b' ' as c_int, &*spp, hl_id);
                 msg_putchar(b' ' as c_int);
             } else if (*spp).sp_type == SPTYPE_START {
                 while (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_START {
                     put_pattern(
-                        c"start".as_ptr(),
+                        c"start",
                         b'=' as c_int,
                         &*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize),
                         hl_id,
@@ -3293,7 +3293,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                 }
                 if (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_SKIP {
                     put_pattern(
-                        c"skip".as_ptr(),
+                        c"skip",
                         b'=' as c_int,
                         &*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize),
                         hl_id,
@@ -3304,7 +3304,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                     && (*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize)).sp_type == SPTYPE_END
                 {
                     put_pattern(
-                        c"end".as_ptr(),
+                        c"end",
                         b'=' as c_int,
                         &*syn_items(&mut *win_s(&mut **curwin.as_ptr())).offset(idx as isize),
                         hl_id,
@@ -3317,15 +3317,15 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
             syn_list_flags(&NAMELIST1, (*spp).sp_flags, hl_id);
 
             if let Some(ref list) = (*spp).sp_cont_list {
-                put_id_list(c"contains".as_ptr(), list.as_ptr(), hl_id);
+                put_id_list(c"contains", list.as_ptr(), hl_id);
             }
 
             if let Some(ref list) = (*spp).sp_syn.cont_in_list {
-                put_id_list(c"containedin".as_ptr(), list.as_ptr(), hl_id);
+                put_id_list(c"containedin", list.as_ptr(), hl_id);
             }
 
             if let Some(ref list) = (*spp).sp_next_list {
-                put_id_list(c"nextgroup".as_ptr(), list.as_ptr(), hl_id);
+                put_id_list(c"nextgroup", list.as_ptr(), hl_id);
                 syn_list_flags(&NAMELIST2, (*spp).sp_flags, hl_id);
             }
             if ((*spp).sp_flags & (HL_SYNC_HERE | HL_SYNC_THERE)) != 0 {
@@ -3387,7 +3387,7 @@ fn syn_list_cluster(id: c_int) {
 
         msg_advance(endcol);
         if let Some(ref list) = (*clp).scl_list {
-            put_id_list(c"cluster".as_ptr(), list.as_ptr(), HLF_D);
+            put_id_list(c"cluster", list.as_ptr(), HLF_D);
         } else {
             msg_puts_hl(c"cluster".as_ptr(), HLF_D, false);
             msg_puts(c"=NONE".as_ptr());
@@ -3395,9 +3395,9 @@ fn syn_list_cluster(id: c_int) {
     }
 }
 
-fn put_id_list(name: *const c_char, list: *const i16, hl_id: c_int) {
+fn put_id_list(name: &std::ffi::CStr, list: *const i16, hl_id: c_int) {
     unsafe {
-        msg_puts_hl(name, hl_id, false);
+        msg_puts_hl(name.as_ptr(), hl_id, false);
         msg_putchar(b'=' as c_int);
         let mut p = list;
         while *p != 0 {
@@ -3431,7 +3431,7 @@ fn put_id_list(name: *const c_char, list: *const i16, hl_id: c_int) {
     }
 }
 
-fn put_pattern(s: *const c_char, c: c_int, spp: &synpat_T, hl_id: c_int) {
+fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &synpat_T, hl_id: c_int) {
     const SEPCHARS: &[u8] = b"/+=-#@\"|'^&\0";
 
         if syn_st().last_matchgroup != spp.sp_syn_match_id as c_int {
@@ -3446,7 +3446,7 @@ fn put_pattern(s: *const c_char, c: c_int, spp: &synpat_T, hl_id: c_int) {
             msg_putchar(b' ' as c_int);
         }
 
-        msg_puts_hl(s, hl_id, false);
+        msg_puts_hl(s.as_ptr(), hl_id, false);
         msg_putchar(c);
 
         let pat_ptr = spp
@@ -3546,14 +3546,14 @@ fn syn_list_keywords(
                     }
                     if !syn_id_list_eq(&kp.k_syn.cont_in_list, &prev_cont_in_list) {
                         if let Some(ref list) = kp.k_syn.cont_in_list {
-                            put_id_list(c"containedin".as_ptr(), list.as_ptr(), hl_id);
+                            put_id_list(c"containedin", list.as_ptr(), hl_id);
                             msg_putchar(b' ' as c_int);
                         }
                         prev_cont_in_list = kp.k_syn.cont_in_list.clone();
                     }
                     if !syn_id_list_eq(&kp.next_list, &prev_next_list) {
                         if let Some(ref list) = kp.next_list {
-                            put_id_list(c"nextgroup".as_ptr(), list.as_ptr(), hl_id);
+                            put_id_list(c"nextgroup", list.as_ptr(), hl_id);
                             msg_putchar(b' ' as c_int);
                         }
                         prev_next_list = kp.next_list.clone();
@@ -5115,7 +5115,7 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
             (*new_s_ptr).b_syn_isk = None;
         }
 
-        let raw_old = get_var_value(c"b:current_syntax".as_ptr());
+        let raw_old = get_var_value(c"b:current_syntax");
         let old_value = if raw_old.is_null() {
             None
         } else {
@@ -5124,13 +5124,13 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
 
         apply_autocmds(EVENT_SYNTAX, eap.arg, (*g_st().curbuf).b_fname, true, g_st().curbuf);
 
-        let new_value = get_var_value(c"b:current_syntax".as_ptr());
+        let new_value = get_var_value(c"b:current_syntax");
         if !new_value.is_null() {
-            set_internal_string_var(c"w:current_syntax".as_ptr(), new_value);
+            set_internal_string_var(c"w:current_syntax", new_value);
         }
 
         if let Some(ref old_cstr) = old_value {
-            set_internal_string_var(c"b:current_syntax".as_ptr(), old_cstr.as_ptr().cast_mut());
+            set_internal_string_var(c"b:current_syntax", old_cstr.as_ptr().cast_mut());
         } else {
             do_unlet(c"b:current_syntax".as_ptr(), 16, true);
         }

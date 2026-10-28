@@ -586,8 +586,8 @@ pub fn check_string_array(
 }
 
 #[inline]
-pub fn api_err_range(err: &mut Error, name: *const c_char) {
-    api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
+pub fn api_err_range(err: &mut Error, name: &std::ffi::CStr) {
+    api_err_invalid(err, name.as_ptr(), c"out of range".as_ptr(), 0, false);
 }
 
 #[cfg(test)]

@@ -266,9 +266,9 @@ pub fn alloc_cstring_len(data: *const c_char, len: usize) -> *mut c_char {
 
 /// Duplicate a NUL-terminated C string.
 #[inline]
-pub fn alloc_cstring(str_ptr: *const c_char) -> *mut c_char {
-    let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
-    alloc_cstring_len(str_ptr, len)
+pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> *mut c_char {
+    let len =  { str_ptr.to_bytes().len() };
+    alloc_cstring_len(str_ptr.as_ptr(), len)
 }
 
 /// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.

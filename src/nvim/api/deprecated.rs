@@ -210,11 +210,11 @@ pub fn nvim_buf_add_highlight(
         }
 
         if !(0..MAXLNUM).contains(&line) {
-            api_err_range(err, c"line number".as_ptr());
+            api_err_range(err, c"line number");
             return 0;
         }
         if !(0..=MAXCOL).contains(&col_start) {
-            api_err_range(err, c"column".as_ptr());
+            api_err_range(err, c"column");
             return 0;
         }
 

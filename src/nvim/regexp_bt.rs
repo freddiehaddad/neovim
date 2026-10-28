@@ -1087,14 +1087,14 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     }
                     b's' => {
                         ret = regnode(MOPEN);
-                        if !re_mult_next(c"\\zs".as_ptr()) {
+                        if !re_mult_next(c"\\zs") {
                             return ptr::null_mut();
                         }
                         return ret;
                     }
                     b'e' => {
                         ret = regnode(MCLOSE);
-                        if !re_mult_next(c"\\ze".as_ptr()) {
+                        if !re_mult_next(c"\\ze") {
                             return ptr::null_mut();
                         }
                         return ret;

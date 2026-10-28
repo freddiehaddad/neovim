@@ -225,9 +225,9 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
 ///
 /// # Safety
 /// `fname` must be a valid C string.
-pub fn stdpaths_user_conf_subpath(fname: *const c_char) -> CString {
+pub fn stdpaths_user_conf_subpath(fname: &std::ffi::CStr) -> CString {
     let home = get_xdg_home(XDGVarType::kXDGConfigHome).unwrap_or_default();
-    concat_fnames_cstr(home.as_ptr(), fname, true)
+    concat_fnames_cstr(home.as_ptr(), fname.as_ptr(), true)
 }
 
 /// Return `$XDG_STATE_HOME/$NVIM_APPNAME/{fname}` with optional trailing path separators and

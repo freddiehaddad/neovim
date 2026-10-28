@@ -504,11 +504,11 @@ fn prof_sort_list(
     fd: *mut FILE,
     sorttab: *mut *mut ufunc_T,
     st_len: c_int,
-    title: *const c_char,
+    title: &std::ffi::CStr,
     prefer_self: bool,
 ) {
     unsafe {
-        fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n".as_ptr(), title);
+        fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n".as_ptr(), title.as_ptr());
         fprintf!(fd, c"count  total (s)   self (s)  function\n".as_ptr());
         let limit = st_len.min(20);
         for i in 0..limit {
@@ -708,9 +708,9 @@ fn func_dump_profile(fd: *mut FILE) {
         if !sorttab.is_empty() {
             let st_len = sorttab.len() as c_int;
             sorttab.sort_unstable_by(prof_total_cmp);
-            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"TOTAL".as_ptr(), false);
+            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"TOTAL", false);
             sorttab.sort_unstable_by(prof_self_cmp);
-            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"SELF".as_ptr(), true);
+            prof_sort_list(fd, sorttab.as_mut_ptr(), st_len, c"SELF", true);
         }
     }
 }
@@ -946,7 +946,7 @@ fn time_diff(then: proftime_T, now: proftime_T) {
 }
 
 /// Initializes the startuptime code (`time_start`).
-pub fn time_start(message: *const c_char) {
+pub fn time_start(message: &std::ffi::CStr) {
     let Some(ref tf) = g_st().time_fd else {
             return;
         };
@@ -966,7 +966,7 @@ pub fn time_start(message: *const c_char) {
             c" clock   elapsed:              other lines\n\n".as_ptr(),
         );
 
-        time_msg(message, None);
+        time_msg(message.as_ptr(), None);
 }
 
 /// Prints out timing info (`time_msg`).

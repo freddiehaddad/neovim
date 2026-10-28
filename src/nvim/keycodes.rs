@@ -2759,9 +2759,9 @@ pub fn replace_termcodes(
                 let (len, p): (usize, *mut c_char) = if rem >= 8
                     && crate::memory::cstr_prefix_bytes(src, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<Leader>".as_ptr(), 8))
                 {
-                    (8, get_var_value(c"g:mapleader".as_ptr()))
+                    (8, get_var_value(c"g:mapleader"))
                 } else if rem >= 13 && crate::memory::cstr_prefix_bytes(src, 13).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<LocalLeader>".as_ptr(), 13)) {
-                    (13, get_var_value(c"g:maplocalleader".as_ptr()))
+                    (13, get_var_value(c"g:maplocalleader"))
                 } else {
                     (0, std::ptr::null_mut())
                 };

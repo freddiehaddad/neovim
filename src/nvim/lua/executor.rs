@@ -588,7 +588,7 @@ pub fn get_global_lstate() -> *mut lua_State {
 fn nlua_get_error(lstate: *mut lua_State, len: &mut usize) -> *const c_char {
     unsafe {
         if lua_type(lstate, -1) != LUA_TSTRING {
-            lua_getglobal(lstate, c"tostring".as_ptr());
+            lua_getglobal(lstate, c"tostring");
             lua_pushvalue(lstate, -2);
             if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
                 lua_pop(lstate, 1);
@@ -614,7 +614,7 @@ unsafe extern "C-unwind" fn nlua_no_traceback(_lstate: *mut lua_State) -> c_int 
 
 pub fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, mut nresults: c_int) -> c_int {
     unsafe {
-        lua_getglobal(lstate, c"debug".as_ptr());
+        lua_getglobal(lstate, c"debug");
         if lua_istable(lstate, -1) {
             lua_getfield(lstate, -1, c"traceback".as_ptr());
             lua_remove(lstate, -2);
@@ -858,7 +858,7 @@ fn nlua_init_argv(
             }
         }
 
-        lua_setglobal(L, c"arg".as_ptr());
+        lua_setglobal(L, c"arg");
         i
     }
 }
@@ -1106,7 +1106,7 @@ fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
         lua_pushvalue(lstate, -1);
         lua_setfield(lstate, -3, c"loop".as_ptr());
 
-        lua_getglobal(lstate, c"package".as_ptr());
+        lua_getglobal(lstate, c"package");
         lua_getfield(lstate, -1, c"loaded".as_ptr());
         lua_pushvalue(lstate, -3);
         lua_setfield(lstate, -2, c"luv".as_ptr());
@@ -1134,7 +1134,7 @@ unsafe extern "C-unwind" fn nlua_module_preloader(lstate: *mut lua_State) -> c_i
 
 fn nlua_init_packages(lstate: *mut lua_State) -> bool {
     unsafe {
-        lua_getglobal(lstate, c"package".as_ptr());
+        lua_getglobal(lstate, c"package");
         lua_getfield(lstate, -1, c"preload".as_ptr());
         for (i, def) in BUILTIN_MODULES.iter().enumerate() {
             lua_pushinteger(lstate, i as lua_Integer);
@@ -1148,7 +1148,7 @@ fn nlua_init_packages(lstate: *mut lua_State) -> bool {
 
         lua_pop(lstate, 2);
 
-        lua_getglobal(lstate, c"require".as_ptr());
+        lua_getglobal(lstate, c"require");
         lua_pushstring(lstate, c"vim._init_packages".as_ptr());
         if nlua_pcall(lstate, 1, 0) != 0 {
             fprintf!(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(lstate, -1));
@@ -1234,22 +1234,22 @@ unsafe extern "C-unwind" fn nlua_ui_detach(lstate: *mut lua_State) -> c_int {
 fn nlua_state_init(lstate: *mut lua_State) -> bool {
     unsafe {
         lua_pushcfunction(lstate, Some(nlua_print));
-        lua_setglobal(lstate, c"print".as_ptr());
+        lua_setglobal(lstate, c"print");
 
-        lua_getglobal(lstate, c"debug".as_ptr());
+        lua_getglobal(lstate, c"debug");
         lua_pushcfunction(lstate, Some(nlua_debug));
         lua_setfield(lstate, -2, c"debug".as_ptr());
         lua_pop(lstate, 1);
 
         #[cfg(windows)]
         {
-            lua_getglobal(lstate, c"os".as_ptr());
+            lua_getglobal(lstate, c"os");
             lua_pushcfunction(lstate, Some(nlua_getenv));
             lua_setfield(lstate, -2, c"getenv".as_ptr());
             lua_pop(lstate, 1);
         }
 
-        lua_getglobal(lstate, c"os".as_ptr());
+        lua_getglobal(lstate, c"os");
         lua_pushcfunction(lstate, Some(nlua_os_exit));
         lua_setfield(lstate, -2, c"exit".as_ptr());
         lua_pop(lstate, 1);
@@ -1295,17 +1295,17 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
         lua_pop(lstate, 1);
 
         if has_time_fd() {
-            lua_getglobal(lstate, c"require".as_ptr());
+            lua_getglobal(lstate, c"require");
             nlua_st().REQUIRE_REF = nlua_ref_global(lstate, -1);
             lua_pop(lstate, 1);
             lua_pushcfunction(lstate, Some(nlua_require));
-            lua_setglobal(lstate, c"require".as_ptr());
+            lua_setglobal(lstate, c"require");
         }
 
         nlua_treesitter_init(lstate);
         nlua_state_add_stdlib(lstate, false);
 
-        lua_setglobal(lstate, c"vim".as_ptr());
+        lua_setglobal(lstate, c"vim");
 
         nlua_init_packages(lstate)
     }
@@ -1356,7 +1356,7 @@ fn nlua_init_state(thread: bool) -> *mut lua_State {
         luaL_openlibs(lstate);
 
         lua_pushcfunction(lstate, Some(nlua_print));
-        lua_setglobal(lstate, c"print".as_ptr());
+        lua_setglobal(lstate, c"print");
 
         lua_pushinteger(lstate, 0);
         lua_setfield(lstate, LUA_REGISTRYINDEX, c"nlua.refcount".as_ptr());
@@ -1371,13 +1371,13 @@ fn nlua_init_state(thread: bool) -> *mut lua_State {
         lua_setfield(lstate, -2, c"nvim__get_runtime".as_ptr());
         lua_setfield(lstate, -2, c"api".as_ptr());
 
-        lua_setglobal(lstate, c"vim".as_ptr());
+        lua_setglobal(lstate, c"vim");
 
         nlua_init_packages(lstate);
 
-        lua_getglobal(lstate, c"package".as_ptr());
+        lua_getglobal(lstate, c"package");
         lua_getfield(lstate, -1, c"loaded".as_ptr());
-        lua_getglobal(lstate, c"vim".as_ptr());
+        lua_getglobal(lstate, c"vim");
         lua_setfield(lstate, -2, c"vim".as_ptr());
         lua_pop(lstate, 2);
 
@@ -1430,7 +1430,7 @@ pub fn nlua_print_event(text: NvimString) {
 unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
     unsafe {
         let nargs = lua_gettop(lstate);
-        lua_getglobal(lstate, c"tostring".as_ptr());
+        lua_getglobal(lstate, c"tostring");
         let mut errmsg_len: usize = 0;
         let mut msg_vec: Vec<c_char> = Vec::with_capacity(80);
         let mut curargidx: c_int = 1;
@@ -1504,7 +1504,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
         lua_insert(lstate, 1);
 
         if !has_time_fd() {
-            lua_getglobal(lstate, c"require".as_ptr());
+            lua_getglobal(lstate, c"require");
             if lua_iscfunction(lstate, -1) != 0
                 && lua_tocfunction(lstate, -1).is_some_and(|f| {
                     std::ptr::fn_addr_eq(
@@ -1514,7 +1514,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
                 })
             {
                 lua_pushvalue(lstate, 1);
-                lua_setglobal(lstate, c"require".as_ptr());
+                lua_setglobal(lstate, c"require");
             }
             lua_pop(lstate, 1);
             lua_call(lstate, 1, 1);
@@ -1647,7 +1647,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
 
         let func_lua = find_internal_func_lua(name);
         if !func_lua.is_null() {
-            lua_getglobal(lstate, c"require".as_ptr());
+            lua_getglobal(lstate, c"require");
             lua_pushlstring(lstate, c"vim._core.vimfn".as_ptr(), 15);
             if lua_pcall(lstate, 1, 1, 0) != 0 {
                 return lua_error(lstate);
@@ -1884,10 +1884,10 @@ pub fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
 }
 
 fn nlua_exec_typval_fmt(
-    fmt: *const c_char,
+    fmt: &std::ffi::CStr,
     body: *const c_char,
     bodylen: usize,
-    name: *const c_char,
+    name: &std::ffi::CStr,
     args: *mut typval_T,
     argcount: c_int,
     special: bool,ret_tv: &mut typval_T,
@@ -1896,17 +1896,17 @@ fn nlua_exec_typval_fmt(
         let buf_ptr = lcmd_buf.as_mut_ptr();
         let mut lcmd = buf_ptr;
         let mut lcmd_vec: Vec<c_char> = Vec::new();
-        let lcmd_len = vim_snprintf!(buf_ptr, IOSIZE, fmt, bodylen as c_int, body);
+        let lcmd_len = vim_snprintf!(buf_ptr, IOSIZE, fmt.as_ptr(), bodylen as c_int, body);
         if lcmd_len as usize >= IOSIZE {
             lcmd_vec.resize(lcmd_len as usize + 1, 0);
             lcmd = lcmd_vec.as_mut_ptr();
-            vim_snprintf!(lcmd, lcmd_len as usize + 1, fmt, bodylen as c_int, body);
+            vim_snprintf!(lcmd, lcmd_len as usize + 1, fmt.as_ptr(), bodylen as c_int, body);
         }
 
         nlua_exec_typval(
             lcmd,
             lcmd_len as usize,
-            name,
+            name.as_ptr(),
             args,
             argcount,
             special,
@@ -1916,10 +1916,10 @@ fn nlua_exec_typval_fmt(
 
 pub fn nlua_call_luaeval(str_: NvimString,arg: &mut typval_T, ret_tv: &mut typval_T) {
     nlua_exec_typval_fmt(
-            c"local _A=select(1,...) return (%.*s)".as_ptr(),
+            c"local _A=select(1,...) return (%.*s)",
             str_.data,
             str_.size,
-            c"luaeval()".as_ptr(),
+            c"luaeval()",
             arg,
             1,
             true,
@@ -1934,10 +1934,10 @@ pub fn nlua_call_vlua(
     argcount: c_int,ret_tv: &mut typval_T,
 ) {
     nlua_exec_typval_fmt(
-            c"return %.*s(...)".as_ptr(),
+            c"return %.*s(...)",
             str_,
             len,
-            c"v:lua".as_ptr(),
+            c"v:lua",
             args,
             argcount,
             false,
@@ -2091,7 +2091,7 @@ pub fn nlua_exec(
 }
 
 pub fn nlua_call_typval(
-    module: *const c_char,
+    module: &std::ffi::CStr,
     func: *const c_char,
     argvars: *mut typval_T,rettv: Option<&mut typval_T>,
 ) {
@@ -2108,29 +2108,29 @@ pub fn nlua_call_typval(
             buf.as_mut_ptr(),
             buf.len(),
             c"return require('%s').%s(...)".as_ptr(),
-            module,
+            module.as_ptr(),
             func,
         ) as usize;
-        nlua_exec_typval(buf.as_ptr(), len, module, argvars, argcount, false, (rettv.is_some()).then(||  { rettv.unwrap() }));
+        nlua_exec_typval(buf.as_ptr(), len, module.as_ptr(), argvars, argcount, false, (rettv.is_some()).then(||  { rettv.unwrap() }));
     }
 }
 
 pub fn nlua_call_excmd(
-    module: *const c_char,
-    func: *const c_char,
+    module: &std::ffi::CStr,
+    func: &std::ffi::CStr,
     eap: &exarg_T,
     cmod: &cmdmod_T,
     extra: Option<&mut typval_T>,
 ) -> bool {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
-        lua_getglobal(lstate, c"require".as_ptr());
-        lua_pushstring(lstate, module);
+        lua_getglobal(lstate, c"require");
+        lua_pushstring(lstate, module.as_ptr());
         if lua_pcall(lstate, 1, 1, 0) != 0 {
             nlua_error(lstate, c"E5108: %s".as_ptr());
             return false;
         }
-        lua_getfield(lstate, -1, func);
+        lua_getfield(lstate, -1, func.as_ptr());
         lua_remove(lstate, -2);
 
         lua_newtable(lstate);
@@ -2444,7 +2444,7 @@ pub fn nlua_exec_file(path: *const c_char) -> bool {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         if !(crate::memory::cstr_as_opt_bytes(path) == Some(b"-")) {
-            lua_getglobal(lstate, c"loadfile".as_ptr());
+            lua_getglobal(lstate, c"loadfile");
             lua_pushstring(lstate, path);
         } else {
             let mut stdin_dup = FileDescriptor::new();
@@ -2477,7 +2477,7 @@ pub fn nlua_exec_file(path: *const c_char) -> bool {
             sb.push(0);
             file_close(&mut stdin_dup, false);
 
-            lua_getglobal(lstate, c"loadstring".as_ptr());
+            lua_getglobal(lstate, c"loadstring");
             lua_pushstring(lstate, sb.as_ptr().cast());
         }
 
@@ -2510,7 +2510,7 @@ pub fn nlua_expand_pat(xp: &mut expand_T) {
         let lstate = nlua_st().GLOBAL_LSTATE;
         let mut status = FAIL;
 
-        lua_getglobal(lstate, c"vim".as_ptr());
+        lua_getglobal(lstate, c"vim");
         lua_getfield(lstate, -1, c"_expand_pat".as_ptr());
         luaL_checktype(lstate, -1, LUA_TFUNCTION);
 
@@ -2648,7 +2648,7 @@ pub fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
         let lstate = nlua_st().GLOBAL_LSTATE;
         let top = lua_gettop(lstate);
 
-        lua_getglobal(lstate, c"vim".as_ptr());
+        lua_getglobal(lstate, c"vim");
         lua_getfield(lstate, -1, c"_on_key".as_ptr());
         luaL_checktype(lstate, -1, LUA_TFUNCTION);
 
@@ -2844,7 +2844,7 @@ pub fn nlua_init_defaults() {
         let L = nlua_st().GLOBAL_LSTATE;
         assert!(!L.is_null());
 
-        lua_getglobal(L, c"require".as_ptr());
+        lua_getglobal(L, c"require");
         lua_pushstring(L, c"vim._core.defaults".as_ptr());
         if nlua_pcall(L, 1, 0) != 0 {
             fprintf!(log_get_stderr(), c"%s\n".as_ptr(), lua_tostring(L, -1));

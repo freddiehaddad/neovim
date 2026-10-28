@@ -1628,15 +1628,15 @@ pub fn pum_set_event_info(dict: *mut dict_T) {
             c = f64::from(pum().col);
         }
         unsafe {
-            tv_dict_add_float(&mut *dict, c"height".as_ptr(), 6, h);
-            tv_dict_add_float(&mut *dict, c"width".as_ptr(), 5, w);
-            tv_dict_add_float(&mut *dict, c"row".as_ptr(), 3, r);
-            tv_dict_add_float(&mut *dict, c"col".as_ptr(), 3, c);
+            tv_dict_add_float(&mut *dict, c"height", 6, h);
+            tv_dict_add_float(&mut *dict, c"width", 5, w);
+            tv_dict_add_float(&mut *dict, c"row", 3, r);
+            tv_dict_add_float(&mut *dict, c"col", 3, c);
         }
         tv_dict_add_nr(dict, c"size".as_ptr(), 4, i64::from(pum().size));
         tv_dict_add_bool(
             dict,
-            c"scrollbar".as_ptr(),
+            c"scrollbar",
             9,
             if pum().scrollbar != 0 {
                 kBoolVarTrue

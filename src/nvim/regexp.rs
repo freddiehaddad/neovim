@@ -2306,9 +2306,9 @@ pub(super) fn match_with_backref(
     }
 }
 
-pub(super) fn re_mult_next(what: *const c_char) -> bool {
+pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
     if re_multi_type(peekchr()) == MULTI_MULT {
-            semsg!(tr(c"E888: (NFA regexp) cannot repeat %s".as_ptr()), what);
+            semsg!(tr(c"E888: (NFA regexp) cannot repeat %s".as_ptr()), what.as_ptr());
             g_st().rc_did_emsg = true;
             return false;
         }

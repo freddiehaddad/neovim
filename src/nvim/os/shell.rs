@@ -943,7 +943,7 @@ fn do_os_system(
 
         #[cfg(windows)]
         {
-            restore_env_var(c"NoDefaultCurrentDirectoryInExePath".as_ptr(), oldval);
+            restore_env_var(c"NoDefaultCurrentDirectoryInExePath", oldval);
             SetConsoleOutputCP(old_output_cp);
             SetConsoleCP(old_input_cp);
         }

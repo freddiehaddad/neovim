@@ -908,8 +908,8 @@ fn terminfo_start(tui: &mut TUIData) {
         };
         let iterm_env = cstr_contains(termprg, b"iTerm.app");
         let nsterm = cstr_contains(termprg, b"Apple_Terminal")
-            || terminfo_is_term_family(term, c"nsterm".as_ptr());
-        let konsole = terminfo_is_term_family(term, c"konsole".as_ptr())
+            || terminfo_is_term_family(term, c"nsterm");
+        let konsole = terminfo_is_term_family(term, c"konsole")
             || os_env_exists(c"KONSOLE_PROFILE_NAME".as_ptr(), true)
             || os_env_exists(c"KONSOLE_DBUS_SESSION".as_ptr(), true);
         let mut konsolev_end = konsolev_env.cast_mut();
@@ -926,8 +926,8 @@ fn terminfo_start(tui: &mut TUIData) {
         } else {
             ptr::null()
         };
-        let screen = terminfo_is_term_family(term, c"screen".as_ptr());
-        let tmux = terminfo_is_term_family(term, c"tmux".as_ptr())
+        let screen = terminfo_is_term_family(term, c"screen");
+        let tmux = terminfo_is_term_family(term, c"tmux")
             || os_env_exists(c"TMUX".as_ptr(), true);
         tui.screen_or_tmux = screen || tmux;
 
@@ -945,10 +945,10 @@ fn terminfo_start(tui: &mut TUIData) {
             && tui.ti.defs[kTerm_insert_line].is_some()
             && tui.ti.defs[kTerm_parm_insert_line].is_some();
         tui.can_erase_chars = tui.ti.defs[kTerm_erase_chars].is_some();
-        tui.immediate_wrap_after_last_column = terminfo_is_term_family(term, c"conemu".as_ptr())
-            || terminfo_is_term_family(term, c"cygwin".as_ptr())
-            || terminfo_is_term_family(term, c"win32con".as_ptr())
-            || terminfo_is_term_family(term, c"interix".as_ptr());
+        tui.immediate_wrap_after_last_column = terminfo_is_term_family(term, c"conemu")
+            || terminfo_is_term_family(term, c"cygwin")
+            || terminfo_is_term_family(term, c"win32con")
+            || terminfo_is_term_family(term, c"interix");
         tui.bce = tui.ti.back_color_erase;
         g_st().t_colors = tui.ti.max_colors;
 
@@ -2728,32 +2728,32 @@ fn patch_terminfo_bugs(
         let xterm_version = xterm_version_cstr
             .as_ref()
             .map_or(ptr::null(), |c| c.as_ptr());
-        let xterm = terminfo_is_term_family(term, c"xterm".as_ptr()) || nsterm;
-        let hterm = terminfo_is_term_family(term, c"hterm".as_ptr());
-        let kitty = terminfo_is_term_family(term, c"xterm-kitty".as_ptr());
-        let linuxvt = terminfo_is_term_family(term, c"linux".as_ptr());
+        let xterm = terminfo_is_term_family(term, c"xterm") || nsterm;
+        let hterm = terminfo_is_term_family(term, c"hterm");
+        let kitty = terminfo_is_term_family(term, c"xterm-kitty");
+        let linuxvt = terminfo_is_term_family(term, c"linux");
         let bsdvt = terminfo_is_bsd_console(term);
-        let rxvt = terminfo_is_term_family(term, c"rxvt".as_ptr());
-        let teraterm = terminfo_is_term_family(term, c"teraterm".as_ptr());
-        let putty = terminfo_is_term_family(term, c"putty".as_ptr());
-        let screen = terminfo_is_term_family(term, c"screen".as_ptr());
-        let tmux = terminfo_is_term_family(term, c"tmux".as_ptr())
+        let rxvt = terminfo_is_term_family(term, c"rxvt");
+        let teraterm = terminfo_is_term_family(term, c"teraterm");
+        let putty = terminfo_is_term_family(term, c"putty");
+        let screen = terminfo_is_term_family(term, c"screen");
+        let tmux = terminfo_is_term_family(term, c"tmux")
             || os_env_exists(c"TMUX".as_ptr(), true);
-        let st = terminfo_is_term_family(term, c"st".as_ptr());
-        let gnome = terminfo_is_term_family(term, c"gnome".as_ptr())
-            || terminfo_is_term_family(term, c"vte".as_ptr());
-        let iterm = terminfo_is_term_family(term, c"iterm".as_ptr())
-            || terminfo_is_term_family(term, c"iterm2".as_ptr())
-            || terminfo_is_term_family(term, c"iTerm.app".as_ptr())
-            || terminfo_is_term_family(term, c"iTerm2.app".as_ptr());
-        let alacritty = terminfo_is_term_family(term, c"alacritty".as_ptr());
-        let foot = terminfo_is_term_family(term, c"foot".as_ptr());
+        let st = terminfo_is_term_family(term, c"st");
+        let gnome = terminfo_is_term_family(term, c"gnome")
+            || terminfo_is_term_family(term, c"vte");
+        let iterm = terminfo_is_term_family(term, c"iterm")
+            || terminfo_is_term_family(term, c"iterm2")
+            || terminfo_is_term_family(term, c"iTerm.app")
+            || terminfo_is_term_family(term, c"iTerm2.app");
+        let alacritty = terminfo_is_term_family(term, c"alacritty");
+        let foot = terminfo_is_term_family(term, c"foot");
         let iterm_pretending_xterm = xterm && iterm_env;
         let gnome_pretending_xterm = xterm && cstr_contains(colorterm, b"gnome-terminal");
         let mate_pretending_xterm = xterm && cstr_contains(colorterm, b"mate-terminal");
         let true_xterm = xterm && !xterm_version.is_null() && !bsdvt;
-        let cygwin = terminfo_is_term_family(term, c"cygwin".as_ptr());
-        let ghostty = terminfo_is_term_family(term, c"xterm-ghostty".as_ptr());
+        let cygwin = terminfo_is_term_family(term, c"cygwin");
+        let ghostty = terminfo_is_term_family(term, c"xterm-ghostty");
 
         if let Some(fix_normal) = tui.ti.defs[kTerm_cursor_normal].clone() {
             let mut bytes = fix_normal.to_bytes();
@@ -2813,7 +2813,7 @@ fn patch_terminfo_bugs(
             terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b_");
             terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x1b\\");
             terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
-        } else if terminfo_is_term_family(term, c"interix".as_ptr()) {
+        } else if terminfo_is_term_family(term, c"interix") {
             terminfo_set_if_empty(tui, kTerm_carriage_return, c"\x0d");
         } else if linuxvt {
             terminfo_set_if_empty(tui, kTerm_parm_up_cursor, c"\x1b[%p1%dA");
@@ -2910,23 +2910,23 @@ fn augment_terminfo(
         let xterm_version = xterm_version_cstr
             .as_ref()
             .map_or(ptr::null(), |c| c.as_ptr());
-        let xterm = terminfo_is_term_family(term, c"xterm".as_ptr()) || nsterm;
-        let hterm = terminfo_is_term_family(term, c"hterm".as_ptr());
+        let xterm = terminfo_is_term_family(term, c"xterm") || nsterm;
+        let hterm = terminfo_is_term_family(term, c"hterm");
         let bsdvt = terminfo_is_bsd_console(term);
-        let dtterm = terminfo_is_term_family(term, c"dtterm".as_ptr());
-        let rxvt = terminfo_is_term_family(term, c"rxvt".as_ptr());
-        let teraterm = terminfo_is_term_family(term, c"teraterm".as_ptr());
-        let putty = terminfo_is_term_family(term, c"putty".as_ptr());
-        let screen = terminfo_is_term_family(term, c"screen".as_ptr());
-        let tmux = terminfo_is_term_family(term, c"tmux".as_ptr())
+        let dtterm = terminfo_is_term_family(term, c"dtterm");
+        let rxvt = terminfo_is_term_family(term, c"rxvt");
+        let teraterm = terminfo_is_term_family(term, c"teraterm");
+        let putty = terminfo_is_term_family(term, c"putty");
+        let screen = terminfo_is_term_family(term, c"screen");
+        let tmux = terminfo_is_term_family(term, c"tmux")
             || os_env_exists(c"TMUX".as_ptr(), true);
-        let st = terminfo_is_term_family(term, c"st".as_ptr());
-        let iterm = terminfo_is_term_family(term, c"iterm".as_ptr())
-            || terminfo_is_term_family(term, c"iterm2".as_ptr())
-            || terminfo_is_term_family(term, c"iTerm.app".as_ptr())
-            || terminfo_is_term_family(term, c"iTerm2.app".as_ptr());
-        let alacritty = terminfo_is_term_family(term, c"alacritty".as_ptr());
-        let kitty = terminfo_is_term_family(term, c"xterm-kitty".as_ptr());
+        let st = terminfo_is_term_family(term, c"st");
+        let iterm = terminfo_is_term_family(term, c"iterm")
+            || terminfo_is_term_family(term, c"iterm2")
+            || terminfo_is_term_family(term, c"iTerm.app")
+            || terminfo_is_term_family(term, c"iTerm2.app");
+        let alacritty = terminfo_is_term_family(term, c"alacritty");
+        let kitty = terminfo_is_term_family(term, c"xterm-kitty");
         let iterm_pretending_xterm = xterm && iterm_env;
         let true_xterm = xterm && !xterm_version.is_null() && !bsdvt;
 

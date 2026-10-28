@@ -549,7 +549,7 @@ fn stacktrace_push_item(
         };
 
         if !fp.is_null() {
-            tv_dict_add_func(d, c"funcref".as_ptr(), 7, fp);
+            tv_dict_add_func(d, c"funcref", 7, fp);
         }
         if !event.is_null() {
             tv_dict_add_str(d, c"event".as_ptr(), 5, event);
@@ -686,7 +686,7 @@ fn source_callback_vim_lua(
 
         for fname_cstr in fnames {
             let fname = fname_cstr.as_ptr().cast_mut();
-            if path_with_extension(fname, c"vim".as_ptr()) {
+            if path_with_extension(fname, c"vim") {
                 do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
                 if !all {
@@ -697,7 +697,7 @@ fn source_callback_vim_lua(
 
         for fname_cstr in fnames {
             let fname = fname_cstr.as_ptr().cast_mut();
-            if path_with_extension(fname, c"lua".as_ptr()) {
+            if path_with_extension(fname, c"lua") {
                 do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
                 if !all {
@@ -718,8 +718,8 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) 
 
         for fname_cstr in fnames {
             let fname = fname_cstr.as_ptr().cast_mut();
-            if !path_with_extension(fname, c"vim".as_ptr())
-                && !path_with_extension(fname, c"lua".as_ptr())
+            if !path_with_extension(fname, c"vim")
+                && !path_with_extension(fname, c"lua")
             {
                 do_source(fname, false, DOSO_NONE, cookie);
                 did_one = true;
@@ -2862,7 +2862,7 @@ fn do_source_ext(
                 verbose_leave();
             }
             if is_vimrc == DOSO_VIMRC {
-                vimrc_found(fname_exp, c"MYVIMRC".as_ptr().cast_mut());
+                vimrc_found(fname_exp, c"MYVIMRC");
             }
 
             #[cfg(windows)]
@@ -2906,7 +2906,7 @@ fn do_source_ext(
                 si = script_item(sid);
             } else if str_ptr.is_null() {
                 si = new_script_item(Some(crate::memory::cstr_to_cstring(fname_exp)), &mut sid);
-                (*si).sn_lua = path_with_extension(fname_exp, c"lua".as_ptr());
+                (*si).sn_lua = path_with_extension(fname_exp, c"lua");
                 if !ret_sid.is_null() {
                     *ret_sid = sid;
                 }
@@ -2949,7 +2949,7 @@ fn do_source_ext(
                 && !ex_lua
                 && !(crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"lua"))
                 && !(!(*g_st().curbuf).b_fname.is_null()
-                    && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr()))
+                    && path_with_extension((*g_st().curbuf).b_fname, c"lua"))
             {
                 let mut args_items = [
                     integer_obj(Integer::from((*g_st().curbuf).b_fnum)),
@@ -2984,7 +2984,7 @@ fn do_source_ext(
                     || ts_lua
                     || (crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"lua"))
                     || (!(*g_st().curbuf).b_fname.is_null()
-                        && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr())))
+                        && path_with_extension((*g_st().curbuf).b_fname, c"lua")))
             {
                 nlua_exec_lines(&cookie.buflines, fname_exp);
             } else if !si.is_null() && (*si).sn_lua {
@@ -3284,7 +3284,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                     return;
                 }
             } else {
-                pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict, c"name".as_ptr());
+                pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict, c"name");
                 if let Some(ref pat) = pat_owned {
                     regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
                 }
@@ -3306,7 +3306,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 tv_dict_add_str(d, c"name".as_ptr(), 4, sn.as_ptr());
                 tv_dict_add_nr(d, c"sid".as_ptr(), 3, i);
                 tv_dict_add_nr(d, c"version".as_ptr(), 7, 1);
-                tv_dict_add_bool(d, c"autoload".as_ptr(), 8, kFalse);
+                tv_dict_add_bool(d, c"autoload", 8, kFalse);
 
                 if sid > 0 {
                     let var_dict =

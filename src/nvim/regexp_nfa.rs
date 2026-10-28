@@ -1002,7 +1002,7 @@ fn nfa_regatom() -> bool {
                 match c as u8 {
                     b's' => {
                         EMIT(NFA_ZSTART);
-                        if !re_mult_next(c"\\zs".as_ptr()) {
+                        if !re_mult_next(c"\\zs") {
                             return false;
                         }
                         return true;
@@ -1010,7 +1010,7 @@ fn nfa_regatom() -> bool {
                     b'e' => {
                         EMIT(NFA_ZEND);
                         re_st().rex.nfa_has_zend = 1;
-                        if !re_mult_next(c"\\ze".as_ptr()) {
+                        if !re_mult_next(c"\\ze") {
                             return false;
                         }
                         return true;

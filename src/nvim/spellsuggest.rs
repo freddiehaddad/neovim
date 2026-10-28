@@ -646,7 +646,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
                 tv_dict_add_nr(d, c"altscore".as_ptr(), 8, stp.st_altscore as i64);
                 tv_dict_add_bool(
                     d,
-                    c"salscore".as_ptr(),
+                    c"salscore",
                     8,
                     if stp.st_salscore {
                         kBoolVarTrue
@@ -683,7 +683,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
             },
         ];
         nlua_call_typval(
-            c"vim._core.spell".as_ptr(),
+            c"vim._core.spell",
             c"select_suggest".as_ptr(),
             (&raw mut lua_args).cast(),
             None,

@@ -114,7 +114,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 vval: TypvalVval::Number(0),
             };
             nlua_call_typval(
-                c"vim._core.help".as_ptr(),
+                c"vim._core.help",
                 c"resolve_tag".as_ptr(),
                 no_args.as_mut_ptr(),
                 Some(&mut rettv),
@@ -361,7 +361,7 @@ pub fn find_help_tags(
             vval: TypvalVval::Number(0),
         };
         nlua_call_typval(
-            c"vim._core.help".as_ptr(),
+            c"vim._core.help",
             c"escape_subject".as_ptr(),
             tv_args.as_mut_ptr(),
             Some(&mut rettv),
@@ -496,7 +496,7 @@ pub fn get_local_additions() {
             vval: TypvalVval::Number(0),
         }];
         nlua_call_typval(
-            c"vim._core.help".as_ptr(),
+            c"vim._core.help",
             c"local_additions".as_ptr(),
             no_args.as_mut_ptr(),
             None,
@@ -554,7 +554,7 @@ pub fn ex_helptags(eap: &mut exarg_T) {
             },
         ];
         nlua_call_typval(
-            c"vim._core.help".as_ptr(),
+            c"vim._core.help",
             c"gen_tags".as_ptr(),
             tv_args.as_mut_ptr(),
             None,

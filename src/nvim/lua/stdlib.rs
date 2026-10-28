@@ -845,7 +845,7 @@ pub unsafe extern "C-unwind" fn nlua_state_add_stdlib(lstate: *mut lua_State, is
         lua_pushvalue(lstate, -1);
         lua_setfield(lstate, -3, c"mpack".as_ptr());
 
-        lua_getglobal(lstate, c"package".as_ptr());
+        lua_getglobal(lstate, c"package");
         lua_getfield(lstate, -1, c"loaded".as_ptr());
         lua_pushvalue(lstate, -3);
         lua_setfield(lstate, -2, c"mpack".as_ptr());
@@ -855,7 +855,7 @@ pub unsafe extern "C-unwind" fn nlua_state_add_stdlib(lstate: *mut lua_State, is
         lua_pushvalue(lstate, -1);
         lua_setfield(lstate, -4, c"lpeg".as_ptr());
 
-        lua_getglobal(lstate, c"package".as_ptr());
+        lua_getglobal(lstate, c"package");
         lua_getfield(lstate, -1, c"loaded".as_ptr());
         lua_pushvalue(lstate, -3);
         lua_setfield(lstate, -2, c"lpeg".as_ptr());

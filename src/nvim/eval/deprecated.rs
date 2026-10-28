@@ -174,7 +174,7 @@ pub fn f_termopen(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFunc
         }
 
         let dict = arg1.vval.v_dict();
-        tv_dict_add_bool(dict, c"term".as_ptr(), 4, K_BOOL_VAR_TRUE as c_int);
+        tv_dict_add_bool(dict, c"term", 4, K_BOOL_VAR_TRUE as c_int);
         f_jobstart(argvars, rettv, fptr);
         if must_free {
             tv_dict_free(dict);

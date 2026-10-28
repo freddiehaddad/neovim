@@ -693,13 +693,13 @@ pub fn nvim_buf_set_text(
         let mut oob = false;
         start_row = normalize_index(&mut *b, start_row, false, &mut oob);
         if oob {
-            api_err_range(err, c"start_row".as_ptr());
+            api_err_range(err, c"start_row");
             return;
         }
 
         end_row = normalize_index(&mut *b, end_row, false, &mut oob);
         if oob {
-            api_err_range(err, c"end_row".as_ptr());
+            api_err_range(err, c"end_row");
             return;
         }
 
@@ -710,7 +710,7 @@ pub fn nvim_buf_set_text(
             start_col = i64::from(len_at_start) + start_col + 1;
         }
         if start_col < 0 || start_col > i64::from(len_at_start) {
-            api_err_range(err, c"start_col".as_ptr());
+            api_err_range(err, c"start_col");
             return;
         }
 
@@ -721,7 +721,7 @@ pub fn nvim_buf_set_text(
             end_col = i64::from(len_at_end) + end_col + 1;
         }
         if end_col < 0 || end_col > i64::from(len_at_end) {
-            api_err_range(err, c"end_col".as_ptr());
+            api_err_range(err, c"end_col");
             return;
         }
 

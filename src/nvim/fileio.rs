@@ -908,7 +908,7 @@ fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id: *const
             msg_with_id(
                 iobuf_ptr,
                 msg_id.cast_mut(),
-                c"bufwrite".as_ptr(),
+                c"bufwrite",
                 None,
                 0,
                 false,
@@ -1469,7 +1469,7 @@ pub fn readfile(
             fname_msg_id(
                 msg_id.as_mut_ptr(),
                 msg_id.len(),
-                c"nvim.bufread".as_ptr(),
+                c"nvim.bufread",
                 g_st().curbuf,
                 sfname,
             );
@@ -3036,12 +3036,12 @@ pub fn add_quoted_fname(
 pub fn fname_msg_id(
     msg_id: *mut c_char,
     size: usize,
-    prefix: *const c_char,
+    prefix: &std::ffi::CStr,
     buf: *const buf_T,
     fname: *const c_char,
 ) {
     unsafe {
-        let mut len = xstrlcpy(msg_id, prefix, size);
+        let mut len = xstrlcpy(msg_id, prefix.as_ptr(), size);
         if len < size {
             len += xstrlcpy(msg_id.add(len), c" ".as_ptr(), size - len);
         }

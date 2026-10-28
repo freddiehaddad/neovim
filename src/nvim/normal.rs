@@ -4160,7 +4160,7 @@ fn nv_colon(cap: &mut cmdarg_T) {
         }
 
         if g_st().KeyTyped {
-            msg_ext_set_trigger(c"typed_cmd".as_ptr());
+            msg_ext_set_trigger(c"typed_cmd");
             compute_cmdrow();
         }
 
@@ -4181,7 +4181,7 @@ fn nv_colon(cap: &mut cmdarg_T) {
                 },
             )
         };
-        msg_ext_set_trigger(c"".as_ptr());
+        msg_ext_set_trigger(c"");
 
         if !cmd_result {
             clearop(&mut *cap.oap);
@@ -4583,8 +4583,8 @@ fn nv_ident(cap: &mut cmdarg_T) {
             if cmdchar == b'K' as c_int && !kp_ex && !kp_help {
                 g_st().restart_edit = b'i' as c_int;
                 add_map(
-                    c"<esc>".as_ptr().cast_mut(),
-                    c"<Cmd>bdelete!<CR>".as_ptr().cast_mut(),
+                    c"<esc>",
+                    c"<Cmd>bdelete!<CR>",
                     MODE_TERMINAL,
                     true,
                 );
@@ -4875,7 +4875,7 @@ fn nv_down(cap: &mut cmdarg_T) {
             cap.arg = FORWARD;
             nv_page(cap);
         } else if bt_cmdwin(g_st().curbuf) && cap.cmdchar == CAR {
-            cmdwin_do_action(c"confirm".as_ptr());
+            cmdwin_do_action(c"confirm");
         } else if bt_quickfix(g_st().curbuf) && cap.cmdchar == CAR {
             qf_view_result(false);
         } else if bt_prompt(g_st().curbuf)
@@ -5455,7 +5455,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                     vval: TypvalVval::Number(0),
                 };
                 nlua_call_typval(
-                    c"vim._core.mcursor".as_ptr(),
+                    c"vim._core.mcursor",
                     c"jump".as_ptr(),
                     tv_args.as_mut_ptr(),
                     Some(&mut rettv),
@@ -6583,7 +6583,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                         vval: TypvalVval::Number(0),
                     }];
                     nlua_call_typval(
-                        c"vim._core.mcursor".as_ptr(),
+                        c"vim._core.mcursor",
                         c"restore".as_ptr(),
                         tv_args.as_mut_ptr(),
                         None,
@@ -7189,7 +7189,7 @@ fn nv_esc(cap: &mut cmdarg_T) {
 
         if cmdwin_cancel {
             g_st().got_int = false;
-            cmdwin_do_action(c"cancel".as_ptr());
+            cmdwin_do_action(c"cancel");
         } else if cap.arg != 0 {
             if g_st().restart_edit == 0 && !g_st().Visual.active && no_reason {
                 if anyBufIsChanged() {
@@ -7448,7 +7448,7 @@ fn nv_q(cap: &mut cmdarg_T) {
                 },
             ];
             nlua_call_typval(
-                c"vim._core.cmdwin".as_ptr(),
+                c"vim._core.cmdwin",
                 c"open".as_ptr(),
                 tv_args.as_mut_ptr(),
                 None,

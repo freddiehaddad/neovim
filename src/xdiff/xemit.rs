@@ -18,13 +18,13 @@ fn xdl_get_rec(xdf: &xdfile_t, ri: c_long, rec: &mut *const c_char) -> c_long {
 fn xdl_emit_record(
     xdf: &xdfile_t,
     ri: c_long,
-    pre: *const c_char,
+    pre: &std::ffi::CStr,
     ecb: &mut xdemitcb_t,
 ) -> c_int {
-    let psize = unsafe { std::ffi::CStr::from_ptr(pre).to_bytes().len() as c_long };
+    let psize =  { pre.to_bytes().len() as c_long };
     let mut rec: *const c_char = ptr::null();
     let size = xdl_get_rec(xdf, ri, &mut rec);
-    if xdl_emit_diffrec(rec, size, pre, psize, ecb) < 0 {
+    if xdl_emit_diffrec(rec, size, pre.as_ptr(), psize, ecb) < 0 {
         return -1;
     }
     0
@@ -115,7 +115,7 @@ pub fn xdl_emit_diff(
         }
 
         while s2 < xscr[cur].i2 {
-            if xdl_emit_record(&xe.xdf2, s2, c" ".as_ptr(), ecb) < 0 {
+            if xdl_emit_record(&xe.xdf2, s2, c" ", ecb) < 0 {
                 return -1;
             }
             s2 += 1;
@@ -126,7 +126,7 @@ pub fn xdl_emit_diff(
         loop {
             let xch = &xscr[cur];
             while s1 < xch.i1 && s2 < xch.i2 {
-                if xdl_emit_record(&xe.xdf2, s2, c" ".as_ptr(), ecb) < 0 {
+                if xdl_emit_record(&xe.xdf2, s2, c" ", ecb) < 0 {
                     return -1;
                 }
                 s1 += 1;
@@ -135,7 +135,7 @@ pub fn xdl_emit_diff(
 
             s1 = xch.i1;
             while s1 < xch.i1 + xch.chg1 {
-                if xdl_emit_record(&xe.xdf1, s1, c"-".as_ptr(), ecb) < 0 {
+                if xdl_emit_record(&xe.xdf1, s1, c"-", ecb) < 0 {
                     return -1;
                 }
                 s1 += 1;
@@ -143,7 +143,7 @@ pub fn xdl_emit_diff(
 
             s2 = xch.i2;
             while s2 < xch.i2 + xch.chg2 {
-                if xdl_emit_record(&xe.xdf2, s2, c"+".as_ptr(), ecb) < 0 {
+                if xdl_emit_record(&xe.xdf2, s2, c"+", ecb) < 0 {
                     return -1;
                 }
                 s2 += 1;
@@ -159,7 +159,7 @@ pub fn xdl_emit_diff(
 
         s2 = xche.i2 + xche.chg2;
         while s2 < e2 {
-            if xdl_emit_record(&xe.xdf2, s2, c" ".as_ptr(), ecb) < 0 {
+            if xdl_emit_record(&xe.xdf2, s2, c" ", ecb) < 0 {
                 return -1;
             }
             s2 += 1;

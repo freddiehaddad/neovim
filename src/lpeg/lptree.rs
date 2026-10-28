@@ -613,7 +613,7 @@ unsafe extern "C-unwind" fn lp_range(l: *mut lua_State) -> c_int {
         for arg in 1..=top {
             let mut len: usize = 0;
             let r = luaL_checklstring(l, arg, &mut len);
-            luaL_argcheck(l, len == 2, arg, c"range must have two characters".as_ptr());
+            luaL_argcheck(l, len == 2, arg, c"range must have two characters");
             let start = (*r as byte) as usize;
             let end = (*r.add(1) as byte) as usize;
             for c in start..=end {
@@ -635,7 +635,7 @@ fn codeutftree(l: *mut lua_State, t: *mut TTree, cpu: lua_Unsigned, arg: c_int) 
         } else if cp <= 0xffff {
             (3, 0xE0 | (cp >> 12))
         } else {
-            luaL_argcheck(l, cpu <= 0x10ffff, arg, c"invalid code point".as_ptr());
+            luaL_argcheck(l, cpu <= 0x10ffff, arg, c"invalid code point");
             (4, 0xF0 | (cp >> 18))
         };
         (*t).u.n = cp;
@@ -648,7 +648,7 @@ unsafe extern "C-unwind" fn lp_utfr(l: *mut lua_State) -> c_int {
     unsafe {
         let from = luaL_checkinteger(l, 1) as lua_Unsigned;
         let to = luaL_checkinteger(l, 2) as lua_Unsigned;
-        luaL_argcheck(l, from <= to, 2, c"empty range".as_ptr());
+        luaL_argcheck(l, from <= to, 2, c"empty range");
         if to <= 0x7f {
             let mut buff = [0 as byte; CHARSETSIZE];
             clearset(&mut buff);
@@ -671,18 +671,18 @@ unsafe extern "C-unwind" fn lp_behind(l: *mut lua_State) -> c_int {
     unsafe {
         let tree1 = getpatt(l, 1, None);
         let n = fixedlen(tree1);
-        luaL_argcheck(l, n >= 0, 1, c"pattern may not have fixed length".as_ptr());
+        luaL_argcheck(l, n >= 0, 1, c"pattern may not have fixed length");
         luaL_argcheck(
             l,
             hascaptures(tree1) == 0,
             1,
-            c"pattern have captures".as_ptr(),
+            c"pattern have captures",
         );
         luaL_argcheck(
             l,
             n <= MAXBEHIND,
             1,
-            c"pattern too long to look behind".as_ptr(),
+            c"pattern too long to look behind",
         );
         let tree = newroot1sib(l, TBehind);
         (*tree).u.n = n;
@@ -697,7 +697,7 @@ unsafe extern "C-unwind" fn lp_V(l: *mut lua_State) -> c_int {
             l,
             !lua_isnoneornil(l, 1),
             1,
-            c"non-nil value expected".as_ptr(),
+            c"non-nil value expected",
         );
         (*tree).key = addtonewktable(l, 0, 1) as c_ushort;
         1
@@ -755,7 +755,7 @@ unsafe extern "C-unwind" fn lp_divcapture(l: *mut lua_State) -> c_int {
                     l,
                     0 <= n && n <= c_int::from(c_short::MAX),
                     1,
-                    c"invalid number".as_ptr(),
+                    c"invalid number",
                 );
                 (*tree).cap = Cnum;
                 (*tree).key = n as c_ushort;
@@ -813,7 +813,7 @@ unsafe extern "C-unwind" fn lp_argcapture(l: *mut lua_State) -> c_int {
             l,
             0 < n && n <= c_int::from(c_short::MAX),
             1,
-            c"invalid argument index".as_ptr(),
+            c"invalid argument index",
         );
         newemptycap(l, Carg, n);
         1
@@ -1087,7 +1087,7 @@ fn newgrammar(l: *mut lua_State, arg: c_int) -> *mut TTree {
             l,
             (n as usize) <= MAXRULES,
             arg,
-            c"grammar has too many rules".as_ptr(),
+            c"grammar has too many rules",
         );
         (*g).tag = TGrammar;
         (*g).u.n = n;
@@ -1165,7 +1165,7 @@ unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> c_int {
             l,
             len < (MAXINDT as usize),
             SUBJIDX,
-            c"subject too long".as_ptr(),
+            c"subject too long",
         );
         lua_pushnil(l);
         lua_pushlightuserdata(l, capture.as_mut_ptr().cast());
@@ -1182,7 +1182,7 @@ unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lp_setmax(l: *mut lua_State) -> c_int {
     unsafe {
         let lim = luaL_checkinteger(l, 1);
-        luaL_argcheck(l, 0 < lim && lim <= MAXLIM, 1, c"out of range".as_ptr());
+        luaL_argcheck(l, 0 < lim && lim <= MAXLIM, 1, c"out of range");
         lua_settop(l, 1);
         lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX.as_ptr());
         0
@@ -1206,7 +1206,7 @@ pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> c_int {
     0
 }
 
-fn createcat(l: *mut lua_State, catname: *const c_char, catf: fn(u8) -> bool) {
+fn createcat(l: *mut lua_State, catname: &std::ffi::CStr, catf: fn(u8) -> bool) {
     unsafe {
         let mut buff = [0 as byte; CHARSETSIZE];
         clearset(&mut buff);
@@ -1216,7 +1216,7 @@ fn createcat(l: *mut lua_State, catname: *const c_char, catf: fn(u8) -> bool) {
             }
         }
         newcharset(l, &buff);
-        lua_setfield(l, -2, catname);
+        lua_setfield(l, -2, catname.as_ptr());
     }
 }
 
@@ -1229,17 +1229,17 @@ unsafe extern "C-unwind" fn lp_locale(l: *mut lua_State) -> c_int {
             luaL_checktype(l, 1, LUA_TTABLE);
             lua_settop(l, 1);
         }
-        createcat(l, c"alnum".as_ptr(), |b| b.is_ascii_alphanumeric());
-        createcat(l, c"alpha".as_ptr(), |b| b.is_ascii_alphabetic());
-        createcat(l, c"cntrl".as_ptr(), |b| b.is_ascii_control());
-        createcat(l, c"digit".as_ptr(), |b| b.is_ascii_digit());
-        createcat(l, c"graph".as_ptr(), |b| b.is_ascii_graphic());
-        createcat(l, c"lower".as_ptr(), |b| b.is_ascii_lowercase());
-        createcat(l, c"print".as_ptr(), |b| matches!(b, 0x20..=0x7e));
-        createcat(l, c"punct".as_ptr(), |b| b.is_ascii_punctuation());
-        createcat(l, c"space".as_ptr(), |b| matches!(b, b' ' | b'\t'..=b'\r'));
-        createcat(l, c"upper".as_ptr(), |b| b.is_ascii_uppercase());
-        createcat(l, c"xdigit".as_ptr(), |b| b.is_ascii_hexdigit());
+        createcat(l, c"alnum", |b| b.is_ascii_alphanumeric());
+        createcat(l, c"alpha", |b| b.is_ascii_alphabetic());
+        createcat(l, c"cntrl", |b| b.is_ascii_control());
+        createcat(l, c"digit", |b| b.is_ascii_digit());
+        createcat(l, c"graph", |b| b.is_ascii_graphic());
+        createcat(l, c"lower", |b| b.is_ascii_lowercase());
+        createcat(l, c"print", |b| matches!(b, 0x20..=0x7e));
+        createcat(l, c"punct", |b| b.is_ascii_punctuation());
+        createcat(l, c"space", |b| matches!(b, b' ' | b'\t'..=b'\r'));
+        createcat(l, c"upper", |b| b.is_ascii_uppercase());
+        createcat(l, c"xdigit", |b| b.is_ascii_hexdigit());
         1
     }
 }

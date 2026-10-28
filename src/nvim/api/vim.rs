@@ -288,9 +288,9 @@ fn api_vim_st() -> &'static mut ApiVimState {
 }
 
 #[inline]
-fn validate_int(cond: bool, name: *const c_char, val: i64, err: &mut Error) -> bool {
+fn validate_int(cond: bool, name: &std::ffi::CStr, val: i64, err: &mut Error) -> bool {
     if !cond {
-        api_err_invalid(err, name, ptr::null(), val, false);
+        api_err_invalid(err, name.as_ptr(), ptr::null(), val, false);
         false
     } else {
         true
@@ -298,9 +298,9 @@ fn validate_int(cond: bool, name: *const c_char, val: i64, err: &mut Error) -> b
 }
 
 #[inline]
-fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: &mut Error) -> bool {
+fn validate_s(cond: bool, name: &std::ffi::CStr, val: *const c_char, err: &mut Error) -> bool {
     if !cond {
-        api_err_invalid(err, name, val, 0, true);
+        api_err_invalid(err, name.as_ptr(), val, 0, true);
         false
     } else {
         true
@@ -308,9 +308,9 @@ fn validate_s(cond: bool, name: *const c_char, val: *const c_char, err: &mut Err
 }
 
 #[inline]
-fn validate_r(cond: bool, name: *const c_char, err: &mut Error) -> bool {
+fn validate_r(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
     if !cond {
-        api_err_required(err, name);
+        api_err_required(err, name.as_ptr());
         false
     } else {
         true
@@ -318,9 +318,9 @@ fn validate_r(cond: bool, name: *const c_char, err: &mut Error) -> bool {
 }
 
 #[inline]
-fn validate_range(cond: bool, name: *const c_char, err: &mut Error) -> bool {
+fn validate_range(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
     if !cond {
-        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
+        api_err_invalid(err, name.as_ptr(), c"out of range".as_ptr(), 0, false);
         false
     } else {
         true
@@ -329,13 +329,13 @@ fn validate_range(cond: bool, name: *const c_char, err: &mut Error) -> bool {
 
 #[inline]
 fn validate_t(
-    name: *const c_char,
+    name: &std::ffi::CStr,
     expected_t: ObjectType,
     actual_t: ObjectType,
     err: &mut Error,
 ) -> bool {
     if expected_t != actual_t {
-        api_err_exp(err, name, api_typename(expected_t), api_typename(actual_t));
+        api_err_exp(err, name.as_ptr(), api_typename(expected_t), api_typename(actual_t));
         false
     } else {
         true
@@ -514,7 +514,7 @@ pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_hl_ns(Integer ns_id, Error *err) FUNC_API_SINCE(10);
 pub fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
-    if !validate_int(ns_id >= 0, c"namespace".as_ptr(), ns_id, err) {
+    if !validate_int(ns_id >= 0, c"namespace", ns_id, err) {
             return;
         }
         g_st().ns_hl_global = ns_id as NS;
@@ -889,7 +889,7 @@ pub fn nvim__exec_lua_fast(
 pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
     if !validate_s(
             text.size <= (c_int::MAX as usize),
-            c"text length".as_ptr(),
+            c"text length",
             c"(too long)".as_ptr(),
             err,
         ) {
@@ -1025,7 +1025,7 @@ pub fn nvim__get_runtime(
 pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
     if !validate_s(
             dir.size < MAXPATHL,
-            c"directory name".as_ptr(),
+            c"directory name",
             c"(too long)".as_ptr(),
             err,
         ) {
@@ -1307,7 +1307,7 @@ pub fn nvim_echo(
 
             if !validate_range(
                 !is_progress || !has_percent || (opts.percent >= 0 && opts.percent <= 100),
-                c"percent".as_ptr(),
+                c"percent",
                 err,
             ) {
                 break 'validate false;
@@ -1315,7 +1315,7 @@ pub fn nvim_echo(
 
             if !validate_r(
                 !is_progress || opts.source.size != 0,
-                c"opts.source".as_ptr(),
+                c"opts.source",
                 err,
             ) {
                 break 'validate false;
@@ -1323,7 +1323,7 @@ pub fn nvim_echo(
 
             if !validate_s(
                 !is_progress || !(crate::memory::cstr_as_opt_bytes(opts.source.data) == Some(b"nvim")),
-                c"source".as_ptr(),
+                c"source",
                 opts.source.data,
                 err,
             ) {
@@ -1333,7 +1333,7 @@ pub fn nvim_echo(
             if !validate_int(
                 opts.id.obj_type != ObjectType::kObjectTypeInteger
                     || msg_id_exists(opts.id.data.integer()),
-                c"id".as_ptr(),
+                c"id",
                 opts.id.data.integer(),
                 err,
             ) {
@@ -1840,7 +1840,7 @@ pub fn nvim_paste(
     err: &mut Error,
 ) -> Boolean {
     unsafe {
-        if !validate_int((-1..=3).contains(&phase), c"phase".as_ptr(), phase, err) {
+        if !validate_int((-1..=3).contains(&phase), c"phase", phase, err) {
             return false;
         }
         if phase == -1 || phase == 1 {
@@ -1926,7 +1926,7 @@ pub fn nvim_put(
         let mut reg = crate::register::EMPTY_YANKREG;
         if !validate_s(
             prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
-            c"type".as_ptr(),
+            c"type",
             reg_type.data,
             err,
         ) {
@@ -1941,7 +1941,7 @@ pub fn nvim_put(
         for i in 0..lines.size {
             let item = lines[i];
             if !validate_t(
-                c"line".as_ptr(),
+                c"line",
                 ObjectType::kObjectTypeString,
                 item.obj_type,
                 err,
@@ -2056,7 +2056,7 @@ pub fn nvim_get_context(
                     } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"funcs") {
                         int_types |= kCtxFuncs;
                     } else {
-                        let _ = validate_s(false, c"type".as_ptr(), s, err);
+                        let _ = validate_s(false, c"type", s, err);
                         return Dict::new();
                     }
                 }
@@ -2320,7 +2320,7 @@ pub fn nvim_chan_set(
             chan = channel_id as Integer;
         }
         let channel = find_channel(chan as u64);
-        if !validate_int(!channel.is_null(), c"chan".as_ptr(), chan, err) {
+        if !validate_int(!channel.is_null(), c"chan", chan, err) {
             return;
         }
         if (config.is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_chan_set__detach)) != 0 {
@@ -2525,7 +2525,7 @@ pub fn nvim_get_proc_children(
 
         if !validate_int(
             pid > 0 && pid <= Integer::from(c_int::MAX),
-            c"pid".as_ptr(),
+            c"pid",
             pid,
             err,
         ) {
@@ -2579,7 +2579,7 @@ pub fn nvim_get_proc_children(
 pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object {
     if !validate_int(
             pid > 0 && pid <= Integer::from(c_int::MAX),
-            c"pid".as_ptr(),
+            c"pid",
             pid,
             err,
         ) {
@@ -2677,7 +2677,7 @@ pub fn nvim__inspect_cell(
             let wp = get_win_by_grid_handle(grid as handle_T);
             if !validate_int(
                 !wp.is_null() && !(*wp).w_grid_alloc.chars.is_empty(),
-                c"grid handle".as_ptr(),
+                c"grid handle",
                 grid,
                 err,
             ) {
@@ -2743,7 +2743,7 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
     unsafe {
         if !validate_s(
             name.size == 1,
-            c"mark name (must be a single char)".as_ptr(),
+            c"mark name (must be a single char)",
             name.data,
             err,
         ) {
@@ -2752,7 +2752,7 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
         let ch = *name.data as u8;
         if !validate_s(
             ch.is_ascii_uppercase() || ch.is_ascii_digit(),
-            c"mark name (must be file/uppercase)".as_ptr(),
+            c"mark name (must be file/uppercase)",
             name.data,
             err,
         ) {
@@ -2788,7 +2788,7 @@ pub fn nvim_get_mark(
         let mut rv = Array::new();
         if !validate_s(
             name.size == 1,
-            c"mark name (must be a single char)".as_ptr(),
+            c"mark name (must be a single char)",
             name.data,
             err,
         ) {
@@ -2797,7 +2797,7 @@ pub fn nvim_get_mark(
         let ch = *name.data as u8;
         if !validate_s(
             ch.is_ascii_uppercase() || ch.is_ascii_digit(),
-            c"mark name (must be file/uppercase)".as_ptr(),
+            c"mark name (must be file/uppercase)",
             name.data,
             err,
         ) {
@@ -2938,7 +2938,7 @@ pub fn nvim_eval_statusline(
             statuscol_lnum = opts.use_statuscol_lnum as c_int;
             if !validate_range(
                 statuscol_lnum > 0 && statuscol_lnum <= (*(*wp).w_buffer).b_ml.ml_line_count,
-                c"use_statuscol_lnum".as_ptr(),
+                c"use_statuscol_lnum",
                 err,
             ) {
                 return result;

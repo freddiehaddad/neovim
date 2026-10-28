@@ -1208,7 +1208,7 @@ fn command_line_enter(
                 tv_dict_set_keys_readonly(&mut *dict);
                 tv_dict_add_bool(
                     dict,
-                    c"abort".as_ptr(),
+                    c"abort",
                     5,
                     if (*s).gotesc {
                         kBoolVarTrue
@@ -1227,7 +1227,7 @@ fn command_line_enter(
                     g_st().curbuf,
                 );
                 try_leave(&tstate, &mut err);
-                if tv_dict_get_number(dict, c"abort".as_ptr()) != 0 {
+                if tv_dict_get_number(dict, c"abort") != 0 {
                     (*s).gotesc = true;
                 }
                 restore_v_event(&mut *dict, &mut save_v_event);
@@ -3759,7 +3759,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     err_errmsg = c"E5408: Unable to get g:Nvim_color_cmdline callback: %s".as_ptr();
                     dgc_ret = tv_dict_get_callback(
                         get_globvar_dict(),
-                        c"Nvim_color_cmdline".as_ptr(),
+                        c"Nvim_color_cmdline",
                         18,
                         &mut color_cb,
                     );
@@ -5099,7 +5099,7 @@ fn cmdwin_invoke(action: *const c_char, firstc: c_int, content: *mut c_char, pos
             },
         ];
         nlua_call_typval(
-            c"vim._core.cmdwin".as_ptr(),
+            c"vim._core.cmdwin",
             action,
             if firstc != 0 {
                 tv_args.as_mut_ptr()
@@ -5112,8 +5112,8 @@ fn cmdwin_invoke(action: *const c_char, firstc: c_int, content: *mut c_char, pos
 }
 
 /// Calls `vim._core.cmdwin.<action>()`, synchronously.
-pub fn cmdwin_do_action(action: *const c_char) {
-    cmdwin_invoke(action, 0, ptr::null_mut(), 0);
+pub fn cmdwin_do_action(action: &std::ffi::CStr) {
+    cmdwin_invoke(action.as_ptr(), 0, ptr::null_mut(), 0);
 }
 
 /// Deferred event: opens cmdwin after the cmdline-reader unwinds.
@@ -5252,7 +5252,7 @@ pub fn get_user_input(argvars: &[typval_T],
             let dict = argvars[0].vval.v_dict();
             prompt = tv_dict_get_string_buf_chk(
                 dict,
-                c"prompt".as_ptr(),
+                c"prompt",
                 6,
                 prompt_buf.as_mut_ptr(),
                 c"".as_ptr(),
@@ -5262,7 +5262,7 @@ pub fn get_user_input(argvars: &[typval_T],
             }
             defstr = tv_dict_get_string_buf_chk(
                 dict,
-                c"default".as_ptr(),
+                c"default",
                 7,
                 defstr_buf.as_mut_ptr(),
                 c"".as_ptr(),
@@ -5276,7 +5276,7 @@ pub fn get_user_input(argvars: &[typval_T],
             }
             xp_name = tv_dict_get_string_buf_chk(
                 dict,
-                c"completion".as_ptr(),
+                c"completion",
                 10,
                 xp_name_buf.as_mut_ptr(),
                 def.as_ptr(),
@@ -5287,7 +5287,7 @@ pub fn get_user_input(argvars: &[typval_T],
             if xp_name == def.as_ptr() {
                 xp_name = ptr::null();
             }
-            if !tv_dict_get_callback(dict, c"highlight".as_ptr(), 9, &mut input_callback) {
+            if !tv_dict_get_callback(dict, c"highlight", 9, &mut input_callback) {
                 return;
             }
         } else {

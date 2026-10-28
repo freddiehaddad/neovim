@@ -4521,7 +4521,7 @@ fn get_healthcheck_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Completes arg1 via Lua.
-fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         let last_line_ptr = &raw const cmdexp().ARG1_LUA_LAST_XP_LINE;
@@ -4548,7 +4548,7 @@ fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut 
             };
             let mut err = Error::new();
             let res = nlua_exec(
-                cstr_as_string(lua),
+                cstr_as_string(lua.as_ptr()),
                 ptr::null(),
                 args,
                 kRetObject,
@@ -4576,7 +4576,7 @@ fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut 
 
 fn get_marks_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     get_arg1_from_lua(
-            c"return require'vim._core.marks'.complete(...)".as_ptr(),
+            c"return require'vim._core.marks'.complete(...)",
             xp,
             idx,
         )
@@ -4584,7 +4584,7 @@ fn get_marks_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 fn get_log_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     get_arg1_from_lua(
-            c"return require'vim._core.ex_cmd'.log_complete(...)".as_ptr(),
+            c"return require'vim._core.ex_cmd'.log_complete(...)",
             xp,
             idx,
         )
@@ -4592,7 +4592,7 @@ fn get_log_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 fn get_lsp_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     get_arg1_from_lua(
-            c"return require'vim._core.ex_cmd'.lsp_complete(...)".as_ptr(),
+            c"return require'vim._core.ex_cmd'.lsp_complete(...)",
             xp,
             idx,
         )
@@ -4600,7 +4600,7 @@ fn get_lsp_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 fn get_packdel_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     get_arg1_from_lua(
-            c"return require'vim._core.ex_cmd'.packdel_complete(...)".as_ptr(),
+            c"return require'vim._core.ex_cmd'.packdel_complete(...)",
             xp,
             idx,
         )
@@ -4608,7 +4608,7 @@ fn get_packdel_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 fn get_packupdate_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     get_arg1_from_lua(
-            c"return require'vim._core.ex_cmd'.packupdate_complete(...)".as_ptr(),
+            c"return require'vim._core.ex_cmd'.packupdate_complete(...)",
             xp,
             idx,
         )
@@ -5436,10 +5436,10 @@ pub fn expand_process_user_list(
                         continue;
                     }
                     p = cstr_to_cstring(word);
-                    abbr = crate::eval::typval::tv_dict_get_cstring(d, c"abbr".as_ptr());
-                    kind = crate::eval::typval::tv_dict_get_cstring(d, c"kind".as_ptr());
-                    menu = crate::eval::typval::tv_dict_get_cstring(d, c"menu".as_ptr());
-                    info = crate::eval::typval::tv_dict_get_cstring(d, c"info".as_ptr());
+                    abbr = crate::eval::typval::tv_dict_get_cstring(d, c"abbr");
+                    kind = crate::eval::typval::tv_dict_get_cstring(d, c"kind");
+                    menu = crate::eval::typval::tv_dict_get_cstring(d, c"menu");
+                    info = crate::eval::typval::tv_dict_get_cstring(d, c"info");
                     if abbr.is_some() || kind.is_some() || menu.is_some() || info.is_some() {
                         have_extra = true;
                     }

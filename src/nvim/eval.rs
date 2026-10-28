@@ -6850,12 +6850,12 @@ pub fn common_job_callbacks(
     on_exit: &mut Callback,
 ) -> bool {
     unsafe {
-        if tv_dict_get_callback(vopts, c"on_stdout".as_ptr(), 9, &mut on_stdout.cb)
-            && tv_dict_get_callback(vopts, c"on_stderr".as_ptr(), 9, &mut on_stderr.cb)
-            && tv_dict_get_callback(vopts, c"on_exit".as_ptr(), 7, on_exit)
+        if tv_dict_get_callback(vopts, c"on_stdout", 9, &mut on_stdout.cb)
+            && tv_dict_get_callback(vopts, c"on_stderr", 9, &mut on_stderr.cb)
+            && tv_dict_get_callback(vopts, c"on_exit", 7, on_exit)
         {
-            on_stdout.buffered = tv_dict_get_number(vopts, c"stdout_buffered".as_ptr()) != 0;
-            on_stderr.buffered = tv_dict_get_number(vopts, c"stderr_buffered".as_ptr()) != 0;
+            on_stdout.buffered = tv_dict_get_number(vopts, c"stdout_buffered") != 0;
+            on_stderr.buffered = tv_dict_get_number(vopts, c"stderr_buffered") != 0;
             if on_stdout.buffered && on_stdout.cb.cb_type() == kCallbackNone {
                 on_stdout.self_dict = vopts;
             }
@@ -6896,7 +6896,7 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
     }
 }
 
-pub fn script_host_eval(name: *mut c_char,argvars: &mut [typval_T],rettv: &mut typval_T) {
+pub fn script_host_eval(name: &std::ffi::CStr,argvars: &mut [typval_T],rettv: &mut typval_T) {
     unsafe {
         if check_secure() {
             return;
@@ -6909,13 +6909,13 @@ pub fn script_host_eval(name: *mut c_char,argvars: &mut [typval_T],rettv: &mut t
 
         let args = tv_list_alloc(1);
         tv_list_append_string(args, argvars[0].vval.v_string(), -1);
-        *rettv = eval_call_provider(name, c"eval".as_ptr().cast_mut(), &mut *args, false);
+        *rettv = eval_call_provider(name.as_ptr().cast_mut(), c"eval", &mut *args, false);
     }
 }
 
 pub fn eval_call_provider(
     provider: *mut c_char,
-    method: *mut c_char,
+    method: &std::ffi::CStr,
     arguments: &mut list_T,
     discard: bool,
 ) -> typval_T {
@@ -6961,7 +6961,7 @@ pub fn eval_call_provider(
             typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(method),
+                vval: TypvalVval::String(method.as_ptr().cast_mut()),
             },
             typval_T {
                 v_type: VarType::VAR_LIST,

@@ -248,7 +248,7 @@ pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
 }
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
-pub fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
+pub fn describe_ns(ns_id: NS, unknown: &std::ffi::CStr) -> *const c_char {
     unsafe {
         let ns_ptr = &raw const g_st().namespace_ids;
         for (name, id) in &*ns_ptr {
@@ -256,7 +256,7 @@ pub fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
                 return name.as_ptr();
             }
         }
-        unknown
+        unknown.as_ptr()
     }
 }
 
@@ -806,7 +806,7 @@ pub fn nvim_buf_set_extmark(
             if has_key(mask, KEYSET_OPTIDX_set_extmark__end_row) || did_end_line {
                 let val = opts.end_row;
                 if val < 0 || (val > i64::from((*b).b_ml.ml_line_count) && strict) {
-                    api_err_range(err, c"end_row".as_ptr());
+                    api_err_range(err, c"end_row");
                     break 'error;
                 }
                 line2 = val as c_int;
@@ -816,7 +816,7 @@ pub fn nvim_buf_set_extmark(
             if has_key(mask, KEYSET_OPTIDX_set_extmark__end_col) {
                 let mut val = opts.end_col;
                 if !(-1..=MAXCOL).contains(&val) {
-                    api_err_range(err, c"end_col".as_ptr());
+                    api_err_range(err, c"end_col");
                     break 'error;
                 }
                 if val == -1 {
@@ -1041,7 +1041,7 @@ pub fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__priority) {
                 if !((0..=i64::from(u16::MAX)).contains(&opts.priority)) {
-                    api_err_range(err, c"priority".as_ptr());
+                    api_err_range(err, c"priority");
                     break 'error;
                 }
                 let prio = opts.priority as DecorPriority;
@@ -1109,13 +1109,13 @@ pub fn nvim_buf_set_extmark(
             }
 
             if line < 0 {
-                api_err_range(err, c"line".as_ptr());
+                api_err_range(err, c"line");
                 break 'error;
             }
 
             if line > i64::from((*b).b_ml.ml_line_count) {
                 if strict {
-                    api_err_range(err, c"line".as_ptr());
+                    api_err_range(err, c"line");
                     break 'error;
                 }
                 line = i64::from((*b).b_ml.ml_line_count);
@@ -1131,12 +1131,12 @@ pub fn nvim_buf_set_extmark(
                 col = i64::from(len);
             } else if col > i64::from(len) {
                 if strict {
-                    api_err_range(err, c"col".as_ptr());
+                    api_err_range(err, c"col");
                     break 'error;
                 }
                 col = i64::from(len);
             } else if col < -1 {
-                api_err_range(err, c"col".as_ptr());
+                api_err_range(err, c"col");
                 break 'error;
             }
 
@@ -1154,7 +1154,7 @@ pub fn nvim_buf_set_extmark(
                 }
                 if col2 > len {
                     if strict {
-                        api_err_range(err, c"end_col".as_ptr());
+                        api_err_range(err, c"end_col");
                         break 'error;
                     }
                     col2 = len;
@@ -1174,7 +1174,7 @@ pub fn nvim_buf_set_extmark(
                 let mut subpriority: DecorPriority = 0;
                 if has_key(mask, KEYSET_OPTIDX_set_extmark___subpriority) {
                     if !((0..=i64::from(u16::MAX)).contains(&opts._subpriority)) {
-                        api_err_range(err, c"_subpriority".as_ptr());
+                        api_err_range(err, c"_subpriority");
                         break 'error;
                     }
                     subpriority = opts._subpriority as DecorPriority;
@@ -1393,7 +1393,7 @@ pub fn nvim_buf_clear_namespace(
         }
 
         if !(0..MAXLNUM).contains(&line_start) {
-            api_err_range(err, c"line number".as_ptr());
+            api_err_range(err, c"line number");
             return;
         }
 

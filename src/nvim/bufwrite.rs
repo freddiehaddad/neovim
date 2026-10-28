@@ -1242,7 +1242,7 @@ pub fn buf_write(
         fname_msg_id(
             msg_id.as_mut_ptr(),
             msg_id.len(),
-            c"nvim.bufwrite".as_ptr(),
+            c"nvim.bufwrite",
             buf,
             msgname,
         );
@@ -1908,7 +1908,7 @@ pub fn buf_write(
                                 msg_with_id(
                                     iobuf,
                                     msg_id.as_mut_ptr(),
-                                    c"bufwrite".as_ptr(),
+                                    c"bufwrite",
                                     None,
                                     0,
                                     true,

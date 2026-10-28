@@ -255,12 +255,12 @@ fn ses_do_win(wp: &mut win_T) -> c_int {
 
 fn ses_arglist(
     fd: *mut FILE,
-    cmd: *const c_char,
+    cmd: &std::ffi::CStr,
     gap: &[aentry_T],
     fullname: bool,
     _flagp: &mut c_uint,
 ) -> bool {
-    if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
+    if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd.as_ptr()))) {
             return false;
         }
         let mut buf: Vec<c_char> = if fullname {
@@ -354,7 +354,7 @@ fn put_view(
             let alist = crate::arglist::win_alist(&*wp);
             if !ses_arglist(
                 fd,
-                c"arglocal".as_ptr(),
+                c"arglocal",
                 &(*alist).al_ga,
                 ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
                     || (*flagp & kOptSsopFlagCurdir) == 0
@@ -711,7 +711,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
         let ga_ptr = &raw const g_st().global_alist;
         if !ses_arglist(
             fd,
-            c"argglobal".as_ptr(),
+            c"argglobal",
             &(*ga_ptr).al_ga,
             (opt_vars().ssop_flags & kOptSsopFlagCurdir) == 0,
             &mut opt_vars().ssop_flags,

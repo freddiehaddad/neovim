@@ -1429,13 +1429,13 @@ fn expand_set_opt_listflag(
     }
 }
 
-fn completing_value_for_subopt(args: &mut optexpand_T, name_suffix: *const c_char) -> bool {
+fn completing_value_for_subopt(args: &mut optexpand_T, name_suffix: &std::ffi::CStr) -> bool {
     unsafe {
         let colon = (*args.oe_xp).xp_pattern.sub(1);
-        let len = crate::memory::cstr_len(name_suffix);
+        let len = name_suffix.to_bytes().len();
 
         colon.offset_from(args.oe_set_arg) >= (len as isize)
-            && (crate::memory::cstr_prefix_bytes(colon.sub(len), len) == crate::memory::cstr_prefix_bytes(name_suffix, len))
+            && (crate::memory::cstr_prefix_bytes(colon.sub(len), len) == crate::memory::cstr_prefix_bytes(name_suffix.as_ptr(), len))
     }
 }
 
@@ -1464,7 +1464,7 @@ pub fn did_set_background(args: &mut optset_T) -> *const c_char {
 
         init_highlight(false, false);
 
-        if dark != (*opt_vars().p_bg == b'd' as c_char) && !get_var_value(c"g:colors_name".as_ptr()).is_null()
+        if dark != (*opt_vars().p_bg == b'd' as c_char) && !get_var_value(c"g:colors_name").is_null()
         {
             do_unlet(c"g:colors_name".as_ptr(), 13, true);
             free_string_option(opt_vars().p_bg);
@@ -2137,14 +2137,14 @@ pub fn expand_set_diffopt(args: &mut optexpand_T, matches: &mut Vec<std::ffi::CS
         if ((*xp).xp_pattern as usize) > (args.oe_set_arg as usize)
             && *(*xp).xp_pattern.sub(1) == b':' as c_char
         {
-            if completing_value_for_subopt(args, c"algorithm".as_ptr()) {
+            if completing_value_for_subopt(args, c"algorithm") {
                 return expand_set_opt_string(
                     args,
                     &opt_dip_algorithm_values,
                     matches,
                 );
             }
-            if completing_value_for_subopt(args, c"inline".as_ptr()) {
+            if completing_value_for_subopt(args, c"inline") {
                 return expand_set_opt_string(
                     args,
                     &opt_dip_inline_values,
@@ -3407,7 +3407,7 @@ fn opt_strings_flags(
 /// Format a schema-validation error naming the offending key.
 fn opt_schema_err(
     errbuf: Option<CharBuf>,
-    fmt: *const c_char,
+    fmt: &std::ffi::CStr,
     key: *const c_char,
     keylen: usize,
 ) -> *const c_char {
@@ -3417,7 +3417,7 @@ fn opt_schema_err(
         }
         let mut keybuf = [0 as c_char; 64];
         crate::memory::cstr_ncpy(keybuf.as_mut_ptr(), key, keylen.min(keybuf.len() - 1));
-        opt_error(errbuf, fmt, keybuf.as_ptr())
+        opt_error(errbuf, fmt.as_ptr(), keybuf.as_ptr())
     }
 }
 
@@ -3447,14 +3447,14 @@ pub fn opt_strings_check(
                 .iter()
                 .find(|item| option_slice_eq(key, keylen, item.name.as_ptr()))
             else {
-                return opt_schema_err(errbuf, c"E474: Unknown item '%s'".as_ptr(), key, keylen);
+                return opt_schema_err(errbuf, c"E474: Unknown item '%s'", key, keylen);
             };
             match it.kind {
                 OptSchemaKind::kOptSchemaFlag => {
                     if !v.is_null() {
                         return opt_schema_err(
                             errbuf,
-                            c"E474: '%s' does not take a value".as_ptr(),
+                            c"E474: '%s' does not take a value",
                             key,
                             keylen,
                         );
@@ -3477,7 +3477,7 @@ pub fn opt_strings_check(
                     if !ok {
                         return opt_schema_err(
                             errbuf,
-                            c"E474: '%s' requires a number".as_ptr(),
+                            c"E474: '%s' requires a number",
                             key,
                             keylen,
                         );
@@ -3490,7 +3490,7 @@ pub fn opt_strings_check(
                     {
                         return opt_schema_err(
                             errbuf,
-                            c"E474: '%s' number is out of range".as_ptr(),
+                            c"E474: '%s' number is out of range",
                             key,
                             keylen,
                         );
@@ -3517,7 +3517,7 @@ pub fn opt_strings_check(
                     if v.is_null() {
                         return opt_schema_err(
                             errbuf,
-                            c"E474: '%s' requires a value".as_ptr(),
+                            c"E474: '%s' requires a value",
                             key,
                             keylen,
                         );
@@ -3525,7 +3525,7 @@ pub fn opt_strings_check(
                     if vlen >= 256 {
                         return opt_schema_err(
                             errbuf,
-                            c"E474: '%s' value is too long".as_ptr(),
+                            c"E474: '%s' value is too long",
                             key,
                             keylen,
                         );
@@ -4271,7 +4271,7 @@ pub fn expand_set_popupoption(
         if ((*xp).xp_pattern as usize) > (args.oe_set_arg as usize)
             && *(*xp).xp_pattern.sub(1) == b':' as c_char
         {
-            if completing_value_for_subopt(args, c"border".as_ptr()) {
+            if completing_value_for_subopt(args, c"border") {
                 return expand_set_opt_string(
                     args,
                     &opt_pvp_border_values,

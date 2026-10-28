@@ -4117,7 +4117,7 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
 
 fn qf_set_title_var(qfl: &mut qf_list_T) {
     if let Some(ref title) = qfl.qf_title {
-            set_internal_string_var(c"w:quickfix_title".as_ptr(), title.as_ptr().cast_mut());
+            set_internal_string_var(c"w:quickfix_title", title.as_ptr().cast_mut());
         }
 }
 
@@ -6639,21 +6639,21 @@ fn qf_add_entry_from_dict(
             qf_st().did_bufnr_emsg = false;
         }
 
-        let filename = crate::eval::typval::tv_dict_get_cstring(d, c"filename".as_ptr());
-        let module = crate::eval::typval::tv_dict_get_cstring(d, c"module".as_ptr());
-        let mut bufnum = tv_dict_get_number(d, c"bufnr".as_ptr()) as c_int;
-        let lnum = tv_dict_get_number(d, c"lnum".as_ptr()) as linenr_T;
-        let end_lnum = tv_dict_get_number(d, c"end_lnum".as_ptr()) as linenr_T;
-        let col = tv_dict_get_number(d, c"col".as_ptr()) as c_int;
-        let end_col = tv_dict_get_number(d, c"end_col".as_ptr()) as c_int;
-        let vcol = tv_dict_get_number(d, c"vcol".as_ptr()) as c_char;
-        let nr = tv_dict_get_number(d, c"nr".as_ptr()) as c_int;
+        let filename = crate::eval::typval::tv_dict_get_cstring(d, c"filename");
+        let module = crate::eval::typval::tv_dict_get_cstring(d, c"module");
+        let mut bufnum = tv_dict_get_number(d, c"bufnr") as c_int;
+        let lnum = tv_dict_get_number(d, c"lnum") as linenr_T;
+        let end_lnum = tv_dict_get_number(d, c"end_lnum") as linenr_T;
+        let col = tv_dict_get_number(d, c"col") as c_int;
+        let end_col = tv_dict_get_number(d, c"end_col") as c_int;
+        let vcol = tv_dict_get_number(d, c"vcol") as c_char;
+        let nr = tv_dict_get_number(d, c"nr") as c_int;
         let type_ = tv_dict_get_string(d, c"type".as_ptr());
-        let pattern = crate::eval::typval::tv_dict_get_cstring(d, c"pattern".as_ptr());
-        let text = crate::eval::typval::tv_dict_get_cstring(d, c"text".as_ptr()).unwrap_or_default();
+        let pattern = crate::eval::typval::tv_dict_get_cstring(d, c"pattern");
+        let text = crate::eval::typval::tv_dict_get_cstring(d, c"text").unwrap_or_default();
         let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VarType::VAR_UNKNOWN;
-        tv_dict_get_tv(d, c"user_data".as_ptr(), &mut user_data);
+        tv_dict_get_tv(d, c"user_data", &mut user_data);
 
         let mut valid = true;
         if (filename.is_none() && bufnum == 0) || (lnum == 0 && pattern.is_none()) {
@@ -6670,7 +6670,7 @@ fn qf_add_entry_from_dict(
         }
 
         if !tv_dict_find(d, c"valid".as_ptr(), -1).is_null() {
-            valid = tv_dict_get_bool(d, c"valid".as_ptr(), 0) != 0;
+            valid = tv_dict_get_bool(d, c"valid", 0) != 0;
         }
 
         let status = qf_add_entry(
@@ -6943,7 +6943,7 @@ fn qf_setprop_title(
             return false;
         }
 
-        qfl.qf_title = crate::eval::typval::tv_dict_get_cstring(what, c"title".as_ptr());
+        qfl.qf_title = crate::eval::typval::tv_dict_get_cstring(what, c"title");
         if qf_idx == qi.qf_curlist {
             qf_update_win_titlevar(qi);
         }

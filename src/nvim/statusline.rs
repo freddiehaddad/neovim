@@ -1901,14 +1901,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             c"%d".as_ptr(),
                             (*g_st().curbuf).b_fnum,
                         );
-                        set_internal_string_var(c"g:actual_curbuf".as_ptr(), buf_tmp.as_mut_ptr());
+                        set_internal_string_var(c"g:actual_curbuf", buf_tmp.as_mut_ptr());
                         vim_snprintf!(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
                             c"%d".as_ptr(),
                             (**curwin.as_ptr()).handle,
                         );
-                        set_internal_string_var(c"g:actual_curwin".as_ptr(), buf_tmp.as_mut_ptr());
+                        set_internal_string_var(c"g:actual_curwin", buf_tmp.as_mut_ptr());
 
                         let save_curbuf = g_st().curbuf;
                         let save_curwin = *curwin.as_ptr();
@@ -2050,7 +2050,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     fillable = false;
                     if get_keymap_str(
                         wp,
-                        c"<%s>".as_ptr().cast_mut(),
+                        c"<%s>",
                         buf_tmp.as_mut_ptr(),
                         TMPLEN as c_int,
                     ) > 0

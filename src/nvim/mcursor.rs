@@ -1375,7 +1375,7 @@ fn mc_lua_enable(enable: bool) {
             },
         ];
         nlua_call_typval(
-            c"vim._core.mcursor".as_ptr(),
+            c"vim._core.mcursor",
             c"enable".as_ptr(),
             tv_args.as_mut_ptr(),
             None,
@@ -1748,7 +1748,7 @@ pub fn mc_counter(count1: c_long) {
             },
         ];
         nlua_call_typval(
-            c"vim._core.mcursor".as_ptr(),
+            c"vim._core.mcursor",
             c"number".as_ptr(),
             tv_args.as_mut_ptr(),
             None,

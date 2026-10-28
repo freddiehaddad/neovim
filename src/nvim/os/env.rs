@@ -1262,12 +1262,12 @@ pub fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
 
 /// Restore a previous environment variable value, or unset it if `None`.
 #[cfg(windows)]
-pub fn restore_env_var(name: *const c_char, old_value: Option<std::ffi::CString>) {
+pub fn restore_env_var(name: &std::ffi::CStr, old_value: Option<std::ffi::CString>) {
     if let Some(old_value) = old_value {
-            let _ = os_setenv(name, old_value.as_ptr(), 1);
+            let _ = os_setenv(name.as_ptr(), old_value.as_ptr(), 1);
             return;
         }
-        let _ = os_unsetenv(name);
+        let _ = os_unsetenv(name.as_ptr());
 }
 
 #[cfg(test)]

@@ -444,19 +444,19 @@ unsafe extern "C-unwind" fn lmpack_unpacker_unpack(l: *mut lua_State) -> c_int {
             l,
             startpos > 0.0,
             3,
-            c"start position must be greater than zero".as_ptr(),
+            c"start position must be greater than zero",
         );
         luaL_argcheck(
             l,
             (startpos as usize as lua_Number) == startpos,
             3,
-            c"start position must be an integer".as_ptr(),
+            c"start position must be an integer",
         );
         luaL_argcheck(
             l,
             (startpos as usize) <= len,
             3,
-            c"start position must be less than or equal to the input string length".as_ptr(),
+            c"start position must be less than or equal to the input string length",
         );
 
         let offset = (startpos as usize) - 1;
@@ -854,19 +854,19 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
             l,
             startpos > 0.0,
             3,
-            c"start position must be greater than zero".as_ptr(),
+            c"start position must be greater than zero",
         );
         luaL_argcheck(
             l,
             (startpos as usize as lua_Number) == startpos,
             3,
-            c"start position must be an integer".as_ptr(),
+            c"start position must be an integer",
         );
         luaL_argcheck(
             l,
             (startpos as usize) <= len,
             3,
-            c"start position must be less than or equal to the input string length".as_ptr(),
+            c"start position must be less than or equal to the input string length",
         );
 
         let offset = (startpos as usize) - 1;
@@ -1002,7 +1002,7 @@ unsafe extern "C-unwind" fn lmpack_session_reply(l: *mut lua_State) -> c_int {
             l,
             (id as usize as lua_Number) == id && (0.0..=4294967295.0).contains(&id),
             2,
-            c"invalid request id".as_ptr(),
+            c"invalid request id",
         );
         let result = mpack_rpc_reply(
             &mut (*session).session,
