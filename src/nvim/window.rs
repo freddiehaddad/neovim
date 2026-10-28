@@ -6580,7 +6580,7 @@ fn make_win_info_dict(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(i64::from(val)),
             };
-            if tv_dict_add_tv(d, key.as_ptr(), key.to_bytes().len(), &raw mut tv) == FAIL {
+            if tv_dict_add_tv(d, key.as_ptr(), key.to_bytes().len(), &mut tv) == FAIL {
                 tv_dict_unref(d);
                 return ptr::null_mut();
             }

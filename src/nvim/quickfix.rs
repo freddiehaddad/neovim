@@ -4503,7 +4503,7 @@ fn call_qftf_func(
             args[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
 
             g_st().textlock += 1;
-            if callback_call(cb, 1, args.as_mut_ptr(), &raw mut rettv) {
+            if callback_call(cb, 1, args.as_mut_ptr(), &mut rettv) {
                 if rettv.v_type == VarType::VAR_LIST {
                     qftf_list = rettv.vval.v_list();
                     tv_list_ref(qftf_list);
@@ -6149,7 +6149,7 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> c_int {
             || tv_dict_add_str(dict, c"text".as_ptr(), 4, qfp.qf_text.as_ptr()) == FAIL
             || tv_dict_add_str_len(dict, c"type".as_ptr(), 4, buf.as_ptr(), buflen as c_int) == FAIL
             || (qfp.qf_user_data.v_type != VarType::VAR_UNKNOWN
-                && tv_dict_add_tv(dict, c"user_data".as_ptr(), 9, &raw mut qfp.qf_user_data)
+                && tv_dict_add_tv(dict, c"user_data".as_ptr(), 9, &mut qfp.qf_user_data)
                     == FAIL)
             || tv_dict_add_nr(
                 dict,
@@ -6509,7 +6509,7 @@ fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> c_int {
     if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
             let mut tv: typval_T = typval_T::new();
             callback_put(&mut qfl.qf_qftf_cb, &mut tv);
-            let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &raw mut tv);
+            let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &mut tv);
             tv_clear(&raw mut tv);
             status
         } else {
@@ -6648,7 +6648,7 @@ fn qf_add_entry_from_dict(
         let text = crate::eval::typval::tv_dict_get_cstring(d, c"text".as_ptr()).unwrap_or_default();
         let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VarType::VAR_UNKNOWN;
-        tv_dict_get_tv(d, c"user_data".as_ptr(), &raw mut user_data);
+        tv_dict_get_tv(d, c"user_data".as_ptr(), &mut user_data);
 
         let mut valid = true;
         if (filename.is_none() && bufnum == 0) || (lnum == 0 && pattern.is_none()) {
@@ -7804,23 +7804,13 @@ fn get_qf_loc_list(
         }
 }
 
-pub fn f_getloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
-
-    unsafe {
-        let wp = find_win_by_nr_or_id(argvars);
-        get_qf_loc_list(false, wp, &mut *argvars.add(1), rettv);
-    }
+pub fn f_getloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    let wp = find_win_by_nr_or_id(&argvars[0]);
+    get_qf_loc_list(false, wp, &mut argvars[1], rettv);
 }
 
-pub fn f_getqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
-
-    unsafe {
-        get_qf_loc_list(true, ptr::null_mut(), &mut *argvars, rettv);
-    }
+pub fn f_getqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    get_qf_loc_list(true, ptr::null_mut(), &mut argvars[0], rettv);
 }
 
 fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
@@ -7898,7 +7888,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
 pub fn f_setloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let win = find_win_by_nr_or_id(&raw mut argvars[0]);
+    let win = find_win_by_nr_or_id(&argvars[0]);
     if !win.is_null() {
         set_qf_ll_list(win, &mut argvars[1..], rettv);
     }

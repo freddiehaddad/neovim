@@ -747,7 +747,7 @@ pub fn set_internal_string_var(name: *const c_char, value: *const c_char) {
             vval: TypvalVval::String(value.cast_mut()),
         };
 
-        set_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &raw mut tv, true);
+        set_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &mut tv, true);
     }
 }
 
@@ -772,7 +772,7 @@ pub fn eval_charconvert(
         let mut err = false;
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if !callback_call(&raw mut opt_vars().p_ccv, 0, argv.as_mut_ptr(), &raw mut tv) {
+        if !callback_call(&raw mut opt_vars().p_ccv, 0, argv.as_mut_ptr(), &mut tv) {
             err = true;
         } else {
             if tv_get_number_chk(&tv, ptr::null_mut()) != 0 {
@@ -805,7 +805,7 @@ pub fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile: *cons
 
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if callback_call(&raw mut opt_vars().p_dex, 0, argv.as_mut_ptr(), &raw mut tv) {
+        if callback_call(&raw mut opt_vars().p_dex, 0, argv.as_mut_ptr(), &mut tv) {
             tv_clear(&raw mut tv);
         }
 
@@ -830,7 +830,7 @@ pub fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfile: *co
 
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if callback_call(&raw mut opt_vars().p_pex, 0, argv.as_mut_ptr(), &raw mut tv) {
+        if callback_call(&raw mut opt_vars().p_pex, 0, argv.as_mut_ptr(), &mut tv) {
             tv_clear(&raw mut tv);
         }
 
@@ -850,7 +850,7 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
         let mut p = skipwhite(expr);
         let saved_sctx = g_st().current_sctx;
 
-        prepare_vimvar(VV_VAL, &raw mut save_val);
+        prepare_vimvar(VV_VAL, &mut save_val);
         set_vim_var_string(VV_VAL, badword, -1);
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off += 1;
@@ -860,7 +860,7 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
             g_st().current_sctx = *ctx;
         }
 
-        let mut r = may_call_simple_func(p, &raw mut rettv);
+        let mut r = may_call_simple_func(p, &mut rettv);
         if r == NOTDONE {
             r = eval1(&raw mut p, &mut rettv, &raw mut g_st().EVALARG_EVALUATE);
         }
@@ -876,7 +876,7 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
             g_st().emsg_off -= 1;
         }
         tv_clear(get_vim_var_tv(VV_VAL));
-        restore_vimvar(VV_VAL, &raw mut save_val);
+        restore_vimvar(VV_VAL, &mut save_val);
         g_st().current_sctx = saved_sctx;
 
         list
@@ -902,7 +902,8 @@ pub fn get_spellword(list: &mut list_T, ret_word: *mut *const c_char) -> c_int {
 }
 
 /// Prepare v: variable "idx" to be used.
-pub fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T) {
+pub fn prepare_vimvar(idx: c_int,save_tv: &mut typval_T) {
+    let save_tv: *mut typval_T = &raw mut *save_tv;
     unsafe {
         let p = (&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize);
         *save_tv = (*p).vv_di.di_tv;
@@ -914,7 +915,8 @@ pub fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T) {
 }
 
 /// Restore v: variable "idx" to typeval "save_tv".
-pub fn restore_vimvar(idx: c_int, save_tv: *mut typval_T) {
+pub fn restore_vimvar(idx: c_int,save_tv: &mut typval_T) {
+    let save_tv: *mut typval_T = &raw mut *save_tv;
     unsafe {
         let p = (&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize);
         (*p).vv_di.di_tv = *save_tv;
@@ -1333,7 +1335,7 @@ pub fn ex_let_vars(
         let mut ltv: typval_T = typval_T::new();
 
         if *arg != b'[' as c_char {
-            if ex_let_one(arg, &raw mut *tv, copy != 0, is_const != 0, op, op).is_null() {
+            if ex_let_one(arg, &mut *tv, copy != 0, is_const != 0, op, op).is_null() {
                 return FAIL;
             }
             return OK;
@@ -1362,7 +1364,7 @@ pub fn ex_let_vars(
             arg = skipwhite(arg.add(1));
             arg = ex_let_one(
                 arg,
-                &raw mut (*item).li_tv,
+                &mut (*item).li_tv,
                 true,
                 is_const != 0,
                 c",;]".as_ptr(),
@@ -1378,7 +1380,7 @@ pub fn ex_let_vars(
             if *arg == b';' as c_char {
                 let rest_list = tv_list_alloc(rest_len as isize);
                 while !item.is_null() {
-                    tv_list_append_tv(rest_list, &raw mut (*item).li_tv);
+                    tv_list_append_tv(rest_list, &mut (*item).li_tv);
                     item = (*item).li_next;
                 }
 
@@ -1389,7 +1391,7 @@ pub fn ex_let_vars(
 
                 arg = ex_let_one(
                     skipwhite(arg.add(1)),
-                    &raw mut ltv,
+                    &mut ltv,
                     false,
                     is_const != 0,
                     c"]".as_ptr(),
@@ -1596,7 +1598,7 @@ fn list_arg_vars(
                         let arg_subsc = arg;
                         if handle_subscript(
                             (&raw mut arg).cast(),
-                            &raw mut tv,
+                            &mut tv,
                             &raw mut g_st().EVALARG_EVALUATE,
                             true,
                         ) == FAIL
@@ -1620,7 +1622,7 @@ fn list_arg_vars(
                                     }
                                 }
                             } else {
-                                let s = encode_tv2echo(&raw mut tv, None);
+                                let s = encode_tv2echo(&mut tv, None);
                                 let used_name = if arg == arg_subsc { name } else { name_start };
                                 debug_assert!(!used_name.is_null());
                                 let name_size = if tofree
@@ -1657,12 +1659,12 @@ fn list_arg_vars(
 
 /// Set an environment variable, part of ex_let_one().
 fn ex_let_env(
-    mut arg: *mut c_char,
-    tv: *mut typval_T,
+    mut arg: *mut c_char,tv: &mut typval_T,
     is_const: bool,
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if is_const {
             emsg(gettext(
@@ -1714,12 +1716,12 @@ fn ex_let_env(
 
 /// Set an option, part of ex_let_one().
 fn ex_let_option(
-    arg: *mut c_char,
-    tv: *mut typval_T,
+    arg: *mut c_char,tv: &mut typval_T,
     is_const: bool,
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if is_const {
             emsg(gettext(c"E996: Cannot lock an option".as_ptr()));
@@ -1774,7 +1776,7 @@ fn ex_let_option(
         }
 
         let mut error = false;
-        newval = opt_from_tv(tv, opt_idx, arg_name, &mut error);
+        newval = opt_from_tv(&mut *tv, opt_idx, arg_name, &mut error);
         if error {
             *p = c1;
             optval_free(curval);
@@ -1843,12 +1845,12 @@ fn ex_let_option(
 
 /// Set a register, part of ex_let_one().
 fn ex_let_register(
-    mut arg: *mut c_char,
-    tv: *mut typval_T,
+    mut arg: *mut c_char,tv: &mut typval_T,
     is_const: bool,
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if is_const {
             emsg(gettext(c"E996: Cannot lock a register".as_ptr()));
@@ -1897,22 +1899,22 @@ fn ex_let_register(
 
 /// Set one item of `:let var = expr` or `:let [v1, v2] = list` to its value.
 fn ex_let_one(
-    arg: *mut c_char,
-    tv: *mut typval_T,
+    arg: *mut c_char,tv: &mut typval_T,
     copy: bool,
     is_const: bool,
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut arg_end: *mut c_char = ptr::null_mut();
 
         if *arg == b'$' as c_char {
-            return ex_let_env(arg, tv, is_const, endchars, op);
+            return ex_let_env(arg, &mut *tv, is_const, endchars, op);
         } else if *arg == b'&' as c_char {
-            return ex_let_option(arg, tv, is_const, endchars, op);
+            return ex_let_option(arg, &mut *tv, is_const, endchars, op);
         } else if *arg == b'@' as c_char {
-            return ex_let_register(arg, tv, is_const, endchars, op);
+            return ex_let_register(arg, &mut *tv, is_const, endchars, op);
         } else if eval_isnamec1(*arg as u8 as c_int) || *arg == b'{' as c_char {
             let mut lv: lval_T = lval_T::new();
             let p = get_lval(arg, tv, &mut lv, false, false, 0, FNE_CHECK_START);
@@ -1922,7 +1924,7 @@ fn ex_let_one(
                 {
                     emsg(gettext(E_LETUNEXP.as_ptr()));
                 } else {
-                    set_var_lval(&mut lv, p, tv, copy, is_const, op);
+                    set_var_lval(&mut lv, p, &mut *tv, copy, is_const, op);
                     arg_end = p;
                 }
             }
@@ -2923,7 +2925,7 @@ fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
 /// List the value of one internal variable.
 fn list_one_var(v: &mut dictitem_T, prefix: *const c_char, first: *mut c_int) {
     unsafe {
-        let s = encode_tv2echo(&raw mut v.di_tv, None);
+        let s = encode_tv2echo(&mut v.di_tv, None);
         list_one_var_a(
             prefix,
             v.di_key.as_ptr(),
@@ -2991,12 +2993,12 @@ fn list_one_var_a(
 /// Additional handling for setting a v: variable.
 pub fn before_set_vvar(
     varname: *const c_char,
-    di: &mut dictitem_T,
-    tv: *mut typval_T,
+    di: &mut dictitem_T,tv: &mut typval_T,
     copy: bool,
     watched: bool,
     type_error: &mut bool,
 ) -> bool {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if di.di_tv.v_type == VarType::VAR_STRING {
             let mut oldtv: typval_T = typval_T::new();
@@ -3057,18 +3059,18 @@ pub fn before_set_vvar(
 }
 
 /// Set variable to the given value.
-pub fn set_var(name: *const c_char, name_len: usize, tv: *mut typval_T, copy: bool) {
+pub fn set_var(name: *const c_char, name_len: usize,tv: &mut typval_T, copy: bool) {
     set_var_const(name, name_len, tv, copy, false);
 }
 
 /// Set variable to the given value, optionally locking as const.
 pub fn set_var_const(
     name: *const c_char,
-    name_len: usize,
-    tv: *mut typval_T,
+    name_len: usize,tv: &mut typval_T,
     copy: bool,
     is_const: bool,
 ) {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut varname: *const c_char = ptr::null();
         let mut dict: *mut dict_T = ptr::null_mut();
@@ -3106,7 +3108,7 @@ pub fn set_var_const(
 
             let mut type_error = false;
             if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab)
-                && !before_set_vvar(varname, &mut *di, tv, copy, watched, &mut type_error)
+                && !before_set_vvar(varname, &mut *di, &mut *tv, copy, watched, &mut type_error)
             {
                 if type_error {
                     semsg!(
@@ -3287,14 +3289,14 @@ pub fn valid_varname(varname: *const c_char) -> bool {
 
 /// Implements the logic to retrieve local variable and option values.
 fn get_var_from(
-    mut varname: *const c_char,
-    rettv: *mut typval_T,
-    deftv: *mut typval_T,
+    mut varname: *const c_char,rettv: &mut typval_T,deftv: &mut typval_T,
     htname: c_int,
     tp: *mut tabpage_T,
     win: *mut win_T,
     buf: *mut buf_T,
 ) {
+    let rettv: *mut typval_T = &raw mut *rettv;
+    let deftv: *mut typval_T = &raw mut *deftv;
     unsafe {
         let mut done = false;
         let do_change_curbuf = !buf.is_null() && htname == b'b' as c_int;
@@ -3380,22 +3382,20 @@ fn get_var_from(
 
 /// getwinvar() and gettabwinvar().
 fn getwinvar(argvars: &mut [typval_T],rettv: &mut typval_T, off: usize) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let tp = if off == 1 {
-            find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int)
+            find_tabpage(tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int)
         } else {
             g_st().curtab
         };
-        let win = find_win_by_nr(argvars.add(off), tp);
-        let varname = tv_get_string_chk(&argvars_slice[off + 1]);
+        let win = find_win_by_nr(&argvars[off], tp);
+        let varname = tv_get_string_chk(&argvars[off + 1]);
 
         get_var_from(
             varname,
-            rettv,
-            argvars.add(off + 2),
+            &mut *rettv,
+            &mut argvars[off + 2],
             b'w' as c_int,
             tp,
             win,
@@ -3405,12 +3405,12 @@ fn getwinvar(argvars: &mut [typval_T],rettv: &mut typval_T, off: usize) {
 }
 
 /// Converts a typval to a structured option value.
-fn opt_from_tv(
-    tv: *mut typval_T,
+fn opt_from_tv(tv: &mut typval_T,
     opt_idx: OptIndex,
     option: *const c_char,
     error: &mut bool,
 ) -> Object {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut value = nil_obj();
         let mut nbuf = [0 as c_char; NUMBUFLEN];
@@ -3423,7 +3423,7 @@ fn opt_from_tv(
         let option_has_str = is_tty_opt || option_has_type(opt_idx, ObjectType::kObjectTypeString);
 
         if !is_tty_opt && ((*get_option(opt_idx)).flags & kOptFlagFunc) != 0 && tv_is_func(*tv) {
-            let strval = encode_tv2string(tv, ptr::null_mut());
+            let strval = encode_tv2string(&mut *tv, ptr::null_mut());
             value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {
             let n = if option_has_num {
@@ -3538,7 +3538,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
 }
 
 /// Set option "varname" to the value of "varp" for the current buffer/window.
-fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
+fn set_option_from_tv(varname: *const c_char,varp: &mut typval_T) {
     let opt_idx = find_option(varname);
         if opt_idx == kOptInvalid {
             semsg!(gettext(e_unknown_option2.as_ptr()), varname);
@@ -3576,7 +3576,7 @@ fn setwinvar(argvars: &mut [typval_T], off: usize) {
         } else {
             g_st().curtab
         };
-        let win = find_win_by_nr(argvars.add(off), tp);
+        let win = find_win_by_nr(&*argvars.add(off), tp);
         let varname = tv_get_string_chk(&argvars_slice[off + 1]);
         let varp = argvars.add(off + 2);
 
@@ -3596,14 +3596,14 @@ fn setwinvar(argvars: &mut [typval_T], off: usize) {
             )
         {
             if *varname == b'&' as c_char {
-                set_option_from_tv(varname.add(1), varp);
+                set_option_from_tv(varname.add(1), &mut *varp);
             } else {
                 let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
                 let mut winvarname = Vec::with_capacity(varname_len + 3);
                 winvarname.push(b'w' as c_char);
                 winvarname.push(b':' as c_char);
                 winvarname.extend_from_slice(std::slice::from_raw_parts(varname, varname_len + 1));
-                set_var(winvarname.as_ptr(), varname_len + 2, varp, true);
+                set_var(winvarname.as_ptr(), varname_len + 2, &mut *varp, true);
             }
         }
         if need_switch_win {
@@ -3652,7 +3652,7 @@ pub fn var_exists(mut var: *const c_char) -> bool {
             }
             n = eval_variable(name, len, &raw mut tv, ptr::null_mut(), false, true) == OK;
             if n {
-                n = handle_subscript(&raw mut var, &raw mut tv, &raw mut g_st().EVALARG_EVALUATE, false)
+                n = handle_subscript(&raw mut var, &mut tv, &raw mut g_st().EVALARG_EVALUATE, false)
                     == OK;
                 if n {
                     tv_clear(&raw mut tv);
@@ -3717,7 +3717,7 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             set_var_lval(
                 &mut *lval_ptr,
                 vars_st().redir_endp,
-                &raw mut tv,
+                &mut tv,
                 true,
                 false,
                 c".".as_ptr(),
@@ -3726,7 +3726,7 @@ pub fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             set_var_lval(
                 &mut *lval_ptr,
                 vars_st().redir_endp,
-                &raw mut tv,
+                &mut tv,
                 true,
                 false,
                 c"=".as_ptr(),
@@ -3797,7 +3797,7 @@ pub fn var_redir_stop() {
                     set_var_lval(
                         &mut *lval_ptr,
                         vars_st().redir_endp,
-                        &raw mut tv,
+                        &mut tv,
                         false,
                         false,
                         c".".as_ptr(),
@@ -3814,12 +3814,10 @@ pub fn var_redir_stop() {
 
 /// "gettabvar()" function.
 pub fn f_gettabvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let varname = tv_get_string_chk(&argvars_slice[1]);
-        let tp = find_tabpage(tv_get_number_chk(&argvars_slice[0], ptr::null_mut()) as c_int);
+        let varname = tv_get_string_chk(&argvars[1]);
+        let tp = find_tabpage(tv_get_number_chk(&argvars[0], ptr::null_mut()) as c_int);
         let mut win: *mut win_T = ptr::null_mut();
 
         if !tp.is_null() {
@@ -3832,8 +3830,8 @@ pub fn f_gettabvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         get_var_from(
             varname,
-            rettv,
-            argvars.add(2),
+            &mut *rettv,
+            &mut argvars[2],
             b't' as c_int,
             tp,
             win,
@@ -3854,17 +3852,15 @@ pub fn f_getwinvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// "getbufvar()" function.
 pub fn f_getbufvar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        let varname = tv_get_string_chk(&argvars_slice[1]);
-        let buf = tv_get_buf_from_arg(argvars);
+        let varname = tv_get_string_chk(&argvars[1]);
+        let buf = tv_get_buf_from_arg(&mut argvars[0]);
 
         get_var_from(
             varname,
-            rettv,
-            argvars.add(2),
+            &mut *rettv,
+            &mut argvars[2],
             b'b' as c_int,
             g_st().curtab,
             *curwin.as_ptr(),
@@ -3900,7 +3896,7 @@ pub fn f_settabvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
         tabvarname.push(b't' as c_char);
         tabvarname.push(b':' as c_char);
         tabvarname.extend_from_slice(std::slice::from_raw_parts(varname, varname_len + 1));
-        set_var(tabvarname.as_ptr(), varname_len + 2, varp, true);
+        set_var(tabvarname.as_ptr(), varname_len + 2, &mut *varp, true);
 
         if valid_tabpage(save_curtab) {
             goto_tabpage_tp(save_curtab, false, false);
@@ -3931,7 +3927,7 @@ pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
             return;
         }
         let varname = tv_get_string_chk(&argvars_slice[1]);
-        let buf = tv_get_buf(argvars, 0);
+        let buf = tv_get_buf(&mut *argvars, 0);
         let varp = argvars.add(2);
 
         if buf.is_null() || varname.is_null() {
@@ -3941,7 +3937,7 @@ pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
         if *varname == b'&' as c_char {
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-            set_option_from_tv(varname.add(1), varp);
+            set_option_from_tv(varname.add(1), &mut *varp);
             ctx_restore(&mut aco);
         } else {
             let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
@@ -3951,7 +3947,7 @@ pub fn f_setbufvar(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalF
             bufvarname.push(b'b' as c_char);
             bufvarname.push(b':' as c_char);
             bufvarname.extend_from_slice(std::slice::from_raw_parts(varname, varname_len + 1));
-            set_var(bufvarname.as_ptr(), varname_len + 2, varp, true);
+            set_var(bufvarname.as_ptr(), varname_len + 2, &mut *varp, true);
             g_st().curbuf = save_curbuf;
         }
     }

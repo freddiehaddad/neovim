@@ -363,18 +363,18 @@ pub fn vim_to_object(
 }
 
 /// Convert an API `Object` into a Vimscript `typval_T` (`object_to_vim`).
-pub fn object_to_vim(mut obj: Object, tv: *mut typval_T, err: &mut Error) {
+pub fn object_to_vim(mut obj: Object,tv: &mut typval_T, err: &mut Error) {
     object_to_vim_take_luaref(&mut obj, tv, false, err);
 }
 
 /// Convert an API `Object` into a Vimscript `typval_T`, optionally consuming nested `LuaRef`s
 /// (`object_to_vim_take_luaref`).
 pub fn object_to_vim_take_luaref(
-    obj: &mut Object,
-    tv: *mut typval_T,
+    obj: &mut Object,tv: &mut typval_T,
     take_luaref: bool,
     _err: &mut Error,
 ) {
+    let tv: *mut typval_T = &raw mut *tv;
     let tv_ref = unsafe { &mut *tv };
     tv_ref.v_type = VarType::VAR_UNKNOWN;
     tv_ref.v_lock = VAR_UNLOCKED;

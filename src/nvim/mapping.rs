@@ -2326,7 +2326,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
                 &mut arena,
             );
             let mut dobj = dict_obj(dict);
-            object_to_vim_take_luaref(&mut dobj, &raw mut *rettv, true, &mut crate::api::private::validate::Error::new());
+            object_to_vim_take_luaref(&mut dobj, &mut *rettv, true, &mut crate::api::private::validate::Error::new());
             arena_mem_free(arena_finish(&mut arena));
         } else {
             tv_dict_alloc_ret(rettv);

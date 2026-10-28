@@ -70,7 +70,7 @@ fn filter_map_one(
                 vval: TypvalVval::Number(0),
             },
         ];
-        if eval_expr_typval(&raw const *expr, false, argv.as_mut_ptr(), 2, newtv) == FAIL {
+        if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 2, &mut *newtv) == FAIL {
             tv_clear(get_vim_var_tv(VV_VAL));
             return FAIL;
         }
@@ -384,8 +384,6 @@ fn filter_map_list(
 }
 
 fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMap) {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let (func_name, arg_errmsg) = match filtermap {
@@ -395,9 +393,10 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
             FilterMap::ForEach => (c"foreach()".as_ptr(), c"foreach() argument".as_ptr()),
         };
 
-        let arg0 = &argvars_slice[0];
+        let (first, rest) = argvars.split_at_mut(1);
+        let arg0 = &first[0];
         if filtermap != FilterMap::MapNew && arg0.v_type != VarType::VAR_STRING {
-            tv_copy(&argvars_slice[0], &mut *rettv);
+            tv_copy(arg0, &mut *rettv);
         }
 
         if !matches!(
@@ -411,7 +410,7 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
             return;
         }
 
-        let expr = &mut *argvars.add(1);
+        let expr = &mut rest[0];
         if expr.v_type == VarType::VAR_UNKNOWN {
             return;
         }
@@ -440,7 +439,7 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
                 filter_map_blob(arg0.vval.v_blob(), filtermap, expr, arg_errmsg, &mut *rettv);
             }
             VarType::VAR_STRING => {
-                filter_map_string(tv_get_string(&argvars_slice[0]), filtermap, expr, &mut *rettv);
+                filter_map_string(tv_get_string(arg0), filtermap, expr, &mut *rettv);
             }
             VarType::VAR_LIST => {
                 filter_map_list(arg0.vval.v_list(), filtermap, arg_errmsg, expr, &mut *rettv);
@@ -477,17 +476,15 @@ pub fn f_foreach(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// `"add(list, item)"` function (`f_add`).
 pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-        let arg0 = &argvars_slice[0];
+        let arg0 = &argvars[0];
         if arg0.v_type == VarType::VAR_LIST {
             let l = arg0.vval.v_list();
             if !value_check_lock(tv_list_locked(l), c"add() argument".as_ptr(), TV_TRANSLATE) {
-                tv_list_append_tv(l, argvars.add(1));
-                tv_copy(&argvars_slice[0], rettv);
+                tv_list_append_tv(l, &mut argvars[1]);
+                tv_copy(&argvars[0], rettv);
             }
         } else if arg0.v_type == VarType::VAR_BLOB {
             let b = arg0.vval.v_blob();
@@ -495,11 +492,11 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 && !value_check_lock((*b).bv_lock, c"add() argument".as_ptr(), TV_TRANSLATE)
             {
                 let mut error = false;
-                let n = tv_get_number_chk(&argvars_slice[1], &mut error);
+                let n = tv_get_number_chk(&argvars[1], &mut error);
                 if !error {
                     let bv = &mut (*b).bv_ga;
                     bv.push(n as u8);
-                    tv_copy(&argvars_slice[0], rettv);
+                    tv_copy(&argvars[0], rettv);
                 }
             }
         } else {
@@ -871,7 +868,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 }
             }
             if !l.is_null() {
-                tv_list_insert_tv(l, arg1, item);
+                tv_list_insert_tv(l, &mut *arg1, item);
                 tv_copy(&argvars_slice[0], rettv);
             }
         }

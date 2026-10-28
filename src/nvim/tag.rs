@@ -979,7 +979,7 @@ fn select_tag_match(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv(items_tv.vval.v_list(), &raw mut item);
+            tv_list_append_tv(items_tv.vval.v_list(), &mut item);
         }
 
         let extra_d = tv_dict_alloc();
@@ -1328,7 +1328,7 @@ fn find_tagfunc_tags(
             &raw mut (*g_st().curbuf).b_p_tfu,
             3,
             args.as_mut_ptr(),
-            &raw mut rettv,
+            &mut rettv,
         ) {
             OK
         } else {

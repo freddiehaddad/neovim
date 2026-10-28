@@ -148,13 +148,13 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: *const c_char) {
 }
 
 fn fill_assert_error(
-    gap: &mut Vec<u8>,
-    opt_msg_tv: *mut typval_T,
+    gap: &mut Vec<u8>,opt_msg_tv: &mut typval_T,
     exp_str: *const c_char,
-    exp_tv_arg: *mut typval_T,
-    got_tv_arg: *mut typval_T,
+    exp_tv_arg: *mut typval_T,got_tv_arg: &mut typval_T,
     atype: AssertType,
 ) {
+    let opt_msg_tv: *mut typval_T = &raw mut *opt_msg_tv;
+    let got_tv_arg: *mut typval_T = &raw mut *got_tv_arg;
     unsafe {
         let exp_tv = exp_tv_arg;
         let got_tv = got_tv_arg;
@@ -166,7 +166,7 @@ fn fill_assert_error(
             && !(opt_msg.v_type == VarType::VAR_STRING
                 && (opt_msg.vval.v_string().is_null() || *opt_msg.vval.v_string() == 0))
         {
-            let tofree = encode_tv2echo(opt_msg_tv, None);
+            let tofree = encode_tv2echo(&mut *opt_msg_tv, None);
             buf_concat_cstr(gap, tofree.as_ptr());
             ga_concat_literal(gap, b": ");
         }
@@ -240,7 +240,7 @@ fn fill_assert_error(
                 }
             }
 
-            let tofree = encode_tv2string(exp_tv, std::ptr::null_mut());
+            let tofree = encode_tv2string(&mut *exp_tv, std::ptr::null_mut());
             ga_concat_shorten_esc(gap, tofree.as_ptr());
         } else {
             if atype == AssertType::Fails {
@@ -260,7 +260,7 @@ fn fill_assert_error(
             } else {
                 ga_concat_literal(gap, b" but got ");
             }
-            let tofree = encode_tv2string(got_tv, std::ptr::null_mut());
+            let tofree = encode_tv2string(&mut *got_tv, std::ptr::null_mut());
             ga_concat_shorten_esc(gap, tofree.as_ptr());
 
             if omitted != 0 {
@@ -289,10 +289,10 @@ fn assert_equal_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
             prepare_assert_error(&mut ga);
             fill_assert_error(
                 &mut ga,
-                argvars.add(2),
+                &mut *argvars.add(2),
                 std::ptr::null(),
                 argvars,
-                argvars.add(1),
+                &mut *argvars.add(1),
                 atype,
             );
             assert_error(&ga);
@@ -319,10 +319,10 @@ fn assert_match_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
             prepare_assert_error(&mut ga);
             fill_assert_error(
                 &mut ga,
-                argvars.add(2),
+                &mut *argvars.add(2),
                 std::ptr::null(),
                 argvars,
-                argvars.add(1),
+                &mut *argvars.add(1),
                 atype,
             );
             assert_error(&ga);
@@ -333,40 +333,37 @@ fn assert_match_common(argvars: &mut [typval_T], atype: AssertType) -> c_int {
 }
 
 fn assert_bool(argvars: &mut [typval_T], is_true: bool) -> c_int {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
-    unsafe {
-        let mut error = false;
-        let arg0 = &argvars_slice[0];
-        let expected_bool = if is_true {
-            K_BOOL_VAR_TRUE
-        } else {
-            K_BOOL_VAR_FALSE
-        };
-        if (arg0.v_type != VarType::VAR_NUMBER
-            || (tv_get_number_chk(&argvars_slice[0], &mut error) == 0) == is_true
-            || error)
-            && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_bool() != expected_bool as c_int)
-        {
-            let mut ga = Vec::new();
-            prepare_assert_error(&mut ga);
-            fill_assert_error(
-                &mut ga,
-                argvars.add(1),
-                if is_true {
-                    c"True".as_ptr()
-                } else {
-                    c"False".as_ptr()
-                },
-                std::ptr::null_mut(),
-                argvars,
-                AssertType::Other,
-            );
-            assert_error(&ga);
-            return 1;
-        }
-        0
+    let mut error = false;
+    let arg0 = &argvars[0];
+    let expected_bool = if is_true {
+        K_BOOL_VAR_TRUE
+    } else {
+        K_BOOL_VAR_FALSE
+    };
+    if (arg0.v_type != VarType::VAR_NUMBER
+        || (tv_get_number_chk(&argvars[0], &mut error) == 0) == is_true
+        || error)
+        && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_bool() != expected_bool as c_int)
+    {
+        let mut ga = Vec::new();
+        prepare_assert_error(&mut ga);
+        let (first, rest) = argvars.split_at_mut(1);
+        fill_assert_error(
+            &mut ga,
+            &mut rest[0],
+            if is_true {
+                c"True".as_ptr()
+            } else {
+                c"False".as_ptr()
+            },
+            std::ptr::null_mut(),
+            &mut first[0],
+            AssertType::Other,
+        );
+        assert_error(&ga);
+        return 1;
     }
+    0
 }
 
 fn assert_append_cmd_or_arg(gap: &mut Vec<u8>,argvars: &mut [typval_T], cmd: *const c_char) {
@@ -376,7 +373,7 @@ fn assert_append_cmd_or_arg(gap: &mut Vec<u8>,argvars: &mut [typval_T], cmd: *co
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
         {
-            let tofree = encode_tv2echo(argvars.add(2), None);
+            let tofree = encode_tv2echo(&mut *argvars.add(2), None);
             buf_concat_cstr(gap, tofree.as_ptr());
         } else {
             buf_concat_cstr(gap, cmd);
@@ -515,7 +512,7 @@ fn assert_equalfile(argvars: &mut [typval_T]) -> c_int {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                let tofree = encode_tv2echo(argvars.add(2), None);
+                let tofree = encode_tv2echo(&mut *argvars.add(2), None);
                 buf_concat_cstr(&mut ga, tofree.as_ptr());
                 ga_concat_literal(&mut ga, b": ");
             }
@@ -577,10 +574,10 @@ pub fn f_assert_exception(argvars: &mut [typval_T], rettv: &mut typval_T,
                 prepare_assert_error(&mut ga);
                 fill_assert_error(
                     &mut ga,
-                    argvars.add(1),
+                    &mut *argvars.add(1),
                     std::ptr::null(),
                     argvars,
-                    get_vim_var_tv(VV_EXCEPTION),
+                    &mut *get_vim_var_tv(VV_EXCEPTION),
                     AssertType::Other,
                 );
                 assert_error(&ga);
@@ -759,7 +756,7 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 }
                 fill_assert_error(
                     &mut ga,
-                    argvars.add(2),
+                    &mut *argvars.add(2),
                     expected_str,
                     argvars.add(error_found_index),
                     &mut actual_tv,
@@ -798,70 +795,68 @@ pub fn f_assert_false(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 }
 
 fn assert_inrange(argvars: &mut [typval_T]) -> c_int {
-    let argvars_slice: &mut [typval_T] = argvars;
-    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
-    unsafe {
-        let mut error = false;
-        let arg0 = &argvars_slice[0];
-        let arg1 = &argvars_slice[1];
-        let arg2 = &argvars_slice[2];
+    let mut error = false;
+    let arg0 = &argvars[0];
+    let arg1 = &argvars[1];
+    let arg2 = &argvars[2];
 
-        if arg0.v_type == VarType::VAR_FLOAT
-            || arg1.v_type == VarType::VAR_FLOAT
-            || arg2.v_type == VarType::VAR_FLOAT
-        {
-            let flower = tv_get_float(arg0);
-            let fupper = tv_get_float(arg1);
-            let factual = tv_get_float(arg2);
+    if arg0.v_type == VarType::VAR_FLOAT
+        || arg1.v_type == VarType::VAR_FLOAT
+        || arg2.v_type == VarType::VAR_FLOAT
+    {
+        let flower = tv_get_float(arg0);
+        let fupper = tv_get_float(arg1);
+        let factual = tv_get_float(arg2);
 
-            if factual < flower || factual > fupper {
-                let mut ga = Vec::new();
-                prepare_assert_error(&mut ga);
-                let mut expected_str = [0 as c_char; 200];
-                vim_snprintf!(
-                    expected_str.as_mut_ptr(),
-                    expected_str.len(),
-                    c"range %g - %g,".as_ptr(),
-                    flower,
-                    fupper,
-                );
-                fill_assert_error(
-                    &mut ga,
-                    argvars.add(3),
-                    expected_str.as_ptr(),
-                    std::ptr::null_mut(),
-                    argvars.add(2),
-                    AssertType::Other,
-                );
-                assert_error(&ga);
-                return 1;
-            }
-        } else {
-            let lower = tv_get_number_chk(arg0, &mut error);
-            let upper = tv_get_number_chk(arg1, &mut error);
-            let actual = tv_get_number_chk(arg2, &mut error);
-
-            if error {
-                return 0;
-            }
-            if actual < lower || actual > upper {
-                let mut ga = Vec::new();
-                prepare_assert_error(&mut ga);
-                let expected_str = format!("range {lower} - {upper},\0");
-                fill_assert_error(
-                    &mut ga,
-                    argvars.add(3),
-                    expected_str.as_ptr().cast::<c_char>(),
-                    std::ptr::null_mut(),
-                    argvars.add(2),
-                    AssertType::Other,
-                );
-                assert_error(&ga);
-                return 1;
-            }
+        if factual < flower || factual > fupper {
+            let mut ga = Vec::new();
+            prepare_assert_error(&mut ga);
+            let mut expected_str = [0 as c_char; 200];
+            vim_snprintf!(
+                expected_str.as_mut_ptr(),
+                expected_str.len(),
+                c"range %g - %g,".as_ptr(),
+                flower,
+                fupper,
+            );
+            let (first, rest) = argvars.split_at_mut(3);
+            fill_assert_error(
+                &mut ga,
+                &mut rest[0],
+                expected_str.as_ptr(),
+                std::ptr::null_mut(),
+                &mut first[2],
+                AssertType::Other,
+            );
+            assert_error(&ga);
+            return 1;
         }
-        0
+    } else {
+        let lower = tv_get_number_chk(arg0, &mut error);
+        let upper = tv_get_number_chk(arg1, &mut error);
+        let actual = tv_get_number_chk(arg2, &mut error);
+
+        if error {
+            return 0;
+        }
+        if actual < lower || actual > upper {
+            let mut ga = Vec::new();
+            prepare_assert_error(&mut ga);
+            let expected_str = format!("range {lower} - {upper},\0");
+            let (first, rest) = argvars.split_at_mut(3);
+            fill_assert_error(
+                &mut ga,
+                &mut rest[0],
+                expected_str.as_ptr().cast::<c_char>(),
+                std::ptr::null_mut(),
+                &mut first[2],
+                AssertType::Other,
+            );
+            assert_error(&ga);
+            return 1;
+        }
     }
+    0
 }
 
 /// `"assert_inrange(lower, upper, actual[, msg])"` function (`f_assert_inrange`).

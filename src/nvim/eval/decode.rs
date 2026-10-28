@@ -55,7 +55,8 @@ struct ValuesStackItem {
     val: typval_T,
 }
 
-fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_T) {
+fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let dict = tv_dict_alloc();
         let type_di = tv_dict_item_alloc_len(c"_TYPE".as_ptr(), 5);
@@ -78,12 +79,13 @@ fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_T) {
 }
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
-pub fn decode_create_map_special_dict(ret_tv: *mut typval_T, len: isize) -> *mut list_T {
+pub fn decode_create_map_special_dict(ret_tv: &mut typval_T, len: isize) -> *mut list_T {
+    let ret_tv: *mut typval_T = &raw mut *ret_tv;
     unsafe {
         let list = tv_list_alloc(len);
         tv_list_ref(list);
         create_special_dict(
-            ret_tv,
+            &mut *ret_tv,
             K_MP_MAP,
             typval_T {
                 v_type: VarType::VAR_LIST,
@@ -1040,7 +1042,8 @@ pub fn json_decode_string(
     }
 }
 
-fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
+fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         if val <= (i64::MAX as u64) {
             *rettv = typval_T {
@@ -1052,7 +1055,7 @@ fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
             let list = tv_list_alloc(4);
             tv_list_ref(list);
             create_special_dict(
-                rettv,
+                &mut *rettv,
                 K_MP_INTEGER,
                 typval_T {
                     v_type: VarType::VAR_LIST,
@@ -1131,7 +1134,7 @@ fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_UINT => {
-                positive_integer_to_special_typval(result, mpack_unpack_uint(node.tok));
+                positive_integer_to_special_typval(&mut *result, mpack_unpack_uint(node.tok));
             }
             mpack_token_type_t::MPACK_TOKEN_FLOAT => {
                 *result = typval_T {
@@ -1211,7 +1214,7 @@ fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                 let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
                 tv_list_append_list(list, ext_val_list);
                 create_special_dict(
-                    result,
+                    &mut *result,
                     K_MP_EXT,
                     typval_T {
                         v_type: VarType::VAR_LIST,
@@ -1273,7 +1276,7 @@ fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                         tv_clear(&raw mut pair[0]);
                     }
                 } else {
-                    let list = decode_create_map_special_dict(result, len as isize);
+                    let list = decode_create_map_special_dict(&mut *result, len as isize);
                     for pair in &items[..len] {
                         let kv_pair = tv_list_alloc(2);
                         tv_list_append_list(list, kv_pair);

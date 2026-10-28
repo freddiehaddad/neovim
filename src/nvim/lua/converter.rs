@@ -767,7 +767,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                     cur.special = table_props.has_string_with_nul;
                                     if table_props.has_string_with_nul {
                                         decode_create_map_special_dict(
-                                            cur.tv,
+                                            &mut *cur.tv,
                                             table_props.string_keys_num as isize,
                                         );
                                         let val_di = tv_dict_find(
@@ -938,10 +938,10 @@ fn lua_check_self_reference(
 
 fn lua_convert_one_value(
     lstate: *mut lua_State,
-    mpstack: &mut Vec<MPConvStackVal>,
-    tv: *mut typval_T,
+    mpstack: &mut Vec<MPConvStackVal>,tv: &mut typval_T,
     copy_id: c_int,
 ) -> c_int {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let tv_ref = &mut *tv;
         match tv_ref.v_type {
@@ -1273,12 +1273,13 @@ fn lua_convert_one_value(
     }
 }
 
-fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_int {
+fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> c_int {
+    let top_tv: *mut typval_T = &raw mut *top_tv;
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
 
-        if lua_convert_one_value(lstate, &mut mpstack, top_tv, copy_id) == FAIL {
+        if lua_convert_one_value(lstate, &mut mpstack, &mut *top_tv, copy_id) == FAIL {
             return FAIL;
         }
 
@@ -1361,7 +1362,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_int {
                 }
             };
 
-            if lua_convert_one_value(lstate, &mut mpstack, next_tv, copy_id) == FAIL {
+            if lua_convert_one_value(lstate, &mut mpstack, &mut *next_tv, copy_id) == FAIL {
                 return FAIL;
             }
         }
@@ -1386,7 +1387,7 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
             );
             return false;
         }
-        if encode_vim_to_lua(lstate, tv) == FAIL {
+        if encode_vim_to_lua(lstate, &mut *tv) == FAIL {
             return false;
         }
         assert_eq!(lua_gettop(lstate), initial_size + 1);

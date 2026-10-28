@@ -1946,7 +1946,8 @@ fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
-fn get_digraph_chars(arg: *const typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
+fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
+    let arg: *const typval_T = &raw const *arg;
     unsafe {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(&*arg, buf_chars.as_mut_ptr());
@@ -1972,11 +1973,13 @@ fn get_digraph_chars(arg: *const typval_T, char1: &mut c_int, char2: &mut c_int)
     }
 }
 
-fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typval_T) -> bool {
+fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
+    let argchars: *const typval_T = &raw const *argchars;
+    let argdigraph: *const typval_T = &raw const *argdigraph;
     unsafe {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
-        if get_digraph_chars(argchars, &mut char1, &mut char2) == FAIL {
+        if get_digraph_chars(&*argchars, &mut char1, &mut char2) == FAIL {
             return false;
         }
 
@@ -2048,20 +2051,15 @@ pub fn f_digraph_getlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 }
 
 /// `digraph_set()` function (`f_digraph_set`).
-pub fn f_digraph_set(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
+pub fn f_digraph_set(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    rettv.v_type = VarType::VAR_BOOL;
+    rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
 
-    unsafe {
-        rettv.v_type = VarType::VAR_BOOL;
-        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
-
-        if !digraph_set_common(argvars, argvars.add(1)) {
-            return;
-        }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+    if !digraph_set_common(&argvars[0], &argvars[1]) {
+        return;
     }
+
+    rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
 }
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
@@ -2110,7 +2108,7 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
             } else {
                 (*first).li_next
             };
-            if !digraph_set_common(&raw const (*first).li_tv, &raw const (*second).li_tv) {
+            if !digraph_set_common(&(*first).li_tv, &(*second).li_tv) {
                 return;
             }
             pli = if ptr::eq(pli, (*pl).lv_last) {

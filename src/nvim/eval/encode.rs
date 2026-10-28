@@ -1505,10 +1505,10 @@ fn convert_one_value(
 }
 
 fn encode_vim_with_backend(
-    backend: &mut EncodeBackend,
-    top_tv: *mut typval_T,
+    backend: &mut EncodeBackend,top_tv: &mut typval_T,
     objname: *const c_char,
 ) -> c_int {
+    let top_tv: *mut typval_T = &raw mut *top_tv;
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
@@ -1717,8 +1717,7 @@ fn encode_vim_with_backend(
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
 pub fn encode_vim_to_echo(
-    gap: &mut Vec<u8>,
-    tv: *mut typval_T,
+    gap: &mut Vec<u8>,tv: &mut typval_T,
     objname: *const c_char,
 ) -> c_int {
     let mut backend = EncodeBackend::Text {
@@ -1730,8 +1729,7 @@ pub fn encode_vim_to_echo(
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
 pub fn encode_vim_to_msgpack(
-    packer: &mut PackerBuffer,
-    tv: *mut typval_T,
+    packer: &mut PackerBuffer,tv: &mut typval_T,
     objname: *const c_char,
 ) -> c_int {
     let mut backend = EncodeBackend::Msgpack { packer };
@@ -1739,7 +1737,8 @@ pub fn encode_vim_to_msgpack(
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-pub fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2string(tv: &mut typval_T, len: *mut usize) -> std::ffi::CString {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
@@ -1747,7 +1746,7 @@ pub fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString
             mode: TextEncodeMode::String,
         };
         let evs_ret =
-            encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument".as_ptr());
+            encode_vim_with_backend(&mut backend, &mut *tv, c"encode_tv2string() argument".as_ptr());
         assert_eq!(evs_ret, OK);
         encode_st().DID_ECHO_STRING_EMSG = false;
         if !len.is_null() {
@@ -1758,7 +1757,8 @@ pub fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
-pub fn encode_tv2echo(tv: *mut typval_T, len: Option<&mut usize>) -> std::ffi::CString {
+pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::CString {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let tv_ref = &*tv;
@@ -1767,7 +1767,7 @@ pub fn encode_tv2echo(tv: *mut typval_T, len: Option<&mut usize>) -> std::ffi::C
                 buf_concat_cstr(&mut ga, tv_ref.vval.v_string());
             }
         } else {
-            let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument".as_ptr());
+            let eve_ret = encode_vim_to_echo(&mut ga, &mut *tv, c":echo argument".as_ptr());
             assert_eq!(eve_ret, OK);
         }
         if let Some(len) = len {
@@ -1778,7 +1778,8 @@ pub fn encode_tv2echo(tv: *mut typval_T, len: Option<&mut usize>) -> std::ffi::C
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-pub fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2json(tv: &mut typval_T, len: *mut usize) -> std::ffi::CString {
+    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
@@ -1786,7 +1787,7 @@ pub fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
             mode: TextEncodeMode::Json,
         };
         let evj_ret =
-            encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument".as_ptr());
+            encode_vim_with_backend(&mut backend, &mut *tv, c"encode_tv2json() argument".as_ptr());
         encode_st().DID_ECHO_STRING_EMSG = false;
         if evj_ret == FAIL {
             ga.clear();

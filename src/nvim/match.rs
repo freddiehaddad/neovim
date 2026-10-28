@@ -950,7 +950,7 @@ fn matchadd_dict_arg(
             return OK;
         }
 
-        *win = find_win_by_nr_or_id(&raw mut (*di).di_tv);
+        *win = find_win_by_nr_or_id(&(*di).di_tv);
         if (*win).is_null() {
             emsg(gettext((&raw const e_invalwindow).cast()));
             return FAIL;
@@ -1098,7 +1098,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                             tv_list_unref(s);
                             return;
                         }
-                        tv_list_append_tv(s, &raw mut (*pos_di).di_tv);
+                        tv_list_append_tv(s, &mut (*pos_di).di_tv);
                     } else {
                         break;
                     }

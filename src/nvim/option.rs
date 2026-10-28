@@ -5210,7 +5210,7 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
             kCallbackPartial => {
                 let mut tv = typval_T::new();
                 callback_put(cb, &mut tv);
-                let str_ = encode_tv2string(&raw mut tv, ptr::null_mut());
+                let str_ = encode_tv2string(&mut tv, ptr::null_mut());
                 tv_clear(&raw mut tv);
                 return cstr_to_obj(str_.as_ptr());
             }
@@ -8586,7 +8586,7 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
                         d,
                         (*opt).fullname.as_ptr(),
                         (*opt).fullname.to_bytes().len(),
-                        &raw mut opt_tv,
+                        &mut opt_tv,
                     );
                     tv_clear(&raw mut opt_tv);
                     optval_free_read(opt_idx, ov);

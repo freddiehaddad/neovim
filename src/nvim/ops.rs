@@ -3520,7 +3520,7 @@ fn op_function(oap: &oparg_T) {
                 &raw mut opt_vars().p_opfunc,
                 1,
                 (&raw mut argv).cast::<typval_T>(),
-                &raw mut rettv,
+                &mut rettv,
             ) {
                 tv_clear(&raw mut rettv);
             }

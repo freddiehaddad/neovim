@@ -1219,21 +1219,19 @@ pub fn textpos2screenpos(
 
 /// `"screenpos({winid}, {lnum}, {col})"` function.
 pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_dict_alloc_ret(rettv);
         let dict = rettv.vval.v_dict();
 
-        let wp = find_win_by_nr_or_id(argvars);
+        let wp = find_win_by_nr_or_id(&argvars[0]);
         if wp.is_null() {
             return;
         }
 
         let mut pos = pos_T {
-            lnum: tv_get_number(&argvars_slice[1]) as linenr_T,
-            col: (tv_get_number(&argvars_slice[2]) as colnr_T - 1).max(0),
+            lnum: tv_get_number(&argvars[1]) as linenr_T,
+            col: (tv_get_number(&argvars[2]) as colnr_T - 1).max(0),
             coladd: 0,
         };
         if pos.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
@@ -1290,31 +1288,29 @@ fn virtcol2col(wp: &mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.
 pub fn f_virtcol2col(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_number_arg(argvars_slice, 0) == FAIL
-            || tv_check_for_number_arg(argvars_slice, 1) == FAIL
-            || tv_check_for_number_arg(argvars_slice, 2) == FAIL
+        if tv_check_for_number_arg(argvars, 0) == FAIL
+            || tv_check_for_number_arg(argvars, 1) == FAIL
+            || tv_check_for_number_arg(argvars, 2) == FAIL
         {
             return;
         }
 
-        let wp = find_win_by_nr_or_id(argvars);
+        let wp = find_win_by_nr_or_id(&argvars[0]);
         if wp.is_null() {
             return;
         }
 
         let mut error = false;
-        let lnum = tv_get_number_chk(&argvars_slice[1], &mut error) as linenr_T;
+        let lnum = tv_get_number_chk(&argvars[1], &mut error) as linenr_T;
         if error || lnum < 0 || lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
             return;
         }
 
-        let screencol = tv_get_number_chk(&argvars_slice[2], &mut error) as c_int;
+        let screencol = tv_get_number_chk(&argvars[2], &mut error) as c_int;
         if error || screencol < 0 {
             return;
         }

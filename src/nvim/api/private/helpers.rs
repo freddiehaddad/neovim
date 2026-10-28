@@ -576,7 +576,7 @@ pub fn dict_set_var(
             }
         } else {
             let mut tv: typval_T = typval_T::new();
-            object_to_vim(value, &raw mut tv, err);
+            object_to_vim(value, &mut tv, err);
             let mut oldtv: typval_T = typval_T::new();
 
             if di.is_null() {
@@ -591,7 +591,7 @@ pub fn dict_set_var(
                     && !before_set_vvar(
                         key.data,
                         &mut *di,
-                        &raw mut tv,
+                        &mut tv,
                         true,
                         watched,
                         &mut type_error,

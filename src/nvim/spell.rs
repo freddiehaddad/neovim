@@ -1084,7 +1084,6 @@ fn decor_spell_nav_col(wp: &mut win_T,
     decor_lnum: &mut linenr_T,
     col: c_int,
 ) -> TriState {
-    let wp: *mut win_T = &raw mut *wp;
     if *decor_lnum != lnum {
             decor_redraw_reset(wp, &mut g_st().decor_state);
             decor_providers_invoke_spell(wp, lnum - 1, col, lnum - 1, -1);
@@ -1096,7 +1095,6 @@ fn decor_spell_nav_col(wp: &mut win_T,
 }
 #[inline]
 fn can_syn_spell(wp: &mut win_T, lnum: linenr_T, col: c_int) -> bool {
-    let wp: *mut win_T = &raw mut *wp;
     let mut can_spell = false;
         let _ = syn_get_id(wp, lnum, col, 0, &raw mut can_spell, 0);
         can_spell

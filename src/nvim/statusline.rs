@@ -1442,7 +1442,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             set_var(
                 c"g:statusline_winid".as_ptr(),
                 "g:statusline_winid".len(),
-                &raw mut tv,
+                &mut tv,
                 false,
             );
 

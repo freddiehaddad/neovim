@@ -3030,7 +3030,7 @@ pub fn f_undotree(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         let buf = if (*tv).v_type == VarType::VAR_UNKNOWN {
             g_st().curbuf
         } else {
-            get_buf_arg(tv)
+            get_buf_arg(&mut *tv)
         };
         if buf.is_null() {
             return;

@@ -2605,12 +2605,12 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                 for i in 0..(*data).data.dict().size {
                     let item = *(*data).data.dict().items.add(i);
                     let mut tv: typval_T = typval_T::new();
-                    object_to_vim(item.value, &raw mut tv, &mut err);
+                    object_to_vim(item.value, &mut tv, &mut err);
                     if err.err_type != ErrorType::kErrorTypeNone {
                         api_clear_error(&mut err);
                         continue;
                     }
-                    tv_dict_add_tv(v_event, item.key.data, item.key.size, &raw mut tv);
+                    tv_dict_add_tv(v_event, item.key.data, item.key.size, &mut tv);
                     tv_clear(&raw mut tv);
                 }
             }
@@ -3411,7 +3411,7 @@ fn au_callback(
         } else {
             let mut argsin: typval_T = typval_T::new();
             let mut rettv: typval_T = typval_T::new();
-            callback_call(&raw mut callback, 0, &raw mut argsin, &raw mut rettv);
+            callback_call(&raw mut callback, 0, &raw mut argsin, &mut rettv);
             false
         }
     }

@@ -661,7 +661,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
                 v_lock: 0,
                 vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv(items_tv.vval.v_list(), &raw mut item);
+            tv_list_append_tv(items_tv.vval.v_list(), &mut item);
         }
         let bad_cstr = CString::new(std::slice::from_raw_parts(
             sug.su_badptr.cast::<u8>(),

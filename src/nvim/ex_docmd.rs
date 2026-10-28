@@ -9965,7 +9965,7 @@ fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut list_T {
 
         let cb = get_findfunc();
         let mut rettv: typval_T = typval_T::new();
-        let retval = callback_call(cb, 2, args.as_mut_ptr(), &raw mut rettv);
+        let retval = callback_call(cb, 2, args.as_mut_ptr(), &mut rettv);
 
         g_st().current_sctx = saved_sctx;
         g_st().textlock -= 1;

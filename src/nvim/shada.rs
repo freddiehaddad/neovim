@@ -1829,7 +1829,7 @@ fn shada_pack_entry(
                     copy_len,
                 );
                 vardesc[prefix.len() + copy_len] = 0;
-                if encode_vim_to_msgpack(&mut sbuf, &raw mut gv_val, vardesc.as_ptr()) == FAIL {
+                if encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc.as_ptr()) == FAIL {
                     ret = ShaDaWriteResult::kSDWriteIgnError;
                     semsg!(
                         gettext(c"E574: Failed to write variable %s".as_ptr()),

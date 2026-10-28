@@ -1700,7 +1700,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             let _ = call_func(
                 name,
                 name_len as c_int,
-                &raw mut rettv,
+                &mut rettv,
                 nargs,
                 vim_args.as_mut_ptr(),
                 &mut funcexe,
@@ -1890,8 +1890,7 @@ fn nlua_exec_typval_fmt(
     name: *const c_char,
     args: *mut typval_T,
     argcount: c_int,
-    special: bool,
-    ret_tv: *mut typval_T,
+    special: bool,ret_tv: &mut typval_T,
 ) {
     let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
         let buf_ptr = lcmd_buf.as_mut_ptr();
@@ -1915,7 +1914,7 @@ fn nlua_exec_typval_fmt(
         );
 }
 
-pub fn nlua_call_luaeval(str_: NvimString, arg: *mut typval_T, ret_tv: &mut typval_T) {
+pub fn nlua_call_luaeval(str_: NvimString,arg: &mut typval_T, ret_tv: &mut typval_T) {
     nlua_exec_typval_fmt(
             c"local _A=select(1,...) return (%.*s)".as_ptr(),
             str_.data,
@@ -1924,7 +1923,7 @@ pub fn nlua_call_luaeval(str_: NvimString, arg: *mut typval_T, ret_tv: &mut typv
             arg,
             1,
             true,
-            ret_tv,
+            &mut *ret_tv,
         );
 }
 
@@ -1932,8 +1931,7 @@ pub fn nlua_call_vlua(
     str_: *const c_char,
     len: usize,
     args: *mut typval_T,
-    argcount: c_int,
-    ret_tv: *mut typval_T,
+    argcount: c_int,ret_tv: &mut typval_T,
 ) {
     nlua_exec_typval_fmt(
             c"return %.*s(...)".as_ptr(),
@@ -2026,9 +2024,9 @@ pub fn nlua_exec_lines(lines: &[std::ffi::CString], name: *mut c_char) {
 pub fn nlua_exec_typval_callable(
     lua_cb: LuaRef,
     argcount: c_int,
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    argvars: *mut typval_T,rettv: &mut typval_T,
 ) -> c_int {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         nlua_pushref(lstate, lua_cb);

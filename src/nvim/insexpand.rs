@@ -3340,7 +3340,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
             g_st().sandbox += 1;
         }
 
-        let called = callback_call(cb, 2, args.as_mut_ptr(), &raw mut rettv);
+        let called = callback_call(cb, 2, args.as_mut_ptr(), &mut rettv);
         if use_sandbox {
             g_st().sandbox -= 1;
         }
@@ -3419,7 +3419,7 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
             let user_kind_hlname = tv_dict_get_string(d, c"kind_hlgroup".as_ptr());
             user_hl[1] = get_user_highlight_id(user_kind_hlname);
 
-            tv_dict_get_tv(d, c"user_data".as_ptr(), &raw mut user_data);
+            tv_dict_get_tv(d, c"user_data".as_ptr(), &mut user_data);
 
             if tv_dict_get_number(d, c"icase".as_ptr()) != 0 {
                 flags |= CP_ICASE;
@@ -3632,13 +3632,12 @@ pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFu
     }
 }
 
-pub fn f_complete_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
-
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(&mut *argvars, 0, false)));
-    }
+pub fn f_complete_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(
+        &mut argvars[0],
+        0,
+        false,
+    )));
 }
 
 pub fn f_complete_check(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
@@ -3802,7 +3801,7 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
                 di,
                 c"user_data".as_ptr(),
                 9,
-                &raw mut (*match_).cp_user_data,
+                &mut (*match_).cp_user_data,
             );
         }
     }

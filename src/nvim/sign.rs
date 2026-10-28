@@ -1524,7 +1524,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
         tv_list_alloc_ret(rettv, 0);
 
         if (*argvars).v_type != VarType::VAR_UNKNOWN {
-            buf = get_buf_arg(argvars);
+            buf = get_buf_arg(&mut *argvars);
             if buf.is_null() {
                 return;
             }
@@ -1567,14 +1567,12 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
 }
 
 pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut notanum = false;
-        let id = tv_get_number_chk(&argvars_slice[0], &raw mut notanum) as c_int;
+        let id = tv_get_number_chk(&argvars[0], &raw mut notanum) as c_int;
         if notanum {
             return;
         }
@@ -1583,7 +1581,7 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             return;
         }
 
-        let mut group = tv_get_string_chk(&argvars_slice[1]).cast_mut();
+        let mut group = tv_get_string_chk(&argvars[1]).cast_mut();
         if group.is_null() {
             return;
         }
@@ -1591,7 +1589,7 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             group = ptr::null_mut();
         }
 
-        let buf = get_buf_arg(argvars.add(2));
+        let buf = get_buf_arg(&mut argvars[2]);
         if buf.is_null() {
             return;
         }
@@ -1667,7 +1665,7 @@ fn sign_place_from_dict(
         if buf_tv.is_null() {
             return -1;
         }
-        let buf = get_buf_arg(buf_tv);
+        let buf = get_buf_arg(&mut *buf_tv);
         if buf.is_null() {
             return -1;
         }
@@ -1825,7 +1823,7 @@ fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> c_int {
         if !dict.is_null() {
             let di_buf = tv_dict_find(dict, c"buffer".as_ptr(), -1);
             if !di_buf.is_null() {
-                buf = get_buf_arg(&raw mut (*di_buf).di_tv);
+                buf = get_buf_arg(&mut (*di_buf).di_tv);
                 if buf.is_null() {
                     return -1;
                 }

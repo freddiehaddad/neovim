@@ -565,10 +565,10 @@ fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
 pub fn get_lambda_tv(
-    arg: *mut *mut c_char,
-    rettv: *mut typval_T,
+    arg: *mut *mut c_char,rettv: &mut typval_T,
     evalarg: *mut evalarg_T,
 ) -> c_int {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let evaluate = !evalarg.is_null() && ((*evalarg).eval_flags & EVAL_EVALUATE) != 0;
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
@@ -787,12 +787,12 @@ fn get_func_arguments(
 /// Call a function and put the result in `rettv`.
 pub fn get_func_tv(
     name: *const c_char,
-    len: c_int,
-    rettv: *mut typval_T,
+    len: c_int,rettv: &mut typval_T,
     arg: *mut *mut c_char,
     evalarg: *mut evalarg_T,
     funcexe: &mut funcexe_T,
 ) -> c_int {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argcount: c_int = 0;
@@ -822,7 +822,7 @@ pub fn get_func_tv(
                     i += 1;
                 }
             }
-            ret = call_func(name, len, rettv, argcount, argvars.as_mut_ptr(), funcexe);
+            ret = call_func(name, len, &mut *rettv, argcount, argvars.as_mut_ptr(), funcexe);
 
             if i > 0 {
                 let fa = &raw mut uf_st().funcargs;
@@ -1184,7 +1184,8 @@ fn func_clear_free(fp: *mut ufunc_T, force: bool) {
 }
 
 /// Allocate a `funccall_T`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
-pub fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
+pub fn create_funccal(fp: *mut ufunc_T,rettv: &mut typval_T) -> *mut funccall_T {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let fc = Box::into_raw(Box::new(funccall_T::new()));
         (*fc).fc_caller = uf_st().current_funccal;
@@ -1200,12 +1201,12 @@ pub fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T
 pub fn call_user_func(
     fp: *mut ufunc_T,
     argcount: c_int,
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,
+    argvars: *mut typval_T,rettv: &mut typval_T,
     firstline: linenr_T,
     lastline: linenr_T,
     selfdict: *mut dict_T,
 ) {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let mut using_sandbox = false;
         let mut islambda = false;
@@ -1237,7 +1238,7 @@ pub fn call_user_func(
         (*fp).uf_calls += 1;
         line_breakcheck();
 
-        let fc = create_funccal(fp, rettv);
+        let fc = create_funccal(fp, &mut *rettv);
         (*fc).fc_level = g_st().ex_nesting_level;
         (*fc).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(&*fp), 0);
         (*fc).fc_dbg_tick = g_st().debug_tick;
@@ -1404,7 +1405,7 @@ pub fn call_user_func(
                         msg_outnum((*arg_tv).vval.v_number() as c_int);
                     } else {
                         g_st().emsg_off += 1;
-                        let tf = encode_tv2string(arg_tv, ptr::null_mut());
+                        let tf = encode_tv2string(&mut *arg_tv, ptr::null_mut());
                         g_st().emsg_off -= 1;
                         let mut s = tf.as_ptr().cast_mut();
                         let mut buf = [0 as c_char; MSG_BUF_LEN];
@@ -1521,7 +1522,7 @@ pub fn call_user_func(
             } else {
                 let mut buf = [0 as c_char; MSG_BUF_LEN];
                 g_st().emsg_off += 1;
-                let tf = encode_tv2string((*fc).fc_rettv, ptr::null_mut());
+                let tf = encode_tv2string(&mut *(*fc).fc_rettv, ptr::null_mut());
                 g_st().emsg_off -= 1;
                 let mut s = tf.as_ptr().cast_mut();
                 if vim_strsize(s) > MSG_BUF_CLEN {
@@ -1597,13 +1598,13 @@ fn check_user_func_argcount(fp: &mut ufunc_T, argcount: c_int) -> c_int {
 fn call_user_func_check(
     fp: *mut ufunc_T,
     argcount: c_int,
-    argvars: *mut typval_T,
-    rettv: *mut typval_T,funcexe: &mut funcexe_T,
+    argvars: *mut typval_T,rettv: &mut typval_T,funcexe: &mut funcexe_T,
     selfdict: *mut dict_T,
 ) -> c_int {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         if ((*fp).uf_flags & FC_LUAREF) != 0 {
-            return nlua_exec_typval_callable((*fp).uf_luaref, argcount, argvars, rettv);
+            return nlua_exec_typval_callable((*fp).uf_luaref, argcount, argvars, &mut *rettv);
         }
 
         if ((*fp).uf_flags & FC_RANGE) != 0 {
@@ -1620,7 +1621,7 @@ fn call_user_func_check(
                 fp,
                 argcount,
                 argvars,
-                rettv,
+                &mut *rettv,
                 funcexe.fe_firstline,
                 funcexe.fe_lastline,
                 if ((*fp).uf_flags & FC_DICT) != 0 {
@@ -1740,9 +1741,9 @@ pub fn func_call(
     name: *mut c_char,
     args: *mut typval_T,
     partial: *mut partial_T,
-    selfdict: *mut dict_T,
-    rettv: *mut typval_T,
+    selfdict: *mut dict_T,rettv: &mut typval_T,
 ) -> c_int {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argc = 0;
@@ -1777,7 +1778,7 @@ pub fn func_call(
             funcexe.fe_evaluate = true;
             funcexe.fe_partial = partial;
             funcexe.fe_selfdict = selfdict;
-            r = call_func(name, -1, rettv, argc, argv.as_mut_ptr(), &mut funcexe);
+            r = call_func(name, -1, &mut *rettv, argc, argv.as_mut_ptr(), &mut funcexe);
         }
 
         while argc > 0 {
@@ -1795,7 +1796,7 @@ pub fn callback_call_retnr(
     argvars: *mut typval_T,
 ) -> varnumber_T {
     let mut rettv: typval_T = typval_T::new();
-        if !callback_call(callback, argcount, argvars, &raw mut rettv) {
+        if !callback_call(callback, argcount, argvars, &mut rettv) {
             return -2;
         }
 
@@ -1862,12 +1863,12 @@ fn argv_add_base(
 /// Call a function with its resolved parameters.
 pub fn call_func(
     mut funcname: *const c_char,
-    mut len: c_int,
-    rettv: *mut typval_T,
+    mut len: c_int,rettv: &mut typval_T,
     argcount_in: c_int,
     argvars_in: *mut typval_T,
     funcexe: &mut funcexe_T,
 ) -> c_int {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let mut ret = FAIL;
         let mut error = FCERR_NONE;
@@ -1956,7 +1957,7 @@ pub fn call_func(
                         argv.as_mut_ptr(),
                         &mut argv_base,
                     );
-                    nlua_call_vlua(funcname, len as usize, argvars, argcount, rettv);
+                    nlua_call_vlua(funcname, len as usize, argvars, argcount, &mut *rettv);
                 } else {
                     name_owned = None;
                     funcname = c"v:lua".as_ptr();
@@ -1992,12 +1993,12 @@ pub fn call_func(
                         &mut argv_base,
                     );
 
-                    error = call_user_func_check(fp, argcount, argvars, rettv, &mut *funcexe, selfdict);
+                    error = call_user_func_check(fp, argcount, argvars, &mut *rettv, &mut *funcexe, selfdict);
                 }
             } else if !funcexe.fe_basetv.is_null() {
                 error = call_internal_method(fname, argcount, argvars, rettv, funcexe.fe_basetv);
             } else {
-                error = call_internal_func(fname, argcount, argvars, rettv);
+                error = call_internal_func(fname, argcount, argvars, &mut *rettv);
             }
             update_force_abort();
         }
@@ -2035,7 +2036,7 @@ pub fn call_simple_luafunc(
 
         let mut argvars: [typval_T; 1] = [typval_T::new(); 1];
         argvars[0].v_type = VarType::VAR_UNKNOWN;
-        nlua_call_vlua(funcname, len, argvars.as_mut_ptr(), 0, rettv);
+        nlua_call_vlua(funcname, len, argvars.as_mut_ptr(), 0, &mut *rettv);
         OK
 }
 
@@ -2076,7 +2077,7 @@ pub fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_
                 fp,
                 0,
                 argvars.as_mut_ptr(),
-                rettv,
+                &mut *rettv,
                 &mut funcexe,
                 ptr::null_mut(),
             );
@@ -3597,14 +3598,14 @@ fn ex_call_inner(
             funcexe.fe_doesrange = false;
             let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
-            if get_func_tv(name, -1, &raw mut rettv, arg, evalarg, &mut funcexe) == FAIL {
+            if get_func_tv(name, -1, &mut rettv, arg, evalarg, &mut funcexe) == FAIL {
                 failed = true;
                 break;
             }
 
             if handle_subscript(
                 arg.cast::<*const c_char>(),
-                &raw mut rettv,
+                &mut rettv,
                 &raw mut g_st().EVALARG_EVALUATE,
                 true,
             ) == FAIL
@@ -3755,7 +3756,7 @@ fn handle_defer_one(funccal: &mut funccall_T) {
             call_func(
                 name_cstr.as_ptr(),
                 -1,
-                &raw mut rettv,
+                &mut rettv,
                 argcount,
                 dr.dr_argvars.as_mut_ptr(),
                 &mut funcexe,
@@ -3940,7 +3941,7 @@ pub fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
     unsafe {
         let mut tofree: Option<std::ffi::CString> = None;
         if let Some(mut tv) = rettv {
-            tofree = Some(encode_tv2echo(&raw mut tv, None));
+            tofree = Some(encode_tv2echo(&mut tv, None));
         }
         let (s, slen) = if let Some(ref tf) = tofree {
             (tf.as_ptr(), tf.as_bytes().len())
@@ -4034,7 +4035,8 @@ pub fn func_has_abort(fcp: &mut funccall_T) -> c_int {
 }
 
 /// Turn `dict.Func` into a partial for `Func` bound to `dict`.
-pub fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
+pub fn make_partial(selfdict: *mut dict_T,rettv: &mut typval_T) {
+    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];

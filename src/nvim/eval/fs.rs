@@ -893,7 +893,7 @@ fn getcwd_scope_args(argvars: &mut [typval_T],
 
         // Find the window in `tp` by number.
         if argv[kWinArg] > 0 {
-            *win = find_win_by_nr(argvars, *tp);
+            *win = find_win_by_nr(&*argvars, *tp);
             if (*win).is_null() {
                 emsg(gettext(c"E5002: Cannot find window number.".as_ptr()));
                 return false;
@@ -1403,13 +1403,13 @@ pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> var
         }
 
         let mut save_val = tv_init;
-        prepare_vimvar(VV_VAL, &raw mut save_val);
+        prepare_vimvar(VV_VAL, &mut save_val);
         set_vim_var_string(VV_VAL, name, -1);
         argv[0].v_type = VarType::VAR_STRING;
         argv[0].vval = crate::eval::typval::TypvalVval::String(name.cast_mut());
 
         let mut rettv = tv_init;
-        if eval_expr_typval(&raw mut *expr, false, argv.as_mut_ptr(), 1, &raw mut rettv) != FAIL {
+        if eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 1, &mut rettv) != FAIL {
             retval = tv_get_number_chk(&rettv, &mut error);
             if error {
                 retval = -1;
@@ -1419,7 +1419,7 @@ pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> var
         }
 
         set_vim_var_string(VV_VAL, ptr::null(), 0);
-        restore_vimvar(VV_VAL, &raw mut save_val);
+        restore_vimvar(VV_VAL, &mut save_val);
         retval
 }
 

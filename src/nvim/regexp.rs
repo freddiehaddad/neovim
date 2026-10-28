@@ -2699,7 +2699,7 @@ fn vim_regsub_both(
                         call_func(
                             s,
                             -1,
-                            &raw mut rettv,
+                            &mut rettv,
                             1,
                             argv.as_mut_ptr(),
                             &mut funcexe,
@@ -2711,7 +2711,7 @@ fn vim_regsub_both(
                         call_func(
                             s,
                             -1,
-                            &raw mut rettv,
+                            &mut rettv,
                             1,
                             argv.as_mut_ptr(),
                             &mut funcexe,

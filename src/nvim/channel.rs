@@ -1025,7 +1025,7 @@ fn channel_callback_call(chan: &mut Channel,reader: Option<&mut CallbackReader>)
 
         {
             let mut rettv: typval_T = typval_T::new();
-            let _ = callback_call(cb, 3, argv.as_mut_ptr(), &raw mut rettv);
+            let _ = callback_call(cb, 3, argv.as_mut_ptr(), &mut rettv);
             tv_clear(&raw mut rettv);
         }
 
@@ -1193,7 +1193,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
                 obj_type: ObjectType::kObjectTypeDict,
                 data: ObjectData::Dict(info),
             },
-            &raw mut retval,
+            &mut retval,
             &mut crate::api::private::validate::Error::new(),
         );
         assert_eq!(retval.v_type, VarType::VAR_DICT);

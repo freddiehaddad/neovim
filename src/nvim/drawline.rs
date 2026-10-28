@@ -1161,7 +1161,6 @@ fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
 }
 
 fn set_line_attr_for_diff(wp: &mut win_T, wlv: &mut winlinevars_T) {
-    let wp: *mut win_T = &raw mut *wp;
     wlv.line_attr = win_hl_attr(wp, wlv.diff_hlf);
         if wlv.cul_attr != 0 {
             wlv.line_attr = if wlv.line_attr_lowprio != 0 {

@@ -672,7 +672,7 @@ pub fn tv_str(
                 s = tv_get_string_chk(&*tv);
                 *tofree = None;
             } else {
-                let encoded = encode_tv2echo(tv, None);
+                let encoded = encode_tv2echo(&mut *tv, None);
                 s = encoded.as_ptr();
                 *tofree = Some(encoded);
             }
@@ -2547,12 +2547,10 @@ pub fn f_stridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 }
 
 pub fn f_string(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
 
     crate::eval::typval::tv_set_string(
             rettv,
-            encode_tv2string(argvars, ptr::null_mut()).as_ptr(),
+            encode_tv2string(&mut argvars[0], ptr::null_mut()).as_ptr(),
         );
 }
 
