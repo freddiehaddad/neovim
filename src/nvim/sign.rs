@@ -242,9 +242,9 @@ fn buf_mod_sign(
     id: &mut u32,
     group: *mut c_char,
     prio: c_int,
-    sp: *mut sign_T,
+    sp: &mut sign_T,
 ) -> linenr_T {
-    unsafe {
+     {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
             return 0;
@@ -252,7 +252,7 @@ fn buf_mod_sign(
 
         let mark = marktree_lookup_ns(&buf.b_marktree, ns as u32, *id, false, None);
         if mark.pos.row >= 0 {
-            buf_set_sign( buf, id, group, prio, mark.pos.row + 1,  &mut *sp);
+            buf_set_sign( buf, id, group, prio, mark.pos.row + 1,  sp);
         }
         mark.pos.row + 1
     }
@@ -694,7 +694,7 @@ fn sign_place(
     id: &mut u32,
     group: *mut c_char,
     name: *mut c_char,
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     mut lnum: linenr_T,
     mut prio: c_int,
 ) -> bool {
@@ -718,9 +718,9 @@ fn sign_place(
         }
 
         if lnum > 0 {
-            buf_set_sign( &mut *buf, id, group, prio, lnum,  &mut *sp);
+            buf_set_sign( buf, id, group, prio, lnum,  &mut *sp);
         } else {
-            lnum = buf_mod_sign( &mut *buf, &mut *id, group, prio, sp);
+            lnum = buf_mod_sign( buf, &mut *id, group, prio,  &mut *sp);
         }
         if lnum <= 0 {
             semsg!(
@@ -881,7 +881,7 @@ fn sign_place_cmd(
                 return;
             }
             let mut uid = id as u32;
-            sign_place(&mut uid, group, name, buf, lnum, prio);
+            sign_place(&mut uid, group, name,  &mut *buf, lnum, prio);
         }
     }
 }
@@ -1158,7 +1158,7 @@ pub fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
         while itr.x.is_some() {
             let mark = marktree_itr_current(b, &itr);
             if !mt_end(mark) && mt_decor_sign(mark) {
-                tv_list_append_dict(l, sign_get_placed_info_dict(mark));
+                tv_list_append_dict( &mut *l, sign_get_placed_info_dict(mark));
             }
             marktree_itr_next(b, &mut itr);
         }
@@ -1176,7 +1176,7 @@ fn sign_get_placed_in_buf(
 ) {
     unsafe {
         let d = tv_dict_alloc();
-        tv_list_append_dict(retlist, d);
+        tv_list_append_dict( &mut *retlist, d);
 
         tv_dict_add_nr(d, c"bufnr", i64::from(buf.b_fnum));
 
@@ -1214,7 +1214,7 @@ fn sign_get_placed_in_buf(
         if !signs.is_empty() {
             signs.sort_by(sign_row_cmp_slice);
             for mark in signs {
-                tv_list_append_dict(l, sign_get_placed_info_dict(mark));
+                tv_list_append_dict( &mut *l, sign_get_placed_info_dict(mark));
             }
         }
     }
@@ -1426,7 +1426,7 @@ fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
     }
 }
 
-fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
+fn sign_define_multiple(l: *const list_T, retlist: &mut list_T) {
     unsafe {
         if l.is_null() {
             return;
@@ -1453,7 +1453,7 @@ pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             && argvars[1].v_type == VarType::VAR_UNKNOWN
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
-            sign_define_multiple(argvars[0].vval.v_list(), rettv.vval.v_list());
+            sign_define_multiple(argvars[0].vval.v_list(), unsafe { &mut *rettv.vval.v_list() });
             return;
         }
 
@@ -1485,12 +1485,12 @@ pub fn f_sign_getdefined(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
         if argvars[0].v_type == VarType::VAR_UNKNOWN {
             let sm_ptr = &raw mut sign_st().sign_map;
             for sp in &mut *sm_ptr {
-                tv_list_append_dict(rettv.vval.v_list(), sign_get_info_dict(sp));
+                tv_list_append_dict( &mut *rettv.vval.v_list(), sign_get_info_dict(sp));
             }
         } else {
             let sp = pmap_get_sign(tv_get_string(&argvars[0]));
             if !sp.is_null() {
-                tv_list_append_dict(rettv.vval.v_list(), sign_get_info_dict(&mut *sp));
+                tv_list_append_dict( &mut *rettv.vval.v_list(), sign_get_info_dict(&mut *sp));
             }
         }
     }
@@ -1674,7 +1674,7 @@ fn sign_place_from_dict(
         }
 
         let mut uid = id as u32;
-        if sign_place(&mut uid, group, name, buf, lnum, prio) {
+        if sign_place(&mut uid, group, name,  &mut *buf, lnum, prio) {
             return uid as c_int;
         }
 
@@ -1730,13 +1730,13 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                 } else {
                     emsg(gettext(e_dictreq));
                 }
-                tv_list_append_number(rettv.vval.v_list(), i64::from(sign_id));
+                tv_list_append_number( &mut *rettv.vval.v_list(), i64::from(sign_id));
             }
         }
     }
 }
 
-fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
+fn sign_undefine_multiple(l: *const list_T, retlist: &mut list_T) {
     unsafe {
         if l.is_null() {
             return;
@@ -1759,7 +1759,7 @@ pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             && argvars[1].v_type == VarType::VAR_UNKNOWN
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
-            sign_undefine_multiple(argvars[0].vval.v_list(), rettv.vval.v_list());
+            sign_undefine_multiple(argvars[0].vval.v_list(), unsafe { &mut *rettv.vval.v_list() });
             return;
         }
 
@@ -1858,7 +1858,7 @@ pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
                 } else {
                     emsg(gettext(e_dictreq));
                 }
-                tv_list_append_number(rettv.vval.v_list(), i64::from(retval));
+                tv_list_append_number( &mut *rettv.vval.v_list(), i64::from(retval));
             }
         }
     }

@@ -2689,12 +2689,12 @@ fn addstate_idx(
         let st_c = (*st_ptr).c;
         match st_c {
             NFA_NCLOSE | NFA_MOPEN | NFA_ZEND | NFA_SPLIT | NFA_EMPTY => {
-                addstate_eps(states, (&raw mut *l), state_idx, st_c, subs_arg, pim, off_arg, depth)
+                addstate_eps(states, l, state_idx, st_c, subs_arg, pim, off_arg, depth)
             }
             c if (NFA_MCLOSE..=NFA_MCLOSE9).contains(&c)
                 || (NFA_ZCLOSE1..=NFA_ZCLOSE9).contains(&c) =>
             {
-                addstate_eps(states, (&raw mut *l), state_idx, st_c, subs_arg, pim, off_arg, depth)
+                addstate_eps(states, l, state_idx, st_c, subs_arg, pim, off_arg, depth)
             }
             c => {
                 if (c == NFA_BOL || c == NFA_BOF)
@@ -2779,7 +2779,7 @@ fn addstate_idx(
                     || (NFA_MOPEN1..=NFA_MOPEN9).contains(&st_c)
                     || (NFA_ZOPEN..=NFA_ZOPEN9).contains(&st_c)
                 {
-                    return addstate_eps(states, (&raw mut *l), state_idx, st_c, subs, pim, off_arg, depth);
+                    return addstate_eps(states, l, state_idx, st_c, subs, pim, off_arg, depth);
                 }
                 subs
             }
@@ -2789,7 +2789,7 @@ fn addstate_idx(
 
 fn addstate_eps(
     states: *mut nfa_state_T,
-    l: *mut nfa_list_T,
+    l: &mut nfa_list_T,
     state_idx: usize,
     st_c: c_int,
     mut subs: *mut regsubs_T,
@@ -2809,15 +2809,15 @@ fn addstate_eps(
             NFA_MATCH => {}
             NFA_SPLIT => {
                 if let Some(o) = st_out {
-                    subs = addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1);
+                    subs = addstate_idx(states,  l, o, subs, pim, off_arg, depth + 1);
                 }
                 if let Some(o1) = st_out1 {
-                    subs = addstate_idx(states,  &mut *l, o1, subs, pim, off_arg, depth + 1);
+                    subs = addstate_idx(states,  l, o1, subs, pim, off_arg, depth + 1);
                 }
             }
             NFA_EMPTY | NFA_NOPEN | NFA_NCLOSE => {
                 if let Some(o) = st_out {
-                    subs = addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1);
+                    subs = addstate_idx(states,  l, o, subs, pim, off_arg, depth + 1);
                 }
             }
             c if (NFA_MOPEN..=NFA_MOPEN9).contains(&c)
@@ -2875,7 +2875,7 @@ fn addstate_eps(
                 }
 
                 subs = if let Some(o) = st_out {
-                    addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1)
+                    addstate_idx(states,  l, o, subs, pim, off_arg, depth + 1)
                 } else {
                     subs
                 };
@@ -2909,7 +2909,7 @@ fn addstate_eps(
                     }
                 {
                     if let Some(o) = st_out {
-                        subs = addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1);
+                        subs = addstate_idx(states,  l, o, subs, pim, off_arg, depth + 1);
                     }
                 } else {
                     let (subidx, mut sub) = if c == NFA_ZEND {
@@ -2944,7 +2944,7 @@ fn addstate_eps(
                     }
 
                     subs = if let Some(o) = st_out {
-                        addstate_idx(states,  &mut *l, o, subs, pim, off_arg, depth + 1)
+                        addstate_idx(states,  l, o, subs, pim, off_arg, depth + 1)
                     } else {
                         subs
                     };
@@ -4326,7 +4326,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         };
                         let fm = mark_get(
                             &mut *re_st().rex.reg_buf,
-                            crate::globals::curwin_ptr(),
+                            crate::globals::curwin_mut(),
                             None,
                             kMarkBufLocal,
                             t_st.val,

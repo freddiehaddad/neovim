@@ -3997,7 +3997,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
 
         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
-        mc_buf_clear(buf);
+        mc_buf_clear( &mut *buf);
 
         let _ea_cmd = if !reload_options {
             Some(prep_exarg(&mut ea, &*buf))

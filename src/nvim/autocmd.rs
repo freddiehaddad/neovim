@@ -3395,7 +3395,7 @@ fn au_callback(
         } else {
             let mut argsin: typval_T = typval_T::new();
             let mut rettv: typval_T = typval_T::new();
-            callback_call(&raw mut callback, 0, &raw mut argsin, &mut rettv);
+            callback_call(&mut callback, 0, &raw mut argsin, &mut rettv);
             false
         }
     }

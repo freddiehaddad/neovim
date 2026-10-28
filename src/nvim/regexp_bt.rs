@@ -2726,7 +2726,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 0
                             };
                             let fm =
-                                mark_get(&mut *re_st().rex.reg_buf, crate::globals::curwin_ptr(), None, kMarkBufLocal, mark);
+                                mark_get(&mut *re_st().rex.reg_buf, crate::globals::curwin_mut(), None, kMarkBufLocal, mark);
                             if REG_MULTI() {
                                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                                 re_st().rex.input = re_st().rex.line.add(col);

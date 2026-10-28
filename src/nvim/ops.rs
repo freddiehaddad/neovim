@@ -2643,7 +2643,7 @@ pub fn do_addsub(
         let do_unsigned = !vim_strchr(curbuf_mut().b_p_nf, b'u' as c_int).is_null();
         let do_blank = !vim_strchr(curbuf_mut().b_p_nf, b'k' as c_int).is_null();
 
-        if virtual_active(curwin_ptr()) {
+        if virtual_active(curwin_mut()) {
             save_coladd = pos.coladd;
             pos.coladd = 0;
         }
@@ -2656,7 +2656,7 @@ pub fn do_addsub(
         if col + c_int::from(save_coladd != 0) >= linelen {
             if visual {
                 curwin_mut().w_cursor = save_cursor;
-            } else if virtual_active(curwin_ptr()) {
+            } else if virtual_active(curwin_mut()) {
                 curwin_mut().w_cursor.coladd = save_coladd;
             }
             return false;
@@ -2767,7 +2767,7 @@ pub fn do_addsub(
             beep_flush();
             if visual {
                 curwin_mut().w_cursor = save_cursor;
-            } else if virtual_active(curwin_ptr()) {
+            } else if virtual_active(curwin_mut()) {
                 curwin_mut().w_cursor.coladd = save_coladd;
             }
             return false;
@@ -3022,7 +3022,7 @@ pub fn do_addsub(
             curwin_mut().w_cursor = save_cursor;
         } else if did_change {
             curwin_mut().w_set_curswant = true;
-        } else if virtual_active(curwin_ptr()) {
+        } else if virtual_active(curwin_mut()) {
             curwin_mut().w_cursor.coladd = save_coladd;
         }
 
@@ -3168,7 +3168,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                     let mut len: c_int = 0;
 
                     if l_VIsual_mode == Ctrl_V {
-                        g_st().virtual_op = TriState::from(virtual_active(curwin_ptr()));
+                        g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
                         block_prep(&mut oparg, &mut bd, lnum, false);
                         g_st().virtual_op = kNone;
                         s = bd.textstart;
@@ -3509,7 +3509,7 @@ fn op_function(oap: &oparg_T) {
 
             let mut rettv: typval_T = typval_T::new();
             if callback_call(
-                &raw mut opt_vars().p_opfunc,
+                &mut opt_vars().p_opfunc,
                 1,
                 (&raw mut argv).cast::<typval_T>(),
                 &mut rettv,
@@ -3745,7 +3745,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
             check_pos(curwin_mut().buf_mut(), &mut oap.end);
             oap.line_count = oap.end.lnum - oap.start.lnum + 1;
 
-            g_st().virtual_op = TriState::from(virtual_active(curwin_ptr()));
+            g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
 
             if g_st().Visual.active {
                 get_op_vcol(&mut *oap, true);

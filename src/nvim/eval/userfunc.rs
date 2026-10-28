@@ -1367,7 +1367,7 @@ pub fn call_user_func(
                 let li = listitems_ptr.add(ai as usize);
                 (*li).li_tv = *argvars.add(i as usize);
                 (*li).li_tv.v_lock = VAR_FIXED;
-                tv_list_append(&raw mut (*fc).fc_l_varlist,  &mut *li);
+                tv_list_append(&mut (*fc).fc_l_varlist,  &mut *li);
             }
         }
 
@@ -1781,7 +1781,7 @@ pub fn func_call(
 }
 
 pub fn callback_call_retnr(
-    callback: *mut Callback,
+    callback: &mut Callback,
     argcount: c_int,
     argvars: *mut typval_T,
 ) -> varnumber_T {
@@ -4342,7 +4342,7 @@ pub fn find_var_in_scoped_ht(
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && *varname != NUL {
                 v = find_var_in_ht(
-                    ht,
+                     &mut *ht,
                     *name as c_int,
                     varname,
                     namelen - varname.offset_from(name) as usize,

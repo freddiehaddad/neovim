@@ -775,7 +775,7 @@ pub fn getvcol(
             if ci.chr.value == TAB
                 && (g_st().State & MODE_NORMAL) != 0
                 && wp.w_onebuf_opt.wo_list == 0
-                && !virtual_active(wp)
+                && !virtual_active( &mut *wp)
                 && !(g_st().Visual.active && (crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' || ltoreq(*pos, g_st().Visual.start)))
             {
                 *cursor.as_deref_mut().unwrap() = vcol + incr - 1;
@@ -811,7 +811,7 @@ pub fn getvvcol(
     unsafe {
         let mut col: colnr_T = 0;
 
-        if virtual_active(wp) {
+        if virtual_active( &mut *wp) {
             getvcol(&mut *wp, pos, Some(&mut col), None, None, flags);
             let mut coladd = pos.coladd;
             let mut endadd: colnr_T = 0;

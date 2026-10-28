@@ -461,7 +461,7 @@ pub fn u_savecommon(
             uhp_mut(buf, uhp).uh_getbot_entry = false;
             let origin_cursor = atom_origin_pos(buf);
             uhp_mut(buf, uhp).uh_cursor = origin_cursor;
-            if virtual_active(curwin_ptr())
+            if virtual_active(curwin_mut())
                 && curwin_mut().w_cursor.coladd > 0
                 && equalpos(origin_cursor, curwin_mut().w_cursor)
             {
@@ -2254,7 +2254,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             && (*curhead).uh_cursor.lnum <= curbuf_mut().b_ml.ml_line_count
         {
             curwin_mut().w_cursor = (*curhead).uh_cursor;
-            if virtual_active(curwin_ptr()) && (*curhead).uh_cursor_vcol >= 0 {
+            if virtual_active(curwin_mut()) && (*curhead).uh_cursor_vcol >= 0 {
                 coladvance(curwin_mut(), (*curhead).uh_cursor_vcol);
             }
         } else {
@@ -2266,7 +2266,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             if curwin_mut().w_cursor.lnum <= curbuf_mut().b_ml.ml_line_count {
                 if (*curhead).uh_cursor.lnum == curwin_mut().w_cursor.lnum {
                     curwin_mut().w_cursor.col = (*curhead).uh_cursor.col;
-                    if virtual_active(curwin_ptr()) && (*curhead).uh_cursor_vcol >= 0 {
+                    if virtual_active(curwin_mut()) && (*curhead).uh_cursor_vcol >= 0 {
                         coladvance(curwin_mut(), (*curhead).uh_cursor_vcol);
                     } else {
                         curwin_mut().w_cursor.coladd = 0;
@@ -2925,7 +2925,7 @@ pub fn bufIsChanged(buf: &mut buf_T) -> bool {
     if bt_prompt(&raw mut *buf) {
             buf.b_modified_was_set
         } else {
-            !bt_dontwrite(&raw mut *buf) && (buf.b_changed != 0 || file_ff_differs(&raw mut *buf, true))
+            !bt_dontwrite(&raw mut *buf) && (buf.b_changed != 0 || file_ff_differs(buf, true))
         }
 }
 
@@ -2983,7 +2983,7 @@ fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
                 tv_dict_add_list(dict, c"alt", u_eval_tree(buf, alt_next));
             }
 
-            tv_list_append_dict(list, dict);
+            tv_list_append_dict( &mut *list, dict);
             uhp = prev;
         }
 

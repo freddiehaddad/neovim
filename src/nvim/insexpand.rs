@@ -3341,7 +3341,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
             g_st().sandbox += 1;
         }
 
-        let called = callback_call(cb, 2, args.as_mut_ptr(), &mut rettv);
+        let called = callback_call( &mut *cb, 2, args.as_mut_ptr(), &mut rettv);
         if use_sandbox {
             g_st().sandbox -= 1;
         }
@@ -3897,7 +3897,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                     if !match_at_original_text(match_) {
                         if has_items || (has_matches && match_.cp_in_match_array) {
                             let di = tv_dict_alloc();
-                            tv_list_append_dict(li, di);
+                            tv_list_append_dict( &mut *li, di);
                             fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
                         }
                         if !curr.is_null() && (*curr).cp_number == match_.cp_number {
@@ -6192,7 +6192,7 @@ fn get_userdefined_compl_info(
         if use_sandbox {
             g_st().sandbox += 1;
         }
-        let col = callback_call_retnr(cb, 2, args.as_mut_ptr()) as colnr_T;
+        let col = callback_call_retnr( &mut *cb, 2, args.as_mut_ptr()) as colnr_T;
         if use_sandbox {
             g_st().sandbox -= 1;
         }

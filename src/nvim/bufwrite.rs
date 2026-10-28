@@ -770,7 +770,7 @@ fn get_fileinfo_os(
 }
 
 fn get_fileinfo(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     fname: *mut c_char,
     overwriting: bool,
     forceit: bool,
@@ -815,7 +815,7 @@ fn get_fileinfo(
                 return false;
             }
 
-            if overwriting && !forceit && !check_mtime(unsafe { &mut *buf }, file_info_old) {
+            if overwriting && !forceit && !check_mtime( buf, file_info_old) {
                 return false;
             }
         }
@@ -1279,7 +1279,7 @@ pub fn buf_write(
         'nofail: {
             'fail: {
                 if !get_fileinfo(
-                    buf,
+                     &mut *buf,
                     fname,
                     overwriting,
                     forceit,

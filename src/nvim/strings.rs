@@ -2443,7 +2443,7 @@ pub fn f_str2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         tv_list_alloc_ret(rettv, kListLenUnknown);
         let mut p = tv_get_string(&argvars[0]);
         while *p != NUL {
-            tv_list_append_number(rettv.vval.v_list(), varnumber_T::from(utf_ptr2char(p)));
+            tv_list_append_number( &mut *rettv.vval.v_list(), varnumber_T::from(utf_ptr2char(p)));
             p = p.add(utf_ptr2len(p) as usize);
         }
     }

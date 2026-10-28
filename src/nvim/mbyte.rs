@@ -3485,10 +3485,10 @@ pub fn f_getcellwidths(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
         tv_list_alloc_ret(rettv, table.len() as isize);
         for &entry_data in table {
             let entry = tv_list_alloc(3);
-            tv_list_append_number(entry, entry_data.first);
-            tv_list_append_number(entry, entry_data.last);
-            tv_list_append_number(entry, varnumber_T::from(entry_data.width));
-            tv_list_append_list(rettv.vval.v_list(), entry);
+            tv_list_append_number( &mut *entry, entry_data.first);
+            tv_list_append_number( &mut *entry, entry_data.last);
+            tv_list_append_number( &mut *entry, varnumber_T::from(entry_data.width));
+            tv_list_append_list( &mut *rettv.vval.v_list(), entry);
         }
     }
 }

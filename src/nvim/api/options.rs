@@ -875,7 +875,7 @@ pub fn nvim_get_option_info2(
             curwin_ptr()
         };
 
-        get_option_info(name, opt_flags, buf, win, arena, err)
+        get_option_info(name, opt_flags, buf, unsafe { &mut *win }, arena, err)
     }
 }
 

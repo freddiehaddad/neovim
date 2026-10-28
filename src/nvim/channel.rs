@@ -397,7 +397,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
 }
 
 pub fn channel_create_event(chan: &mut Channel, _ext_source: *const c_char) {
-    channel_event(&raw mut *chan, EVENT_CHANOPEN);
+    channel_event(chan, EVENT_CHANOPEN);
 }
 
 pub fn channel_incref(chan: &mut Channel) {
@@ -408,7 +408,7 @@ pub fn channel_decref(chan: &mut Channel) {
     unsafe {
         if chan.refcount == 1 && !chan.did_close_event {
             chan.did_close_event = true;
-            channel_event((&raw mut *chan), EVENT_CHANCLOSE);
+            channel_event(chan, EVENT_CHANCLOSE);
         }
 
         chan.refcount -= 1;
@@ -793,7 +793,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
-        tv_list_append_string(l, c"", 0);
+        tv_list_append_string( &mut *l, c"", 0);
         if len > 0 {
             encode_list_write(l, buf, len);
         }
@@ -1016,7 +1016,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     argv[2].v_lock = VAR_UNLOCKED;
 
     let mut rettv: typval_T = typval_T::new();
-    let _ = callback_call(cb, 3, argv.as_mut_ptr(), &mut rettv);
+    let _ = callback_call(unsafe { &mut *cb }, 3, argv.as_mut_ptr(), &mut rettv);
     tv_clear(&raw mut rettv);
 
     if is_stderr.is_some() {
@@ -1151,12 +1151,12 @@ pub fn channel_term_close(chan: &mut Channel) {
     }
 }
 
-pub fn channel_event(chan: *mut Channel, event: event_T) {
+pub fn channel_event(chan: &mut Channel, event: event_T) {
     unsafe {
         if has_event(event) {
-            channel_incref(&mut *chan);
+            channel_incref(chan);
             let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
-            multiqueue_put_event( &mut *(*qc).events, Event::ChannelSetInfo { chan, event });
+            multiqueue_put_event( &mut *(*qc).events, Event::ChannelSetInfo { chan: &raw mut *chan, event });
         }
     }
 }

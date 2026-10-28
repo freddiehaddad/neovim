@@ -1898,7 +1898,7 @@ pub fn win_line(
             if wlv.vcol < start_vcol
                 && (wp.w_onebuf_opt.wo_cuc != 0
                     || !wlv.color_cols.is_empty()
-                    || virtual_active(&raw mut *wp)
+                    || virtual_active(wp)
                     || (g_st().Visual.active && wp.w_buffer == curwin_mut().w_buffer)
                     || has_fold)
             {
@@ -2948,7 +2948,7 @@ pub fn win_line(
                             if wlv.diff_hlf == 0 && wlv.line_attr == 0 && wlv.line_attr_lowprio == 0
                             {
                                 if !(area_highlighting
-                                    && virtual_active(&raw mut *wp)
+                                    && virtual_active(wp)
                                     && wlv.tocol != MAXCOL
                                     && wlv.vcol < wlv.tocol)
                                 {
@@ -3001,7 +3001,7 @@ pub fn win_line(
                             saved_attr2 = wlv.char_attr;
                         } else if g_st().Visual.active
                             && (g_st().Visual.mode == Ctrl_V || g_st().Visual.mode == b'v' as c_int)
-                            && virtual_active(&raw mut *wp)
+                            && virtual_active(wp)
                             && wlv.tocol != MAXCOL
                             && wlv.vcol < wlv.tocol
                             && wlv.col < view_width

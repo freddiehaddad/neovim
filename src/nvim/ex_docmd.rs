@@ -7796,7 +7796,7 @@ pub fn get_address(
                             };
                             let fm = mark_get(
                                 curbuf_mut(),
-                                curwin_ptr(),
+                                curwin_mut(),
                                 None,
                                 flag,
                                 c_int::from(*cmd as u8),
@@ -9949,7 +9949,7 @@ fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut list_T {
 
         let cb = get_findfunc();
         let mut rettv: typval_T = typval_T::new();
-        let retval = callback_call(cb, 2, args.as_mut_ptr(), &mut rettv);
+        let retval = callback_call( &mut *cb, 2, args.as_mut_ptr(), &mut rettv);
 
         g_st().current_sctx = saved_sctx;
         g_st().textlock -= 1;
@@ -10318,7 +10318,7 @@ fn ex_detach(eap: &mut exarg_T) {
 
         if eap.forceit != 0 {
             (*chan).detach = true;
-            channel_event(chan, EVENT_CHANINFO);
+            channel_event( &mut *chan, EVENT_CHANINFO);
             let _ = msg(
                 gettext(c"Nvim will continue running if the UI disconnects"),
                 0,
@@ -12721,7 +12721,7 @@ fn ex_terminal(eap: &mut exarg_T) {
             tv_list_alloc_ret(&mut shell_tv, 0);
             for arg in argv {
                 tv_list_append_string(
-                    shell_tv.vval.v_list(),
+                     &mut *shell_tv.vval.v_list(),
                     arg.as_ptr(),
                     arg.as_bytes().len() as isize,
                 );

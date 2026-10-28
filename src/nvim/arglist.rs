@@ -1261,7 +1261,7 @@ fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut ty
         tv_list_alloc_ret(&mut *rettv, count as isize);
         if !arglist_ptr.is_null() {
             for idx in 0..(count as usize) {
-                tv_list_append_string(rettv.vval.v_list(), alist_name(&*arglist_ptr.add(idx)), -1);
+                tv_list_append_string( &mut *rettv.vval.v_list(), alist_name(&*arglist_ptr.add(idx)), -1);
             }
         }
     }

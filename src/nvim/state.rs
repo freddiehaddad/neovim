@@ -181,12 +181,12 @@ pub fn state_handle_k_event() {
     }
 }
 
-pub fn virtual_active(wp: *mut win_T) -> bool {
+pub fn virtual_active(wp: &mut win_T) -> bool {
     if (g_st().State & MODE_TERMINAL) != 0 {
             return true;
         }
 
-        let cur_ve_flags = get_ve_flags(unsafe { &mut *wp });
+        let cur_ve_flags = get_ve_flags( wp);
 
         if cur_ve_flags == kOptVeFlagAll
             || ((cur_ve_flags & kOptVeFlagInsert) != 0 && (g_st().State & MODE_INSERT) != 0)

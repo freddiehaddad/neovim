@@ -170,17 +170,17 @@ pub fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usize) {
                 );
                 { let _d = (line_buf.as_mut_ptr()).cast::<u8>(); let _sz = line_length; if _sz > 0 { let _c = 0_u8; let _x = (NL as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
                 crate::eval::typval::tv_list_append_string(
-                    list,
+                     &mut *list,
                     line_buf.as_ptr(),
                     line_length as isize,
                 );
             } else {
-                tv_list_append_string(list, std::ptr::null(), 0);
+                tv_list_append_string( &mut *list, std::ptr::null(), 0);
             }
             line_end = line_end.add(1);
         }
         if line_end == end {
-            tv_list_append_string(list, std::ptr::null(), 0);
+            tv_list_append_string( &mut *list, std::ptr::null(), 0);
         }
     }
 }

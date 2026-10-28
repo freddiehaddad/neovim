@@ -882,7 +882,7 @@ pub fn ml_recover(checkext: bool) {
             directly = false;
             let mut items_tv = typval_T::new();
             tv_list_alloc_ret(&mut items_tv, 0);
-            recover_names(fname, true, items_tv.vval.v_list());
+            recover_names(fname, true,  &mut *items_tv.vval.v_list());
             let n_swaps = tv_list_len(items_tv.vval.v_list());
 
             if n_swaps == 0 {
@@ -1499,7 +1499,7 @@ fn ml_recover_theend(
 }
 
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
-pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_T) {
+pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut list_T) {
     unsafe {
         #[cfg(unix)]
         let mut fname_buf = [0 as c_char; MAXPATHL];
@@ -1583,7 +1583,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_
             }
 
             if *dirp == NUL
-                && tv_list_len(ret_list) == 0
+                && tv_list_len(&raw mut *ret_list) == 0
                 && files.is_empty()
                 && !fname.is_null()
                 && let Some(swapname) = modname(fname_res, c".swp", true)
@@ -2663,7 +2663,7 @@ pub fn ml_add_deleted_len_buf(buf: &mut buf_T, ptr: *mut c_char, mut len: isize)
 
 /// Replace line `lnum`, with buffering, in current buffer.
 pub fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> bool {
-    ml_replace_buf(g_st().curbuf, lnum, line, copy, false)
+    ml_replace_buf(curbuf_mut(), lnum, line, copy, false)
 }
 
 /// Replace a line for the current buffer with explicit `len` (excluding NUL).
@@ -2672,7 +2672,7 @@ pub fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool)
 }
 
 pub fn ml_replace_buf(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     lnum: linenr_T,
     line: impl crate::strings::IntoCCharPtr,
     copy: bool,
@@ -2685,7 +2685,7 @@ pub fn ml_replace_buf(
         } else {
             usize::MAX
         };
-        ml_replace_buf_len(unsafe { &mut *buf }, lnum, line, len, copy, noalloc)
+        ml_replace_buf_len( buf, lnum, line, len, copy, noalloc)
     }
 }
 
@@ -2779,7 +2779,7 @@ fn ml_delete_int(buf: &mut buf_T, lnum: linenr_T, flags: c_int) -> bool {
             if (flags & ML_DEL_MESSAGE) != 0 {
                 set_keep_msg(gettext(no_lines_msg), 0);
             }
-            let i = ml_replace_buf((&raw mut *buf), 1, c"", true, false);
+            let i = ml_replace_buf(buf, 1, c"", true, false);
             buf.b_ml.ml_flags |= ML_EMPTY;
             return i;
         }

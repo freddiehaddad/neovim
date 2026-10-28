@@ -666,7 +666,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if g_st().recoverymode && fname.is_null() {
             let mut items_tv = crate::eval::typval::typval_T::new();
             tv_list_alloc_ret(&mut items_tv, 0);
-            recover_names(ptr::null_mut(), false, items_tv.vval.v_list());
+            recover_names(ptr::null_mut(), false,  &mut *items_tv.vval.v_list());
             let mut lua_args = [items_tv, crate::eval::typval::typval_T::new()];
             nlua_call_typval(
                 c"vim._core.swapfile",
@@ -1830,7 +1830,7 @@ fn set_argf_var() {
             let fname = alist_name(&*garglist().add(i as usize));
             if !fname.is_null() {
                 let _ = vim_FullName(fname, (&raw mut g_st().NameBuff).cast(), MAXPATHL, false);
-                tv_list_append_string(list, (&raw const g_st().NameBuff).cast(), -1);
+                tv_list_append_string( &mut *list, (&raw const g_st().NameBuff).cast(), -1);
             }
         }
         tv_list_set_lock(list, VAR_FIXED);

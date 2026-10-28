@@ -5933,7 +5933,7 @@ fn win_enter_ext(wp: *mut win_T, flags: c_int) {
         g_st().curbuf = (*wp).w_buffer;
 
         check_cursor(curwin_mut());
-        if !virtual_active(curwin_ptr()) {
+        if !virtual_active(curwin_mut()) {
             curwin_mut().w_cursor.coladd = 0;
         }
         if crate::memory::cstr_first_byte(opt_vars().p_spk) == b'c' {
@@ -6524,7 +6524,7 @@ fn check_window_scroll_resize(
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(i64::from((*wp).handle)),
                     };
-                    tv_list_append_owned_tv(winlist, tv);
+                    tv_list_append_owned_tv( &mut *winlist, tv);
                 } else if let Some(ref mut size_count) = size_count {
                     debug_assert!(!first_size_win.is_null() && !first_scroll_win.is_null());
                     **size_count += 1;

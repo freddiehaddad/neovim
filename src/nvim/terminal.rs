@@ -2044,21 +2044,21 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
         loop {
             let start_bytes = crate::memory::cstr_as_bytes(start);
             if let Some(pos) = start_bytes.iter().position(|&b| b == b'\n') {
-                tv_list_append_string(lines, start, pos as isize);
+                tv_list_append_string( &mut *lines, start, pos as isize);
                 start = start.add(pos + 1);
             } else {
                 break;
             }
         }
-        tv_list_append_string(lines, start, -1);
+        tv_list_append_string( &mut *lines, start, -1);
         drop(data);
 
         let args = tv_list_alloc(3);
-        tv_list_append_list(args, lines);
+        tv_list_append_list( &mut *args, lines);
 
         let regtype: c_char = b'v' as c_char;
-        tv_list_append_string(args, &regtype, 1);
-        tv_list_append_string(args, &regname, 1);
+        tv_list_append_string( &mut *args, &regtype, 1);
+        tv_list_append_string( &mut *args, &regname, 1);
         eval_call_provider(
             c"clipboard",
             c"set",
@@ -2593,7 +2593,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
             fetch_row(term, -term.sb_pending, width);
             let buf_index = buf.b_ml.ml_line_count - old_height;
             ml_append_buf(buf, buf_index, textbuf_ptr, 0, false);
-            appended_lines_buf(&raw mut *buf, buf_index, 1);
+            appended_lines_buf(buf, buf_index, 1);
             term.sb_pending -= 1;
         }
 
@@ -2633,7 +2633,7 @@ fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
             fetch_row(term, r, width);
 
             if linenr <= buf.b_ml.ml_line_count {
-                ml_replace_buf(&raw mut *buf, linenr, textbuf_ptr, true, false);
+                ml_replace_buf(buf, linenr, textbuf_ptr, true, false);
                 changed += 1;
             } else {
                 ml_append_buf(buf, linenr - 1, textbuf_ptr, 0, false);

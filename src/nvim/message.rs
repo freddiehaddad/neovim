@@ -3371,7 +3371,7 @@ fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
-            callback_call(&raw mut g_st().on_print, 1, argv.as_mut_ptr(), &mut rettv);
+            callback_call(&mut g_st().on_print, 1, argv.as_mut_ptr(), &mut rettv);
             tv_clear(&raw mut rettv);
             return;
         }

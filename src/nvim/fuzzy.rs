@@ -475,7 +475,7 @@ fn fuzzy_match_in_list(
                             vval: TypvalVval::Number(0),
                         },
                     ];
-                    if callback_call(&raw mut *item_cb, 1, argv.as_mut_ptr(), &mut rettv)
+                    if callback_call(item_cb, 1, argv.as_mut_ptr(), &mut rettv)
                         && rettv.v_type == VarType::VAR_STRING
                     {
                         itemstr = rettv.vval.v_string();
@@ -538,7 +538,7 @@ fn fuzzy_match_in_list(
 
             for cur in &items {
                 let item_li = cur.item;
-                tv_list_append_tv(retlist, &mut (*item_li).li_tv);
+                tv_list_append_tv( &mut *retlist, &mut (*item_li).li_tv);
             }
 
             if retmatchpos {
@@ -549,16 +549,16 @@ fn fuzzy_match_in_list(
                 for cur in &items {
                     let match_positions_list = tv_list_alloc(cur.matchpos.len() as isize);
                     for &pos in &cur.matchpos {
-                        tv_list_append_number(match_positions_list, pos);
+                        tv_list_append_number( &mut *match_positions_list, pos);
                     }
-                    tv_list_append_list(retlist, match_positions_list);
+                    tv_list_append_list( &mut *retlist, match_positions_list);
                 }
 
                 let score_li = tv_list_find(fmatchlist, -1);
                 assert!(!score_li.is_null() && !(*score_li).li_tv.vval.v_list().is_null());
                 retlist = (*score_li).li_tv.vval.v_list();
                 for cur in &items {
-                    tv_list_append_number(retlist, cur.score as i64);
+                    tv_list_append_number( &mut *retlist, cur.score as i64);
                 }
             }
         }
@@ -635,9 +635,9 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
         tv_list_alloc_ret(&mut *rettv, if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN });
         let out_list = rettv.vval.v_list();
         if retmatchpos {
-            tv_list_append_list(out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list(out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list(out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+            tv_list_append_list( &mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+            tv_list_append_list( &mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+            tv_list_append_list( &mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
         }
 
         fuzzy_match_in_list(

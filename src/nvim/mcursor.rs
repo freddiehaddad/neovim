@@ -280,8 +280,8 @@ pub fn mc_replaying() -> bool {
     unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool() == kBoolVarTrue }
 }
 
-fn mc_mark_upd(buf: *mut buf_T, mark: &mut u32, pos: pos_T) {
-    extmark_set_pos(unsafe { &mut *buf }, mc_ns(), mark, pos, true, false, true);
+fn mc_mark_upd(buf: &mut buf_T, mark: &mut u32, pos: pos_T) {
+    extmark_set_pos( buf, mc_ns(), mark, pos, true, false, true);
 }
 
 fn mc_track_upd(buf: &mut buf_T, mark: &mut u32, pos: pos_T) {
@@ -478,7 +478,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         if atom_type == kAInsertSpan && curbuf_mut().b_last_insert.mark.lnum > 0 {
             ctx.pos = curbuf_mut().b_last_insert.mark;
         }
-        mc_mark_upd(g_st().curbuf, &mut ctx.mark, ctx.pos);
+        mc_mark_upd(curbuf_mut(), &mut ctx.mark, ctx.pos);
         cursors_mut()[cursoridx] = ctx;
     }
 }
@@ -513,7 +513,7 @@ fn mc_cascade() {
         let mut mcursor_pos = INIT_POS;
         if mcursor != 0 && extmark_get_pos(curbuf_mut(), mc_ns(), mcursor, &mut mcursor_pos) {
             let mut mark = mcursor;
-            mc_mark_upd(g_st().curbuf, &mut mark, curwin_mut().w_cursor);
+            mc_mark_upd(curbuf_mut(), &mut mark, curwin_mut().w_cursor);
         }
 
         let mut sb = McSandbox::new();
@@ -1242,7 +1242,7 @@ pub fn mc_vsel_refresh() {
             };
             let mut inclusive = true;
             let mut oa = oparg_T::new();
-            g_st().virtual_op = c_int::from(virtual_active(curwin_ptr()));
+            g_st().virtual_op = c_int::from(virtual_active(curwin_mut()));
             getregionpos_prep(
                 &mut s,
                 &mut e,
@@ -1342,7 +1342,7 @@ pub fn mc_ins_commit() -> bool {
             } else if pos.col > 0 {
                 dec(&mut pos);
             }
-            mc_mark_upd(g_st().curbuf, &mut mark, pos);
+            mc_mark_upd(curbuf_mut(), &mut mark, pos);
             cursors_mut()[i].pos = pos;
             cursors_mut()[i].mark = mark;
         }
@@ -1772,20 +1772,20 @@ pub fn mc_follow_set(on: TriState) {
     }
 }
 
-pub fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
-    unsafe {
+pub fn mc_toggle(buf: &mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
+     {
         if mc_replaying() {
             return;
         }
         if end_follow {
             mc_follow_set(kFalse);
         }
-        let mark = mc_mark_at( &mut *buf, pos, 0);
+        let mark = mc_mark_at( buf, pos, 0);
         if mark != 0 && on != kTrue {
-            extmark_del_id(&mut *buf, mc_ns(), mark);
+            extmark_del_id(buf, mc_ns(), mark);
             mc_cleanup(false, None, 0);
         } else if mark == 0 && on != kFalse {
-            mc_add( &mut *buf, pos);
+            mc_add( buf, pos);
         }
     }
 }
@@ -1802,7 +1802,7 @@ pub fn mc_add(buf: &mut buf_T, pos: pos_T) -> *mut Context {
         }
         let count = cursors().len();
         let mut mark: u32 = 0;
-        mc_mark_upd((&raw mut *buf), &mut mark, pos);
+        mc_mark_upd(buf, &mut mark, pos);
         if cursors().len() > count {
             cursors_mut()
                 .last_mut()
@@ -1826,7 +1826,7 @@ pub fn mc_on_extmark_set(buf: &mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
             extmark_del_id(&mut *buf, ns_id, id);
             return;
         }
-        mc_mark_upd(buf, &mut id, pos);
+        mc_mark_upd( &mut *buf, &mut id, pos);
         atom_visual_reset();
         if cursors().is_empty() {
             mc_st().mc_start.time = os_realtime() as Timestamp;
@@ -1841,12 +1841,12 @@ pub fn mc_on_extmark_set(buf: &mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
     }
 }
 
-pub fn mc_buf_clear(buf: *mut buf_T) {
+pub fn mc_buf_clear(buf: &mut buf_T) {
     if mc_replaying() {
             return;
         }
-        extmark_clear(unsafe { &mut *buf }, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
-        extmark_clear(unsafe { &mut *buf }, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
+        extmark_clear( buf, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
+        extmark_clear( buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
 }
 
 pub fn mc_buf_free(buf: &mut buf_T) {

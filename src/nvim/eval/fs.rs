@@ -703,7 +703,7 @@ fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int
                 if let Some(ref res) = fresult
                     && rettv.v_type == VarType::VAR_LIST
                 {
-                    tv_list_append_string(rettv.vval.v_list(), res.as_ptr(), -1);
+                    tv_list_append_string( &mut *rettv.vval.v_list(), res.as_ptr(), -1);
                 }
 
                 let keep_going = rettv.v_type == VarType::VAR_LIST || {
@@ -1121,7 +1121,7 @@ pub fn f_glob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
                 tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                 for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                     tv_list_append_string(
-                        rettv.vval.v_list(),
+                        unsafe { &mut *rettv.vval.v_list() },
                         f.as_ptr(),
                         f.as_bytes().len() as isize,
                     );
@@ -1181,7 +1181,7 @@ pub fn f_globpath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 tv_list_alloc_ret(rettv, ga.len() as isize);
                 for s in &ga {
                     tv_list_append_string(
-                        rettv.vval.v_list(),
+                        unsafe { &mut *rettv.vval.v_list() },
                         s.as_ptr(),
                         s.as_bytes().len() as isize,
                     );
@@ -1423,7 +1423,7 @@ pub fn f_readdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let ret = readdir_core(&mut entries, path, expr);
         if ret {
             for entry in &entries {
-                tv_list_append_string(rettv.vval.v_list(), entry.as_ptr(), -1);
+                tv_list_append_string(unsafe { &mut *rettv.vval.v_list() }, entry.as_ptr(), -1);
             }
         }
     }
@@ -1575,10 +1575,10 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
                     }
                     if prev.is_empty() {
                         debug_assert!(len < c_int::MAX as usize);
-                        tv_list_append_string(l, start, len as isize);
+                        tv_list_append_string( &mut *l, start, len as isize);
                     } else {
                         prev.extend_from_slice(std::slice::from_raw_parts(start, len));
-                        tv_list_append_string(l, prev.as_ptr(), prev.len() as isize);
+                        tv_list_append_string( &mut *l, prev.as_ptr(), prev.len() as isize);
                         prev.clear();
                     }
 

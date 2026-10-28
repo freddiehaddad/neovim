@@ -1332,7 +1332,7 @@ fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: 
             );
             markerlen + cms_len - 2
         };
-        ml_replace_buf(&raw mut *buf, lnum, newline, true, false);
+        ml_replace_buf(buf, lnum, newline, true, false);
         if added != 0 {
             extmark_splice_cols(
                 buf,
@@ -1417,7 +1417,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
                 let after = p.add(len);
                 let after_len = crate::memory::cstr_len(after);
                 ptr::copy_nonoverlapping(after, newline.add(before_len), after_len + 1);
-                ml_replace_buf(&raw mut *buf, lnum, newline, true, false);
+                ml_replace_buf(buf, lnum, newline, true, false);
                 extmark_splice_cols(
                     buf,
                     lnum - 1,

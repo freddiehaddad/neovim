@@ -811,7 +811,7 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
             for child in &(*menu).children {
                 let d = menu_get_recursive(child, modes);
                 if tv_dict_len(d) > 0 {
-                    tv_list_append_dict(children_list, d);
+                    tv_list_append_dict( &mut *children_list, d);
                 }
             }
             tv_dict_add_list(dict, c"submenus", children_list);
@@ -821,7 +821,7 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
 }
 
 /// Export menus matching path `path_name` (`menu_get`).
-pub fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) -> bool {
+pub fn menu_get(path_name: *mut c_char, modes: c_int, list: &mut list_T) -> bool {
     unsafe {
         let root = get_root_menu(path_name);
         if *path_name != NUL {
@@ -1947,7 +1947,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
             let l = tv_list_alloc(kListLenMayKnow);
             tv_dict_add_list(dict, c"submenus", l);
             for child in &menu.children {
-                tv_list_append_string(l, child.dname.as_ptr(), -1);
+                tv_list_append_string( &mut *l, child.dname.as_ptr(), -1);
             }
         }
     }
@@ -1996,7 +1996,7 @@ pub fn f_menu_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 tv_dict_add_list(retdict, c"submenus", l);
                 for topmenu in menus {
                     if !menu_is_hidden(topmenu.dname.as_ptr().cast_mut()) {
-                        tv_list_append_string(l, topmenu.dname.as_ptr(), -1);
+                        tv_list_append_string( &mut *l, topmenu.dname.as_ptr(), -1);
                     }
                 }
             }

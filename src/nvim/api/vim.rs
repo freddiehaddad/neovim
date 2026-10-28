@@ -2310,7 +2310,7 @@ pub fn nvim_chan_set(
         }
         if (config.is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_chan_set__detach)) != 0 {
             (*channel).detach = config.detach;
-            channel_event(channel, EVENT_CHANINFO);
+            channel_event( &mut *channel, EVENT_CHANINFO);
         }
     }
 }

@@ -1006,7 +1006,7 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
             }
         };
 
-        channel_event(chan, EVENT_CHANINFO);
+        channel_event( &mut *chan, EVENT_CHANINFO);
     }
 }
 

@@ -1380,7 +1380,7 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
 
         let list = tv_list_alloc(reg.y_array.len() as isize);
         for &item in &reg.y_array {
-            tv_list_append_string(list, item.data, item.size as isize);
+            tv_list_append_string( &mut *list, item.data, item.size as isize);
         }
         (*list).lv_lock = VAR_FIXED;
         tv_dict_add_list(dict, c"regcontents", list);
@@ -1460,13 +1460,13 @@ fn put_do_autocmd(
         if regname == c_int::from(b'.') {
             let last_ins = &raw const g_st().last_insert_ga;
             if !(*last_ins).is_empty() {
-                tv_list_append_string(list, (*last_ins).as_ptr(), (*last_ins).len() as isize);
+                tv_list_append_string( &mut *list, (*last_ins).as_ptr(), (*last_ins).len() as isize);
             }
         } else if let Some(insert) = insert {
-            tv_list_append_string(list, insert.data, insert.size as isize);
+            tv_list_append_string( &mut *list, insert.data, insert.size as isize);
         } else {
             for &item in &(&*reg).y_array {
-                tv_list_append_string(list, item.data, item.size as isize);
+                tv_list_append_string( &mut *list, item.data, item.size as isize);
             }
         }
 
@@ -2699,7 +2699,7 @@ fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut list_T {
             return ptr::null_mut();
         };
         let list = tv_list_alloc(1);
-        tv_list_append_string(list, s.as_ptr(), -1);
+        tv_list_append_string( &mut *list, s.as_ptr(), -1);
         list
     }
 }
@@ -2796,7 +2796,7 @@ pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut list_T {
 
         let list = tv_list_alloc(reg.y_array.len() as isize);
         for &item in &reg.y_array {
-            tv_list_append_string(list, item.data, item.size as isize);
+            tv_list_append_string( &mut *list, item.data, item.size as isize);
         }
         list
     }

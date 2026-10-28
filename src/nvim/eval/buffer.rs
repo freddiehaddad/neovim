@@ -370,7 +370,7 @@ pub fn prompt_invoke_callback() {
             tv_set_string(&mut argv[0], user_input.as_ptr());
 
             callback_call(
-                &raw mut (*g_st().curbuf).b_prompt_callback,
+                &mut (*g_st().curbuf).b_prompt_callback,
                 1,
                 argv.as_mut_ptr(),
                 &mut rettv,
@@ -407,7 +407,7 @@ pub fn invoke_prompt_interrupt() -> bool {
 
         g_st().got_int = false;
         let ret = callback_call(
-            &raw mut (*g_st().curbuf).b_prompt_interrupt,
+            &mut (*g_st().curbuf).b_prompt_interrupt,
             0,
             argv.as_mut_ptr(),
             &mut rettv,
@@ -765,7 +765,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(first_win_in_tab( &mut *tp)) {
                 if wp.w_buffer == buf {
-                    tv_list_append_number(windows, wp.handle as varnumber_T);
+                    tv_list_append_number( &mut *windows, wp.handle as varnumber_T);
                 }
             }
         }
@@ -821,7 +821,7 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             }
 
             let d = get_buffer_info(&mut *buf);
-            tv_list_append_dict(rettv.vval.v_list(), d);
+            tv_list_append_dict( &mut *rettv.vval.v_list(), d);
             if !argbuf.is_null() {
                 return;
             }
@@ -861,7 +861,7 @@ fn get_buffer_lines(
             tv_list_alloc_ret(&mut *rettv, (end - start + 1) as isize);
             while start <= end {
                 tv_list_append_string(
-                    rettv.vval.v_list(),
+                     &mut *rettv.vval.v_list(),
                     ml_get_buf(buf, start),
                     ml_get_buf_len(buf, start) as isize,
                 );
@@ -1074,7 +1074,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
                 ) == old_prompt_bytes;
 
             if !prefix_matches {
-                ml_replace_buf(buf, prompt_lno, new_prompt.cast_mut(), true, false);
+                ml_replace_buf( &mut *buf, prompt_lno, new_prompt.cast_mut(), true, false);
                 extmark_splice_cols(
                      &mut *buf,
                     prompt_lno - 1,
@@ -1086,7 +1086,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
                 cursor_col = new_prompt_len;
             } else {
                 let new_line = concat_str(new_prompt, old_line.add(mark_col as usize));
-                let _ = ml_replace_buf(buf, prompt_lno, new_line.as_ptr().cast_mut(), true, false);
+                let _ = ml_replace_buf( &mut *buf, prompt_lno, new_line.as_ptr().cast_mut(), true, false);
                 extmark_splice_cols(
                      &mut *buf,
                     prompt_lno - 1,

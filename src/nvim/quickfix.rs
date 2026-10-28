@@ -4488,7 +4488,7 @@ fn call_qftf_func(
             args[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
 
             g_st().textlock += 1;
-            if callback_call(cb, 1, args.as_mut_ptr(), &mut rettv) {
+            if callback_call( &mut *cb, 1, args.as_mut_ptr(), &mut rettv) {
                 if rettv.v_type == VarType::VAR_LIST {
                     qftf_list = rettv.vval.v_list();
                     tv_list_ref(qftf_list);
@@ -6086,7 +6086,7 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
         }
 
         let dict = tv_dict_alloc();
-        tv_list_append_dict(list, dict);
+        tv_list_append_dict( &mut *list, dict);
 
         let buf = [qfp.qf_type, NUL];
         let buflen: usize = if buf[0] == NUL { 0 } else { 1 };
@@ -6140,7 +6140,7 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
     wp: *mut win_T,
     mut qf_idx: c_int,
     eidx: c_int,
-    list: *mut list_T,
+    list: &mut list_T,
 ) -> bool {
     unsafe {
         let mut qi = qi_arg.map_or(ptr::null_mut(), |p| &raw mut *p);
@@ -6178,9 +6178,9 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
             let i = (idx + 1) as c_int;
             if eidx > 0 {
                 if eidx == i {
-                    return get_qfline_items(qfp, &mut *list);
+                    return get_qfline_items(qfp, list);
                 }
-            } else if !get_qfline_items(qfp, &mut *list) {
+            } else if !get_qfline_items(qfp, list) {
                 return false;
             }
         }
@@ -6235,7 +6235,7 @@ fn qf_get_list_from_lines(
             ptr::null_mut(),
         ) > 0
         {
-            get_errorlist(Some(&mut qi), ptr::null_mut(), 0, 0, l);
+            get_errorlist(Some(&mut qi), ptr::null_mut(), 0, 0,  &mut *l);
         }
 
         tv_dict_add_list(retdict, c"items", l);
@@ -6442,7 +6442,7 @@ fn qf_getprop_items(
 ) -> bool {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
-        get_errorlist(Some(&mut *qi), ptr::null_mut(), qf_idx, eidx, l);
+        get_errorlist(Some(&mut *qi), ptr::null_mut(), qf_idx, eidx,  &mut *l);
         tv_dict_add_list(retdict, c"items", l);
         true
     }
@@ -7741,7 +7741,7 @@ fn get_qf_loc_list(
     if what_arg.v_type == VarType::VAR_UNKNOWN {
             tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
             if is_qf || !wp.is_null() {
-                get_errorlist(None, wp, -1, 0, rettv.vval.v_list());
+                get_errorlist(None, wp, -1, 0, unsafe { &mut *rettv.vval.v_list() });
             }
         } else {
             tv_dict_alloc_ret(rettv);

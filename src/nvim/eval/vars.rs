@@ -772,7 +772,7 @@ pub fn eval_charconvert(
         let mut err = false;
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if !callback_call(&raw mut opt_vars().p_ccv, 0, argv.as_mut_ptr(), &mut tv) {
+        if !callback_call(&mut opt_vars().p_ccv, 0, argv.as_mut_ptr(), &mut tv) {
             err = true;
         } else {
             if tv_get_number_chk(&tv, None) != 0 {
@@ -805,7 +805,7 @@ pub fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile: *cons
 
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if callback_call(&raw mut opt_vars().p_dex, 0, argv.as_mut_ptr(), &mut tv) {
+        if callback_call(&mut opt_vars().p_dex, 0, argv.as_mut_ptr(), &mut tv) {
             tv_clear(&raw mut tv);
         }
 
@@ -830,7 +830,7 @@ pub fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfile: *co
 
         let mut tv: typval_T = typval_T::new();
         let mut argv: [typval_T; 1] = [typval_T::new()];
-        if callback_call(&raw mut opt_vars().p_pex, 0, argv.as_mut_ptr(), &mut tv) {
+        if callback_call(&mut opt_vars().p_pex, 0, argv.as_mut_ptr(), &mut tv) {
             tv_clear(&raw mut tv);
         }
 
@@ -1194,9 +1194,9 @@ pub fn heredoc_get(
                     eval_failed = true;
                     continue;
                 };
-                tv_list_append_string(l, evaluated.as_ptr(), -1);
+                tv_list_append_string( &mut *l, evaluated.as_ptr(), -1);
             } else {
-                tv_list_append_string(l, str_line, -1);
+                tv_list_append_string( &mut *l, str_line, -1);
             }
         }
         if heredoc_in_string {
@@ -1381,7 +1381,7 @@ pub fn ex_let_vars(
             if *arg == b';' as c_char {
                 let rest_list = tv_list_alloc(rest_len as isize);
                 while !item.is_null() {
-                    tv_list_append_tv(rest_list, &mut (*item).li_tv);
+                    tv_list_append_tv( &mut *rest_list, &mut (*item).li_tv);
                     item = (*item).li_next;
                 }
 
@@ -2134,7 +2134,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
                 } else if ptr::eq(ht, &raw mut vars_st().compat_hashtab) {
                     d = &raw mut vars_st().vimvardict;
                 } else {
-                    let di = find_var_in_ht(ht, *name as u8 as c_int, c"", 0, 0);
+                    let di = find_var_in_ht( &mut *ht, *name as u8 as c_int, c"", 0, 0);
                     d = (*di).di_tv.vval.v_dict();
                 }
                 if d.is_null() {
@@ -2697,7 +2697,7 @@ pub fn find_var(
             return ptr::null_mut();
         }
         let ret = find_var_in_ht(
-            ht,
+             &mut *ht,
             *name as u8 as c_int,
             varname,
             name_len - (varname.offset_from(name) as usize),
@@ -2717,7 +2717,7 @@ pub fn find_var(
 
 /// Find variable in hashtab.
 pub fn find_var_in_ht(
-    ht: *mut hashtab_T,
+    ht: &mut hashtab_T,
     htname: c_int,
     varname: impl crate::strings::IntoCCharPtr,
     varname_len: usize,
@@ -2739,13 +2739,13 @@ pub fn find_var_in_ht(
             };
         }
 
-        let mut hi = hash_find_len(&*ht, varname, varname_len);
+        let mut hi = hash_find_len(ht, varname, varname_len);
         if hashitem_empty(&*hi) {
-            if ht == get_globvar_ht() && no_autoload == 0 {
+            if (&raw mut *ht) == get_globvar_ht() && no_autoload == 0 {
                 if !script_autoload(varname, varname_len, false) || aborting() {
                     return ptr::null_mut();
                 }
-                hi = hash_find_len(&*ht, varname, varname_len);
+                hi = hash_find_len(ht, varname, varname_len);
             }
             if hashitem_empty(&*hi) {
                 return ptr::null_mut();
@@ -3078,7 +3078,7 @@ pub fn set_var_const(
             return;
         }
         let varname_len = name_len - (varname.offset_from(name) as usize);
-        let mut di = find_var_in_ht(ht, 0, varname, varname_len, 1);
+        let mut di = find_var_in_ht( &mut *ht, 0, varname, varname_len, 1);
 
         if di.is_null() {
             di = find_var_in_scoped_ht(name, name_len, 1);
@@ -3353,7 +3353,7 @@ fn get_var_from(
                         &raw mut (*(*tp).tp_vars()).dv_hashtab
                     };
 
-                    let v = find_var_in_ht(ht, htname, varname, crate::memory::cstr_len(varname), 0);
+                    let v = find_var_in_ht( &mut *ht, htname, varname, crate::memory::cstr_len(varname), 0);
                     if !v.is_null() {
                         tv_copy(&(*v).di_tv, rettv);
                         done = true;
@@ -3620,7 +3620,7 @@ pub fn assert_error(buf: &[u8]) {
             set_vim_var_list(VV_ERRORS, tv_list_alloc(1));
         }
         tv_list_append_string(
-            get_vim_var_list(VV_ERRORS),
+             &mut *get_vim_var_list(VV_ERRORS),
             buf.as_ptr().cast::<c_char>(),
             buf.len() as isize,
         );

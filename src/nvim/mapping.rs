@@ -2573,7 +2573,7 @@ pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                     let mut dobj = dict_obj(dict);
                     object_to_vim_take_luaref(&mut dobj, &mut d, true, &mut crate::api::private::validate::Error::new());
                     debug_assert!(d.v_type == VarType::VAR_DICT);
-                    tv_list_append_dict(rettv.vval.v_list(), d.vval.v_dict());
+                    tv_list_append_dict(unsafe { &mut *rettv.vval.v_list() }, d.vval.v_dict());
                     arena_mem_free(arena_finish(&mut arena));
                 }
             }

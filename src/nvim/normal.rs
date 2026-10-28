@@ -2531,7 +2531,7 @@ pub fn end_visual_mode() {
 
         curbuf_mut().b_visual = visualinfo();
         curbuf_mut().b_visual_mode_eval = g_st().Visual.mode;
-        if !virtual_active(curwin_ptr()) {
+        if !virtual_active(curwin_mut()) {
             curwin_mut().w_cursor.coladd = 0;
         }
 
@@ -3567,7 +3567,7 @@ pub fn nv_screengo(
             }
         }
 
-        if virtual_active(curwin_ptr()) && atend {
+        if virtual_active(curwin_mut()) && atend {
             coladvance(curwin_mut(), MAXCOL);
         } else {
             coladvance(curwin_mut(), curwin_mut().w_curswant);
@@ -4119,7 +4119,7 @@ fn nv_Q(cap: &mut cmdarg_T) {
                 mc_follow_set(kTrue);
             } else {
                 mc_toggle(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     curwin_mut().w_cursor,
                     true,
                     if cap.count0 == 0 {
@@ -4737,7 +4737,7 @@ fn nv_right(cap: &mut cmdarg_T) {
         cap.oap_mut().inclusive = false;
         let mut past_line = g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o';
 
-        if virtual_active(curwin_ptr()) {
+        if virtual_active(curwin_mut()) {
             past_line = false;
         }
 
@@ -4775,7 +4775,7 @@ fn nv_right(cap: &mut cmdarg_T) {
                 break;
             } else if past_line {
                 curwin_mut().w_set_curswant = true;
-                if virtual_active(curwin_ptr()) {
+                if virtual_active(curwin_mut()) {
                     oneright();
                 } else {
                     curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
@@ -4945,7 +4945,7 @@ fn nv_dollar(cap: &mut cmdarg_T) {
      {
         cap.oap_mut().motion_type = kMTCharWise;
         cap.oap_mut().inclusive = true;
-        if !virtual_active(curwin_ptr())
+        if !virtual_active(curwin_mut())
             || gchar_cursor() != NUL as c_int
             || cap.oap_mut().op_type == OP_NOP
         {
@@ -5112,7 +5112,7 @@ fn nv_csearch(cap: &mut cmdarg_T) {
 
         curwin_mut().w_set_curswant = true;
         if gchar_cursor() == TAB
-            && virtual_active(curwin_ptr())
+            && virtual_active(curwin_mut())
             && cap.arg == FORWARD
             && (t_cmd || cap.oap_mut().op_type != OP_NOP)
         {
@@ -5699,7 +5699,7 @@ fn nv_replace(cap: &mut cmdarg_T) {
             return;
         }
 
-        if virtual_active(curwin_ptr()) {
+        if virtual_active(curwin_mut()) {
             if !u_save_cursor() {
                 return;
             }
@@ -5821,7 +5821,7 @@ fn v_swap_corners(cmdchar: c_int) {
             }
             coladvance(curwin_mut(), curwin_mut().w_curswant);
             if curwin_mut().w_cursor.col == old_cursor.col
-                && (!virtual_active(curwin_ptr()) || curwin_mut().w_cursor.coladd == old_cursor.coladd)
+                && (!virtual_active(curwin_mut()) || curwin_mut().w_cursor.coladd == old_cursor.coladd)
             {
                 curwin_mut().w_cursor.lnum = g_st().Visual.start.lnum;
                 if old_cursor.lnum <= g_st().Visual.start.lnum && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
@@ -5859,7 +5859,7 @@ fn nv_Replace(cap: &mut cmdarg_T) {
         if !modifiable(curbuf_mut()) {
             emsg(tr(e_modifiable));
         } else {
-            if virtual_active(curwin_ptr()) {
+            if virtual_active(curwin_mut()) {
                 coladvance(curwin_mut(), getviscol());
             }
             invoke_edit(
@@ -5900,7 +5900,7 @@ fn nv_vreplace(cap: &mut cmdarg_T) {
             }
             stuffcharReadbuff(cap.extra_char);
             stuffcharReadbuff(ESC);
-            if virtual_active(curwin_ptr()) {
+            if virtual_active(curwin_mut()) {
                 coladvance(curwin_mut(), getviscol());
             }
             invoke_edit(cap, 1, b'v' as c_int, 0);
@@ -6081,10 +6081,10 @@ fn nv_gomark(cap: &mut cmdarg_T) {
             flags |= kMarkSetView;
         }
 
-        let fm = mark_get(curbuf_mut(), curwin_ptr(), None, kMarkAll, name);
+        let fm = mark_get(curbuf_mut(), curwin_mut(), None, kMarkAll, name);
         let move_res = nv_mark_move_to(cap, flags, &mut *fm);
 
-        if !virtual_active(curwin_ptr()) {
+        if !virtual_active(curwin_mut()) {
             curwin_mut().w_cursor.coladd = 0;
         }
 
@@ -6521,7 +6521,7 @@ fn nv_gi_cmd(cap: &mut cmdarg_T) {
             check_cursor_lnum(curwin_mut());
             let i = get_cursor_line_len();
             if curwin_mut().w_cursor.col > i {
-                if virtual_active(curwin_ptr()) {
+                if virtual_active(curwin_mut()) {
                     curwin_mut().w_cursor.coladd += curwin_mut().w_cursor.col - i;
                 }
                 curwin_mut().w_cursor.col = i;
@@ -7048,7 +7048,7 @@ fn adjust_cursor(oap: &mut oparg_T) {
         if curwin_mut().w_cursor.col > 0
             && gchar_cursor() == NUL as c_int
             && (!g_st().Visual.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
-            && !virtual_active(curwin_ptr())
+            && !virtual_active(curwin_mut())
             && (get_ve_flags(curwin_mut()) & kOptVeFlagOnemore) == 0
         {
             curwin_mut().w_cursor.col -= 1;
@@ -7107,7 +7107,7 @@ pub fn unadjust_for_sel_inner(pp: &mut pos_T) -> bool {
         } else if pp.col > 0 {
             pp.col -= 1;
             mark_mb_adjustpos(g_st().curbuf, pp);
-            if virtual_active(curwin_ptr()) {
+            if virtual_active(curwin_mut()) {
                 let mut cs: colnr_T = 0;
                 let mut ce: colnr_T = 0;
                 getvcol(curwin_mut(), pp, Some(&mut cs), None, Some(&mut ce), 0);
@@ -7256,7 +7256,7 @@ fn nv_edit(cap: &mut cmdarg_T) {
                     beginline(BL_WHITE);
                 }
                 c if c == b'a' as c_int => {
-                    if virtual_active(curwin_ptr())
+                    if virtual_active(curwin_mut())
                         && (curwin_mut().w_cursor.coladd > 0
                             || *get_cursor_pos_ptr() == NUL
                             || *get_cursor_pos_ptr() == b'\t' as c_char)

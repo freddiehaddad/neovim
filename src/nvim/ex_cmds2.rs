@@ -790,9 +790,9 @@ fn script_host_execute(name: &std::ffi::CStr, eap: &mut exarg_T) {
         let mut len: usize = 0;
         if let Some(script) = script_get(eap, &mut len) {
             let args = tv_list_alloc(3);
-            crate::eval::typval::tv_list_append_string(args, script.as_ptr(), -1);
-            tv_list_append_number(args, eap.line1 as varnumber_T);
-            tv_list_append_number(args, eap.line2 as varnumber_T);
+            crate::eval::typval::tv_list_append_string( &mut *args, script.as_ptr(), -1);
+            tv_list_append_number( &mut *args, eap.line1 as varnumber_T);
+            tv_list_append_number( &mut *args, eap.line2 as varnumber_T);
 
             eval_call_provider(name.as_ptr().cast_mut(), c"execute", &mut *args, true);
         }
@@ -806,9 +806,9 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut exarg_T) {
             vim_FullName(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
 
             let args = tv_list_alloc(3);
-            tv_list_append_string(args, buffer.as_ptr(), -1);
-            tv_list_append_number(args, eap.line1 as varnumber_T);
-            tv_list_append_number(args, eap.line2 as varnumber_T);
+            tv_list_append_string( &mut *args, buffer.as_ptr(), -1);
+            tv_list_append_number( &mut *args, eap.line1 as varnumber_T);
+            tv_list_append_number( &mut *args, eap.line2 as varnumber_T);
             eval_call_provider(
                 name.as_ptr().cast_mut(),
                 c"execute_file",
@@ -823,9 +823,9 @@ fn script_host_do_range(name: &std::ffi::CStr, eap: &mut exarg_T) {
     unsafe {
         if eap.skip == 0 {
             let args = tv_list_alloc(3);
-            tv_list_append_number(args, eap.line1 as varnumber_T);
-            tv_list_append_number(args, eap.line2 as varnumber_T);
-            tv_list_append_string(args, eap.arg, -1);
+            tv_list_append_number( &mut *args, eap.line1 as varnumber_T);
+            tv_list_append_number( &mut *args, eap.line2 as varnumber_T);
+            tv_list_append_string( &mut *args, eap.arg, -1);
             eval_call_provider(name.as_ptr().cast_mut(), c"do_range", &mut *args, true);
         }
     }

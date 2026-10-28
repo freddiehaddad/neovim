@@ -500,13 +500,13 @@ pub fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_co
 }
 
 /// Appended `count` lines below line `lnum` in the given buffer.
-pub fn appended_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
-    changed_lines(unsafe { &mut *buf }, lnum + 1, 0, lnum + 1, count, true);
+pub fn appended_lines_buf(buf: &mut buf_T, lnum: linenr_T, count: linenr_T) {
+    changed_lines( buf, lnum + 1, 0, lnum + 1, count, true);
 }
 
 /// Appended `count` lines below line `lnum` in the current buffer.
 pub fn appended_lines(lnum: linenr_T, count: linenr_T) {
-    appended_lines_buf(g_st().curbuf, lnum, count);
+    appended_lines_buf(curbuf_mut(), lnum, count);
 }
 
 /// Like `appended_lines()`, but adjust marks first.
@@ -613,7 +613,7 @@ pub fn changed_lines(
 /// Called when the changed flag must be reset for buffer `buf`.
 pub fn unchanged(buf: &mut buf_T, ff: bool, always_inc_changedtick: bool) {
      {
-        if buf.b_changed != 0 || (ff && file_ff_differs((&raw mut *buf), false)) {
+        if buf.b_changed != 0 || (ff && file_ff_differs(buf, false)) {
             let was_changed = buf.b_changed != 0;
             buf.b_changed = 0;
             ml_setflags( buf);
@@ -654,33 +654,33 @@ pub fn save_file_ff(buf: &mut buf_T) {
 
 /// Return true if `'fileformat'` and/or `'fileencoding'` has a different value
 /// from when editing started.
-pub fn file_ff_differs(buf: *mut buf_T, ignore_empty: bool) -> bool {
+pub fn file_ff_differs(buf: &buf_T, ignore_empty: bool) -> bool {
     unsafe {
-        if ((*buf).b_flags & BF_NEVERLOADED) != 0 {
+        if (buf.b_flags & BF_NEVERLOADED) != 0 {
             return false;
         }
         if ignore_empty
-            && ((*buf).b_flags & BF_NEW) != 0
-            && (*buf).b_ml.ml_line_count == 1
-            && *ml_get_buf(buf, 1) == NUL
+            && (buf.b_flags & BF_NEW) != 0
+            && buf.b_ml.ml_line_count == 1
+            && *ml_get_buf((&raw const *buf).cast_mut(), 1) == NUL
         {
             return false;
         }
-        if (*buf).b_start_ffc != c_int::from(*(*buf).b_p_ff) {
+        if buf.b_start_ffc != c_int::from(*buf.b_p_ff) {
             return true;
         }
-        if ((*buf).b_p_bin != 0 || (*buf).b_p_fixeol == 0)
-            && ((*buf).b_start_eof != (*buf).b_p_eof || (*buf).b_start_eol != (*buf).b_p_eol)
+        if (buf.b_p_bin != 0 || buf.b_p_fixeol == 0)
+            && (buf.b_start_eof != buf.b_p_eof || buf.b_start_eol != buf.b_p_eol)
         {
             return true;
         }
-        if (*buf).b_p_bin == 0 && (*buf).b_start_bomb != (*buf).b_p_bomb {
+        if buf.b_p_bin == 0 && buf.b_start_bomb != buf.b_p_bomb {
             return true;
         }
-        let Some(ref start_fenc) = (*buf).b_start_fenc else {
-            return *(*buf).b_p_fenc != NUL;
+        let Some(ref start_fenc) = buf.b_start_fenc else {
+            return *buf.b_p_fenc != NUL;
         };
-        start_fenc.to_bytes() != crate::memory::cstr_as_bytes((*buf).b_p_fenc)
+        start_fenc.to_bytes() != crate::memory::cstr_as_bytes(buf.b_p_fenc)
     }
 }
 
@@ -716,7 +716,7 @@ pub fn ins_char(c: c_int) {
 
 pub fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
     unsafe {
-        if virtual_active(curwin_ptr()) && curwin_mut().w_cursor.coladd > 0 {
+        if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance_force(getviscol());
         }
 
@@ -805,7 +805,7 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
     unsafe {
         let lnum = curwin_mut().w_cursor.lnum;
 
-        if virtual_active(curwin_ptr()) && curwin_mut().w_cursor.coladd > 0 {
+        if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance_force(getviscol());
         }
 

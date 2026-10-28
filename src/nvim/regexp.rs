@@ -3131,16 +3131,16 @@ pub fn reg_submatch_list(no: c_int) -> *mut list_T {
 
             let mut s: *const c_char = reg_getline_submatch(slnum).add(scol as usize);
             if slnum == elnum {
-                tv_list_append_string(list, s, (ecol - scol) as isize);
+                tv_list_append_string( &mut *list, s, (ecol - scol) as isize);
             } else {
                 let max_lnum = elnum - slnum;
-                tv_list_append_string(list, s, -1);
+                tv_list_append_string( &mut *list, s, -1);
                 for i in 1..max_lnum {
                     s = reg_getline_submatch(slnum + i);
-                    tv_list_append_string(list, s, -1);
+                    tv_list_append_string( &mut *list, s, -1);
                 }
                 s = reg_getline_submatch(elnum);
-                tv_list_append_string(list, s, ecol as isize);
+                tv_list_append_string( &mut *list, s, ecol as isize);
             }
         } else {
             let s = (*re_st().rsm.sm_match).startp[no];
@@ -3148,7 +3148,7 @@ pub fn reg_submatch_list(no: c_int) -> *mut list_T {
                 return ptr::null_mut();
             }
             list = tv_list_alloc(1);
-            tv_list_append_string(list, s, (*re_st().rsm.sm_match).endp[no].offset_from(s));
+            tv_list_append_string( &mut *list, s, (*re_st().rsm.sm_match).endp[no].offset_from(s));
         }
 
         tv_list_ref(list);

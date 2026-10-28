@@ -533,7 +533,7 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if !ml_replace_buf(b, lnum as linenr_T, line_ptr, false, true) {
+                if !ml_replace_buf( &mut *b, lnum as linenr_T, line_ptr, false, true) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -853,7 +853,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_replace_buf(b, lnum as linenr_T, *lines.add(i), false, true) {
+                if !ml_replace_buf( &mut *b, lnum as linenr_T, *lines.add(i), false, true) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -1506,7 +1506,7 @@ pub fn nvim_buf_del_mark(
 
         let fm = mark_get(
             b,
-            curwin_ptr(),
+            curwin_mut(),
             None,
             kMarkAllNoResolve,
             c_int::from(*name.data.cast::<u8>()),
@@ -1608,7 +1608,7 @@ pub fn nvim_buf_get_mark(
         }
 
         let mark = c_int::from(*name.data.cast::<u8>());
-        let fm = mark_get(b, curwin_ptr(), None, kMarkAllNoResolve, mark);
+        let fm = mark_get(b, curwin_mut(), None, kMarkAllNoResolve, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
             return rv;

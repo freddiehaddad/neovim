@@ -174,7 +174,7 @@ fn json_decoder_pop(
                 return false;
             }
             assert!(last_container.special_val.is_null());
-            tv_list_append_owned_tv(last_container.container.vval.v_list(), obj.val);
+            tv_list_append_owned_tv( &mut *last_container.container.vval.v_list(), obj.val);
         } else if last_container.stack_index + 2 == stack.len() {
             if !obj.didcolon {
                 semsg!(
@@ -197,9 +197,9 @@ fn json_decoder_pop(
                 (*obj_di).di_tv = obj.val;
             } else {
                 let kv_pair = tv_list_alloc(2);
-                tv_list_append_list(last_container.special_val, kv_pair);
-                tv_list_append_owned_tv(kv_pair, key.val);
-                tv_list_append_owned_tv(kv_pair, obj.val);
+                tv_list_append_list( &mut *last_container.special_val, kv_pair);
+                tv_list_append_owned_tv( &mut *kv_pair, key.val);
+                tv_list_append_owned_tv( &mut *kv_pair, obj.val);
             }
         } else {
             if !obj.is_special_string && obj.val.v_type != VarType::VAR_STRING {
@@ -1059,10 +1059,10 @@ fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
                     vval: TypvalVval::List(list),
                 },
             );
-            tv_list_append_number(list, 1);
-            tv_list_append_number(list, ((val >> 62) & 0x3) as i64);
-            tv_list_append_number(list, ((val >> 31) & 0x7FFF_FFFF) as i64);
-            tv_list_append_number(list, (val & 0x7FFF_FFFF) as i64);
+            tv_list_append_number( &mut *list, 1);
+            tv_list_append_number( &mut *list, ((val >> 62) & 0x3) as i64);
+            tv_list_append_number( &mut *list, ((val >> 31) & 0x7FFF_FFFF) as i64);
+            tv_list_append_number( &mut *list, (val & 0x7FFF_FFFF) as i64);
         }
     }
 }
@@ -1078,7 +1078,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
                     let list = (*parent).data[1].list();
                     result = tv_list_append_owned_tv(
-                        list,
+                         &mut *list,
                         typval_T {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: 0,
@@ -1206,9 +1206,9 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                 let bytes = node.data[1].take_owned_bytes();
                 let list = tv_list_alloc(2);
                 tv_list_ref(list);
-                tv_list_append_number(list, i64::from(node.tok.data.ext_type()));
+                tv_list_append_number( &mut *list, i64::from(node.tok.data.ext_type()));
                 let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-                tv_list_append_list(list, ext_val_list);
+                tv_list_append_list( &mut *list, ext_val_list);
                 create_special_dict(
                     &mut *result,
                     K_MP_EXT,
@@ -1275,9 +1275,9 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                     let list = decode_create_map_special_dict(&mut *result, len as isize);
                     for pair in &items[..len] {
                         let kv_pair = tv_list_alloc(2);
-                        tv_list_append_list(list, kv_pair);
-                        tv_list_append_owned_tv(kv_pair, pair[0]);
-                        tv_list_append_owned_tv(kv_pair, pair[1]);
+                        tv_list_append_list( &mut *list, kv_pair);
+                        tv_list_append_owned_tv( &mut *kv_pair, pair[0]);
+                        tv_list_append_owned_tv( &mut *kv_pair, pair[1]);
                     }
                 }
             }

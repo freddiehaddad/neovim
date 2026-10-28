@@ -927,7 +927,7 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> c_int {
         let mut tv = tv_initial_value();
         let mut argv = [tv_initial_value()];
         let mut retval = -1;
-        if callback_call(&raw mut copy, 0, argv.as_mut_ptr(), &mut tv) {
+        if callback_call(&mut copy, 0, argv.as_mut_ptr(), &mut tv) {
             retval = tv_get_number_chk(&tv, None) as c_int;
             tv_clear(&raw mut tv);
         }
@@ -954,7 +954,7 @@ pub fn eval_expr_option_tv(
             g_st().textlock += 1;
         }
         let mut argv = [tv_initial_value()];
-        let ok = callback_call(&raw mut *cb, 0, argv.as_mut_ptr(), &mut *ret_tv);
+        let ok = callback_call(cb, 0, argv.as_mut_ptr(), &mut *ret_tv);
         {
             g_st().textlock -= 1;
             if use_sandbox {
@@ -985,7 +985,7 @@ pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
         let mut argv = [tv_initial_value()];
         let retval: varnumber_T;
         if !callback_call(
-            (&raw mut wp.w_onebuf_opt.wo_fde).cast(),
+            &mut *(&raw mut wp.w_onebuf_opt.wo_fde).cast(),
             0,
             argv.as_mut_ptr(),
             &mut tv,
@@ -1651,7 +1651,7 @@ pub fn set_var_lval(
             }
 
             tv_list_assign_range(
-                lp.ll_list,
+                 &mut *lp.ll_list,
                 rettv.vval.v_list(),
                 lp.ll_n1,
                 lp.ll_n2,
@@ -4117,7 +4117,7 @@ fn eval_list(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut
             }
             if evaluate {
                 tv.v_lock = VAR_UNLOCKED;
-                tv_list_append_owned_tv(l, tv);
+                tv_list_append_owned_tv( &mut *l, tv);
             }
 
             let had_comma = **arg == b',' as c_char;
@@ -5161,7 +5161,7 @@ pub fn get_callback_depth() -> c_int {
 
 /// @return  whether the callback could be called.
 pub fn callback_call(
-    callback: *mut Callback,
+    callback: &mut Callback,
     argcount_in: c_int,
     argvars_in: *mut typval_T,rettv: &mut typval_T,
 ) -> bool {
@@ -5173,9 +5173,9 @@ pub fn callback_call(
 
         let partial: *mut partial_T;
         let mut name: *mut c_char;
-        match (*callback).cb_type() {
+        match callback.cb_type() {
             kCallbackFuncref => {
-                name = (*callback).data.as_funcref();
+                name = callback.data.as_funcref();
                 let len = crate::memory::cstr_len(name) as c_int;
                 if len >= 6 && std::slice::from_raw_parts(name.cast::<u8>(), 6) == b"v:lua." {
                     name = name.add(6);
@@ -5188,7 +5188,7 @@ pub fn callback_call(
                 }
             }
             kCallbackPartial => {
-                partial = (*callback).data.as_partial();
+                partial = callback.data.as_partial();
                 name = partial_name(partial);
             }
             kCallbackLua => {
@@ -5204,7 +5204,7 @@ pub fn callback_call(
                     luaargs.size += 1;
                 }
                 let mut err = Error::new();
-                let luaref = (*callback).data.as_luaref();
+                let luaref = callback.data.as_luaref();
                 eval_st().callback_depth += 1;
                 let result = nlua_call_ref(
                     luaref,
@@ -5229,7 +5229,7 @@ pub fn callback_call(
                 eval_st().callback_depth += 1;
                 let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
                 let r = eval0_simple_funccal(
-                    skipwhite((*callback).data.as_funcref()),
+                    skipwhite(callback.data.as_funcref()),
                     rettv,
                     None,
                     &mut *evalarg_ptr,
@@ -5317,7 +5317,7 @@ pub fn add_timer_info(rettv: &mut typval_T, timer: &mut timer_T) {
         let list = rettv.vval.v_list();
         let dict = tv_dict_alloc();
 
-        tv_list_append_dict(list, dict);
+        tv_list_append_dict( &mut *list, dict);
         tv_dict_add_nr(
             dict,
             c"id",
@@ -5383,7 +5383,7 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
         let mut rettv = tv_initial_value();
 
         callback_call(
-            &raw mut timer.callback,
+            &mut timer.callback,
             1,
             argv.as_mut_ptr(),
             &mut rettv,
@@ -5732,7 +5732,7 @@ pub fn var2fpos(
             }
         } else if *name == b'\'' as c_char {
             let mname = c_int::from(*name.add(1) as u8);
-            let fm = mark_get(&mut *bp, &raw mut *wp, None, kMarkAll, mname);
+            let fm = mark_get(&mut *bp, wp, None, kMarkAll, mname);
             if fm.is_null() || (*fm).mark.lnum <= 0 {
                 return ptr::null_mut();
             }
@@ -6144,7 +6144,7 @@ pub fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
 
         tv_list_set_lock(l, VAR_FIXED);
         for i in 0..(argc as usize) {
-            tv_list_append_string(l, (*argv.add(i)).cast_const(), -1);
+            tv_list_append_string( &mut *l, (*argv.add(i)).cast_const(), -1);
             (*tv_list_item_tv(&mut *tv_list_last(l))).v_lock = VAR_FIXED;
         }
         set_vim_var_list(VV_ARGV, l);
@@ -6372,7 +6372,7 @@ pub fn handle_subscript(
         }
 
         if !selfdict.is_null() && tv_is_func(rettv) {
-            set_selfdict(rettv, selfdict);
+            set_selfdict(rettv,  &mut *selfdict);
         }
 
         tv_dict_unref(selfdict);
@@ -6380,7 +6380,7 @@ pub fn handle_subscript(
     }
 }
 
-pub fn set_selfdict(rettv: &mut typval_T, selfdict: *mut dict_T) {
+pub fn set_selfdict(rettv: &mut typval_T, selfdict: &mut dict_T) {
     unsafe {
         if rettv.v_type == VarType::VAR_PARTIAL
             && !(*tv_partial(&*rettv)).pt_auto
@@ -6388,7 +6388,7 @@ pub fn set_selfdict(rettv: &mut typval_T, selfdict: *mut dict_T) {
         {
             return;
         }
-        make_partial( &mut *selfdict, rettv);
+        make_partial( selfdict, rettv);
     }
 }
 
@@ -6893,7 +6893,7 @@ pub fn script_host_eval(name: &std::ffi::CStr,argvars: &mut [typval_T],rettv: &m
         }
 
         let args = tv_list_alloc(1);
-        tv_list_append_string(args, argvars[0].vval.v_string(), -1);
+        tv_list_append_string( &mut *args, argvars[0].vval.v_string(), -1);
         *rettv = eval_call_provider(name.as_ptr().cast_mut(), c"eval", &mut *args, false);
     }
 }

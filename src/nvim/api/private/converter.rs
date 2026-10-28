@@ -415,7 +415,7 @@ pub fn object_to_vim_take_luaref(
                     vval: TypvalVval::Number(0),
                 };
                 object_to_vim_take_luaref(&mut *arr.items.add(i), &mut li_tv, take_luaref, _err);
-                tv_list_append_owned_tv(list, li_tv);
+                tv_list_append_owned_tv( &mut *list, li_tv);
             }
             if !list.is_null() {
                 (*list).lv_refcount += 1;
@@ -506,7 +506,7 @@ mod tests {
                 v_lock: 0,
                 vval: TypvalVval::List(list),
             };
-            tv_list_append_owned_tv(list, list_tv);
+            tv_list_append_owned_tv( &mut *list, list_tv);
             let cyc_obj = vim_to_object(&mut list_tv, None, false);
             assert_eq!(cyc_obj.obj_type, ObjectType::kObjectTypeArray);
             assert_eq!(cyc_obj.data.array().size, 1);

@@ -2281,7 +2281,7 @@ pub fn beginline(flags: c_int) {
 
 pub fn oneright() -> bool {
     unsafe {
-        if virtual_active(curwin_ptr()) {
+        if virtual_active(curwin_mut()) {
             let prevpos = curwin_mut().w_cursor;
             let ptr = get_cursor_pos_ptr();
             let step = if *ptr != TAB as c_char && vim_isprintc(utf_ptr2char(ptr)) {
@@ -2312,7 +2312,7 @@ pub fn oneright() -> bool {
 
 pub fn oneleft() -> bool {
     unsafe {
-        if virtual_active(curwin_ptr()) {
+        if virtual_active(curwin_mut()) {
             let v = getviscol();
             if v == 0 {
                 return false;
@@ -2996,7 +2996,7 @@ fn ins_ctrl_o() {
         } else {
             g_st().restart_edit = b'I' as c_int;
         }
-        if virtual_active(curwin_ptr()) {
+        if virtual_active(curwin_mut()) {
             g_st().ins_at_eol = false;
         } else {
             g_st().ins_at_eol = gchar_cursor() == NUL as c_int;
@@ -3463,10 +3463,10 @@ fn ins_right() {
             foldOpenCursor();
         }
         undisplay_dollar();
-        if gchar_cursor() != NUL as c_int || virtual_active(curwin_ptr()) {
+        if gchar_cursor() != NUL as c_int || virtual_active(curwin_mut()) {
             start_arrow_with_change(&mut curwin_mut().w_cursor, end_change, K_RIGHT);
             curwin_mut().w_set_curswant = true;
-            if virtual_active(curwin_ptr()) {
+            if virtual_active(curwin_mut()) {
                 oneright();
             } else {
                 curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
@@ -3842,7 +3842,7 @@ pub fn ins_eol(c: c_int) -> bool {
             replace_push_nul();
         }
 
-        if virtual_active(curwin_ptr()) && curwin_mut().w_cursor.coladd > 0 {
+        if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance(curwin_mut(), getviscol());
         }
 

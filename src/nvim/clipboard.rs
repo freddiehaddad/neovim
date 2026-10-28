@@ -131,7 +131,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
 
         let args = tv_list_alloc(1);
         let regname = name as c_char;
-        tv_list_append_string(args, &regname, 1);
+        tv_list_append_string( &mut *args, &regname, 1);
 
         let result = eval_call_provider(
             c"clipboard",
@@ -240,27 +240,27 @@ pub fn set_clipboard(mut name: c_int, reg: &yankreg_T) {
         let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
         for &item in &reg.y_array {
-            tv_list_append_string(lines, item.data, item.size as isize);
+            tv_list_append_string( &mut *lines, item.data, item.size as isize);
         }
 
         let regtype: c_char = match reg.y_type {
             MotionType::kMTLineWise => {
-                tv_list_append_string(lines, std::ptr::null(), 0);
+                tv_list_append_string( &mut *lines, std::ptr::null(), 0);
                 b'V' as c_char
             }
             MotionType::kMTCharWise => b'v' as c_char,
             MotionType::kMTBlockWise => {
-                tv_list_append_string(lines, std::ptr::null(), 0);
+                tv_list_append_string( &mut *lines, std::ptr::null(), 0);
                 b'b' as c_char
             }
             MotionType::kMTUnknown => std::process::abort(),
         };
 
         let args = tv_list_alloc(3);
-        tv_list_append_list(args, lines);
-        tv_list_append_string(args, &regtype, 1);
+        tv_list_append_list( &mut *args, lines);
+        tv_list_append_string( &mut *args, &regtype, 1);
         let name_char = name as c_char;
-        tv_list_append_string(args, &name_char, 1);
+        tv_list_append_string( &mut *args, &name_char, 1);
 
         let _ = eval_call_provider(
             c"clipboard",

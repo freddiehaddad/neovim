@@ -368,7 +368,7 @@ fn filter_map_list(
                 newtv.v_lock = VAR_UNLOCKED;
                 (*li).li_tv = newtv;
             } else if filtermap == FilterMap::MapNew {
-                tv_list_append_owned_tv(l_ret, newtv);
+                tv_list_append_owned_tv( &mut *l_ret, newtv);
             }
             if filtermap == FilterMap::Filter && rem {
                 li = tv_list_item_remove(l, li);
@@ -481,7 +481,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
         if arg0.v_type == VarType::VAR_LIST {
             let l = arg0.vval.v_list();
             if !value_check_lock(tv_list_locked(l), c"add() argument", TV_TRANSLATE) {
-                tv_list_append_tv(l, &mut argvars[1]);
+                tv_list_append_tv( &mut *l, &mut argvars[1]);
                 tv_copy(&argvars[0], rettv);
             }
         } else if arg0.v_type == VarType::VAR_BLOB {

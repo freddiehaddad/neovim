@@ -973,10 +973,10 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                         break;
                     }
                     let l = tv_list_alloc(1 + if llpos.col > 0 { 2 } else { 0 });
-                    tv_list_append_number(l, llpos.lnum as varnumber_T);
+                    tv_list_append_number( &mut *l, llpos.lnum as varnumber_T);
                     if llpos.col > 0 {
-                        tv_list_append_number(l, llpos.col as varnumber_T);
-                        tv_list_append_number(l, llpos.len as varnumber_T);
+                        tv_list_append_number( &mut *l, llpos.col as varnumber_T);
+                        tv_list_append_number( &mut *l, llpos.len as varnumber_T);
                     }
                     let mut buf = [0 as c_char; 30];
                     let len =
@@ -1006,7 +1006,7 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 tv_dict_add_str_len(dict, c"conceal", buf.as_ptr(), buflen);
             }
 
-            tv_list_append_dict(rettv.vval.v_list(), dict);
+            tv_list_append_dict( &mut *rettv.vval.v_list(), dict);
         }
     }
 }
@@ -1075,7 +1075,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                             tv_list_unref(s);
                             return;
                         }
-                        tv_list_append_tv(s, &mut (*pos_di).di_tv);
+                        tv_list_append_tv( &mut *s, &mut (*pos_di).di_tv);
                     } else {
                         break;
                     }
@@ -1226,17 +1226,17 @@ pub fn f_matcharg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         if (1..=3).contains(&id) {
             let m = get_match(curwin_mut(), id);
             if !m.is_null() {
-                tv_list_append_string(rettv.vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
+                tv_list_append_string( &mut *rettv.vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
                 tv_list_append_string(
-                    rettv.vval.v_list(),
+                     &mut *rettv.vval.v_list(),
                     (*m).mit_pattern
                         .as_ref()
                         .map_or(ptr::null(), |p| p.as_ptr()),
                     -1,
                 );
             } else {
-                tv_list_append_string(rettv.vval.v_list(), ptr::null(), 0);
-                tv_list_append_string(rettv.vval.v_list(), ptr::null(), 0);
+                tv_list_append_string( &mut *rettv.vval.v_list(), ptr::null(), 0);
+                tv_list_append_string( &mut *rettv.vval.v_list(), ptr::null(), 0);
             }
         }
     }

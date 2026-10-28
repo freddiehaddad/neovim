@@ -603,7 +603,7 @@ pub fn get_changelist(buf: &mut buf_T, win: &mut win_T, count: c_int) -> *mut fm
 /// Get a named mark (`mark_get`).
 pub fn mark_get(
     buf: &mut buf_T,
-    win: *mut win_T,fmp: Option<&mut fmark_T>,
+    win: &mut win_T,fmp: Option<&mut fmark_T>,
     flag: MarkGet,
     name: c_int,
 ) -> *mut fmark_T {
@@ -624,7 +624,7 @@ pub fn mark_get(
                 );
             }
         } else if name > 0 && name < NMARK_LOCAL_MAX {
-            fm = mark_get_local(buf,  &mut *win, name);
+            fm = mark_get_local(buf,  win, name);
         }
         if let Some(fmp) = fmp
             && !fm.is_null()
@@ -2163,7 +2163,7 @@ pub fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
 
 /// Add information about mark `mname` to list `l` (`add_mark`).
 fn add_mark<S: crate::strings::IntoCCharPtr>(
-    l: *mut list_T,
+    l: &mut list_T,
     mname: S,
     pos: &pos_T,
     bufnr: c_int,
@@ -2179,17 +2179,17 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
         tv_list_append_dict(l, d);
 
         let lpos = tv_list_alloc(kListLenMayKnow);
-        tv_list_append_number(lpos, i64::from(bufnr));
-        tv_list_append_number(lpos, i64::from(pos.lnum));
+        tv_list_append_number( &mut *lpos, i64::from(bufnr));
+        tv_list_append_number( &mut *lpos, i64::from(pos.lnum));
         tv_list_append_number(
-            lpos,
+             &mut *lpos,
             i64::from(if pos.col < MAXCOL {
                 pos.col + 1
             } else {
                 MAXCOL
             }),
         );
-        tv_list_append_number(lpos, i64::from(pos.coladd));
+        tv_list_append_number( &mut *lpos, i64::from(pos.coladd));
 
         if !tv_dict_add_str_len(d, c"mark", mname, crate::memory::cstr_len(mname) as c_int)
             || !tv_dict_add_list(d, c"pos", lpos)
@@ -2203,7 +2203,7 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
 }
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).
-pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
+pub fn get_buf_local_marks(buf: &buf_T, l: &mut list_T) {
      {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 
@@ -2293,7 +2293,7 @@ pub fn get_raw_global_mark(name: c_char) -> xfmark_T {
 }
 
 /// Get information about global marks (`get_global_marks`).
-pub fn get_global_marks(l: *mut list_T) {
+pub fn get_global_marks(l: &mut list_T) {
     unsafe {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 

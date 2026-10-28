@@ -231,13 +231,13 @@ fn coladvance2(
             }
             idx = ci.ptr.offset_from(line) as c_int;
 
-            if col > wcol || (!virtual_active(wp) && one_more == 0) {
+            if col > wcol || (!virtual_active( &mut *wp) && one_more == 0) {
                 idx -= 1;
                 csize -= head;
                 col -= csize;
             }
 
-            if virtual_active(wp)
+            if virtual_active( &mut *wp)
                 && addspaces
                 && wcol >= 0
                 && ((col != wcol && col != wcol + 1) || csize > 1)
@@ -320,7 +320,7 @@ fn coladvance2(
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
 pub fn getvpos(wp: *mut win_T, pos: &mut pos_T, wcol: colnr_T) -> bool {
-    unsafe { coladvance2(&mut *wp, pos, false, virtual_active(wp), wcol) }
+    unsafe { coladvance2(&mut *wp, pos, false, virtual_active( &mut *wp), wcol) }
 }
 
 /// Increment the cursor position (`inc_cursor`).
@@ -401,7 +401,7 @@ pub fn check_cursor_col(win: &mut win_T) {
                 || (g_st().State & MODE_TERMINAL) != 0
                 || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
                 || (cur_ve_flags & kOptVeFlagOnemore) != 0
-                || virtual_active(win)
+                || virtual_active( &mut *win)
             {
                 win.w_cursor.col = len;
             } else {

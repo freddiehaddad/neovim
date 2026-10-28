@@ -5200,7 +5200,7 @@ fn show_sub(
                         line,
                     );
                     if linenr_preview == 0 {
-                        ml_replace_buf(cmdpreview_buf, 1, str, true, false);
+                        ml_replace_buf( &mut *cmdpreview_buf, 1, str, true, false);
                     } else {
                         ml_append_buf( &mut *cmdpreview_buf, linenr_preview, str, line_size, false);
                     }

@@ -949,9 +949,9 @@ fn hmll_dealloc(hmll: &mut HMLList) {
         hmll.entries = Vec::new();
 }
 
-fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDaReadResult {
+fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadResult {
     unsafe {
-        let skip_bytes = file_skip(sd_reader, offset);
+        let skip_bytes = file_skip((&raw mut *sd_reader), offset);
         if skip_bytes < 0 {
             semsg!(
                 gettext(c"E886: System error while skipping in ShaDa file: %s"),
@@ -960,7 +960,7 @@ fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDaReadRes
             return ShaDaReadResult::kSDReadStatusReadError;
         } else if skip_bytes != (offset as isize) {
             assert!(skip_bytes < (offset as isize));
-            if file_eof( &*sd_reader) {
+            if file_eof( sd_reader) {
                 semsg!(
                     gettext(
                         c"E576: Reading ShaDa file: last entry specified that it occupies %llu bytes, but file ended earlier",
@@ -1614,7 +1614,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         .as_ref()
                         .map_or(ptr::null(), |s| s.as_ptr());
                     if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr)) {
-                        crate::eval::typval::tv_list_append_string(oldfiles_list, fname_ptr, -1);
+                        crate::eval::typval::tv_list_append_string( &mut *oldfiles_list, fname_ptr, -1);
                         oldfiles_set.insert(PathKey((*(*oldfiles_list).lv_last).li_tv.vval.v_string()));
                     }
                     if !want_marks {
@@ -2310,7 +2310,7 @@ fn shada_read_when_writing(
                                         let mut fm = fmark_T::new();
                                         mark_get(
                                             buf,
-                                            curwin_ptr(),
+                                            curwin_mut(),
                                             Some(&mut fm),
                                             kMarkBufLocal,
                                             c_int::from(fm_name),
@@ -3618,7 +3618,7 @@ fn shada_read_next_item(
                 {
                     verify_but_ignore = true;
                 } else {
-                    let srs_ret = sd_reader_skip((&raw mut *sd_reader), length);
+                    let srs_ret = sd_reader_skip(sd_reader, length);
                     if srs_ret != ShaDaReadResult::kSDReadStatusSuccess {
                         return srs_ret;
                     }

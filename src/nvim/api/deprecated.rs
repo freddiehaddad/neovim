@@ -784,7 +784,7 @@ pub fn nvim_get_option_info(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-     get_option_info(name, OPT_GLOBAL, g_st().curbuf.cast(), curwin_ptr(), arena, err)
+     get_option_info(name, OPT_GLOBAL, g_st().curbuf.cast(), curwin_mut(), arena, err)
 }
 
 /// Sets the global value of an option.

@@ -975,7 +975,7 @@ fn select_tag_match(eap: Option<&exarg_T>,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict(d),
             };
-            tv_list_append_tv(items_tv.vval.v_list(), &mut item);
+            tv_list_append_tv( &mut *items_tv.vval.v_list(), &mut item);
         }
 
         let extra_d = tv_dict_alloc();
@@ -1079,7 +1079,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
             }
 
             let dict = tv_dict_alloc();
-            tv_list_append_dict(list, dict);
+            tv_list_append_dict( &mut *list, dict);
 
             tv_dict_add_str(dict, c"text", tag_name.as_ptr());
             tv_dict_add_str(dict, c"filename", fname);
@@ -1323,7 +1323,7 @@ fn find_tagfunc_tags(
 
         let save_pos = curwin_mut().w_cursor;
         let mut result = if callback_call(
-            &raw mut (*g_st().curbuf).b_p_tfu,
+            &mut (*g_st().curbuf).b_p_tfu,
             3,
             args.as_mut_ptr(),
             &mut rettv,
@@ -3251,7 +3251,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
             }
 
             let dict = tv_dict_alloc();
-            tv_list_append_dict(list, dict);
+            tv_list_append_dict( &mut *list, dict);
 
             let full_fname = tag_full_fname(&mut tp);
             if !add_tag_field(dict, c"name", tp.tagname, tp.tagname_end)
@@ -3351,23 +3351,23 @@ fn get_tag_details(tag: &mut taggy_T, retdict: *mut dict_T) {
 
         let fmark = &raw mut tag.fmark;
         tv_list_append_number(
-            pos,
+             &mut *pos,
             if (*fmark).fnum != -1 {
                 (*fmark).fnum as varnumber_T
             } else {
                 0
             },
         );
-        tv_list_append_number(pos, (*fmark).mark.lnum as varnumber_T);
+        tv_list_append_number( &mut *pos, (*fmark).mark.lnum as varnumber_T);
         tv_list_append_number(
-            pos,
+             &mut *pos,
             if (*fmark).mark.col == MAXCOL {
                 MAXCOL as varnumber_T
             } else {
                 ((*fmark).mark.col + 1) as varnumber_T
             },
         );
-        tv_list_append_number(pos, (*fmark).mark.coladd as varnumber_T);
+        tv_list_append_number( &mut *pos, (*fmark).mark.coladd as varnumber_T);
     }
 }
 
@@ -3390,7 +3390,7 @@ pub fn get_tagstack(wp: &mut win_T, retdict: &mut dict_T) {
         let tagstack = (&raw mut wp.w_tagstack).cast::<taggy_T>();
         for i in 0..wp.w_tagstacklen as usize {
             let d = tv_dict_alloc();
-            tv_list_append_dict(l, d);
+            tv_list_append_dict( &mut *l, d);
             get_tag_details(&mut *tagstack.add(i), d);
         }
     }

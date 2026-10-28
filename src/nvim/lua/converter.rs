@@ -731,9 +731,9 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                         if cur.special {
                             let kv_pair = tv_list_alloc(2);
                             let s_tv = decode_string(s, len, true, false);
-                            tv_list_append_owned_tv(kv_pair, s_tv);
+                            tv_list_append_owned_tv( &mut *kv_pair, s_tv);
                             tv_list_append_owned_tv(
-                                kv_pair,
+                                 &mut *kv_pair,
                                 typval_T {
                                     v_type: VarType::VAR_UNKNOWN,
                                     v_lock: VAR_UNLOCKED,
@@ -741,7 +741,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                                 },
                             );
                             stack.push(cur);
-                            tv_list_append_list((*cur.tv).vval.v_list(), kv_pair);
+                            tv_list_append_list( &mut *(*cur.tv).vval.v_list(), kv_pair);
                             let last = tv_list_last(kv_pair);
                             cur = TVPopStackItem {
                                 tv: &mut (*last).li_tv,
@@ -776,7 +776,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     }
                     lua_rawgeti(lstate, -1, tv_list_len(list) + 1);
                     tv_list_append_owned_tv(
-                        list,
+                         &mut *list,
                         typval_T {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: VAR_UNLOCKED,

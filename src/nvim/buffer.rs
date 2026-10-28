@@ -889,7 +889,7 @@ const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
 
 #[inline]
 fn buf_is_changed(buf: &buf_T) -> bool {
-    !bt_dontwrite(&raw const *buf) && (buf.b_changed != 0 || file_ff_differs((&raw const *buf).cast_mut(), true))
+    !bt_dontwrite(&raw const *buf) && (buf.b_changed != 0 || file_ff_differs(buf, true))
 }
 
 #[inline]
@@ -1639,7 +1639,7 @@ pub fn buf_freeall(buf: &mut buf_T, flags: c_int) -> bool {
         let count = buf.b_ml.ml_line_count;
         ml_close( buf, 1);
         buf.b_ml.ml_line_count = 0;
-        mc_buf_clear(&raw mut *buf);
+        mc_buf_clear(buf);
 
         if bt_nofilename(&raw mut *buf) && !g_st().exiting {
             mark_adjust_buf(

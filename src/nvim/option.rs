@@ -3615,7 +3615,7 @@ fn check_num_option_bounds(
 fn validate_num_option(
     opt_idx: OptIndex,
     newval: *mut OptInt,
-    win: *mut win_T,
+    win: &mut win_T,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
@@ -3766,7 +3766,7 @@ fn validate_num_option(
             _ => {}
         }
 
-        check_num_option_bounds(opt_idx, newval,  &mut *win, errbuf)
+        check_num_option_bounds(opt_idx, newval,  win, errbuf)
     }
 }
 
@@ -5744,7 +5744,7 @@ pub fn validate_and_prepare_option_value(args: &mut optset_T) -> *const c_char {
                 c"".as_ptr()
             };
         } else if newval.obj_type == ObjectType::kObjectTypeInteger {
-            errmsg = validate_num_option(opt_idx, newval.data.integer_mut(), win, errbuf);
+            errmsg = validate_num_option(opt_idx, newval.data.integer_mut(),  &mut *win, errbuf);
         }
         if !errmsg.is_null() {
             return errmsg;
@@ -8607,7 +8607,7 @@ pub fn get_option_info(
     name: NvimString,
     opt_flags: c_int,
     buf: *mut buf_T,
-    win: *mut win_T,
+    win: &mut win_T,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
@@ -8623,7 +8623,7 @@ pub fn get_option_info(
             return Dict::new();
         }
 
-        option_info_dict(&mut *get_option(opt_idx), opt_flags,  &mut *buf,  &mut *win, arena)
+        option_info_dict(&mut *get_option(opt_idx), opt_flags,  &mut *buf,  win, arena)
     }
 }
 

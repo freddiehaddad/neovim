@@ -5925,7 +5925,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
 
         for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
-            tv_list_append_string(rettv.vval.v_list(), f.as_ptr(), f.as_bytes().len() as isize);
+            tv_list_append_string( &mut *rettv.vval.v_list(), f.as_ptr(), f.as_bytes().len() as isize);
         }
     }
 }
@@ -6004,7 +6004,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
             let mut idx: usize = 0;
             while ret && (idx as c_int) < (*(*ccline).xpc).xp_numfiles {
                 tv_list_append_string(
-                    li,
+                     &mut *li,
                     files[idx].as_ptr(),
                     files[idx].as_bytes().len() as isize,
                 );

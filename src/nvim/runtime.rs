@@ -536,7 +536,7 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
 }
 
 fn stacktrace_push_item(
-    l: *mut list_T,
+    l: &mut list_T,
     fp: *mut ufunc_T,
     event: *const c_char,
     lnum: linenr_T,
@@ -571,7 +571,7 @@ pub fn stacktrace_create() -> *mut list_T {
             let mut lnum = entry.es_lnum;
 
             if entry.es_type == ETYPE_SCRIPT {
-                stacktrace_push_item(l, ptr::null_mut(), ptr::null(), lnum, entry.name_ptr());
+                stacktrace_push_item( &mut *l, ptr::null_mut(), ptr::null(), lnum, entry.name_ptr());
             } else if entry.es_type == ETYPE_UFUNC {
                 let fp = entry.es_info.ufunc();
                 let sctx = (*fp).uf_script_ctx;
@@ -581,7 +581,7 @@ pub fn stacktrace_create() -> *mut list_T {
                     std::borrow::Cow::Borrowed(c"")
                 };
                 lnum += sctx.sc_lnum;
-                stacktrace_push_item(l, fp, ptr::null(), lnum, filepath.as_ptr());
+                stacktrace_push_item( &mut *l, fp, ptr::null(), lnum, filepath.as_ptr());
             } else if entry.es_type == ETYPE_AUCMD {
                 let sctx = entry.es_info.aucmd_sctx();
                 let filepath = if sctx.sc_sid > 0 {
@@ -591,7 +591,7 @@ pub fn stacktrace_create() -> *mut list_T {
                 };
                 lnum += sctx.sc_lnum;
                 stacktrace_push_item(
-                    l,
+                     &mut *l,
                     ptr::null_mut(),
                     entry.name_ptr(),
                     lnum,
@@ -3251,7 +3251,7 @@ fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
                 } else {
                     (*fp).uf_name.as_ptr()
                 };
-                tv_list_append_string(l, name, -1);
+                tv_list_append_string( &mut *l, name, -1);
             }
         }
 
@@ -3313,7 +3313,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 && (!filterpat || vim_regexec(&mut regmatch, sn.as_ptr(), 0))
             {
                 let d = tv_dict_alloc();
-                tv_list_append_dict(l, d);
+                tv_list_append_dict( &mut *l, d);
                 tv_dict_add_str(d, c"name", sn.as_ptr());
                 tv_dict_add_nr(d, c"sid", i);
                 tv_dict_add_nr(d, c"version", 1);

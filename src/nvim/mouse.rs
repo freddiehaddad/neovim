@@ -731,7 +731,7 @@ pub fn do_mouse(
                 mouse_st().got_click = false;
                 if (g_st().State & MODE_INSERT) == 0 {
                     pos.coladd = 0;
-                    mc_toggle((*wp).w_buffer, pos, false, kNone);
+                    mc_toggle((*wp).buf_mut(), pos, false, kNone);
                 }
                 return false;
             }
@@ -1755,7 +1755,7 @@ fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
             return false;
         }
 
-        if !virtual_active(curwin_ptr()) && leftcol > scroll_line_len(curwin_mut().w_cursor.lnum) {
+        if !virtual_active(curwin_mut()) && leftcol > scroll_line_len(curwin_mut().w_cursor.lnum) {
             curwin_mut().w_cursor.lnum = find_longest_lnum();
             curwin_mut().w_cursor.col = 0;
         }

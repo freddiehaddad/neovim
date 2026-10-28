@@ -1222,7 +1222,7 @@ pub fn tv_list_move_items(
 pub fn tv_list_insert(l: &mut list_T, ni: &mut listitem_T, item: *mut listitem_T) {
     unsafe {
         if item.is_null() {
-            tv_list_append((&raw mut *l), ni);
+            tv_list_append(l, ni);
         } else {
             ni.li_prev = (*item).li_prev;
             ni.li_next = item;
@@ -1249,24 +1249,24 @@ pub fn tv_list_insert_tv(l: *mut list_T,tv: &mut typval_T, item: *mut listitem_T
 }
 
 /// Append item to the end of list.
-pub fn tv_list_append(l: *mut list_T, item: &mut listitem_T) {
+pub fn tv_list_append(l: &mut list_T, item: &mut listitem_T) {
     unsafe {
-        if (*l).lv_last.is_null() {
-            (*l).lv_first = (&raw mut *item);
-            (*l).lv_last = (&raw mut *item);
+        if l.lv_last.is_null() {
+            l.lv_first = (&raw mut *item);
+            l.lv_last = (&raw mut *item);
             item.li_prev = ptr::null_mut();
         } else {
-            (*(*l).lv_last).li_next = (&raw mut *item);
-            item.li_prev = (*l).lv_last;
-            (*l).lv_last = (&raw mut *item);
+            (*l.lv_last).li_next = (&raw mut *item);
+            item.li_prev = l.lv_last;
+            l.lv_last = (&raw mut *item);
         }
-        (*l).lv_len += 1;
+        l.lv_len += 1;
         item.li_next = ptr::null_mut();
     }
 }
 
 /// Append Vimscript value to the end of list.
-pub fn tv_list_append_tv(l: *mut list_T,tv: &mut typval_T) {
+pub fn tv_list_append_tv(l: &mut list_T,tv: &mut typval_T) {
     unsafe {
         let li = tv_list_item_alloc();
         tv_copy(&*tv, &mut (*li).li_tv);
@@ -1275,7 +1275,7 @@ pub fn tv_list_append_tv(l: *mut list_T,tv: &mut typval_T) {
 }
 
 /// Like tv_list_append_tv(), but tv is moved to a list.
-pub fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T {
+pub fn tv_list_append_owned_tv(l: &mut list_T, tv: typval_T) -> *mut typval_T {
     unsafe {
         let li = tv_list_item_alloc();
         (*li).li_tv = tv;
@@ -1285,7 +1285,7 @@ pub fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T {
 }
 
 /// Append a list to a list as one item.
-pub fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T) {
+pub fn tv_list_append_list(l: &mut list_T, itemlist: *mut list_T) {
     tv_list_append_owned_tv(
             l,
             typval_T {
@@ -1298,7 +1298,7 @@ pub fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T) {
 }
 
 /// Append a dictionary to a list.
-pub fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T) {
+pub fn tv_list_append_dict(l: &mut list_T, dict: *mut dict_T) {
     unsafe {
         tv_list_append_owned_tv(
             l,
@@ -1316,7 +1316,7 @@ pub fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T) {
 
 /// Make a copy of "str" and append it as an item to list "l".
 pub fn tv_list_append_string<S: crate::strings::IntoCCharPtr>(
-    l: *mut list_T,
+    l: &mut list_T,
     str_: S,
     len: isize,
 ) {
@@ -1341,7 +1341,7 @@ pub fn tv_list_append_string<S: crate::strings::IntoCCharPtr>(
 }
 
 /// Append number to the list.
-pub fn tv_list_append_number(l: *mut list_T, n: varnumber_T) {
+pub fn tv_list_append_number(l: &mut list_T, n: varnumber_T) {
     tv_list_append_owned_tv(
             l,
             typval_T {
@@ -1391,7 +1391,7 @@ pub fn tv_list_copy(
             } else {
                 tv_copy(&item.li_tv, &mut (*ni).li_tv);
             }
-            tv_list_append(copy,  &mut *ni);
+            tv_list_append( &mut *copy,  &mut *ni);
         }
 
         copy
@@ -1449,7 +1449,7 @@ pub fn tv_list_check_range_index_two(
 
 /// Assign values from list "src" into a range of "dest".
 pub fn tv_list_assign_range(
-    dest: *mut list_T,
+    dest: &mut list_T,
     src: *mut list_T,
     idx1_arg: c_int,
     idx2: c_int,
@@ -1459,7 +1459,7 @@ pub fn tv_list_assign_range(
 ) -> bool {
     unsafe {
         let mut idx1 = idx1_arg;
-        let first_li = tv_list_find_index(dest, &mut idx1);
+        let first_li = tv_list_find_index((&raw mut *dest), &mut idx1);
         let mut src_li: *mut listitem_T;
 
         let mut idx = idx1;
@@ -1494,7 +1494,7 @@ pub fn tv_list_assign_range(
             }
             if (*dest_li).li_next.is_null() {
                 tv_list_append_number(dest, 0);
-                dest_li = tv_list_last_inline(dest);
+                dest_li = tv_list_last_inline(&raw mut *dest);
             } else {
                 dest_li = (*dest_li).li_next;
             }
@@ -1574,9 +1574,9 @@ fn tv_blob2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 
         for i in 0..tv_blob_len_inline(blob) {
             let l2 = tv_list_alloc(2);
-            tv_list_append_list(rettv.vval.v_list(), l2);
-            tv_list_append_number(l2, i64::from(i));
-            tv_list_append_number(l2, i64::from(tv_blob_get_inline(&*blob, i)));
+            tv_list_append_list( &mut *rettv.vval.v_list(), l2);
+            tv_list_append_number( &mut *l2, i64::from(i));
+            tv_list_append_number( &mut *l2, i64::from(tv_blob_get_inline(&*blob, i)));
         }
     }
 }
@@ -1598,9 +1598,9 @@ fn tv_list2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 
         for (idx, li) in (0 as varnumber_T..).zip(crate::eval::typval::list_iter_mut((*l).lv_first)) {
             let l2 = tv_list_alloc(2);
-            tv_list_append_list(rettv.vval.v_list(), l2);
-            tv_list_append_number(l2, idx);
-            tv_list_append_tv(l2, &mut li.li_tv);
+            tv_list_append_list( &mut *rettv.vval.v_list(), l2);
+            tv_list_append_number( &mut *l2, idx);
+            tv_list_append_tv( &mut *l2, &mut li.li_tv);
         }
     }
 }
@@ -1622,9 +1622,9 @@ fn tv_string2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
                 break;
             }
             let l2 = tv_list_alloc(2);
-            tv_list_append_list(rettv.vval.v_list(), l2);
-            tv_list_append_number(l2, idx);
-            tv_list_append_string(l2, p, len as isize);
+            tv_list_append_list( &mut *rettv.vval.v_list(), l2);
+            tv_list_append_number( &mut *l2, idx);
+            tv_list_append_string( &mut *l2, p, len as isize);
             p = p.add(len as usize);
             idx += 1;
         }
@@ -1690,7 +1690,7 @@ fn tv_list_slice(ol: *mut list_T, mut n1: varnumber_T, n2: varnumber_T) -> *mut 
         let l = tv_list_alloc((n2 - n1 + 1) as isize);
         let mut item = tv_list_find(ol, n1 as c_int);
         while n1 <= n2 {
-            tv_list_append_tv(l, &mut (*item).li_tv);
+            tv_list_append_tv( &mut *l, &mut (*item).li_tv);
             item = (*item).li_next;
             n1 += 1;
         }
@@ -2200,7 +2200,7 @@ fn do_sort(l: &mut list_T, info: &mut sortinfo_T) {
             l.lv_idx_item = ptr::null_mut();
             l.lv_len = 0;
             for si in &ptrs {
-                tv_list_append((&raw mut *l), unsafe { &mut *si.item });
+                tv_list_append(l, unsafe { &mut *si.item });
             }
         }
         if info.item_compare_func_err {
@@ -2784,7 +2784,7 @@ pub fn tv_dict_watcher_notify(
                 let mut rettv = tv_initial_value();
                 (&mut dict.watchers)[i].busy = true;
                 let mut cb = (&dict.watchers)[i].callback.clone();
-                callback_call(&raw mut cb, 3, argv.as_mut_ptr(), &mut rettv);
+                callback_call(&mut cb, 3, argv.as_mut_ptr(), &mut rettv);
                 let w = &mut (&mut dict.watchers)[i];
                 w.callback = cb;
                 w.busy = false;
@@ -3114,7 +3114,7 @@ pub fn tv_dict_get_callback(
 
         let mut tv = tv_initial_value();
         tv_copy(&(*di).di_tv, &mut tv);
-        set_selfdict(&mut tv, d);
+        set_selfdict(&mut tv,  &mut *d);
         let res = callback_from_typval(result, &tv);
         tv_clear(&raw mut tv);
         res
@@ -3795,7 +3795,7 @@ pub fn f_blob2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let blob = argvars[0].vval.v_blob();
         let l = rettv.vval.v_list();
         for i in 0..tv_blob_len_inline(blob) {
-            tv_list_append_number(l, i64::from(tv_blob_get_inline(&*blob, i)));
+            tv_list_append_number( &mut *l, i64::from(tv_blob_get_inline(&*blob, i)));
         }
     }
 }
@@ -3894,12 +3894,12 @@ fn tv_dict2list(argvars: &mut [typval_T], rettv: &mut typval_T, what: DictListTy
                         tv_item.v_type = VarType::VAR_LIST;
                         tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l);
                         tv_list_ref_inline(sub_l);
-                        tv_list_append_string(sub_l, key_ptr, -1);
-                        tv_list_append_tv(sub_l, &mut (*di).di_tv);
+                        tv_list_append_string( &mut *sub_l, key_ptr, -1);
+                        tv_list_append_tv( &mut *sub_l, &mut (*di).di_tv);
                     }
                 }
 
-                tv_list_append_owned_tv(rettv.vval.v_list(), tv_item);
+                tv_list_append_owned_tv( &mut *rettv.vval.v_list(), tv_item);
             }
             hi = hi.add(1);
         }
@@ -5232,9 +5232,9 @@ mod tests {
             let l = tv_list_alloc(0);
             assert!(!l.is_null());
             (*l).lv_refcount = 1;
-            tv_list_append_number(l, 10);
-            tv_list_append_number(l, 20);
-            tv_list_append_number(l, 30);
+            tv_list_append_number( &mut *l, 10);
+            tv_list_append_number( &mut *l, 20);
+            tv_list_append_number( &mut *l, 30);
             assert_eq!(tv_list_len_inline(l), 3);
 
             let item1 = tv_list_find(l, 1);
@@ -5278,8 +5278,8 @@ mod tests {
             // insert, insert_tv, append_string, append_allocated_string, append_tv, append_owned_tv
             let l2 = tv_list_alloc(0);
             (*l2).lv_refcount = 1;
-            tv_list_append_string(l2, c"hello", 5);
-            tv_list_append_string(l2, c"world", -1);
+            tv_list_append_string( &mut *l2, c"hello", 5);
+            tv_list_append_string( &mut *l2, c"world", -1);
             let mut tv_ins = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
@@ -5440,7 +5440,7 @@ mod tests {
             // tv_list_alloc_ret, tv_dict_alloc_ret, tv_item_lock, tv_islocked, tv_check_lock
             let mut tv_l = tv_initial_value();
             tv_list_alloc_ret(&mut tv_l, 0);
-            tv_list_append_number(tv_l.vval.v_list(), 1);
+            tv_list_append_number(unsafe { &mut *tv_l.vval.v_list() }, 1);
             assert!(!tv_islocked(&tv_l));
             tv_item_lock(&mut tv_l, 2, true, false);
             assert!(tv_islocked(&tv_l));
@@ -5467,11 +5467,11 @@ mod tests {
         unsafe {
             // [&l [1], *l, *l]
             let inner = tv_list_alloc(1);
-            tv_list_append_number(inner, 1);
+            tv_list_append_number( &mut *inner, 1);
             let outer = tv_list_alloc(3);
             (*outer).lv_refcount = 1;
             for _ in 0..3 {
-                tv_list_append_list(outer, inner);
+                tv_list_append_list( &mut *outer, inner);
             }
             assert_eq!((*inner).lv_refcount, 3);
             let mut tv = typval_T {
@@ -5487,7 +5487,7 @@ mod tests {
             let outer2 = tv_list_alloc(3);
             (*outer2).lv_refcount = 1;
             for _ in 0..3 {
-                tv_list_append_list(outer2, empty_inner);
+                tv_list_append_list( &mut *outer2, empty_inner);
             }
             assert_eq!((*empty_inner).lv_refcount, 3);
             let mut tv2 = typval_T {
@@ -5506,8 +5506,8 @@ mod tests {
                 }
                 let outer_d = tv_list_alloc(2);
                 (*outer_d).lv_refcount = 1;
-                tv_list_append_dict(outer_d, d_inner);
-                tv_list_append_dict(outer_d, d_inner);
+                tv_list_append_dict( &mut *outer_d, d_inner);
+                tv_list_append_dict( &mut *outer_d, d_inner);
                 assert_eq!((*d_inner).dv_refcount, 2);
                 let mut tv_d = typval_T {
                     v_type: VarType::VAR_LIST,
