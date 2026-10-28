@@ -768,7 +768,7 @@ pub fn tv_blob_get(b: *const blob_T, idx: c_int) -> u8 {
 }
 
 #[inline]
-pub const fn tv_is_func(tv: typval_T) -> bool {
+pub const fn tv_is_func(tv: &typval_T) -> bool {
     tv_is_func_inline(tv)
 }
 
@@ -947,7 +947,7 @@ fn tv_blob_set_inline(blob: &mut blob_T, idx: c_int, c: u8) {
 }
 
 #[inline]
-const fn tv_is_func_inline(tv: typval_T) -> bool {
+const fn tv_is_func_inline(tv: &typval_T) -> bool {
     matches!(tv.v_type, VarType::VAR_FUNC | VarType::VAR_PARTIAL)
 }
 
@@ -3059,7 +3059,7 @@ pub fn tv_dict_get_callback(
             return true;
         }
 
-        if !tv_is_func_inline((*di).di_tv) && (*di).di_tv.v_type != VarType::VAR_STRING {
+        if !tv_is_func_inline(&(*di).di_tv) && (*di).di_tv.v_type != VarType::VAR_STRING {
             emsg(tr(
                 c"E6000: Argument is not a function or function name".as_ptr()
             ));
@@ -3084,7 +3084,7 @@ pub fn tv_dict_wrong_func_name(
     c_int::from(
             (ptr::eq(d, get_globvar_dict())
                 || ptr::eq(&raw const d.dv_hashtab, get_funccal_local_ht()))
-                && tv_is_func_inline(*tv)
+                && tv_is_func_inline(tv)
                 && var_wrong_func_name(name, true),
         )
 }
@@ -4565,7 +4565,7 @@ pub fn tv_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
      {
         static RECURSIVE_CNT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
-        if !(tv_is_func_inline(*tv1) && tv_is_func_inline(*tv2)) && tv1.v_type != tv2.v_type {
+        if !(tv_is_func_inline(tv1) && tv_is_func_inline(tv2)) && tv1.v_type != tv2.v_type {
             return false;
         }
 

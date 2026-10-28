@@ -446,7 +446,6 @@ pub fn grid_allocated(grid: &ScreenGrid) -> bool {
 /// Clear a line in the grid starting at `off` until `width` characters are cleared (`grid_clear_line`).
 pub fn grid_clear_line(grid: &mut ScreenGrid, off: usize, width: c_int, valid: bool) {
     {
-        let grid = &mut *grid;
         let len = width as usize;
         grid.chars[off..off + len].fill(schar_from_ascii(b' '));
         let fill: sattr_T = if valid { 0 } else { -1 };
@@ -455,9 +454,8 @@ pub fn grid_clear_line(grid: &mut ScreenGrid, off: usize, width: c_int, valid: b
     }
 }
 
-pub fn grid_invalidate(grid: *mut ScreenGrid) {
-    unsafe {
-        let grid = &mut *grid;
+pub fn grid_invalidate(grid: &mut ScreenGrid) {
+    {
         let len = grid.rows as usize * grid.cols as usize;
         grid.attrs[..len].fill(-1);
     }
@@ -466,21 +464,19 @@ pub fn grid_invalidate(grid: *mut ScreenGrid) {
 #[inline]
 fn grid_invalid_row(grid: &mut ScreenGrid, row: c_int) -> bool {
     {
-        let grid = &*grid;
         grid.attrs[grid.line_offset[row as usize]] < 0
     }
 }
 
 /// Get a single character directly from `grid.chars` (`grid_getchar`).
 pub fn grid_getchar(
-    grid: *mut ScreenGrid,
+    grid: &ScreenGrid,
     row: c_int,
     col: c_int,
     attrp: Option<&mut c_int>,
 ) -> schar_T {
-    unsafe {
-        let grid = &*grid;
-        if grid.chars.is_empty() || row >= grid.rows || col >= grid.cols {
+     {
+                if grid.chars.is_empty() || row >= grid.rows || col >= grid.cols {
             return 0;
         }
 
@@ -799,7 +795,6 @@ fn grid_char_needs_redraw(
     cols: c_int,
 ) -> bool {
     {
-        let grid = &*grid;
         cols > 0
             && ((g_st().linebuf_char[col as usize] != grid.chars[off_to]
                 || g_st().linebuf_attr[col as usize] != grid.attrs[off_to]
@@ -1135,7 +1130,7 @@ pub fn win_grid_alloc(wp: &mut win_T) {
             (*grid_allocated).valid = false;
             was_resized = true;
         } else if want_allocation && has_allocation && !wp.w_grid_alloc.valid {
-            grid_invalidate(grid_allocated);
+            grid_invalidate(&mut *grid_allocated);
             (*grid_allocated).valid = true;
         }
 
@@ -1457,7 +1452,6 @@ pub fn grid_draw_border(
 
 fn linecopy(grid: &mut ScreenGrid, to: c_int, from: c_int, col: c_int, width: c_int) {
     {
-        let grid = &mut *grid;
         let off_to = (grid.line_offset[to as usize] + col as usize) as c_uint as usize;
         let off_from = (grid.line_offset[from as usize] + col as usize) as c_uint as usize;
         let len = width as usize;

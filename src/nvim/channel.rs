@@ -874,15 +874,13 @@ fn schedule_channel_event(chan: &mut Channel) {
 }
 
 pub fn on_channel_event(chan: &mut Channel) {
-    unsafe {
-        let ct = &raw mut *chan;
-
+     {
         chan.callback_busy = true;
         chan.callback_scheduled = false;
 
         let exit_status = chan.exit_status;
-        channel_reader_callbacks(chan, &mut (*ct).on_data);
-        channel_reader_callbacks(chan, &mut (*ct).on_stderr);
+        channel_reader_callbacks(chan, false);
+        channel_reader_callbacks(chan, true);
         if exit_status > -1 {
             channel_callback_call(chan, None);
             chan.exit_status = -1;
@@ -898,43 +896,54 @@ pub fn on_channel_event(chan: &mut Channel) {
     }
 }
 
-pub fn channel_reader_callbacks(chan: &mut Channel, reader: &mut CallbackReader) {
+pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
+    let reader = if is_stderr {
+        &mut chan.on_stderr
+    } else {
+        &mut chan.on_data
+    };
     if reader.buffered {
-            if reader.eof {
-                if !reader.self_dict.is_null() {
-                    let reader_type = reader.reader_type.unwrap();
-                    if tv_dict_find(reader.self_dict, reader_type.as_ptr(), -1).is_null() {
-                        let data =
-                            buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
-                        let type_len = reader_type.to_bytes().len();
-                        let _ = tv_dict_add_list(
-                            reader.self_dict,
-                            reader_type.as_ptr(),
-                            type_len,
-                            data,
-                        );
-                    } else {
-                        semsg!(
-                            gettext(e_streamkey.as_ptr()),
-                            reader_type.as_ptr(),
-                            chan.id,
-                        );
-                    }
+        if reader.eof {
+            if !reader.self_dict.is_null() {
+                let reader_type = reader.reader_type.unwrap();
+                if tv_dict_find(reader.self_dict, reader_type.as_ptr(), -1).is_null() {
+                    let data = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
+                    let type_len = reader_type.to_bytes().len();
+                    let _ = tv_dict_add_list(
+                        reader.self_dict,
+                        reader_type.as_ptr(),
+                        type_len,
+                        data,
+                    );
                 } else {
-                    channel_callback_call(chan, Some(&mut *reader));
+                    semsg!(
+                        gettext(e_streamkey.as_ptr()),
+                        reader_type.as_ptr(),
+                        chan.id,
+                    );
                 }
                 reader.eof = false;
-            }
-        } else {
-            let is_eof = reader.eof;
-            if !reader.buffer.is_empty() {
-                channel_callback_call(chan, Some(&mut *reader));
-            }
-            if is_eof {
-                channel_callback_call(chan, Some(&mut *reader));
+            } else {
                 reader.eof = false;
+                channel_callback_call(chan, Some(is_stderr));
             }
         }
+    } else {
+        let is_eof = reader.eof;
+        let not_empty = !reader.buffer.is_empty();
+        if not_empty {
+            channel_callback_call(chan, Some(is_stderr));
+        }
+        if is_eof {
+            channel_callback_call(chan, Some(is_stderr));
+            let reader = if is_stderr {
+                &mut chan.on_stderr
+            } else {
+                &mut chan.on_data
+            };
+            reader.eof = false;
+        }
+    }
 }
 
 pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut Channel) {
@@ -972,45 +981,47 @@ pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mu
     }
 }
 
-fn channel_callback_call(chan: &mut Channel,mut reader: Option<&mut CallbackReader>) {
-     {
+fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
+    let mut argv: [typval_T; 4] = [typval_T::new(); 4];
+    argv[0].v_type = VarType::VAR_NUMBER;
+    argv[0].v_lock = VAR_UNLOCKED;
+    argv[0].vval = TypvalVval::Number(chan.id as varnumber_T);
 
-        let mut argv: [typval_T; 4] = [typval_T::new(); 4];
-        argv[0].v_type = VarType::VAR_NUMBER;
-        argv[0].v_lock = VAR_UNLOCKED;
-        argv[0].vval = TypvalVval::Number(chan.id as varnumber_T);
-
-        let cb: *mut Callback = if reader.is_some() {
-            let l = buffer_to_tv_list(reader.as_deref_mut().unwrap().buffer.as_ptr(), reader.as_deref_mut().unwrap().buffer.len());
-            argv[1].v_type = VarType::VAR_LIST;
-            argv[1].v_lock = VAR_UNLOCKED;
-            argv[1].vval = TypvalVval::List(l);
-            tv_list_ref(l);
-            reader.as_deref_mut().unwrap().buffer = Vec::new();
-            argv[2].vval = TypvalVval::String(reader.as_deref_mut().unwrap()
-                    .reader_type
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()));
-            &raw mut reader.as_deref_mut().unwrap().cb
+    let cb: *mut Callback = if let Some(is_stderr) = is_stderr {
+        let reader = if is_stderr {
+            &mut chan.on_stderr
         } else {
-            argv[1].v_type = VarType::VAR_NUMBER;
-            argv[1].v_lock = VAR_UNLOCKED;
-            argv[1].vval = TypvalVval::Number(varnumber_T::from(chan.exit_status));
-            argv[2].vval = TypvalVval::String(c"exit".as_ptr().cast_mut());
-            &raw mut chan.on_exit
+            &mut chan.on_data
         };
+        let l = buffer_to_tv_list(reader.buffer.as_ptr(), reader.buffer.len());
+        argv[1].v_type = VarType::VAR_LIST;
+        argv[1].v_lock = VAR_UNLOCKED;
+        argv[1].vval = TypvalVval::List(l);
+        tv_list_ref(l);
+        reader.buffer = Vec::new();
+        argv[2].vval = TypvalVval::String(
+            reader
+                .reader_type
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+        );
+        &raw mut reader.cb
+    } else {
+        argv[1].v_type = VarType::VAR_NUMBER;
+        argv[1].v_lock = VAR_UNLOCKED;
+        argv[1].vval = TypvalVval::Number(varnumber_T::from(chan.exit_status));
+        argv[2].vval = TypvalVval::String(c"exit".as_ptr().cast_mut());
+        &raw mut chan.on_exit
+    };
 
-        argv[2].v_type = VarType::VAR_STRING;
-        argv[2].v_lock = VAR_UNLOCKED;
+    argv[2].v_type = VarType::VAR_STRING;
+    argv[2].v_lock = VAR_UNLOCKED;
 
-        {
-            let mut rettv: typval_T = typval_T::new();
-            let _ = callback_call(cb, 3, argv.as_mut_ptr(), &mut rettv);
-            tv_clear(&raw mut rettv);
-        }
+    let mut rettv: typval_T = typval_T::new();
+    let _ = callback_call(cb, 3, argv.as_mut_ptr(), &mut rettv);
+    tv_clear(&raw mut rettv);
 
-        if reader.is_some() {
-            tv_list_unref(argv[1].vval.v_list());
-        }
+    if is_stderr.is_some() {
+        tv_list_unref(argv[1].vval.v_list());
     }
 }
 

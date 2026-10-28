@@ -225,21 +225,20 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
             reg.y_type = MotionType::kMTCharWise;
         }
 
-        update_yankreg_width(reg_ptr);
+        update_yankreg_width(&mut *reg_ptr);
         *target = reg_ptr;
         true
     }
 }
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
-pub fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
+pub fn set_clipboard(mut name: c_int, reg: &yankreg_T) {
     unsafe {
         if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
             return;
         }
 
-        let reg = &*reg;
-        let extra = usize::from(reg.y_type != MotionType::kMTCharWise);
+                let extra = usize::from(reg.y_type != MotionType::kMTCharWise);
         let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
         for &item in &reg.y_array {
@@ -292,7 +291,7 @@ pub fn end_batch_changes() {
         clip_st().CLIPBOARD_DELAY_UPDATE = false;
         if clip_st().CLIPBOARD_NEEDS_UPDATE {
             clip_st().CLIPBOARD_NEEDS_UPDATE = false;
-            set_clipboard(0, get_y_previous());
+            set_clipboard(0, unsafe { &*get_y_previous() });
         }
 }
 

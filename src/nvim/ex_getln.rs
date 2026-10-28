@@ -464,9 +464,8 @@ fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
         );
 }
 
-fn init_incsearch_state(s: *mut incsearch_state_T) {
+fn init_incsearch_state(s: &mut incsearch_state_T) {
     unsafe {
-        let s = &mut *s;
         s.winid = (**curwin.as_ptr()).handle;
         s.match_start = (**curwin.as_ptr()).w_cursor;
         s.did_incsearch = false;
@@ -1036,7 +1035,7 @@ fn command_line_enter(
         state.ignore_drag_release = true;
         let s = &raw mut state;
         (*s).save_p_icm = Some(CStr::from_ptr(opt_vars().p_icm).to_owned());
-        init_incsearch_state(&raw mut (*s).is_state);
+        init_incsearch_state(&mut (*s).is_state);
         let mut did_save_ccline = false;
 
         let cc = &raw mut getln_st().ccline;
@@ -1670,7 +1669,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
                 map_execute_lua(false, false);
             }
             if s.is_state.winid != (**curwin.as_ptr()).handle {
-                init_incsearch_state(&raw mut s.is_state);
+                init_incsearch_state(&mut s.is_state);
             }
             if (**curwin.as_ptr()).w_display_tick > display_tick_saved && s.is_state.did_incsearch {
                 may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);
@@ -1930,7 +1929,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
 
         if wild_type == WILD_CANCEL || wild_type == WILD_APPLY {
             if s.is_state.winid != (**curwin.as_ptr()).handle {
-                init_incsearch_state(&raw mut s.is_state);
+                init_incsearch_state(&mut s.is_state);
             }
             if g_st().KeyTyped || vpeekc() == NUL as c_int {
                 may_do_incsearch_highlighting(s.firstc, s.count, &mut s.is_state);

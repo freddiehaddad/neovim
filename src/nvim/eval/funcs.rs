@@ -2845,7 +2845,7 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                     tv = &raw mut (*di).di_tv;
                 }
             }
-        } else if tv_is_func(argvars[0]) {
+        } else if tv_is_func(&argvars[0]) {
             let mut fref_pt = std::mem::ManuallyDrop::new(partial_T::default());
             let pt: *mut partial_T = if argvars[0].v_type == VarType::VAR_PARTIAL {
                 argvars[0].vval.v_partial()
@@ -7245,7 +7245,7 @@ pub fn f_screenchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             -1
         } else {
             varnumber_T::from(schar_get_first_codepoint(grid_getchar(
-                grid,
+                &*grid,
                 row,
                 col,
                 None,
@@ -7272,7 +7272,7 @@ pub fn f_screenchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
         schar_get(
             buf.as_mut_ptr(),
-            grid_getchar(grid, row, col, None),
+            grid_getchar(&*grid, row, col, None),
         );
 
         let mut i: usize = 0;
@@ -7316,7 +7316,7 @@ pub fn f_screenstring(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
         schar_get(
             buf.as_mut_ptr(),
-            grid_getchar(grid, row, col, None),
+            grid_getchar(&*grid, row, col, None),
         );
         crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
     }
@@ -8744,7 +8744,7 @@ pub fn f_substitute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         let flg = tv_get_string_buf_chk(&argvars[3], flagsbuf.as_mut_ptr());
 
         let mut expr: *mut typval_T = ptr::null_mut();
-        if tv_is_func(argvars[2]) {
+        if tv_is_func(&argvars[2]) {
             expr = &raw mut argvars[2];
         } else {
             sub = tv_get_string_buf_chk(&argvars[2], subbuf.as_mut_ptr());

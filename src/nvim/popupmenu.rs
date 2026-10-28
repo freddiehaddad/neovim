@@ -884,7 +884,7 @@ pub fn pum_redraw() {
                 i64::from(g_st().pum_grid.rows),
             );
         } else if invalid_grid {
-            grid_invalidate(&raw mut g_st().pum_grid);
+            grid_invalidate(&mut g_st().pum_grid);
         }
         if ui_has(kUIMultigrid) {
             pum_pos_ui_flush(true);

@@ -757,7 +757,7 @@ fn qf_init_process_nextline(
 
         status = qf_parse_line(
             qfl,
-            (*state).linebuf_ptr(),
+            state.linebuf_ptr(),
             state.linelen,
             fmt_first,
             fields,
@@ -1300,7 +1300,7 @@ fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
             state.use_growbuf = false;
         }
 
-        let cur_linebuf = (*state).linebuf_ptr();
+        let cur_linebuf = state.linebuf_ptr();
         if state.vc.vc_type != CONV_NONE
             && !cur_linebuf.is_null() && !std::ffi::CStr::from_ptr(cur_linebuf).to_bytes().is_ascii()
             && let Some(line) =
@@ -1339,7 +1339,7 @@ fn qf_get_nextline(state: &mut qfstate_T) -> c_int {
             return status;
         }
 
-        let linebuf = (*state).linebuf_ptr();
+        let linebuf = state.linebuf_ptr();
         if state.linelen > 0 && *linebuf.add(state.linelen - 1) == NL {
             *linebuf.add(state.linelen - 1) = NUL;
             #[cfg(windows)]

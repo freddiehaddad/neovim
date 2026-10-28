@@ -2998,7 +2998,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             } else {
                 fudi_newkey_ptr
             };
-            if !arg.is_null() && (fudi.fd_di.is_null() || !tv_is_func((*fudi.fd_di).di_tv)) {
+            if !arg.is_null() && (fudi.fd_di.is_null() || !tv_is_func(&(*fudi.fd_di).di_tv)) {
                 let mut name_base = arg;
                 if arg != fudi_newkey_ptr {
                     if *arg as u8 == K_SPECIAL {

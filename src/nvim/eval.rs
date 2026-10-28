@@ -1080,7 +1080,8 @@ fn get_lval_dict_item(
     key_end: *mut *mut c_char,
     var1: &mut typval_T,
     flags: c_int,
-    unlet: bool,mut rettv: Option<&mut typval_T>,
+    unlet: bool,
+    rettv: Option<&mut typval_T>,
 ) -> glv_status_T {
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
@@ -1108,7 +1109,7 @@ fn get_lval_dict_item(
                 0
             };
             let wrong = ((*lp.ll_dict).dv_scope == VAR_DEF_SCOPE
-                && tv_is_func(*rettv.as_deref_mut().unwrap())
+                && tv_is_func(rettv.as_deref().unwrap())
                 && var_wrong_func_name(key, lp.ll_di.is_null()))
                 || !valid_varname(key);
             if len != -1 {
@@ -6333,7 +6334,7 @@ pub fn handle_subscript(
         while ret == OK
             && (((**arg == b'[' as c_char
                 || (**arg == b'.' as c_char && rettv.v_type == VarType::VAR_DICT)
-                || (**arg == b'(' as c_char && (!evaluate || tv_is_func(*rettv))))
+                || (**arg == b'(' as c_char && (!evaluate || tv_is_func(rettv))))
                 && !ascii_iswhite(*(*arg).sub(1)))
                 || (**arg == b'-' as c_char && *(*arg).add(1) == b'>' as c_char))
         {
@@ -6379,7 +6380,7 @@ pub fn handle_subscript(
             }
         }
 
-        if !selfdict.is_null() && tv_is_func(*rettv) {
+        if !selfdict.is_null() && tv_is_func(rettv) {
             set_selfdict(rettv, selfdict);
         }
 
@@ -7204,7 +7205,7 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 }
                 n1 = varnumber_T::from(eq);
             }
-        } else if tv_is_func(*typ1) || tv_is_func(*typ2) {
+        } else if tv_is_func(typ1) || tv_is_func(typ2) {
             if expr_type != EXPR_EQUAL
                 && expr_type != EXPR_NEQUAL
                 && expr_type != EXPR_IS

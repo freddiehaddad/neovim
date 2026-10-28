@@ -2391,7 +2391,6 @@ fn copy_pim(to: &mut nfa_pim_T, from: *mut nfa_pim_T) {
 
 fn clear_sub(sub: &mut regsub_T) {
     {
-        let sub = &mut *sub;
         let n = re_st().rex.nfa_nsubexpr as usize;
         if REG_MULTI() {
             sub.list.multi_mut()[..n].fill(multipos {

@@ -2366,7 +2366,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_
                                     n |= WFP_COMPFORBID;
                                 }
                                 tree_add_word(
-                                    &raw mut *spin,
+                                    spin,
                                     p_add,
                                     spin.si_prefroot,
                                     n,
@@ -3818,7 +3818,7 @@ fn store_word(
         while res == OK {
             if !need_affix || (!p.is_null() && *p != NUL) {
                 res = tree_add_word(
-                    &raw mut *spin,
+                    spin,
                     foldword.as_ptr(),
                     spin.si_foldroot,
                     ct | flags,
@@ -3838,7 +3838,7 @@ fn store_word(
             while res == OK {
                 if !need_affix || (!p2.is_null() && *p2 != NUL) {
                     res = tree_add_word(
-                        &raw mut *spin,
+                        spin,
                         word,
                         spin.si_keeproot,
                         flags,
@@ -3858,7 +3858,7 @@ fn store_word(
 }
 
 fn tree_add_word(
-    spin: *mut spellinfo_T,
+    spin: &mut spellinfo_T,
     word: *const c_char,
     root: Option<usize>,
     flags: c_int,
@@ -3866,8 +3866,7 @@ fn tree_add_word(
     affixID: c_int,
 ) -> c_int {
     unsafe {
-        let spin = &mut *spin;
-        let mut node = root;
+                let mut node = root;
         let mut prev: Option<NodeSlot> = None;
 
         let mut i: usize = 0;
@@ -4051,10 +4050,9 @@ fn free_wordnode(spin: &mut spellinfo_T, n: usize) {
     spin.si_free_count += 1;
 }
 
-fn wordtree_compress(spin: *mut spellinfo_T, root: Option<usize>, name: *const c_char) {
-    unsafe {
-        let spin = &mut *spin;
-        let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
+fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: *const c_char) {
+     {
+                let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
         let mut tot: c_int = 0;
 
         let Some(root_idx) = root else {
@@ -4674,7 +4672,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
         spin.si_foldwcount = 0;
 
         spell_message(&raw mut *spin, gettext(c"Performing soundfolding...".as_ptr()));
-        if sug_filltree(spin, &mut *slang) != FAIL && sug_maketable(&raw mut *spin) != FAIL {
+        if sug_filltree(spin, &mut *slang) != FAIL && sug_maketable(spin) != FAIL {
             smsg!(
                 0,
                 gettext(c"Number of words after soundfolding: %lld".as_ptr()),
@@ -4682,7 +4680,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
             );
 
             spell_message(&raw mut *spin, gettext(msg_compressing));
-            wordtree_compress(&raw mut *spin, spin.si_foldroot, c"case-folded".as_ptr());
+            wordtree_compress(spin, spin.si_foldroot, c"case-folded".as_ptr());
 
             let mut fname_buf = [0 as c_char; MAXPATHL];
             let fname = fname_buf.as_mut_ptr();
@@ -4742,7 +4740,7 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
                     spell_soundfold(slang, tword.as_mut_ptr(), true, tsalword.as_mut_ptr());
 
                     if tree_add_word(
-                        &raw mut *spin,
+                        spin,
                         tsalword.as_ptr(),
                         spin.si_foldroot,
                         (words_done >> 16) as c_int,
@@ -4781,10 +4779,9 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
     }
 }
 
-fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
-    unsafe {
-        let spin = &mut *spin;
-        let mut ga: Vec<c_char> = Vec::with_capacity(100);
+fn sug_maketable(spin: &mut spellinfo_T) -> c_int {
+     {
+                let mut ga: Vec<c_char> = Vec::with_capacity(100);
         let mut res = OK;
 
         spin.si_spellbuf = Some(open_spellbuf());
@@ -5124,9 +5121,12 @@ fn mkspell(
 
                 if !error && !g_st().got_int {
                     spell_message(&raw const spin, gettext(msg_compressing));
-                    wordtree_compress(&raw mut spin, spin.si_foldroot, c"case-folded".as_ptr());
-                    wordtree_compress(&raw mut spin, spin.si_keeproot, c"keep-case".as_ptr());
-                    wordtree_compress(&raw mut spin, spin.si_prefroot, c"prefixes".as_ptr());
+                    let foldroot = spin.si_foldroot;
+                    wordtree_compress(&mut spin, foldroot, c"case-folded".as_ptr());
+                    let keeproot = spin.si_keeproot;
+                    wordtree_compress(&mut spin, keeproot, c"keep-case".as_ptr());
+                    let prefroot = spin.si_prefroot;
+                    wordtree_compress(&mut spin, prefroot, c"prefixes".as_ptr());
                 }
 
                 if !error && !g_st().got_int {

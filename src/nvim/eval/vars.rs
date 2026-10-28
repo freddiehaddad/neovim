@@ -1478,7 +1478,7 @@ pub fn list_hashtable_vars(
 ) {
     unsafe {
         let mut todo = ht.ht_used as c_int;
-        let mut hi = (*ht).array_ptr();
+        let mut hi = ht.array_ptr();
         while todo > 0 && !g_st().got_int {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -2881,7 +2881,7 @@ pub fn vars_clear_ext(ht: &mut hashtab_T, free_val: bool) {
     unsafe {
         hash_lock(ht);
         let mut todo = ht.ht_used as c_int;
-        let mut hi = (*ht).array_ptr();
+        let mut hi = ht.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -3073,7 +3073,7 @@ pub fn set_var_const(
             di = find_var_in_scoped_ht(name, name_len, 1);
         }
 
-        if tv_is_func(*tv) && var_wrong_func_name(name, di.is_null()) {
+        if tv_is_func(tv) && var_wrong_func_name(name, di.is_null()) {
             return;
         }
 
@@ -3403,7 +3403,7 @@ fn opt_from_tv(tv: &mut typval_T,
             !is_tty_opt && option_has_type(opt_idx, ObjectType::kObjectTypeInteger);
         let option_has_str = is_tty_opt || option_has_type(opt_idx, ObjectType::kObjectTypeString);
 
-        if !is_tty_opt && ((*get_option(opt_idx)).flags & kOptFlagFunc) != 0 && tv_is_func(*tv) {
+        if !is_tty_opt && ((*get_option(opt_idx)).flags & kOptFlagFunc) != 0 && tv_is_func(tv) {
             let strval = encode_tv2string(tv, None);
             value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {

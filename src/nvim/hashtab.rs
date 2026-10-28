@@ -206,23 +206,22 @@ pub fn hash_add_item(
     _key: *mut c_char,di: &mut crate::eval::typval::dictitem_T,
     hash: hash_T,
 ) {
-    let ht_ref = &mut *ht;
-    if ht_ref.ht_array.is_empty() {
+    if ht.ht_array.is_empty() {
         let offset = unsafe { hi.offset_from(empty_hasharray_ptr()) as usize };
-        ht_ref.ht_array = vec![hashitem_T::default(); HT_INIT_SIZE];
-        hi = unsafe { ht_ref.ht_array.as_mut_ptr().add(offset) };
+        ht.ht_array = vec![hashitem_T::default(); HT_INIT_SIZE];
+        hi = unsafe { ht.ht_array.as_mut_ptr().add(offset) };
     }
     let hi_ref = unsafe { &mut *hi };
-    ht_ref.ht_used += 1;
-    ht_ref.ht_changed += 1;
+    ht.ht_used += 1;
+    ht.ht_changed += 1;
     if hi_ref.is_null_slot() {
-        ht_ref.ht_filled += 1;
+        ht.ht_filled += 1;
     }
     hi_ref.hi_removed = false;
     hi_ref.hi_di = di;
     hi_ref.hi_hash = hash;
 
-    hash_may_resize(ht_ref, 0);
+    hash_may_resize(ht, 0);
 }
 
 /// Remove item `hi` from `ht` (`hash_remove`).
@@ -230,13 +229,12 @@ pub fn hash_add_item(
 /// # Safety
 /// `ht` and `hi` must be valid pointers, with `hi` pointing to an active item in `ht`.
 pub fn hash_remove(ht: &mut hashtab_T, hi: *mut hashitem_T) {
-    let ht_ref = &mut *ht;
     let hi_ref = unsafe { &mut *hi };
-    ht_ref.ht_used -= 1;
-    ht_ref.ht_changed += 1;
+    ht.ht_used -= 1;
+    ht.ht_changed += 1;
     hi_ref.hi_removed = true;
     hi_ref.hi_di = std::ptr::null_mut();
-    hash_may_resize(ht_ref, 0);
+    hash_may_resize(ht, 0);
 }
 
 /// Lock hashtable to prevent `ht_array` reallocation (`hash_lock`).
@@ -252,9 +250,8 @@ pub fn hash_lock(ht: &mut hashtab_T) {
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
 pub fn hash_unlock(ht: &mut hashtab_T) {
-    let ht_ref = &mut *ht;
-    ht_ref.ht_locked -= 1;
-    hash_may_resize(ht_ref, 0);
+    ht.ht_locked -= 1;
+    hash_may_resize(ht, 0);
 }
 
 fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {

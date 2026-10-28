@@ -1750,8 +1750,7 @@ fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
 
 #[inline]
 fn shada_check_buffer(packer: &mut PackerBuffer) {
-    let p = &mut *packer;
-        let remaining = (p.endptr as usize).saturating_sub(p.ptr as usize);
+        let remaining = (packer.endptr as usize).saturating_sub(packer.ptr as usize);
         if remaining < SHADA_MPACK_FREE_SPACE {
             crate::msgpack_rpc::packer::packer_flush_buffer(packer);
         }
@@ -2196,7 +2195,7 @@ fn shada_read_when_writing(
                     if (*wms).registers[u_idx].entry_type == ShadaEntryType::kSDItemMissing {
                         let reg = op_reg_get(reg_name);
                         if !reg.is_null()
-                            && reg_empty(reg)
+                            && reg_empty(&*reg)
                             && (*reg).timestamp / NS_PER_SEC >= entry.timestamp
                         {
                             shada_free_shada_entry(&mut entry);

@@ -1758,10 +1758,9 @@ pub fn encode_tv2string(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::f
 pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::CString {
      {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
-        let tv_ref = &*tv;
-        if tv_ref.v_type == VarType::VAR_STRING || tv_ref.v_type == VarType::VAR_FUNC {
-            if !tv_ref.vval.v_string().is_null() {
-                buf_concat_cstr(&mut ga, tv_ref.vval.v_string());
+        if tv.v_type == VarType::VAR_STRING || tv.v_type == VarType::VAR_FUNC {
+            if !tv.vval.v_string().is_null() {
+                buf_concat_cstr(&mut ga, tv.vval.v_string());
             }
         } else {
             let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument".as_ptr());

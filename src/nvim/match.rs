@@ -447,8 +447,8 @@ fn next_search_hl_pos(
 }
 
 /// Search for a next `'hlsearch'` or match (`next_search_hl`).
-fn next_search_hl(win: &mut win_T,
-    search_hl: &mut match_T,
+fn next_search_hl(
+    win: &mut win_T,
     shl: &mut match_T,
     lnum: linenr_T,
     mincol: colnr_T,
@@ -497,8 +497,7 @@ fn next_search_hl(win: &mut win_T,
 
             shl.lnum = lnum;
             if !shl.rm.regprog.is_null() {
-                let regprog_is_copy = !ptr::eq(shl, search_hl)
-                    && !cur.is_null()
+                let regprog_is_copy = !cur.is_null()
                     && ptr::eq(shl, &raw const (*cur).mit_hl)
                     && (*cur).mit_match.regprog == (*cur).mit_hl.rm.regprog;
                 let mut timed_out: c_int = 0;
@@ -516,7 +515,7 @@ fn next_search_hl(win: &mut win_T,
                     (*cur).mit_match.regprog = (*cur).mit_hl.rm.regprog;
                 }
                 if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
-                    if ptr::eq(shl, search_hl) {
+                    if cur.is_null() {
                         vim_regfree(shl.rm.regprog);
                         set_no_hlsearch(true);
                     }
@@ -558,9 +557,8 @@ pub fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T
             } else {
                 ptr::null_mut()
             };
-            let search_hl_ptr = &raw mut *search_hl;
             if !shl_flag {
-                shl = search_hl_ptr;
+                shl = (&raw mut *search_hl);
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -588,11 +586,10 @@ pub fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T
                 {
                     next_search_hl(
                         &mut *wp,
-                        &mut *search_hl_ptr,
                         &mut *shl,
                         (*shl).first_lnum,
                         n,
-                        if ptr::eq(shl, search_hl_ptr) {
+                        if ptr::eq(shl, (&raw mut *search_hl)) {
                             ptr::null_mut()
                         } else {
                             cur
@@ -609,7 +606,7 @@ pub fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T
                     }
                 }
             }
-            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
+            if !ptr::eq(shl, (&raw mut *search_hl)) && !cur.is_null() {
                 idx += 1;
             }
         }
@@ -650,9 +647,8 @@ pub fn prepare_search_hl_line(
             } else {
                 ptr::null_mut()
             };
-            let search_hl_ptr = &raw mut *search_hl;
             if !shl_flag {
-                shl = search_hl_ptr;
+                shl = (&raw mut *search_hl);
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -667,11 +663,10 @@ pub fn prepare_search_hl_line(
             }
             next_search_hl(
                 &mut *wp,
-                &mut *search_hl_ptr,
                 &mut *shl,
                 lnum,
                 mincol,
-                if ptr::eq(shl, search_hl_ptr) {
+                if ptr::eq(shl, (&raw mut *search_hl)) {
                     ptr::null_mut()
                 } else {
                     cur
@@ -713,7 +708,7 @@ pub fn prepare_search_hl_line(
                 }
                 area_highlighting = true;
             }
-            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
+            if !ptr::eq(shl, (&raw mut *search_hl)) && !cur.is_null() {
                 idx += 1;
             }
         }
@@ -737,7 +732,6 @@ pub fn update_search_hl(
     unsafe {
         let mut idx = 0usize;
         let len = wp.w_match_head.len();
-        let search_hl_ptr = &raw mut *search_hl;
         let mut shl: *mut match_T;
         let mut shl_flag = false;
 
@@ -748,7 +742,7 @@ pub fn update_search_hl(
                 ptr::null_mut()
             };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
-                shl = search_hl_ptr;
+                shl = (&raw mut *search_hl);
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -763,7 +757,7 @@ pub fn update_search_hl(
                     if (*shl).endcol < next_col {
                         (*shl).endcol = next_col;
                     }
-                    if ptr::eq(shl, search_hl_ptr) && (*shl).has_cursor {
+                    if ptr::eq(shl, (&raw mut *search_hl)) && (*shl).has_cursor {
                         (*shl).attr_cur = win_hl_attr(&raw mut *wp, HLF_LC as c_int);
                         if (*shl).attr_cur != (*shl).attr {
                             g_st().search_hl_has_cursor_lnum = lnum;
@@ -772,7 +766,7 @@ pub fn update_search_hl(
                         (*shl).attr_cur = (*shl).attr;
                     }
                     if !cur.is_null()
-                        && !ptr::eq(shl, search_hl_ptr)
+                        && !ptr::eq(shl, (&raw mut *search_hl))
                         && syn_name2id(c"Conceal".as_ptr()) == (*cur).mit_hlg_id
                     {
                         *has_match_conc = if col == (*shl).startcol { 2 } else { 1 };
@@ -785,11 +779,10 @@ pub fn update_search_hl(
 
                     next_search_hl(
                         &mut *wp,
-                        &mut *search_hl_ptr,
                         &mut *shl,
                         lnum,
                         col,
-                        if ptr::eq(shl, search_hl_ptr) {
+                        if ptr::eq(shl, (&raw mut *search_hl)) {
                             ptr::null_mut()
                         } else {
                             cur
@@ -807,7 +800,7 @@ pub fn update_search_hl(
                             MAXCOL
                         };
 
-                        if ptr::eq(shl, search_hl_ptr) {
+                        if ptr::eq(shl, (&raw mut *search_hl)) {
                             check_cur_search_hl(wp, &mut *shl);
                         }
 
@@ -824,13 +817,13 @@ pub fn update_search_hl(
                 }
                 break;
             }
-            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
+            if !ptr::eq(shl, (&raw mut *search_hl)) && !cur.is_null() {
                 idx += 1;
             }
         }
 
         *search_attr_from_match = false;
-        let mut search_attr = (*search_hl_ptr).attr_cur;
+        let mut search_attr = search_hl.attr_cur;
         idx = 0;
         shl_flag = false;
         while idx < len || !shl_flag {
@@ -840,7 +833,7 @@ pub fn update_search_hl(
                 ptr::null_mut()
             };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
-                shl = search_hl_ptr;
+                shl = (&raw mut *search_hl);
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
@@ -848,9 +841,9 @@ pub fn update_search_hl(
             if (*shl).attr_cur != 0 {
                 search_attr = (*shl).attr_cur;
                 *on_last_col = col + 1 >= (*shl).endcol;
-                *search_attr_from_match = !ptr::eq(shl, search_hl_ptr);
+                *search_attr_from_match = !ptr::eq(shl, (&raw mut *search_hl));
             }
-            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
+            if !ptr::eq(shl, (&raw mut *search_hl)) && !cur.is_null() {
                 idx += 1;
             }
         }
@@ -903,7 +896,6 @@ pub fn get_search_match_hl(
     unsafe {
         let mut idx = 0usize;
         let len = wp.w_match_head.len();
-        let search_hl_ptr = &raw mut *search_hl;
         let mut shl: *mut match_T;
         let mut shl_flag = false;
 
@@ -914,15 +906,15 @@ pub fn get_search_match_hl(
                 ptr::null_mut()
             };
             if !shl_flag && (cur.is_null() || (*cur).mit_priority > SEARCH_HL_PRIORITY) {
-                shl = search_hl_ptr;
+                shl = (&raw mut *search_hl);
                 shl_flag = true;
             } else {
                 shl = &raw mut (*cur).mit_hl;
             }
-            if col - 1 == (*shl).startcol && (ptr::eq(shl, search_hl_ptr) || !(*shl).is_addpos) {
+            if col - 1 == (*shl).startcol && (ptr::eq(shl, (&raw mut *search_hl)) || !(*shl).is_addpos) {
                 *char_attr = (*shl).attr;
             }
-            if !ptr::eq(shl, search_hl_ptr) && !cur.is_null() {
+            if !ptr::eq(shl, (&raw mut *search_hl)) && !cur.is_null() {
                 idx += 1;
             }
         }

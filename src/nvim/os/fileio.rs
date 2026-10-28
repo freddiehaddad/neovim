@@ -131,22 +131,21 @@ pub fn file_open(
 /// # Safety
 /// `ret_fp` must be a valid writable pointer.
 pub fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int) -> c_int {
-    let fp = &mut *ret_fp;
-    fp.wr = (flags
+    ret_fp.wr = (flags
         & (K_FILE_CREATE
             | K_FILE_CREATE_ONLY
             | K_FILE_TRUNCATE
             | K_FILE_APPEND
             | K_FILE_WRITE_ONLY))
         != 0;
-    fp.non_blocking = (flags & K_FILE_NON_BLOCKING) != 0;
-    assert!(!fp.wr || !fp.non_blocking);
-    fp.fd = fd;
-    fp.eof = false;
-    fp.buffer = vec![0; ARENA_BLOCK_SIZE];
-    fp.read_pos = 0;
-    fp.write_pos = 0;
-    fp.bytes_read = 0;
+    ret_fp.non_blocking = (flags & K_FILE_NON_BLOCKING) != 0;
+    assert!(!ret_fp.wr || !ret_fp.non_blocking);
+    ret_fp.fd = fd;
+    ret_fp.eof = false;
+    ret_fp.buffer = vec![0; ARENA_BLOCK_SIZE];
+    ret_fp.read_pos = 0;
+    ret_fp.write_pos = 0;
+    ret_fp.bytes_read = 0;
     0
 }
 
@@ -164,19 +163,18 @@ pub fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
 /// # Safety
 /// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
 pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: *mut c_char, len: usize) {
-    let fp = &mut *ret_fp;
-    fp.wr = false;
-    fp.non_blocking = false;
-    fp.fd = -1;
-    fp.eof = true;
-    fp.buffer = if data.is_null() || len == 0 {
+    ret_fp.wr = false;
+    ret_fp.non_blocking = false;
+    ret_fp.fd = -1;
+    ret_fp.eof = true;
+    ret_fp.buffer = if data.is_null() || len == 0 {
         Vec::new()
     } else {
         unsafe { std::slice::from_raw_parts(data, len).to_vec() }
     };
-    fp.read_pos = 0;
-    fp.write_pos = fp.buffer.len();
-    fp.bytes_read = 0;
+    ret_fp.read_pos = 0;
+    ret_fp.write_pos = ret_fp.buffer.len();
+    ret_fp.bytes_read = 0;
 }
 
 /// Close `fp` and free its buffer (`file_close`).

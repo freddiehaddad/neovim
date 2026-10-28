@@ -569,7 +569,6 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
 
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
 pub fn ex_breakadd(eap: &mut exarg_T) {
-    let eap = &*eap;
         let is_prof = eap.cmdidx == CMD_PROFILE;
         let gap = dbg_vec_mut(is_prof);
 
@@ -613,7 +612,6 @@ pub fn ex_breakadd(eap: &mut exarg_T) {
 
 /// `:debuggreedy` command (`ex_debuggreedy`).
 pub fn ex_debuggreedy(eap: &mut exarg_T) {
-    let eap = &*eap;
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
     dbg_st().DEBUG_GREEDY = greedy;
 }
@@ -626,7 +624,6 @@ fn update_has_expr_breakpoint() {
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
 pub fn ex_breakdel(eap: &mut exarg_T) {
     unsafe {
-        let eap = &*eap;
         let mut todel: isize = -1;
         let mut del_all = false;
         let mut best_lnum: i32 = 0;

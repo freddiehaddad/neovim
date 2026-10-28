@@ -313,7 +313,7 @@ pub fn screenclear() {
             && msg_use_grid()
             && grid_allocated(&g_st().msg_grid)
         {
-            grid_invalidate(&raw mut g_st().msg_grid);
+            grid_invalidate(&mut g_st().msg_grid);
             msg_grid_validate();
             ds_st().msg_grid_invalid = false;
             g_st().clear_cmdline = true;
@@ -593,7 +593,7 @@ pub fn update_screen() -> c_int {
             type_ = UPD_NOT_VALID;
             g_st().must_redraw = 0;
         } else if !g_st().default_grid.valid {
-            grid_invalidate(&raw mut g_st().default_grid);
+            grid_invalidate(&mut g_st().default_grid);
             g_st().default_grid.valid = true;
         }
 
@@ -689,7 +689,7 @@ pub fn update_screen() -> c_int {
                 && (*wp).w_floating
                 && !(*wp).w_grid_alloc.chars.is_empty()
             {
-                grid_invalidate(&raw mut (*wp).w_grid_alloc);
+                grid_invalidate(&mut (*wp).w_grid_alloc);
                 (*wp).w_redr_type = UPD_NOT_VALID;
             }
 

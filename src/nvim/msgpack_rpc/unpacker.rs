@@ -520,101 +520,97 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
 
 /// Advance the unpacker state machine (`unpacker_advance`).
 pub fn unpacker_advance(p: &mut Unpacker) -> bool {
-    unsafe {
-        let p_ptr = &raw mut *p;
-        (*p_ptr).parser.data = crate::mpack::object::mpack_data_t::Unpacker(p_ptr);
-        assert!((*p_ptr).state >= 0);
-        (*p_ptr).has_grid_line_event = false;
-        if (*p_ptr).state == 0 {
-            if !unpacker_parse_header(&mut *p_ptr) {
-                return false;
-            }
-            if (*p_ptr).msg_type == MessageType::kMessageTypeNotification
-                && (*p_ptr)
-                    .handler
-                    .r#fn
-                    .is_some_and(|f| f as *const () == handle_ui_client_redraw as *const ())
-            {
-                (*p_ptr).msg_type = MessageType::kMessageTypeRedrawEvent;
-                (*p_ptr).state = 10;
-            } else {
-                (*p_ptr).state = if (*p_ptr).msg_type == MessageType::kMessageTypeResponse {
-                    1
-                } else {
-                    2
-                };
-                (*p_ptr).arena = empty_arena();
-            }
+    p.parser.data = crate::mpack::object::mpack_data_t::Unpacker(&raw mut *p);
+    assert!(p.state >= 0);
+    p.has_grid_line_event = false;
+    if p.state == 0 {
+        if !unpacker_parse_header(p) {
+            return false;
         }
-
-        let mut need_parse = true;
-        if (*p_ptr).state >= 10 && (*p_ptr).state != 13 {
-            if !unpacker_parse_redraw(&mut *p_ptr) {
-                if (*p_ptr).state < 0 {
-                    api_set_error!(
-                        &mut (*p_ptr).unpack_error,
-                        ErrorType::kErrorTypeValidation,
-                        c"failed to parse redraw event".as_ptr(),
-                    );
-                }
-                return false;
-            }
-
-            if (*p_ptr).state == 16 {
-                (*p_ptr).has_grid_line_event = true;
-                need_parse = false;
+        if p.msg_type == MessageType::kMessageTypeNotification
+            && p.handler
+                .r#fn
+                .is_some_and(|f| f as *const () == handle_ui_client_redraw as *const ())
+        {
+            p.msg_type = MessageType::kMessageTypeRedrawEvent;
+            p.state = 10;
+        } else {
+            p.state = if p.msg_type == MessageType::kMessageTypeResponse {
+                1
             } else {
-                assert_eq!((*p_ptr).state, 12);
-                (*p_ptr).arena = empty_arena();
-                (*p_ptr).state = 13;
-            }
+                2
+            };
+            p.arena = empty_arena();
         }
+    }
 
-        loop {
-            if need_parse {
-                let result = mpack_parse(
-                    &mut (*p_ptr).parser,
-                    &mut (*p_ptr).read_ptr,
-                    &mut (*p_ptr).read_size,
-                    Some(api_parse_enter),
-                    Some(api_parse_exit),
+    let mut need_parse = true;
+    if p.state >= 10 && p.state != 13 {
+        if !unpacker_parse_redraw(p) {
+            if p.state < 0 {
+                api_set_error!(
+                    &mut p.unpack_error,
+                    ErrorType::kErrorTypeValidation,
+                    c"failed to parse redraw event".as_ptr(),
                 );
-                if result == MPACK_EOF {
-                    return false;
-                } else if result != MPACK_OK {
-                    api_set_error!(
-                        &mut (*p_ptr).unpack_error,
-                        ErrorType::kErrorTypeValidation,
-                        c"failed to parse msgpack".as_ptr(),
-                    );
-                    (*p_ptr).state = -1;
-                    return false;
-                }
             }
+            return false;
+        }
 
-            match (*p_ptr).state {
-                1 => {
-                    (*p_ptr).error = (*p_ptr).result;
-                    (*p_ptr).state = 2;
-                    need_parse = true;
-                }
-                2 => {
-                    (*p_ptr).state = 0;
-                    return true;
-                }
-                13 | 16 => {
-                    (*p_ptr).ncalls -= 1;
-                    if (*p_ptr).ncalls > 0 {
-                        (*p_ptr).state = if (*p_ptr).state == 16 { 14 } else { 12 };
-                    } else if (*p_ptr).nevents > 0 {
-                        (*p_ptr).state = 11;
-                    } else {
-                        (*p_ptr).state = 0;
-                    }
-                    return true;
-                }
-                _ => std::process::abort(),
+        if p.state == 16 {
+            p.has_grid_line_event = true;
+            need_parse = false;
+        } else {
+            assert_eq!(p.state, 12);
+            p.arena = empty_arena();
+            p.state = 13;
+        }
+    }
+
+    loop {
+        if need_parse {
+            let result = mpack_parse(
+                &mut p.parser,
+                &mut p.read_ptr,
+                &mut p.read_size,
+                Some(api_parse_enter),
+                Some(api_parse_exit),
+            );
+            if result == MPACK_EOF {
+                return false;
+            } else if result != MPACK_OK {
+                api_set_error!(
+                    &mut p.unpack_error,
+                    ErrorType::kErrorTypeValidation,
+                    c"failed to parse msgpack".as_ptr(),
+                );
+                p.state = -1;
+                return false;
             }
+        }
+
+        match p.state {
+            1 => {
+                p.error = p.result;
+                p.state = 2;
+                need_parse = true;
+            }
+            2 => {
+                p.state = 0;
+                return true;
+            }
+            13 | 16 => {
+                p.ncalls -= 1;
+                if p.ncalls > 0 {
+                    p.state = if p.state == 16 { 14 } else { 12 };
+                } else if p.nevents > 0 {
+                    p.state = 11;
+                } else {
+                    p.state = 0;
+                }
+                return true;
+            }
+            _ => std::process::abort(),
         }
     }
 }

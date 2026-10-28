@@ -270,10 +270,9 @@ pub const fn get_register_name(num: c_int) -> c_int {
 }
 
 #[inline]
-pub fn reg_empty(reg: *const yankreg_T) -> bool {
-    unsafe {
-        let reg = &*reg;
-        !reg.y_allocated
+pub fn reg_empty(reg: &yankreg_T) -> bool {
+     {
+                !reg.y_allocated
             || reg.y_array.is_empty()
             || (reg.y_array.len() == 1
                 && reg.y_type == MotionType::kMTCharWise
@@ -368,10 +367,10 @@ pub fn op_reg_iter(
 ) -> Option<usize> {
     *name = NUL;
         let mut idx = iter.unwrap_or(0);
-        while idx < NUM_SAVED_REGISTERS && reg_empty(&raw const regs[idx]) {
+        while idx < NUM_SAVED_REGISTERS && reg_empty(&regs[idx]) {
             idx += 1;
         }
-        if idx >= NUM_SAVED_REGISTERS || reg_empty(&raw const regs[idx]) {
+        if idx >= NUM_SAVED_REGISTERS || reg_empty(&regs[idx]) {
             return None;
         }
         *name = get_register_name(idx as c_int) as u8 as c_char;
@@ -380,7 +379,7 @@ pub fn op_reg_iter(
         *is_unnamed = ptr::eq(iter_reg, reg_st().y_previous);
         idx += 1;
         while idx < NUM_SAVED_REGISTERS {
-            if !reg_empty(&raw const regs[idx]) {
+            if !reg_empty(&regs[idx]) {
                 return Some(idx);
             }
             idx += 1;
@@ -465,9 +464,8 @@ pub fn op_reg_set_previous(name: c_char) -> bool {
     }
 }
 
-pub fn update_yankreg_width(reg: *mut yankreg_T) {
-    unsafe {
-        let reg = &mut *reg;
+pub fn update_yankreg_width(reg: &mut yankreg_T) {
+     {
         if reg.y_type == MotionType::kMTBlockWise {
             let mut maxlen: usize = 0;
             for &item in &reg.y_array {
@@ -1381,9 +1379,8 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&mut save_v_event);
 
-        let reg_ref = &*reg;
-        let list = tv_list_alloc(reg_ref.y_array.len() as isize);
-        for &item in &reg_ref.y_array {
+        let list = tv_list_alloc(reg.y_array.len() as isize);
+        for &item in &reg.y_array {
             tv_list_append_string(list, item.data, item.size as isize);
         }
         (*list).lv_lock = VAR_FIXED;
@@ -1542,7 +1539,7 @@ pub fn op_yank(oap: &mut oparg_T, message: bool) -> bool {
 
         let reg = get_yank_register(oap.regname, YREG_YANK);
         op_yank_reg(oap, message, reg, is_append_register(oap.regname));
-        set_clipboard(oap.regname, reg);
+        set_clipboard(oap.regname, &*reg);
         do_autocmd_textyankpost(oap, &mut *reg);
         true
     }
@@ -2839,9 +2836,8 @@ fn str_to_reg(
     str_list: bool,
 ) {
     unsafe {
-        let y_reg = &mut *y_ptr;
-        if !y_reg.y_allocated {
-            y_reg.y_array.clear();
+        if !y_ptr.y_allocated {
+            y_ptr.y_array.clear();
         }
 
         if yank_type == MotionType::kMTUnknown {
@@ -2873,27 +2869,27 @@ fn str_to_reg(
                 extraline = 1;
                 newlines += 1;
             }
-            if !y_reg.y_array.is_empty() && y_reg.y_type == MotionType::kMTCharWise {
+            if !y_ptr.y_array.is_empty() && y_ptr.y_type == MotionType::kMTCharWise {
                 append = true;
                 newlines -= 1;
             }
         }
 
-        if y_reg.y_array.len() + newlines == 0 {
-            y_reg.y_array.clear();
-            y_reg.y_allocated = false;
+        if y_ptr.y_array.len() + newlines == 0 {
+            y_ptr.y_array.clear();
+            y_ptr.y_allocated = false;
             return;
         }
 
-        y_reg.y_array.reserve(newlines);
-        y_reg.y_allocated = true;
+        y_ptr.y_array.reserve(newlines);
+        y_ptr.y_allocated = true;
 
         let mut maxlen: usize = 0;
 
         if str_list {
             let mut ss = str_.cast::<*mut c_char>();
             while !(*ss).is_null() {
-                y_reg.y_array.push(cstr_to_string(*ss));
+                y_ptr.y_array.push(cstr_to_string(*ss));
                 if yank_type == MotionType::kMTBlockWise {
                     let charlen = vim_strsize(*ss) as usize;
                     maxlen = maxlen.max(charlen);
@@ -2914,7 +2910,7 @@ fn str_to_reg(
                 }
 
                 let extra = if append {
-                    y_reg.y_array.last().unwrap().size
+                    y_ptr.y_array.last().unwrap().size
                 } else {
                     0
                 };
@@ -2922,7 +2918,7 @@ fn str_to_reg(
                 let mut s_vec = vec![0 as c_char; s_len + 1];
                 if extra > 0 {
                     ptr::copy_nonoverlapping(
-                        y_reg.y_array.last().unwrap().data,
+                        y_ptr.y_array.last().unwrap().data,
                         s_vec.as_mut_ptr(),
                         extra,
                     );
@@ -2934,34 +2930,34 @@ fn str_to_reg(
                 let new_str = cbuf_to_string(s_vec.as_ptr(), s_len);
 
                 if append {
-                    let last = y_reg.y_array.last_mut().unwrap();
+                    let last = y_ptr.y_array.last_mut().unwrap();
                     api_clear_string(last);
                     *last = new_str;
                     append = false;
                 } else {
-                    y_reg.y_array.push(new_str);
+                    y_ptr.y_array.push(new_str);
                 }
 
                 start = start.add(line_len + 1);
             }
         }
-        y_reg.y_type = yank_type;
-        y_reg.additional_data = None;
-        y_reg.timestamp = os_realtime() as u64;
+        y_ptr.y_type = yank_type;
+        y_ptr.additional_data = None;
+        y_ptr.timestamp = os_realtime() as u64;
         if yank_type == MotionType::kMTBlockWise {
-            y_reg.y_width = if blocklen == -1 {
+            y_ptr.y_width = if blocklen == -1 {
                 (maxlen as colnr_T) - 1
             } else {
                 blocklen
             };
         } else {
-            y_reg.y_width = 0;
+            y_ptr.y_width = 0;
         }
     }
 }
 
 fn finish_write_reg(name: c_int, reg: *mut yankreg_T, old_y_previous: *mut yankreg_T) {
-    set_clipboard(name, reg);
+    set_clipboard(name, unsafe { &*reg });
         if name != c_int::from(b'"') {
             reg_st().y_previous = old_y_previous;
         }
@@ -3127,21 +3123,20 @@ pub fn prepare_yankreg_from_object(
 }
 
 pub fn finish_yankreg_from_object(reg: &mut yankreg_T, clipboard_adjust: bool) {
-    let reg_ref = &mut *reg;
-        if reg_ref.y_array.last().is_some_and(|last| last.size == 0) {
-            if reg_ref.y_type != MotionType::kMTCharWise {
-                if reg_ref.y_type == MotionType::kMTUnknown || clipboard_adjust {
-                    reg_ref.y_array.pop();
+        if reg.y_array.last().is_some_and(|last| last.size == 0) {
+            if reg.y_type != MotionType::kMTCharWise {
+                if reg.y_type == MotionType::kMTUnknown || clipboard_adjust {
+                    reg.y_array.pop();
                 }
-                if reg_ref.y_type == MotionType::kMTUnknown {
-                    reg_ref.y_type = MotionType::kMTLineWise;
+                if reg.y_type == MotionType::kMTUnknown {
+                    reg.y_type = MotionType::kMTLineWise;
                 }
             }
-        } else if reg_ref.y_type == MotionType::kMTUnknown {
-            reg_ref.y_type = MotionType::kMTCharWise;
+        } else if reg.y_type == MotionType::kMTUnknown {
+            reg.y_type = MotionType::kMTCharWise;
         }
 
-        update_yankreg_width(&raw mut *reg);
+        update_yankreg_width(reg);
 }
 
 #[cfg(test)]

@@ -723,12 +723,10 @@ pub fn searchit(
         let mut break_loop = false;
         let mut stop_lnum: linenr_T = 0;
         let mut tm: Option<proftime_T> = None;
-        let mut timed_out: *mut c_int = ptr::null_mut();
 
-        if extra_arg.is_some() {
-            stop_lnum = extra_arg.as_deref_mut().unwrap().sa_stop_lnum;
-            tm = extra_arg.as_deref_mut().unwrap().sa_tm;
-            timed_out = &raw mut extra_arg.as_deref_mut().unwrap().sa_timed_out;
+        if let Some(ref ea) = extra_arg {
+            stop_lnum = ea.sa_stop_lnum;
+            tm = ea.sa_tm;
         }
 
         if search_regcomp(
@@ -819,12 +817,20 @@ pub fn searchit(
                     } else {
                         0
                     };
-                    nmatched =
-                        vim_regexec_multi(&mut regmatch, win, buf, lnum, col, tm, Some(&mut *timed_out));
+                    nmatched = vim_regexec_multi(
+                        &mut regmatch,
+                        win,
+                        buf,
+                        lnum,
+                        col,
+                        tm,
+                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
+                    );
                     if regmatch.regprog.is_null() {
                         break;
                     }
-                    if g_st().called_emsg > called_emsg_before || (!timed_out.is_null() && *timed_out != 0)
+                    if g_st().called_emsg > called_emsg_before
+                        || extra_arg.as_deref().is_some_and(|ea| ea.sa_timed_out != 0)
                     {
                         break;
                     }
@@ -878,7 +884,7 @@ pub fn searchit(
                                         lnum,
                                         matchcol,
                                         tm,
-                                        Some(&mut *timed_out),
+                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
                                     );
                                     nmatched == 0
                                 } {
@@ -954,7 +960,7 @@ pub fn searchit(
                                         lnum + matchpos.lnum,
                                         matchcol,
                                         tm,
-                                        Some(&mut *timed_out),
+                                        extra_arg.as_deref_mut().map(|ea| &mut ea.sa_timed_out),
                                     );
                                     nmatched == 0
                                 } {
@@ -1048,7 +1054,7 @@ pub fn searchit(
                     || stop_lnum != 0
                     || g_st().got_int
                     || g_st().called_emsg > called_emsg_before
-                    || (!timed_out.is_null() && *timed_out != 0)
+                    || extra_arg.as_deref().is_some_and(|ea| ea.sa_timed_out != 0)
                     || break_loop
                     || found != 0
                     || loop_idx != 0
@@ -1075,13 +1081,13 @@ pub fn searchit(
                         false,
                     );
                 }
-                if extra_arg.is_some() {
-                    extra_arg.as_deref_mut().unwrap().sa_wrapped = 1;
+                if let Some(ref mut ea) = extra_arg {
+                    ea.sa_wrapped = 1;
                 }
             }
             if g_st().got_int
                 || g_st().called_emsg > called_emsg_before
-                || (!timed_out.is_null() && *timed_out != 0)
+                || extra_arg.as_deref().is_some_and(|ea| ea.sa_timed_out != 0)
                 || break_loop
             {
                 break;

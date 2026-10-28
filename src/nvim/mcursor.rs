@@ -1151,7 +1151,7 @@ fn mc_reg_gather() {
                     0,
                 );
                 if r == b'"' as c_int {
-                    set_clipboard(NUL, get_y_previous());
+                    set_clipboard(NUL, &*get_y_previous());
                 }
             }
             idx += 1;

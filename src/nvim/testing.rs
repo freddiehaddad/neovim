@@ -159,10 +159,9 @@ fn fill_assert_error(
         let mut did_copy = false;
         let mut omitted: c_int = 0;
 
-        let opt_msg = &*opt_msg_tv;
-        if opt_msg.v_type != VarType::VAR_UNKNOWN
-            && !(opt_msg.v_type == VarType::VAR_STRING
-                && (opt_msg.vval.v_string().is_null() || *opt_msg.vval.v_string() == 0))
+        if opt_msg_tv.v_type != VarType::VAR_UNKNOWN
+            && !(opt_msg_tv.v_type == VarType::VAR_STRING
+                && (opt_msg_tv.vval.v_string().is_null() || *opt_msg_tv.vval.v_string() == 0))
         {
             let tofree = encode_tv2echo(opt_msg_tv, None);
             buf_concat_cstr(gap, tofree.as_ptr());

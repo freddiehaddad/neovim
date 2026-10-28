@@ -542,7 +542,6 @@ pub fn ui_line(
 
         ui_may_set_default_colors();
 
-        let grid = &mut *grid;
         let off = grid.line_offset[row as usize] + startcol as usize;
         ui_call_raw_line(
             Integer::from(grid.handle),
