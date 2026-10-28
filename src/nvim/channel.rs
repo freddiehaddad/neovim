@@ -955,13 +955,13 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
     }
 }
 
-pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: i32, chan: &mut Channel) {
+pub(crate) fn channel_proc_exit_cb(proc_: *mut Proc, status: i32, chan: &mut Channel) {
     if !chan.term.is_null() {
         terminal_close(&raw mut chan.term, status);
     }
 
     if !g_st().exiting && g_st().ui_client_channel_id == chan.id {
-        ui_client_attach_to_restarted_server(proc_.status != 0);
+        ui_client_attach_to_restarted_server(unsafe { (*proc_).status } != 0);
         if g_st().ui_client_channel_id == chan.id {
             exit_on_closed_chan(status);
         }

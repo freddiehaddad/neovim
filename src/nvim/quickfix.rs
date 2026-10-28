@@ -3280,7 +3280,7 @@ fn qf_jump_print_msg(
     qi: &mut QfInfo,
     qf_index: i32,
     qf_ptr: &mut Qfline,
-    old_curbuf: &mut FileBuf,
+    old_curbuf: *mut FileBuf,
     old_lnum: Linenr,
 ) {
     let gap = qfga_get();
@@ -3421,13 +3421,7 @@ fn qf_jump_to_buffer(
         fold_open_cursor();
     }
     if print_message {
-        qf_jump_print_msg(
-            qi,
-            qf_index,
-            &mut *qf_ptr,
-            unsafe { &mut *old_curbuf },
-            old_lnum,
-        );
+        qf_jump_print_msg(qi, qf_index, &mut *qf_ptr, old_curbuf, old_lnum);
     }
 
     retval

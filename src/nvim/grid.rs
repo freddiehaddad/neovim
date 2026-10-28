@@ -1044,11 +1044,12 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
             || grid_allocated.rows != total_rows
             || grid_allocated.cols != total_cols)
     {
+        let is_valid = wp.w_grid_alloc.valid;
         grid_alloc(
             &mut *grid_allocated,
             total_rows,
             total_cols,
-            wp.w_grid_alloc.valid,
+            is_valid,
             false,
         );
         grid_allocated.valid = true;

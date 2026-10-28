@@ -1409,7 +1409,6 @@ pub extern "C" fn build_stl_str_hl(
         }
 
         let items_vec_ptr = &raw mut stl_st().stl_items_vec;
-        let items_vec_ptr = { &mut *items_vec_ptr };
         let groupitems_vec_ptr = &raw mut stl_st().stl_groupitems_vec;
         let hltab_vec_ptr = &raw mut stl_st().stl_hltab_vec;
         let tabtab_vec_ptr = &raw mut stl_st().stl_tabtab_vec;

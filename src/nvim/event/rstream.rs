@@ -194,22 +194,24 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     invoke_read_cb(&mut *stream, false);
 }
 
-pub fn read_event(stream: &mut RStream) {
-    stream.pending_read = false;
-    let available = rstream_available(stream);
-    let read_ptr = stream.buffer.as_ptr().wrapping_add(stream.read_pos);
-    if let Some(consumed) =
-        stream
-            .s
-            .cb_data
-            .call_read_cb(stream, read_ptr, available, stream.did_eof)
-    {
-        assert!(consumed <= available);
-        rstream_consume(stream, consumed);
-    }
-    stream.s.pending_reqs -= 1;
-    if stream.s.closed && stream.s.pending_reqs == 0 {
-        stream_close_handle(&mut stream.s);
+pub fn read_event(stream: *mut RStream) {
+    unsafe {
+        (*stream).pending_read = false;
+        let available = rstream_available(&mut *stream);
+        let read_ptr = (*stream).buffer.as_ptr().wrapping_add((*stream).read_pos);
+        if let Some(consumed) =
+            (*stream)
+                .s
+                .cb_data
+                .call_read_cb(stream, read_ptr, available, (*stream).did_eof)
+        {
+            assert!(consumed <= available);
+            rstream_consume(&mut *stream, consumed);
+        }
+        (*stream).s.pending_reqs -= 1;
+        if (*stream).s.closed && (*stream).s.pending_reqs == 0 {
+            stream_close_handle(&mut (*stream).s);
+        }
     }
 }
 
@@ -258,7 +260,7 @@ fn invoke_read_cb(stream: &mut RStream, eof: bool) {
             Event::RStreamRead(&raw mut *stream),
         );
     } else {
-        read_event(stream);
+        read_event(&raw mut *stream);
     }
 }
 

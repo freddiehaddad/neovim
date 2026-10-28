@@ -184,83 +184,82 @@ fn loop_process_events_until<F: FnMut() -> bool>(
 
 /// @returns zero on success, or negative error code
 pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
-    let s_in = &raw mut proc_.r#in;
-    let s_in = { unsafe { &mut *s_in } };
-    let s_out = &raw mut proc_.out.s;
-    let s_out = { unsafe { &mut *s_out } };
-    let s_err = &raw mut proc_.err.s;
-    let s_err = { unsafe { &mut *s_err } };
+    unsafe {
+        let s_in = &raw mut proc_.r#in;
+        let s_out = &raw mut proc_.out.s;
+        let s_err = &raw mut proc_.err.s;
 
-    debug_assert!(!(err && proc_.fwd_err));
+        debug_assert!(!(err && proc_.fwd_err));
 
-    if in_ {
-        unsafe { uv_pipe_init(proc_.loop_.cast(), (&raw mut s_in.uv).cast(), 0) };
-    } else {
-        s_in.closed = true;
-    }
-
-    if out {
-        unsafe { uv_pipe_init(proc_.loop_.cast(), (&raw mut s_out.uv).cast(), 0) };
-    } else {
-        s_out.closed = true;
-    }
-
-    if err {
-        unsafe { uv_pipe_init(proc_.loop_.cast(), (&raw mut s_err.uv).cast(), 0) };
-    } else {
-        s_err.closed = true;
-    }
-
-    let status = match proc_.r#type {
-        K_PROC_TYPE_UV => libuv_proc_spawn(unsafe { &mut *(&raw mut *proc_).cast() }),
-        K_PROC_TYPE_PTY => pty_proc_spawn(unsafe { &mut *(&raw mut *proc_).cast() }),
-        _ => unreachable!(),
-    };
-
-    if status != 0 {
         if in_ {
-            unsafe { uv_close((&raw mut s_in.uv).cast(), None) };
-        }
-        if out {
-            unsafe { uv_close((&raw mut s_out.uv).cast(), None) };
-        }
-        if err {
-            unsafe { uv_close((&raw mut s_err.uv).cast(), None) };
-        }
-
-        if proc_.r#type == K_PROC_TYPE_UV {
-            unsafe { uv_close(libuv_proc_uv(proc_), None) };
+            uv_pipe_init(proc_.loop_.cast(), (&raw mut (*s_in).uv).cast(), 0);
         } else {
-            proc_close(proc_);
+            (*s_in).closed = true;
         }
-        proc_.status = -1;
-        return status;
-    }
 
-    if in_ {
-        stream_init(ptr::null_mut(), &mut *s_in, -1, true);
-        s_in.internal_data = StreamInternalData::Proc(proc_);
+        if out {
+            uv_pipe_init(proc_.loop_.cast(), (&raw mut (*s_out).uv).cast(), 0);
+        } else {
+            (*s_out).closed = true;
+        }
+
+        if err {
+            uv_pipe_init(proc_.loop_.cast(), (&raw mut (*s_err).uv).cast(), 0);
+        } else {
+            (*s_err).closed = true;
+        }
+
+        let status = match proc_.r#type {
+            K_PROC_TYPE_UV => libuv_proc_spawn(&mut *(&raw mut *proc_).cast()),
+            K_PROC_TYPE_PTY => pty_proc_spawn(&mut *(&raw mut *proc_).cast()),
+            _ => unreachable!(),
+        };
+
+        if status != 0 {
+            if in_ {
+                uv_close((&raw mut (*s_in).uv).cast(), None);
+            }
+            if out {
+                uv_close((&raw mut (*s_out).uv).cast(), None);
+            }
+            if err {
+                uv_close((&raw mut (*s_err).uv).cast(), None);
+            }
+
+            if proc_.r#type == K_PROC_TYPE_UV {
+                uv_close(libuv_proc_uv(proc_), None);
+            } else {
+                proc_close(proc_);
+            }
+            proc_.status = -1;
+            return status;
+        }
+
+        if in_ {
+            stream_init(ptr::null_mut(), &mut *s_in, -1, true);
+            (*s_in).internal_data = StreamInternalData::Proc(proc_);
+            proc_.refcount += 1;
+        }
+
+        if out {
+            stream_init(ptr::null_mut(), &mut *s_out, -1, true);
+            (*s_out).internal_data = StreamInternalData::Proc(proc_);
+            proc_.refcount += 1;
+        }
+
+        if err {
+            stream_init(ptr::null_mut(), &mut *s_err, -1, true);
+            (*s_err).internal_data = StreamInternalData::Proc(proc_);
+            proc_.refcount += 1;
+        }
+
         proc_.refcount += 1;
+
+        let qc = loop_queues(&mut *proc_.loop_);
+        qc.children.push(proc_);
+
+        0
     }
-
-    if out {
-        stream_init(ptr::null_mut(), &mut *s_out, -1, true);
-        s_out.internal_data = StreamInternalData::Proc(proc_);
-        proc_.refcount += 1;
-    }
-
-    if err {
-        stream_init(ptr::null_mut(), &mut *s_err, -1, true);
-        s_err.internal_data = StreamInternalData::Proc(proc_);
-        proc_.refcount += 1;
-    }
-
-    proc_.refcount += 1;
-
-    let qc = loop_queues(unsafe { &mut *proc_.loop_ });
-    qc.children.push(proc_);
-
-    0
 }
 
 pub fn proc_teardown(loop_: &mut Loop) {
@@ -401,11 +400,13 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
     }
 }
 
-pub fn proc_close_event(proc_: &mut Proc) {
-    if !proc_.data.is_null() {
-        let status = proc_.status;
-        let data = proc_.data;
-        crate::channel::channel_proc_exit_cb(proc_, status, unsafe { &mut *data });
+pub fn proc_close_event(proc_: *mut Proc) {
+    unsafe {
+        if !(*proc_).data.is_null() {
+            let status = (*proc_).status;
+            let data = (*proc_).data;
+            crate::channel::channel_proc_exit_cb(proc_, status, &mut *data);
+        }
     }
 }
 
@@ -425,7 +426,7 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
             Event::ProcClose(&raw mut *proc_),
         );
     } else {
-        proc_close_event(proc_);
+        proc_close_event(&raw mut *proc_);
     }
 }
 

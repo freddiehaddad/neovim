@@ -98,14 +98,14 @@ impl Event {
             Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher),
             Self::TimeWatcherClose(watcher) => crate::event::time::close_event(watcher),
             Self::Signal(watcher) => crate::event::signal::signal_event(unsafe { &mut *watcher }),
-            Self::RStreamRead(stream) => crate::event::rstream::read_event(unsafe { &mut *stream }),
+            Self::RStreamRead(stream) => crate::event::rstream::read_event(stream),
             Self::SocketConnection { watcher, status } => {
                 crate::event::socket::connection_event(watcher, status);
             }
             Self::ProcCloseHandles(proc_) => {
                 crate::event::proc::proc_close_handles(unsafe { &mut *proc_ })
             }
-            Self::ProcClose(proc_) => crate::event::proc::proc_close_event(unsafe { &mut *proc_ }),
+            Self::ProcClose(proc_) => crate::event::proc::proc_close_event(proc_),
             Self::ProcExit(status) => crate::event::proc::exit_event(status),
             Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
             Self::AutoCmdOptionSetModified { bufnr, new_val } => {
