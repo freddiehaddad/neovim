@@ -4497,14 +4497,13 @@ fn call_qftf_func(
             let dict = tv_dict_alloc_lock(VAR_FIXED);
             tv_dict_add_nr(
                 dict,
-                c"quickfix".as_ptr(),
-                8,
+                c"quickfix",
                 varnumber_T::from(is_qf_list(qfl)),
             );
-            tv_dict_add_nr(dict, c"winid".as_ptr(), 5, varnumber_T::from(qf_winid));
-            tv_dict_add_nr(dict, c"id".as_ptr(), 2, varnumber_T::from(qfl.qf_id));
-            tv_dict_add_nr(dict, c"start_idx".as_ptr(), 9, varnumber_T::from(start_idx));
-            tv_dict_add_nr(dict, c"end_idx".as_ptr(), 7, varnumber_T::from(end_idx));
+            tv_dict_add_nr(dict, c"winid", varnumber_T::from(qf_winid));
+            tv_dict_add_nr(dict, c"id", varnumber_T::from(qfl.qf_id));
+            tv_dict_add_nr(dict, c"start_idx", varnumber_T::from(start_idx));
+            tv_dict_add_nr(dict, c"end_idx", varnumber_T::from(end_idx));
             (*dict).dv_refcount += 1;
             args[0].v_type = VarType::VAR_DICT;
             args[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
@@ -5490,7 +5489,7 @@ fn vgr_load_dummy_buf(
     dirname_start: *mut c_char,
     dirname_now: *mut c_char,
 ) -> *mut buf_T {
-    let save_ei = au_event_disable(c",Filetype".as_ptr().cast_mut());
+    let save_ei = au_event_disable(c",Filetype");
 
         let save_mls = opt_vars().p_mls;
         opt_vars().p_mls = 0;
@@ -6119,28 +6118,25 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
         let buf = [qfp.qf_type, NUL];
         let buflen: usize = if buf[0] == NUL { 0 } else { 1 };
         let empty = c"".as_ptr();
-        if !tv_dict_add_nr(dict, c"bufnr".as_ptr(), 5, varnumber_T::from(bufnum))
-            || !tv_dict_add_nr(dict, c"lnum".as_ptr(), 4, varnumber_T::from(qfp.qf_lnum))
+        if !tv_dict_add_nr(dict, c"bufnr", varnumber_T::from(bufnum))
+            || !tv_dict_add_nr(dict, c"lnum", varnumber_T::from(qfp.qf_lnum))
             || !tv_dict_add_nr(
                 dict,
-                c"end_lnum".as_ptr(),
-                8,
+                c"end_lnum",
                 varnumber_T::from(qfp.qf_end_lnum),
             )
-            || !tv_dict_add_nr(dict, c"col".as_ptr(), 3, varnumber_T::from(qfp.qf_col))
+            || !tv_dict_add_nr(dict, c"col", varnumber_T::from(qfp.qf_col))
             || !tv_dict_add_nr(
                 dict,
-                c"end_col".as_ptr(),
-                7,
+                c"end_col",
                 varnumber_T::from(qfp.qf_end_col),
             )
             || !tv_dict_add_nr(
                 dict,
-                c"vcol".as_ptr(),
-                4,
+                c"vcol",
                 varnumber_T::from(qfp.qf_viscol),
             )
-            || !tv_dict_add_nr(dict, c"nr".as_ptr(), 2, varnumber_T::from(qfp.qf_nr))
+            || !tv_dict_add_nr(dict, c"nr", varnumber_T::from(qfp.qf_nr))
             || !tv_dict_add_str(
                 dict,
                 c"module".as_ptr(),
@@ -6159,8 +6155,7 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
                 && !tv_dict_add_tv(dict, c"user_data".as_ptr(), 9, &mut qfp.qf_user_data))
             || !tv_dict_add_nr(
                 dict,
-                c"valid".as_ptr(),
-                5,
+                c"valid",
                 varnumber_T::from(qfp.qf_valid),
             )
         {
@@ -6296,7 +6291,7 @@ fn qf_getprop_qfbufnr(qi: *const qf_info_T, retdict: &mut dict_T) -> bool {
         if !qi.is_null() && !buflist_findnr((*qi).qf_bufnr).is_null() {
             bufnum = (*qi).qf_bufnr;
         }
-        tv_dict_add_nr(retdict, c"qfbufnr".as_ptr(), 7, varnumber_T::from(bufnum))
+        tv_dict_add_nr(retdict, c"qfbufnr", varnumber_T::from(bufnum))
     }
 }
 
@@ -6403,13 +6398,12 @@ fn qf_getprop_defaults(
             status = tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
         }
         if status && (flags & QF_GETLIST_NR) != 0 {
-            status = tv_dict_add_nr(retdict, c"nr".as_ptr(), 2, 0);
+            status = tv_dict_add_nr(retdict, c"nr", 0);
         }
         if status && (flags & QF_GETLIST_WINID) != 0 {
             status = tv_dict_add_nr(
                 retdict,
-                c"winid".as_ptr(),
-                5,
+                c"winid",
                 varnumber_T::from(qf_winid(&raw mut *qi)),
             );
         }
@@ -6417,19 +6411,19 @@ fn qf_getprop_defaults(
             status = tv_dict_add_str_len(retdict, c"context".as_ptr(), 7, empty, 0);
         }
         if status && (flags & QF_GETLIST_ID) != 0 {
-            status = tv_dict_add_nr(retdict, c"id".as_ptr(), 2, 0);
+            status = tv_dict_add_nr(retdict, c"id", 0);
         }
         if status && (flags & QF_GETLIST_IDX) != 0 {
-            status = tv_dict_add_nr(retdict, c"idx".as_ptr(), 3, 0);
+            status = tv_dict_add_nr(retdict, c"idx", 0);
         }
         if status && (flags & QF_GETLIST_SIZE) != 0 {
-            status = tv_dict_add_nr(retdict, c"size".as_ptr(), 4, 0);
+            status = tv_dict_add_nr(retdict, c"size", 0);
         }
         if status && (flags & QF_GETLIST_TICK) != 0 {
-            status = tv_dict_add_nr(retdict, c"changedtick".as_ptr(), 11, 0);
+            status = tv_dict_add_nr(retdict, c"changedtick", 0);
         }
         if status && locstack && (flags & QF_GETLIST_FILEWINID) != 0 {
-            status = tv_dict_add_nr(retdict, c"filewinid".as_ptr(), 9, 0);
+            status = tv_dict_add_nr(retdict, c"filewinid", 0);
         }
         if status && (flags & QF_GETLIST_QFBUFNR) != 0 {
             status = qf_getprop_qfbufnr(&raw mut *qi, &mut *retdict);
@@ -6466,7 +6460,7 @@ fn qf_getprop_filewinid(
             }
         }
 
-        tv_dict_add_nr(retdict, c"filewinid".as_ptr(), 9, varnumber_T::from(winid))
+        tv_dict_add_nr(retdict, c"filewinid", varnumber_T::from(winid))
     }
 }
 
@@ -6507,7 +6501,7 @@ fn qf_getprop_idx(qfl: &mut qf_list_T, mut eidx: c_int, retdict: &mut dict_T) ->
                 eidx = 0;
             }
         }
-        tv_dict_add_nr(retdict, c"idx".as_ptr(), 3, varnumber_T::from(eidx))
+        tv_dict_add_nr(retdict, c"idx", varnumber_T::from(eidx))
 }
 
 fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
@@ -6563,13 +6557,12 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
             status = qf_getprop_title(qfl, retdict);
         }
         if status && (flags & QF_GETLIST_NR) != 0 {
-            status = tv_dict_add_nr(retdict, c"nr".as_ptr(), 2, varnumber_T::from(qf_idx + 1));
+            status = tv_dict_add_nr(retdict, c"nr", varnumber_T::from(qf_idx + 1));
         }
         if status && (flags & QF_GETLIST_WINID) != 0 {
             status = tv_dict_add_nr(
                 retdict,
-                c"winid".as_ptr(),
-                5,
+                c"winid",
                 varnumber_T::from(qf_winid(qi)),
             );
         }
@@ -6580,7 +6573,7 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
             status = qf_getprop_ctx(qfl, retdict);
         }
         if status && (flags & QF_GETLIST_ID) != 0 {
-            status = tv_dict_add_nr(retdict, c"id".as_ptr(), 2, varnumber_T::from(qfl.qf_id));
+            status = tv_dict_add_nr(retdict, c"id", varnumber_T::from(qfl.qf_id));
         }
         if status && (flags & QF_GETLIST_IDX) != 0 {
             status = qf_getprop_idx(qfl, eidx, retdict);
@@ -6588,16 +6581,14 @@ fn qf_get_properties(wp: *mut win_T, what: &mut dict_T, retdict: &mut dict_T) ->
         if status && (flags & QF_GETLIST_SIZE) != 0 {
             status = tv_dict_add_nr(
                 retdict,
-                c"size".as_ptr(),
-                4,
+                c"size",
                 varnumber_T::from(qfl.count()),
             );
         }
         if status && (flags & QF_GETLIST_TICK) != 0 {
             status = tv_dict_add_nr(
                 retdict,
-                c"changedtick".as_ptr(),
-                11,
+                c"changedtick",
                 varnumber_T::from(qfl.qf_changedtick),
             );
         }
@@ -6648,7 +6639,7 @@ fn qf_add_entry_from_dict(
         let end_col = tv_dict_get_number(d, c"end_col") as c_int;
         let vcol = tv_dict_get_number(d, c"vcol") as c_char;
         let nr = tv_dict_get_number(d, c"nr") as c_int;
-        let type_ = tv_dict_get_string(d, c"type".as_ptr());
+        let type_ = tv_dict_get_string(d, c"type");
         let pattern = crate::eval::typval::tv_dict_get_cstring(d, c"pattern");
         let text = crate::eval::typval::tv_dict_get_cstring(d, c"text").unwrap_or_default();
         let mut user_data: typval_T = typval_T::new();

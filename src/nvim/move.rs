@@ -1249,18 +1249,16 @@ pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             false,
         );
 
-        tv_dict_add_nr(dict, c"row".as_ptr(), "row".len(), varnumber_T::from(row));
-        tv_dict_add_nr(dict, c"col".as_ptr(), "col".len(), varnumber_T::from(scol));
+        tv_dict_add_nr(dict, c"row", varnumber_T::from(row));
+        tv_dict_add_nr(dict, c"col", varnumber_T::from(scol));
         tv_dict_add_nr(
             dict,
-            c"curscol".as_ptr(),
-            "curscol".len(),
+            c"curscol",
             varnumber_T::from(ccol),
         );
         tv_dict_add_nr(
             dict,
-            c"endcol".as_ptr(),
-            "endcol".len(),
+            c"endcol",
             varnumber_T::from(ecol),
         );
     }

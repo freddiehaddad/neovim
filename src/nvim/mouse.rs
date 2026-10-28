@@ -2198,14 +2198,12 @@ pub fn f_getmousepos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
         tv_dict_add_nr(
             d,
-            c"screenrow".as_ptr(),
-            "screenrow".len(),
+            c"screenrow",
             varnumber_T::from(g_st().mouse_row) + 1,
         );
         tv_dict_add_nr(
             d,
-            c"screencol".as_ptr(),
-            "screencol".len(),
+            c"screencol",
             varnumber_T::from(g_st().mouse_col) + 1,
         );
 
@@ -2223,15 +2221,14 @@ pub fn f_getmousepos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 }
             }
         }
-        tv_dict_add_nr(d, c"winid".as_ptr(), "winid".len(), winid);
-        tv_dict_add_nr(d, c"winrow".as_ptr(), "winrow".len(), winrow);
-        tv_dict_add_nr(d, c"wincol".as_ptr(), "wincol".len(), wincol);
-        tv_dict_add_nr(d, c"line".as_ptr(), "line".len(), varnumber_T::from(lnum));
-        tv_dict_add_nr(d, c"column".as_ptr(), "column".len(), column);
+        tv_dict_add_nr(d, c"winid", winid);
+        tv_dict_add_nr(d, c"winrow", winrow);
+        tv_dict_add_nr(d, c"wincol", wincol);
+        tv_dict_add_nr(d, c"line", varnumber_T::from(lnum));
+        tv_dict_add_nr(d, c"column", column);
         tv_dict_add_nr(
             d,
-            c"coladd".as_ptr(),
-            "coladd".len(),
+            c"coladd",
             varnumber_T::from(coladd),
         );
     }

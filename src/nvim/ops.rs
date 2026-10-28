@@ -3369,38 +3369,35 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
         }
 
         if !dict.is_null() {
-            tv_dict_add_nr(dict, c"words".as_ptr(), 5, word_count);
-            tv_dict_add_nr(dict, c"chars".as_ptr(), 5, char_count);
-            tv_dict_add_nr(dict, c"bytes".as_ptr(), 5, byte_count + bom_count);
+            tv_dict_add_nr(dict, c"words", word_count);
+            tv_dict_add_nr(dict, c"chars", char_count);
+            tv_dict_add_nr(dict, c"bytes", byte_count + bom_count);
 
             tv_dict_add_nr(
                 dict,
                 if l_VIsual_active {
-                    c"visual_bytes".as_ptr()
+                    c"visual_bytes"
                 } else {
-                    c"cursor_bytes".as_ptr()
+                    c"cursor_bytes"
                 },
-                12,
                 byte_count_cursor,
             );
             tv_dict_add_nr(
                 dict,
                 if l_VIsual_active {
-                    c"visual_chars".as_ptr()
+                    c"visual_chars"
                 } else {
-                    c"cursor_chars".as_ptr()
+                    c"cursor_chars"
                 },
-                12,
                 char_count_cursor,
             );
             tv_dict_add_nr(
                 dict,
                 if l_VIsual_active {
-                    c"visual_words".as_ptr()
+                    c"visual_words"
                 } else {
-                    c"cursor_words".as_ptr()
+                    c"cursor_words"
                 },
-                12,
                 word_count_cursor,
             );
         }

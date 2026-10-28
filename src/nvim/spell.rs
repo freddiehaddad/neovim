@@ -3235,7 +3235,7 @@ pub fn expand_spelling(
     *matches = spell_suggest_list(pat, 100, spell_priv_st().spell_expand_need_cap, true);
 }
 pub fn valid_spelllang(val: *const c_char) -> bool {
-    valid_name(val, c".-_,@".as_ptr())
+    valid_name(val, c".-_,@")
 }
 pub fn valid_spellfile(val: *const c_char) -> bool {
     unsafe {

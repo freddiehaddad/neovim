@@ -968,7 +968,6 @@ fn select_tag_match(eap: Option<&exarg_T>,
             tv_dict_add_bool(
                 d,
                 c"cur",
-                3,
                 if cur { kBoolVarTrue } else { kBoolVarFalse },
             );
 
@@ -1085,7 +1084,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
 
             tv_dict_add_str(dict, c"text".as_ptr(), 4, tag_name.as_ptr());
             tv_dict_add_str(dict, c"filename".as_ptr(), 8, fname);
-            tv_dict_add_nr(dict, c"lnum".as_ptr(), 4, lnum as varnumber_T);
+            tv_dict_add_nr(dict, c"lnum", lnum as varnumber_T);
             if lnum == 0 {
                 tv_dict_add_str(dict, c"pattern".as_ptr(), 7, cmd);
             }
@@ -3273,7 +3272,7 @@ pub fn get_tags(list: &mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> 
                         ptr::null()
                     },
                 )
-                || !tv_dict_add_nr(dict, c"static".as_ptr(), 6, varnumber_T::from(is_static))
+                || !tv_dict_add_nr(dict, c"static", varnumber_T::from(is_static))
             {
                 ret = false;
             }
@@ -3336,14 +3335,12 @@ fn get_tag_details(tag: &mut taggy_T, retdict: *mut dict_T) {
         );
         tv_dict_add_nr(
             retdict,
-            c"matchnr".as_ptr(),
-            7,
+            c"matchnr",
             (tag.cur_match + 1) as varnumber_T,
         );
         tv_dict_add_nr(
             retdict,
-            c"bufnr".as_ptr(),
-            5,
+            c"bufnr",
             tag.cur_fnum as varnumber_T,
         );
         if let Some(ref ud) = tag.user_data {
@@ -3380,14 +3377,12 @@ pub fn get_tagstack(wp: &mut win_T, retdict: &mut dict_T) {
     unsafe {
         tv_dict_add_nr(
             retdict,
-            c"length".as_ptr(),
-            6,
+            c"length",
             wp.w_tagstacklen as varnumber_T,
         );
         tv_dict_add_nr(
             retdict,
-            c"curidx".as_ptr(),
-            6,
+            c"curidx",
             (wp.w_tagstackidx + 1) as varnumber_T,
         );
         let l = tv_list_alloc(2);
@@ -3479,12 +3474,12 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
                         false,
                     )
                     {
-                        let tagname = tv_dict_get_string(itemdict, c"tagname".as_ptr());
+                        let tagname = tv_dict_get_string(itemdict, c"tagname");
                         if !tagname.is_null() {
                             if mark.col > 0 {
                                 mark.col -= 1;
                             }
-                            let ud_ptr = tv_dict_get_string(itemdict, c"user_data".as_ptr());
+                            let ud_ptr = tv_dict_get_string(itemdict, c"user_data");
                             tagstack_push_item(
                                 wp,
                                 Some(crate::memory::cstr_to_cstring(tagname)),

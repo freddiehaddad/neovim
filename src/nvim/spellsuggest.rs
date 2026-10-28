@@ -641,13 +641,12 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
             if sug.su_badlen < stp.st_orglen {
                 tv_dict_add_str_len(d, c"extra".as_ptr(), 5, sug.su_badptr, stp.st_orglen);
             }
-            tv_dict_add_nr(d, c"score".as_ptr(), 5, stp.st_score as i64);
+            tv_dict_add_nr(d, c"score", stp.st_score as i64);
             if (sps_st().sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
-                tv_dict_add_nr(d, c"altscore".as_ptr(), 8, stp.st_altscore as i64);
+                tv_dict_add_nr(d, c"altscore", stp.st_altscore as i64);
                 tv_dict_add_bool(
                     d,
                     c"salscore",
-                    8,
                     if stp.st_salscore {
                         kBoolVarTrue
                     } else {

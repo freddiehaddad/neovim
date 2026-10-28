@@ -3409,17 +3409,17 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
 
         if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
             let d = tv.vval.v_dict();
-            word = tv_dict_get_string(d, c"word".as_ptr());
+            word = tv_dict_get_string(d, c"word");
             cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d, c"abbr");
             cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(d, c"menu");
             cptext[CPT_KIND] = crate::eval::typval::tv_dict_get_cstring(d, c"kind");
             cptext[CPT_INFO] = crate::eval::typval::tv_dict_get_cstring(d, c"info");
             commit_chars = crate::eval::typval::tv_dict_get_cstring(d, c"commit_chars");
 
-            let user_abbr_hlname = tv_dict_get_string(d, c"abbr_hlgroup".as_ptr());
+            let user_abbr_hlname = tv_dict_get_string(d, c"abbr_hlgroup");
             user_hl[0] = get_user_highlight_id(user_abbr_hlname);
 
-            let user_kind_hlname = tv_dict_get_string(d, c"kind_hlgroup".as_ptr());
+            let user_kind_hlname = tv_dict_get_string(d, c"kind_hlgroup");
             user_hl[1] = get_user_highlight_id(user_kind_hlname);
 
             tv_dict_get_tv(d, c"user_data", &mut user_data);
@@ -3430,7 +3430,7 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
             dup = tv_dict_get_number(d, c"dup") != 0;
             empty = tv_dict_get_number(d, c"empty") != 0;
             preselect = tv_dict_get_number(d, c"preselect") != 0;
-            if !tv_dict_get_string(d, c"equal".as_ptr()).is_null()
+            if !tv_dict_get_string(d, c"equal").is_null()
                 && tv_dict_get_number(d, c"equal") != 0
             {
                 flags |= CP_EQUAL;
@@ -3782,15 +3782,14 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
             tv_dict_add_bool(
                 di,
                 c"match",
-                5,
                 if (*match_).cp_in_match_array { 1 } else { 0 },
             );
         }
         if ((*match_).cp_flags & CP_EQUAL) != 0 {
-            tv_dict_add_nr(di, c"equal".as_ptr(), 5, 1);
+            tv_dict_add_nr(di, c"equal", 1);
         }
         if (*match_).cp_preselect {
-            tv_dict_add_nr(di, c"preselect".as_ptr(), 9, 1);
+            tv_dict_add_nr(di, c"preselect", 1);
         }
         if let Some(ref commit_chars) = (*match_).cp_commit_chars {
             tv_dict_add_str(di, c"commit_chars".as_ptr(), 12, commit_chars.as_ptr());
@@ -3849,8 +3848,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
         if ret && (what_flag & CI_WHAT_PUM_VISIBLE) != 0 {
             ret = tv_dict_add_nr(
                 retdict,
-                c"pum_visible".as_ptr(),
-                11,
+                c"pum_visible",
                 varnumber_T::from(pum_visible()),
             );
         }
@@ -3858,8 +3856,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
         if ret && (what_flag & CI_WHAT_AUTO) != 0 {
             ret = tv_dict_add_nr(
                 retdict,
-                c"auto".as_ptr(),
-                4,
+                c"auto",
                 varnumber_T::from(insexp().compl_autostarted),
             );
         }
@@ -3929,22 +3926,19 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             if ret && (what_flag & CI_WHAT_SELECTED) != 0 {
                 ret = tv_dict_add_nr(
                     retdict,
-                    c"selected".as_ptr(),
-                    8,
+                    c"selected",
                     varnumber_T::from(selected_idx),
                 );
                 let wp = win_float_find(kWinInfo);
                 if !wp.is_null() {
                     tv_dict_add_nr(
                         retdict,
-                        c"preview_winid".as_ptr(),
-                        13,
+                        c"preview_winid",
                         varnumber_T::from((*wp).handle),
                     );
                     tv_dict_add_nr(
                         retdict,
-                        c"preview_bufnr".as_ptr(),
-                        13,
+                        c"preview_bufnr",
                         varnumber_T::from((*(*wp).w_buffer).b_fnum),
                     );
                 }

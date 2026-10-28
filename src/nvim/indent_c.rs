@@ -1262,7 +1262,7 @@ fn get_baseclass_amount(col: colnr_T) -> c_int {
                     amount = get_indent_lnum((*trypos).lnum);
                 }
             }
-            if !cin_ends_in(get_cursor_line_ptr(), c",".as_ptr()) {
+            if !cin_ends_in(get_cursor_line_ptr(), c",") {
                 amount += (*g_st().curbuf).b_ind_cpp_baseclass;
             }
         } else {
@@ -1283,13 +1283,13 @@ fn get_baseclass_amount(col: colnr_T) -> c_int {
         amount
     }
 }
-fn cin_ends_in(s: *const c_char, find: *const c_char) -> bool {
+fn cin_ends_in(s: *const c_char, find: &std::ffi::CStr) -> bool {
     unsafe {
         let mut p = s;
-        let len = crate::memory::cstr_len(find);
+        let len = find.to_bytes().len();
         while *p != NUL {
             p = cin_skipcomment(p);
-            if crate::memory::cstr_prefix_bytes(p, len) == crate::memory::cstr_prefix_bytes(find, len) {
+            if crate::memory::cstr_prefix_bytes(p, len) == crate::memory::cstr_prefix_bytes(find.as_ptr(), len) {
                 let r = skipwhite(p.add(len));
                 if cin_nocode(r) {
                     return true;
@@ -1998,7 +1998,7 @@ pub fn get_c_indent() -> c_int {
                                     cur_amount = MAXCOL;
                                     l = ml_get(our_paren_pos.lnum);
                                     if (*g_st().curbuf).b_ind_unclosed_wrapped != 0
-                                        && cin_ends_in(l, c"(".as_ptr())
+                                        && cin_ends_in(l, c"(")
                                     {
                                         n = 1;
                                         col = 0;
@@ -2771,8 +2771,8 @@ pub fn get_c_indent() -> c_int {
                     && !cin_nocode(theline)
                     && vim_strchr(theline, b'{' as c_int).is_null()
                     && vim_strchr(theline, b'}' as c_int).is_null()
-                    && !cin_ends_in(theline, c":".as_ptr())
-                    && !cin_ends_in(theline, c",".as_ptr())
+                    && !cin_ends_in(theline, c":")
+                    && !cin_ends_in(theline, c",")
                     && cin_isfuncdecl(ptr::null_mut(), cur_curpos.lnum + 1, cur_curpos.lnum + 1)
                     && cin_isterminated(theline, false, true) == 0
                 {
@@ -2810,7 +2810,7 @@ pub fn get_c_indent() -> c_int {
                     if cin_nocode(l) {
                         continue;
                     }
-                    if cin_ends_in(l, c",".as_ptr())
+                    if cin_ends_in(l, c",")
                         || (*l != NUL && {
                             n = *l.add(crate::memory::cstr_len(l) - 1) as u8 as c_int;
                             n == b'\\' as c_int
@@ -2846,10 +2846,10 @@ pub fn get_c_indent() -> c_int {
                     if *skipwhite(l) == b'}' as c_char {
                         break;
                     }
-                    if cin_ends_in(l, c"};".as_ptr()) {
+                    if cin_ends_in(l, c"};") {
                         break;
                     }
-                    if cin_ends_in(l, c"[".as_ptr()) {
+                    if cin_ends_in(l, c"[") {
                         amount = get_indent() + ind_continuation;
                         break;
                     }
@@ -2869,7 +2869,7 @@ pub fn get_c_indent() -> c_int {
                                 break;
                             }
                         }
-                        if (**curwin.as_ptr()).w_cursor.lnum > 0 && cin_ends_in(look, c"}".as_ptr()) {
+                        if (**curwin.as_ptr()).w_cursor.lnum > 0 && cin_ends_in(look, c"}") {
                             break;
                         }
                         (**curwin.as_ptr()).w_cursor = curpos_save;
@@ -2878,9 +2878,9 @@ pub fn get_c_indent() -> c_int {
                         amount = (*g_st().curbuf).b_ind_param;
                         break;
                     }
-                    if cin_ends_in(l, c";".as_ptr()) {
+                    if cin_ends_in(l, c";") {
                         l = ml_get((**curwin.as_ptr()).w_cursor.lnum - 1);
-                        if cin_ends_in(l, c",".as_ptr())
+                        if cin_ends_in(l, c",")
                             || (*l != NUL && *l.add(crate::memory::cstr_len(l) - 1) == b'\\' as c_char)
                         {
                             break;

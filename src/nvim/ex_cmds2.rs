@@ -511,7 +511,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
         g_st().msg_listdo_overwrite += 1;
 
         if eap.cmdidx != CMD_windo && eap.cmdidx != CMD_tabdo {
-            save_ei = Some(au_event_disable(c",Syntax".as_ptr().cast_mut()));
+            save_ei = Some(au_event_disable(c",Syntax"));
 
             let mut buf = g_st().firstbuf;
             while !buf.is_null() {

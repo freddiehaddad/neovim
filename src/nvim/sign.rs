@@ -1115,7 +1115,7 @@ fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
             tv_dict_add_str(d, c"text".as_ptr(), 4, buf.as_ptr());
         }
         if sp.sn_priority > 0 {
-            tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from(sp.sn_priority));
+            tv_dict_add_nr(d, c"priority", i64::from(sp.sn_priority));
         }
         let args = [
             (c"linehl".as_ptr(), 6usize, sp.sn_line_hl),
@@ -1141,15 +1141,15 @@ fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
         let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
         tv_dict_add_str(d, c"name".as_ptr(), 4, sign_get_name(sh));
-        tv_dict_add_nr(d, c"id".as_ptr(), 2, i64::from(mark.id as c_int));
+        tv_dict_add_nr(d, c"id", i64::from(mark.id as c_int));
         tv_dict_add_str(
             d,
             c"group".as_ptr(),
             5,
             describe_ns(mark.ns as c_int, c""),
         );
-        tv_dict_add_nr(d, c"lnum".as_ptr(), 4, i64::from(mark.pos.row + 1));
-        tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from(sh.priority));
+        tv_dict_add_nr(d, c"lnum", i64::from(mark.pos.row + 1));
+        tv_dict_add_nr(d, c"priority", i64::from(sh.priority));
         d
 }
 
@@ -1183,7 +1183,7 @@ fn sign_get_placed_in_buf(
         let d = tv_dict_alloc();
         tv_list_append_dict(retlist, d);
 
-        tv_dict_add_nr(d, c"bufnr".as_ptr(), 5, i64::from((*buf).b_fnum));
+        tv_dict_add_nr(d, c"bufnr", i64::from((*buf).b_fnum));
 
         let l = tv_list_alloc(kListLenMayKnow);
         tv_dict_add_list(d, c"signs".as_ptr(), 5, l);
@@ -1405,7 +1405,7 @@ pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
 fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
     unsafe {
         if name.is_null() {
-            name = tv_dict_get_string(dict, c"name".as_ptr());
+            name = tv_dict_get_string(dict, c"name");
             if name.is_null() || *name == NUL {
                 return -1;
             }
@@ -1420,13 +1420,13 @@ fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
         let mut prio: c_int = -1;
 
         if !dict.is_null() {
-            icon = tv_dict_get_string(dict, c"icon".as_ptr());
-            linehl = tv_dict_get_string(dict, c"linehl".as_ptr());
-            text = tv_dict_get_string(dict, c"text".as_ptr());
-            texthl = tv_dict_get_string(dict, c"texthl".as_ptr());
-            culhl = tv_dict_get_string(dict, c"culhl".as_ptr());
-            numhl = tv_dict_get_string(dict, c"numhl".as_ptr());
-            prio = tv_dict_get_number_def(dict, c"priority".as_ptr(), -1) as c_int;
+            icon = tv_dict_get_string(dict, c"icon");
+            linehl = tv_dict_get_string(dict, c"linehl");
+            text = tv_dict_get_string(dict, c"text");
+            texthl = tv_dict_get_string(dict, c"texthl");
+            culhl = tv_dict_get_string(dict, c"culhl");
+            numhl = tv_dict_get_string(dict, c"numhl");
+            prio = tv_dict_get_number_def(dict, c"priority", -1) as c_int;
         }
 
         if sign_define_by_name(name, icon, text, linehl, texthl, culhl, numhl, prio) { 0 } else { -1 }
@@ -1800,7 +1800,7 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_i
         let mut group = if let Some(group_tv) = group_tv {
             tv_get_string(group_tv).cast_mut()
         } else {
-            tv_dict_get_string(dict, c"group".as_ptr())
+            tv_dict_get_string(dict, c"group")
         };
         if !group.is_null() && *group == NUL {
             group = ptr::null_mut();

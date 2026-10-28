@@ -5334,21 +5334,18 @@ pub fn add_timer_info(rettv: &mut typval_T, timer: &mut timer_T) {
         tv_list_append_dict(list, dict);
         tv_dict_add_nr(
             dict,
-            c"id".as_ptr(),
-            2,
+            c"id",
             varnumber_T::from(timer.timer_id),
         );
-        tv_dict_add_nr(dict, c"time".as_ptr(), 4, timer.timeout);
+        tv_dict_add_nr(dict, c"time", timer.timeout);
         tv_dict_add_nr(
             dict,
-            c"paused".as_ptr(),
-            6,
+            c"paused",
             varnumber_T::from(timer.paused),
         );
         tv_dict_add_nr(
             dict,
-            c"repeat".as_ptr(),
-            6,
+            c"repeat",
             if timer.repeat_count < 0 {
                 -1
             } else {

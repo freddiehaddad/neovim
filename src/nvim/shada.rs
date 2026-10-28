@@ -1703,7 +1703,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
 fn shada_get_default_file() -> *const c_char {
     unsafe {
         if shada_st().default_shada_file.is_none() {
-            let shada_dir = stdpaths_user_state_subpath(c"shada".as_ptr(), 0, false);
+            let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
             shada_st().default_shada_file = Some(concat_fnames_cstr(
                 shada_dir.as_ptr(),
                 c"main.shada".as_ptr(),

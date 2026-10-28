@@ -3138,32 +3138,27 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
             tv_dict_add_nr(
                 rettv.vval.v_dict(),
-                c"current".as_ptr(),
-                7,
+                c"current",
                 varnumber_T::from(stat.cur),
             );
             tv_dict_add_nr(
                 rettv.vval.v_dict(),
-                c"total".as_ptr(),
-                5,
+                c"total",
                 varnumber_T::from(stat.cnt),
             );
             tv_dict_add_nr(
                 rettv.vval.v_dict(),
-                c"exact_match".as_ptr(),
-                11,
+                c"exact_match",
                 varnumber_T::from(stat.exact_match),
             );
             tv_dict_add_nr(
                 rettv.vval.v_dict(),
-                c"incomplete".as_ptr(),
-                10,
+                c"incomplete",
                 varnumber_T::from(stat.incomplete),
             );
             tv_dict_add_nr(
                 rettv.vval.v_dict(),
-                c"maxcount".as_ptr(),
-                8,
+                c"maxcount",
                 varnumber_T::from(stat.last_maxcount),
             );
         }

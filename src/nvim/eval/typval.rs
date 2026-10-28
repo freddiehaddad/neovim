@@ -2933,17 +2933,17 @@ pub fn tv_dict_get_tv(d: *mut dict_T, key: &std::ffi::CStr,rettv: &mut typval_T)
 
 /// Gets a number item from a dictionary.
 pub fn tv_dict_get_number(d: *const dict_T, key: &std::ffi::CStr) -> varnumber_T {
-    tv_dict_get_number_def(d, key.as_ptr(), 0)
+    tv_dict_get_number_def(d, key, 0)
 }
 
 /// Gets a number item from a dictionary, or a given default value.
 pub fn tv_dict_get_number_def(
     d: *const dict_T,
-    key: *const c_char,
+    key: &std::ffi::CStr,
     def: c_int,
 ) -> varnumber_T {
     unsafe {
-        let di = tv_dict_find(d, key, -1);
+        let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return i64::from(def);
         }
@@ -2999,27 +2999,27 @@ pub fn tv_dict_get_cstring(
     key: &std::ffi::CStr,
 ) -> Option<std::ffi::CString> {
     let mut numbuf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-        let s = tv_dict_get_string_buf(d, key.as_ptr(), numbuf.as_mut_ptr());
-        if s.is_null() {
-            None
-        } else {
-            Some(cstr_to_cstring(s))
-        }
+    let s = tv_dict_get_string_buf(d, key, numbuf.as_mut_ptr());
+    if s.is_null() {
+        None
+    } else {
+        Some(cstr_to_cstring(s))
+    }
 }
 
 /// Get a string item from a dictionary.
-pub fn tv_dict_get_string(d: *const dict_T, key: *const c_char) -> *mut c_char {
+pub fn tv_dict_get_string(d: *const dict_T, key: &std::ffi::CStr) -> *mut c_char {
     tv_dict_get_string_buf(d, key, tv_st().dict_numbuf.as_mut_ptr()).cast_mut()
 }
 
 /// Get a string item from a dictionary.
 pub fn tv_dict_get_string_buf(
     d: *const dict_T,
-    key: *const c_char,
+    key: &std::ffi::CStr,
     numbuf: *mut c_char,
 ) -> *const c_char {
     unsafe {
-        let di = tv_dict_find(d, key, -1);
+        let di = tv_dict_find(d, key.as_ptr(), -1);
         if di.is_null() {
             return ptr::null();
         }
@@ -3162,12 +3162,11 @@ pub fn tv_dict_add_dict(
 /// Add a number entry to dictionary.
 pub fn tv_dict_add_nr(
     d: *mut dict_T,
-    key: *const c_char,
-    key_len: usize,
+    key: &std::ffi::CStr,
     nr: varnumber_T,
 ) -> bool {
     unsafe {
-        let item = tv_dict_item_alloc_len(key, key_len);
+        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         (*item).di_tv.v_type = VarType::VAR_NUMBER;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Number(nr);
         if !tv_dict_add(d, item) {
@@ -3182,11 +3181,10 @@ pub fn tv_dict_add_nr(
 pub fn tv_dict_add_float(
     d: &mut dict_T,
     key: &std::ffi::CStr,
-    key_len: usize,
     nr: float_T,
 ) -> bool {
     unsafe {
-        let item = tv_dict_item_alloc_len(key.as_ptr(), key_len);
+        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         (*item).di_tv.v_type = VarType::VAR_FLOAT;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Float(nr);
         if !tv_dict_add(d, item) {
@@ -3201,11 +3199,10 @@ pub fn tv_dict_add_float(
 pub fn tv_dict_add_bool(
     d: *mut dict_T,
     key: &std::ffi::CStr,
-    key_len: usize,
     val: BoolVarValue,
 ) -> bool {
     unsafe {
-        let item = tv_dict_item_alloc_len(key.as_ptr(), key_len);
+        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         (*item).di_tv.v_type = VarType::VAR_BOOL;
         (*item).di_tv.vval = crate::eval::typval::TypvalVval::Bool(val);
         if !tv_dict_add(d, item) {
@@ -3257,11 +3254,10 @@ pub fn tv_dict_add_str_len(
 pub fn tv_dict_add_func(
     d: *mut dict_T,
     key: &std::ffi::CStr,
-    key_len: usize,
     fp: *mut ufunc_T,
 ) -> bool {
     unsafe {
-        let item = tv_dict_item_alloc_len(key.as_ptr(), key_len);
+        let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
         let name_ptr = (*fp).uf_name.as_ptr();
         tv_set_string_len(&mut (*item).di_tv, name_ptr, (*fp).uf_namelen);
         (*item).di_tv.v_type = VarType::VAR_FUNC;
@@ -5300,8 +5296,8 @@ mod tests {
             let d = tv_dict_alloc();
             assert!(!d.is_null());
             (*d).dv_refcount = 1;
-            assert!(tv_dict_add_nr(d, c"foo".as_ptr(), 3, 42));
-            assert!(tv_dict_add_float(&mut *d, c"flt", 3, 3.5));
+            assert!(tv_dict_add_nr(d, c"foo", 42));
+            assert!(tv_dict_add_float(&mut *d, c"flt", 3.5));
             assert!(tv_dict_add_str(d, c"str".as_ptr(), 3, c"bar".as_ptr()));
             assert!(tv_dict_add_str_len(d, c"alloc".as_ptr(), 5, c"baz".as_ptr(), -1));
             assert!(tv_dict_has_key(d, c"foo"));
@@ -5312,7 +5308,7 @@ mod tests {
 
             let mut numbuf = [0 as c_char; NUMBUFLEN];
             assert_eq!(
-                crate::memory::cstr_as_bytes(tv_dict_get_string(d, c"str".as_ptr())),
+                crate::memory::cstr_as_bytes(tv_dict_get_string(d, c"str")),
                 b"bar"
             );
             let saved = tv_dict_get_cstring(d, c"foo").unwrap();
@@ -5338,7 +5334,7 @@ mod tests {
 
             let d2 = tv_dict_alloc();
             (*d2).dv_refcount = 1;
-            assert!(tv_dict_add_nr(d2, c"extra".as_ptr(), 5, 7));
+            assert!(tv_dict_add_nr(d2, c"extra", 7));
             tv_dict_extend(&mut *d, &mut *d2, c"force".as_ptr());
             assert_eq!(tv_dict_get_number(d, c"extra"), 7);
             assert!(!tv_dict_equal(d, d_copy, false));
@@ -5466,7 +5462,7 @@ mod tests {
             for with_item in [false, true] {
                 let d_inner = tv_dict_alloc();
                 if with_item {
-                    assert!(tv_dict_add_nr(d_inner, c"a".as_ptr(), 1, 1));
+                    assert!(tv_dict_add_nr(d_inner, c"a", 1));
                 }
                 let outer_d = tv_list_alloc(2);
                 (*outer_d).lv_refcount = 1;

@@ -236,12 +236,12 @@ pub fn stdpaths_user_conf_subpath(fname: &std::ffi::CStr) -> CString {
 /// # Safety
 /// `fname` must be a valid C string.
 pub fn stdpaths_user_state_subpath(
-    fname: *const c_char,
+    fname: &std::ffi::CStr,
     trailing_pathseps: usize,
     escape_commas: bool,
 ) -> CString {
     let home = get_xdg_home(XDGVarType::kXDGStateHome).unwrap_or_default();
-    let ret = concat_fnames_cstr(home.as_ptr(), fname, true);
+    let ret = concat_fnames_cstr(home.as_ptr(), fname.as_ptr(), true);
     let bytes = ret.as_bytes();
     let numcommas = if escape_commas {
         bytes.iter().filter(|&&b| b == b',').count()
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn state_subpath_escapes_commas_and_appends_separators() {
-        let p = stdpaths_user_state_subpath(c"a,b".as_ptr(), 2, true);
+        let p = stdpaths_user_state_subpath(c"a,b", 2, true);
             let s = p.as_bytes();
             let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP as u8, PATHSEP as u8];
             assert!(s.ends_with(&expected_suffix));

@@ -1698,7 +1698,6 @@ pub fn do_autocmd_dirchanged(
         tv_dict_add_bool(
             dict,
             c"changed_window",
-            "changed_window".len(),
             c_int::from(cause == kCdCauseWindow),
         );
         tv_dict_set_keys_readonly(&mut *dict);

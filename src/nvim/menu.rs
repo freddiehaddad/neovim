@@ -733,11 +733,10 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
 
         let dict = tv_dict_alloc();
         tv_dict_add_str(dict, c"name".as_ptr(), 4, (*menu).dname.as_ptr());
-        tv_dict_add_nr(dict, c"priority".as_ptr(), 8, i64::from((*menu).priority));
+        tv_dict_add_nr(dict, c"priority", i64::from((*menu).priority));
         tv_dict_add_nr(
             dict,
-            c"hidden".as_ptr(),
-            6,
+            c"hidden",
             i64::from(menu_is_hidden((*menu).dname.as_ptr().cast_mut())),
         );
 
@@ -775,14 +774,12 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
                     );
                     tv_dict_add_nr(
                         impl_dict,
-                        c"silent".as_ptr(),
-                        6,
+                        c"silent",
                         i64::from((*menu).silent[bit]),
                     );
                     tv_dict_add_nr(
                         impl_dict,
-                        c"enabled".as_ptr(),
-                        7,
+                        c"enabled",
                         if ((*menu).enabled & (1 << bit)) != 0 {
                             1
                         } else {
@@ -791,8 +788,7 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
                     );
                     tv_dict_add_nr(
                         impl_dict,
-                        c"noremap".as_ptr(),
-                        7,
+                        c"noremap",
                         if (*menu).noremap[bit] == REMAP_NONE {
                             1
                         } else {
@@ -801,8 +797,7 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
                     );
                     tv_dict_add_nr(
                         impl_dict,
-                        c"sid".as_ptr(),
-                        3,
+                        c"sid",
                         if (*menu).noremap[bit] == REMAP_SCRIPT {
                             1
                         } else {
@@ -1910,7 +1905,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
         if let Some(ref actext) = menu.actext {
             tv_dict_add_str(dict, c"accel".as_ptr(), 5, actext.as_ptr());
         }
-        tv_dict_add_nr(dict, c"priority".as_ptr(), 8, i64::from(menu.priority));
+        tv_dict_add_nr(dict, c"priority", i64::from(menu.priority));
         tv_dict_add_str(dict, c"modes".as_ptr(), 5, get_menu_mode_str(menu.modes));
 
         let mut buf = [0 as c_char; NUMBUFLEN];
@@ -1940,7 +1935,6 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 tv_dict_add_bool(
                     dict,
                     c"noremenu",
-                    8,
                     if menu.noremap[bit] == REMAP_NONE {
                         kBoolVarTrue
                     } else {
@@ -1950,7 +1944,6 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 tv_dict_add_bool(
                     dict,
                     c"script",
-                    6,
                     if menu.noremap[bit] == REMAP_SCRIPT {
                         kBoolVarTrue
                     } else {
@@ -1960,7 +1953,6 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 tv_dict_add_bool(
                     dict,
                     c"silent",
-                    6,
                     if menu.silent[bit] {
                         kBoolVarTrue
                     } else {
@@ -1970,7 +1962,6 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
                 tv_dict_add_bool(
                     dict,
                     c"enabled",
-                    7,
                     if (menu.enabled & (1 << bit)) != 0 {
                         kBoolVarTrue
                     } else {

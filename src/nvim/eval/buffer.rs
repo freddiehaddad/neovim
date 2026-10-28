@@ -731,7 +731,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
-        tv_dict_add_nr(dict, c"bufnr".as_ptr(), 5, buf.b_fnum as varnumber_T);
+        tv_dict_add_nr(dict, c"bufnr", buf.b_fnum as varnumber_T);
         tv_dict_add_str(
             dict,
             c"name".as_ptr(),
@@ -747,37 +747,32 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         } else {
             buflist_findlnum(&raw mut *buf)
         };
-        tv_dict_add_nr(dict, c"lnum".as_ptr(), 4, lnum as varnumber_T);
+        tv_dict_add_nr(dict, c"lnum", lnum as varnumber_T);
         tv_dict_add_nr(
             dict,
-            c"linecount".as_ptr(),
-            9,
+            c"linecount",
             buf.b_ml.ml_line_count as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"loaded".as_ptr(),
-            6,
+            c"loaded",
             varnumber_T::from(buf.b_ml.ml_mfp.is_some()),
         );
-        tv_dict_add_nr(dict, c"listed".as_ptr(), 6, buf.b_p_bl as varnumber_T);
+        tv_dict_add_nr(dict, c"listed", buf.b_p_bl as varnumber_T);
         tv_dict_add_nr(
             dict,
-            c"changed".as_ptr(),
-            7,
+            c"changed",
             varnumber_T::from(bufIsChanged(buf)),
         );
-        tv_dict_add_nr(dict, c"changedtick".as_ptr(), 11, buf_get_changedtick(&*buf));
+        tv_dict_add_nr(dict, c"changedtick", buf_get_changedtick(&*buf));
         tv_dict_add_nr(
             dict,
-            c"hidden".as_ptr(),
-            6,
+            c"hidden",
             varnumber_T::from(buf.b_ml.ml_mfp.is_some() && buf.b_nwindows == 0),
         );
         tv_dict_add_nr(
             dict,
-            c"command".as_ptr(),
-            7,
+            c"command",
             varnumber_T::from(bt_cmdwin(&raw mut *buf)),
         );
 
@@ -801,7 +796,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
             tv_dict_add_list(dict, c"signs".as_ptr(), 5, get_buffer_signs(buf));
         }
 
-        tv_dict_add_nr(dict, c"lastused".as_ptr(), 8, buf.b_last_used);
+        tv_dict_add_nr(dict, c"lastused", buf.b_last_used);
 
         dict
     }

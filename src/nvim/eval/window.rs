@@ -414,76 +414,65 @@ fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
 
         validate_botline_win(&raw mut *wp);
 
-        tv_dict_add_nr(dict, c"tabnr".as_ptr(), 5, tpnr as varnumber_T);
-        tv_dict_add_nr(dict, c"winnr".as_ptr(), 5, winnr as varnumber_T);
-        tv_dict_add_nr(dict, c"winid".as_ptr(), 5, wp.handle as varnumber_T);
+        tv_dict_add_nr(dict, c"tabnr", tpnr as varnumber_T);
+        tv_dict_add_nr(dict, c"winnr", winnr as varnumber_T);
+        tv_dict_add_nr(dict, c"winid", wp.handle as varnumber_T);
         tv_dict_add_nr(
             dict,
-            c"height".as_ptr(),
-            6,
+            c"height",
             wp.w_view_height as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"status_height".as_ptr(),
-            13,
+            c"status_height",
             wp.w_status_height as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"winrow".as_ptr(),
-            6,
+            c"winrow",
             (wp.w_winrow + 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"topline".as_ptr(), 7, wp.w_topline as varnumber_T);
+        tv_dict_add_nr(dict, c"topline", wp.w_topline as varnumber_T);
         tv_dict_add_nr(
             dict,
-            c"botline".as_ptr(),
-            7,
+            c"botline",
             (wp.w_botline - 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"leftcol".as_ptr(), 7, wp.w_leftcol as varnumber_T);
+        tv_dict_add_nr(dict, c"leftcol", wp.w_leftcol as varnumber_T);
         tv_dict_add_nr(
             dict,
-            c"winbar".as_ptr(),
-            6,
+            c"winbar",
             wp.w_winbar_height as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"width".as_ptr(),
-            5,
+            c"width",
             wp.w_view_width as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"bufnr".as_ptr(),
-            5,
+            c"bufnr",
             (*wp.w_buffer).b_fnum as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"wincol".as_ptr(),
-            6,
+            c"wincol",
             (wp.w_wincol + 1) as varnumber_T,
         );
-        tv_dict_add_nr(dict, c"textoff".as_ptr(), 7, win_col_off(&raw mut *wp) as varnumber_T);
+        tv_dict_add_nr(dict, c"textoff", win_col_off(&raw mut *wp) as varnumber_T);
         tv_dict_add_nr(
             dict,
-            c"terminal".as_ptr(),
-            8,
+            c"terminal",
             varnumber_T::from(bt_terminal(wp.w_buffer)),
         );
         tv_dict_add_nr(
             dict,
-            c"quickfix".as_ptr(),
-            8,
+            c"quickfix",
             varnumber_T::from(bt_quickfix(wp.w_buffer)),
         );
         tv_dict_add_nr(
             dict,
-            c"loclist".as_ptr(),
-            7,
+            c"loclist",
             varnumber_T::from(bt_quickfix(wp.w_buffer) && !wp.w_llist_ref.is_null()),
         );
 
@@ -498,7 +487,7 @@ fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
     unsafe {
         let dict = tv_dict_alloc();
 
-        tv_dict_add_nr(dict, c"tabnr".as_ptr(), 5, tp_idx as varnumber_T);
+        tv_dict_add_nr(dict, c"tabnr", tp_idx as varnumber_T);
 
         let l = tv_list_alloc(kListLenMayKnow);
         let mut wp = first_win_in_tab(&raw mut *tp);
@@ -1072,31 +1061,28 @@ pub fn f_winsaveview(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
         tv_dict_add_nr(
             dict,
-            c"lnum".as_ptr(),
-            4,
+            c"lnum",
             (**curwin.as_ptr()).w_cursor.lnum as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"col".as_ptr(),
-            3,
+            c"col",
             (**curwin.as_ptr()).w_cursor.col as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"coladd".as_ptr(),
-            6,
+            c"coladd",
             (**curwin.as_ptr()).w_cursor.coladd as varnumber_T,
         );
         update_curswant();
         let mut vs = viewstate_T::default();
         save_viewstate(&mut **curwin.as_ptr(), &mut vs);
-        tv_dict_add_nr(dict, c"curswant".as_ptr(), 8, vs.vs_curswant as varnumber_T);
+        tv_dict_add_nr(dict, c"curswant", vs.vs_curswant as varnumber_T);
 
-        tv_dict_add_nr(dict, c"topline".as_ptr(), 7, vs.vs_topline as varnumber_T);
-        tv_dict_add_nr(dict, c"topfill".as_ptr(), 7, vs.vs_topfill as varnumber_T);
-        tv_dict_add_nr(dict, c"leftcol".as_ptr(), 7, vs.vs_leftcol as varnumber_T);
-        tv_dict_add_nr(dict, c"skipcol".as_ptr(), 7, vs.vs_skipcol as varnumber_T);
+        tv_dict_add_nr(dict, c"topline", vs.vs_topline as varnumber_T);
+        tv_dict_add_nr(dict, c"topfill", vs.vs_topfill as varnumber_T);
+        tv_dict_add_nr(dict, c"leftcol", vs.vs_leftcol as varnumber_T);
+        tv_dict_add_nr(dict, c"skipcol", vs.vs_skipcol as varnumber_T);
     }
 }
 

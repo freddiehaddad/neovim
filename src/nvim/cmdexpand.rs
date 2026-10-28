@@ -5430,7 +5430,7 @@ pub fn expand_process_user_list(
                     p = cstr_to_cstring((*tv).vval.v_string());
                 } else if (*tv).v_type == VarType::VAR_DICT && !(*tv).vval.v_dict().is_null() {
                     let d = (*tv).vval.v_dict();
-                    let word = tv_dict_get_string(d, c"word".as_ptr());
+                    let word = tv_dict_get_string(d, c"word");
                     if word.is_null() {
                         li = (*li).li_next;
                         continue;
@@ -5990,16 +5990,14 @@ pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
         if ret {
             ret = tv_dict_add_nr(
                 retdict,
-                c"pum_visible".as_ptr(),
-                11,
+                c"pum_visible",
                 i64::from(pum_visible()),
             );
         }
         if ret {
             ret = tv_dict_add_nr(
                 retdict,
-                c"selected".as_ptr(),
-                8,
+                c"selected",
                 i64::from((*(*ccline).xpc).xp_selected),
             );
         }

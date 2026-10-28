@@ -50,14 +50,14 @@ pub fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
 
 pub fn concat_cstrings(
     strings: &[std::ffi::CString],
-    sep: *const c_char,
+    sep: &std::ffi::CStr,
 ) -> std::ffi::CString {
     let nelem = strings.len();
     if nelem == 0 {
         return std::ffi::CString::default();
     }
      {
-        let sep_bytes = crate::memory::cstr_as_bytes(sep);
+        let sep_bytes = sep.to_bytes();
         let mut len = (nelem - 1) * sep_bytes.len();
         for s in strings {
             len += s.as_bytes().len();
@@ -2429,7 +2429,7 @@ mod tests {
             assert_eq!(crate::memory::cstr_as_bytes(inv3), b"exe a/b\\c");
 
             let mut str_vec: Vec<std::ffi::CString> = Vec::new();
-            let empty_concat = concat_cstrings(&str_vec, c",".as_ptr());
+            let empty_concat = concat_cstrings(&str_vec, c",");
             assert_eq!(empty_concat.to_str().unwrap(), "");
 
             for w in [c"ccc", c"aaa", c"bbb", c"aaa", c"ccc"] {
@@ -2437,7 +2437,7 @@ mod tests {
             }
             remove_duplicate_strings(&mut str_vec);
             assert_eq!(str_vec.len(), 3);
-            let joined = concat_cstrings(&str_vec, c",".as_ptr());
+            let joined = concat_cstrings(&str_vec, c",");
             assert_eq!(joined.to_str().unwrap(), "aaa,bbb,ccc");
         }
     }

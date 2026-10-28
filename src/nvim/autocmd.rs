@@ -2025,10 +2025,10 @@ pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
     }
 }
 
-pub fn au_event_disable(what: *mut c_char) -> std::ffi::CString {
+pub fn au_event_disable(what: &std::ffi::CStr) -> std::ffi::CString {
      {
         let p_ei_bytes = crate::memory::cstr_as_bytes(opt_vars().p_ei);
-        let what_bytes = crate::memory::cstr_as_bytes(what);
+        let what_bytes = what.to_bytes();
         let save_ei = crate::memory::cstr_to_cstring(opt_vars().p_ei);
         let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
         if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
@@ -3912,7 +3912,7 @@ pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&mut save_v_event);
         assert!(chanid < i64::MAX as u64);
-        tv_dict_add_nr(dict, c"chan".as_ptr(), 4, chanid as varnumber_T);
+        tv_dict_add_nr(dict, c"chan", chanid as varnumber_T);
         tv_dict_set_keys_readonly(&mut *dict);
         apply_autocmds(
             if attached {

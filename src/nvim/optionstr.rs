@@ -1020,7 +1020,7 @@ pub fn check_string_option(pp: *mut *mut c_char) {
 
 /// Return true if "val" is a valid 'filetype' name.
 fn valid_filetype(val: *const c_char) -> bool {
-    valid_name(val, c".-_".as_ptr())
+    valid_name(val, c".-_")
 }
 
 /// Handle setting 'signcolumn' for value 'val'.
@@ -3320,7 +3320,7 @@ pub fn expand_set_winhighlight(
 /// Format an error naming an item (at most 63 bytes) and listing its valid values.
 fn opt_values_err(
     errbuf: Option<CharBuf>,
-    fmt: *const c_char,
+    fmt: &std::ffi::CStr,
     item: *const c_char,
     itemlen: usize,
     values: &[&CStr],
@@ -3334,7 +3334,7 @@ fn opt_values_err(
         let mut n = vim_snprintf!(
             errbuf.data,
             errbuf.size,
-            gettext(fmt),
+            gettext(fmt.as_ptr()),
             itembuf.as_ptr(),
         );
         for (j, &v) in values.iter().enumerate() {
@@ -3386,7 +3386,7 @@ fn opt_strings_flags(
             if !matched {
                 return opt_values_err(
                     errbuf,
-                    c"E474: Invalid value '%s', expected one of:".as_ptr(),
+                    c"E474: Invalid value '%s', expected one of:",
                     val,
                     crate::memory::cstr_as_bytes(val).iter().position(|&b| b == b',').unwrap_or_else(|| crate::memory::cstr_len(val)),
                     values,
@@ -3507,7 +3507,7 @@ pub fn opt_strings_check(
                     }
                     return opt_values_err(
                         errbuf,
-                        c"E474: '%s' must be one of:".as_ptr(),
+                        c"E474: '%s' must be one of:",
                         key,
                         keylen,
                         it.enum_values,

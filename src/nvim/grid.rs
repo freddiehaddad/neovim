@@ -1536,8 +1536,8 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> schar_T {
 }
 
 #[cfg(test)]
-pub fn unittest_schar_from_cluster(buf: *const c_char, firstc: &mut c_int) -> schar_T {
-    let ci = crate::mbyte::utf_ptr2StrCharInfo(buf);
+pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut c_int) -> schar_T {
+    let ci = crate::mbyte::utf_ptr2StrCharInfo(buf.as_ptr());
     let cli = crate::mbyte::utf_ClusterInfo(ci);
     *firstc = ci.chr.value;
     if ci.chr.value >= 0 {

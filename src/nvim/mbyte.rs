@@ -3572,7 +3572,7 @@ mod tests {
             let mut firstc: c_int = 0;
             let mut sbuf = [0 as c_char; 32];
             let sc = crate::grid::unittest_schar_from_cluster(
-                c")\xcc\x80\xcc\x81".as_ptr(),
+                c")\xcc\x80\xcc\x81",
                 &mut firstc,
             );
             schar_get(sbuf.as_mut_ptr(), sc);

@@ -2961,27 +2961,24 @@ fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
             let dict = tv_dict_alloc();
             tv_dict_add_nr(
                 dict,
-                c"seq".as_ptr(),
-                3,
+                c"seq",
                 uhp_ref(&*buf, uh).uh_seq as varnumber_T,
             );
             tv_dict_add_nr(
                 dict,
-                c"time".as_ptr(),
-                4,
+                c"time",
                 uhp_ref(&*buf, uh).uh_time as varnumber_T,
             );
             if Some(uh) == buf.b_u_newhead {
-                tv_dict_add_nr(dict, c"newhead".as_ptr(), 7, 1);
+                tv_dict_add_nr(dict, c"newhead", 1);
             }
             if Some(uh) == buf.b_u_curhead {
-                tv_dict_add_nr(dict, c"curhead".as_ptr(), 7, 1);
+                tv_dict_add_nr(dict, c"curhead", 1);
             }
             if uhp_ref(&*buf, uh).uh_save_nr > 0 {
                 tv_dict_add_nr(
                     dict,
-                    c"save".as_ptr(),
-                    4,
+                    c"save",
                     uhp_ref(&*buf, uh).uh_save_nr as varnumber_T,
                 );
             }
@@ -3036,38 +3033,32 @@ pub fn f_undotree(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
         tv_dict_add_nr(
             dict,
-            c"synced".as_ptr(),
-            6,
+            c"synced",
             varnumber_T::from((*buf).b_u_synced),
         );
         tv_dict_add_nr(
             dict,
-            c"seq_last".as_ptr(),
-            8,
+            c"seq_last",
             (*buf).b_u_seq_last as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"save_last".as_ptr(),
-            9,
+            c"save_last",
             (*buf).b_u_save_nr_last as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"seq_cur".as_ptr(),
-            7,
+            c"seq_cur",
             (*buf).b_u_seq_cur as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"time_cur".as_ptr(),
-            8,
+            c"time_cur",
             (*buf).b_u_time_cur as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
-            c"save_cur".as_ptr(),
-            8,
+            c"save_cur",
             (*buf).b_u_save_nr_cur as varnumber_T,
         );
 

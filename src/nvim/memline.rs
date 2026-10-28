@@ -1711,21 +1711,18 @@ pub fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
 
                     tv_dict_add_nr(
                         d,
-                        c"pid".as_ptr(),
-                        3,
+                        c"pid",
                         i64::from(swapfile_proc_running(&raw const b0, fname)),
                     );
                     tv_dict_add_nr(
                         d,
-                        c"mtime".as_ptr(),
-                        5,
+                        c"mtime",
                         char_to_long((&raw const b0.b0_mtime).cast()) as i64,
                     );
-                    tv_dict_add_nr(d, c"dirty".as_ptr(), 5, if b0.dirty() != 0 { 1 } else { 0 });
+                    tv_dict_add_nr(d, c"dirty", if b0.dirty() != 0 { 1 } else { 0 });
                     tv_dict_add_nr(
                         d,
-                        c"inode".as_ptr(),
-                        5,
+                        c"inode",
                         char_to_long((&raw const b0.b0_ino).cast()) as i64,
                     );
                 }

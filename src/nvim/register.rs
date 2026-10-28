@@ -1395,7 +1395,6 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
         tv_dict_add_bool(
             dict,
             c"inclusive",
-            9,
             if oap.inclusive {
                 kBoolVarTrue
             } else {
@@ -1410,7 +1409,6 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
         tv_dict_add_bool(
             dict,
             c"visual",
-            6,
             if oap.is_VIsual {
                 kBoolVarTrue
             } else {
@@ -1490,7 +1488,6 @@ fn put_do_autocmd(
         tv_dict_add_bool(
             v_event,
             c"visual",
-            6,
             if g_st().Visual.active {
                 kBoolVarTrue
             } else {

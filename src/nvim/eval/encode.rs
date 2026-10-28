@@ -345,7 +345,7 @@ fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
 }
 
 fn conv_error(
-    msg: *const c_char,
+    msg: &std::ffi::CStr,
     mpstack: &[MPConvStackVal],
     objname: *const c_char,
 ) -> c_int {
@@ -442,7 +442,7 @@ fn conv_error(
             msg_ga.push(0);
             msg_ga.as_ptr().cast::<c_char>()
         };
-        semsg!(msg, objname, path_ptr);
+        semsg!(msg.as_ptr(), objname, path_ptr);
         FAIL
     }
 }
@@ -953,14 +953,12 @@ impl EncodeBackend<'_> {
                     mode: TextEncodeMode::Json,
                     ..
                 } => conv_error(
-                    c"E474: Error while dumping %s, %s: attempt to dump function reference"
-                        .as_ptr(),
+                    c"E474: Error while dumping %s, %s: attempt to dump function reference",
                     mpstack,
                     objname,
                 ),
                 Self::Msgpack { .. } => conv_error(
-                    c"E5004: Error while dumping %s, %s: attempt to dump function reference"
-                        .as_ptr(),
+                    c"E5004: Error while dumping %s, %s: attempt to dump function reference",
                     mpstack,
                     objname,
                 ),
@@ -1159,7 +1157,7 @@ impl EncodeBackend<'_> {
                     OK
                 }
                 Self::Msgpack { .. } => conv_error(
-                    c"E5005: Unable to dump %s: container references itself in %s".as_ptr(),
+                    c"E5005: Unable to dump %s: container references itself in %s",
                     mpstack,
                     objname,
                 ),

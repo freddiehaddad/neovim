@@ -2907,12 +2907,11 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                         required -= pt_argc;
                     }
 
-                    tv_dict_add_nr(dict, c"required".as_ptr(), 8, varnumber_T::from(required));
-                    tv_dict_add_nr(dict, c"optional".as_ptr(), 8, varnumber_T::from(optional));
+                    tv_dict_add_nr(dict, c"required", varnumber_T::from(required));
+                    tv_dict_add_nr(dict, c"optional", varnumber_T::from(optional));
                     tv_dict_add_bool(
                         dict,
                         c"varargs",
-                        7,
                         if varargs { kBoolVarTrue } else { kBoolVarFalse },
                     );
                 } else {
@@ -2980,20 +2979,17 @@ pub fn f_getchangelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             tv_list_append_dict(l, d);
             tv_dict_add_nr(
                 d,
-                c"lnum".as_ptr(),
-                4,
+                c"lnum",
                 varnumber_T::from((*buf).b_changelist[i].mark.lnum),
             );
             tv_dict_add_nr(
                 d,
-                c"col".as_ptr(),
-                3,
+                c"col",
                 varnumber_T::from((*buf).b_changelist[i].mark.col),
             );
             tv_dict_add_nr(
                 d,
-                c"coladd".as_ptr(),
-                6,
+                c"coladd",
                 varnumber_T::from((*buf).b_changelist[i].mark.coladd),
             );
         }
@@ -3107,14 +3103,12 @@ pub fn f_getcharsearch(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
         tv_dict_add_str(dict, c"char".as_ptr(), 4, last_csearch());
         tv_dict_add_nr(
             dict,
-            c"forward".as_ptr(),
-            7,
+            c"forward",
             varnumber_T::from(last_csearch_forward()),
         );
         tv_dict_add_nr(
             dict,
-            c"until".as_ptr(),
-            5,
+            c"until",
             varnumber_T::from(last_csearch_until()),
         );
 }
@@ -3149,26 +3143,22 @@ pub fn f_getjumplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             tv_list_append_dict(l, d);
             tv_dict_add_nr(
                 d,
-                c"lnum".as_ptr(),
-                4,
+                c"lnum",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.mark.lnum),
             );
             tv_dict_add_nr(
                 d,
-                c"col".as_ptr(),
-                3,
+                c"col",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.mark.col),
             );
             tv_dict_add_nr(
                 d,
-                c"coladd".as_ptr(),
-                6,
+                c"coladd",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.mark.coladd),
             );
             tv_dict_add_nr(
                 d,
-                c"bufnr".as_ptr(),
-                5,
+                c"bufnr",
                 varnumber_T::from((*wp).w_jumplist[i].fmark.fnum),
             );
             if let Some(ref fname) = (*wp).w_jumplist[i].fname {
@@ -3262,7 +3252,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
                 c"exclusive",
                 c_int::from(*opt_vars().p_sel == b'e' as c_char),
             ) != 0;
-            type_str = tv_dict_get_string(d, c"type".as_ptr());
+            type_str = tv_dict_get_string(d, c"type");
             if type_str.is_null() {
                 type_str = default_type.as_mut_ptr();
             }
@@ -4226,7 +4216,7 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         if argvars[2].v_type == VarType::VAR_DICT {
             startidx = tv_dict_get_number_def(
                 argvars[2].vval.v_dict().cast(),
-                c"startidx".as_ptr(),
+                c"startidx",
                 0,
             );
         }
@@ -4657,7 +4647,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             clear_env = tv_dict_get_number(job_opts, c"clear_env") != 0;
             overlapped = tv_dict_get_number(job_opts, c"overlapped") != 0;
 
-            let s = tv_dict_get_string(job_opts, c"stdin".as_ptr());
+            let s = tv_dict_get_string(job_opts, c"stdin");
             if !s.is_null() {
                 if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"null".as_ptr(), NUMBUFLEN) {
                     stdin_mode = kChannelStdinNull;
@@ -4694,7 +4684,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 return;
             }
 
-            let new_cwd = tv_dict_get_string(job_opts, c"cwd".as_ptr());
+            let new_cwd = tv_dict_get_string(job_opts, c"cwd");
             if !new_cwd.is_null() && *new_cwd != NUL {
                 cwd = new_cwd;
                 if !os_isdir(cwd) {
@@ -4765,7 +4755,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
         if pty {
             if term_name.is_null() {
-                term_name = tv_dict_get_string(job_opts, c"TERM".as_ptr());
+                term_name = tv_dict_get_string(job_opts, c"TERM");
             }
             if term_name.is_null() {
                 term_name = c"ansi".as_ptr();
@@ -5510,15 +5500,14 @@ fn get_matches_in_str(
             tv_list_append_dict(mlist, d);
 
             if matchbuf {
-                tv_dict_add_nr(d, c"lnum".as_ptr(), 4, varnumber_T::from(idx));
+                tv_dict_add_nr(d, c"lnum", varnumber_T::from(idx));
             } else {
-                tv_dict_add_nr(d, c"idx".as_ptr(), 3, varnumber_T::from(idx));
+                tv_dict_add_nr(d, c"idx", varnumber_T::from(idx));
             }
 
             tv_dict_add_nr(
                 d,
-                c"byteidx".as_ptr(),
-                7,
+                c"byteidx",
                 rmp.startp[0].offset_from(str_) as varnumber_T,
             );
 
@@ -6436,7 +6425,6 @@ pub fn f_getreginfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             tv_dict_add_bool(
                 dict,
                 c"isunnamed",
-                9,
                 if regname == c_int::from(buf[0]) {
                     kBoolVarTrue
                 } else {
@@ -7844,7 +7832,7 @@ pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             return;
         }
 
-        let csearch = tv_dict_get_string(d, c"char".as_ptr());
+        let csearch = tv_dict_get_string(d, c"char");
         if !csearch.is_null() {
             let c = utf_ptr2char(csearch);
             set_last_csearch(c, csearch, utfc_ptr2len(csearch));
@@ -7998,7 +7986,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 regcontents = &raw const (*di).di_tv;
             }
 
-            let mut stropt = tv_dict_get_string(d, c"regtype".as_ptr());
+            let mut stropt = tv_dict_get_string(d, c"regtype");
             if !stropt.is_null() {
                 let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                 stropt = stropt.add(1);
@@ -8009,7 +7997,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
 
             if regname == b'"' as c_char {
-                stropt = tv_dict_get_string(d, c"points_to".as_ptr());
+                stropt = tv_dict_get_string(d, c"points_to");
                 if !stropt.is_null() {
                     pointreg = *stropt;
                     regname = pointreg;

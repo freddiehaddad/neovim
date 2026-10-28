@@ -1000,11 +1000,10 @@ pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             tv_dict_add_str(dict, c"group".as_ptr(), 5, syn_id2name(cur.mit_hlg_id));
             tv_dict_add_nr(
                 dict,
-                c"priority".as_ptr(),
-                8,
+                c"priority",
                 cur.mit_priority as varnumber_T,
             );
-            tv_dict_add_nr(dict, c"id".as_ptr(), 2, cur.mit_id as varnumber_T);
+            tv_dict_add_nr(dict, c"id", cur.mit_id as varnumber_T);
 
             if cur.mit_conceal_char != 0 {
                 let mut buf = [0 as c_char; MB_MAXCHAR + 1];
@@ -1096,7 +1095,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             }
 
             let mut group_buf = [0 as c_char; NUMBUFLEN];
-            let group = tv_dict_get_string_buf(d, c"group".as_ptr(), group_buf.as_mut_ptr());
+            let group = tv_dict_get_string_buf(d, c"group", group_buf.as_mut_ptr());
             let priority = tv_dict_get_number(d, c"priority") as c_int;
             let id = tv_dict_get_number(d, c"id") as c_int;
             let conceal_di = tv_dict_find(d, c"conceal".as_ptr(), 7);
@@ -1106,7 +1105,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 ptr::null()
             };
             if i == 0 {
-                let pat = tv_dict_get_string(d, c"pattern".as_ptr());
+                let pat = tv_dict_get_string(d, c"pattern");
                 if match_add(&mut *win, group, pat, priority, id, ptr::null_mut(), conceal) != id {
                     match_add_failed = true;
                 }

@@ -196,7 +196,7 @@ fn log_path_init() {
             drop(loghome);
 
             let defaultpath = stdpaths_user_state_subpath(
-                c"logs/nvim.log".as_ptr(),
+                c"logs/nvim.log",
                 0,
                 true,
             );

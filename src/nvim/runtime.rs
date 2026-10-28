@@ -549,12 +549,12 @@ fn stacktrace_push_item(
         };
 
         if !fp.is_null() {
-            tv_dict_add_func(d, c"funcref", 7, fp);
+            tv_dict_add_func(d, c"funcref", fp);
         }
         if !event.is_null() {
             tv_dict_add_str(d, c"event".as_ptr(), 5, event);
         }
-        tv_dict_add_nr(d, c"lnum".as_ptr(), 4, varnumber_T::from(lnum));
+        tv_dict_add_nr(d, c"lnum", varnumber_T::from(lnum));
         tv_dict_add_str(d, c"filepath".as_ptr(), 8, filepath);
 
         tv_list_append_tv(l, &mut tv);
@@ -3304,9 +3304,9 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 let d = tv_dict_alloc();
                 tv_list_append_dict(l, d);
                 tv_dict_add_str(d, c"name".as_ptr(), 4, sn.as_ptr());
-                tv_dict_add_nr(d, c"sid".as_ptr(), 3, i);
-                tv_dict_add_nr(d, c"version".as_ptr(), 7, 1);
-                tv_dict_add_bool(d, c"autoload", 8, kFalse);
+                tv_dict_add_nr(d, c"sid", i);
+                tv_dict_add_nr(d, c"version", 1);
+                tv_dict_add_bool(d, c"autoload", kFalse);
 
                 if sid > 0 {
                     let var_dict =

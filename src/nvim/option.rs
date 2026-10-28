@@ -907,7 +907,7 @@ pub fn set_init_1(clean_arg: bool) {
         set_init_default_backupskip();
         set_init_default_cdpath();
 
-        let raw_backupdir = stdpaths_user_state_subpath(c"backup".as_ptr(), 2, true);
+        let raw_backupdir = stdpaths_user_state_subpath(c"backup", 2, true);
         let mut backupdir_bytes = Vec::with_capacity(raw_backupdir.as_bytes().len() + 2);
         backupdir_bytes.extend_from_slice(b".,");
         backupdir_bytes.extend_from_slice(raw_backupdir.as_bytes());
@@ -915,15 +915,15 @@ pub fn set_init_1(clean_arg: bool) {
         set_string_default(kOptBackupdir, backupdir.as_ptr());
         set_string_default(
             kOptViewdir,
-            stdpaths_user_state_subpath(c"view".as_ptr(), 2, false).as_ptr(),
+            stdpaths_user_state_subpath(c"view", 2, false).as_ptr(),
         );
         set_string_default(
             kOptDirectory,
-            stdpaths_user_state_subpath(c"swap".as_ptr(), 2, true).as_ptr(),
+            stdpaths_user_state_subpath(c"swap", 2, true).as_ptr(),
         );
         set_string_default(
             kOptUndodir,
-            stdpaths_user_state_subpath(c"undo".as_ptr(), 2, true).as_ptr(),
+            stdpaths_user_state_subpath(c"undo", 2, true).as_ptr(),
         );
         set_string_default(
             kOptPacklockfile,
@@ -2479,11 +2479,11 @@ pub fn redraw_titles() {
 }
 
 /// Return true if "val" is a valid name.
-pub fn valid_name(val: *const c_char, allowed: *const c_char) -> bool {
+pub fn valid_name(val: *const c_char, allowed: &std::ffi::CStr) -> bool {
     unsafe {
         let mut s = val;
         while *s != NUL {
-            if !ascii_isalnum(*s) && vim_strchr(allowed, *s as u8 as c_int).is_null() {
+            if !ascii_isalnum(*s) && vim_strchr(allowed.as_ptr(), *s as u8 as c_int).is_null() {
                 return false;
             }
             s = s.add(1);

@@ -1174,7 +1174,7 @@ pub fn f_globpath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             );
 
             if rettv.v_type == VarType::VAR_STRING {
-                let joined = crate::path::concat_cstrings(&ga, c"\n".as_ptr());
+                let joined = crate::path::concat_cstrings(&ga, c"\n");
                 crate::eval::typval::tv_set_string(rettv, joined.as_ptr());
             } else {
                 tv_list_alloc_ret(rettv, ga.len() as isize);
