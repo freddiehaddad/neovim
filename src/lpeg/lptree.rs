@@ -1,6 +1,6 @@
 //! LPeg pattern trees and Lua API (`src/lpeg/lptree.c`).
 
-use std::ffi::{c_char, c_int, c_short, c_ushort};
+use std::ffi::{c_char, c_int};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
@@ -140,7 +140,7 @@ fn addtoktable(l: *mut lua_State, idx: c_int) -> c_int {
         } else {
             lua_getfenv(l, -1);
             let mut n = lua_objlen(l, -1) as c_int;
-            if n >= c_int::from(c_ushort::MAX) {
+            if n >= c_int::from(u16::MAX) {
                 luaL_error(l, c"too many Lua values in pattern".as_ptr());
             }
             lua_pushvalue(l, idx);
@@ -166,7 +166,7 @@ fn concattable(l: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int {
     unsafe {
         let n1 = ktablelen(l, idx1);
         let n2 = ktablelen(l, idx2);
-        if n1 + n2 > c_int::from(c_ushort::MAX) {
+        if n1 + n2 > c_int::from(u16::MAX) {
             luaL_error(l, c"too many Lua values in pattern".as_ptr());
         }
         if n1 == 0 {
@@ -189,11 +189,11 @@ fn correctkeys(mut tree: *mut TTree, n: c_int) {
             match (*tree).tag {
                 TOPEN_CALL | TCALL | TRUN_TIME | TRULE => {
                     if (*tree).key > 0 {
-                        (*tree).key = (*tree).key.wrapping_add(n as c_ushort);
+                        (*tree).key = (*tree).key.wrapping_add(n as u16);
                     }
                 }
                 TCAPTURE if (*tree).key > 0 && (*tree).cap != CARG && (*tree).cap != CNUM => {
-                    (*tree).key = (*tree).key.wrapping_add(n as c_ushort);
+                    (*tree).key = (*tree).key.wrapping_add(n as u16);
                 }
                 _ => {}
             }
@@ -430,7 +430,7 @@ fn getpatt(l: *mut lua_State, idx: c_int, len: Option<&mut c_int>) -> &'static m
             LUA_TFUNCTION => {
                 let t = newtree(l, 2);
                 t.tag = TRUN_TIME;
-                t.key = addtonewktable(l, 0, idx) as c_ushort;
+                t.key = addtonewktable(l, 0, idx) as u16;
                 (*sib1(t)).tag = TTRUE;
                 t
             }
@@ -642,7 +642,7 @@ fn codeutftree(l: *mut lua_State, t: &mut TTree, cpu: lua_Unsigned, arg: c_int) 
         };
         t.u.n = cp;
         t.cap = len as LpegByte;
-        t.key = fb as c_ushort;
+        t.key = fb as u16;
     }
 }
 
@@ -686,7 +686,7 @@ unsafe extern "C-unwind" fn lp_v(l: *mut lua_State) -> c_int {
     {
         let tree = newleaf(l, TOPEN_CALL);
         luaL_argcheck(l, !lua_isnoneornil(l, 1), 1, c"non-nil value expected");
-        tree.key = addtonewktable(l, 0, 1) as c_ushort;
+        tree.key = addtonewktable(l, 0, 1) as u16;
         1
     }
 }
@@ -698,7 +698,7 @@ fn capture_aux(l: *mut lua_State, cap: LpegByte, labelidx: c_int) -> c_int {
         tree.key = if labelidx == 0 {
             0
         } else {
-            addtonewktable(l, 1, labelidx) as c_ushort
+            addtonewktable(l, 1, labelidx) as u16
         };
         1
     }
@@ -716,7 +716,7 @@ fn auxemptycap(tree: *mut TTree, cap: LpegByte) -> &'static mut TTree {
 fn newemptycap(l: *mut lua_State, cap: LpegByte, key: c_int) -> &'static mut TTree {
     {
         let tree = auxemptycap(newtree(l, 2), cap);
-        tree.key = key as c_ushort;
+        tree.key = key as u16;
         tree
     }
 }
@@ -724,7 +724,7 @@ fn newemptycap(l: *mut lua_State, cap: LpegByte, key: c_int) -> &'static mut TTr
 fn newemptycapkey(l: *mut lua_State, cap: LpegByte, idx: c_int) -> &'static mut TTree {
     {
         let tree = auxemptycap(newtree(l, 2), cap);
-        tree.key = addtonewktable(l, 0, idx) as c_ushort;
+        tree.key = addtonewktable(l, 0, idx) as u16;
         tree
     }
 }
@@ -740,12 +740,12 @@ unsafe extern "C-unwind" fn lp_divcapture(l: *mut lua_State) -> c_int {
                 let tree = newroot1sib(l, TCAPTURE);
                 luaL_argcheck(
                     l,
-                    0 <= n && n <= c_int::from(c_short::MAX),
+                    0 <= n && n <= c_int::from(i16::MAX),
                     1,
                     c"invalid number",
                 );
                 tree.cap = CNUM;
-                tree.key = n as c_ushort;
+                tree.key = n as u16;
                 1
             }
             _ => luaL_error(
@@ -798,7 +798,7 @@ unsafe extern "C-unwind" fn lp_argcapture(l: *mut lua_State) -> c_int {
         let n = luaL_checkinteger(l, 1) as c_int;
         luaL_argcheck(
             l,
-            0 < n && n <= c_int::from(c_short::MAX),
+            0 < n && n <= c_int::from(i16::MAX),
             1,
             c"invalid argument index",
         );
@@ -833,11 +833,11 @@ unsafe extern "C-unwind" fn lp_constcapture(l: *mut lua_State) -> c_int {
                 (*tree).tag = TSEQ;
                 (*tree).u.ps = 3;
                 auxemptycap(sib1(tree), CCONST);
-                (*sib1(tree)).key = addtoktable(l, i) as c_ushort;
+                (*sib1(tree)).key = addtoktable(l, i) as u16;
                 tree = sib2(tree);
             }
             auxemptycap(tree, CCONST);
-            (*tree).key = addtoktable(l, n) as c_ushort;
+            (*tree).key = addtoktable(l, n) as u16;
         }
         1
     }
@@ -847,7 +847,7 @@ unsafe extern "C-unwind" fn lp_matchtime(l: *mut lua_State) -> c_int {
     unsafe {
         luaL_checktype(l, 2, LUA_TFUNCTION);
         let tree = newroot1sib(l, TRUN_TIME);
-        tree.key = addtonewktable(l, 1, 2) as c_ushort;
+        tree.key = addtonewktable(l, 1, 2) as u16;
         1
     }
 }
@@ -957,7 +957,7 @@ fn checkloops(mut tree: *mut TTree) -> bool {
     }
 }
 
-fn verifyerror(l: *mut lua_State, passed: &[c_ushort; MAXRULES], npassed: c_int) -> c_int {
+fn verifyerror(l: *mut lua_State, passed: &[u16; MAXRULES], npassed: c_int) -> c_int {
     unsafe {
         let mut i = npassed - 1;
         while i >= 0 {
@@ -982,7 +982,7 @@ fn verifyerror(l: *mut lua_State, passed: &[c_ushort; MAXRULES], npassed: c_int)
 fn verifyrule(
     l: *mut lua_State,
     mut tree: *mut TTree,
-    passed: &mut [c_ushort; MAXRULES],
+    passed: &mut [u16; MAXRULES],
     mut npassed: c_int,
     mut nb: c_int,
 ) -> c_int {
@@ -1031,7 +1031,7 @@ fn verifyrule(
 
 fn verifygrammar(l: *mut lua_State, grammar: *mut TTree) {
     unsafe {
-        let mut passed = [0 as c_ushort; MAXRULES];
+        let mut passed = [0_u16; MAXRULES];
         let mut rule = sib1(grammar);
         while (*rule).tag == TRULE {
             if (*rule).key != 0 {
@@ -1059,7 +1059,7 @@ fn initialrulename(l: *mut lua_State, grammar: *mut TTree, frule: c_int) {
             let n = (lua_objlen(l, -1) + 1) as c_int;
             lua_pushvalue(l, frule);
             lua_rawseti(l, -2, n);
-            (*sib1(grammar)).key = n as c_ushort;
+            (*sib1(grammar)).key = n as u16;
         }
     }
 }

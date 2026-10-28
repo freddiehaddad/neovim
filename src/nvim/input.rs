@@ -79,7 +79,7 @@ use crate::strings::{gettext, vim_snprintf};
 use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::option::OptInt;
@@ -943,7 +943,7 @@ pub fn start_redo(count: c_int, old_redo: bool) -> bool {
             spec.regname += 1;
         }
         if count != 0 {
-            spec.count = c_long::from(count);
+            spec.count = i64::from(count);
         }
         let mut prefix: Vec<c_char> = Vec::new();
         redo_prefix(&spec, &mut prefix, true);
@@ -2905,7 +2905,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         timedout = false;
                     }
 
-                    let mut wait_time: c_long = 0;
+                    let mut wait_time: i64 = 0;
                     if advance {
                         if g_st().typebuf.tb_len == 0
                             || !(opt_vars().p_timeout != 0
@@ -2913,9 +2913,9 @@ fn vgetorpeek(advance: bool) -> c_int {
                         {
                             wait_time = -1;
                         } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm >= 0 {
-                            wait_time = opt_vars().p_ttm as c_long;
+                            wait_time = opt_vars().p_ttm;
                         } else {
-                            wait_time = opt_vars().p_tm as c_long;
+                            wait_time = opt_vars().p_tm;
                         }
                     }
 
@@ -3005,7 +3005,7 @@ fn vgetorpeek(advance: bool) -> c_int {
     }
 }
 
-fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
+fn inchar(buf: *mut u8, maxlen: c_int, wait_time: i64) -> c_int {
     unsafe {
         let mut len: c_int = 0;
         let mut retesc: c_int = 0;

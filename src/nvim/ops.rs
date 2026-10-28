@@ -84,7 +84,7 @@ use crate::strings::{ngettext, tr, vim_snprintf};
 use crate::textformat::{Oparg, auto_format, has_format_option, op_format, op_formatexpr};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
@@ -318,19 +318,19 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: c_int) {
             let msg_line_single = ngettext(
                 c"%lld line %sed %d time",
                 c"%lld line %sed %d times",
-                amount as c_ulong,
+                amount as u64,
             );
             let msg_line_plural = ngettext(
                 c"%lld lines %sed %d time",
                 c"%lld lines %sed %d times",
-                amount as c_ulong,
+                amount as u64,
             );
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
-                ngettext(msg_line_single, msg_line_plural, oap.line_count as c_ulong,),
-                i64::from(oap.line_count) as std::ffi::c_longlong,
+                ngettext(msg_line_single, msg_line_plural, oap.line_count as u64,),
+                i64::from(oap.line_count),
                 op,
                 amount,
             );
@@ -1475,9 +1475,9 @@ pub fn op_tilde(oap: &mut Oparg) {
                 ngettext(
                     c"%lld line changed",
                     c"%lld lines changed",
-                    oap.line_count as c_ulong,
+                    oap.line_count as u64,
                 ),
-                i64::from(oap.line_count) as std::ffi::c_longlong,
+                i64::from(oap.line_count),
             );
         }
     }
@@ -2608,9 +2608,9 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
                     ngettext(
                         c"%lld lines changed",
                         c"%lld lines changed",
-                        change_cnt as c_ulong,
+                        change_cnt as u64,
                     ),
-                    change_cnt as std::ffi::c_longlong,
+                    change_cnt as i64,
                 );
             }
         }
@@ -2987,13 +2987,13 @@ pub fn do_addsub(op_type: c_int, pos: &mut CursorPos, mut length: c_int, prenum1
 
                 *buf2_ptr.add(buf2len as usize) = NUL;
             } else if pre == 0 {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llu", n as std::ffi::c_ulonglong,);
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llu", n as u64,);
             } else if pre == b'0' as c_int {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llo", n as std::ffi::c_ulonglong,);
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llo", n as u64,);
             } else if ops_st().addsub_hexupper {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llX", n as std::ffi::c_ulonglong,);
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llX", n as u64,);
             } else {
-                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llx", n as std::ffi::c_ulonglong,);
+                buf2len = vim_snprintf!(buf2_ptr, NUMBUFLEN, c"%llx", n as u64,);
             }
             length -= buf2len;
 
@@ -3258,12 +3258,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                         let cols = i64::from(oparg.end_vcol + 1)
                             .checked_sub(i64::from(oparg.start_vcol))
                             .unwrap_or_else(|| std::process::abort());
-                        vim_snprintf!(
-                            buf1_ptr,
-                            buf1.len(),
-                            tr(c"%lld Cols; "),
-                            cols as std::ffi::c_longlong,
-                        );
+                        vim_snprintf!(buf1_ptr, buf1.len(), tr(c"%lld Cols; "), cols,);
                     } else {
                         *buf1_ptr = NUL;
                     }
@@ -3276,12 +3271,12 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                                 c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Bytes",
                             ),
                             buf1_ptr,
-                            i64::from(line_count_selected) as std::ffi::c_longlong,
-                            i64::from(curbuf_mut().b_ml.ml_line_count) as std::ffi::c_longlong,
-                            word_count_cursor as std::ffi::c_longlong,
-                            word_count as std::ffi::c_longlong,
-                            byte_count_cursor as std::ffi::c_longlong,
-                            byte_count as std::ffi::c_longlong,
+                            i64::from(line_count_selected) as i64,
+                            i64::from(curbuf_mut().b_ml.ml_line_count),
+                            word_count_cursor as i64,
+                            word_count as i64,
+                            byte_count_cursor as i64,
+                            byte_count as i64,
                         );
                     } else {
                         vim_snprintf!(
@@ -3291,14 +3286,14 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                                 c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Chars; %lld of %lld Bytes",
                             ),
                             buf1_ptr,
-                            i64::from(line_count_selected) as std::ffi::c_longlong,
-                            i64::from(curbuf_mut().b_ml.ml_line_count) as std::ffi::c_longlong,
-                            word_count_cursor as std::ffi::c_longlong,
-                            word_count as std::ffi::c_longlong,
-                            char_count_cursor as std::ffi::c_longlong,
-                            char_count as std::ffi::c_longlong,
-                            byte_count_cursor as std::ffi::c_longlong,
-                            byte_count as std::ffi::c_longlong,
+                            i64::from(line_count_selected) as i64,
+                            i64::from(curbuf_mut().b_ml.ml_line_count),
+                            word_count_cursor as i64,
+                            word_count as i64,
+                            char_count_cursor as i64,
+                            char_count as i64,
+                            byte_count_cursor as i64,
+                            byte_count as i64,
                         );
                     }
                 } else {
@@ -3326,12 +3321,12 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             ),
                             buf1_ptr,
                             buf2_ptr,
-                            i64::from(curwin_mut().w_cursor.lnum) as std::ffi::c_longlong,
-                            i64::from(curbuf_mut().b_ml.ml_line_count) as std::ffi::c_longlong,
-                            word_count_cursor as std::ffi::c_longlong,
-                            word_count as std::ffi::c_longlong,
-                            byte_count_cursor as std::ffi::c_longlong,
-                            byte_count as std::ffi::c_longlong,
+                            i64::from(curwin_mut().w_cursor.lnum),
+                            i64::from(curbuf_mut().b_ml.ml_line_count),
+                            word_count_cursor as i64,
+                            word_count as i64,
+                            byte_count_cursor as i64,
+                            byte_count as i64,
                         );
                     } else {
                         vim_snprintf!(
@@ -3342,14 +3337,14 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             ),
                             buf1_ptr,
                             buf2_ptr,
-                            i64::from(curwin_mut().w_cursor.lnum) as std::ffi::c_longlong,
-                            i64::from(curbuf_mut().b_ml.ml_line_count) as std::ffi::c_longlong,
-                            word_count_cursor as std::ffi::c_longlong,
-                            word_count as std::ffi::c_longlong,
-                            char_count_cursor as std::ffi::c_longlong,
-                            char_count as std::ffi::c_longlong,
-                            byte_count_cursor as std::ffi::c_longlong,
-                            byte_count as std::ffi::c_longlong,
+                            i64::from(curwin_mut().w_cursor.lnum),
+                            i64::from(curbuf_mut().b_ml.ml_line_count),
+                            word_count_cursor as i64,
+                            word_count as i64,
+                            char_count_cursor as i64,
+                            char_count as i64,
+                            byte_count_cursor as i64,
+                            byte_count as i64,
                         );
                     }
                 }
@@ -3362,7 +3357,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     iobuff_ptr.add(len),
                     IOSIZE - len,
                     tr(c"(+%lld for BOM)"),
-                    bom_count as std::ffi::c_longlong,
+                    bom_count as i64,
                 );
             }
             if dict.is_none() {
@@ -3962,7 +3957,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
 
                         let mut session: InsSession = atom_ins_start(
                             b'c' as c_int,
-                            c_long::from(cap.count0),
+                            i64::from(cap.count0),
                             op_ins_visual(oap, cap),
                             oap.is_visual && oap.motion_type == MT_BLOCK_WISE,
                         );
@@ -4048,7 +4043,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
 
                         let mut session: InsSession = atom_ins_start(
                             b'I' as c_int,
-                            c_long::from(cap.count1),
+                            i64::from(cap.count1),
                             op_ins_visual(oap, cap),
                             oap.motion_type == MT_BLOCK_WISE,
                         );

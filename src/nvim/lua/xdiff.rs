@@ -15,7 +15,7 @@ use crate::xdiff::{
     Mmbuffer, Mmfile, XDF_HISTOGRAM_DIFF, XDF_IGNORE_CR_AT_EOL, XDF_INDENT_HEURISTIC,
     XDF_NEED_MINIMAL, XDF_PATIENCE_DIFF, Xdemitcb, Xdemitconf, Xpparam,
 };
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 
 const COMPARED_BUFFER0: c_int = 1 << 0;
 const COMPARED_BUFFER1: c_int = 1 << 1;
@@ -358,10 +358,10 @@ fn process_xdl_diff_opts(
             }
 
             if opts.has_key(KEYSET_OPTIDX_CTXLEN) {
-                cfg.ctxlen = opts.ctxlen as c_long;
+                cfg.ctxlen = opts.ctxlen;
             }
             if opts.has_key(KEYSET_OPTIDX_INTERHUNKCTXLEN) {
-                cfg.interhunkctxlen = opts.interhunkctxlen as c_long;
+                cfg.interhunkctxlen = opts.interhunkctxlen;
             }
 
             if opts.has_key(KEYSET_OPTIDX_LINEMATCH) {

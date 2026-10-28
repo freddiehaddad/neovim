@@ -7530,7 +7530,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: c_int) {
         {
             let mut lnum = wp.w_cursor.lnum.max(1);
             wp.w_wrow = (wp.w_fraction * height - 1) / FRACTION_MULT;
-            let mut line_size = plines_win_col(wp, lnum, wp.w_cursor.col as std::ffi::c_long) - 1;
+            let mut line_size = plines_win_col(wp, lnum, wp.w_cursor.col as i64) - 1;
             let mut sline = wp.w_wrow - line_size;
 
             if sline >= 0 {

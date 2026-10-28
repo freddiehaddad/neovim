@@ -1,6 +1,6 @@
 //! VTerm pen and SGR color/attribute handling (`src/nvim/vterm/pen.c`).
 
-use std::ffi::{c_int, c_long};
+use std::ffi::c_int;
 
 use crate::vterm::keyboard::{VTermColor, VTermPen, VTermStateFull};
 use crate::vterm::mouse::VTermPos;
@@ -420,7 +420,7 @@ fn lookup_colour_palette(state: &VTermStateFull, mut index: isize, col: &mut VTe
 fn lookup_colour(
     _state: &VTermStateFull,
     palette: c_int,
-    args: *const c_long,
+    args: *const i64,
     argcount: c_int,
     col: &mut VTermColor,
 ) -> c_int {
@@ -608,7 +608,7 @@ pub fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: &mut VTermC
     col.set_type_byte(t);
 }
 
-pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long, argcount: c_int) {
+pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount: c_int) {
     unsafe {
         let mut argi: c_int = 0;
 
@@ -801,28 +801,28 @@ pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long, argco
 fn vterm_state_getpen_color(
     col: &VTermColor,
     mut argi: c_int,
-    args: &mut [c_long],
+    args: &mut [i64],
     fg: bool,
 ) -> c_int {
     if (fg && col.is_default_fg()) || (!fg && col.is_default_bg()) {
         return argi;
     }
 
-    let more = CSI_ARG_FLAG_MORE_U32 as c_long;
+    let more = CSI_ARG_FLAG_MORE_U32 as i64;
     if col.is_indexed() {
         let idx = col.idx();
         if idx < 8 {
-            args[argi as usize] = c_long::from(idx) + if fg { 30 } else { 40 };
+            args[argi as usize] = i64::from(idx) + if fg { 30 } else { 40 };
             argi += 1;
         } else if idx < 16 {
-            args[argi as usize] = c_long::from(idx - 8) + if fg { 90 } else { 100 };
+            args[argi as usize] = i64::from(idx - 8) + if fg { 90 } else { 100 };
             argi += 1;
         } else {
             args[argi as usize] = more | if fg { 38 } else { 48 };
             argi += 1;
             args[argi as usize] = more | 5;
             argi += 1;
-            args[argi as usize] = c_long::from(idx);
+            args[argi as usize] = i64::from(idx);
             argi += 1;
         }
     } else if col.is_rgb() {
@@ -830,19 +830,19 @@ fn vterm_state_getpen_color(
         argi += 1;
         args[argi as usize] = more | 2;
         argi += 1;
-        args[argi as usize] = more | c_long::from(col.red());
+        args[argi as usize] = more | i64::from(col.red());
         argi += 1;
-        args[argi as usize] = more | c_long::from(col.green());
+        args[argi as usize] = more | i64::from(col.green());
         argi += 1;
-        args[argi as usize] = c_long::from(col.blue());
+        args[argi as usize] = i64::from(col.blue());
         argi += 1;
     }
     argi
 }
 
-pub fn vterm_state_getpen(state: &mut VTermStateFull, args: &mut [c_long]) -> c_int {
+pub fn vterm_state_getpen(state: &mut VTermStateFull, args: &mut [i64]) -> c_int {
     let mut argi: c_int = 0;
-    let more = CSI_ARG_FLAG_MORE_U32 as c_long;
+    let more = CSI_ARG_FLAG_MORE_U32 as i64;
 
     if state.pen.bold() != 0 {
         args[argi as usize] = 1;
@@ -883,7 +883,7 @@ pub fn vterm_state_getpen(state: &mut VTermStateFull, args: &mut [c_long]) -> c_
         argi += 1;
     }
     if state.pen.font() != 0 {
-        args[argi as usize] = (10 + state.pen.font()) as c_long;
+        args[argi as usize] = (10 + state.pen.font()) as i64;
         argi += 1;
     }
     if state.pen.underline() == VTERM_UNDERLINE_DOUBLE {

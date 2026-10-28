@@ -1,7 +1,7 @@
 //! Global variables (`src/nvim/globals.h`).
 
 use crate::highlight::{HLF_COUNT, RgbValue};
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::decoration::{DecorSignHighlight, DecorState, NS};
@@ -105,7 +105,7 @@ pub struct EditorState {
     pub emsg_skip: c_int,
     pub emsg_severe: bool,
     pub emsg_assert_fails_msg: Option<std::ffi::CString>,
-    pub emsg_assert_fails_lnum: c_long,
+    pub emsg_assert_fails_lnum: i64,
     pub emsg_assert_fails_context: Option<std::ffi::CString>,
     pub did_endif: bool,
     pub did_emsg: c_int,

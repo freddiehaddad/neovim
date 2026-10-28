@@ -598,7 +598,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 fprintf!(
                     log_get_stderr(),
                     c"Nvim server (pid: %lld) waiting for UI, listening on: \"%s\"\n",
-                    os_get_pid() as std::ffi::c_longlong,
+                    os_get_pid(),
                     get_vim_var_str(VV_SEND_SERVER),
                 );
             }

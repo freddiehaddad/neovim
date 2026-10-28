@@ -67,7 +67,7 @@ use crate::sha256::ContextSha256;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_add};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[cfg(unix)]
@@ -2408,7 +2408,7 @@ pub fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
                 ngettext(
                     c"%lld second ago",
                     c"%lld seconds ago",
-                    seconds as u32 as c_ulong,
+                    seconds as u32 as u64,
                 ),
                 seconds,
             );

@@ -4,9 +4,9 @@ use crate::event::r#loop::{
     Loop, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop, uv_write,
 };
 use crate::event::stream::{Stream, stream_close_handle, stream_init};
-#[cfg(windows)]
-use std::ffi::c_ulong;
 use std::ffi::{c_char, c_int, c_void};
+#[cfg(windows)]
+use u64;
 
 use crate::os::fs::UV_UNKNOWN;
 
@@ -40,7 +40,7 @@ impl WBuffer {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct uv_buf_t {
-    pub len: c_ulong,
+    pub len: u64,
     pub base: *mut c_char,
 }
 
@@ -58,7 +58,7 @@ impl uv_buf_t {
         #[cfg(windows)]
         {
             Self {
-                len: size as c_ulong,
+                len: size as u64,
                 base,
             }
         }

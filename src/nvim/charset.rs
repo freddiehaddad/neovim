@@ -12,7 +12,7 @@ use crate::memory::cstr_from_bytes;
 use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
-use std::ffi::{CString, c_char, c_int, c_long, c_uint};
+use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::change::TAB;
@@ -1047,15 +1047,8 @@ pub fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int {
     }
 }
 
-pub fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) -> c_long {
-    let number = getdigits(pp, strict, def as _);
-    match c_long::try_from(number) {
-        Ok(v) => v,
-        Err(_) => {
-            assert!(!strict);
-            def
-        }
-    }
+pub fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
+    getdigits(pp, strict, def)
 }
 
 pub fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {

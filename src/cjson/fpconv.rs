@@ -1,25 +1,18 @@
 //! Floating point conversion routines (`src/cjson/fpconv.c`).
 
-use std::ffi::{c_char, c_double, c_int};
+use std::ffi::{c_char, c_int};
 use std::io::Write;
 
 use crate::strings::strtod;
 
 pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
-pub fn fpconv_strtod(
-    nptr: impl crate::strings::IntoCCharPtr,
-    endptr: *mut *mut c_char,
-) -> c_double {
+pub fn fpconv_strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut c_char) -> f64 {
     let nptr = nptr.into_c_char_ptr();
     strtod(nptr, endptr)
 }
 
-pub fn fpconv_g_fmt(
-    buf: &mut [u8; FPCONV_G_FMT_BUFSIZE],
-    num: c_double,
-    precision: c_int,
-) -> usize {
+pub fn fpconv_g_fmt(buf: &mut [u8; FPCONV_G_FMT_BUFSIZE], num: f64, precision: c_int) -> usize {
     let prec = precision.max(1) as usize;
     let mut pos = 0usize;
 

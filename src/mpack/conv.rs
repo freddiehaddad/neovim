@@ -1,6 +1,6 @@
 //! MessagePack primitive value packing and unpacking (`src/mpack/conv.c`).
 
-use std::ffi::{c_char, c_double, c_int, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 
 use crate::mpack::mpack_core::{
     MpackSintmax, MpackToken, MpackTokenArray, MpackTokenBin, MpackTokenBoolean, MpackTokenChunk,
@@ -9,7 +9,7 @@ use crate::mpack::mpack_core::{
 };
 
 #[inline]
-fn pow2(n: c_uint) -> c_double {
+fn pow2(n: c_uint) -> f64 {
     f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n / 2)) * f64::from(1u32 << (n % 2))
 }
 
@@ -32,7 +32,7 @@ pub fn mpack_pack_boolean(v: c_uint) -> MpackToken {
     }
 }
 
-pub fn mpack_pack_float_fast(v: c_double) -> MpackToken {
+pub fn mpack_pack_float_fast(v: f64) -> MpackToken {
     let (length, value) = if mpack_fits_single(v) {
         (
             4,
@@ -59,7 +59,7 @@ pub fn mpack_pack_float_fast(v: c_double) -> MpackToken {
     }
 }
 
-pub fn mpack_pack_number(v: c_double) -> MpackToken {
+pub fn mpack_pack_number(v: f64) -> MpackToken {
     if !(-9223372036854775808.0..18446744073709551616.0).contains(&v) {
         return mpack_pack_float_fast(v);
     }
@@ -186,7 +186,7 @@ pub fn mpack_unpack_sint(t: MpackToken) -> MpackSintmax {
     -((rv.wrapping_sub(1)) as MpackSintmax) - 1
 }
 
-pub fn mpack_unpack_float_fast(t: MpackToken) -> c_double {
+pub fn mpack_unpack_float_fast(t: MpackToken) -> f64 {
     let val = t.data.value();
     if t.length == 4 {
         f64::from(f32::from_bits(val.lo))
@@ -196,7 +196,7 @@ pub fn mpack_unpack_float_fast(t: MpackToken) -> c_double {
     }
 }
 
-pub fn mpack_unpack_number(t: MpackToken) -> c_double {
+pub fn mpack_unpack_number(t: MpackToken) -> f64 {
     if t.r#type == MpackTokenFloat {
         return mpack_unpack_float_fast(t);
     }
@@ -223,11 +223,11 @@ pub fn mpack_unpack_number(t: MpackToken) -> c_double {
 }
 
 #[inline]
-fn mpack_fits_single(v: c_double) -> bool {
+fn mpack_fits_single(v: f64) -> bool {
     f64::from(v as f32) == v
 }
 
 #[inline]
-fn mpack_fmod_pow2_32(a: c_double) -> c_double {
+fn mpack_fmod_pow2_32(a: f64) -> f64 {
     a - (f64::from((a / pow2(32)) as MpackUint32) * pow2(32))
 }

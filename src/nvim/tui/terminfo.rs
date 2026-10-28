@@ -6,7 +6,7 @@ use crate::tui::termkey::driver_ti::{
     K_TERM_COUNT, K_TERM_KEY_COUNT, K_TERMINFO_FUNC_KEY_MAX, TerminfoEntry,
 };
 use std::borrow::Cow;
-use std::ffi::{CStr, c_char, c_int, c_long};
+use std::ffi::{CStr, c_char, c_int};
 use std::io::Read;
 use std::ptr;
 
@@ -81,13 +81,13 @@ pub const K_TERM_KEY_RIGHT: usize = 15;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct TPVAR {
-    pub num: c_long,
+    pub num: i64,
     pub string: Option<[c_char; 8]>,
 }
 
 #[repr(C)]
 struct TPSTACK {
-    nums: [c_long; 20],
+    nums: [i64; 20],
     strings: [Option<[c_char; 8]>; 20],
     offset: usize,
 }
@@ -2887,7 +2887,7 @@ pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: b
     data
 }
 
-fn push(num: c_long, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int {
+fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int {
     if stack.offset >= stack.nums.len() {
         return -1;
     }
@@ -2897,7 +2897,7 @@ fn push(num: c_long, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int 
     0
 }
 
-fn pop(num: *mut c_long, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> c_int {
+fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> c_int {
     unsafe {
         if stack.offset == 0 {
             if !num.is_null() {
@@ -2973,10 +2973,10 @@ pub fn terminfo_fmt(
     unsafe {
         let mut fmt = [0 as c_char; 64];
         let mut ostr: Option<[c_char; 8]> = None;
-        let mut val: c_long;
-        let mut val2: c_long = 0;
-        let mut dnums = [0 as c_long; 26];
-        let mut snums = [0 as c_long; 26];
+        let mut val: i64;
+        let mut val2: i64 = 0;
+        let mut dnums = [0_i64; 26];
+        let mut snums = [0_i64; 26];
 
         let mut buf = buf_start;
         let mut stack = TPSTACK {
@@ -3056,7 +3056,7 @@ pub fn terminfo_fmt(
                         }
                     }
                     b if b.is_ascii_digit() => {
-                        val = (val * 10) + c_long::from(b - b'0');
+                        val = (val * 10) + i64::from(b - b'0');
                         if val > 10000 {
                             done = 2;
                         } else {
@@ -3117,7 +3117,7 @@ pub fn terminfo_fmt(
                 b'l' => {
                     pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
                     let l = ostr.map_or(0, |s_arr| crate::memory::cstr_len(s_arr.as_ptr()));
-                    push(l as c_long, None, &mut stack);
+                    push(l as i64, None, &mut stack);
                 }
                 b'd' | b'o' | b'x' | b'X' => {
                     pop(&mut val, None, &mut stack);
@@ -3165,7 +3165,7 @@ pub fn terminfo_fmt(
                 b'\'' => {
                     let ch = crate::memory::cstr_first_byte(str_);
                     str_ = str_.add(1);
-                    if push(c_long::from(ch), None, &mut stack) != 0 {
+                    if push(i64::from(ch), None, &mut stack) != 0 {
                         return 0;
                     }
                     while !crate::memory::cstr_is_empty(str_)
@@ -3180,8 +3180,7 @@ pub fn terminfo_fmt(
                 b'{' => {
                     val = 0;
                     while (crate::memory::cstr_first_byte(str_)).is_ascii_digit() {
-                        val = (val * 10)
-                            + c_long::from((crate::memory::cstr_first_byte(str_)) - b'0');
+                        val = (val * 10) + i64::from((crate::memory::cstr_first_byte(str_)) - b'0');
                         str_ = str_.add(1);
                     }
                     if push(val, None, &mut stack) != 0 {
@@ -3218,14 +3217,14 @@ pub fn terminfo_fmt(
                                 0
                             }
                         }
-                        b'A' => c_long::from(val != 0 && val2 != 0),
-                        b'O' => c_long::from(val != 0 || val2 != 0),
+                        b'A' => i64::from(val != 0 && val2 != 0),
+                        b'O' => i64::from(val != 0 || val2 != 0),
                         b'&' => val & val2,
                         b'|' => val | val2,
                         b'^' => val ^ val2,
-                        b'=' => c_long::from(val == val2),
-                        b'<' => c_long::from(val2 < val),
-                        b'>' => c_long::from(val2 > val),
+                        b'=' => i64::from(val == val2),
+                        b'<' => i64::from(val2 < val),
+                        b'>' => i64::from(val2 > val),
                         _ => val,
                     };
                     if push(val, None, &mut stack) != 0 {
@@ -3235,7 +3234,7 @@ pub fn terminfo_fmt(
                 b'!' | b'~' => {
                     pop(&mut val, None, &mut stack);
                     val = match c as u8 {
-                        b'!' => c_long::from(val == 0),
+                        b'!' => i64::from(val == 0),
                         b'~' => !val,
                         _ => val,
                     };

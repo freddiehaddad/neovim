@@ -43,7 +43,7 @@ use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_int, c_ulong};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::state::MODE_INSERT;
@@ -1603,11 +1603,7 @@ pub fn get_foldtext(
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 FOLD_TEXT_LEN,
-                ngettext(
-                    c"+--%3d line folded",
-                    c"+--%3d lines folded ",
-                    count as c_ulong,
-                ),
+                ngettext(c"+--%3d line folded", c"+--%3d lines folded ", count as u64,),
                 count,
             );
             crate::memory::cstr_to_cstring(buf.as_ptr())
@@ -2832,7 +2828,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                 }
             }
             let count = foldend - foldstart + 1;
-            let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as c_ulong);
+            let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
             let s_len = crate::memory::cstr_len(s);
             let len = crate::memory::cstr_len(txt) + crate::memory::cstr_len(dashes) + 20 + s_len;
             let mut r_vec = vec![0 as c_char; len];

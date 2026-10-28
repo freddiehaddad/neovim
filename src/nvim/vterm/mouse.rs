@@ -1,6 +1,6 @@
 //! VTerm mouse event encoding (`src/nvim/vterm/mouse.c`).
 
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 
 use crate::math::xctz;
 use crate::terminal::Terminal;
@@ -33,7 +33,7 @@ pub struct VTermParserCsi {
     pub leaderlen: c_int,
     pub leader: [c_char; CSI_LEADER_MAX],
     pub argi: c_int,
-    pub args: [c_long; CSI_ARGS_MAX],
+    pub args: [i64; CSI_ARGS_MAX],
 }
 
 impl VTermParserCsi {

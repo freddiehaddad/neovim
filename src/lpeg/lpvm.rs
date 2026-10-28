@@ -1,6 +1,6 @@
 //! LPeg virtual machine (`src/lpeg/lpvm.c`).
 
-use std::ffi::{c_char, c_int, c_short, c_ushort};
+use std::ffi::{c_char, c_int};
 use std::mem::size_of;
 use std::ptr;
 
@@ -187,7 +187,7 @@ fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: c_int, fd: c_int) 
             let cap = { &mut *cap };
             cap.kind = CRUNTIME;
             cap.siz = 1;
-            cap.idx = (fd + i as c_int) as c_ushort;
+            cap.idx = (fd + i as c_int) as u16;
             cap.index = index;
         }
         let close = capture.add(n as usize);
@@ -442,7 +442,7 @@ pub fn r#match(
                         if n == 0 {
                             captop -= 1;
                         } else {
-                            if fr + n >= c_int::from(c_short::MAX) {
+                            if fr + n >= c_int::from(i16::MAX) {
                                 luaL_error(l, c"too many results in match-time capture".as_ptr());
                             }
                             capture = growcap(l, capture, &mut capsize, captop, n + 1, ptop);
@@ -471,7 +471,7 @@ pub fn r#match(
                         let cap = capture.add(captop as usize);
                         (*cap).siz = 1;
                         (*cap).index = curr_idx;
-                        (*cap).idx = (*p).i.aux2.key as c_ushort;
+                        (*cap).idx = (*p).i.aux2.key as u16;
                         (*cap).kind = getkind(&*p) as LpegByte;
                         captop += 1;
                         capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
@@ -483,7 +483,7 @@ pub fn r#match(
                     let cap = capture.add(captop as usize);
                     (*cap).siz = 0;
                     (*cap).index = s.offset_from(o) as LpegIndex;
-                    (*cap).idx = (*p).i.aux2.key as c_ushort;
+                    (*cap).idx = (*p).i.aux2.key as u16;
                     (*cap).kind = getkind(&*p) as LpegByte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);
@@ -495,7 +495,7 @@ pub fn r#match(
                     let cap = capture.add(captop as usize);
                     (*cap).siz = (off + 1) as LpegByte;
                     (*cap).index = (s.offset_from(o) as c_int - off) as LpegIndex;
-                    (*cap).idx = (*p).i.aux2.key as c_ushort;
+                    (*cap).idx = (*p).i.aux2.key as u16;
                     (*cap).kind = getkind(&*p) as LpegByte;
                     captop += 1;
                     capture = growcap(l, capture, &mut capsize, captop, 0, ptop);

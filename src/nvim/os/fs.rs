@@ -33,7 +33,7 @@ use crate::strings::strerror;
 use crate::ui::ui_call_chdir;
 #[cfg(windows)]
 use std::ffi::c_uint;
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub(crate) const MAXPATHL: usize = 4096;
@@ -61,8 +61,8 @@ impl FileID {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct uv_timespec_t {
-    pub tv_sec: c_long,
-    pub tv_nsec: c_long,
+    pub tv_sec: i64,
+    pub tv_nsec: i64,
 }
 
 #[repr(C)]

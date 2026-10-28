@@ -1,11 +1,11 @@
 //! Low-level MessagePack token reader and writer (`src/mpack/mpack_core.c`).
 
-use std::ffi::{c_char, c_int, c_longlong, c_ulonglong};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub type MpackUint32 = u32;
-pub type MpackSintmax = c_longlong;
-pub type MpackUintmax = c_ulonglong;
+pub type MpackSintmax = i64;
+pub type MpackUintmax = u64;
 
 #[repr(C)]
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]

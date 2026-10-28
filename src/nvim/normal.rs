@@ -190,7 +190,7 @@ use crate::window::{
     may_make_initial_scroll_size_snapshot, may_trigger_win_scrolled_resized, set_fraction,
     win_setheight,
 };
-use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[repr(C)]
@@ -2838,13 +2838,13 @@ pub fn clear_showcmd() {
                     sc_buf,
                     SHOWCMD_BUFLEN,
                     c"%lldx%lld",
-                    lines as c_longlong,
-                    (i64::from(rightcol) - i64::from(leftcol) + 1) as c_longlong,
+                    lines as i64,
+                    (i64::from(rightcol) - i64::from(leftcol) + 1) as i64,
                 );
             } else if g_st().visual_global.mode == b'V' as c_int
                 || g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum
             {
-                vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%lld", lines as c_longlong,);
+                vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%lld", lines as i64,);
             } else {
                 let mut s: *mut c_char;
                 let e: *mut c_char;
@@ -4322,7 +4322,7 @@ fn nv_k_getcmd(
                     buf.add(*buflen),
                     bufsize - *buflen,
                     c"%lld ",
-                    cap.count0 as c_longlong,
+                    cap.count0 as i64,
                 ) as usize;
             }
             return n;
@@ -4343,8 +4343,7 @@ fn nv_k_getcmd(
         let isman = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man");
         let isman_s = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man -s");
         if cap.count0 != 0 && !(isman || isman_s) {
-            *buflen =
-                vim_snprintf!(buf, bufsize, c".,.+%lld", (cap.count0 - 1) as c_longlong,) as usize;
+            *buflen = vim_snprintf!(buf, bufsize, c".,.+%lld", (cap.count0 - 1) as i64,) as usize;
         }
 
         do_cmdline_cmd(c"tabnew");
@@ -4359,7 +4358,7 @@ fn nv_k_getcmd(
                 buf.add(*buflen),
                 bufsize - *buflen,
                 c"%lld ",
-                cap.count0 as c_longlong,
+                cap.count0 as i64,
             ) as usize;
         }
 
@@ -4483,7 +4482,7 @@ fn nv_ident(cap: &mut Cmdarg) {
                         buf_vec.as_mut_ptr(),
                         bufsize,
                         c":%lldtag ",
-                        cap.count0 as c_longlong,
+                        cap.count0 as i64,
                     ) as usize;
                 }
             }
@@ -5768,7 +5767,7 @@ fn nv_replace(cap: &mut Cmdarg) {
         } else {
             let mut spec = CmdSpec::new();
             spec.regname = cap.oap_mut().regname;
-            spec.count = c_long::from(cap.count1);
+            spec.count = i64::from(cap.count1);
             spec.cmd = b'r' as c_int;
             spec.cmdarg = cap.nchar;
             prep_redo(true, true, spec);
@@ -6594,7 +6593,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                     && cap.oap_mut().op_type == OP_NOP
                     && mc_buf_has_cursors(curbuf_mut())
                 {
-                    mc_counter(c_long::from(cap.count1));
+                    mc_counter(i64::from(cap.count1));
                 } else {
                     clearopbeep(&mut *oap);
                 }
@@ -7355,7 +7354,7 @@ fn invoke_edit(cap: &mut Cmdarg, repl: c_int, cmd: c_int, startln: c_int) {
             curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
         }
         let mut session: InsSession =
-            atom_ins_start(cmd, c_long::from(cap.count1), K_VINS_NONE, false);
+            atom_ins_start(cmd, i64::from(cap.count1), K_VINS_NONE, false);
         let busy = edit(cmd, startln != 0, cap.count1);
         if busy {
             cap.retval |= CA_COMMAND_BUSY;
@@ -7627,7 +7626,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         if g_st().visual_global.active {
             let mut spec = CmdSpec::new();
             spec.regname = cap.oap_mut().regname;
-            spec.count = c_long::from(cap.count0);
+            spec.count = i64::from(cap.count0);
             spec.cmd = cap.cmdchar;
             spec.cmd2 = cap.nchar;
             vatom_prepped = atom_visual_end(spec, true);

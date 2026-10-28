@@ -44,7 +44,7 @@ use crate::textobject::start_ps;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
 use crate::window::win_fdccol_count;
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 const INSCHAR_DO_COM: c_int = 2;
@@ -911,13 +911,13 @@ pub fn op_formatexpr(oap: &mut Oparg) {
         redraw_curbuf_later(UPD_INVERTED);
     }
 
-    if fex_format(oap.start.lnum, c_long::from(oap.line_count), 0) != 0 {
+    if fex_format(oap.start.lnum, i64::from(oap.line_count), 0) != 0 {
         op_format(oap, false);
     }
 }
 
 /// Evaluate `'formatexpr'` (`fex_format`).
-pub fn fex_format(lnum: Linenr, count: c_long, c: c_int) -> c_int {
+pub fn fex_format(lnum: Linenr, count: i64, c: c_int) -> c_int {
     {
         let use_sandbox = was_set_insecurely(
             Some(crate::globals::curwin_mut()),

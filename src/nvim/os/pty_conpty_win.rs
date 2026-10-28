@@ -9,14 +9,14 @@ use crate::os::env::os_get_pid;
 #[cfg(windows)]
 use crate::os::os_win_console::INVALID_HANDLE_VALUE;
 #[cfg(windows)]
-use std::ffi::{CString, c_char, c_int, c_long, c_void};
+use std::ffi::{CString, c_char, c_int, c_void};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
 #[cfg(windows)]
 pub type HPCON = *mut c_void;
 #[cfg(windows)]
-pub type HRESULT = c_long;
+pub type HRESULT = i64;
 
 #[cfg(windows)]
 use crate::extmark::TriState;

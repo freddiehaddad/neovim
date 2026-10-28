@@ -1,6 +1,6 @@
 //! XDiff environment preparation (`src/xdiff/xprepare.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
+use std::ffi::{c_char, c_int, c_uint};
 
 use crate::xdiff::xutils::{
     xdl_bogosqrt, xdl_guess_lines, xdl_hash_record, xdl_hashbits, xdl_mmfile_first, xdl_recmatch,
@@ -10,32 +10,32 @@ use crate::xdiff::{
     xdl_hashlong,
 };
 
-const XDL_KPDIS_RUN: c_long = 4;
-const XDL_MAX_EQLIMIT: c_long = 1024;
-const XDL_SIMSCAN_WINDOW: c_long = 100;
-const XDL_GUESS_NLINES1: c_long = 256;
-const XDL_GUESS_NLINES2: c_long = 20;
+const XDL_KPDIS_RUN: i64 = 4;
+const XDL_MAX_EQLIMIT: i64 = 1024;
+const XDL_SIMSCAN_WINDOW: i64 = 100;
+const XDL_GUESS_NLINES1: i64 = 256;
+const XDL_GUESS_NLINES2: i64 = 20;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct Xdlclass {
     next: Option<usize>,
-    ha: c_ulong,
+    ha: u64,
     line: *const c_char,
-    size: c_long,
-    idx: c_long,
-    len1: c_long,
-    len2: c_long,
+    size: i64,
+    idx: i64,
+    len1: i64,
+    len2: i64,
 }
 
 struct Xdlclassifier {
     hbits: c_uint,
     rchash: Vec<Option<usize>>,
     rcrecs: Vec<Xdlclass>,
-    flags: c_long,
+    flags: i64,
 }
 
-fn xdl_init_classifier(cf: &mut Xdlclassifier, size: c_long, flags: c_long) -> c_int {
+fn xdl_init_classifier(cf: &mut Xdlclassifier, size: i64, flags: i64) -> c_int {
     cf.flags = flags;
     cf.hbits = xdl_hashbits(size as c_uint);
     let hsize = 1usize << cf.hbits;
@@ -67,7 +67,7 @@ fn xdl_classify_record(pass: c_uint, cf: &mut Xdlclassifier, rec: &mut Xrecord) 
             ha: rec.ha,
             line,
             size: rec.size,
-            idx: new_idx as c_long,
+            idx: new_idx as i64,
             len1: 0,
             len2: 0,
         });
@@ -82,14 +82,14 @@ fn xdl_classify_record(pass: c_uint, cf: &mut Xdlclassifier, rec: &mut Xrecord) 
         rcrec.len2 += 1;
     }
 
-    rec.ha = rcrec.idx as c_ulong;
+    rec.ha = rcrec.idx as u64;
     0
 }
 
 fn xdl_prepare_ctx(
     pass: c_uint,
     mf: &mut Mmfile,
-    narec: c_long,
+    narec: i64,
     xpp: &Xpparam,
     cf: &mut Xdlclassifier,
     xdf: &mut Xdfile,
@@ -97,18 +97,18 @@ fn xdl_prepare_ctx(
     unsafe {
         xdf.recs = Vec::with_capacity(narec.max(0) as usize);
 
-        let mut nrec: c_long = 0;
-        let mut bsize: c_long = 0;
+        let mut nrec: i64 = 0;
+        let mut bsize: i64 = 0;
         let blk = xdl_mmfile_first(mf, &mut bsize).cast_const();
         let mut cur = blk;
         if !cur.is_null() {
             let top = blk.offset(bsize as isize);
             while cur < top {
                 let prev = cur;
-                let hav = xdl_hash_record(&mut cur, top, xpp.flags as c_long);
+                let hav = xdl_hash_record(&mut cur, top, xpp.flags as i64);
                 let mut rec = Xrecord {
                     ptr: prev,
-                    size: cur.offset_from(prev) as c_long,
+                    size: cur.offset_from(prev) as i64,
                     ha: hav,
                 };
                 nrec += 1;
@@ -160,7 +160,7 @@ pub fn xdl_prepare_env(
     let enl2 = xdl_guess_lines(mf2, sample) + 1;
 
     if xdf_diff_alg(xpp.flags) != XDF_HISTOGRAM_DIFF
-        && xdl_init_classifier(&mut cf, enl1 + enl2 + 1, xpp.flags as c_long) < 0
+        && xdl_init_classifier(&mut cf, enl1 + enl2 + 1, xpp.flags as i64) < 0
     {
         return -1;
     }
@@ -184,7 +184,7 @@ pub fn xdl_prepare_env(
     0
 }
 
-fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long) -> c_int {
+fn xdl_clean_mmatch(dis: *const c_char, i: i64, mut s: i64, mut e: i64) -> c_int {
     if i - s > XDL_SIMSCAN_WINDOW {
         s = i - XDL_SIMSCAN_WINDOW;
     }
@@ -192,9 +192,9 @@ fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long)
         e = i + XDL_SIMSCAN_WINDOW;
     }
 
-    let mut r: c_long = 1;
-    let mut rdis0: c_long = 0;
-    let mut rpdis0: c_long = 1;
+    let mut r: i64 = 1;
+    let mut rdis0: i64 = 0;
+    let mut rpdis0: i64 = 1;
     while (i - r) >= s {
         let d = unsafe { *dis.offset((i - r) as isize) };
         if d == 0 {
@@ -211,8 +211,8 @@ fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long)
     }
 
     r = 1;
-    let mut rdis1: c_long = 0;
-    let mut rpdis1: c_long = 1;
+    let mut rdis1: i64 = 0;
+    let mut rpdis1: i64 = 1;
     while (i + r) <= e {
         let d = unsafe { *dis.offset((i + r) as isize) };
         if d == 0 {
@@ -264,7 +264,7 @@ fn xdl_cleanup_records(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile)
             };
         }
 
-        let mut nreff: c_long = 0;
+        let mut nreff: i64 = 0;
         for i in xdf1.dstart..=xdf1.dend {
             let d = *dis1.offset(i as isize);
             if d == 1 || (d == 2 && xdl_clean_mmatch(dis1, i, xdf1.dstart, xdf1.dend) == 0) {
@@ -296,7 +296,7 @@ fn xdl_cleanup_records(cf: &Xdlclassifier, xdf1: &mut Xdfile, xdf2: &mut Xdfile)
 fn xdl_trim_ends(xdf1: &mut Xdfile, xdf2: &mut Xdfile) -> c_int {
     let recs1 = &xdf1.recs;
     let recs2 = &xdf2.recs;
-    let mut i: c_long = 0;
+    let mut i: i64 = 0;
     let mut lim = xdf1.nrec.min(xdf2.nrec);
     while i < lim {
         if recs1[i as usize].ha != recs2[i as usize].ha {

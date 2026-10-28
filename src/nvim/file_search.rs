@@ -35,7 +35,7 @@ use crate::path::{
 use crate::path::{path_to_slash, vim_full_name};
 use crate::state::SaveVEvent;
 use crate::strings::{tr, vim_snprintf, vim_strchr};
-use std::ffi::{CStr, c_char, c_int, c_long};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::ex_docmd::{CdScope, K_CD_CAUSE_MANUAL};
@@ -1430,7 +1430,7 @@ pub fn grab_file_name(count: c_int, file_lnum: &mut Linenr) -> Option<std::ffi::
                 let mut p: *mut c_char = ptr.add(len + 1);
                 *file_lnum = getdigits_int32(&raw mut p, false, 0);
             }
-            find_file_name_in_path(ptr, len, options, count as c_long, curbuf_mut().b_ffname)
+            find_file_name_in_path(ptr, len, options, count as i64, curbuf_mut().b_ffname)
         } else {
             file_name_at_cursor(options | FNAME_HYP, count, Some(&mut *file_lnum))
         }?;
@@ -1573,7 +1573,7 @@ pub fn file_name_in_line(
             }
         }
 
-        find_file_name_in_path(ptr, len, options, count as c_long, rel_fname)
+        find_file_name_in_path(ptr, len, options, count as i64, rel_fname)
     }
 }
 
@@ -1611,7 +1611,7 @@ pub fn find_file_name_in_path(
     mut ptr: *mut c_char,
     mut len: usize,
     options: c_int,
-    mut count: c_long,
+    mut count: i64,
     rel_fname: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
     let rel_fname = rel_fname.into_c_char_ptr();

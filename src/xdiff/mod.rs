@@ -7,33 +7,33 @@ pub mod xpatience;
 pub mod xprepare;
 pub mod xutils;
 
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
+use std::ffi::{c_char, c_int, c_uint};
 
-pub const XDF_NEED_MINIMAL: c_ulong = 1 << 0;
+pub const XDF_NEED_MINIMAL: u64 = 1 << 0;
 
-pub const XDF_IGNORE_WHITESPACE: c_ulong = 1 << 1;
-pub const XDF_IGNORE_WHITESPACE_CHANGE: c_ulong = 1 << 2;
-pub const XDF_IGNORE_WHITESPACE_AT_EOL: c_ulong = 1 << 3;
-pub const XDF_IGNORE_CR_AT_EOL: c_ulong = 1 << 4;
-pub const XDF_WHITESPACE_FLAGS: c_ulong = XDF_IGNORE_WHITESPACE
+pub const XDF_IGNORE_WHITESPACE: u64 = 1 << 1;
+pub const XDF_IGNORE_WHITESPACE_CHANGE: u64 = 1 << 2;
+pub const XDF_IGNORE_WHITESPACE_AT_EOL: u64 = 1 << 3;
+pub const XDF_IGNORE_CR_AT_EOL: u64 = 1 << 4;
+pub const XDF_WHITESPACE_FLAGS: u64 = XDF_IGNORE_WHITESPACE
     | XDF_IGNORE_WHITESPACE_CHANGE
     | XDF_IGNORE_WHITESPACE_AT_EOL
     | XDF_IGNORE_CR_AT_EOL;
 
-pub const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
+pub const XDF_IGNORE_BLANK_LINES: u64 = 1 << 7;
 
-pub const XDF_PATIENCE_DIFF: c_ulong = 1 << 14;
-pub const XDF_HISTOGRAM_DIFF: c_ulong = 1 << 15;
-pub const XDF_DIFF_ALGORITHM_MASK: c_ulong = XDF_PATIENCE_DIFF | XDF_HISTOGRAM_DIFF;
+pub const XDF_PATIENCE_DIFF: u64 = 1 << 14;
+pub const XDF_HISTOGRAM_DIFF: u64 = 1 << 15;
+pub const XDF_DIFF_ALGORITHM_MASK: u64 = XDF_PATIENCE_DIFF | XDF_HISTOGRAM_DIFF;
 
 #[inline]
-pub const fn xdf_diff_alg(flags: c_ulong) -> c_ulong {
+pub const fn xdf_diff_alg(flags: u64) -> u64 {
     flags & XDF_DIFF_ALGORITHM_MASK
 }
 
-pub const XDF_INDENT_HEURISTIC: c_ulong = 1 << 23;
+pub const XDF_INDENT_HEURISTIC: u64 = 1 << 23;
 
-pub const XDL_EMIT_NO_HUNK_HDR: c_ulong = 1 << 1;
+pub const XDL_EMIT_NO_HUNK_HDR: u64 = 1 << 1;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -52,7 +52,7 @@ pub struct Mmbuffer {
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct Xpparam {
-    pub flags: c_ulong,
+    pub flags: u64,
 }
 
 #[derive(Copy, Clone, Default)]
@@ -109,30 +109,30 @@ impl Xdemitcb {
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct Xdemitconf {
-    pub ctxlen: c_long,
-    pub interhunkctxlen: c_long,
-    pub flags: c_ulong,
+    pub ctxlen: i64,
+    pub interhunkctxlen: i64,
+    pub flags: u64,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Xrecord {
     pub ptr: *const c_char,
-    pub size: c_long,
-    pub ha: c_ulong,
+    pub size: i64,
+    pub ha: u64,
 }
 
 #[repr(C)]
 pub struct Xdfile {
-    pub nrec: c_long,
-    pub dstart: c_long,
-    pub dend: c_long,
+    pub nrec: i64,
+    pub dstart: i64,
+    pub dend: i64,
     pub recs: Vec<Xrecord>,
     pub rchg_vec: Vec<c_char>,
     pub rchg: *mut c_char,
-    pub rindex: Vec<c_long>,
-    pub nreff: c_long,
-    pub ha: Vec<c_ulong>,
+    pub rindex: Vec<i64>,
+    pub nreff: i64,
+    pub ha: Vec<u64>,
 }
 
 impl Xdfile {
@@ -176,27 +176,27 @@ impl Xdfenv {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Diffdata {
-    pub nrec: c_long,
-    pub ha: *const c_ulong,
-    pub rindex: *mut c_long,
+    pub nrec: i64,
+    pub ha: *const u64,
+    pub rindex: *mut i64,
     pub rchg: *mut c_char,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Xdalgoenv {
-    pub mxcost: c_long,
-    pub snake_cnt: c_long,
-    pub heur_min: c_long,
+    pub mxcost: i64,
+    pub snake_cnt: i64,
+    pub heur_min: i64,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Xdchange {
-    pub i1: c_long,
-    pub i2: c_long,
-    pub chg1: c_long,
-    pub chg2: c_long,
+    pub i1: i64,
+    pub i2: i64,
+    pub chg1: i64,
+    pub chg2: i64,
     pub ignore: c_int,
 }
 
@@ -204,8 +204,8 @@ pub type EmitFunc =
     fn(xe: &mut Xdfenv, xscr: &[Xdchange], ecb: &mut Xdemitcb, xecfg: &Xdemitconf) -> c_int;
 
 #[inline]
-pub fn xdl_hashlong(v: c_ulong, b: c_uint) -> c_ulong {
-    v.wrapping_add(v >> b) & ((1 as c_ulong) << b).wrapping_sub(1)
+pub fn xdl_hashlong(v: u64, b: c_uint) -> u64 {
+    v.wrapping_add(v >> b) & (1_u64 << b).wrapping_sub(1)
 }
 
 #[inline]
@@ -242,10 +242,10 @@ mod tests {
         assert_eq!(
             xdl_recmatch(
                 a.as_ptr().cast::<c_char>(),
-                a.len() as c_long,
+                a.len() as i64,
                 b.as_ptr().cast::<c_char>(),
-                b.len() as c_long,
-                XDF_IGNORE_WHITESPACE_CHANGE as c_long,
+                b.len() as i64,
+                XDF_IGNORE_WHITESPACE_CHANGE as i64,
             ),
             1
         );

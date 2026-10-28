@@ -2,7 +2,7 @@
 
 use crate::terminal::Terminal;
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 use std::io::Write;
 use std::ptr;
 use std::sync::Mutex;
@@ -31,7 +31,7 @@ use crate::vterm::state::{
 
 pub type VTermAttrMask = c_int;
 
-const CSI_ARG_MASK: c_long = !((1u64 << 31) as c_long);
+const CSI_ARG_MASK: i64 = !((1u64 << 31) as i64);
 
 const VTERM_VALUETYPE_STRING: VTermValueType = 3;
 
@@ -178,7 +178,7 @@ pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull)
 
 pub fn parser_csi<T>(
     leader: *const c_char,
-    args: *const c_long,
+    args: *const i64,
     argcount: c_int,
     intermed: *const c_char,
     command: c_char,

@@ -139,7 +139,7 @@ use crate::undo::{
     u_inssub, u_save, u_save_cursor, u_savecommon, u_savedel, u_savesub, u_sync, u_unchanged,
 };
 use crate::winfloat::{win_float_anchor_preview, win_float_special, win_float_update_preview};
-use std::ffi::{CStr, c_char, c_double, c_int, c_ulong};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 #[cfg(not(unix))]
@@ -843,7 +843,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                         }
 
                         if crate::memory::cstr_is_empty(s) {
-                            SortKey::Float(-c_double::MAX)
+                            SortKey::Float(-f64::MAX)
                         } else {
                             SortKey::Float(strtod(s, ptr::null_mut()))
                         }
@@ -1291,11 +1291,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         if g_st().global_busy == 0 && (num_lines as OptInt) > opt_vars().p_report {
             smsg!(
                 0,
-                ngettext(
-                    c"%lld line moved",
-                    c"%lld lines moved",
-                    num_lines as c_ulong,
-                ),
+                ngettext(c"%lld line moved", c"%lld lines moved", num_lines as u64,),
                 num_lines as i64,
             );
         }
@@ -2915,7 +2911,7 @@ pub fn do_ecmd(
                         if !command.is_null() {
                             tlnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
                                 command,
-                            )) as std::ffi::c_long as Linenr;
+                            )) as i64 as Linenr;
                             if tlnum <= 0 {
                                 tlnum = 1;
                             }
@@ -4903,32 +4899,32 @@ pub fn do_sub_msg(count_only: bool) -> bool {
                 ngettext(
                     c"%lld match on %lld line",
                     c"%lld matches on %lld line",
-                    g_st().sub_nsubs as c_ulong,
+                    g_st().sub_nsubs as u64,
                 )
             } else {
                 ngettext(
                     c"%lld substitution on %lld line",
                     c"%lld substitutions on %lld line",
-                    g_st().sub_nsubs as c_ulong,
+                    g_st().sub_nsubs as u64,
                 )
             };
             let msg_plural = if count_only {
                 ngettext(
                     c"%lld match on %lld lines",
                     c"%lld matches on %lld lines",
-                    g_st().sub_nsubs as c_ulong,
+                    g_st().sub_nsubs as u64,
                 )
             } else {
                 ngettext(
                     c"%lld substitution on %lld lines",
                     c"%lld substitutions on %lld lines",
-                    g_st().sub_nsubs as c_ulong,
+                    g_st().sub_nsubs as u64,
                 )
             };
             vim_snprintf_add!(
                 msg_buf_ptr,
                 MSG_BUF_LEN,
-                ngettext(msg_single, msg_plural, g_st().sub_nlines as c_ulong),
+                ngettext(msg_single, msg_plural, g_st().sub_nlines as u64),
                 g_st().sub_nsubs as i64,
                 g_st().sub_nlines as i64,
             );

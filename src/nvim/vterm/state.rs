@@ -27,7 +27,7 @@ use crate::vterm::screen::{
 use crate::vterm::vterm::{
     vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,
 };
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub type VTermSelectionMask = c_int;
@@ -146,22 +146,22 @@ pub struct VTermSelectionCallbacks {
 }
 
 #[inline]
-pub(crate) const fn csi_arg(a: c_long) -> c_int {
+pub(crate) const fn csi_arg(a: i64) -> c_int {
     ((a as u32) & CSI_ARG_MASK_U32) as c_int
 }
 
 #[inline]
-pub(crate) const fn csi_arg_has_more(a: c_long) -> bool {
+pub(crate) const fn csi_arg_has_more(a: i64) -> bool {
     ((a as u32) & CSI_ARG_FLAG_MORE_U32) != 0
 }
 
 #[inline]
-pub(crate) const fn csi_arg_is_missing(a: c_long) -> bool {
+pub(crate) const fn csi_arg_is_missing(a: i64) -> bool {
     csi_arg(a) == CSI_ARG_MISSING
 }
 
 #[inline]
-const fn csi_arg_or(a: c_long, def: c_int) -> c_int {
+const fn csi_arg_or(a: i64, def: c_int) -> c_int {
     if csi_arg_is_missing(a) {
         def
     } else {
@@ -170,7 +170,7 @@ const fn csi_arg_or(a: c_long, def: c_int) -> c_int {
 }
 
 #[inline]
-const fn csi_arg_count(a: c_long) -> c_int {
+const fn csi_arg_count(a: i64) -> c_int {
     let v = csi_arg(a);
     if v == CSI_ARG_MISSING || v == 0 { 1 } else { v }
 }
@@ -1217,7 +1217,7 @@ const fn intermed(i: c_int, b: c_int) -> c_int {
 
 fn on_csi(
     leader_ptr: *const c_char,
-    args: *const c_long,
+    args: *const i64,
     argcount: c_int,
     intermed_ptr: *const c_char,
     command: c_char,
@@ -1682,15 +1682,15 @@ fn on_csi(
                 for argi in 0..(argcount as usize) {
                     match csi_arg(*args.add(argi)) {
                         4 => {
-                            let arg: c_long = 73;
+                            let arg: i64 = 73;
                             vterm_state_setpen(state, &raw const arg, 1);
                         }
                         5 => {
-                            let arg: c_long = 74;
+                            let arg: i64 = 74;
                             vterm_state_setpen(state, &raw const arg, 1);
                         }
                         24 => {
-                            let arg: c_long = 75;
+                            let arg: i64 = 75;
                             vterm_state_setpen(state, &raw const arg, 1);
                         }
                         _ => {}
@@ -2235,7 +2235,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
         match key {
             KEY_M => {
                 // Query SGR
-                let mut args = [0 as c_long; 20];
+                let mut args = [0_i64; 20];
                 let argc = vterm_state_getpen(state, &mut args);
                 let mut s = String::from("1$r");
                 for argi in 0..(argc as usize) {
@@ -2709,7 +2709,7 @@ mod tests {
         assert_eq!(unbase64one(b'/'), 63);
         assert_eq!(unbase64one(b'='), 0xff);
 
-        let missing = c_long::from(CSI_ARG_MISSING);
+        let missing = i64::from(CSI_ARG_MISSING);
         assert!(csi_arg_is_missing(missing));
         assert_eq!(csi_arg_or(missing, 5), 5);
         assert_eq!(csi_arg_count(missing), 1);

@@ -6,7 +6,7 @@ pub mod lpcset;
 pub mod lptree;
 pub mod lpvm;
 
-use std::ffi::{CStr, c_char, c_int, c_short, c_uint, c_ushort};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
@@ -124,7 +124,7 @@ pub const MAXLOP: c_int = 20;
 #[derive(Copy, Clone)]
 pub struct Capture {
     pub index: LpegIndex,
-    pub idx: c_ushort,
+    pub idx: u16,
     pub kind: LpegByte,
     pub siz: LpegByte,
 }
@@ -227,7 +227,7 @@ pub union TTreeU {
 pub struct TTree {
     pub tag: LpegByte,
     pub cap: LpegByte,
-    pub key: c_ushort,
+    pub key: u16,
     pub u: TTreeU,
 }
 
@@ -306,7 +306,7 @@ pub struct InstAux2Set {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union InstAux2 {
-    pub key: c_short,
+    pub key: i16,
     pub set: InstAux2Set,
 }
 

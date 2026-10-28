@@ -79,7 +79,7 @@ use crate::terminal::terminal_paste;
 use crate::textformat::Oparg;
 use crate::ui::ui_has;
 use crate::undo::{u_save, u_save_cursor};
-use std::ffi::{CStr, c_char, c_int, c_ulong};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 #[repr(C)]
@@ -1274,14 +1274,14 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
                 if yank_type == MotionType::MtBlockWise {
                     smsg!(
                         0,
-                        ngettext(BLOCK_SINGLE, BLOCK_PLURAL, yanklines as c_ulong,),
+                        ngettext(BLOCK_SINGLE, BLOCK_PLURAL, yanklines as u64,),
                         yanklines as i64,
                         namebuf.as_ptr(),
                     );
                 } else {
                     smsg!(
                         0,
-                        ngettext(LINE_SINGLE, LINE_PLURAL, yanklines as c_ulong,),
+                        ngettext(LINE_SINGLE, LINE_PLURAL, yanklines as u64,),
                         yanklines as i64,
                         namebuf.as_ptr(),
                     );

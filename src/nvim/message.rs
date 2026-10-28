@@ -76,7 +76,7 @@ use crate::ui::{
     ui_cursor_goto, ui_flush, ui_grid_cursor_goto, ui_has, ui_line, ui_refresh, vim_beep,
 };
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 pub type MsgID = Object;
@@ -642,7 +642,7 @@ fn format_progress_message(
                 percent_buf.as_mut_ptr(),
                 percent_buf.len(),
                 c"%3ld%% ",
-                msg_data.unwrap().percent as c_long,
+                msg_data.unwrap().percent,
             );
             let percent = cstr_to_string(percent_buf.as_ptr());
             let hl_id = syn_check_group(c"WarningMsg", 10);
@@ -1127,7 +1127,7 @@ pub fn emsg_multiline(
                     .is_none()
             {
                 g_st().emsg_assert_fails_msg = Some(crate::memory::cstr_to_cstring(s));
-                g_st().emsg_assert_fails_lnum = sourcing_lnum() as c_long;
+                g_st().emsg_assert_fails_lnum = sourcing_lnum() as i64;
                 let sname = sourcing_name();
                 g_st().emsg_assert_fails_context = Some(if sname.is_null() {
                     std::ffi::CString::default()
@@ -2065,14 +2065,14 @@ pub fn msgmore(n: c_int) {
                 vim_snprintf!(
                     msg_ptr,
                     MSG_BUF_LEN,
-                    ngettext(c"%d more line", c"%d more lines", pn as c_ulong,),
+                    ngettext(c"%d more line", c"%d more lines", pn as u64,),
                     pn,
                 );
             } else {
                 vim_snprintf!(
                     msg_ptr,
                     MSG_BUF_LEN,
-                    ngettext(c"%d line less", c"%d fewer lines", pn as c_ulong,),
+                    ngettext(c"%d line less", c"%d fewer lines", pn as u64,),
                     pn,
                 );
             }

@@ -63,7 +63,7 @@ use crate::statusline::get_trans_bufname;
 use crate::strings::{gettext, tr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::buf_is_changed_fn;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[repr(C)]
@@ -142,7 +142,7 @@ const B0_FNAME_SIZE_CRYPT: usize = 890;
 const B0_UNAME_SIZE: usize = 40;
 const B0_HNAME_SIZE: usize = 40;
 
-const B0_MAGIC_LONG: c_long = 0x30313233;
+const B0_MAGIC_LONG: i64 = 0x30313233;
 const B0_MAGIC_INT: c_int = 0x20212223;
 const B0_MAGIC_SHORT: i16 = 0x1213;
 const B0_MAGIC_CHAR: c_char = 0x55;
@@ -223,7 +223,7 @@ struct DataBlock {
     db_free: c_uint,
     db_txt_start: c_uint,
     db_txt_end: c_uint,
-    db_line_count: c_long,
+    db_line_count: i64,
     db_index: [c_uint; 0],
 }
 
@@ -239,7 +239,7 @@ struct ZeroBlock {
     b0_uname: [c_char; B0_UNAME_SIZE],
     b0_hname: [c_char; B0_HNAME_SIZE],
     b0_fname: [c_char; B0_FNAME_SIZE_ORG],
-    b0_magic_long: c_long,
+    b0_magic_long: i64,
     b0_magic_int: c_int,
     b0_magic_short: i16,
     b0_magic_char: c_char,
@@ -457,7 +457,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         let ver_dst = ver_dst.add(4);
         xstrlcpy(ver_dst, VERSIONS[0].as_ptr(), 6);
         long_to_char(
-            (*mfp).mf_page_size as c_long,
+            (*mfp).mf_page_size as i64,
             (&raw mut b0p.b0_page_size).cast(),
         );
 
@@ -469,7 +469,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
             b0p.b0_uname[B0_UNAME_SIZE - 1] = NUL;
             os_get_hostname((&raw mut b0p.b0_hname).cast(), B0_HNAME_SIZE);
             b0p.b0_hname[B0_HNAME_SIZE - 1] = NUL;
-            long_to_char(os_get_pid() as c_long, (&raw mut b0p.b0_pid).cast());
+            long_to_char(os_get_pid(), (&raw mut b0p.b0_pid).cast());
         }
 
         mf_put(&mut *mfp, hp, true, false);
@@ -777,11 +777,11 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
             let mut file_info = FileInfo::new();
             if os_fileinfo(buf.b_ffname, &mut file_info) {
                 long_to_char(
-                    file_info.stat.st_mtim.tv_sec as c_long,
+                    file_info.stat.st_mtim.tv_sec,
                     (&raw mut b0p.b0_mtime).cast(),
                 );
                 long_to_char(
-                    os_fileinfo_inode(&file_info) as c_long,
+                    os_fileinfo_inode(&file_info) as i64,
                     (&raw mut b0p.b0_ino).cast(),
                 );
                 buf_store_file_info(buf, &mut file_info);
@@ -1350,7 +1350,7 @@ pub fn ml_recover(checkext: bool) {
                         }
                         *dp.as_char_ptr().add(dp.db_txt_end as usize - 1) = NUL;
 
-                        if c_long::from(line_count) != dp.db_line_count {
+                        if i64::from(line_count) != dp.db_line_count {
                             ml_append(
                                 lnum,
                                 tr(c"??? from here until ???END lines may have been inserted/deleted"),
@@ -1732,17 +1732,9 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
                     );
 
                     tv_dict_add_nr(d, c"pid", i64::from(swapfile_proc_running(&b0, fname)));
-                    tv_dict_add_nr(
-                        d,
-                        c"mtime",
-                        char_to_long((&raw const b0.b0_mtime).cast()) as i64,
-                    );
+                    tv_dict_add_nr(d, c"mtime", char_to_long((&raw const b0.b0_mtime).cast()));
                     tv_dict_add_nr(d, c"dirty", if b0.dirty() != 0 { 1 } else { 0 });
-                    tv_dict_add_nr(
-                        d,
-                        c"inode",
-                        char_to_long((&raw const b0.b0_ino).cast()) as i64,
-                    );
+                    tv_dict_add_nr(d, c"inode", char_to_long((&raw const b0.b0_ino).cast()));
                 }
             } else {
                 tv_dict_add_str_len(d, c"error", c"Cannot read file", 16);
@@ -2445,8 +2437,8 @@ fn ml_append_int(
                     lnum_right = lnum + 1;
                 }
             }
-            (*dp_left).db_line_count = line_count_left as c_long;
-            (*dp_right).db_line_count = line_count_right as c_long;
+            (*dp_left).db_line_count = line_count_left as i64;
+            (*dp_right).db_line_count = line_count_right as i64;
 
             if lines_moved != 0 || in_left {
                 buf.b_ml.ml_flags |= ML_LOCKED_DIRTY;
@@ -3863,7 +3855,7 @@ fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
 fn fnamecmp_ino(
     fname_c: impl crate::strings::IntoCCharPtr,
     fname_s: impl crate::strings::IntoCCharPtr,
-    ino_block0: c_long,
+    ino_block0: i64,
 ) -> bool {
     let fname_c = fname_c.into_c_char_ptr();
     let fname_s = fname_s.into_c_char_ptr();
@@ -3904,7 +3896,7 @@ fn fnamecmp_ino(
 }
 
 #[inline]
-fn long_to_char(n: c_long, s_in: *mut c_char) {
+fn long_to_char(n: i64, s_in: *mut c_char) {
     unsafe {
         let mut u = n as c_uint;
         let s = s_in.cast::<u8>();
@@ -3919,17 +3911,17 @@ fn long_to_char(n: c_long, s_in: *mut c_char) {
 }
 
 #[inline]
-fn char_to_long(s_in: impl crate::strings::IntoCCharPtr) -> c_long {
+fn char_to_long(s_in: impl crate::strings::IntoCCharPtr) -> i64 {
     let s_in = s_in.into_c_char_ptr();
     unsafe {
         let s = s_in.cast::<u8>();
-        let mut retval = c_long::from(*s.add(3));
+        let mut retval = i64::from(*s.add(3));
         retval <<= 8;
-        retval |= c_long::from(*s.add(2));
+        retval |= i64::from(*s.add(2));
         retval <<= 8;
-        retval |= c_long::from(*s.add(1));
+        retval |= i64::from(*s.add(1));
         retval <<= 8;
-        retval |= c_long::from(*s.add(0));
+        retval |= i64::from(*s.add(0));
         retval
     }
 }

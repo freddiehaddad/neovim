@@ -1,6 +1,6 @@
 //! LPeg pattern analysis and bytecode compiler (`src/lpeg/lpcode.c`).
 
-use std::ffi::{c_int, c_short};
+use std::ffi::c_int;
 use std::mem::size_of;
 
 use crate::lpeg::lpcset::{charsettype, getbytefromcharset, tocharset, tree2cset};
@@ -411,14 +411,14 @@ fn codeutfr(compst: &mut CompileState, tree: &mut TTree) {
         getinstr(compst, i + 1).offset = tree.u.n;
         let inst = getinstr(compst, i);
         inst.i.aux1 = (to & 0xff) as LpegByte;
-        inst.i.aux2.key = (to >> 8) as c_short;
+        inst.i.aux2.key = (to >> 8) as i16;
     }
 }
 
 fn addinstcap(compst: &mut CompileState, op: Opcode, cap: c_int, key: c_int, aux: c_int) -> c_int {
     {
         let i = addinstruction(compst, op, joinkindoff(cap, aux));
-        getinstr(compst, i).i.aux2.key = key as c_short;
+        getinstr(compst, i).i.aux2.key = key as i16;
         i
     }
 }
@@ -778,7 +778,7 @@ fn codecall(compst: &mut CompileState, call: *mut TTree) {
     unsafe {
         let c = addoffsetinst(compst, IOPEN_CALL);
         debug_assert_eq!((*sib1(sib2(call))).tag, TXINFO);
-        getinstr(compst, c).i.aux2.key = (*sib1(sib2(call))).u.n as c_short;
+        getinstr(compst, c).i.aux2.key = (*sib1(sib2(call))).u.n as i16;
     }
 }
 

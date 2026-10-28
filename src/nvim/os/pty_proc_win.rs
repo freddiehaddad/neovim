@@ -17,7 +17,7 @@ use crate::os::fs::os_can_exe;
 #[cfg(any(test, windows))]
 use std::ffi::c_char;
 #[cfg(windows)]
-use std::ffi::{c_int, c_ulong, c_void};
+use std::ffi::{c_int, c_void};
 #[cfg(any(test, windows))]
 use std::ptr;
 
@@ -139,8 +139,8 @@ mod win_impl {
 
     const WAIT_TIMEOUT: DWORD = 258;
     const INFINITE: DWORD = 0xFFFF_FFFF;
-    const WT_EXECUTEDEFAULT: c_ulong = 0x0000_0000;
-    const WT_EXECUTEONLYONCE: c_ulong = 0x0000_0008;
+    const WT_EXECUTEDEFAULT: DWORD = 0x0000_0000;
+    const WT_EXECUTEONLYONCE: DWORD = 0x0000_0008;
 
     unsafe extern "system" {
         fn WaitForSingleObject(hHandle: HANDLE, dwMilliseconds: DWORD) -> DWORD;
@@ -149,8 +149,8 @@ mod win_impl {
             hObject: HANDLE,
             Callback: WaitOrTimerCallback,
             Context: *mut c_void,
-            dwMilliseconds: c_ulong,
-            dwFlags: c_ulong,
+            dwMilliseconds: DWORD,
+            dwFlags: DWORD,
         ) -> BOOL;
         fn UnregisterWaitEx(WaitHandle: HANDLE, CompletionEvent: HANDLE) -> BOOL;
         fn GetExitCodeProcess(hProcess: HANDLE, lpExitCode: &mut DWORD) -> BOOL;

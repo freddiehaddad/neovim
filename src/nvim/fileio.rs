@@ -91,7 +91,7 @@ use crate::undo::{
     buf_is_changed_fn, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
     u_read_undo, u_savecommon, u_sync, u_unchanged, u_write_undo,
 };
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 #[cfg(windows)]
@@ -255,8 +255,6 @@ unsafe extern "C" {
     pub fn fflush(stream: *mut FILE) -> c_int;
     pub fn setbuf(stream: *mut FILE, buffer: *mut c_char);
     pub fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
-    pub fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
-    pub fn ftell(stream: *mut FILE) -> c_long;
     pub fn ferror(stream: *mut FILE) -> c_int;
     pub fn feof(stream: *mut FILE) -> c_int;
     #[cfg(unix)]

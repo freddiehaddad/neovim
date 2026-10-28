@@ -25,7 +25,7 @@ use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::state::{MODE_NORMAL, virtual_active};
 use crate::window::WinInfoInfo;
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
@@ -1020,7 +1020,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
     }
 }
 
-pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: c_long) -> c_int {
+pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> c_int {
     unsafe {
         let mut lines = win_get_fill(wp, lnum);
         if wp.w_onebuf_opt.wo_wrap == 0 || wp.w_view_width == 0 {

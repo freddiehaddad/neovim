@@ -1,20 +1,20 @@
 //! Patience diff algorithm (`src/xdiff/xpatience.c`).
 
-use std::ffi::{c_int, c_ulong};
+use std::ffi::c_int;
 use std::ptr;
 
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::xdl_fall_back_diff;
 use crate::xdiff::{Mmfile, XDF_DIFF_ALGORITHM_MASK, Xdfenv, Xpparam};
 
-const NON_UNIQUE: c_ulong = c_ulong::MAX;
+const NON_UNIQUE: u64 = u64::MAX;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct Entry {
-    hash: c_ulong,
-    line1: c_ulong,
-    line2: c_ulong,
+    hash: u64,
+    line1: u64,
+    line2: u64,
     next: *mut Entry,
     previous: *mut Entry,
 }
@@ -37,7 +37,7 @@ struct HashMap {
     entries: Vec<Entry>,
     first: *mut Entry,
     last: *mut Entry,
-    has_matches: c_ulong,
+    has_matches: u64,
     file1: *mut Mmfile,
     file2: *mut Mmfile,
     env: *mut Xdfenv,
@@ -52,7 +52,7 @@ fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
             &(*map.env).xdf2.recs
         };
         let record = &records[(line - 1) as usize];
-        let mut index = ((record.ha << 1) % (map.alloc as c_ulong)) as usize;
+        let mut index = ((record.ha << 1) % (map.alloc as u64)) as usize;
 
         while map.entries[index].line1 != 0 {
             if map.entries[index].hash != record.ha {
@@ -68,7 +68,7 @@ fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
             if pass == 1 || map.entries[index].line2 != 0 {
                 map.entries[index].line2 = NON_UNIQUE;
             } else {
-                map.entries[index].line2 = line as c_ulong;
+                map.entries[index].line2 = line as u64;
             }
             return;
         }
@@ -77,7 +77,7 @@ fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
         }
         let ent = map.entries.as_mut_ptr().add(index);
         let ent = { &mut *ent };
-        ent.line1 = line as c_ulong;
+        ent.line1 = line as u64;
         ent.hash = record.ha;
         if map.first.is_null() {
             map.first = ent;

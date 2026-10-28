@@ -246,7 +246,7 @@ use crate::window::{
     win_setwidth_win, win_split, win_valid, window_layout_locked,
 };
 use crate::winfloat::{win_float_close, win_float_remove};
-use std::ffi::{CStr, c_char, c_int, c_long};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 #[cfg(windows)]
@@ -9025,7 +9025,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
                         ngettext(
                             c"%d more file to edit.  Quit anyway?",
                             c"%d more files to edit.  Quit anyway?",
-                            n as c_long,
+                            n as i64,
                         ),
                         n,
                     );
@@ -9040,7 +9040,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
                     ngettext(
                         c"E173: %d more file to edit",
                         c"E173: %d more files to edit",
-                        n as c_long,
+                        n as i64,
                     ),
                     n,
                 );
@@ -10522,8 +10522,8 @@ fn ex_resize(eap: &mut Exarg) {
             }
         }
 
-        let mut n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg))
-            as std::ffi::c_long as c_int;
+        let mut n =
+            crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
         if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
             if crate::memory::cstr_first_byte(eap.arg) == b'-'
                 || crate::memory::cstr_first_byte(eap.arg) == b'+'

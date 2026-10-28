@@ -44,7 +44,7 @@ use crate::strings::vim_snprintf;
 use crate::textformat::Oparg;
 use crate::viml::parser::expressions::ESC;
 use crate::window::{WinInfoInfo, win_valid};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 pub type CmdAtomVec = Vec<CmdAtom>;
@@ -168,7 +168,7 @@ const TYPE_NAMES: [&CStr; 12] = [
 #[repr(C)]
 #[derive(Clone)]
 pub struct CmdSpec {
-    pub count: c_long,
+    pub count: i64,
     pub regname: c_int,
     pub op: c_int,
     pub op_extra: c_int,
@@ -478,7 +478,7 @@ pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
         let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
         CmdSpec {
             regname: cap.oap_mut().regname,
-            count: c_long::from(cap.count0),
+            count: i64::from(cap.count0),
             cmd: cap.cmdchar,
             cmd2: if operand { NUL } else { cap.nchar },
             cmdarg: if operand { cap.nchar } else { cap.extra_char },
@@ -597,7 +597,7 @@ fn atom_from_cmdline(
         let mut atom = CmdAtom::new();
         atom.r#type = r#type;
         atom.spec = CmdSpec {
-            count: c_long::from(ca.count0),
+            count: i64::from(ca.count0),
             cmd: ca.cmdchar,
             ..CmdSpec::default()
         };
@@ -1526,7 +1526,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
             let prep_exempt = !redoable || cap.cmdchar == b'D' as c_int;
             let mut spec = CmdSpec {
                 regname: oap.regname,
-                count: c_long::from(cap.count0),
+                count: i64::from(cap.count0),
                 op: get_op_char(oap.op_type),
                 op_extra: get_extra_op_char(oap.op_type),
                 ..CmdSpec::default()
@@ -1585,7 +1585,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                 false,
                 CmdSpec {
                     regname: oap.regname,
-                    count: c_long::from(cap.count0),
+                    count: i64::from(cap.count0),
                     op: get_op_char(oap.op_type),
                     op_extra: get_extra_op_char(oap.op_type),
                     motion_force: oap.motion_force,
@@ -1629,7 +1629,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                     false,
                     CmdSpec {
                         regname: oap.regname,
-                        count: c_long::from(cap.count0),
+                        count: i64::from(cap.count0),
                         op: get_op_char(oap.op_type),
                         op_extra: get_extra_op_char(oap.op_type),
                         motion_force: oap.motion_force,
@@ -1664,7 +1664,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
     }
 }
 
-pub fn atom_ins_start(cmd: c_int, count: c_long, vis: VisualIns, vblock: bool) -> InsSession {
+pub fn atom_ins_start(cmd: c_int, count: i64, vis: VisualIns, vblock: bool) -> InsSession {
     unsafe {
         let cur_frame = cur_frame_ptr();
         let mut session = InsSession {

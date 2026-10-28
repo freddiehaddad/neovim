@@ -13,7 +13,7 @@ use crate::strings::vim_snprintf;
 #[cfg(windows)]
 use crate::ui::ui_active;
 #[cfg(windows)]
-use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_uint, c_void};
 
 #[cfg(windows)]
 pub type HANDLE = *mut c_void;
@@ -22,7 +22,7 @@ type HWND = *mut c_void;
 #[cfg(windows)]
 type HICON = *mut c_void;
 #[cfg(windows)]
-pub type DWORD = c_ulong;
+pub type DWORD = u32;
 #[cfg(windows)]
 pub type BOOL = c_int;
 #[cfg(windows)]

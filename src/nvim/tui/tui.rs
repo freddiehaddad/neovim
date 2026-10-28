@@ -62,7 +62,7 @@ use crate::tui::ugrid::{
 use crate::ui_client::ui_client_set_size;
 #[cfg(unix)]
 use crate::ui_client::{ui_client_attach, ui_client_detach};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 #[cfg(windows)]
@@ -1313,12 +1313,12 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
         if tui.ti.defs[K_TERM_SET_ATTRIBUTES].is_some() {
             if bold || dim || blink || reverse || underline || standout {
                 let mut params = [TPVAR::default(); 9];
-                params[0].num = c_long::from(standout);
-                params[1].num = c_long::from(underline);
-                params[2].num = c_long::from(reverse);
-                params[3].num = c_long::from(blink);
-                params[4].num = c_long::from(dim);
-                params[5].num = c_long::from(bold);
+                params[0].num = i64::from(standout);
+                params[1].num = i64::from(underline);
+                params[2].num = i64::from(reverse);
+                params[3].num = i64::from(blink);
+                params[4].num = i64::from(dim);
+                params[5].num = i64::from(bold);
                 params[6].num = 0;
                 params[7].num = 0;
                 params[8].num = 0;
@@ -1879,7 +1879,7 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
                 }
                 params[0].string = Some(hexbuf);
             } else {
-                params[0].num = c_long::from(aep.rgb_bg_color);
+                params[0].num = i64::from(aep.rgb_bg_color);
             }
             terminfo_print(tui, K_TERM_SET_CURSOR_COLOR, params.as_mut_ptr());
             tui.cursor_has_color = true;
@@ -2613,9 +2613,9 @@ fn terminfo_print_num2(tui: &mut TUIData, what: TerminfoDef, num1: c_int, num2: 
 
 fn terminfo_print_num(tui: &mut TUIData, what: TerminfoDef, num1: c_int, num2: c_int, num3: c_int) {
     let mut params = [TPVAR::default(); 9];
-    params[0].num = c_long::from(num1);
-    params[1].num = c_long::from(num2);
-    params[2].num = c_long::from(num3);
+    params[0].num = i64::from(num1);
+    params[1].num = i64::from(num2);
+    params[2].num = i64::from(num3);
     terminfo_print(tui, what, params.as_mut_ptr());
 }
 

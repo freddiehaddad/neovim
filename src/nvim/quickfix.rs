@@ -112,7 +112,7 @@ use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::ui_flush;
 use crate::undo::u_clearallandblockfree;
-use std::ffi::{CStr, c_char, c_int, c_longlong, c_uint};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::vim::HLF_N;
@@ -1775,7 +1775,7 @@ fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_i
             return QF_FAIL;
         }
         let bnr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx]))
-            as std::ffi::c_long as c_int;
+            as c_int;
         if buflist_findnr(bnr).is_null() {
             return QF_FAIL;
         }
@@ -1791,7 +1791,7 @@ fn qf_parse_fmt_n(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_i
         }
         fields.enr =
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx]))
-                as std::ffi::c_long as c_int;
+                as c_int;
         QF_OK
     }
 }
@@ -1803,7 +1803,7 @@ fn qf_parse_fmt_l(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_i
         }
         fields.lnum =
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx]))
-                as std::ffi::c_long as Linenr;
+                as Linenr;
         QF_OK
     }
 }
@@ -1815,7 +1815,7 @@ fn qf_parse_fmt_e(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_i
         }
         fields.end_lnum =
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx]))
-                as std::ffi::c_long as Linenr;
+                as Linenr;
         QF_OK
     }
 }
@@ -1827,7 +1827,7 @@ fn qf_parse_fmt_c(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_i
         }
         fields.col =
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx]))
-                as std::ffi::c_long as c_int;
+                as c_int;
         QF_OK
     }
 }
@@ -1839,7 +1839,7 @@ fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_i
         }
         fields.end_col =
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx]))
-                as std::ffi::c_long as c_int;
+                as c_int;
         QF_OK
     }
 }
@@ -1919,7 +1919,7 @@ fn qf_parse_fmt_v(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_i
         }
         fields.col =
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx]))
-                as std::ffi::c_long as c_int;
+                as c_int;
         fields.use_viscol = true;
         QF_OK
     }
@@ -2289,7 +2289,7 @@ pub fn check_quickfix_busy() {
     if qf_st().quickfix_busy != 0 {
         semsg!(
             c"quickfix_busy not zero on exit: %lld",
-            c_longlong::from(qf_st().quickfix_busy),
+            i64::from(qf_st().quickfix_busy),
         );
     }
 }

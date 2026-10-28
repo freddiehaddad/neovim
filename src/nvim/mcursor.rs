@@ -79,7 +79,7 @@ use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::vim_snprintf;
 use crate::textformat::{InsState, Oparg};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
@@ -1751,7 +1751,7 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
     }
 }
 
-pub fn mc_counter(count1: c_long) {
+pub fn mc_counter(count1: i64) {
     atom_did_global_op();
     let mut tv_args = [
         TypVal {

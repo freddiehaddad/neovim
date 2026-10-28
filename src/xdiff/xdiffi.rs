@@ -1,6 +1,6 @@
 //! Core diff algorithm (`src/xdiff/xdiffi.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_ulong};
+use std::ffi::{c_char, c_int};
 
 use crate::xdiff::xemit::{xdl_emit_diff, xdl_get_hunk};
 use crate::xdiff::xhistogram::xdl_do_histogram_diff;
@@ -13,11 +13,11 @@ use crate::xdiff::{
     Xpparam, Xrecord, xdf_diff_alg, xdl_isspace,
 };
 
-const XDL_MAX_COST_MIN: c_long = 256;
-const XDL_HEUR_MIN_COST: c_long = 256;
-const XDL_LINE_MAX: c_long = c_long::MAX;
-const XDL_SNAKE_CNT: c_long = 20;
-const XDL_K_HEUR: c_long = 4;
+const XDL_MAX_COST_MIN: i64 = 256;
+const XDL_HEUR_MIN_COST: i64 = 256;
+const XDL_LINE_MAX: i64 = i64::MAX;
+const XDL_SNAKE_CNT: i64 = 20;
+const XDL_K_HEUR: i64 = 4;
 
 const MAX_INDENT: c_int = 200;
 const MAX_BLANKS: c_int = 20;
@@ -32,30 +32,30 @@ const RELATIVE_OUTDENT_WITH_BLANK_PENALTY: c_int = 17;
 const RELATIVE_DEDENT_PENALTY: c_int = 23;
 const RELATIVE_DEDENT_WITH_BLANK_PENALTY: c_int = 17;
 const INDENT_WEIGHT: c_int = 60;
-const INDENT_HEURISTIC_MAX_SLIDING: c_long = 100;
+const INDENT_HEURISTIC_MAX_SLIDING: i64 = 100;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct Xdpsplit {
-    i1: c_long,
-    i2: c_long,
+    i1: i64,
+    i2: i64,
     min_lo: c_int,
     min_hi: c_int,
 }
 
 fn xdl_split(
-    ha1: *const c_ulong,
-    off1: c_long,
-    lim1: c_long,
-    ha2: *const c_ulong,
-    off2: c_long,
-    lim2: c_long,
-    kvdf: *mut c_long,
-    kvdb: *mut c_long,
+    ha1: *const u64,
+    off1: i64,
+    lim1: i64,
+    ha2: *const u64,
+    off2: i64,
+    lim2: i64,
+    kvdf: *mut i64,
+    kvdb: *mut i64,
     need_min: c_int,
     spl: &mut Xdpsplit,
     xenv: &Xdalgoenv,
-) -> c_long {
+) -> i64 {
     let dmin = off1 - lim2;
     let dmax = lim1 - off2;
     let fmid = off1 - off2;
@@ -70,7 +70,7 @@ fn xdl_split(
         *kvdf.offset(fmid as isize) = off1;
         *kvdb.offset(bmid as isize) = lim1;
 
-        let mut ec: c_long = 1;
+        let mut ec: i64 = 1;
         loop {
             let mut got_snake = false;
 
@@ -164,7 +164,7 @@ fn xdl_split(
             }
 
             if got_snake && ec > xenv.heur_min {
-                let mut best: c_long = 0;
+                let mut best: i64 = 0;
                 d = fmax;
                 while d >= fmin {
                     let dd = if d > fmid { d - fmid } else { fmid - d };
@@ -179,7 +179,7 @@ fn xdl_split(
                         && off2 + xenv.snake_cnt <= i2
                         && i2 < lim2
                     {
-                        let mut k: c_long = 1;
+                        let mut k: i64 = 1;
                         while *ha1.offset((i1 - k) as isize) == *ha2.offset((i2 - k) as isize) {
                             if k == xenv.snake_cnt {
                                 best = v;
@@ -213,7 +213,7 @@ fn xdl_split(
                         && off2 < i2
                         && i2 <= lim2 - xenv.snake_cnt
                     {
-                        let mut k: c_long = 0;
+                        let mut k: i64 = 0;
                         while *ha1.offset((i1 + k) as isize) == *ha2.offset((i2 + k) as isize) {
                             if k == xenv.snake_cnt - 1 {
                                 best = v;
@@ -234,8 +234,8 @@ fn xdl_split(
             }
 
             if ec >= xenv.mxcost {
-                let mut fbest: c_long = -1;
-                let mut fbest1: c_long = -1;
+                let mut fbest: i64 = -1;
+                let mut fbest1: i64 = -1;
                 d = fmax;
                 while d >= fmin {
                     let mut i1 = (*kvdf.offset(d as isize)).min(lim1);
@@ -251,8 +251,8 @@ fn xdl_split(
                     d -= 2;
                 }
 
-                let mut bbest: c_long = XDL_LINE_MAX;
-                let mut bbest1: c_long = XDL_LINE_MAX;
+                let mut bbest: i64 = XDL_LINE_MAX;
+                let mut bbest1: i64 = XDL_LINE_MAX;
                 d = bmax;
                 while d >= bmin {
                     let mut i1 = off1.max(*kvdb.offset(d as isize));
@@ -289,13 +289,13 @@ fn xdl_split(
 
 pub fn xdl_recs_cmp(
     dd1: &mut Diffdata,
-    mut off1: c_long,
-    mut lim1: c_long,
+    mut off1: i64,
+    mut lim1: i64,
     dd2: &mut Diffdata,
-    mut off2: c_long,
-    mut lim2: c_long,
-    kvdf: &mut c_long,
-    kvdb: *mut c_long,
+    mut off2: i64,
+    mut lim2: i64,
+    kvdf: &mut i64,
+    kvdb: *mut i64,
     need_min: c_int,
     xenv: &Xdalgoenv,
 ) -> c_int {
@@ -384,7 +384,7 @@ pub fn xdl_do_diff(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &mut X
         }
 
         let ndiags = xe.xdf1.nreff + xe.xdf2.nreff + 3;
-        let mut kvd_vec = vec![0 as c_long; (2 * ndiags + 2) as usize];
+        let mut kvd_vec = vec![0_i64; (2 * ndiags + 2) as usize];
         let kvd = kvd_vec.as_mut_ptr();
         let mut kvdf = kvd;
         let mut kvdb = kvdf.offset(ndiags as isize);
@@ -432,7 +432,7 @@ pub fn xdl_do_diff(mf1: &mut Mmfile, mf2: &mut Mmfile, xpp: &Xpparam, xe: &mut X
     0
 }
 
-fn recs_match(rec1: &Xrecord, rec2: &Xrecord, flags: c_long) -> bool {
+fn recs_match(rec1: &Xrecord, rec2: &Xrecord, flags: i64) -> bool {
     rec1.ha == rec2.ha && xdl_recmatch(rec1.ptr, rec1.size, rec2.ptr, rec2.size, flags) != 0
 }
 
@@ -473,7 +473,7 @@ struct SplitScore {
     penalty: c_int,
 }
 
-fn measure_split(xdf: &Xdfile, split: c_long, m: &mut SplitMeasurement) {
+fn measure_split(xdf: &Xdfile, split: i64, m: &mut SplitMeasurement) {
     let recs = &xdf.recs;
     if split >= xdf.nrec {
         m.end_of_file = 1;
@@ -571,8 +571,8 @@ fn score_cmp(s1: &SplitScore, s2: &SplitScore) -> c_int {
 
 #[derive(Copy, Clone, Default)]
 struct XdlGroup {
-    start: c_long,
-    end: c_long,
+    start: i64,
+    end: i64,
 }
 
 fn group_init(xdf: &mut Xdfile, g: &mut XdlGroup) {
@@ -615,7 +615,7 @@ fn group_previous(xdf: &mut Xdfile, g: &mut XdlGroup) -> c_int {
     0
 }
 
-fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: c_long) -> c_int {
+fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> c_int {
     unsafe {
         let recs = &xdf.recs;
         if g.end < xdf.nrec && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags) {
@@ -634,7 +634,7 @@ fn group_slide_down(xdf: &mut Xdfile, g: &mut XdlGroup, flags: c_long) -> c_int 
     }
 }
 
-fn group_slide_up(xdf: &mut Xdfile, g: &mut XdlGroup, flags: c_long) -> c_int {
+fn group_slide_up(xdf: &mut Xdfile, g: &mut XdlGroup, flags: i64) -> c_int {
     unsafe {
         let recs = &xdf.recs;
         if g.start > 0
@@ -664,7 +664,7 @@ fn xdl_bug(msg: &str) -> ! {
     std::process::exit(1);
 }
 
-pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: c_long) -> c_int {
+pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: i64) -> c_int {
     let mut g = XdlGroup::default();
     let mut go = XdlGroup::default();
 
@@ -673,9 +673,9 @@ pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: c_long) ->
 
     loop {
         if g.end != g.start {
-            let mut earliest_end: c_long;
-            let mut end_matching_other: c_long;
-            let mut groupsize: c_long;
+            let mut earliest_end: i64;
+            let mut end_matching_other: i64;
+            let mut groupsize: i64;
 
             loop {
                 groupsize = g.end - g.start;
@@ -720,7 +720,7 @@ pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: c_long) ->
                         xdl_bug("group sync broken sliding to match");
                     }
                 }
-            } else if ((flags as c_ulong) & XDF_INDENT_HEURISTIC) != 0 {
+            } else if ((flags as u64) & XDF_INDENT_HEURISTIC) != 0 {
                 let mut shift = earliest_end;
                 if g.end - groupsize - 1 > shift {
                     shift = g.end - groupsize - 1;
@@ -728,7 +728,7 @@ pub fn xdl_change_compact(xdf: &mut Xdfile, xdfo: &mut Xdfile, flags: c_long) ->
                 if g.end - INDENT_HEURISTIC_MAX_SLIDING > shift {
                     shift = g.end - INDENT_HEURISTIC_MAX_SLIDING;
                 }
-                let mut best_shift: c_long = -1;
+                let mut best_shift: i64 = -1;
                 let mut best_score = SplitScore::default();
 
                 while shift <= g.end {
@@ -832,12 +832,12 @@ fn xdl_call_hunk_func(
     0
 }
 
-fn xdl_mark_ignorable_lines(xscr: &mut [Xdchange], xe: &Xdfenv, flags: c_long) {
+fn xdl_mark_ignorable_lines(xscr: &mut [Xdchange], xe: &Xdfenv, flags: i64) {
     let recs1 = &xe.xdf1.recs;
     let recs2 = &xe.xdf2.recs;
     for xch in xscr {
         let mut ignore: c_int = 1;
-        let mut i: c_long = 0;
+        let mut i: i64 = 0;
         while i < xch.chg1 && ignore != 0 {
             let r = &recs1[(xch.i1 + i) as usize];
             ignore = xdl_blankline(r.ptr, r.size, flags);
@@ -882,15 +882,15 @@ pub fn xdl_diff(
     if xdl_do_diff(mf1, mf2, xpp, &mut xe) < 0 {
         return -1;
     }
-    if xdl_change_compact(&mut xe.xdf1, &mut xe.xdf2, xpp.flags as c_long) < 0
-        || xdl_change_compact(&mut xe.xdf2, &mut xe.xdf1, xpp.flags as c_long) < 0
+    if xdl_change_compact(&mut xe.xdf1, &mut xe.xdf2, xpp.flags as i64) < 0
+        || xdl_change_compact(&mut xe.xdf2, &mut xe.xdf1, xpp.flags as i64) < 0
         || xdl_build_script(&mut xe, &mut xscr) < 0
     {
         return -1;
     }
     if !xscr.is_empty() {
         if (xpp.flags & XDF_IGNORE_BLANK_LINES) != 0 {
-            xdl_mark_ignorable_lines(&mut xscr, &xe, xpp.flags as c_long);
+            xdl_mark_ignorable_lines(&mut xscr, &xe, xpp.flags as i64);
         }
 
         if ef(&mut xe, &xscr, ecb, xecfg) < 0 {

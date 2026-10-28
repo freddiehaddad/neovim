@@ -1,6 +1,6 @@
 //! Histogram diff algorithm (`src/xdiff/xhistogram.c`).
 
-use std::ffi::{c_int, c_long, c_uint};
+use std::ffi::{c_int, c_uint};
 
 use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch};
@@ -51,7 +51,7 @@ fn get_rec(env: &Xdfenv, side: c_int, line: c_uint) -> Xrecord {
 
 #[inline]
 fn cmp_recs(xpp: &Xpparam, r1: &Xrecord, r2: &Xrecord) -> bool {
-    r1.ha == r2.ha && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, xpp.flags as c_long) != 0
+    r1.ha == r2.ha && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, xpp.flags as i64) != 0
 }
 
 #[inline]

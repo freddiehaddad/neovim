@@ -1,6 +1,6 @@
 //! XDiff utility functions (`src/xdiff/xutils.c`).
 
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::xdiff::xdiffi::xdl_do_diff;
@@ -9,8 +9,8 @@ use crate::xdiff::{
     XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, Xdemitcb, Xdfenv, Xpparam, xdl_isspace,
 };
 
-pub fn xdl_bogosqrt(mut n: c_long) -> c_long {
-    let mut i: c_long = 1;
+pub fn xdl_bogosqrt(mut n: i64) -> i64 {
+    let mut i: i64 = 1;
     while n > 0 {
         i <<= 1;
         n >>= 2;
@@ -20,9 +20,9 @@ pub fn xdl_bogosqrt(mut n: c_long) -> c_long {
 
 pub fn xdl_emit_diffrec(
     rec: *const c_char,
-    size: c_long,
+    size: i64,
     pre: *const c_char,
-    psize: c_long,
+    psize: i64,
     ecb: &mut Xdemitcb,
 ) -> c_int {
     let mut i: usize = 2;
@@ -48,19 +48,19 @@ pub fn xdl_emit_diffrec(
     0
 }
 
-pub fn xdl_mmfile_first(mmf: &Mmfile, size: &mut c_long) -> *mut c_char {
-    *size = mmf.size as c_long;
+pub fn xdl_mmfile_first(mmf: &Mmfile, size: &mut i64) -> *mut c_char {
+    *size = mmf.size as i64;
     mmf.ptr
 }
 
-pub fn xdl_mmfile_size(mmf: &Mmfile) -> c_long {
-    mmf.size as c_long
+pub fn xdl_mmfile_size(mmf: &Mmfile) -> i64 {
+    mmf.size as i64
 }
 
-pub fn xdl_guess_lines(mf: &Mmfile, sample: c_long) -> c_long {
-    let mut nl: c_long = 0;
-    let mut size: c_long = 0;
-    let mut tsize: c_long = 0;
+pub fn xdl_guess_lines(mf: &Mmfile, sample: i64) -> i64 {
+    let mut nl: i64 = 0;
+    let mut size: i64 = 0;
+    let mut tsize: i64 = 0;
 
     let data = xdl_mmfile_first(mf, &mut size);
     let mut cur = data;
@@ -77,7 +77,7 @@ pub fn xdl_guess_lines(mf: &Mmfile, sample: c_long) -> c_long {
                 cur = top;
             }
         }
-        tsize += unsafe { cur.offset_from(data) } as c_long;
+        tsize += unsafe { cur.offset_from(data) } as i64;
     }
 
     if nl != 0 && tsize != 0 {
@@ -87,7 +87,7 @@ pub fn xdl_guess_lines(mf: &Mmfile, sample: c_long) -> c_long {
     nl + 1
 }
 
-pub fn xdl_blankline_slice(line: &[u8], flags: c_ulong) -> c_int {
+pub fn xdl_blankline_slice(line: &[u8], flags: u64) -> c_int {
     if (flags & XDF_WHITESPACE_FLAGS) == 0 {
         return c_int::from(line.len() <= 1);
     }
@@ -100,9 +100,9 @@ pub fn xdl_blankline_slice(line: &[u8], flags: c_ulong) -> c_int {
     c_int::from(i == line.len())
 }
 
-pub fn xdl_blankline(line: *const c_char, size: c_long, flags: c_long) -> c_int {
+pub fn xdl_blankline(line: *const c_char, size: i64, flags: i64) -> c_int {
     let slice = unsafe { std::slice::from_raw_parts(line.cast::<u8>(), size.max(0) as usize) };
-    xdl_blankline_slice(slice, flags as c_ulong)
+    xdl_blankline_slice(slice, flags as u64)
 }
 
 fn ends_with_optional_cr_slice(l: &[u8], i: usize) -> bool {
@@ -121,7 +121,7 @@ fn ends_with_optional_cr_slice(l: &[u8], i: usize) -> bool {
     false
 }
 
-pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: c_ulong) -> c_int {
+pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> c_int {
     if b1 == b2 {
         return 1;
     }
@@ -207,26 +207,20 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: c_ulong) -> c_int {
     1
 }
 
-pub fn xdl_recmatch(
-    l1: *const c_char,
-    s1: c_long,
-    l2: *const c_char,
-    s2: c_long,
-    flags: c_long,
-) -> c_int {
+pub fn xdl_recmatch(l1: *const c_char, s1: i64, l2: *const c_char, s2: i64, flags: i64) -> c_int {
     let b1 = unsafe { std::slice::from_raw_parts(l1.cast::<u8>(), s1.max(0) as usize) };
     let b2 = unsafe { std::slice::from_raw_parts(l2.cast::<u8>(), s2.max(0) as usize) };
-    xdl_recmatch_slice(b1, b2, flags as c_ulong)
+    xdl_recmatch_slice(b1, b2, flags as u64)
 }
 
 fn xdl_hash_record_with_whitespace(
     data: &mut *const c_char,
     top: *const c_char,
-    flags: c_long,
-) -> c_ulong {
-    let mut ha: c_ulong = 5381;
+    flags: i64,
+) -> u64 {
+    let mut ha: u64 = 5381;
     let mut ptr = *data;
-    let uflags = flags as c_ulong;
+    let uflags = flags as u64;
     let cr_at_eol_only = (uflags & XDF_WHITESPACE_FLAGS) == XDF_IGNORE_CR_AT_EOL;
 
     while ptr < top && unsafe { *ptr } != b'\n' as c_char {
@@ -249,12 +243,12 @@ fn xdl_hash_record_with_whitespace(
                 // already handled
             } else if (uflags & XDF_IGNORE_WHITESPACE_CHANGE) != 0 && !at_eol {
                 ha = ha.wrapping_add(ha << 5);
-                ha ^= b' ' as c_ulong;
+                ha ^= b' ' as u64;
             } else if (uflags & XDF_IGNORE_WHITESPACE_AT_EOL) != 0 && !at_eol {
                 let end = unsafe { ptr.add(1) };
                 while ptr2 != end {
                     ha = ha.wrapping_add(ha << 5);
-                    ha ^= unsafe { *ptr2 } as c_ulong;
+                    ha ^= unsafe { *ptr2 } as u64;
                     ptr2 = unsafe { ptr2.add(1) };
                 }
             }
@@ -262,7 +256,7 @@ fn xdl_hash_record_with_whitespace(
             continue;
         }
         ha = ha.wrapping_add(ha << 5);
-        ha ^= unsafe { *ptr } as c_ulong;
+        ha ^= unsafe { *ptr } as u64;
         ptr = unsafe { ptr.add(1) };
     }
     *data = if ptr < top {
@@ -274,17 +268,17 @@ fn xdl_hash_record_with_whitespace(
     ha
 }
 
-pub fn xdl_hash_record(data: &mut *const c_char, top: *const c_char, flags: c_long) -> c_ulong {
-    if ((flags as c_ulong) & XDF_WHITESPACE_FLAGS) != 0 {
+pub fn xdl_hash_record(data: &mut *const c_char, top: *const c_char, flags: i64) -> u64 {
+    if ((flags as u64) & XDF_WHITESPACE_FLAGS) != 0 {
         return xdl_hash_record_with_whitespace(data, top, flags);
     }
 
-    let mut ha: c_ulong = 5381;
+    let mut ha: u64 = 5381;
     let mut ptr = *data;
 
     while ptr < top && unsafe { *ptr } != b'\n' as c_char {
         ha = ha.wrapping_add(ha << 5);
-        ha ^= unsafe { *ptr } as c_ulong;
+        ha ^= unsafe { *ptr } as u64;
         ptr = unsafe { ptr.add(1) };
     }
     *data = if ptr < top {
@@ -308,13 +302,7 @@ pub fn xdl_hashbits(size: c_uint) -> c_uint {
     if bits != 0 { bits } else { 1 }
 }
 
-fn xdl_format_hunk_hdr(
-    s1: c_long,
-    c1: c_long,
-    s2: c_long,
-    c2: c_long,
-    ecb: &mut Xdemitcb,
-) -> c_int {
+fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> c_int {
     use std::io::Write as _;
     let mut buf = [0u8; 128];
     let mut cursor = std::io::Cursor::new(&mut buf[..]);
@@ -339,13 +327,7 @@ fn xdl_format_hunk_hdr(
     0
 }
 
-pub fn xdl_emit_hunk_hdr(
-    s1: c_long,
-    c1: c_long,
-    s2: c_long,
-    c2: c_long,
-    ecb: &mut Xdemitcb,
-) -> c_int {
+pub fn xdl_emit_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> c_int {
     xdl_format_hunk_hdr(s1, c1, s2, c2, ecb)
 }
 

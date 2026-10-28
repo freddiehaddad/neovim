@@ -1243,8 +1243,8 @@ pub fn parse_search_pattern_offset(
                 || ascii_isdigit(crate::memory::cstr_char_at(p, 1))
             {
                 {
-                    offset.off = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p))
-                        as std::ffi::c_long as _;
+                    offset.off =
+                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as _;
                 }
             } else if crate::memory::cstr_first_byte(p) == b'-' {
                 offset.off = -1;
@@ -1405,7 +1405,7 @@ pub fn do_search(
                             off_buf_ptr.add(off_len),
                             off_buf.len() - off_len,
                             c"%+lld",
-                            srch().spats[0].off.off as std::ffi::c_longlong,
+                            srch().spats[0].off.off,
                         );
                         if n > 0 {
                             off_len += n as usize;

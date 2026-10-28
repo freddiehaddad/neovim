@@ -59,7 +59,7 @@ use crate::window::{
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{Mmfile, Xdemitcb, Xdemitconf, Xpparam};
-use std::ffi::{CString, c_char, c_int, c_uint, c_ulong};
+use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
@@ -88,10 +88,10 @@ const ALL_INLINE: c_int =
     DIFF_INLINE_NONE | DIFF_INLINE_SIMPLE | DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
 const ALL_INLINE_DIFF: c_int = DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
 const XDF_NEED_MINIMAL: c_int = 1 << 0;
-pub(crate) const XDF_IGNORE_WHITESPACE: c_ulong = 1 << 1;
-pub(crate) const XDF_IGNORE_WHITESPACE_CHANGE: c_ulong = 1 << 2;
-pub(crate) const XDF_IGNORE_WHITESPACE_AT_EOL: c_ulong = 1 << 3;
-pub(crate) const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
+pub(crate) const XDF_IGNORE_WHITESPACE: u64 = 1 << 1;
+pub(crate) const XDF_IGNORE_WHITESPACE_CHANGE: u64 = 1 << 2;
+pub(crate) const XDF_IGNORE_WHITESPACE_AT_EOL: u64 = 1 << 3;
+pub(crate) const XDF_IGNORE_BLANK_LINES: u64 = 1 << 7;
 const XDF_PATIENCE_DIFF: c_int = 1 << 14;
 const XDF_HISTOGRAM_DIFF: c_int = 1 << 15;
 const XDF_INDENT_HEURISTIC: c_int = 1 << 23;
@@ -1112,7 +1112,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
 }
 fn diff_file_internal(diffio: &mut Diffio) -> bool {
     let mut param = Xpparam {
-        flags: diff_st().diff_algorithm as c_ulong,
+        flags: diff_st().diff_algorithm as u64,
     };
     let emit_cfg = Xdemitconf {
         ctxlen: 0,
@@ -3305,8 +3305,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 i += 1;
             }
             let bufnr = if eap.arg.add(i) == p {
-                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg))
-                    as std::ffi::c_long as c_int
+                crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int
             } else {
                 let nr = buflist_findpat(eap.arg, p, false, true, false);
                 if nr < 0 {

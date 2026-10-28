@@ -1,6 +1,6 @@
 //! JSON support for Lua (`src/cjson/lua_cjson.c`).
 
-use std::ffi::{CStr, c_char, c_double, c_int, c_longlong};
+use std::ffi::{CStr, c_char, c_int};
 use std::mem::size_of;
 use std::ptr;
 
@@ -212,7 +212,7 @@ enum JsonTokenValue {
     #[default]
     None,
     String(*const c_char),
-    Number(c_double),
+    Number(f64),
     Integer(lua_Integer),
     Boolean(c_int),
 }
@@ -225,7 +225,7 @@ impl JsonTokenValue {
         }
     }
 
-    const fn as_number(self) -> c_double {
+    const fn as_number(self) -> f64 {
         match self {
             Self::Number(n) => n,
             _ => 0.0,
@@ -1090,9 +1090,9 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
             false
         };
         let cutoff = if neg {
-            (c_longlong::MAX as u64) + 1
+            (i64::MAX as u64) + 1
         } else {
-            c_longlong::MAX as u64
+            i64::MAX as u64
         };
         let mut acc: u64 = 0;
         let mut any = false;
@@ -1116,16 +1116,12 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
         } else {
             json.ptr.cast_mut()
         };
-        let tmpval: c_longlong = if overflow {
-            if neg {
-                c_longlong::MIN
-            } else {
-                c_longlong::MAX
-            }
+        let tmpval: i64 = if overflow {
+            if neg { i64::MIN } else { i64::MAX }
         } else if neg {
-            acc.wrapping_neg() as c_longlong
+            acc.wrapping_neg() as i64
         } else {
-            acc as c_longlong
+            acc as i64
         };
         let end_ch = *endptr as u8;
         if json.ptr == endptr.cast_const()
@@ -1140,9 +1136,9 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
                 json_set_token_error(token, json, c"invalid number");
                 return;
             }
-        } else if tmpval > (isize::MAX as c_longlong) || tmpval < (isize::MIN as c_longlong) {
+        } else if tmpval > (isize::MAX as i64) || tmpval < (isize::MIN as i64) {
             token.r#type = TNumber;
-            token.value = JsonTokenValue::Number(tmpval as c_double);
+            token.value = JsonTokenValue::Number(tmpval as f64);
         } else {
             token.r#type = TInteger;
             token.value = JsonTokenValue::Integer(tmpval as lua_Integer);

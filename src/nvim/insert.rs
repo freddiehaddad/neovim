@@ -154,7 +154,7 @@ use crate::textobject::{bck_word, fwd_word};
 use crate::ui::{ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::undo::{u_clearallandblockfree, u_save, u_save_cursor, u_sync};
 use crate::window::{WinInfoInfo, goto_tabpage, may_trigger_win_scrolled_resized};
-use std::ffi::{c_char, c_int, c_long, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::change::COM_MIDDLE;
@@ -429,7 +429,7 @@ fn insert_enter(s: &mut InsertState) {
                     false,
                     false,
                     CmdSpec {
-                        count: s.count as c_long,
+                        count: s.count as i64,
                         cmd: b'g' as c_int,
                         cmd2: if s.cmdchar == b'v' as c_int {
                             b'r' as c_int
@@ -444,7 +444,7 @@ fn insert_enter(s: &mut InsertState) {
                     false,
                     false,
                     CmdSpec {
-                        count: s.count as c_long,
+                        count: s.count as i64,
                         cmd: s.cmdchar,
                         cmd2: if s.cmdchar == b'g' as c_int {
                             b'I' as c_int

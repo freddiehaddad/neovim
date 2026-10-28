@@ -51,7 +51,7 @@ use crate::strings::{gettext, ngettext};
 use crate::textformat::{Oparg, has_format_option};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::msgpack_rpc::packer::ObjHandle;
@@ -1020,7 +1020,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
 
         if i64::from(oap.line_count) > opt_vars().p_report {
             i = oap.line_count - (i + 1);
-            let fmt_ptr = ngettext(c"%ld line indented ", c"%ld lines indented ", i as c_ulong);
+            let fmt_ptr = ngettext(c"%ld line indented ", c"%ld lines indented ", i as u64);
             let fmt_str = crate::memory::cstr_lossy(fmt_ptr);
             let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
             let bytes = msg_str.as_bytes();

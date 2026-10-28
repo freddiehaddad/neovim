@@ -9,8 +9,8 @@ use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::ex_docmd::Exarg;
 use crate::fileio::{
-    EOF, FILE, SEEK_SET, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell,
-    fwrite, get2c, get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets,
+    EOF, FILE, SEEK_SET, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fwrite, get2c,
+    get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets, vim_fseek, vim_ftell,
     vim_tempname,
 };
 use crate::globals::*;
@@ -49,7 +49,7 @@ use crate::strings::{gettext, strerror, vim_snprintf, vim_strchr};
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
 use crate::undo::buf_is_changed_fn;
-use std::ffi::{c_char, c_int, c_long, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 use std::mem::size_of;
 use std::ptr;
 
@@ -4063,12 +4063,12 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
         let (n, _) = node_compress(spin, first_sibling, &mut ht, &mut tot);
 
         if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
-            let perc: c_long = if tot > 1_000_000 {
-                ((tot - n) / (tot / 100)) as c_long
+            let perc: i64 = if tot > 1_000_000 {
+                ((tot - n) / (tot / 100)) as i64
             } else if tot == 0 {
                 0
             } else {
-                ((tot - n) * 100 / tot) as c_long
+                ((tot - n) * 100 / tot) as i64
             };
             vim_snprintf!(
                 g_st().iobuff.as_mut_ptr(),
@@ -5286,12 +5286,12 @@ pub fn spell_add_word(
         };
 
         if what == SPELL_ADD_BAD || undo {
-            let mut fpos_next: c_long = 0;
+            let mut fpos_next: i64 = 0;
             fd = os_fopen(fname, c"r");
             if !fd.is_null() {
                 while !vim_fgets(line.as_mut_ptr(), (MAXWLEN * 2) as c_int, fd) {
                     let fpos = fpos_next;
-                    fpos_next = ftell(fd);
+                    fpos_next = vim_ftell(fd);
                     if fpos_next < 0 {
                         break;
                     }
@@ -5307,7 +5307,7 @@ pub fn spell_add_word(
                         if fd.is_null() {
                             break;
                         }
-                        if fseek(fd, fpos, SEEK_SET) == 0 {
+                        if vim_fseek(fd, fpos, SEEK_SET) == 0 {
                             fputc(b'#' as c_int, fd);
                             if undo {
                                 home_replace(
@@ -5326,7 +5326,7 @@ pub fn spell_add_word(
                                 );
                             }
                         }
-                        if fseek(fd, fpos_next, SEEK_SET) != 0 {
+                        if vim_fseek(fd, fpos_next, SEEK_SET) != 0 {
                             let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
                             semsg!(
                                 c"%s: %s",

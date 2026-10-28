@@ -1021,7 +1021,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut c_int) -> c_int {
                 }
                 retval = Varnumber::from(crate::charset::parse_i64_prefix(
                     crate::memory::cstr_as_bytes(s),
-                ) as std::ffi::c_long);
+                ));
             }
             tv_clear(&mut tv);
         }

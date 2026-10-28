@@ -23,7 +23,7 @@ use crate::ex_cmds::{K_SHELL_OPT_READ, K_SHELL_OPT_WRITE, check_secure, make_fil
 use crate::ex_docmd::CAR;
 #[cfg(unix)]
 use crate::fileio::fopen;
-use crate::fileio::{SEEK_END, SEEK_SET, fclose, fread, fseek, ftell, vim_tempname};
+use crate::fileio::{SEEK_END, SEEK_SET, fclose, fread, vim_fseek, vim_ftell, vim_tempname};
 use crate::globals::*;
 #[cfg(windows)]
 use crate::mbyte::CP_UTF8;
@@ -449,18 +449,18 @@ pub fn os_expand_wildcards(
             }
             return false;
         }
-        let fseek_res = fseek(fd, 0, SEEK_END);
+        let fseek_res = vim_fseek(fd, 0, SEEK_END);
         if fseek_res < 0 {
             fclose(fd);
             return false;
         }
-        let templen = ftell(fd) as i64;
+        let templen = vim_ftell(fd) as i64;
         if templen < 0 {
             fclose(fd);
             return false;
         }
         len = templen as usize;
-        fseek(fd, 0, SEEK_SET);
+        vim_fseek(fd, 0, SEEK_SET);
         let mut buffer_vec = vec![0 as c_char; len + 1];
         let buffer = buffer_vec.as_mut_ptr();
         let readlen = fread(buffer.cast(), 1, len, fd);
@@ -834,15 +834,15 @@ pub fn get_cmd_output(
         let mut result: Option<std::ffi::CString> = None;
 
         'done: {
-            if fd.is_null() || fseek(fd, 0, SEEK_END) == -1 {
+            if fd.is_null() || vim_fseek(fd, 0, SEEK_END) == -1 {
                 semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
                 if !fd.is_null() {
                     fclose(fd);
                 }
                 break 'done;
             }
-            let len_l = ftell(fd);
-            if len_l == -1 || fseek(fd, 0, SEEK_SET) == -1 {
+            let len_l = vim_ftell(fd);
+            if len_l == -1 || vim_fseek(fd, 0, SEEK_SET) == -1 {
                 semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
                 fclose(fd);
                 break 'done;

@@ -1,6 +1,6 @@
 //! VTerm input byte stream parser (`src/nvim/vterm/parser.c`).
 
-use std::ffi::{c_char, c_int, c_long};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::vterm::keyboard::VTermStateFull;
@@ -11,8 +11,8 @@ pub type VTermTerminator = c_int;
 pub(crate) const VTERM_TERMINATOR_BEL: VTermTerminator = 0;
 const VTERM_TERMINATOR_ST: VTermTerminator = 1;
 
-pub(crate) const CSI_ARG_FLAG_MORE: c_long = (1u32 << 31) as c_long;
-pub(crate) const CSI_ARG_MISSING: c_long = ((1u32 << 31) - 1) as c_long;
+pub(crate) const CSI_ARG_FLAG_MORE: i64 = (1u32 << 31) as i64;
+pub(crate) const CSI_ARG_MISSING: i64 = ((1u32 << 31) - 1) as i64;
 
 pub(crate) const NORMAL: c_int = 0;
 const CSI_LEADER: c_int = 1;
@@ -76,7 +76,7 @@ impl VTermStringFragment {
 
 pub type VTermCsiFn<T> = fn(
     leader: *const c_char,
-    args: *const c_long,
+    args: *const i64,
     argcount: c_int,
     intermed: *const c_char,
     command: c_char,
@@ -340,7 +340,7 @@ pub fn vterm_input_write(
                             vt.parser.csi.args[argi] = 0;
                         }
                         vt.parser.csi.args[argi] *= 10;
-                        vt.parser.csi.args[argi] += c_long::from(c - b'0');
+                        vt.parser.csi.args[argi] += i64::from(c - b'0');
                         break 'state_machine;
                     }
                     if c == b':' {

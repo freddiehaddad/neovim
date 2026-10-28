@@ -26,9 +26,7 @@ use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
 use crate::option_vars::*;
 use crate::plines::linetabsize_col;
-use std::ffi::{
-    CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
-};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 const CTRL_V: c_char = 0x16;
@@ -191,7 +189,7 @@ pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
     }
 }
 
-pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut c_char) -> c_double {
+pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut *mut c_char) -> f64 {
     let nptr = nptr.into_c_char_ptr();
     unsafe {
         let mut s = nptr;
@@ -1635,7 +1633,7 @@ fn vim_vsnprintf_typval_inner(
                             }
                         } else if fmt_spec == b'b' as c_char || fmt_spec == b'B' as c_char {
                             uarg = if !tvs.is_null() {
-                                tv_nr(tvs, &mut arg_idx) as c_ulonglong
+                                tv_nr(tvs, &mut arg_idx) as u64
                             } else {
                                 fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
                             };
@@ -1660,15 +1658,15 @@ fn vim_vsnprintf_typval_inner(
                                 }
                                 b'l' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_long
+                                        tv_nr(tvs, &mut arg_idx) as i64
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_long
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i64
                                     };
                                     arg = v as i64;
                                 }
                                 b'L' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_longlong
+                                        tv_nr(tvs, &mut arg_idx) as i64
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64()
                                     };
@@ -1709,15 +1707,15 @@ fn vim_vsnprintf_typval_inner(
                                 }
                                 b'l' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_ulong
+                                        tv_nr(tvs, &mut arg_idx) as u64
                                     } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as c_ulong
+                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u64
                                     };
                                     uarg = v as u64;
                                 }
                                 b'L' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as c_ulonglong
+                                        tv_nr(tvs, &mut arg_idx) as u64
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
                                     };
