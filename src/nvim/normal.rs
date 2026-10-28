@@ -4042,7 +4042,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                 foldlevel = i64::from(getDeepestNesting(&mut **curwin.as_ptr()));
             }
             c if c == b'j' as c_int || c == b'k' as c_int => {
-                if foldMoveTo(
+                if !foldMoveTo(
                     true,
                     if nchar == b'j' as c_int {
                         FORWARD
@@ -4050,7 +4050,7 @@ fn nv_zet(cap: &mut cmdarg_T) {
                         BACKWARD
                     },
                     cap.count1,
-                ) == 0
+                )
                 {
                     clearopbeep(&mut *cap.oap);
                 }
@@ -5400,7 +5400,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                 PUT_FIXINDENT != 0,
             );
         } else if cap.nchar == b'z' as c_int {
-            if foldMoveTo(
+            if !foldMoveTo(
                 false,
                 if cap.cmdchar == b']' as c_int {
                     FORWARD
@@ -5408,7 +5408,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                     BACKWARD
                 },
                 cap.count1,
-            ) == 0
+            )
             {
                 clearopbeep(&mut *cap.oap);
             }
@@ -7362,10 +7362,10 @@ fn nv_object(cap: &mut cmdarg_T) {
             }
             c if c == b't' as c_int => {
                 cap.retval |= CA_NO_ADJ_OP_END;
-                current_tagblock(&mut *cap.oap, cap.count1, include) != 0
+                current_tagblock(&mut *cap.oap, cap.count1, include)
             }
             c if c == b'p' as c_int => {
-                current_par(&mut *cap.oap, cap.count1, include, b'p' as c_int) != 0
+                current_par(&mut *cap.oap, cap.count1, include, b'p' as c_int)
             }
             c if c == b'l' as c_int => current_line(&mut *cap.oap, include),
             c if c == b's' as c_int => current_sent(&mut *cap.oap, cap.count1, include),

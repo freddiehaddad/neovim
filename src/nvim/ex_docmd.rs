@@ -5997,7 +5997,7 @@ pub fn parse_cmdline(
             }
 
             set_cmd_addr_type(eap, p);
-            if parse_cmd_address(eap, errormsg, true) == FAIL {
+            if !parse_cmd_address(eap, errormsg, true) {
                 break 'end;
             }
 
@@ -6487,7 +6487,7 @@ fn do_one_cmd(
 
             set_cmd_addr_type(&mut ea, p);
 
-            if parse_cmd_address(&mut ea, &mut errormsg, false) == FAIL {
+            if !parse_cmd_address(&mut ea, &mut errormsg, false) {
                 break 'doend;
             }
 
@@ -7193,12 +7193,12 @@ pub fn parse_cmd_address(
     eap: &mut exarg_T,
     errormsg: *mut *const c_char,
     silent: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut address_count: c_int = 1;
         let mut lnum: linenr_T;
         let mut need_check_cursor = false;
-        let mut ret = FAIL;
+        let mut ret = false;
 
         'theend: {
             loop {
@@ -7329,7 +7329,7 @@ pub fn parse_cmd_address(
                     eap.addr_count = 0;
                 }
             }
-            ret = OK;
+            ret = true;
         }
 
         if need_check_cursor {
@@ -8602,7 +8602,7 @@ pub fn getargopt(eap: &mut exarg_T) -> c_int {
         *arg = NUL;
 
         if ptr::eq(pp, &raw mut eap.force_ff) {
-            if check_ff_value(eap.cmd.add(eap.force_ff as usize)) == FAIL {
+            if !check_ff_value(eap.cmd.add(eap.force_ff as usize)) {
                 return FAIL;
             }
             eap.force_ff = c_int::from(*eap.cmd.add(eap.force_ff as usize) as u8);

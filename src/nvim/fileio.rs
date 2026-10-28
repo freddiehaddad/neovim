@@ -3535,14 +3535,10 @@ pub fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
 }
 
 /// Writes time_t to file "fd" in 8 bytes.
-pub fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
+pub fn put_time(fd: *mut FILE, time_: time_t) -> bool {
     unsafe {
         let buf: [u8; 8] = (time_ as u64).to_be_bytes();
-        if fwrite(buf.as_ptr().cast(), size_of::<u8>(), buf.len(), fd) == 1 {
-            OK
-        } else {
-            FAIL
-        }
+        fwrite(buf.as_ptr().cast(), size_of::<u8>(), buf.len(), fd) == 1
     }
 }
 
@@ -3560,11 +3556,11 @@ fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
             vim_snprintf!(tail, rem, c"%d".as_ptr(), n);
 
             if !os_path_exists(tempname.as_ptr()) {
-                if os_rename(from, tempname.as_ptr()) == OK {
-                    if os_rename(tempname.as_ptr(), to) == OK {
+                if os_rename(from, tempname.as_ptr()) {
+                    if os_rename(tempname.as_ptr(), to) {
                         return 0;
                     }
-                    if os_rename(tempname.as_ptr(), from) != OK {
+                    if !os_rename(tempname.as_ptr(), from) {
                         logmsg!(
                             LOG_ERR,
                             ptr::null(),
@@ -3614,11 +3610,11 @@ pub fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
             return rename_with_tmp(from, to);
         }
 
-        if os_rename(from, to) == OK {
+        if os_rename(from, to) {
             return 0;
         }
 
-        if os_remove(to) == 0 && os_rename(from, to) == OK {
+        if os_remove(to) == 0 && os_rename(from, to) {
             return 0;
         }
 
@@ -3717,26 +3713,26 @@ pub fn check_timestamps(focus: c_int) -> c_int {
 }
 
 /// Move all the lines from buffer "frombuf" to buffer "tobuf".
-fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
+fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> bool {
     unsafe {
         let tbuf = g_st().curbuf;
-        let mut retval = OK;
+        let mut retval = true;
 
         g_st().curbuf = tobuf;
         for lnum in 1..=(*frombuf).b_ml.ml_line_count {
             let p = CStr::from_ptr(ml_get_buf(frombuf, lnum)).to_owned();
             if ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) == FAIL {
-                retval = FAIL;
+                retval = false;
                 break;
             }
         }
 
-        if retval != FAIL {
+        if retval {
             g_st().curbuf = frombuf;
             let mut lnum = (*g_st().curbuf).b_ml.ml_line_count;
             while lnum > 0 {
                 if ml_delete(lnum) == FAIL {
-                    retval = FAIL;
+                    retval = false;
                     break;
                 }
                 lnum -= 1;
@@ -4031,7 +4027,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
             if savebuf.is_null()
                 || saved == FAIL
                 || buf != g_st().curbuf
-                || move_lines(buf, savebuf) == FAIL
+                || !move_lines(buf, savebuf)
             {
                 semsg!(
                     tr(c"E462: Could not prepare for reloading \"%s\"".as_ptr()),

@@ -2679,7 +2679,7 @@ pub fn ins_compl_addleader(c: c_int) {
             ins_compl_delete(false);
         }
 
-        if stop_arrow() == FAIL {
+        if !stop_arrow() {
             return;
         }
         let cc = utf_char2len(c);
@@ -5364,7 +5364,7 @@ pub fn ins_compl_delete(new_leader: bool) {
         }
 
         if (**curwin.as_ptr()).w_cursor.col > col {
-            if stop_arrow() == FAIL {
+            if !stop_arrow() {
                 return;
             }
             backspace_until_column(col);
@@ -6368,7 +6368,7 @@ fn ins_compl_start() -> bool {
         g_st().Ins.did_si = false;
         g_st().Ins.can_si = false;
         g_st().Ins.can_si_back = false;
-        if stop_arrow() == FAIL {
+        if !stop_arrow() {
             g_st().Ins.did_ai = save_did_ai;
             return false;
         }
@@ -6574,7 +6574,7 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> bool {
             if !ins_compl_start() {
                 return false;
             }
-        } else if insert_match && stop_arrow() == FAIL {
+        } else if insert_match && !stop_arrow() {
             return false;
         }
 

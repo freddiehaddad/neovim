@@ -788,7 +788,7 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
                     || is_commit
                     || (ins_compl_enter_selects()
                         && (s.c == CAR || s.c == K_KENTER || s.c == NL)))
-                    && stop_arrow() == OK
+                    && stop_arrow()
                 {
                     ins_compl_delete(false);
                     if ins_compl_preinsert_longest() && !ins_compl_is_match_selected() {
@@ -848,13 +848,13 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
 
         if cindent_on() && ctrl_x_mode_none() {
             s.line_is_white = inindent(0);
-            if in_cinkeys(s.c, b'!' as c_int, s.line_is_white) && stop_arrow() == OK {
+            if in_cinkeys(s.c, b'!' as c_int, s.line_is_white) && stop_arrow() {
                 do_c_expr_indent();
                 return 1;
             }
             if g_st().Ins.can_cindent
                 && in_cinkeys(s.c, b'*' as c_int, s.line_is_white)
-                && stop_arrow() == OK
+                && stop_arrow()
             {
                 do_c_expr_indent();
             }
@@ -1265,7 +1265,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             if opt_vars().p_paste == 0 {
                 if let Some(str_) = do_insert_char_pre(s.c) {
                     let str_ptr = str_.as_ptr().cast_mut();
-                    if *str_ptr != NUL && stop_arrow() != FAIL {
+                    if *str_ptr != NUL && stop_arrow() {
                         let mut p = str_ptr;
                         while *p != NUL {
                             s.c = utf_ptr2char(p);
@@ -1338,7 +1338,7 @@ fn insert_do_complete(s: &mut InsertState) {
 }
 
 fn insert_do_cindent(s: &mut InsertState) {
-    if in_cinkeys(s.c, b' ' as c_int, s.line_is_white) && stop_arrow() == OK {
+    if in_cinkeys(s.c, b' ' as c_int, s.line_is_white) && stop_arrow() {
             do_c_expr_indent();
         }
 }
@@ -1849,7 +1849,7 @@ fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_int) {
             let len = std::ffi::CStr::from_ptr(p).to_bytes().len();
             c = *p.add(len - 1) as u8 as c_int;
             if len > 2 {
-                if stop_arrow() == FAIL {
+                if !stop_arrow() {
                     return;
                 }
                 *p.add(len - 1) = NUL;
@@ -1858,7 +1858,7 @@ fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_int) {
                 ctrlv = 0;
             }
         }
-        if stop_arrow() == OK {
+        if stop_arrow() {
             insertchar(c, if ctrlv != 0 { INSCHAR_CTRLV } else { 0 }, -1);
         }
     }
@@ -2077,7 +2077,7 @@ fn check_spell_redraw() {
     }
 }
 
-pub fn stop_arrow() -> c_int {
+pub fn stop_arrow() -> bool {
     unsafe {
         if g_st().Ins.moved != kInsNone {
             g_st().Ins.start = (**curwin.as_ptr()).w_cursor;
@@ -2122,11 +2122,7 @@ pub fn stop_arrow() -> c_int {
 
         foldOpenCursor();
 
-        if g_st().Ins.moved != kInsNone || g_st().Ins.need_undo {
-            FAIL
-        } else {
-            OK
-        }
+        !(g_st().Ins.moved != kInsNone || g_st().Ins.need_undo)
     }
 }
 
@@ -3016,7 +3012,7 @@ fn ins_ctrl_o() {
 
 fn ins_shift(c: c_int, lastc: c_int) {
     unsafe {
-        if stop_arrow() == FAIL {
+        if !stop_arrow() {
             return;
         }
         redo_append_char(c);
@@ -3055,12 +3051,12 @@ fn ins_shift(c: c_int, lastc: c_int) {
 
 fn ins_del() {
     unsafe {
-        if stop_arrow() == FAIL {
+        if !stop_arrow() {
             return;
         }
         if gchar_cursor() == NUL as c_int {
             let temp = (**curwin.as_ptr()).w_cursor.col;
-            if !can_bs(BS_EOL) || do_join(2, false, true, false, false) == FAIL {
+            if !can_bs(BS_EOL) || !do_join(2, false, true, false, false) {
                 vim_beep(kOptBoFlagBackspace);
             } else {
                 mc_ins_join();
@@ -3104,7 +3100,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             return false;
         }
 
-        if stop_arrow() == FAIL {
+        if !stop_arrow() {
             return false;
         }
         let in_indent = inindent(0);
@@ -3558,7 +3554,7 @@ fn ins_pageup() {
         }
 
         let mut tpos = (**curwin.as_ptr()).w_cursor;
-        if pagescroll(BACKWARD, 1, false) == OK {
+        if pagescroll(BACKWARD, 1, false) {
             start_arrow(&raw mut tpos, true, NUL as c_int);
             g_st().Ins.can_cindent = true;
         } else {
@@ -3606,7 +3602,7 @@ fn ins_pagedown() {
         }
 
         let mut tpos = (**curwin.as_ptr()).w_cursor;
-        if pagescroll(FORWARD, 1, false) == OK {
+        if pagescroll(FORWARD, 1, false) {
             start_arrow(&raw mut tpos, true, NUL as c_int);
             g_st().Ins.can_cindent = true;
         } else {
@@ -3643,7 +3639,7 @@ fn ins_tab() -> bool {
             return true;
         }
 
-        if stop_arrow() == FAIL {
+        if !stop_arrow() {
             return true;
         }
 
@@ -3843,7 +3839,7 @@ pub fn ins_eol(c: c_int) -> bool {
         if echeck_abbr(c + ABBR_OFF) {
             return true;
         }
-        if stop_arrow() == FAIL {
+        if !stop_arrow() {
             return false;
         }
         undisplay_dollar();

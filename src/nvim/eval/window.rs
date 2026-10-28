@@ -38,7 +38,6 @@ use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 use crate::drawscreen::{FR_LEAF, FR_ROW};
 use crate::eval::{kListLenMayKnow, kListLenUnknown};
-use crate::math::FAIL;
 
 const E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE: &CStr =
     c"E1308: Cannot resize a window in another tab page";
@@ -847,7 +846,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             size = tv_dict_get_number(d, c"size".as_ptr()) as c_int;
         }
 
-        if is_ctx_win(wp) || text_or_buf_locked() || check_split_disallowed(wp) == FAIL {
+        if is_ctx_win(wp) || text_or_buf_locked() || !check_split_disallowed(wp) {
             return;
         }
 

@@ -7921,7 +7921,7 @@ pub fn f_setfperm(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
             mask <<= 1;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_setperm(fname, mode) == OK));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_setperm(fname, mode)));
     }
 }
 

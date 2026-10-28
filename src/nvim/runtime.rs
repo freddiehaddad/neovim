@@ -1425,9 +1425,9 @@ fn gen_expand_wildcards_and_cb(
         true
 }
 
-fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
+fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
     unsafe {
-        let mut retval = FAIL;
+        let mut retval = false;
 
         let mut p1 = get_past_head(fname);
         let mut p2 = p1;
@@ -1451,7 +1451,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
         *p4 = c;
 
         let Some(ref ffname_owned) = ffname_cstr else {
-            return FAIL;
+            return false;
         };
         let ffname = ffname_owned.as_ptr();
 
@@ -1650,7 +1650,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 }
             }
             drop(new_rtp_vec);
-            retval = OK;
+            retval = true;
         }
 
         drop(afterdir_cstr);
@@ -1709,7 +1709,7 @@ fn add_pack_plugins(
                         break;
                     }
                 }
-                if !found && add_pack_dir_to_rtp(fname, false) == FAIL {
+                if !found && !add_pack_dir_to_rtp(fname, false) {
                     return;
                 }
                 did_one = true;

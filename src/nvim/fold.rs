@@ -728,9 +728,9 @@ pub fn foldUpdateAll(win: &mut win_T) {
         redraw_later(win, UPD_NOT_VALID);
 }
 
-pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
+pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> bool {
     unsafe {
-        let mut retval = FAIL;
+        let mut retval = false;
 
         checkupdate(*curwin.as_ptr());
 
@@ -825,12 +825,12 @@ pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
                 level += 1;
             }
             if lnum_found != (**curwin.as_ptr()).w_cursor.lnum {
-                if retval == FAIL {
+                if !retval {
                     setpcmark();
                 }
                 (**curwin.as_ptr()).w_cursor.lnum = lnum_found;
                 (**curwin.as_ptr()).w_cursor.col = 0;
-                retval = OK;
+                retval = true;
             } else {
                 break;
             }

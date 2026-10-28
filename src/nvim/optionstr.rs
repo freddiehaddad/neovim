@@ -2116,7 +2116,7 @@ pub fn did_set_cursorlineopt(args: &mut optset_T) -> *const c_char {
 
 /// The 'diffanchors' option is changed.
 pub fn did_set_diffanchors(args: &mut optset_T) -> *const c_char {
-    if diffanchors_changed((args.os_flags & OPT_LOCAL) != 0) == FAIL {
+    if !diffanchors_changed((args.os_flags & OPT_LOCAL) != 0) {
             return e_invarg.as_ptr();
         }
         ptr::null()
@@ -2124,7 +2124,7 @@ pub fn did_set_diffanchors(args: &mut optset_T) -> *const c_char {
 
 /// The 'diffopt' option is changed.
 pub fn did_set_diffopt(_args: &mut optset_T) -> *const c_char {
-    if diffopt_changed() == FAIL {
+    if !diffopt_changed() {
             e_invarg.as_ptr()
         } else {
             ptr::null()
@@ -3599,8 +3599,8 @@ pub fn opt_keyset(
 }
 
 /// Return OK if "p" is a valid fileformat name, FAIL otherwise.
-pub fn check_ff_value(p: *mut c_char) -> c_int {
-    if opt_strings_flags(
+pub fn check_ff_value(p: *mut c_char) -> bool {
+    opt_strings_flags(
             p,
             &opt_ff_values,
             ptr::null_mut(),
@@ -3608,11 +3608,6 @@ pub fn check_ff_value(p: *mut c_char) -> c_int {
             None,
         )
         .is_null()
-        {
-            OK
-        } else {
-            FAIL
-        }
 }
 
 /// Calls mb_cptr2char_adv(p) and returns the character.
@@ -4297,10 +4292,10 @@ mod tests {
 
     #[test]
     fn check_ff_value_accepts_valid_and_rejects_invalid() {
-        assert_eq!(check_ff_value(c"unix".as_ptr().cast_mut()), OK);
-            assert_eq!(check_ff_value(c"dos".as_ptr().cast_mut()), OK);
-            assert_eq!(check_ff_value(c"mac".as_ptr().cast_mut()), OK);
-            assert_eq!(check_ff_value(c"".as_ptr().cast_mut()), FAIL);
-            assert_eq!(check_ff_value(c"foo".as_ptr().cast_mut()), FAIL);
+        assert!(check_ff_value(c"unix".as_ptr().cast_mut()));
+            assert!(check_ff_value(c"dos".as_ptr().cast_mut()));
+            assert!(check_ff_value(c"mac".as_ptr().cast_mut()));
+            assert!(!check_ff_value(c"".as_ptr().cast_mut()));
+            assert!(!check_ff_value(c"foo".as_ptr().cast_mut()));
     }
 }

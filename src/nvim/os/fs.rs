@@ -393,7 +393,6 @@ use crate::fileio::{_get_osfhandle, _read, _write, close};
 use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG, dup, fdopen};
 #[cfg(not(windows))]
 use crate::fileio::{fcntl, getuid, read, write};
-use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::memline::kPathDeviceUNC;
 
@@ -1153,23 +1152,23 @@ pub fn os_getperm(name: *const c_char) -> i32 {
 }
 
 /// Set the permission of a file.
-pub fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
+pub fn os_setperm(name: *const c_char, perm: c_int) -> bool {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chmod(ptr::null_mut(), &raw mut req, name, perm, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
-        if r == 0 { OK } else { FAIL }
+        r == 0
     }
 }
 
 /// Set the permission of the file referred to by the open file descriptor.
 #[cfg(unix)]
-pub fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
+pub fn os_fsetperm(fd: c_int, perm: c_int) -> bool {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchmod(ptr::null_mut(), &raw mut req, fd, perm, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
-        if r == 0 { OK } else { FAIL }
+        r == 0
     }
 }
 
@@ -1362,12 +1361,12 @@ pub fn os_file_is_writable(name: *const c_char) -> c_int {
 }
 
 /// Rename a file or directory.
-pub fn os_rename(path: *const c_char, new_path: *const c_char) -> c_int {
+pub fn os_rename(path: *const c_char, new_path: *const c_char) -> bool {
     unsafe {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
-        if r == 0 { OK } else { FAIL }
+        r == 0
     }
 }
 
@@ -1965,7 +1964,7 @@ mod tests {
             assert!(!os_path_exists(c"non-existing-file-xyz".as_ptr()));
             assert_eq!(os_getperm(c"non-existing-file-xyz".as_ptr()), UV_ENOENT);
             assert!(os_getperm(base_c.as_ptr()) > 0);
-            assert_eq!(os_setperm(c"non-existing-file-xyz".as_ptr(), 0o700), FAIL);
+            assert!(!os_setperm(c"non-existing-file-xyz".as_ptr(), 0o700));
             assert_eq!(os_file_is_writable(base_c.as_ptr()), 2);
 
             // os_open / os_write / os_read / os_close
@@ -2049,10 +2048,10 @@ mod tests {
             // os_rename & os_remove
             let renamed = format!("{base}/renamed.dat");
             let renamed_c = CString::new(renamed.clone()).unwrap();
-            assert_eq!(os_rename(fpath_c.as_ptr(), renamed_c.as_ptr()), OK);
+            assert!(os_rename(fpath_c.as_ptr(), renamed_c.as_ptr()));
             assert!(!os_path_exists(fpath_c.as_ptr()));
             assert!(os_path_exists(renamed_c.as_ptr()));
-            assert_eq!(os_rename(fpath_c.as_ptr(), renamed_c.as_ptr()), FAIL);
+            assert!(!os_rename(fpath_c.as_ptr(), renamed_c.as_ptr()));
 
             // os_mkdir_recurse & os_rmdir
             let mut failed_dir: Option<CString> = None;

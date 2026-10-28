@@ -49,7 +49,7 @@ const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
 use crate::charset::NUL;
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 
 #[repr(C)]
 #[derive(Default)]
@@ -76,7 +76,7 @@ fn validate_option_value_args(
     operation: Option<&mut set_op_T>,
     dry_run: Option<&mut bool>,
     err: &mut Error,
-) -> c_int {
+) -> bool {
     unsafe {
         let mask = opts.is_set__option_;
         if has_key(mask, KEYSET_OPTIDX_option__filetype)
@@ -90,12 +90,12 @@ fn validate_option_value_args(
                 c"filetype".as_ptr(),
                 c"'scope', 'buf', 'win' or 'tab'".as_ptr(),
             );
-            return FAIL;
+            return false;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__tab) && !allow_tab {
             api_err_conflict(err, c"tab".as_ptr(), c"this function".as_ptr());
-            return FAIL;
+            return false;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__tab)
@@ -109,12 +109,12 @@ fn validate_option_value_args(
                 c"tab".as_ptr(),
                 c"'win', 'buf', 'filetype' or 'scope'".as_ptr(),
             );
-            return FAIL;
+            return false;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__win) && has_key(mask, KEYSET_OPTIDX_option__buf) {
             api_err_conflict(err, c"buf".as_ptr(), c"win".as_ptr());
-            return FAIL;
+            return false;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__scope) {
@@ -129,7 +129,7 @@ fn validate_option_value_args(
                     c"'local' or 'global'".as_ptr(),
                     std::ptr::null(),
                 );
-                return FAIL;
+                return false;
             }
         }
 
@@ -143,20 +143,20 @@ fn validate_option_value_args(
             *scope = kOptScopeWin;
             *from = OptTarget::Win(find_window_by_handle(opts.win, err));
             if error_set(err) {
-                return FAIL;
+                return false;
             }
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__buf) {
             if has_key(mask, KEYSET_OPTIDX_option__scope) && *opt_flags == OPT_GLOBAL {
                 api_err_conflict(err, c"buf".as_ptr(), c"global scope".as_ptr());
-                return FAIL;
+                return false;
             }
             *opt_flags = OPT_LOCAL;
             *scope = kOptScopeBuf;
             *from = OptTarget::Buf(find_buffer_by_handle(opts.buf, err));
             if error_set(err) {
-                return FAIL;
+                return false;
             }
         }
 
@@ -164,7 +164,7 @@ fn validate_option_value_args(
             *scope = kOptScopeTab;
             *from = OptTarget::Tab(find_tab_by_handle(opts.tab, err));
             if error_set(err) {
-                return FAIL;
+                return false;
             }
         }
 
@@ -176,7 +176,7 @@ fn validate_option_value_args(
                 c"Unknown option '%s'".as_ptr(),
                 name,
             );
-            return FAIL;
+            return false;
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__operation)
@@ -197,7 +197,7 @@ fn validate_option_value_args(
                     c"'set', 'append', 'prepend', or 'remove'".as_ptr(),
                     std::ptr::null(),
                 );
-                return FAIL;
+                return false;
             }
 
             if !(*operation == OP_NONE
@@ -205,7 +205,7 @@ fn validate_option_value_args(
                 || option_has_type(*opt_idxp, ObjectType::kObjectTypeInteger))
             {
                 api_err_conflict(err, opts.operation.data, c"boolean options".as_ptr());
-                return FAIL;
+                return false;
             }
         }
 
@@ -217,7 +217,7 @@ fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_option__tab) && !option_has_scope(*opt_idxp, kOptScopeTab) {
             api_err_conflict(err, c"tab".as_ptr(), name);
-            return FAIL;
+            return false;
         }
 
         if (*scope == kOptScopeBuf || *scope == kOptScopeWin)
@@ -250,10 +250,10 @@ fn validate_option_value_args(
                 req,
                 name,
             );
-            return FAIL;
+            return false;
         }
 
-        if error_set(err) { FAIL } else { OK }
+        !error_set(err)
     }
 }
 
@@ -399,7 +399,7 @@ pub fn nvim_get_option_value(
         let mut from = OptTarget::Global;
         let mut filetype: *mut c_char = ptr::null_mut();
 
-        if validate_option_value_args(
+        if !validate_option_value_args(
             opts,
             name.data,
             true,
@@ -411,7 +411,7 @@ pub fn nvim_get_option_value(
             None,
             None,
             err,
-        ) == 0
+        )
         {
             return OBJECT_NIL;
         }
@@ -597,7 +597,7 @@ pub fn nvim_set_option_value(
         let mut to = OptTarget::Global;
         let mut dry_run = false;
 
-        if validate_option_value_args(
+        if !validate_option_value_args(
             opts,
             name.data,
             true,
@@ -609,7 +609,7 @@ pub fn nvim_set_option_value(
             Some(&mut operation),
             Some(&mut dry_run),
             err,
-        ) == 0
+        )
         {
             return OBJECT_NIL;
         }
@@ -848,7 +848,7 @@ pub fn nvim_get_option_info2(
         let mut scope: OptScope = kOptScopeGlobal;
         let mut from = OptTarget::Global;
 
-        if validate_option_value_args(
+        if !validate_option_value_args(
             opts,
             name.data,
             false,
@@ -860,7 +860,7 @@ pub fn nvim_get_option_info2(
             None,
             None,
             err,
-        ) == 0
+        )
         {
             return Dict::new();
         }

@@ -892,12 +892,12 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                         continue;
                     }
                     let mut buf_num_anchors: c_int = 0;
-                    if parse_diffanchors(
+                    if !parse_diffanchors(
                         false,
                         (*g_st().curtab).tp_diffbuf[idx],
                         (&raw mut anchors[idx]).cast(),
                         Some(&mut buf_num_anchors),
-                    ) != OK
+                    )
                     {
                         emsg(gettext(
                             (&raw const e_failed_to_find_all_diff_anchors).cast(),
@@ -2320,7 +2320,7 @@ fn parse_diffanchors(
     buf: *mut buf_T,
     anchors: *mut linenr_T,
     num_anchors: Option<&mut c_int>,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut dia = if *(*buf).b_p_dia == NUL {
             opt_vars().p_dia
@@ -2343,14 +2343,14 @@ fn parse_diffanchors(
                 emsg(gettext(
                     (&raw const e_diff_anchors_with_hidden_windows).cast(),
                 ));
-                return FAIL;
+                return false;
             }
             bw
         };
         let mut i: usize = 0;
         while i < MAX_DIFF_ANCHORS && *dia != NUL {
             if *dia == b',' as c_char {
-                return FAIL;
+                return false;
             }
             g_st().curbuf = buf;
             *curwin.as_ptr() = bufwin;
@@ -2371,15 +2371,15 @@ fn parse_diffanchors(
                 emsg(errormsg);
             }
             if dia.is_null() {
-                return FAIL;
+                return false;
             }
             if *dia != b',' as c_char && *dia != NUL {
-                return FAIL;
+                return false;
             }
             if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > (*buf).b_ml.ml_line_count + 1)
             {
                 emsg(gettext((&raw const e_invrange).cast()));
-                return FAIL;
+                return false;
             }
             if !anchors.is_null() {
                 *anchors.add(i) = lnum;
@@ -2394,18 +2394,18 @@ fn parse_diffanchors(
                 gettext((&raw const e_cannot_have_more_than_nr_diff_anchors).cast()),
                 MAX_DIFF_ANCHORS as c_int,
             );
-            return FAIL;
+            return false;
         }
         if let Some(num_anchors) = num_anchors {
             *num_anchors = i as c_int;
         }
-        OK
+        true
     }
 }
-pub fn diffanchors_changed(buflocal: bool) -> c_int {
+pub fn diffanchors_changed(buflocal: bool) -> bool {
     unsafe {
         let result = parse_diffanchors(true, g_st().curbuf, ptr::null_mut(), None);
-        if result == OK && (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
+        if result && (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 if !buflocal {
@@ -2424,7 +2424,7 @@ pub fn diffanchors_changed(buflocal: bool) -> c_int {
         result
     }
 }
-pub fn diffopt_changed() -> c_int {
+pub fn diffopt_changed() -> bool {
     unsafe {
         let v = opt_keyset(opt_vars().p_dip, kOptDiffopt, ptr::null_mut()).cast::<OptKeyDict_dip>();
         let mut flags = (if (*v).filler { DIFF_FILLER } else { 0 })
@@ -2471,9 +2471,9 @@ pub fn diffopt_changed() -> c_int {
                 algorithm |= XDF_HISTOGRAM_DIFF;
             }
         }
-        let mut ret = OK;
+        let mut ret = true;
         if (flags & DIFF_HORIZONTAL) != 0 && (flags & DIFF_VERTICAL) != 0 {
-            ret = FAIL;
+            ret = false;
         } else {
             if diff_st().diff_flags != flags || diff_st().diff_algorithm != algorithm {
                 let mut tp = g_st().first_tabpage;

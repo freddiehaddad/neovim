@@ -300,7 +300,7 @@ fn ses_get_fname(buf: *mut buf_T, flagp: &c_uint) -> *mut c_char {
 
 fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: &mut c_uint, add_eol: bool) -> bool {
     let name = ses_get_fname(buf, flagp);
-        if ses_put_fname(fd, name, flagp) == FAIL || (add_eol && !write_bytes(fd, b"\n")) {
+        if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
             return false;
         }
         true
@@ -326,10 +326,10 @@ fn ses_escape_fname(name: *mut c_char) -> CString {
     }
 }
 
-fn ses_put_fname(fd: *mut FILE, name: *mut c_char, _flagp: &mut c_uint) -> c_int {
+fn ses_put_fname(fd: *mut FILE, name: *mut c_char, _flagp: &mut c_uint) -> bool {
     unsafe {
         let p = ses_escape_fname(name);
-        if fputs(p.as_ptr(), fd) < 0 { FAIL } else { OK }
+        fputs(p.as_ptr(), fd) >= 0
     }
 }
 
@@ -524,7 +524,7 @@ fn put_view(
             && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags) || (*flagp & kOptSsopFlagCurdir) != 0)
         {
             if fputs(c"lcd ".as_ptr(), fd) < 0
-                || ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp) == FAIL
+                || !ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp)
                 || !write_bytes(fd, b"\n")
             {
                 return false;
@@ -832,8 +832,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                 }
                 need_tabnext = false;
                 if fputs(c"tcd ".as_ptr(), fd) < 0
-                    || ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &mut opt_vars().ssop_flags)
-                        == FAIL
+                    || !ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &mut opt_vars().ssop_flags)
                     || put_eol(fd) == FAIL
                 {
                     return false;

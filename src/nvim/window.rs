@@ -1921,14 +1921,14 @@ pub fn ui_ext_win_viewport(wp: &mut win_T) {
 
 /// If "split_disallowed" is set, or "wp"'s buffer is closing, give an error and return FAIL.
 /// Otherwise return OK.
-pub fn check_split_disallowed(wp: *const win_T) -> c_int {
+pub fn check_split_disallowed(wp: *const win_T) -> bool {
     let mut err = ERROR_INIT;
         let ok = check_split_disallowed_err(wp, &mut err);
         if error_set(&err) {
             emsg(gettext(err.msg_ptr()));
             api_clear_error(&mut err);
         }
-        if ok { OK } else { FAIL }
+        ok
 }
 
 /// Like `check_split_disallowed`, but set `err` to the (untranslated) error message on failure and
@@ -1958,7 +1958,7 @@ pub fn check_split_disallowed_err(wp: *const win_T, err: &mut Error) -> bool {
 
 pub fn win_split(size: c_int, mut flags: c_int) -> c_int {
     unsafe {
-        if check_split_disallowed(*curwin.as_ptr()) == FAIL {
+        if !check_split_disallowed(*curwin.as_ptr()) {
             return FAIL;
         }
 
@@ -2859,7 +2859,7 @@ pub fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> bool {
         if one_window(wp, ptr::null_mut()) {
             return true;
         }
-        if is_ctx_win(wp) || check_split_disallowed(wp) == FAIL {
+        if is_ctx_win(wp) || !check_split_disallowed(wp) {
             return false;
         }
 

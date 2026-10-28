@@ -1947,7 +1947,7 @@ pub fn do_join(
     save_undo: bool,
     use_formatoptions: bool,
     setmark: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut curr: *mut c_char = ptr::null_mut();
         let mut curr_start: *mut c_char = ptr::null_mut();
@@ -1956,7 +1956,7 @@ pub fn do_join(
         let mut endcurr2: c_int = c_int::from(NUL);
         let mut currsize: c_int = 0;
         let mut sumsize: c_int = 0;
-        let mut ret = OK;
+        let mut ret = true;
         let remove_comments = use_formatoptions && has_format_option(kFoRemoveComs);
         let mut prev_was_comment = false;
         debug_assert!(count >= 1);
@@ -1967,7 +1967,7 @@ pub fn do_join(
                 (**curwin.as_ptr()).w_cursor.lnum + (count as linenr_T),
             ) == FAIL
         {
-            return FAIL;
+            return false;
         }
         let mut spaces_vec = vec![0 as c_char; count];
         let spaces: *mut c_char = spaces_vec.as_mut_ptr();
@@ -2056,7 +2056,7 @@ pub fn do_join(
             }
             line_breakcheck();
             if g_st().got_int {
-                ret = FAIL;
+                ret = false;
                 aborted = true;
                 break;
             }

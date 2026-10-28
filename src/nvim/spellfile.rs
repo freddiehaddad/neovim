@@ -2934,14 +2934,14 @@ fn sal_to_bool(s: *const c_char) -> bool {
     unsafe { std::ffi::CStr::from_ptr(s).to_bytes() == b"1" || std::ffi::CStr::from_ptr(s).to_bytes() == b"true" }
 }
 
-fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T) -> c_int {
+fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T) -> bool {
     unsafe {
         let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut line = [0 as c_char; MAXLINELEN];
         let mut store_afflist = [0 as c_char; MAXWLEN];
         let mut lnum: c_int = 1;
         let mut non_ascii: c_int = 0;
-        let mut retval: c_int = OK;
+        let mut retval: bool = true;
         let mut message = [0 as c_char; MAXLINELEN + MAXWLEN];
         let mut duplicate: c_int = 0;
         let mut last_msg_time: Timestamp = 0;
@@ -2949,7 +2949,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
             semsg!(gettext((&raw const e_notopen).cast()), fname);
-            return FAIL;
+            return false;
         }
 
         vim_snprintf!(
@@ -3085,7 +3085,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 if affile.af_pfxpostpone != 0 {
                     if !get_pfxlist(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
                     {
-                        retval = FAIL;
+                        retval = false;
                         break;
                     }
                     pfxlen = totlen;
@@ -3094,7 +3094,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 if spin.si_compflags.is_some()
                     && !get_compflags(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
                 {
-                    retval = FAIL;
+                    retval = false;
                     break;
                 }
             }
@@ -3108,11 +3108,11 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 need_affix,
             ) == FAIL
             {
-                retval = FAIL;
+                retval = false;
             }
 
             if !afflist.is_null() {
-                if store_aff_word(
+                if !store_aff_word(
                     spin,
                     w,
                     afflist,
@@ -3123,12 +3123,12 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                     flags,
                     store_afflist.as_mut_ptr(),
                     pfxlen,
-                ) == FAIL
+                )
                 {
-                    retval = FAIL;
+                    retval = false;
                 }
 
-                if store_aff_word(
+                if !store_aff_word(
                     spin,
                     w,
                     afflist,
@@ -3139,9 +3139,9 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                     flags,
                     store_afflist.as_mut_ptr(),
                     pfxlen,
-                ) == FAIL
+                )
                 {
-                    retval = FAIL;
+                    retval = false;
                 }
             }
         }
@@ -3270,16 +3270,16 @@ fn store_aff_word(
     flags: c_int,
     pfxlist: *mut c_char,
     pfxlen: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut newword = [0 as c_char; MAXWLEN];
-        let mut retval = OK;
+        let mut retval = true;
         let mut store_afflist = [0 as c_char; MAXWLEN];
         let mut pfx_pfxlist = [0 as c_char; MAXWLEN];
         let wordlen = std::ffi::CStr::from_ptr(word).to_bytes().len();
 
         for ah in ht.values() {
-            if retval != OK {
+            if !retval {
                 break;
             }
             {
@@ -3380,7 +3380,7 @@ fn store_aff_word(
                                             &mut listlen,
                                         )
                                         {
-                                            retval = FAIL;
+                                            retval = false;
                                             break;
                                         }
                                         use_pfxlen = listlen;
@@ -3406,12 +3406,12 @@ fn store_aff_word(
                                                 *pfxlist.offset(i as isize) as u8 as c_int,
                                             )
                                         {
-                                            retval = FAIL;
+                                            retval = false;
                                             break;
                                         }
                                         use_pfxlen = listlen;
                                     }
-                                    if retval == FAIL {
+                                    if !retval {
                                         break;
                                     }
 
@@ -3423,13 +3423,13 @@ fn store_aff_word(
                                             &mut listlen,
                                         )
                                         {
-                                            retval = FAIL;
+                                            retval = false;
                                             break;
                                         }
                                     } else {
                                         *use_pfxlist.offset(use_pfxlen as isize) = NUL;
                                     }
-                                    if retval == FAIL {
+                                    if !retval {
                                         break;
                                     }
 
@@ -3451,12 +3451,12 @@ fn store_aff_word(
                                                 *pfxlist.offset(i as isize) as u8 as c_int,
                                             )
                                         {
-                                            retval = FAIL;
+                                            retval = false;
                                             break;
                                         }
                                         i += 1;
                                     }
-                                    if retval == FAIL {
+                                    if !retval {
                                         break;
                                     }
                                 }
@@ -3494,13 +3494,13 @@ fn store_aff_word(
                                 need_affix,
                             ) == FAIL
                             {
-                                retval = FAIL;
+                                retval = false;
                             }
 
                             if (condit & CONDIT_SUF) != 0 && !ae_flags.is_null() {
                                 let next_condit =
                                     use_condit & if xht.is_none() { !0 } else { !CONDIT_SUF };
-                                if store_aff_word(
+                                if !store_aff_word(
                                     spin,
                                     newword.as_mut_ptr(),
                                     ae_flags,
@@ -3511,15 +3511,15 @@ fn store_aff_word(
                                     use_flags,
                                     use_pfxlist,
                                     pfxlen,
-                                ) == FAIL
+                                )
                                 {
-                                    retval = FAIL;
+                                    retval = false;
                                 }
                             }
 
                             if let Some(xht_ref) = xht
                                 && ah.ah_combine != 0
-                                && (store_aff_word(
+                                && (!store_aff_word(
                                     spin,
                                     newword.as_mut_ptr(),
                                     afflist,
@@ -3530,9 +3530,9 @@ fn store_aff_word(
                                     use_flags,
                                     use_pfxlist,
                                     pfxlen,
-                                ) == FAIL
+                                )
                                     || (!ae_flags.is_null()
-                                        && store_aff_word(
+                                        && !store_aff_word(
                                             spin,
                                             newword.as_mut_ptr(),
                                             ae_flags,
@@ -3543,9 +3543,9 @@ fn store_aff_word(
                                             use_flags,
                                             use_pfxlist,
                                             pfxlen,
-                                        ) == FAIL))
+                                        )))
                             {
-                                retval = FAIL;
+                                retval = false;
                             }
                         }
                     }
@@ -3557,19 +3557,19 @@ fn store_aff_word(
     }
 }
 
-fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
+fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
     unsafe {
         let mut lnum: linenr_T = 0;
         let mut rline = [0 as c_char; MAXLINELEN];
         let mut pc_vec: Vec<c_char>;
-        let mut retval = OK;
+        let mut retval = true;
         let mut did_word = false;
         let mut non_ascii: c_int = 0;
 
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
             semsg!(gettext((&raw const e_notopen).cast()), fname);
-            return FAIL;
+            return false;
         }
 
         vim_snprintf!(
@@ -3751,7 +3751,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
             }
 
             if store_word(spin, line, flags, regionmask, ptr::null(), false) == FAIL {
-                retval = FAIL;
+                retval = false;
                 break;
             }
             did_word = true;
@@ -4182,14 +4182,14 @@ fn node_equal(nodes: &[wordnode_T], n1: usize, n2: usize) -> bool {
     p1.is_none() && p2.is_none()
 }
 
-fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
+fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
     unsafe {
-        let mut retval = OK;
+        let mut retval = true;
 
         let fd = os_fopen(fname, c"w".as_ptr());
         if fd.is_null() {
             semsg!(gettext((&raw const e_notopen).cast()), fname);
-            return FAIL;
+            return false;
         }
 
         let mut fwv = fwrite(VIMSPELLMAGIC.as_ptr().cast(), VIMSPELLMAGICL, 1, fd);
@@ -4198,7 +4198,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
                 // error
             }
             emsg(gettext((&raw const e_write).cast()));
-            return FAIL;
+            return false;
         }
 
         fputc(VIMSPELLVERSION, fd);
@@ -4479,16 +4479,16 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
         }
 
         if fputc(0, fd) == EOF {
-            retval = FAIL;
+            retval = false;
         }
         if fclose(fd) == EOF {
-            retval = FAIL;
+            retval = false;
         }
 
         if fwv != 1 {
-            retval = FAIL;
+            retval = false;
         }
-        if retval == FAIL {
+        if !retval {
             emsg(gettext((&raw const e_write).cast()));
         }
 
@@ -4670,7 +4670,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
         spin.si_foldwcount = 0;
 
         spell_message(&raw mut *spin, gettext(c"Performing soundfolding...".as_ptr()));
-        if sug_filltree(spin, &mut *slang) && sug_maketable(spin) != FAIL {
+        if sug_filltree(spin, &mut *slang) && sug_maketable(spin) {
             smsg!(
                 0,
                 gettext(c"Number of words after soundfolding: %lld".as_ptr()),
@@ -4777,10 +4777,10 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> bool {
     }
 }
 
-fn sug_maketable(spin: &mut spellinfo_T) -> c_int {
+fn sug_maketable(spin: &mut spellinfo_T) -> bool {
      {
                 let mut ga: Vec<c_char> = Vec::with_capacity(100);
-        let mut res = OK;
+        let mut res = true;
 
         spin.si_spellbuf = Some(open_spellbuf());
 
@@ -4788,7 +4788,7 @@ fn sug_maketable(spin: &mut spellinfo_T) -> c_int {
             .si_foldroot
             .and_then(|r| spin.si_nodes[r].wn_sibling);
         if sug_filltable(spin, first_sibling, 0, &mut ga) == -1 {
-            res = FAIL;
+            res = false;
         }
 
         res
@@ -5096,13 +5096,13 @@ fn mkspell(
                         afile[i] = spell_read_aff(&mut spin, fname);
                         if let Some(ref aff) = afile[i] {
                             vim_snprintf!(fname, MAXPATHL, c"%s.dic".as_ptr(), in_i);
-                            if spell_read_dic(&mut spin, fname, aff) == FAIL {
+                            if !spell_read_dic(&mut spin, fname, aff) {
                                 error = true;
                             }
                         } else {
                             error = true;
                         }
-                    } else if spell_read_wordfile(&mut spin, in_i) == FAIL {
+                    } else if !spell_read_wordfile(&mut spin, in_i) {
                         error = true;
                     }
 
@@ -5136,7 +5136,7 @@ fn mkspell(
                     );
                     spell_message(&raw const spin, (&raw mut g_st().IObuff).cast());
 
-                    error = write_vim_spell(&mut spin, wfname) == FAIL;
+                    error = !write_vim_spell(&mut spin, wfname);
 
                     spell_message(&raw const spin, gettext(c"Done!".as_ptr()));
                     vim_snprintf!(

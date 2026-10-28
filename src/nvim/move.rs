@@ -48,7 +48,7 @@ use crate::drawline::{
     VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kCpoNumcol, kOptCuloptFlagScreenline,
 };
 use crate::ex_cmds::{BL_FIX, BL_SOL};
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
 use crate::regexp::MAXCOL;
 use crate::search::{BACKWARD, Direction, FORWARD};
 
@@ -2538,7 +2538,7 @@ fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> b
 }
 
 /// Move screen `count` (half) pages up (`dir` is `BACKWARD`) or down (`dir` is `FORWARD`).
-pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int {
+pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> bool {
     unsafe {
         let mut did_move = false;
         let buflen = (*g_st().curbuf).b_ml.ml_line_count;
@@ -2632,7 +2632,7 @@ pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int {
             nv_g_home_m_cmd(&mut ca);
         }
 
-        if did_move { OK } else { FAIL }
+        did_move
     }
 }
 

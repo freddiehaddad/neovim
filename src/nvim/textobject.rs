@@ -1127,12 +1127,12 @@ fn in_html_tag(end_tag: bool) -> bool {
 }
 
 /// Find tag block under the cursor, cursor at end (`current_tagblock`).
-pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> c_int {
+pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> bool {
     unsafe {
         let mut count = count_arg;
         let mut do_include = include;
         let save_p_ws = opt_vars().p_ws;
-        let mut retval = FAIL;
+        let mut retval = false;
         let mut is_inclusive = true;
 
         opt_vars().p_ws = 0;
@@ -1297,7 +1297,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> c
                     oap.inclusive = is_inclusive;
                 }
             }
-            retval = OK;
+            retval = true;
             break 'again;
         }
 
@@ -1307,13 +1307,13 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> c
 }
 
 /// Find paragraph under the cursor (`current_par`).
-pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int) -> c_int {
+pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int) -> bool {
     unsafe {
-        let mut retval = OK;
+        let mut retval = true;
         let mut do_white = false;
 
         if type_ == b'S' as c_int {
-            return FAIL;
+            return false;
         }
 
         let mut start_lnum = (**curwin.as_ptr()).w_cursor.lnum;
@@ -1348,7 +1348,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                 old != 0
             } {
                 if end_lnum == (*g_st().curbuf).b_ml.ml_line_count {
-                    return FAIL;
+                    return false;
                 }
 
                 if !include {
@@ -1393,7 +1393,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                     showmode();
                     (**curwin.as_ptr()).w_cursor.lnum = end_lnum;
                     (**curwin.as_ptr()).w_cursor.col = 0;
-                    return OK;
+                    return true;
                 }
             } else {
                 oap.start.lnum = start_lnum;
@@ -1401,7 +1401,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                 oap.motion_type = kMTLineWise;
                 (**curwin.as_ptr()).w_cursor.lnum = end_lnum;
                 (**curwin.as_ptr()).w_cursor.col = 0;
-                return OK;
+                return true;
             }
         }
 
@@ -1423,7 +1423,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                     (*g_st().curbuf).b_ml.ml_line_count
                 })
             {
-                retval = FAIL;
+                retval = false;
                 break;
             }
 

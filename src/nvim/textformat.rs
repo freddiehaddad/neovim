@@ -1121,7 +1121,7 @@ pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                         }
                     }
                     (**curwin.as_ptr()).w_cursor.lnum -= 1;
-                    if do_join(2, true, false, false, false) == FAIL {
+                    if !do_join(2, true, false, false, false) {
                         beep_flush();
                         break;
                     }
