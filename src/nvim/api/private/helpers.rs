@@ -159,8 +159,8 @@ pub fn cstr_as_obj<S: crate::strings::IntoCCharPtr>(s: S) -> Object {
 #[inline]
 pub fn add_c(array: &mut Array, item: Object) {
     debug_assert!(!array.items.is_null() && array.size < array.capacity);
-    unsafe {
-        *array.items.add(array.size) = item;
+    {
+        *array.next_slot_mut() = item;
     }
     array.size += 1;
 }
@@ -331,8 +331,8 @@ impl IntoDictKey for &'static CStr {
 #[inline]
 pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
     debug_assert!(!dict.items.is_null() && dict.size < dict.capacity);
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
+    {
+        *dict.next_slot_mut() = KeyValuePair {
             key: key.into_dict_key(),
             value: val,
         };
@@ -1042,10 +1042,10 @@ pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
 }
 
 pub fn copy_array(array: Array, mut arena: Option<&mut Arena>) -> Array {
-    unsafe {
+    {
         let mut rv = arena_array_opt(arena.as_deref_mut(), array.size);
         for i in 0..array.size {
-            *rv.items.add(i) = copy_object(array[i], arena.as_deref_mut());
+            rv[i] = copy_object(array[i], arena.as_deref_mut());
         }
         rv.size = array.size;
         rv
@@ -1053,12 +1053,12 @@ pub fn copy_array(array: Array, mut arena: Option<&mut Arena>) -> Array {
 }
 
 pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
-    unsafe {
+    {
         let mut rv = arena_dict_opt(arena.as_deref_mut(), dict.size);
         for i in 0..dict.size {
             let item = dict[i];
             let k_copy = copy_string(item.key, arena.as_deref_mut());
-            *rv.items.add(i) = KeyValuePair {
+            rv[i] = KeyValuePair {
                 key: cstr_as_string(k_copy.data),
                 value: copy_object(item.value, arena.as_deref_mut()),
             };
@@ -1186,7 +1186,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
             let chunk = item.data.array();
             if chunk.size == 0
                 || chunk.size > 2
-                || (*chunk.items).obj_type != ObjectType::ObjectTypeString
+                || chunk[0].obj_type != ObjectType::ObjectTypeString
             {
                 api_set_error!(
                     err,
@@ -1197,7 +1197,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
                 return HlMessage::new();
             }
 
-            let str_ = copy_string((*chunk.items).data.string(), None);
+            let str_ = copy_string(chunk[0].data.string(), None);
             let hl_id = if chunk.size == 2 {
                 object_to_hl_id(chunk[1], c"text highlight", err)
             } else if is_err {
@@ -1437,7 +1437,7 @@ pub fn api_keydict_to_dict(
                 ObjectType::ObjectTypeUnset => std::process::abort(),
             };
 
-            *rv.items.add(rv.size) = KeyValuePair {
+            *rv.next_slot_mut() = KeyValuePair {
                 key: cstr_as_string(field_str.as_ptr()),
                 value: val,
             };

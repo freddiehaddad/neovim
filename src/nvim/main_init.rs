@@ -1262,7 +1262,7 @@ fn remote_request(
         let mut tabbed: TriState = K_NONE;
 
         for i in 0..dict.size {
-            let item = &*dict.items.add(i);
+            let item = &dict[i];
             if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"errmsg") {
                 if item.value.obj_type != ObjectType::ObjectTypeString {
                     fprintf!(

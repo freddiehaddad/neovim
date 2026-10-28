@@ -4687,7 +4687,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: c_int) -> *m
             && idx >= 0
             && (idx as usize) < cmdexp().arg1_lua_names.data.array().size
         {
-            let item = *cmdexp().arg1_lua_names.data.array().items.add(idx as usize);
+            let item = cmdexp().arg1_lua_names.data.array()[idx as usize];
             if item.obj_type == ObjectType::ObjectTypeString {
                 return item.data.string().data;
             }

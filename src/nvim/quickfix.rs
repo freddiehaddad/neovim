@@ -1271,7 +1271,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> c_int {
 
             ptr::copy_nonoverlapping(iobuff_ptr, state.growbuf.as_mut_ptr(), IOSIZE - 1);
             let mut growbuflen = state.linelen;
-            *state.growbuf.as_mut_ptr().add(growbuflen) = NUL;
+            state.growbuf[growbuflen] = NUL;
 
             loop {
                 os_set_errno(0);
@@ -1290,7 +1290,7 @@ fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> c_int {
                 }
                 state.linelen = crate::memory::cstr_len(state.growbuf.as_ptr().add(growbuflen));
                 growbuflen += state.linelen;
-                if *state.growbuf.as_ptr().add(growbuflen - 1) == NL {
+                if state.growbuf[growbuflen - 1] == NL {
                     break;
                 }
                 if growbufsiz == LINE_MAXLEN {

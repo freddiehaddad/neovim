@@ -729,7 +729,7 @@ pub fn nvim_cmd(
             let mut count_from_first_arg = false;
             if has_key(mask, KEYSET_OPTIDX_CMD_ARGS) {
                 if cmd.args.size == 1 && (ea.argt & EX_COUNT) != 0 && (ea.argt & EX_EXTRA) == 0 {
-                    let first_arg = *cmd.args.items.add(0);
+                    let first_arg = cmd.args[0];
                     let mut is_numeric = false;
                     let mut count_value: i64 = 0;
 
@@ -759,7 +759,7 @@ pub fn nvim_cmd(
                 if !count_from_first_arg {
                     args = arena_array(arena, cmd.args.size);
                     for i in 0..cmd.args.size {
-                        let elem = *cmd.args.items.add(i);
+                        let elem = cmd.args[i];
                         match elem.obj_type {
                             ObjectType::ObjectTypeBoolean => {
                                 let data_str = arena_alloc(arena, 2, false).cast::<c_char>();
@@ -850,7 +850,7 @@ pub fn nvim_cmd(
 
                 if range.size > 0 {
                     ea.line1 = range[0].data.integer() as Linenr;
-                    ea.line2 = (*range.items.add(range.size - 1)).data.integer() as Linenr;
+                    ea.line2 = range[range.size - 1].data.integer() as Linenr;
                 }
             }
 

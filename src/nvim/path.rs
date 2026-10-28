@@ -518,7 +518,7 @@ pub fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> std::
         if fname1.size > 0 {
             ptr::copy(fname1.data, buf.as_mut_ptr(), fname1.size);
         }
-        *buf.as_mut_ptr().add(fname1.size) = NUL;
+        buf[fname1.size] = NUL;
         let mut size: usize = 0;
         do_concat_fnames(
             buf.as_mut_ptr(),

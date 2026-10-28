@@ -1686,7 +1686,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
         for i in 0..nargs {
             lua_pushvalue(lstate, i + 3);
             let obj = nlua_pop_object(lstate, false, &mut arena, &mut err);
-            *args.items.add(args.size) = obj;
+            *args.next_slot_mut() = obj;
             args.size += 1;
             if error_set(&err) {
                 break;

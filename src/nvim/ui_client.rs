@@ -154,7 +154,7 @@ pub fn ui_client_attach(width: c_int, height: c_int, term: Option<&std::ffi::CSt
             capacity: 9,
         };
         let mut put_opt = |k: &std::ffi::CStr, v: Object| {
-            *opts.items.add(opts.size) = KeyValuePair {
+            *opts.next_slot_mut() = KeyValuePair {
                 key: cstr_as_string(k),
                 value: v,
             };
@@ -203,7 +203,7 @@ pub fn ui_client_attach(width: c_int, height: c_int, term: Option<&std::ffi::CSt
         };
         debug_assert!(m.data.dict().size > 0);
         for i in 0..m.data.dict().size {
-            let item = *m.data.dict().items.add(i);
+            let item = m.data.dict()[i];
             if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"version") {
                 version = item.value.data.dict();
                 break;
@@ -367,9 +367,9 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
 }
 
 pub fn ui_client_event_grid_resize(args: Array) {
-    unsafe {
+    {
         if args.size < 3
-            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[0].obj_type != ObjectType::ObjectTypeInteger
             || args[1].obj_type != ObjectType::ObjectTypeInteger
             || args[2].obj_type != ObjectType::ObjectTypeInteger
         {
@@ -384,7 +384,7 @@ pub fn ui_client_event_grid_resize(args: Array) {
             return;
         }
 
-        let grid = (*args.items).data.integer();
+        let grid = args[0].data.integer();
         let width = args[1].data.integer();
         let height = args[2].data.integer();
         tui_grid_resize(tui_ptr(), grid, width, height);
@@ -427,7 +427,7 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
 
 pub fn ui_client_event_connect(args: Array) {
     unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -439,7 +439,7 @@ pub fn ui_client_event_connect(args: Array) {
             return;
         }
 
-        let s = (*args.items).data.string();
+        let s = args[0].data.string();
         let bytes = if s.size == 0 || s.data.is_null() {
             &[][..]
         } else {
@@ -510,7 +510,7 @@ pub fn ui_client_event_set_restart_on_crash_exit(args: Array) {
 }
 
 pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
-    unsafe {
+    {
         let mut args = uic_st().restart_args;
         let mut start_server = false;
         if !uic_st().restart_pending {
@@ -534,7 +534,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             uic_st().restart_args_after_crash_exit = ARRAY_INIT;
         };
 
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -547,7 +547,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
             return;
         }
 
-        let first_arg = (*args.items).data.string().data;
+        let first_arg = args[0].data.string().data;
         let chan_id = if start_server {
             if args.size < 2 || args[1].obj_type != ObjectType::ObjectTypeArray {
                 logmsg!(
@@ -629,8 +629,8 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
 }
 
 pub fn ui_client_event_error_exit(args: Array) {
-    unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeInteger {
+    {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeInteger {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
@@ -641,7 +641,7 @@ pub fn ui_client_event_error_exit(args: Array) {
             );
             return;
         }
-        g_st().ui_client_error_exit = (*args.items).data.integer() as c_int;
+        g_st().ui_client_error_exit = args[0].data.integer() as c_int;
     }
 }
 
@@ -673,19 +673,15 @@ fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
 }
 
 pub fn ui_client_event_mode_info_set(args: Array) {
-    unsafe {
+    {
         if args.size < 2
-            || (*args.items).obj_type != ObjectType::ObjectTypeBoolean
+            || args[0].obj_type != ObjectType::ObjectTypeBoolean
             || args[1].obj_type != ObjectType::ObjectTypeArray
         {
             log_ui_event_err(c"ui_client_event_mode_info_set", c"mode_info_set");
             return;
         }
-        tui_mode_info_set(
-            tui_ptr(),
-            (*args.items).data.boolean(),
-            args[1].data.array(),
-        );
+        tui_mode_info_set(tui_ptr(), args[0].data.boolean(), args[1].data.array());
     }
 }
 
@@ -710,19 +706,15 @@ pub fn ui_client_event_mouse_off(_args: Array) {
 }
 
 pub fn ui_client_event_mode_change(args: Array) {
-    unsafe {
+    {
         if args.size < 2
-            || (*args.items).obj_type != ObjectType::ObjectTypeString
+            || args[0].obj_type != ObjectType::ObjectTypeString
             || args[1].obj_type != ObjectType::ObjectTypeInteger
         {
             log_ui_event_err(c"ui_client_event_mode_change", c"mode_change");
             return;
         }
-        tui_mode_change(
-            tui_ptr(),
-            (*args.items).data.string(),
-            args[1].data.integer(),
-        );
+        tui_mode_change(tui_ptr(), args[0].data.string(), args[1].data.integer());
     }
 }
 
@@ -743,69 +735,69 @@ pub fn ui_client_event_suspend(_args: Array) {
 }
 
 pub fn ui_client_event_set_title(args: Array) {
-    unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+    {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_set_title", c"set_title");
             return;
         }
-        tui_set_title(tui_ptr(), (*args.items).data.string());
+        tui_set_title(tui_ptr(), args[0].data.string());
     }
 }
 
 pub fn ui_client_event_set_icon(args: Array) {
-    unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+    {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_set_icon", c"set_icon");
             return;
         }
-        tui_set_icon(tui_ptr(), (*args.items).data.string());
+        tui_set_icon(tui_ptr(), args[0].data.string());
     }
 }
 
 pub fn ui_client_event_screenshot(args: Array) {
-    unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+    {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_screenshot", c"screenshot");
             return;
         }
-        tui_screenshot(tui_ptr(), (*args.items).data.string());
+        tui_screenshot(tui_ptr(), args[0].data.string());
     }
 }
 
 pub fn ui_client_event_option_set(args: Array) {
-    unsafe {
-        if args.size < 2 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+    {
+        if args.size < 2 || args[0].obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_option_set", c"option_set");
             return;
         }
-        tui_option_set(tui_ptr(), (*args.items).data.string(), args[1]);
+        tui_option_set(tui_ptr(), args[0].data.string(), args[1]);
     }
 }
 
 pub fn ui_client_event_chdir(args: Array) {
-    unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+    {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_chdir", c"chdir");
             return;
         }
-        tui_chdir(tui_ptr(), (*args.items).data.string());
+        tui_chdir(tui_ptr(), args[0].data.string());
     }
 }
 
 pub fn ui_client_event_ui_send(args: Array) {
-    unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeString {
+    {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             log_ui_event_err(c"ui_client_event_ui_send", c"ui_send");
             return;
         }
-        tui_ui_send(tui_ptr(), (*args.items).data.string());
+        tui_ui_send(tui_ptr(), args[0].data.string());
     }
 }
 
 pub fn ui_client_event_default_colors_set(args: Array) {
-    unsafe {
+    {
         if args.size < 5
-            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[0].obj_type != ObjectType::ObjectTypeInteger
             || args[1].obj_type != ObjectType::ObjectTypeInteger
             || args[2].obj_type != ObjectType::ObjectTypeInteger
             || args[3].obj_type != ObjectType::ObjectTypeInteger
@@ -816,7 +808,7 @@ pub fn ui_client_event_default_colors_set(args: Array) {
         }
         tui_default_colors_set(
             tui_ptr(),
-            (*args.items).data.integer(),
+            args[0].data.integer(),
             args[1].data.integer(),
             args[2].data.integer(),
             args[3].data.integer(),
@@ -826,9 +818,9 @@ pub fn ui_client_event_default_colors_set(args: Array) {
 }
 
 pub fn ui_client_event_hl_attr_define(args: Array) {
-    unsafe {
+    {
         if args.size < 4
-            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[0].obj_type != ObjectType::ObjectTypeInteger
             || args[1].obj_type != ObjectType::ObjectTypeDict
             || args[2].obj_type != ObjectType::ObjectTypeDict
             || args[3].obj_type != ObjectType::ObjectTypeArray
@@ -836,7 +828,7 @@ pub fn ui_client_event_hl_attr_define(args: Array) {
             log_ui_event_err(c"ui_client_event_hl_attr_define", c"hl_attr_define");
             return;
         }
-        let arg_1 = (*args.items).data.integer();
+        let arg_1 = args[0].data.integer();
         let arg_2 = ui_client_dict2hlattrs(args[1].data.dict(), true);
         let arg_3 = ui_client_dict2hlattrs(args[2].data.dict(), false);
         let arg_4 = args[3].data.array();
@@ -845,19 +837,19 @@ pub fn ui_client_event_hl_attr_define(args: Array) {
 }
 
 pub fn ui_client_event_grid_clear(args: Array) {
-    unsafe {
-        if args.size < 1 || (*args.items).obj_type != ObjectType::ObjectTypeInteger {
+    {
+        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeInteger {
             log_ui_event_err(c"ui_client_event_grid_clear", c"grid_clear");
             return;
         }
-        tui_grid_clear(tui_ptr(), (*args.items).data.integer());
+        tui_grid_clear(tui_ptr(), args[0].data.integer());
     }
 }
 
 pub fn ui_client_event_grid_cursor_goto(args: Array) {
-    unsafe {
+    {
         if args.size < 3
-            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[0].obj_type != ObjectType::ObjectTypeInteger
             || args[1].obj_type != ObjectType::ObjectTypeInteger
             || args[2].obj_type != ObjectType::ObjectTypeInteger
         {
@@ -866,7 +858,7 @@ pub fn ui_client_event_grid_cursor_goto(args: Array) {
         }
         tui_grid_cursor_goto(
             tui_ptr(),
-            (*args.items).data.integer(),
+            args[0].data.integer(),
             args[1].data.integer(),
             args[2].data.integer(),
         );
@@ -874,9 +866,9 @@ pub fn ui_client_event_grid_cursor_goto(args: Array) {
 }
 
 pub fn ui_client_event_grid_scroll(args: Array) {
-    unsafe {
+    {
         if args.size < 7
-            || (*args.items).obj_type != ObjectType::ObjectTypeInteger
+            || args[0].obj_type != ObjectType::ObjectTypeInteger
             || args[1].obj_type != ObjectType::ObjectTypeInteger
             || args[2].obj_type != ObjectType::ObjectTypeInteger
             || args[3].obj_type != ObjectType::ObjectTypeInteger
@@ -889,7 +881,7 @@ pub fn ui_client_event_grid_scroll(args: Array) {
         }
         tui_grid_scroll(
             tui_ptr(),
-            (*args.items).data.integer(),
+            args[0].data.integer(),
             args[1].data.integer(),
             args[2].data.integer(),
             args[3].data.integer(),

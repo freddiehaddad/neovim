@@ -783,7 +783,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             let ui = &mut *ui_ptr;
             let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
             let mut put_info = |k: &std::ffi::CStr, v: Object| {
-                *info.items.add(info.size) = KeyValuePair {
+                *info.next_slot_mut() = KeyValuePair {
                     key: cstr_as_string(k),
                     value: v,
                 };
@@ -824,7 +824,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             }
             put_info(c"chan", integer_obj(ui.channel_id as Integer));
 
-            *all_uis.items.add(all_uis.size) = Object {
+            *all_uis.next_slot_mut() = Object {
                 obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(info),
             };

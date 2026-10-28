@@ -5356,7 +5356,7 @@ pub fn callback_call(
                 };
                 let mut luaargs = arena_array(&mut arena, argcount_in as usize);
                 for i in 0..(argcount_in as usize) {
-                    *luaargs.items.add(luaargs.size) =
+                    *luaargs.next_slot_mut() =
                         vim_to_object(argvars_in.add(i), Some(&mut arena), false);
                     luaargs.size += 1;
                 }

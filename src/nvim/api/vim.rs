@@ -3238,9 +3238,9 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         if has_range {
             let r = opts.range;
             let ok = r.size == 2
-                && (*r.items).obj_type == ObjectType::ObjectTypeInteger
+                && r[0].obj_type == ObjectType::ObjectTypeInteger
                 && r[1].obj_type == ObjectType::ObjectTypeInteger
-                && (*r.items).data.integer() >= 0
+                && r[0].data.integer() >= 0
                 && r[1].data.integer() >= -1;
             if !ok {
                 api_set_error!(
@@ -3251,7 +3251,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
                 );
                 return;
             }
-            let begin_raw = (*r.items).data.integer();
+            let begin_raw = r[0].data.integer();
             let end_raw = r[1].data.integer();
 
             let rbuf = if !win.is_null() {

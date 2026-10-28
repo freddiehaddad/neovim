@@ -225,7 +225,7 @@ pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
             pinfo = arena_dict(arena, 3);
             let put = |dict: &mut Dict, key: &CStr, value: Object| {
                 let idx = dict.size;
-                *dict.items.add(idx) = KeyValuePair {
+                dict[idx] = KeyValuePair {
                     key: NvimString {
                         data: key.as_ptr().cast_mut(),
                         size: key.to_bytes().len(),

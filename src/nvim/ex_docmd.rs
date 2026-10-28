@@ -7362,7 +7362,7 @@ pub fn checkforcmd(pp: *mut *mut c_char, cmd: &std::ffi::CStr, len: c_int) -> bo
     unsafe {
         let mut i: usize = 0;
         while crate::memory::cstr_byte_at(cmd.as_ptr(), i) != 0 {
-            if *cmd.as_ptr().add(i) != *(*pp).add(i) {
+            if cmd.to_bytes()[i] as c_char != *(*pp).add(i) {
                 break;
             }
             i += 1;

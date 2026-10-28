@@ -665,16 +665,16 @@ fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
 }
 
 fn push_termdef_err(err_arena: &mut Arena, chunks: &mut Vec<Object>, msg: &str) {
-    unsafe {
+    {
         let dup = arena_memdupz(err_arena, msg.as_ptr().cast::<c_char>(), msg.len());
         let str_val = NvimString {
             data: dup,
             size: msg.len(),
         };
         let mut err = arena_array(err_arena, 2);
-        *err.items.add(err.size) = string_obj(str_val);
+        *err.next_slot_mut() = string_obj(str_val);
         err.size += 1;
-        *err.items.add(err.size) = static_cstr_as_obj(c"ErrorMsg");
+        *err.next_slot_mut() = static_cstr_as_obj(c"ErrorMsg");
         err.size += 1;
         chunks.push(array_obj(err));
     }
@@ -2592,7 +2592,7 @@ fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
             copy_len,
         );
         if limit > 0 {
-            *tui.buf.as_mut_ptr().add(tui.bufpos + copy_len) = 0;
+            tui.buf[tui.bufpos + copy_len] = 0;
         }
         tui.bufpos += bytes.len();
     }

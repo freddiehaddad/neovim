@@ -488,7 +488,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
 
         if (flags & K_CTX_FUNCS) != 0 {
             for i in 0..ctx.funcs.size {
-                do_cmdline_cmd((*ctx.funcs.items.add(i)).data.string().data);
+                do_cmdline_cmd(ctx.funcs[i].data.string().data);
             }
         }
     }

@@ -235,10 +235,10 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
 // DLLEXPORT DictOf(Integer) nvim_get_namespaces(Arena *arena)
 //   FUNC_API_SINCE(5);
 pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
-    unsafe {
+    {
         let mut retval = arena_dict(arena, g_st().namespace_ids.len());
         for (name, id) in &g_st().namespace_ids {
-            *retval.items.add(retval.size) = KeyValuePair {
+            *retval.next_slot_mut() = KeyValuePair {
                 key: cstr_as_string(name.as_ptr()),
                 value: integer_obj(i64::from(*id)),
             };
@@ -1682,7 +1682,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
             let mut windows: std::collections::HashSet<*mut WinInfoInfo> =
                 std::collections::HashSet::new();
             for i in 0..opts.wins.size {
-                let win = (*opts.wins.items.add(i)).data.integer();
+                let win = opts.wins[i].data.integer();
                 let wp = find_window_by_handle(win as Window, err);
                 if wp.is_null() {
                     return;

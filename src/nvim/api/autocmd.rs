@@ -449,7 +449,7 @@ pub fn nvim_get_autocmds(
                     event_set[event_nr as usize] = true;
                 } else if v.obj_type == ObjectType::ObjectTypeArray {
                     for i in 0..v.data.array().size {
-                        let event_v = *v.data.array().items.add(i);
+                        let event_v = v.data.array()[i];
                         if event_v.obj_type != ObjectType::ObjectTypeString {
                             api_err_exp(
                                 err,
@@ -503,7 +503,7 @@ pub fn nvim_get_autocmds(
                         break 'body;
                     }
                     for i in 0..v.data.array().size {
-                        let item = *v.data.array().items.add(i);
+                        let item = v.data.array()[i];
                         if item.obj_type != ObjectType::ObjectTypeString {
                             api_err_exp(
                                 err,
@@ -551,7 +551,7 @@ pub fn nvim_get_autocmds(
                 }
                 buffers = arena_array(arena, buf.data.array().size);
                 for i in 0..buf.data.array().size {
-                    let bufnr = *buf.data.array().items.add(i);
+                    let bufnr = buf.data.array()[i];
                     if bufnr.obj_type != ObjectType::ObjectTypeInteger
                         && bufnr.obj_type != ObjectType::ObjectTypeBuffer
                     {

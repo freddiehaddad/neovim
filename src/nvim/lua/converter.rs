@@ -1860,7 +1860,7 @@ fn nlua_pop_array_unchecked(
                 };
             }
             assert!(ret.size < ret.capacity);
-            *ret.items.add(ret.size) = val;
+            *ret.next_slot_mut() = val;
             ret.size += 1;
         }
         lua_pop(lstate, 1);
@@ -1912,7 +1912,7 @@ fn nlua_pop_dict_unchecked(
                 if !error_set(err) {
                     let value = nlua_pop_object_opt(lstate, ref_, arena.as_deref_mut(), err);
                     assert!(ret.size < ret.capacity);
-                    *ret.items.add(ret.size) = KeyValuePair { key, value };
+                    *ret.next_slot_mut() = KeyValuePair { key, value };
                     ret.size += 1;
                 } else {
                     lua_pop(lstate, 1);
@@ -2021,11 +2021,11 @@ pub fn nlua_pop_object_opt(
                         let s = lua_tolstring(lstate, -2, &mut len);
                         let idx = (*cur.obj).data.dict().size;
                         (*cur.obj).data.dict_mut().size += 1;
-                        let item = (*cur.obj).data.dict().items.add(idx);
-                        (*item).key = cbuf_to_arena_str_opt(arena.as_deref_mut(), s, len);
+                        let item = &mut (*cur.obj).data.dict_mut()[idx];
+                        item.key = cbuf_to_arena_str_opt(arena.as_deref_mut(), s, len);
                         stack.push(cur);
                         cur = ObjPopStackItem {
-                            obj: &mut (*item).value,
+                            obj: &raw mut item.value,
                             container: false,
                         };
                     } else {
@@ -2040,7 +2040,7 @@ pub fn nlua_pop_object_opt(
                     let idx = (*cur.obj).data.array().size;
                     (*cur.obj).data.array_mut().size += 1;
                     lua_rawgeti(lstate, -1, (idx as c_int) + 1);
-                    let item_ptr = (*cur.obj).data.array().items.add(idx);
+                    let item_ptr = &raw mut (*cur.obj).data.array_mut()[idx];
                     stack.push(cur);
                     cur = ObjPopStackItem {
                         obj: item_ptr,

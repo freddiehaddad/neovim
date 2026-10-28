@@ -3686,7 +3686,7 @@ fn nfa_regmatch(
                 }
                 let t = &mut *thislist.t.as_mut_ptr().add(listidx as usize);
                 let t_state_idx = t.state.unwrap_unchecked();
-                let t_st = &*prog.state.as_ptr().add(t_state_idx);
+                let t_st = &prog.state[t_state_idx];
 
                 let mut add_state: Option<usize> = None;
                 let mut add_here = false;

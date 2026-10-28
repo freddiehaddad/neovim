@@ -743,7 +743,7 @@ pub fn nvim_buf_set_text(
         }
 
         let first_item = replacement[0].data.string();
-        let last_item = (*replacement.items.add(replacement.size - 1)).data.string();
+        let last_item = replacement[replacement.size - 1].data.string();
 
         let mut firstlen = (start_col as usize) + first_item.size;
         let last_part_len = (len_at_end as usize) - (end_col as usize);

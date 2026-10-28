@@ -2625,7 +2625,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
             let v_event = get_v_event(&mut save_v_event);
             if !data.is_null() && (*data).obj_type == ObjectType::ObjectTypeDict {
                 for i in 0..(*data).data.dict().size {
-                    let item = *(*data).data.dict().items.add(i);
+                    let item = (*data).data.dict()[i];
                     let mut tv: TypVal = TypVal::new();
                     object_to_vim(item.value, &mut tv, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {

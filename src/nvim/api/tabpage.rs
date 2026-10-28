@@ -65,7 +65,7 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
         rv = arena_array(arena, n);
         wp = first;
         while !wp.is_null() {
-            *rv.items.add(rv.size) = window_obj((*wp).handle);
+            *rv.next_slot_mut() = window_obj((*wp).handle);
             rv.size += 1;
             wp = (*wp).w_next;
         }

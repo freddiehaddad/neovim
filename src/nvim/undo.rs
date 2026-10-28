@@ -167,8 +167,8 @@ impl UHeader {
 }
 
 #[inline]
-pub fn uhp_ref<'a>(buf: &FileBuf, uh: usize) -> &'a UHeader {
-    unsafe { &*buf.b_u_headers.as_ptr().add(uh) }
+pub fn uhp_ref(buf: &FileBuf, uh: usize) -> &UHeader {
+    &buf.b_u_headers[uh]
 }
 
 #[inline]

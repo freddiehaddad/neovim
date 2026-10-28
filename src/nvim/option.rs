@@ -5501,7 +5501,7 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
         } else if o.obj_type == ObjectType::ObjectTypeArray {
             let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array().size);
             for ai in 0..o.data.array().size {
-                let item = *o.data.array().items.add(ai);
+                let item = o.data.array()[ai];
                 if item.obj_type != ObjectType::ObjectTypeString {
                     *error = true;
                     return nil_obj();

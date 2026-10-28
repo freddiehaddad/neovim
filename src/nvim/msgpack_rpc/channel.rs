@@ -362,8 +362,8 @@ pub fn rpc_send_call(
             } else if res.obj_type == ObjectType::ObjectTypeArray {
                 let array = res.data.array();
                 if array.size == 2
-                    && (*array.items).obj_type == ObjectType::ObjectTypeInteger
-                    && let Some(et) = ErrorType::from_raw((*array.items).data.integer() as c_int)
+                    && array[0].obj_type == ObjectType::ObjectTypeInteger
+                    && let Some(et) = ErrorType::from_raw(array[0].data.integer() as c_int)
                     && matches!(
                         et,
                         ErrorType::ErrorTypeException | ErrorType::ErrorTypeValidation
@@ -984,7 +984,7 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
 }
 
 pub fn get_client_info(chan: &mut Channel, key: &std::ffi::CStr) -> *const c_char {
-    unsafe {
+    {
         let ct = chan;
         if !ct.is_rpc {
             return ptr::null();
@@ -992,7 +992,7 @@ pub fn get_client_info(chan: &mut Channel, key: &std::ffi::CStr) -> *const c_cha
         let key_bytes = key.to_bytes();
         let info = ct.rpc.info;
         for i in 0..info.size {
-            let item = &*info.items.add(i);
+            let item = &info[i];
             if !item.key.data.is_null()
                 && crate::memory::cstr_as_bytes(item.key.data) == key_bytes
                 && item.value.obj_type == ObjectType::ObjectTypeString

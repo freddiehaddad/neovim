@@ -130,7 +130,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 }
                 MpackTokenType::MpackTokenMap => {
                     let obj = parent.data[0].object();
-                    let kv = &mut *obj.data.dict().items.add(parent.pos);
+                    let kv = &mut obj.data.dict()[parent.pos];
                     if parent.key_visited == 0 {
                         kv.key = NvimString {
                             data: std::ptr::null_mut(),

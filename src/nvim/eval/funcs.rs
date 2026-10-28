@@ -1327,7 +1327,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
         let mut tv = argvars.as_mut_ptr();
         while (*tv).v_type != VarType::VarUnknown {
-            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), false);
+            *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
             tv = tv.add(1);
         }
@@ -1370,7 +1370,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
         let mut tv = argvars.as_mut_ptr();
         while (*tv).v_type != VarType::VarUnknown {
-            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), false);
+            *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
             tv = tv.add(1);
         }
@@ -6976,7 +6976,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
         let mut tv = (&raw mut argvars[2]);
         while (*tv).v_type != VarType::VarUnknown {
-            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), true);
+            *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
             args.size += 1;
             tv = tv.add(1);
         }
@@ -7033,7 +7033,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         let mut tv = (&raw mut argvars[2]);
         while (*tv).v_type != VarType::VarUnknown {
-            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), true);
+            *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
             args.size += 1;
             tv = tv.add(1);
         }

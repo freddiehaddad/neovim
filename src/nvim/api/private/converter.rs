@@ -242,10 +242,10 @@ fn pop_into_parent_list(stack: &mut Vec<Object>) {
     let item = stack.pop().unwrap();
     let list_obj = stack.last_mut().unwrap();
     debug_assert_eq!(list_obj.obj_type, ObjectType::ObjectTypeArray);
-    unsafe {
+    {
         let arr = list_obj.data.array_mut();
         debug_assert!(arr.size < arr.capacity);
-        *arr.items.add(arr.size) = item;
+        *arr.next_slot_mut() = item;
         arr.size += 1;
     }
 }
@@ -255,10 +255,10 @@ fn pop_into_parent_dict(stack: &mut Vec<Object>) {
     let val = stack.pop().unwrap();
     let dict_obj = stack.last_mut().unwrap();
     debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
-    unsafe {
+    {
         let d = dict_obj.data.dict_mut();
         debug_assert!(d.size < d.capacity);
-        (*d.items.add(d.size)).value = val;
+        d.next_slot_mut().value = val;
         d.size += 1;
     }
 }
@@ -342,7 +342,7 @@ pub fn vim_to_object(
                     let dict_obj = stack.last_mut().unwrap();
                     debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
                     let d = dict_obj.data.dict_mut();
-                    (*d.items.add(d.size)).key = key_obj.data.string();
+                    d.next_slot_mut().key = key_obj.data.string();
 
                     &mut di.di_tv
                 }
@@ -407,8 +407,8 @@ pub fn object_to_vim_take_luaref(
             let s = obj.data.string();
             *tv_ref = decode_string(s.data, s.size, false, false);
         }
-        ObjectType::ObjectTypeArray => unsafe {
-            let arr = obj.data.array();
+        ObjectType::ObjectTypeArray => {
+            let mut arr = obj.data.array();
             let list = tv_list_alloc(arr.size as isize);
             for i in 0..arr.size {
                 let mut li_tv = TypVal {
@@ -416,13 +416,13 @@ pub fn object_to_vim_take_luaref(
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Number(0),
                 };
-                object_to_vim_take_luaref(&mut *arr.items.add(i), &mut li_tv, take_luaref, _err);
+                object_to_vim_take_luaref(&mut arr[i], &mut li_tv, take_luaref, _err);
                 tv_list_append_owned_tv(list, li_tv);
             }
             list.lv_refcount += 1;
             tv_ref.v_type = VarType::VarList;
             tv_ref.vval = TypvalVval::List(list);
-        },
+        }
         ObjectType::ObjectTypeDict => {
             let mut d = obj.data.dict();
             let dict = tv_dict_alloc();
@@ -510,10 +510,7 @@ mod tests {
             let cyc_obj = vim_to_object(&mut list_tv, None, false);
             assert_eq!(cyc_obj.obj_type, ObjectType::ObjectTypeArray);
             assert_eq!(cyc_obj.data.array().size, 1);
-            assert_eq!(
-                (*cyc_obj.data.array().items).obj_type,
-                ObjectType::ObjectTypeNil
-            );
+            assert_eq!(cyc_obj.data.array()[0].obj_type, ObjectType::ObjectTypeNil);
             crate::api::private::helpers::api_free_object(cyc_obj);
             (*list.lv_first).li_tv.v_type = VarType::VarUnknown;
             crate::eval::typval::tv_list_free(list);

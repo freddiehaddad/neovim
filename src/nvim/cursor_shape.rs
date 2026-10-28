@@ -113,8 +113,8 @@ pub fn shape_table_mut() -> &'static mut [Cursorentry; SHAPE_IDX_COUNT] {
 fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     assert!(dic.size < dic.capacity);
     let key_bytes = key.to_bytes();
-    unsafe {
-        *dic.items.add(dic.size) = KeyValuePair {
+    {
+        *dic.next_slot_mut() = KeyValuePair {
             key: NvimString {
                 data: key.as_ptr().cast_mut(),
                 size: key_bytes.len(),
@@ -260,7 +260,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                 );
             }
             assert!(all.size < all.capacity);
-            *all.items.add(all.size) = Object {
+            *all.next_slot_mut() = Object {
                 obj_type: ObjectType::ObjectTypeDict,
                 data: ObjectData::Dict(dic),
             };

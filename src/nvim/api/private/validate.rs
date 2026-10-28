@@ -154,12 +154,9 @@ impl Array {
     }
 
     #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [Object] {
-        if self.size == 0 || self.items.is_null() {
-            &mut []
-        } else {
-            unsafe { std::slice::from_raw_parts_mut(self.items, self.size) }
-        }
+    pub fn next_slot_mut(&mut self) -> &'static mut Object {
+        debug_assert!(!self.items.is_null());
+        unsafe { &mut *self.items.add(self.size) }
     }
 
     #[inline]
@@ -184,14 +181,16 @@ impl std::ops::Index<usize> for Array {
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        &self.as_slice()[index]
+        debug_assert!(!self.items.is_null());
+        unsafe { &*self.items.add(index) }
     }
 }
 
 impl std::ops::IndexMut<usize> for Array {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.as_mut_slice()[index]
+        debug_assert!(!self.items.is_null());
+        unsafe { &mut *self.items.add(index) }
     }
 }
 
@@ -239,6 +238,12 @@ impl Dict {
     }
 
     #[inline]
+    pub fn next_slot_mut(&mut self) -> &'static mut KeyValuePair {
+        debug_assert!(!self.items.is_null());
+        unsafe { &mut *self.items.add(self.size) }
+    }
+
+    #[inline]
     pub fn push(&mut self, value: KeyValuePair) {
         if self.size == self.capacity {
             self.capacity = if self.capacity != 0 {
@@ -260,14 +265,16 @@ impl std::ops::Index<usize> for Dict {
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        &self.as_slice()[index]
+        debug_assert!(!self.items.is_null());
+        unsafe { &*self.items.add(index) }
     }
 }
 
 impl std::ops::IndexMut<usize> for Dict {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.as_mut_slice()[index]
+        debug_assert!(!self.items.is_null());
+        unsafe { &mut *self.items.add(index) }
     }
 }
 

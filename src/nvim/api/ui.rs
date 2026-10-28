@@ -1075,7 +1075,7 @@ pub fn remote_ui_hl_attr_define(
     _cterm_attrs: HlAttrs,
     info: Array,
 ) {
-    unsafe {
+    {
         if !ui.ui_ext[K_UILINEGRID] {
             return;
         }
@@ -1097,7 +1097,7 @@ pub fn remote_ui_hl_attr_define(
 
         if rgb_attrs.url >= 0 {
             let url = hl_get_url(rgb_attrs.url as u32);
-            *rgb.items.add(rgb.size) = KeyValuePair {
+            *rgb.next_slot_mut() = KeyValuePair {
                 key: cstr_as_string(c"url"),
                 value: string_obj(cstr_as_string(url)),
             };
@@ -1394,22 +1394,22 @@ pub fn remote_ui_flush_pending_data(ui: &mut RemoteUI) {
 }
 
 fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let mut new_contents = arena_array(arena, contents.size);
         for i in 0..contents.size {
             let item = contents[i].data.array();
             let mut new_item = arena_array(arena, 2);
-            let attr = (*item.items).data.integer() as c_int;
+            let attr = item[0].data.integer() as c_int;
             if attr != 0 {
                 let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
                 hlattrs2dict(&mut rgb_attrs, None, syn_attr2entry(attr), ui.rgb, false);
-                *new_item.items.add(0) = dict_obj(rgb_attrs);
+                new_item[0] = dict_obj(rgb_attrs);
             } else {
-                *new_item.items.add(0) = dict_obj(DICT_INIT);
+                new_item[0] = dict_obj(DICT_INIT);
             }
-            *new_item.items.add(1) = item[1];
+            new_item[1] = item[1];
             new_item.size = 2;
-            *new_contents.items.add(i) = array_obj(new_item);
+            new_contents[i] = array_obj(new_item);
         }
         new_contents.size = contents.size;
         new_contents
@@ -1417,12 +1417,12 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> 
 }
 
 fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let mut new_args = arena_array(arena, args.size);
-        let contents = (*args.items).data.array();
-        *new_args.items.add(0) = array_obj(translate_contents(ui, contents, arena));
+        let contents = args[0].data.array();
+        new_args[0] = array_obj(translate_contents(ui, contents, arena));
         for i in 1..args.size {
-            *new_args.items.add(i) = args[i];
+            new_args[i] = args[i];
         }
         new_args.size = args.size;
         new_args
@@ -1444,10 +1444,10 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                 arena_mem_free(arena_finish(&mut arena));
                 return;
             } else if name == c"cmdline_block_show" {
-                let block = (*args.items).data.array();
+                let block = args[0].data.array();
                 let mut new_block = arena_array(&mut arena, block.size);
                 for i in 0..block.size {
-                    *new_block.items.add(i) =
+                    new_block[i] =
                         array_obj(translate_contents(ui, block[i].data.array(), &mut arena));
                 }
                 new_block.size = block.size;
@@ -1472,10 +1472,10 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
             if name == c"popupmenu_show" {
                 ui.wildmenu_active = args[4].data.integer() == -1 || !ui.ui_ext[K_UIPOPUPMENU];
                 if ui.wildmenu_active {
-                    let items = (*args.items).data.array();
+                    let items = args[0].data.array();
                     let mut new_items = arena_array(&mut arena, items.size);
                     for i in 0..items.size {
-                        *new_items.items.add(i) = *items[i].data.array().items;
+                        new_items[i] = *items[i].data.array().items;
                     }
                     new_items.size = items.size;
                     let mut new_args_items: [Object; 1] = [array_obj(new_items)];
