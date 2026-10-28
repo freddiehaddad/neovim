@@ -95,7 +95,7 @@ pub(crate) struct HunkPriv {
     iwhite: bool,
 }
 
-use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;
+use crate::api::private::dispatch::key_dict_xdl_diff_get_field;
 use crate::diff::{
     XDF_IGNORE_BLANK_LINES, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
     XDF_IGNORE_WHITESPACE_CHANGE,
@@ -307,7 +307,7 @@ fn process_xdl_diff_opts(
         nlua_pop_keydict_opt(
             lstate,
             (&raw mut opts).cast(),
-            Some(KeyDict_xdl_diff_get_field),
+            Some(key_dict_xdl_diff_get_field),
             &mut err_param,
             None,
             err,

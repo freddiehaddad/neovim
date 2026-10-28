@@ -102,11 +102,11 @@ use crate::highlight_group::KeyDict_get_highlight;
 use crate::lua::converter::{
     Boolean, FieldHashfn, Float, KeySetLink, LuaRef, lua_concat, lua_createtable, lua_error,
     lua_gettop, lua_pushcclosure, lua_pushstring, lua_setfield, luaL_error, luaL_where,
-    nlua_pop_Array, nlua_pop_Boolean, nlua_pop_Dict, nlua_pop_Float, nlua_pop_Integer,
-    nlua_pop_LuaRef, nlua_pop_Object, nlua_pop_String, nlua_pop_handle as nlua_pop_Buffer,
+    nlua_pop_array, nlua_pop_boolean, nlua_pop_dict, nlua_pop_float, nlua_pop_integer,
+    nlua_pop_lua_ref, nlua_pop_object, nlua_pop_string, nlua_pop_handle as nlua_pop_Buffer,
     nlua_pop_handle as nlua_pop_Tabpage, nlua_pop_handle as nlua_pop_Window, nlua_pop_keydict,
-    nlua_push_Array, nlua_push_Boolean, nlua_push_Dict, nlua_push_Float, nlua_push_Integer,
-    nlua_push_Object, nlua_push_String, nlua_push_handle as nlua_push_Buffer,
+    nlua_push_array, nlua_push_boolean, nlua_push_dict, nlua_push_float, nlua_push_integer,
+    nlua_push_object, nlua_push_string, nlua_push_handle as nlua_push_Buffer,
     nlua_push_handle as nlua_push_Tabpage, nlua_push_handle as nlua_push_Window, nlua_push_keydict,
 };
 use crate::lua::xdiff::KeyDict_xdl_diff;
@@ -342,7 +342,7 @@ pub fn _shada_buflist_item_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict__shada_buflist_item_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_shada_buflist_item_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = _shada_buflist_item_hash(key);
     (hash >= 0).then(|| &_SHADA_BUFLIST_ITEM_TABLE[hash as usize])
 }
@@ -395,7 +395,7 @@ pub fn _shada_mark_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict__shada_mark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_shada_mark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = _shada_mark_hash(key);
     (hash >= 0).then(|| &_SHADA_MARK_TABLE[hash as usize])
 }
@@ -456,7 +456,7 @@ pub fn _shada_register_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict__shada_register_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_shada_register_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = _shada_register_hash(key);
     (hash >= 0).then(|| &_SHADA_REGISTER_TABLE[hash as usize])
 }
@@ -557,7 +557,7 @@ pub fn _shada_search_pat_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict__shada_search_pat_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_shada_search_pat_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = _shada_search_pat_hash(key);
     (hash >= 0).then(|| &_SHADA_SEARCH_PAT_TABLE[hash as usize])
 }
@@ -634,7 +634,7 @@ pub fn buf_attach_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_buf_attach_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_buf_attach_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = buf_attach_hash(key);
     (hash >= 0).then(|| &BUF_ATTACH_TABLE[hash as usize])
 }
@@ -671,7 +671,7 @@ pub fn buf_delete_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_buf_delete_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_buf_delete_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = buf_delete_hash(key);
     (hash >= 0).then(|| &BUF_DELETE_TABLE[hash as usize])
 }
@@ -700,7 +700,7 @@ pub fn chan_set_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_chan_set_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_chan_set_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = chan_set_hash(key);
     (hash >= 0).then(|| &CHAN_SET_TABLE[hash as usize])
 }
@@ -761,7 +761,7 @@ pub fn clear_autocmds_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_clear_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_clear_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = clear_autocmds_hash(key);
     (hash >= 0).then(|| &CLEAR_AUTOCMDS_TABLE[hash as usize])
 }
@@ -870,7 +870,7 @@ pub fn cmd_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_cmd_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_cmd_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = cmd_hash(key);
     (hash >= 0).then(|| &CMD_TABLE[hash as usize])
 }
@@ -907,7 +907,7 @@ pub fn cmd_magic_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_cmd_magic_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_cmd_magic_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = cmd_magic_hash(key);
     (hash >= 0).then(|| &CMD_MAGIC_TABLE[hash as usize])
 }
@@ -1088,7 +1088,7 @@ pub fn cmd_mods_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_cmd_mods_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_cmd_mods_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = cmd_mods_hash(key);
     (hash >= 0).then(|| &CMD_MODS_TABLE[hash as usize])
 }
@@ -1125,7 +1125,7 @@ pub fn cmd_mods_filter_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_cmd_mods_filter_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_cmd_mods_filter_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = cmd_mods_filter_hash(key);
     (hash >= 0).then(|| &CMD_MODS_FILTER_TABLE[hash as usize])
 }
@@ -1154,7 +1154,7 @@ pub fn cmd_opts_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_cmd_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_cmd_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = cmd_opts_hash(key);
     (hash >= 0).then(|| &CMD_OPTS_TABLE[hash as usize])
 }
@@ -1183,7 +1183,7 @@ pub fn complete_set_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_complete_set_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_complete_set_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = complete_set_hash(key);
     (hash >= 0).then(|| &COMPLETE_SET_TABLE[hash as usize])
 }
@@ -1212,7 +1212,7 @@ pub fn context_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_context_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_context_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = context_hash(key);
     (hash >= 0).then(|| &CONTEXT_TABLE[hash as usize])
 }
@@ -1241,7 +1241,7 @@ pub fn create_augroup_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_create_augroup_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_create_augroup_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = create_augroup_hash(key);
     (hash >= 0).then(|| &CREATE_AUGROUP_TABLE[hash as usize])
 }
@@ -1334,7 +1334,7 @@ pub fn create_autocmd_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_create_autocmd_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_create_autocmd_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = create_autocmd_hash(key);
     (hash >= 0).then(|| &CREATE_AUTOCMD_TABLE[hash as usize])
 }
@@ -1435,7 +1435,7 @@ pub fn echo_opts_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_echo_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = echo_opts_hash(key);
     (hash >= 0).then(|| &ECHO_OPTS_TABLE[hash as usize])
 }
@@ -1453,7 +1453,7 @@ pub fn empty_hash(key: &[u8]) -> c_int {
     -1
 }
 
-pub fn KeyDict_empty_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_empty_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = empty_hash(key);
     (hash >= 0).then(|| &EMPTY_TABLE[hash as usize])
 }
@@ -1530,7 +1530,7 @@ pub fn eval_statusline_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_eval_statusline_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_eval_statusline_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = eval_statusline_hash(key);
     (hash >= 0).then(|| &EVAL_STATUSLINE_TABLE[hash as usize])
 }
@@ -1599,7 +1599,7 @@ pub fn exec_autocmds_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_exec_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_exec_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = exec_autocmds_hash(key);
     (hash >= 0).then(|| &EXEC_AUTOCMDS_TABLE[hash as usize])
 }
@@ -1628,7 +1628,7 @@ pub fn exec_opts_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_exec_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_exec_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = exec_opts_hash(key);
     (hash >= 0).then(|| &EXEC_OPTS_TABLE[hash as usize])
 }
@@ -1697,7 +1697,7 @@ pub fn get_autocmds_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_get_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_get_autocmds_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = get_autocmds_hash(key);
     (hash >= 0).then(|| &GET_AUTOCMDS_TABLE[hash as usize])
 }
@@ -1726,7 +1726,7 @@ pub fn get_commands_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_get_commands_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_get_commands_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = get_commands_hash(key);
     (hash >= 0).then(|| &GET_COMMANDS_TABLE[hash as usize])
 }
@@ -1763,7 +1763,7 @@ pub fn get_extmark_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_get_extmark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_get_extmark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = get_extmark_hash(key);
     (hash >= 0).then(|| &GET_EXTMARK_TABLE[hash as usize])
 }
@@ -1824,7 +1824,7 @@ pub fn get_extmarks_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_get_extmarks_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_get_extmarks_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = get_extmarks_hash(key);
     (hash >= 0).then(|| &GET_EXTMARKS_TABLE[hash as usize])
 }
@@ -1877,7 +1877,7 @@ pub fn get_highlight_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_get_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_get_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = get_highlight_hash(key);
     (hash >= 0).then(|| &GET_HIGHLIGHT_TABLE[hash as usize])
 }
@@ -1906,7 +1906,7 @@ pub fn get_ns_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_get_ns_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_get_ns_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = get_ns_hash(key);
     (hash >= 0).then(|| &GET_NS_TABLE[hash as usize])
 }
@@ -2215,7 +2215,7 @@ pub fn highlight_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_highlight_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = highlight_hash(key);
     (hash >= 0).then(|| &HIGHLIGHT_TABLE[hash as usize])
 }
@@ -2364,7 +2364,7 @@ pub fn highlight_cterm_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_highlight_cterm_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_highlight_cterm_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = highlight_cterm_hash(key);
     (hash >= 0).then(|| &HIGHLIGHT_CTERM_TABLE[hash as usize])
 }
@@ -2457,7 +2457,7 @@ pub fn keymap_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_keymap_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_keymap_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = keymap_hash(key);
     (hash >= 0).then(|| &KEYMAP_TABLE[hash as usize])
 }
@@ -2486,7 +2486,7 @@ pub fn keymap_del_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_keymap_del_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_keymap_del_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = keymap_del_hash(key);
     (hash >= 0).then(|| &KEYMAP_DEL_TABLE[hash as usize])
 }
@@ -2515,7 +2515,7 @@ pub fn ns_opts_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_ns_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_ns_opts_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = ns_opts_hash(key);
     (hash >= 0).then(|| &NS_OPTS_TABLE[hash as usize])
 }
@@ -2552,7 +2552,7 @@ pub fn open_term_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_open_term_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_open_term_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = open_term_hash(key);
     (hash >= 0).then(|| &OPEN_TERM_TABLE[hash as usize])
 }
@@ -2629,7 +2629,7 @@ pub fn option_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_option_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_option_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = option_hash(key);
     (hash >= 0).then(|| &OPTION_TABLE[hash as usize])
 }
@@ -2730,7 +2730,7 @@ pub fn redraw_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_redraw_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_redraw_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = redraw_hash(key);
     (hash >= 0).then(|| &REDRAW_TABLE[hash as usize])
 }
@@ -2767,7 +2767,7 @@ pub fn runtime_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_runtime_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_runtime_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = runtime_hash(key);
     (hash >= 0).then(|| &RUNTIME_TABLE[hash as usize])
 }
@@ -2860,7 +2860,7 @@ pub fn set_decoration_provider_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_set_decoration_provider_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_set_decoration_provider_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = set_decoration_provider_hash(key);
     (hash >= 0).then(|| &SET_DECORATION_PROVIDER_TABLE[hash as usize])
 }
@@ -3161,7 +3161,7 @@ pub fn set_extmark_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_set_extmark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_set_extmark_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = set_extmark_hash(key);
     (hash >= 0).then(|| &SET_EXTMARK_TABLE[hash as usize])
 }
@@ -3190,7 +3190,7 @@ pub fn tabpage_config_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_tabpage_config_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_tabpage_config_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = tabpage_config_hash(key);
     (hash >= 0).then(|| &TABPAGE_CONFIG_TABLE[hash as usize])
 }
@@ -3307,7 +3307,7 @@ pub fn user_command_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_user_command_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_user_command_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = user_command_hash(key);
     (hash >= 0).then(|| &USER_COMMAND_TABLE[hash as usize])
 }
@@ -3520,7 +3520,7 @@ pub fn win_config_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_win_config_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_win_config_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = win_config_hash(key);
     (hash >= 0).then(|| &WIN_CONFIG_TABLE[hash as usize])
 }
@@ -3549,7 +3549,7 @@ pub fn win_resize_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_win_resize_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_win_resize_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = win_resize_hash(key);
     (hash >= 0).then(|| &WIN_RESIZE_TABLE[hash as usize])
 }
@@ -3610,7 +3610,7 @@ pub fn win_text_height_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_win_text_height_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_win_text_height_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = win_text_height_hash(key);
     (hash >= 0).then(|| &WIN_TEXT_HEIGHT_TABLE[hash as usize])
 }
@@ -3727,7 +3727,7 @@ pub fn xdl_diff_hash(key: &[u8]) -> c_int {
     }
 }
 
-pub fn KeyDict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+pub fn key_dict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = xdl_diff_hash(key);
     (hash >= 0).then(|| &XDL_DIFF_TABLE[hash as usize])
 }
@@ -3756,7 +3756,7 @@ pub fn handle_nvim_get_autocmds(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *", error) {
+            && !extract_keydict(args[0], &mut arg_1, Some(key_dict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *", error) {
                 return ret;
             }
         let rv = nvim_get_autocmds(&mut arg_1, arena, error);
@@ -3793,7 +3793,7 @@ pub fn handle_nvim_create_autocmd(
         }
         let arg_1: Object = args[0];
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *", error) {
                 return ret;
             }
         let rv = nvim_create_autocmd(channel_id, arg_1, &mut arg_2, arena, error);
@@ -3868,7 +3868,7 @@ pub fn handle_nvim_clear_autocmds(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *", error) {
+            && !extract_keydict(args[0], &mut arg_1, Some(key_dict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *", error) {
                 return ret;
             }
         nvim_clear_autocmds(&mut arg_1, arena, error);
@@ -3912,7 +3912,7 @@ pub fn handle_nvim_create_augroup(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *", error) {
                 return ret;
             }
         let rv = nvim_create_augroup(channel_id, arg_1, &mut arg_2, error);
@@ -4027,7 +4027,7 @@ pub fn handle_nvim_exec_autocmds(
         }
         let arg_1: Object = args[0];
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *", error) {
                 return ret;
             }
         nvim_exec_autocmds(arg_1, &mut arg_2, arena, error);
@@ -4122,7 +4122,7 @@ pub fn handle_nvim_buf_attach(
             return ret;
         }
         if args.size >= 3
-            && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *", error) {
+            && !extract_keydict(args[2], &mut arg_3, Some(key_dict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *", error) {
                 return ret;
             }
         let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &mut arg_3, error);
@@ -4493,7 +4493,7 @@ pub fn handle_nvim_buf_get_text(
             return ret;
         }
         if args.size >= 6
-            && !extract_keydict(args[5], &mut arg_6, Some(KeyDict_empty_get_field), c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *", error) {
+            && !extract_keydict(args[5], &mut arg_6, Some(key_dict_empty_get_field), c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *", error) {
                 return ret;
             }
         let rv = nvim_buf_get_text(
@@ -4768,7 +4768,7 @@ pub fn handle_nvim_buf_set_keymap(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_keymap_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *", error) {
+            && !extract_keydict(args[4], &mut arg_5, Some(key_dict_keymap_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *", error) {
                 return ret;
             }
         nvim_buf_set_keymap(
@@ -4839,7 +4839,7 @@ pub fn handle_nvim_buf_del_keymap(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *", error) {
+            && !extract_keydict(args[3], &mut arg_4, Some(key_dict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *", error) {
                 return ret;
             }
         nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
@@ -5111,7 +5111,7 @@ pub fn handle_nvim_buf_delete(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_buf_delete_get_field), c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_buf_delete_get_field), c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *", error) {
                 return ret;
             }
         if text_locked() {
@@ -5275,7 +5275,7 @@ pub fn handle_nvim_buf_set_mark(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *", error) {
+            && !extract_keydict(args[4], &mut arg_5, Some(key_dict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *", error) {
                 return ret;
             }
         let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
@@ -5337,7 +5337,7 @@ pub fn handle_nvim_buf_get_mark(
     }
 }
 
-pub fn handle_nvim__buf_stats(
+pub fn handle_nvim_buf_stats(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -5414,7 +5414,7 @@ pub fn handle_nvim_parse_cmd(
             && !extract_keydict(
                 args[1],
                 &mut arg_2,
-                Some(KeyDict_empty_get_field),
+                Some(key_dict_empty_get_field),
                 c"Wrong type for argument 2 when calling nvim_parse_cmd, expecting Dict(empty) *",
                 error,
             )
@@ -5462,7 +5462,7 @@ pub fn handle_nvim_cmd(
         if !extract_keydict(
             args[0],
             &mut arg_1,
-            Some(KeyDict_cmd_get_field),
+            Some(key_dict_cmd_get_field),
             c"Wrong type for argument 1 when calling nvim_cmd, expecting Dict(cmd) *",
             error,
         ) {
@@ -5472,7 +5472,7 @@ pub fn handle_nvim_cmd(
             && !extract_keydict(
                 args[1],
                 &mut arg_2,
-                Some(KeyDict_cmd_opts_get_field),
+                Some(key_dict_cmd_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim_cmd, expecting Dict(cmd_opts) *",
                 error,
             )
@@ -5522,7 +5522,7 @@ pub fn handle_nvim_create_user_command(
         }
         let arg_2: Object = args[1];
         if args.size >= 3
-            && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *", error) {
+            && !extract_keydict(args[2], &mut arg_3, Some(key_dict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *", error) {
                 return ret;
             }
         nvim_create_user_command(channel_id, arg_1, arg_2, &mut arg_3, error);
@@ -5605,7 +5605,7 @@ pub fn handle_nvim_buf_create_user_command(
         }
         let arg_3: Object = args[2];
         if args.size >= 4
-            && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *", error) {
+            && !extract_keydict(args[3], &mut arg_4, Some(key_dict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *", error) {
                 return ret;
             }
         nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
@@ -5689,7 +5689,7 @@ pub fn handle_nvim_get_commands(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *", error) {
+            && !extract_keydict(args[0], &mut arg_1, Some(key_dict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *", error) {
                 return ret;
             }
         let rv = nvim_get_commands(&mut arg_1, arena, error);
@@ -5735,7 +5735,7 @@ pub fn handle_nvim_buf_get_commands(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *", error) {
                 return ret;
             }
         let rv = nvim_buf_get_commands(arg_1, &mut arg_2, arena, error);
@@ -6140,7 +6140,7 @@ pub fn handle_nvim_buf_set_virtual_text(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *", error) {
+            && !extract_keydict(args[4], &mut arg_5, Some(key_dict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *", error) {
                 return ret;
             }
         let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
@@ -7904,7 +7904,7 @@ pub fn handle_nvim_buf_get_extmark_by_id(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *", error) {
+            && !extract_keydict(args[3], &mut arg_4, Some(key_dict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *", error) {
                 return ret;
             }
         let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &mut arg_4, arena, error);
@@ -7961,7 +7961,7 @@ pub fn handle_nvim_buf_get_extmarks(
         let arg_3: Object = args[2];
         let arg_4: Object = args[3];
         if args.size >= 5
-            && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *", error) {
+            && !extract_keydict(args[4], &mut arg_5, Some(key_dict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *", error) {
                 return ret;
             }
         let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &mut arg_5, arena, error);
@@ -8034,7 +8034,7 @@ pub fn handle_nvim_buf_set_extmark(
             return ret;
         }
         if args.size >= 5
-            && !extract_keydict(args[4], &mut arg_5, Some(KeyDict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *", error) {
+            && !extract_keydict(args[4], &mut arg_5, Some(key_dict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *", error) {
                 return ret;
             }
         let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
@@ -8172,7 +8172,7 @@ pub fn handle_nvim_buf_clear_namespace(
     }
 }
 
-pub fn handle_nvim__buf_debug_extmarks(
+pub fn handle_nvim_buf_debug_extmarks(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -8231,7 +8231,7 @@ pub fn handle_nvim__buf_debug_extmarks(
     }
 }
 
-pub fn handle_nvim__ns_set(
+pub fn handle_nvim_ns_set(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -8267,7 +8267,7 @@ pub fn handle_nvim__ns_set(
             && !extract_keydict(
                 args[1],
                 &mut arg_2,
-                Some(KeyDict_ns_opts_get_field),
+                Some(key_dict_ns_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim__ns_set, expecting Dict(ns_opts) *",
                 error,
             )
@@ -8282,7 +8282,7 @@ pub fn handle_nvim__ns_set(
     }
 }
 
-pub fn handle_nvim__ns_get(
+pub fn handle_nvim_ns_get(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -8360,7 +8360,7 @@ pub fn handle_nvim_get_option_value(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *", error) {
                 return ret;
             }
         let rv = nvim_get_option_value(arg_1, &mut arg_2, error);
@@ -8406,7 +8406,7 @@ pub fn handle_nvim_set_option_value(
         }
         let arg_2: Object = args[1];
         if args.size >= 3
-            && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *", error) {
+            && !extract_keydict(args[2], &mut arg_3, Some(key_dict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *", error) {
                 return ret;
             }
         let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &mut arg_3, arena, error);
@@ -8482,7 +8482,7 @@ pub fn handle_nvim_get_option_info2(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *", error) {
                 return ret;
             }
         let rv = nvim_get_option_info2(arg_1, &mut arg_2, arena, error);
@@ -8896,7 +8896,7 @@ pub fn handle_nvim_open_tabpage(
         ) {
             return ret;
         }
-        if !extract_keydict(args[2], &mut arg_3, Some(KeyDict_tabpage_config_get_field), c"Wrong type for argument 3 when calling nvim_open_tabpage, expecting Dict(tabpage_config) *", error) {
+        if !extract_keydict(args[2], &mut arg_3, Some(key_dict_tabpage_config_get_field), c"Wrong type for argument 3 when calling nvim_open_tabpage, expecting Dict(tabpage_config) *", error) {
             return ret;
         }
         if text_locked() {
@@ -9457,7 +9457,7 @@ pub fn handle_nvim_get_hl(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *", error) {
                 return ret;
             }
         let rv = nvim_get_hl(arg_1, &mut arg_2, arena, error);
@@ -9513,7 +9513,7 @@ pub fn handle_nvim_set_hl(
         if !extract_keydict(
             args[2],
             &mut arg_3,
-            Some(KeyDict_highlight_get_field),
+            Some(key_dict_highlight_get_field),
             c"Wrong type for argument 3 when calling nvim_set_hl, expecting Dict(highlight) *",
             error,
         ) {
@@ -9554,7 +9554,7 @@ pub fn handle_nvim_get_hl_ns(
             && !extract_keydict(
                 args[0],
                 &mut arg_1,
-                Some(KeyDict_get_ns_get_field),
+                Some(key_dict_get_ns_get_field),
                 c"Wrong type for argument 1 when calling nvim_get_hl_ns, expecting Dict(get_ns) *",
                 error,
             )
@@ -9936,7 +9936,7 @@ pub fn handle_nvim_exec_lua(
     }
 }
 
-pub fn handle_nvim__exec_lua_fast(
+pub fn handle_nvim_exec_lua_fast(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -10056,7 +10056,7 @@ pub fn handle_nvim_list_runtime_paths(
     }
 }
 
-pub fn handle_nvim__runtime_inspect(
+pub fn handle_nvim_runtime_inspect(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -10133,7 +10133,7 @@ pub fn handle_nvim_get_runtime_file(
     }
 }
 
-pub fn handle_nvim__get_lib_dir(
+pub fn handle_nvim_get_lib_dir(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -10161,7 +10161,7 @@ pub fn handle_nvim__get_lib_dir(
     }
 }
 
-pub fn handle_nvim__get_runtime(
+pub fn handle_nvim_get_runtime(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -10203,7 +10203,7 @@ pub fn handle_nvim__get_runtime(
             return ret;
         }
         if args.size >= 3
-            && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *", error) {
+            && !extract_keydict(args[2], &mut arg_3, Some(key_dict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *", error) {
                 return ret;
             }
         let rv = nvim__get_runtime(arg_1, arg_2, &mut arg_3, arena, error);
@@ -10601,7 +10601,7 @@ pub fn handle_nvim_echo(
             && !extract_keydict(
                 args[2],
                 &mut arg_3,
-                Some(KeyDict_echo_opts_get_field),
+                Some(key_dict_echo_opts_get_field),
                 c"Wrong type for argument 3 when calling nvim_echo, expecting Dict(echo_opts) *",
                 error,
             )
@@ -10900,7 +10900,7 @@ pub fn handle_nvim_open_term(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_open_term_get_field), c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_open_term_get_field), c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *", error) {
                 return ret;
             }
         if text_locked() {
@@ -11285,7 +11285,7 @@ pub fn handle_nvim_get_context(
             return ret;
         }
         if args.size >= 1
-            && !extract_keydict(args[0], &mut arg_1, Some(KeyDict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *", error) {
+            && !extract_keydict(args[0], &mut arg_1, Some(key_dict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *", error) {
                 return ret;
             }
         let rv = nvim_get_context(&mut arg_1, arena, error);
@@ -11456,7 +11456,7 @@ pub fn handle_nvim_set_keymap(
             && !extract_keydict(
                 args[3],
                 &mut arg_4,
-                Some(KeyDict_keymap_get_field),
+                Some(key_dict_keymap_get_field),
                 c"Wrong type for argument 4 when calling nvim_set_keymap, expecting Dict(keymap) *",
                 error,
             )
@@ -11513,7 +11513,7 @@ pub fn handle_nvim_del_keymap(
             return ret;
         }
         if args.size >= 3
-            && !extract_keydict(args[2], &mut arg_3, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *", error) {
+            && !extract_keydict(args[2], &mut arg_3, Some(key_dict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *", error) {
                 return ret;
             }
         nvim_del_keymap(channel_id, arg_1, arg_2, &mut arg_3, error);
@@ -11662,7 +11662,7 @@ pub fn handle_nvim_chan_set(
         if !extract_keydict(
             args[1],
             &mut arg_2,
-            Some(KeyDict_chan_set_get_field),
+            Some(key_dict_chan_set_get_field),
             c"Wrong type for argument 2 when calling nvim_chan_set, expecting Dict(chan_set) *",
             error,
         ) {
@@ -11676,7 +11676,7 @@ pub fn handle_nvim_chan_set(
     }
 }
 
-pub fn handle_nvim__cmdwin_set(
+pub fn handle_nvim_cmdwin_set(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -11793,7 +11793,7 @@ pub fn handle_nvim_list_chans(
     }
 }
 
-pub fn handle_nvim__id(
+pub fn handle_nvim_id(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -11822,7 +11822,7 @@ pub fn handle_nvim__id(
     }
 }
 
-pub fn handle_nvim__id_array(
+pub fn handle_nvim_id_array(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -11859,7 +11859,7 @@ pub fn handle_nvim__id_array(
     }
 }
 
-pub fn handle_nvim__id_dict(
+pub fn handle_nvim_id_dict(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -11896,7 +11896,7 @@ pub fn handle_nvim__id_dict(
     }
 }
 
-pub fn handle_nvim__id_float(
+pub fn handle_nvim_id_float(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -11933,7 +11933,7 @@ pub fn handle_nvim__id_float(
     }
 }
 
-pub fn handle_nvim__stats(
+pub fn handle_nvim_stats(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -12120,7 +12120,7 @@ pub fn handle_nvim_select_popupmenu_item(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *", error) {
+            && !extract_keydict(args[3], &mut arg_4, Some(key_dict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *", error) {
                 return ret;
             }
         nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &mut arg_4, error);
@@ -12131,7 +12131,7 @@ pub fn handle_nvim_select_popupmenu_item(
     }
 }
 
-pub fn handle_nvim__inspect_cell(
+pub fn handle_nvim_inspect_cell(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -12189,7 +12189,7 @@ pub fn handle_nvim__inspect_cell(
     }
 }
 
-pub fn handle_nvim__screenshot(
+pub fn handle_nvim_screenshot(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -12225,7 +12225,7 @@ pub fn handle_nvim__screenshot(
     }
 }
 
-pub fn handle_nvim__invalidate_glyph_cache(
+pub fn handle_nvim_invalidate_glyph_cache(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -12252,7 +12252,7 @@ pub fn handle_nvim__invalidate_glyph_cache(
     }
 }
 
-pub fn handle_nvim__unpack(
+pub fn handle_nvim_unpack(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -12368,7 +12368,7 @@ pub fn handle_nvim_get_mark(
             && !extract_keydict(
                 args[1],
                 &mut arg_2,
-                Some(KeyDict_empty_get_field),
+                Some(key_dict_empty_get_field),
                 c"Wrong type for argument 2 when calling nvim_get_mark, expecting Dict(empty) *",
                 error,
             )
@@ -12417,7 +12417,7 @@ pub fn handle_nvim_eval_statusline(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *", error) {
                 return ret;
             }
         let rv = nvim_eval_statusline(arg_1, &mut arg_2, arena, error);
@@ -12429,7 +12429,7 @@ pub fn handle_nvim_eval_statusline(
     }
 }
 
-pub fn handle_nvim__complete_set(
+pub fn handle_nvim_complete_set(
     channel_id: u64,
     args: Array,
     arena: &mut Arena,
@@ -12462,7 +12462,7 @@ pub fn handle_nvim__complete_set(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *", error) {
                 return ret;
             }
         let rv = nvim__complete_set(arg_1, &mut arg_2, arena, error);
@@ -12474,7 +12474,7 @@ pub fn handle_nvim__complete_set(
     }
 }
 
-pub fn handle_nvim__redraw(
+pub fn handle_nvim_redraw(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -12501,7 +12501,7 @@ pub fn handle_nvim__redraw(
             && !extract_keydict(
                 args[0],
                 &mut arg_1,
-                Some(KeyDict_redraw_get_field),
+                Some(key_dict_redraw_get_field),
                 c"Wrong type for argument 1 when calling nvim__redraw, expecting Dict(redraw) *",
                 error,
             )
@@ -12516,7 +12516,7 @@ pub fn handle_nvim__redraw(
     }
 }
 
-pub fn handle_nvim__set_restart_on_crash(
+pub fn handle_nvim_set_restart_on_crash(
     channel_id: u64,
     args: Array,
     _arena: &mut Arena,
@@ -12597,7 +12597,7 @@ pub fn handle_nvim_exec2(
             && !extract_keydict(
                 args[1],
                 &mut arg_2,
-                Some(KeyDict_exec_opts_get_field),
+                Some(key_dict_exec_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim_exec2, expecting Dict(exec_opts) *",
                 error,
             )
@@ -12894,7 +12894,7 @@ pub fn handle_nvim_open_win(
         if !extract_keydict(
             args[2],
             &mut arg_3,
-            Some(KeyDict_win_config_get_field),
+            Some(key_dict_win_config_get_field),
             c"Wrong type for argument 3 when calling nvim_open_win, expecting Dict(win_config) *",
             error,
         ) {
@@ -12946,7 +12946,7 @@ pub fn handle_nvim_win_set_config(
         ) {
             return ret;
         }
-        if !extract_keydict(args[1], &mut arg_2, Some(KeyDict_win_config_get_field), c"Wrong type for argument 2 when calling nvim_win_set_config, expecting Dict(win_config) *", error) {
+        if !extract_keydict(args[1], &mut arg_2, Some(key_dict_win_config_get_field), c"Wrong type for argument 2 when calling nvim_win_set_config, expecting Dict(win_config) *", error) {
             return ret;
         }
         nvim_win_set_config(arg_1, &mut arg_2, error);
@@ -13755,7 +13755,7 @@ pub fn handle_nvim_win_text_height(
             return ret;
         }
         if args.size >= 2
-            && !extract_keydict(args[1], &mut arg_2, Some(KeyDict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *", error) {
+            && !extract_keydict(args[1], &mut arg_2, Some(key_dict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *", error) {
                 return ret;
             }
         let rv = nvim_win_text_height(arg_1, &mut arg_2, arena, error);
@@ -13819,7 +13819,7 @@ pub fn handle_nvim_win_resize(
             return ret;
         }
         if args.size >= 4
-            && !extract_keydict(args[3], &mut arg_4, Some(KeyDict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *", error) {
+            && !extract_keydict(args[3], &mut arg_4, Some(key_dict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *", error) {
                 return ret;
             }
         nvim_win_resize(arg_1, arg_2, arg_3, &mut arg_4, error);
@@ -13843,7 +13843,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__id",
-        r#fn: rpc_fn!(handle_nvim__id),
+        r#fn: rpc_fn!(handle_nvim_id),
         fast: false,
         ret_alloc: false,
     },
@@ -13951,7 +13951,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__stats",
-        r#fn: rpc_fn!(handle_nvim__stats),
+        r#fn: rpc_fn!(handle_nvim_stats),
         fast: false,
         ret_alloc: false,
     },
@@ -13987,7 +13987,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__redraw",
-        r#fn: rpc_fn!(handle_nvim__redraw),
+        r#fn: rpc_fn!(handle_nvim_redraw),
         fast: false,
         ret_alloc: false,
     },
@@ -14005,19 +14005,19 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__unpack",
-        r#fn: rpc_fn!(handle_nvim__unpack),
+        r#fn: rpc_fn!(handle_nvim_unpack),
         fast: true,
         ret_alloc: false,
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__ns_get",
-        r#fn: rpc_fn!(handle_nvim__ns_get),
+        r#fn: rpc_fn!(handle_nvim_ns_get),
         fast: false,
         ret_alloc: false,
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__ns_set",
-        r#fn: rpc_fn!(handle_nvim__ns_set),
+        r#fn: rpc_fn!(handle_nvim_ns_set),
         fast: false,
         ret_alloc: false,
     },
@@ -14059,7 +14059,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__id_dict",
-        r#fn: rpc_fn!(handle_nvim__id_dict),
+        r#fn: rpc_fn!(handle_nvim_id_dict),
         fast: false,
         ret_alloc: false,
     },
@@ -14155,13 +14155,13 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__id_array",
-        r#fn: rpc_fn!(handle_nvim__id_array),
+        r#fn: rpc_fn!(handle_nvim_id_array),
         fast: false,
         ret_alloc: false,
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__id_float",
-        r#fn: rpc_fn!(handle_nvim__id_float),
+        r#fn: rpc_fn!(handle_nvim_id_float),
         fast: false,
         ret_alloc: false,
     },
@@ -14437,7 +14437,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__buf_stats",
-        r#fn: rpc_fn!(handle_nvim__buf_stats),
+        r#fn: rpc_fn!(handle_nvim_buf_stats),
         fast: false,
         ret_alloc: false,
     },
@@ -14479,7 +14479,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__cmdwin_set",
-        r#fn: rpc_fn!(handle_nvim__cmdwin_set),
+        r#fn: rpc_fn!(handle_nvim_cmdwin_set),
         fast: false,
         ret_alloc: false,
     },
@@ -14563,7 +14563,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__screenshot",
-        r#fn: rpc_fn!(handle_nvim__screenshot),
+        r#fn: rpc_fn!(handle_nvim_screenshot),
         fast: true,
         ret_alloc: false,
     },
@@ -14659,7 +14659,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__get_lib_dir",
-        r#fn: rpc_fn!(handle_nvim__get_lib_dir),
+        r#fn: rpc_fn!(handle_nvim_get_lib_dir),
         fast: false,
         ret_alloc: true,
     },
@@ -14713,7 +14713,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__get_runtime",
-        r#fn: rpc_fn!(handle_nvim__get_runtime),
+        r#fn: rpc_fn!(handle_nvim_get_runtime),
         fast: true,
         ret_alloc: false,
     },
@@ -14869,13 +14869,13 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__complete_set",
-        r#fn: rpc_fn!(handle_nvim__complete_set),
+        r#fn: rpc_fn!(handle_nvim_complete_set),
         fast: false,
         ret_alloc: false,
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__inspect_cell",
-        r#fn: rpc_fn!(handle_nvim__inspect_cell),
+        r#fn: rpc_fn!(handle_nvim_inspect_cell),
         fast: false,
         ret_alloc: false,
     },
@@ -14911,7 +14911,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__exec_lua_fast",
-        r#fn: rpc_fn!(handle_nvim__exec_lua_fast),
+        r#fn: rpc_fn!(handle_nvim_exec_lua_fast),
         fast: true,
         ret_alloc: false,
     },
@@ -15205,7 +15205,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__runtime_inspect",
-        r#fn: rpc_fn!(handle_nvim__runtime_inspect),
+        r#fn: rpc_fn!(handle_nvim_runtime_inspect),
         fast: false,
         ret_alloc: false,
     },
@@ -15481,7 +15481,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__buf_debug_extmarks",
-        r#fn: rpc_fn!(handle_nvim__buf_debug_extmarks),
+        r#fn: rpc_fn!(handle_nvim_buf_debug_extmarks),
         fast: false,
         ret_alloc: true,
     },
@@ -15505,7 +15505,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__set_restart_on_crash",
-        r#fn: rpc_fn!(handle_nvim__set_restart_on_crash),
+        r#fn: rpc_fn!(handle_nvim_set_restart_on_crash),
         fast: false,
         ret_alloc: false,
     },
@@ -15523,7 +15523,7 @@ pub static METHOD_HANDLERS: [MsgpackRpcRequestHandler; 283] = [
     },
     MsgpackRpcRequestHandler {
         name: c"nvim__invalidate_glyph_cache",
-        r#fn: rpc_fn!(handle_nvim__invalidate_glyph_cache),
+        r#fn: rpc_fn!(handle_nvim_invalidate_glyph_cache),
         fast: false,
         ret_alloc: false,
     },
@@ -15924,7 +15924,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg1).cast(),
-                        Some(KeyDict_get_autocmds_get_field),
+                        Some(key_dict_get_autocmds_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -15936,7 +15936,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_autocmds(&mut arg1, &mut arena, &mut err);
-                nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -15969,7 +15969,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_create_autocmd_get_field),
+                        Some(key_dict_create_autocmd_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -15978,7 +15978,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"event");
                     break 'exit_1;
@@ -15992,7 +15992,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                     &mut arena,
                     &mut err,
                 );
-                nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
                 api_luarefs_free_object(arg1);
             }
@@ -16023,7 +16023,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) ->
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_autocmd");
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"id");
                 break 'exit_0;
@@ -16060,7 +16060,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State)
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg1).cast(),
-                        Some(KeyDict_clear_autocmds_get_field),
+                        Some(key_dict_clear_autocmds_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -16107,7 +16107,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_create_augroup_get_field),
+                        Some(key_dict_create_augroup_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -16116,7 +16116,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -16124,7 +16124,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_create_augroup(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
-                nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -16154,7 +16154,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_Sta
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_id");
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"id");
                 break 'exit_0;
@@ -16186,7 +16186,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_S
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_name");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -16224,7 +16224,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_exec_autocmds_get_field),
+                        Some(key_dict_exec_autocmds_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -16233,7 +16233,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"event");
                     break 'exit_1;
@@ -16279,7 +16279,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State)
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_buf_line_count(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -16312,7 +16312,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                         nlua_pop_keydict(
                             lstate,
                             (&raw mut arg3).cast(),
-                            Some(KeyDict_buf_attach_get_field),
+                            Some(key_dict_buf_attach_get_field),
                             &mut err_param,
                             &mut arena,
                             &mut err,
@@ -16321,7 +16321,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                             break 'exit_1;
                         }
                     }
-                    arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"send_buffer");
                         break 'exit_1;
@@ -16335,7 +16335,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                     nlua_st().active_lstate = lstate;
                     let ret =
                         nvim_buf_attach(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3, &mut err);
-                    nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -16372,17 +16372,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
                         if !nlua_is_deferred_safe() {
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_lines");
                         }
-                        arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"strict_indexing");
                             break 'exit_0;
                         }
-                        arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"end");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"start");
                             break 'exit_2;
@@ -16453,22 +16453,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) 
                                 );
                                 break 'exit_0;
                             }
-                            arg5 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                            arg5 = nlua_pop_array(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"replacement");
                                 break 'exit_0;
                             }
-                            arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"strict_indexing");
                                 break 'exit_1;
                             }
-                            arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end");
                                 break 'exit_2;
                             }
-                            arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start");
                                 break 'exit_3;
@@ -16536,27 +16536,27 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -
                                     );
                                     break 'exit_0;
                                 }
-                                arg6 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                                arg6 = nlua_pop_array(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"replacement");
                                     break 'exit_0;
                                 }
-                                arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_col");
                                     break 'exit_1;
                                 }
-                                arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_row");
                                     break 'exit_2;
                                 }
-                                arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_col");
                                     break 'exit_3;
                                 }
-                                arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_row");
                                     break 'exit_4;
@@ -16622,7 +16622,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                     nlua_pop_keydict(
                                         lstate,
                                         (&raw mut arg6).cast(),
-                                        Some(KeyDict_empty_get_field),
+                                        Some(key_dict_empty_get_field),
                                         &mut err_param,
                                         &mut arena,
                                         &mut err,
@@ -16631,22 +16631,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                         break 'exit_1;
                                     }
                                 }
-                                arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_col");
                                     break 'exit_1;
                                 }
-                                arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"end_row");
                                     break 'exit_2;
                                 }
-                                arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_col");
                                     break 'exit_3;
                                 }
-                                arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"start_row");
                                     break 'exit_4;
@@ -16711,7 +16711,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_offset");
                 }
-                arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"index");
                     break 'exit_0;
@@ -16724,7 +16724,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_buf_get_offset(arg1, arg2, &mut err);
-                nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -16752,7 +16752,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) ->
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_var");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -16765,7 +16765,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) ->
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let mut ret = nvim_buf_get_var(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -16799,7 +16799,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_S
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_buf_get_changedtick(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -16826,7 +16826,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_keymap");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"mode");
                     break 'exit_0;
@@ -16839,7 +16839,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_buf_get_keymap(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -16877,7 +16877,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
                                 nlua_pop_keydict(
                                     lstate,
                                     (&raw mut arg5).cast(),
-                                    Some(KeyDict_keymap_get_field),
+                                    Some(key_dict_keymap_get_field),
                                     &mut err_param,
                                     &mut arena,
                                     &mut err,
@@ -16886,17 +16886,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
                                     break 'exit_1;
                                 }
                             }
-                            arg4 = nlua_pop_String(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_string(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"rhs");
                                 break 'exit_1;
                             }
-                            arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"lhs");
                                 break 'exit_2;
                             }
-                            arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"mode");
                                 break 'exit_3;
@@ -16959,7 +16959,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
                             nlua_pop_keydict(
                                 lstate,
                                 (&raw mut arg4).cast(),
-                                Some(KeyDict_keymap_del_get_field),
+                                Some(key_dict_keymap_del_get_field),
                                 &mut err_param,
                                 &mut arena,
                                 &mut err,
@@ -16968,12 +16968,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
                                 break 'exit_1;
                             }
                         }
-                        arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"lhs");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"mode");
                             break 'exit_2;
@@ -17028,12 +17028,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) ->
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_var");
                     }
-                    arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
@@ -17075,7 +17075,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) ->
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_var");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -17121,7 +17121,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_buf_get_name(arg1, &mut err);
-            nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -17148,7 +17148,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_name");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -17194,7 +17194,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_buf_is_loaded(arg1);
-            nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -17233,7 +17233,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_buf_delete_get_field),
+                        Some(key_dict_buf_delete_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -17287,7 +17287,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_buf_is_valid(arg1);
-            nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -17314,7 +17314,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_mark");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -17327,7 +17327,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_buf_del_mark(arg1, arg2, &mut err);
-                nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -17365,7 +17365,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                                 nlua_pop_keydict(
                                     lstate,
                                     (&raw mut arg5).cast(),
-                                    Some(KeyDict_empty_get_field),
+                                    Some(key_dict_empty_get_field),
                                     &mut err_param,
                                     &mut arena,
                                     &mut err,
@@ -17374,17 +17374,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                                     break 'exit_1;
                                 }
                             }
-                            arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"col");
                                 break 'exit_1;
                             }
-                            arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"line");
                                 break 'exit_2;
                             }
-                            arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"name");
                                 break 'exit_3;
@@ -17404,7 +17404,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                                 &mut arg5,
                                 &mut err,
                             );
-                            nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                            nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                             nlua_st().active_lstate = save_active_lstate;
                         }
                     }
@@ -17439,7 +17439,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_mark");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -17452,7 +17452,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_buf_get_mark(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -17480,7 +17480,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_call");
                 }
-                arg2 = nlua_pop_LuaRef(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_lua_ref(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"fn");
                     break 'exit_0;
@@ -17528,7 +17528,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_stats(lstate: *mut lua_State) -> 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim__buf_stats(arg1, &mut arena, &mut err);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -17556,7 +17556,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_empty_get_field),
+                        Some(key_dict_empty_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -17565,7 +17565,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"str");
                     break 'exit_1;
@@ -17614,7 +17614,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                         nlua_pop_keydict(
                             lstate,
                             (&raw mut arg2).cast(),
-                            Some(KeyDict_cmd_opts_get_field),
+                            Some(key_dict_cmd_opts_get_field),
                             &mut err_param,
                             &mut arena,
                             &mut err,
@@ -17626,7 +17626,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg1).cast(),
-                        Some(KeyDict_cmd_get_field),
+                        Some(key_dict_cmd_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -17643,7 +17643,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                         &mut arena,
                         &mut err,
                     );
-                    nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
                 api_luarefs_free_keydict(
@@ -17686,7 +17686,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
                         nlua_pop_keydict(
                             lstate,
                             (&raw mut arg3).cast(),
-                            Some(KeyDict_user_command_get_field),
+                            Some(key_dict_user_command_get_field),
                             &mut err_param,
                             &mut arena,
                             &mut err,
@@ -17695,12 +17695,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
                             break 'exit_1;
                         }
                     }
-                    arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"cmd");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_2;
@@ -17745,7 +17745,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_Stat
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_user_command");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -17787,7 +17787,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
                             nlua_pop_keydict(
                                 lstate,
                                 (&raw mut arg4).cast(),
-                                Some(KeyDict_user_command_get_field),
+                                Some(key_dict_user_command_get_field),
                                 &mut err_param,
                                 &mut arena,
                                 &mut err,
@@ -17796,12 +17796,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
                                 break 'exit_1;
                             }
                         }
-                        arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                        arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"cmd");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"name");
                             break 'exit_2;
@@ -17855,7 +17855,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_user_command");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -17898,7 +17898,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg1).cast(),
-                        Some(KeyDict_get_commands_get_field),
+                        Some(key_dict_get_commands_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -17910,7 +17910,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_commands(&mut arg1, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -17946,7 +17946,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_get_commands_get_field),
+                        Some(key_dict_get_commands_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -17963,7 +17963,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_buf_get_commands(arg1, &mut arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -17995,12 +17995,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_exec");
                 }
-                arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"output");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"src");
                     break 'exit_1;
@@ -18008,7 +18008,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_exec(LUA_INTERNAL_CALL, arg1, arg2, &mut err);
-                nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
                 api_free_string(ret);
             }
@@ -18035,7 +18035,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_command_output");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"command");
                 break 'exit_0;
@@ -18043,7 +18043,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_command_output(LUA_INTERNAL_CALL, arg1, &mut err);
-            nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
             api_free_string(ret);
         }
@@ -18077,7 +18077,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State)
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_buf_get_number(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -18108,17 +18108,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_S
                         if !nlua_is_deferred_safe() {
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_highlight");
                         }
-                        arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_end");
                             break 'exit_0;
                         }
-                        arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_start");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_2;
@@ -18168,27 +18168,27 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
                                 if !nlua_is_deferred_safe() {
                                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_add_highlight");
                                 }
-                                arg6 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg6 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"col_end");
                                     break 'exit_0;
                                 }
-                                arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"col_start");
                                     break 'exit_1;
                                 }
-                                arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"line");
                                     break 'exit_2;
                                 }
-                                arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
+                                arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"hl_group");
                                     break 'exit_3;
                                 }
-                                arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"ns_id");
                                     break 'exit_4;
@@ -18209,7 +18209,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
                                     arg6,
                                     &mut err,
                                 );
-                                nlua_push_Integer(
+                                nlua_push_integer(
                                     lstate,
                                     ret,
                                     K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
@@ -18255,7 +18255,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                                 nlua_pop_keydict(
                                     lstate,
                                     (&raw mut arg5).cast(),
-                                    Some(KeyDict_empty_get_field),
+                                    Some(key_dict_empty_get_field),
                                     &mut err_param,
                                     &mut arena,
                                     &mut err,
@@ -18264,17 +18264,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                                     break 'exit_1;
                                 }
                             }
-                            arg4 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_array(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"chunks");
                                 break 'exit_1;
                             }
-                            arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"line");
                                 break 'exit_2;
                             }
-                            arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"src_id");
                                 break 'exit_3;
@@ -18294,7 +18294,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                                 &mut arg5,
                                 &mut err,
                             );
-                            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                             nlua_st().active_lstate = save_active_lstate;
                         }
                     }
@@ -18329,12 +18329,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_id");
                 }
-                arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"rgb");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"hl_id");
                     break 'exit_1;
@@ -18342,7 +18342,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_hl_by_id(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -18370,12 +18370,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_name");
                 }
-                arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"rgb");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -18383,7 +18383,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_hl_by_name(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -18409,7 +18409,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_option_info");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -18417,7 +18417,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_option_info(arg1, &mut arena, &mut err);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -18444,12 +18444,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> 
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_option");
                 }
-                arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -18483,7 +18483,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_option");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -18491,7 +18491,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim_get_option(arg1, &mut err);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
             api_free_object(ret);
         }
@@ -18519,7 +18519,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State)
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_option");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -18532,7 +18532,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State)
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let mut ret = nvim_buf_get_option(arg1, arg2, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
                 api_free_object(ret);
             }
@@ -18563,12 +18563,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State)
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_option");
                     }
-                    arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
@@ -18610,7 +18610,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State)
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_option");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -18623,7 +18623,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State)
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let mut ret = nvim_win_get_option(arg1, arg2, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
                 api_free_object(ret);
             }
@@ -18654,12 +18654,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State)
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_option");
                     }
-                    arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
@@ -18699,7 +18699,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> c
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_out_write");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
@@ -18731,7 +18731,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> c
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_err_write");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
@@ -18763,7 +18763,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) ->
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_err_writeln");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
@@ -18799,17 +18799,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_in
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_notify");
                     }
-                    arg3 = nlua_pop_Dict(lstate, false, &mut arena, &mut err);
+                    arg3 = nlua_pop_dict(lstate, false, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"opts");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"log_level");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"msg");
                         break 'exit_2;
@@ -18817,7 +18817,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_in
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let mut ret = nvim_notify(arg1, arg2, arg3, &mut arena, &mut err);
-                    nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -18846,7 +18846,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State)
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_height");
                 }
-                arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"height");
                     break 'exit_0;
@@ -18886,7 +18886,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) 
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_width");
                 }
-                arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"width");
                     break 'exit_0;
@@ -18924,7 +18924,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_create_namespace");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -18932,7 +18932,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_create_namespace(arg1);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -18959,7 +18959,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State)
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_namespaces(&mut arena);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -18994,7 +18994,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                             nlua_pop_keydict(
                                 lstate,
                                 (&raw mut arg4).cast(),
-                                Some(KeyDict_get_extmark_get_field),
+                                Some(key_dict_get_extmark_get_field),
                                 &mut err_param,
                                 &mut arena,
                                 &mut err,
@@ -19003,12 +19003,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                                 break 'exit_1;
                             }
                         }
-                        arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"id");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_2;
@@ -19028,7 +19028,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                             &mut arena,
                             &mut err,
                         );
-                        nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                        nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                         nlua_st().active_lstate = save_active_lstate;
                     }
                 }
@@ -19072,7 +19072,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                                 nlua_pop_keydict(
                                     lstate,
                                     (&raw mut arg5).cast(),
-                                    Some(KeyDict_get_extmarks_get_field),
+                                    Some(key_dict_get_extmarks_get_field),
                                     &mut err_param,
                                     &mut arena,
                                     &mut err,
@@ -19081,17 +19081,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                                     break 'exit_1;
                                 }
                             }
-                            arg4 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                            arg4 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"end");
                                 break 'exit_1;
                             }
-                            arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                            arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"start");
                                 break 'exit_2;
                             }
-                            arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"ns_id");
                                 break 'exit_3;
@@ -19112,7 +19112,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                                 &mut arena,
                                 &mut err,
                             );
-                            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                             nlua_st().active_lstate = save_active_lstate;
                         }
                     }
@@ -19159,7 +19159,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                                 nlua_pop_keydict(
                                     lstate,
                                     (&raw mut arg5).cast(),
-                                    Some(KeyDict_set_extmark_get_field),
+                                    Some(key_dict_set_extmark_get_field),
                                     &mut err_param,
                                     &mut arena,
                                     &mut err,
@@ -19168,17 +19168,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                                     break 'exit_1;
                                 }
                             }
-                            arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"col");
                                 break 'exit_1;
                             }
-                            arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"line");
                                 break 'exit_2;
                             }
-                            arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                            arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                             if err.err_type != ErrorType::ErrorTypeNone {
                                 err_param = Some(c"ns_id");
                                 break 'exit_3;
@@ -19198,7 +19198,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                                 &mut arg5,
                                 &mut err,
                             );
-                            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                             nlua_st().active_lstate = save_active_lstate;
                         }
                     }
@@ -19235,12 +19235,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_extmark");
                     }
-                    arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"id");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"ns_id");
                         break 'exit_1;
@@ -19253,7 +19253,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let ret = nvim_buf_del_extmark(arg1, arg2, arg3, &mut err);
-                    nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -19286,17 +19286,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_S
                         if !nlua_is_deferred_safe() {
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_namespace");
                         }
-                        arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_end");
                             break 'exit_0;
                         }
-                        arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"line_start");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"ns_id");
                             break 'exit_2;
@@ -19342,7 +19342,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_set_decoration_provider_get_field),
+                        Some(key_dict_set_decoration_provider_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -19351,7 +19351,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_1;
@@ -19392,12 +19392,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_debug_extmarks(lstate: *mut lua_S
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim__buf_debug_extmarks");
                     }
-                    arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"dot");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"keys");
                         break 'exit_1;
@@ -19410,7 +19410,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_debug_extmarks(lstate: *mut lua_S
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let ret = nvim__buf_debug_extmarks(arg1, arg2, arg3, &mut err);
-                    nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                     api_free_string(ret);
                 }
@@ -19444,7 +19444,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_set(lstate: *mut lua_State) -> c_i
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_ns_opts_get_field),
+                        Some(key_dict_ns_opts_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -19453,7 +19453,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_set(lstate: *mut lua_State) -> c_i
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_1;
@@ -19490,7 +19490,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_get(lstate: *mut lua_State) -> c_i
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__ns_get");
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_0;
@@ -19529,12 +19529,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__option_to_object(lstate: *mut lua_Sta
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim__option_to_object");
                 }
-                arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -19542,7 +19542,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__option_to_object(lstate: *mut lua_Sta
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let mut ret = nvim__option_to_object(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_object(arg2);
@@ -19575,7 +19575,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_option_get_field),
+                        Some(key_dict_option_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -19584,7 +19584,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -19592,7 +19592,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let mut ret = nvim_get_option_value(arg1, &mut arg2, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
                 api_free_object(ret);
             }
@@ -19631,7 +19631,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
                         nlua_pop_keydict(
                             lstate,
                             (&raw mut arg3).cast(),
-                            Some(KeyDict_option_get_field),
+                            Some(key_dict_option_get_field),
                             &mut err_param,
                             &mut arena,
                             &mut err,
@@ -19640,12 +19640,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
                             break 'exit_1;
                         }
                     }
-                    arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_2;
@@ -19660,7 +19660,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
                         &mut arena,
                         &mut err,
                     );
-                    nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
                 api_luarefs_free_object(arg2);
@@ -19694,7 +19694,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_all_options_info(&mut arena, &mut err);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -19725,7 +19725,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_option_get_field),
+                        Some(key_dict_option_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -19734,7 +19734,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -19742,7 +19742,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_option_info2(arg1, &mut arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -19780,7 +19780,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_Sta
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_tabpage_list_wins(arg1, &mut arena, &mut err);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -19807,7 +19807,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_var");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -19820,7 +19820,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let mut ret = nvim_tabpage_get_var(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -19850,12 +19850,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_set_var");
                     }
-                    arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
@@ -19897,7 +19897,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_del_var");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -20016,7 +20016,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_St
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_tabpage_get_number(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20049,7 +20049,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_Stat
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_tabpage_is_valid(arg1);
-            nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20089,7 +20089,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg3).cast(),
-                        Some(KeyDict_tabpage_config_get_field),
+                        Some(key_dict_tabpage_config_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -20097,7 +20097,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"enter");
                         break 'exit_1;
@@ -20141,7 +20141,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> c_i
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_ui_send");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"content");
                 break 'exit_0;
@@ -20173,7 +20173,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_id_by_name");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -20181,7 +20181,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_hl_id_by_name(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20212,7 +20212,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_get_highlight_get_field),
+                        Some(key_dict_get_highlight_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -20221,7 +20221,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_1;
@@ -20229,7 +20229,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_hl(arg1, &mut arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -20266,7 +20266,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg3).cast(),
-                        Some(KeyDict_highlight_get_field),
+                        Some(key_dict_highlight_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -20274,12 +20274,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"ns_id");
                         break 'exit_2;
@@ -20322,7 +20322,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg1).cast(),
-                        Some(KeyDict_get_ns_get_field),
+                        Some(key_dict_get_ns_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -20334,7 +20334,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_hl_ns(&mut arg1, &mut err);
-                nlua_push_Integer(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_integer(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -20364,7 +20364,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> c
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_hl_ns");
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_0;
@@ -20393,7 +20393,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State)
                 );
                 break 'exit_0;
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"ns_id");
                 break 'exit_0;
@@ -20429,17 +20429,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> c_
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_feedkeys");
                     }
-                    arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"escape_ks");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"mode");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"keys");
                         break 'exit_2;
@@ -20470,7 +20470,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int
                 );
                 break 'exit_0;
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"keys");
                 break 'exit_0;
@@ -20478,7 +20478,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_input(LUA_INTERNAL_CALL, arg1);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20510,32 +20510,32 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) ->
                                     );
                                     break 'exit_0;
                                 }
-                                arg6 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg6 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"col");
                                     break 'exit_0;
                                 }
-                                arg5 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg5 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"row");
                                     break 'exit_1;
                                 }
-                                arg4 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                                arg4 = nlua_pop_integer(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"grid");
                                     break 'exit_2;
                                 }
-                                arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
+                                arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"modifier");
                                     break 'exit_3;
                                 }
-                                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"action");
                                     break 'exit_4;
                                 }
-                                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                                 if err.err_type != ErrorType::ErrorTypeNone {
                                     err_param = Some(c"button");
                                     break 'exit_5;
@@ -20575,22 +20575,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_Sta
                             );
                             break 'exit_0;
                         }
-                        arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"special");
                             break 'exit_0;
                         }
-                        arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"do_lt");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"from_part");
                             break 'exit_2;
                         }
-                        arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"str");
                             break 'exit_3;
@@ -20598,7 +20598,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_Sta
                         let save_active_lstate = nlua_st().active_lstate;
                         nlua_st().active_lstate = lstate;
                         let ret = nvim_replace_termcodes(arg1, arg2, arg3, arg4);
-                        nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                        nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                         nlua_st().active_lstate = save_active_lstate;
                         api_free_string(ret);
                     }
@@ -20627,7 +20627,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_strwidth");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"text");
                 break 'exit_0;
@@ -20635,7 +20635,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_strwidth(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20662,7 +20662,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_St
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_list_runtime_paths(&mut arena, &mut err);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20689,7 +20689,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__runtime_inspect(lstate: *mut lua_Stat
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim__runtime_inspect(&mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20713,12 +20713,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_Stat
                     );
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"all");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -20726,7 +20726,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_Stat
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_runtime_file(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -20754,7 +20754,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_lib_dir(lstate: *mut lua_State) -
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim__get_lib_dir();
-            nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
             api_free_string(ret);
         }
@@ -20785,7 +20785,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                         nlua_pop_keydict(
                             lstate,
                             (&raw mut arg3).cast(),
-                            Some(KeyDict_runtime_get_field),
+                            Some(key_dict_runtime_get_field),
                             &mut err_param,
                             &mut arena,
                             &mut err,
@@ -20794,12 +20794,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                             break 'exit_1;
                         }
                     }
-                    arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"all");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"pat");
                         break 'exit_2;
@@ -20808,7 +20808,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                     nlua_st().active_lstate = lstate;
                     let ret =
                         nvim__get_runtime(arg1, arg2, &mut arg3, &mut arena, &mut err);
-                    nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -20839,7 +20839,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_dir");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"dir");
                 break 'exit_0;
@@ -20873,7 +20873,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_Stat
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_current_line(&mut arena, &mut err);
-            nlua_push_String(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_string(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -20906,7 +20906,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_Stat
                 );
                 break 'exit_0;
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"line");
                 break 'exit_0;
@@ -20972,7 +20972,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_i
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_var");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -20980,7 +20980,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_i
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim_get_var(arg1, &mut arena, &mut err);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21007,12 +21007,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> c_i
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_var");
                 }
-                arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -21046,7 +21046,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> c_i
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_var");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -21078,7 +21078,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_vvar");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -21086,7 +21086,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim_get_vvar(arg1, &mut arena, &mut err);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21113,12 +21113,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> c_
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_vvar");
                 }
-                arg2 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                arg2 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"value");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -21160,7 +21160,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
                         nlua_pop_keydict(
                             lstate,
                             (&raw mut arg3).cast(),
-                            Some(KeyDict_echo_opts_get_field),
+                            Some(key_dict_echo_opts_get_field),
                             &mut err_param,
                             &mut arena,
                             &mut err,
@@ -21169,12 +21169,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
                             break 'exit_1;
                         }
                     }
-                    arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"history");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"chunks");
                         break 'exit_2;
@@ -21182,7 +21182,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let mut ret = nvim_echo(arg1, arg2, &mut arg3, &mut err);
-                    nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -21215,7 +21215,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> c
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_list_bufs(&mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21309,7 +21309,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> c
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_list_wins(&mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21403,12 +21403,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> 
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_create_buf");
                 }
-                arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"scratch");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"listed");
                     break 'exit_1;
@@ -21456,7 +21456,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_open_term_get_field),
+                        Some(key_dict_open_term_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -21473,7 +21473,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_open_term(arg1, &mut arg2, &mut err);
-                nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -21505,12 +21505,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> c
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_chan_send");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"data");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"chan");
                     break 'exit_1;
@@ -21545,7 +21545,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_list_tabpages(&mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21649,17 +21649,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
                         );
                         break 'exit_0;
                     }
-                    arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"phase");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"crlf");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"data");
                         break 'exit_2;
@@ -21674,7 +21674,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
                         &mut arena,
                         &mut err,
                     );
-                    nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -21715,22 +21715,22 @@ unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> c_int {
                             );
                             break 'exit_0;
                         }
-                        arg4 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg4 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"follow");
                             break 'exit_0;
                         }
-                        arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"after");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"type");
                             break 'exit_2;
                         }
-                        arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"lines");
                             break 'exit_3;
@@ -21765,7 +21765,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_color_by_name");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -21773,7 +21773,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_color_by_name(arg1);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21800,7 +21800,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_color_map(&mut arena);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21830,7 +21830,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg1).cast(),
-                        Some(KeyDict_context_get_field),
+                        Some(key_dict_context_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -21842,7 +21842,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_context(&mut arg1, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -21872,7 +21872,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_load_context");
             }
-            arg1 = nlua_pop_Dict(lstate, false, &mut arena, &mut err);
+            arg1 = nlua_pop_dict(lstate, false, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"dict");
                 break 'exit_0;
@@ -21880,7 +21880,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim_load_context(arg1, &mut err);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21904,7 +21904,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> c_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_mode(&mut arena);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21929,7 +21929,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_keymap");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"mode");
                 break 'exit_0;
@@ -21937,7 +21937,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_keymap(arg1, &mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -21972,7 +21972,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
                             nlua_pop_keydict(
                                 lstate,
                                 (&raw mut arg4).cast(),
-                                Some(KeyDict_keymap_get_field),
+                                Some(key_dict_keymap_get_field),
                                 &mut err_param,
                                 &mut arena,
                                 &mut err,
@@ -21981,17 +21981,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
                                 break 'exit_1;
                             }
                         }
-                        arg3 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"rhs");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"lhs");
                             break 'exit_2;
                         }
-                        arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"mode");
                             break 'exit_3;
@@ -22045,7 +22045,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
                         nlua_pop_keydict(
                             lstate,
                             (&raw mut arg3).cast(),
-                            Some(KeyDict_keymap_del_get_field),
+                            Some(key_dict_keymap_del_get_field),
                             &mut err_param,
                             &mut arena,
                             &mut err,
@@ -22054,12 +22054,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
                             break 'exit_1;
                         }
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"lhs");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"mode");
                         break 'exit_2;
@@ -22099,7 +22099,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
                 nlua_pop_keydict(
                     lstate,
                     (&raw mut arg2).cast(),
-                    Some(KeyDict_chan_set_get_field),
+                    Some(key_dict_chan_set_get_field),
                     &mut err_param,
                     &mut arena,
                     &mut err,
@@ -22107,7 +22107,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
                 if err.err_type != ErrorType::ErrorTypeNone {
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"chan");
                     break 'exit_1;
@@ -22151,7 +22151,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__cmdwin_set(lstate: *mut lua_State) ->
                     err_param = Some(c"buf");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"type");
                     break 'exit_1;
@@ -22184,7 +22184,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_chan_info");
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"chan");
                 break 'exit_0;
@@ -22192,7 +22192,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_chan_info(LUA_INTERNAL_CALL, arg1, &mut arena, &mut err);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22219,7 +22219,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_list_chans(&mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22244,7 +22244,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id(lstate: *mut lua_State) -> c_int {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id");
             }
-            arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+            arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"obj");
                 break 'exit_0;
@@ -22252,7 +22252,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id(lstate: *mut lua_State) -> c_int {
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim__id(arg1, &mut arena);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
             api_luarefs_free_object(arg1);
         }
@@ -22278,7 +22278,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_array(lstate: *mut lua_State) -> c
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id_array");
             }
-            arg1 = nlua_pop_Array(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_array(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"arr");
                 break 'exit_0;
@@ -22286,7 +22286,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_array(lstate: *mut lua_State) -> c
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim__id_array(arg1, &mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22311,7 +22311,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_dict(lstate: *mut lua_State) -> c_
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id_dict");
             }
-            arg1 = nlua_pop_Dict(lstate, false, &mut arena, &mut err);
+            arg1 = nlua_pop_dict(lstate, false, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"dct");
                 break 'exit_0;
@@ -22319,7 +22319,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_dict(lstate: *mut lua_State) -> c_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim__id_dict(arg1, &mut arena);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22344,7 +22344,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_float(lstate: *mut lua_State) -> c
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__id_float");
             }
-            arg1 = nlua_pop_Float(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_float(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"flt");
                 break 'exit_0;
@@ -22352,7 +22352,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_float(lstate: *mut lua_State) -> c
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim__id_float(arg1);
-            nlua_push_Float(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_float(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22379,7 +22379,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__stats(lstate: *mut lua_State) -> c_in
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim__stats(&mut arena);
-            nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22406,7 +22406,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> c_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_list_uis(&mut arena);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22431,7 +22431,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc_children");
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"pid");
                 break 'exit_0;
@@ -22439,7 +22439,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_get_proc_children(arg1, &mut arena, &mut err);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22464,7 +22464,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc");
             }
-            arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"pid");
                 break 'exit_0;
@@ -22472,7 +22472,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim_get_proc(arg1, &mut arena, &mut err);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22507,7 +22507,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
                             nlua_pop_keydict(
                                 lstate,
                                 (&raw mut arg4).cast(),
-                                Some(KeyDict_empty_get_field),
+                                Some(key_dict_empty_get_field),
                                 &mut err_param,
                                 &mut arena,
                                 &mut err,
@@ -22516,17 +22516,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
                                 break 'exit_1;
                             }
                         }
-                        arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"finish");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"insert");
                             break 'exit_2;
                         }
-                        arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"item");
                             break 'exit_3;
@@ -22569,17 +22569,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim__inspect_cell(lstate: *mut lua_State) 
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim__inspect_cell");
                     }
-                    arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"col");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"row");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"grid");
                         break 'exit_2;
@@ -22587,7 +22587,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__inspect_cell(lstate: *mut lua_State) 
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let ret = nvim__inspect_cell(arg1, arg2, arg3, &mut arena, &mut err);
-                    nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -22611,7 +22611,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__screenshot(lstate: *mut lua_State) ->
                 );
                 break 'exit_0;
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"path");
                 break 'exit_0;
@@ -22666,7 +22666,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__unpack(lstate: *mut lua_State) -> c_i
                 );
                 break 'exit_0;
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"str");
                 break 'exit_0;
@@ -22674,7 +22674,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__unpack(lstate: *mut lua_State) -> c_i
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim__unpack(arg1, &mut arena, &mut err);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22699,7 +22699,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_del_mark");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"name");
                 break 'exit_0;
@@ -22707,7 +22707,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_del_mark(arg1, &mut err);
-            nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -22738,7 +22738,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_empty_get_field),
+                        Some(key_dict_empty_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -22747,7 +22747,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_1;
@@ -22755,7 +22755,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_get_mark(arg1, &mut arg2, &mut arena, &mut err);
-                nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -22788,7 +22788,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_eval_statusline_get_field),
+                        Some(key_dict_eval_statusline_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -22797,7 +22797,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"str");
                     break 'exit_1;
@@ -22805,7 +22805,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_eval_statusline(arg1, &mut arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -22841,7 +22841,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_complete_set_get_field),
+                        Some(key_dict_complete_set_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -22850,7 +22850,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"index");
                     break 'exit_1;
@@ -22858,7 +22858,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim__complete_set(arg1, &mut arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -22893,7 +22893,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__redraw(lstate: *mut lua_State) -> c_i
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg1).cast(),
-                        Some(KeyDict_redraw_get_field),
+                        Some(key_dict_redraw_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -22936,12 +22936,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim__set_restart_on_crash(lstate: *mut lua
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim__set_restart_on_crash");
                 }
-                arg2 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_array(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"argv");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"progpath");
                     break 'exit_1;
@@ -22980,7 +22980,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_exec_opts_get_field),
+                        Some(key_dict_exec_opts_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -22989,7 +22989,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                         break 'exit_1;
                     }
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"src");
                     break 'exit_1;
@@ -22997,7 +22997,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_exec2(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
                 api_free_dict(ret);
             }
@@ -23028,7 +23028,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> c_i
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_command");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"cmd");
                 break 'exit_0;
@@ -23060,7 +23060,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int 
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_eval");
             }
-            arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+            arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 err_param = Some(c"expr");
                 break 'exit_0;
@@ -23068,7 +23068,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim_eval(arg1, &mut arena, &mut err);
-            nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23095,12 +23095,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) 
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_call_function");
                 }
-                arg2 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_array(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"args");
                     break 'exit_0;
                 }
-                arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"fn");
                     break 'exit_1;
@@ -23109,7 +23109,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) 
                 nlua_st().active_lstate = lstate;
                 let mut ret =
                     nvim_call_function(LUA_INTERNAL_CALL, arg1, arg2, &mut arena, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -23139,17 +23139,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_St
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_call_dict_function");
                     }
-                    arg3 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_array(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"args");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"fn");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg1 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"dict");
                         break 'exit_2;
@@ -23164,7 +23164,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_St
                         &mut arena,
                         &mut err,
                     );
-                    nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                     api_luarefs_free_object(arg1);
                 }
@@ -23193,17 +23193,17 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_Stat
                         );
                         break 'exit_0;
                     }
-                    arg3 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg3 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"hl");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"flags");
                         break 'exit_1;
                     }
-                    arg1 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg1 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"expr");
                         break 'exit_2;
@@ -23211,7 +23211,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_Stat
                     let save_active_lstate = nlua_st().active_lstate;
                     nlua_st().active_lstate = lstate;
                     let ret = nvim_parse_expression(arg1, arg2, arg3, &mut arena, &mut err);
-                    nlua_push_Dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                    nlua_push_dict(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                     nlua_st().active_lstate = save_active_lstate;
                 }
             }
@@ -23253,7 +23253,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg3).cast(),
-                        Some(KeyDict_win_config_get_field),
+                        Some(key_dict_win_config_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -23261,7 +23261,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                     if err.err_type != ErrorType::ErrorTypeNone {
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"enter");
                         break 'exit_1;
@@ -23310,7 +23310,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State)
                 nlua_pop_keydict(
                     lstate,
                     (&raw mut arg2).cast(),
-                    Some(KeyDict_win_config_get_field),
+                    Some(key_dict_win_config_get_field),
                     &mut err_param,
                     &mut arena,
                     &mut err,
@@ -23481,7 +23481,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State)
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_win_get_cursor(arg1, &mut arena, &mut err);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23508,7 +23508,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State)
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_cursor");
                 }
-                arg2 = nlua_pop_Array(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_array(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"pos");
                     break 'exit_0;
@@ -23554,7 +23554,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State)
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_win_get_height(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23587,7 +23587,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) 
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_win_get_width(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23614,7 +23614,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) ->
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_var");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -23627,7 +23627,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) ->
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let mut ret = nvim_win_get_var(arg1, arg2, &mut arena, &mut err);
-                nlua_push_Object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
         }
@@ -23657,12 +23657,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) ->
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_var");
                     }
-                    arg3 = nlua_pop_Object(lstate, true, &mut arena, &mut err);
+                    arg3 = nlua_pop_object(lstate, true, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"value");
                         break 'exit_0;
                     }
-                    arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                    arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                     if err.err_type != ErrorType::ErrorTypeNone {
                         err_param = Some(c"name");
                         break 'exit_1;
@@ -23704,7 +23704,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) ->
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_del_var");
                 }
-                arg2 = nlua_pop_String(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_string(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"name");
                     break 'exit_0;
@@ -23750,7 +23750,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_Stat
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_win_get_position(arg1, &mut arena, &mut err);
-            nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23816,7 +23816,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State)
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_win_get_number(arg1, &mut err);
-            nlua_push_Integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_integer(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23849,7 +23849,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let ret = nvim_win_is_valid(arg1);
-            nlua_push_Boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_boolean(lstate, ret, K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23924,7 +23924,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> c
                     );
                     break 'exit_0;
                 }
-                arg2 = nlua_pop_Boolean(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_boolean(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"force");
                     break 'exit_0;
@@ -23964,7 +23964,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_call");
                 }
-                arg2 = nlua_pop_LuaRef(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_lua_ref(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"fn");
                     break 'exit_0;
@@ -24006,7 +24006,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) 
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_hl_ns");
                 }
-                arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     err_param = Some(c"ns_id");
                     break 'exit_0;
@@ -24050,7 +24050,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
                     nlua_pop_keydict(
                         lstate,
                         (&raw mut arg2).cast(),
-                        Some(KeyDict_win_text_height_get_field),
+                        Some(key_dict_win_text_height_get_field),
                         &mut err_param,
                         &mut arena,
                         &mut err,
@@ -24067,7 +24067,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
                 let save_active_lstate = nlua_st().active_lstate;
                 nlua_st().active_lstate = lstate;
                 let ret = nvim_win_text_height(arg1, &mut arg2, &mut arena, &mut err);
-                nlua_push_Dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+                nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
                 nlua_st().active_lstate = save_active_lstate;
             }
             api_luarefs_free_keydict(
@@ -24107,7 +24107,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
                             nlua_pop_keydict(
                                 lstate,
                                 (&raw mut arg4).cast(),
-                                Some(KeyDict_win_resize_get_field),
+                                Some(key_dict_win_resize_get_field),
                                 &mut err_param,
                                 &mut arena,
                                 &mut err,
@@ -24116,12 +24116,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
                                 break 'exit_1;
                             }
                         }
-                        arg3 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg3 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"height");
                             break 'exit_1;
                         }
-                        arg2 = nlua_pop_Integer(lstate, &mut arena, &mut err);
+                        arg2 = nlua_pop_integer(lstate, &mut arena, &mut err);
                         if err.err_type != ErrorType::ErrorTypeNone {
                             err_param = Some(c"width");
                             break 'exit_2;
@@ -24552,8 +24552,8 @@ mod tests {
 
     #[test]
     fn keyset_lookup_resolves_known_and_unknown_fields() {
-        let link = KeyDict_get_autocmds_get_field(b"event").unwrap();
+        let link = key_dict_get_autocmds_get_field(b"event").unwrap();
             assert_eq!(link.str.unwrap().to_bytes(), b"event");
-            assert!(KeyDict_get_autocmds_get_field(b"nonexistent").is_none());
+            assert!(key_dict_get_autocmds_get_field(b"nonexistent").is_none());
     }
 }

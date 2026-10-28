@@ -58,7 +58,7 @@ use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fna
 use crate::globals::*;
 use crate::highlight::highlight_init;
 use crate::highlight_group::init_highlight;
-use crate::input::{open_scriptin, stuffcharReadbuff, vgetc};
+use crate::input::{open_scriptin, stuffchar_readbuff, vgetc};
 use crate::keycodes::K_NOP;
 use crate::log::{
     LOGLVL_DBG, LOGLVL_INF, LOGLVL_WRN, log_get_stderr, log_init, logmsg, logmsg_str,
@@ -109,7 +109,7 @@ use crate::os::time::os_realtime;
 use crate::path::path_to_slash;
 use crate::path::{
     concat_fnames, K_PATH_CMP_EXPAND, path_equal, path_fix_case, path_guess_exepath, path_tail,
-    vim_FullName,
+    vim_full_name,
 };
 use crate::profile::{profile_dump, time_finish, time_init, time_msg, time_start};
 use crate::quickfix::{K_OPT_ERRORFILE, qf_init, qf_init_stack, qf_jump};
@@ -794,7 +794,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         if g_st().restart_edit != 0 {
-            stuffcharReadbuff(K_NOP);
+            stuffchar_readbuff(K_NOP);
         }
 
         if (opt_vars().cb_flags & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST)) != 0 {
@@ -1829,7 +1829,7 @@ fn set_argf_var() {
         for i in 0..count {
             let fname = alist_name(&*garglist().add(i as usize));
             if !fname.is_null() {
-                let _ = vim_FullName(fname, g_st().NameBuff.as_mut_ptr(), MAXPATHL, false);
+                let _ = vim_full_name(fname, g_st().NameBuff.as_mut_ptr(), MAXPATHL, false);
                 tv_list_append_string( &mut *list, g_st().NameBuff.as_ptr(), -1);
             }
         }

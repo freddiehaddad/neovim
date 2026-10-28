@@ -50,7 +50,7 @@ use crate::r#match::{
     get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
-    mb_charlen, mb_off_next, mb_string2cells, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo,
+    mb_charlen, mb_off_next, mb_string2cells, utf_cluster_info, utf_head_off, utf_ptr2_str_char_info,
     utf_ptr2cells, utfc_ptr2len,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
@@ -465,7 +465,7 @@ fn draw_virt_text_item(
             while crate::memory::cstr_is_empty(ci.ptr) {
                 if virt_pos >= vt.len() {
                     if eol_hl {
-                        ci = utf_ptr2StrCharInfo(c" ");
+                        ci = utf_ptr2_str_char_info(c" ");
                     } else {
                         break;
                     }
@@ -475,14 +475,14 @@ fn draw_virt_text_item(
                     if next.is_null() {
                         break;
                     }
-                    ci = utf_ptr2StrCharInfo(next);
+                    ci = utf_ptr2_str_char_info(next);
                 }
             }
             if crate::memory::cstr_is_empty(ci.ptr) {
                 break;
             }
 
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             let mut draw_cells = cli.cells;
             if ci.chr.value == c_int::from(TAB) {
                 draw_cells = tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array);
@@ -561,10 +561,10 @@ fn draw_col_buf(wp: &mut WinInfoInfo,
     inc_vcol: bool,
 ) { let text = text.into_c_char_ptr();
     unsafe {
-        let mut ci = utf_ptr2StrCharInfo(text);
+        let mut ci = utf_ptr2_str_char_info(text);
         let end = text.add(len);
         while ci.ptr < end && wlv.off < wp.w_view_width {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             let maxcells = wp.w_view_width - wlv.off;
             debug_assert!(cli.cells <= 2 && ci.chr.value >= 0x20);
             let mut cells = cli.cells;
@@ -1845,9 +1845,9 @@ pub fn win_line(
             let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
             csarg.max_head_vcol = start_vcol;
             let mut vcol = wlv.vcol;
-            let mut ci = utf_ptr2StrCharInfo(ptr);
+            let mut ci = utf_ptr2_str_char_info(ptr);
             while vcol < start_vcol {
-                let cli = utf_ClusterInfo(ci);
+                let cli = utf_cluster_info(ci);
                 cs = win_charsize(
                     cstype,
                     vcol,
@@ -2381,8 +2381,8 @@ pub fn win_line(
                         wlv.n_extra -= 1;
                     } else {
                         debug_assert!(!wlv.p_extra.is_null());
-                        let ci = utf_ptr2StrCharInfo(wlv.p_extra);
-                        let cli = utf_ClusterInfo(ci);
+                        let ci = utf_ptr2_str_char_info(wlv.p_extra);
+                        let cli = utf_cluster_info(ci);
                         let mut mb_l = cli.next.ptr.offset_from(ci.ptr) as c_int;
                         mb_schar = schar_from_cluster(ci, cli);
                         mb_schar_width = cli.cells;
@@ -2465,8 +2465,8 @@ pub fn win_line(
                         wlv.skip_cells = 0;
                     }
 
-                    let ci = utf_ptr2StrCharInfo(ptr);
-                    let cli = utf_ClusterInfo(ci);
+                    let ci = utf_ptr2_str_char_info(ptr);
+                    let cli = utf_cluster_info(ci);
                     let mut mb_l = cli.next.ptr.offset_from(ci.ptr) as c_int;
                     let mb_c = ci.chr.value;
                     let mut unprintable_ascii = false;
@@ -2693,8 +2693,8 @@ pub fn win_line(
                             let mut csarg = CharsizeArg::new();
                             let cstype =
                                 init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line);
-                            let cs_ci = utf_ptr2StrCharInfo(p);
-                            let cs_cli = utf_ClusterInfo(cs_ci);
+                            let cs_ci = utf_ptr2_str_char_info(p);
+                            let cs_cli = utf_cluster_info(cs_ci);
                             wlv.n_extra = win_charsize(
                                 cstype,
                                 wlv.vcol,

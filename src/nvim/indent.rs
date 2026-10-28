@@ -26,7 +26,7 @@ use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::insert::{
     backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
 };
-use crate::mbyte::{utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, utfc_ptr2len};
+use crate::mbyte::{utf_cluster_info, utf_ptr2CharInfo, utf_ptr2_str_char_info, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
@@ -1194,9 +1194,9 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
             if !crate::memory::cstr_is_empty(line) {
                 let mut csarg = CharsizeArg::new();
                 let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line);
-                let mut ci: StrCharInfo = utf_ptr2StrCharInfo(line);
+                let mut ci: StrCharInfo = utf_ptr2_str_char_info(line);
                 loop {
-                    let cli: ClusterInfo = utf_ClusterInfo(ci);
+                    let cli: ClusterInfo = utf_cluster_info(ci);
                     let next_vcol = vcol
                         + win_charsize(
                             cstype,
@@ -1738,10 +1738,10 @@ pub fn get_lisp_indent() -> c_int {
                 let mut csarg = CharsizeArg::new();
                 let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), (*pos).lnum, line);
 
-                let mut sci: StrCharInfo = utf_ptr2StrCharInfo(line);
+                let mut sci: StrCharInfo = utf_ptr2_str_char_info(line);
                 amount = 0;
                 while !crate::memory::cstr_is_empty(sci.ptr) && col > 0 {
-                    let cli: ClusterInfo = utf_ClusterInfo(sci);
+                    let cli: ClusterInfo = utf_cluster_info(sci);
                     amount += win_charsize(
                         cstype,
                         amount,
@@ -1809,7 +1809,7 @@ pub fn get_lisp_indent() -> c_int {
                                     parencount -= 1;
                                 }
                                 if ci.value == b'\\' as i32 && crate::memory::cstr_byte_at(that, 1) != 0 {
-                                    let cli = utf_ClusterInfo(StrCharInfo { ptr: that, chr: ci });
+                                    let cli = utf_cluster_info(StrCharInfo { ptr: that, chr: ci });
                                     amount += win_charsize(
                                         cstype,
                                         amount,
@@ -1823,7 +1823,7 @@ pub fn get_lisp_indent() -> c_int {
                                     ci = cli.next.chr;
                                 }
 
-                                let cli = utf_ClusterInfo(StrCharInfo { ptr: that, chr: ci });
+                                let cli = utf_cluster_info(StrCharInfo { ptr: that, chr: ci });
                                 amount += win_charsize(
                                     cstype,
                                     amount,

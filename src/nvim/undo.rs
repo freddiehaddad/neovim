@@ -15,7 +15,7 @@ use crate::cursor::{
     check_cursor, check_cursor_col, check_cursor_lnum, check_pos, clearpos, coladvance, Colnr,
     equalpos, getviscol, Linenr, CursorPos,
 };
-use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawWinline};
+use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redraw_winline};
 use crate::errors::*;
 use crate::eval::funcs::get_buf_arg;
 use crate::eval::typval::{
@@ -36,7 +36,7 @@ use crate::fileio::{
     EOF, O_RDONLY, fdopen, feof, fflush, fgetc, fileno, fread, fwrite, get2c, get4c, get8ctime,
     Off, read_eintr, vim_ftell,
 };
-use crate::fold::foldOpenCursor;
+use crate::fold::fold_open_cursor;
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::beep_flush;
@@ -2183,7 +2183,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             if oldsize > 0 || newsize > 0 {
                 changed_lines(curbuf_mut(), top + 1, 0, bot, newsize - oldsize, do_buf_event);
                 if spell_check_window(curwin_mut()) && bot <= curbuf_mut().b_ml.ml_line_count {
-                    redrawWinline(crate::globals::curwin_mut(), bot);
+                    redraw_winline(crate::globals::curwin_mut(), bot);
                 }
             }
 
@@ -2313,7 +2313,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     unsafe {
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
 
         if quiet || g_st().global_busy != 0 || !messaging() || shortmess(K_SHM_UNDO) {
@@ -2921,7 +2921,7 @@ fn u_save_line_buf(buf: &mut FileBuf, lnum: Linenr) -> std::ffi::CString {
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.
-pub fn bufIsChanged(buf: &mut FileBuf) -> bool {
+pub fn buf_is_changed_fn(buf: &mut FileBuf) -> bool {
     if bt_prompt(Some(&*buf)) {
             buf.b_modified_was_set
         } else {
@@ -2930,10 +2930,10 @@ pub fn bufIsChanged(buf: &mut FileBuf) -> bool {
 }
 
 /// Return true if any buffer has changes. Also buffers that are not written.
-pub fn anyBufIsChanged() -> bool {
+pub fn any_buf_is_changed() -> bool {
      {
         for buf in for_all_buffers_mut() {
-            if bufIsChanged(buf) {
+            if buf_is_changed_fn(buf) {
                 return true;
             }
         }
@@ -2942,8 +2942,8 @@ pub fn anyBufIsChanged() -> bool {
 }
 
 /// Return true if the current buffer has changed.
-pub fn curbufIsChanged() -> bool {
-     bufIsChanged(curbuf_mut())
+pub fn curbuf_is_changed_fn() -> bool {
+     buf_is_changed_fn(curbuf_mut())
 }
 
 fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> *mut TvList {

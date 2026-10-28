@@ -40,7 +40,7 @@ use crate::option::{OPT_LOCAL, K_BUF_OPT_FORMATEXPR, K_OPT_FORMATEXPR, was_set_i
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::strings::{vim_strchr};
-use crate::textobject::startPS;
+use crate::textobject::start_ps;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
 use crate::window::win_fdccol_count;
@@ -570,7 +570,7 @@ fn fmt_check_par(
 
         *skipwhite(ptr.add(*leader_len as usize)) == NUL
             || (*leader_len > 0 && *flags == COM_END)
-            || startPS(lnum, 0, false)
+            || start_ps(lnum, 0, false)
     }
 }
 

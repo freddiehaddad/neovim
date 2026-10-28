@@ -43,7 +43,7 @@ use crate::fileio::{
     READ_BUFFER, READ_DUMMY, READ_FIFO, READ_NEW, READ_NOFILE, READ_NOWINENTER, READ_STDIN,
     buf_check_timestamp, file_pat_to_reg_pat, prep_exarg, readfile, shorten_fnames,
 };
-use crate::fold::{clearFolding, foldUpdateAll};
+use crate::fold::{clear_folding, fold_update_all};
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, FuzmatchStr, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
 };
@@ -75,7 +75,7 @@ use crate::message::{
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
 };
 use crate::r#move::{scroll_cursor_halfway, validate_virtcol};
-use crate::normal::{end_visual_mode, reset_VIsual_and_resel};
+use crate::normal::{end_visual_mode, reset_visual_and_resel};
 use crate::option::{
     OPT_LOCAL, OptInt, buf_copy_options, clear_winopt, copy_winopt, didset_window_options, do_set,
     shortmess,
@@ -1212,7 +1212,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&Exarg>, flags_arg: c_int) -> c_
             }
         }
 
-        foldUpdateAll(curwin_mut());
+        fold_update_all(curwin_mut());
 
         if (curwin_mut().w_valid & VALID_TOPLINE) == 0 {
             curwin_mut().w_topline = 1;
@@ -1625,7 +1625,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: c_int) -> bool {
         for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut( &*tp) {
                 if win.w_buffer == (&raw mut *buf) {
-                    clearFolding(win);
+                    clear_folding(win);
                 }
             }
         }
@@ -2578,9 +2578,9 @@ fn enter_buffer(buf: *mut FileBuf) {
         if !(*buf).b_help {
             get_winopts( &mut *buf);
         } else {
-            clearFolding(curwin_mut());
+            clear_folding(curwin_mut());
         }
-        foldUpdateAll(curwin_mut());
+        fold_update_all(curwin_mut());
 
         if curwin_mut().w_onebuf_opt.wo_diff != 0 {
             diff_buf_add(g_st().curbuf);
@@ -3242,7 +3242,7 @@ fn buf_time_compare(buf1: &FileBuf, buf2: &FileBuf) -> std::cmp::Ordering {
 }
 
 /// Find all buffer names that match.
-pub fn ExpandBufnames(
+pub fn expand_bufnames(
     pat: impl crate::strings::IntoCCharPtr,
     file: &mut Vec<std::ffi::CString>,
     options: c_int,
@@ -3524,7 +3524,7 @@ fn find_wininfo(
 pub fn get_winopts(buf: &mut FileBuf) {
     unsafe {
         clear_winopt(&mut curwin_mut().w_onebuf_opt);
-        clearFolding(curwin_mut());
+        clear_folding(curwin_mut());
 
         let wip = find_wininfo(buf, true, true);
         if !wip.is_null()
@@ -4441,7 +4441,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         let all = eap.cmdidx != Cmdidx::CmdUnhide as c_int
             && eap.cmdidx != Cmdidx::CmdSunhide as c_int;
 
-        reset_VIsual_and_resel();
+        reset_visual_and_resel();
         setpcmark();
 
         if had_tab > 0 {

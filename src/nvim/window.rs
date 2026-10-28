@@ -31,7 +31,7 @@ use crate::decoration::decor_conceal_line;
 use crate::diff::{diff_clear, diffopt_closeoff};
 use crate::drawscreen::{
     FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, comp_col, redraw_all_later,
-    redraw_later, redrawWinline, showmode, status_redraw_all,
+    redraw_later, redraw_winline, showmode, status_redraw_all,
 };
 use crate::errors::*;
 use crate::eval::typval::{
@@ -56,7 +56,7 @@ use crate::ex_getln::{
 use crate::file_search::{do_autocmd_dirchanged, grab_file_name};
 use crate::fileio::shorten_fnames;
 use crate::fold::{
-    clearFolding, copyFoldingState, FoldEntry, foldInitWin, getDeepestNesting, hasFolding,
+    clear_folding, copy_folding_state, FoldEntry, fold_init_win, get_deepest_nesting, has_folding,
 };
 use crate::globals::*;
 use crate::grid::{
@@ -83,7 +83,7 @@ use crate::r#move::{
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::normal::{
     FIND_IDENT, add_to_showcmd, check_text_or_curbuf_locked, do_nv_ident, find_ident_under_cursor,
-    reset_VIsual_and_resel,
+    reset_visual_and_resel,
 };
 use crate::option::{
     OptInt, buf_copy_options, clear_winopt, get_scrolloff_value, K_OPT_CMDHEIGHT, K_OPT_WINDOW,
@@ -112,7 +112,7 @@ use crate::ui::{
     ui_check_cursor_grid, ui_has,
 };
 use crate::ui_compositor::{ui_comp_layers_adjust, ui_comp_put_grid, ui_comp_remove_grid};
-use crate::undo::{bufIsChanged, u_sync};
+use crate::undo::{buf_is_changed_fn, u_sync};
 use crate::winfloat::{
     win_border_height, win_border_width, win_config_float, win_float_anchor_laststatus,
     win_float_find_altwin, win_float_update_statusline, win_new_float, win_reconfig_floats,
@@ -1191,7 +1191,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
 
         match nchar {
             c if c == b'S' as c_int || c == CTRL_S_CONST || c == b's' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 if bt_quickfix(Some(crate::globals::curbuf_mut())) {
                     do_window_newwindow(nchar, prenum, &mut cbuf);
                 } else {
@@ -1199,7 +1199,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 }
             }
             c if c == CTRL_V_CONST || c == b'v' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 if bt_quickfix(Some(crate::globals::curbuf_mut())) {
                     do_window_newwindow(nchar, prenum, &mut cbuf);
                 } else {
@@ -1207,7 +1207,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 }
             }
             c if c == CTRL_HAT_CONST || c == b'^' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
 
                 if buflist_findnr(if prenum == 0 {
                     curwin_mut().w_alt_fnum
@@ -1238,11 +1238,11 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 }
             }
             c if c == CTRL_N || c == b'n' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 do_window_newwindow(nchar, prenum, &mut cbuf);
             }
             c if c == CTRL_Q_CONST || c == b'q' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 cmd_with_count(
                     c"quit",
                     cbuf.as_mut_ptr(),
@@ -1252,7 +1252,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 do_cmdline_cmd(cbuf.as_ptr());
             }
             c if c == CTRL_C_CONST || c == b'c' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 cmd_with_count(
                     c"close",
                     cbuf.as_mut_ptr(),
@@ -1262,7 +1262,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 do_cmdline_cmd(cbuf.as_ptr());
             }
             c if c == CTRL_Z_CONST || c == b'z' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 do_cmdline_cmd(c"pclose");
             }
             c if c == b'P' as c_int => {
@@ -1280,7 +1280,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 }
             }
             c if c == CTRL_O || c == b'o' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 cmd_with_count(
                     c"only",
                     cbuf.as_mut_ptr(),
@@ -1403,11 +1403,11 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 win_exchange(prenum);
             }
             c if c == CTRL_R_CONST || c == b'r' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 win_rotate(false, prenum1);
             }
             c if c == b'R' as c_int => {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
                 win_rotate(true, prenum1);
             }
             c if c == b'K' as c_int
@@ -1665,7 +1665,7 @@ pub fn win_fdccol_count(wp: &mut WinInfoInfo) -> c_int {
             } else {
                 1
             };
-            let needed_fdccols = getDeepestNesting(wp);
+            let needed_fdccols = get_deepest_nesting(wp);
             return fdccol.min(needed_fdccols);
         }
         c_int::from(crate::memory::cstr_first_byte(fdc)) - c_int::from(b'0')
@@ -2545,7 +2545,7 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: c_int) {
 
         newp.w_changelistidx = oldp.w_changelistidx;
 
-        copyFoldingState(oldp, newp);
+        copy_folding_state(oldp, newp);
 
         win_init_some(newp, oldp);
 
@@ -2728,7 +2728,7 @@ fn win_exchange(mut prenum: c_int) {
         win_comp_pos();
 
         if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
-            reset_VIsual_and_resel();
+            reset_visual_and_resel();
         } else if g_st().Visual.active {
             (*wp).w_cursor = curwin_mut().w_cursor;
         }
@@ -3379,7 +3379,7 @@ fn can_close_floating_windows(tp: *mut TabPageInfo) -> bool {
         };
         while (*wp).w_floating {
             let buf = (*wp).w_buffer;
-            let need_hide = bufIsChanged(&mut *buf) && (*buf).b_nwindows <= 1;
+            let need_hide = buf_is_changed_fn(&mut *buf) && (*buf).b_nwindows <= 1;
             if need_hide && !buf_hide(&*buf) {
                 return false;
             }
@@ -3579,7 +3579,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
             };
 
             if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
-                reset_VIsual_and_resel();
+                reset_visual_and_resel();
 
                 other_buffer = true;
                 if !win_valid(win) {
@@ -4904,14 +4904,14 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
                         continue;
                     }
                 }
-                if bufIsChanged((*wp).buf_mut()) {
+                if buf_is_changed_fn((*wp).buf_mut()) {
                     wp = nextwp;
                     continue;
                 }
             }
             win_close(
                 wp,
-                !buf_hide((*wp).buf_mut()) && !bufIsChanged((*wp).buf_mut()),
+                !buf_hide((*wp).buf_mut()) && !buf_is_changed_fn((*wp).buf_mut()),
                 false,
             );
             wp = nextwp;
@@ -5332,7 +5332,7 @@ fn leave_tabpage(new_curbuf: *mut FileBuf, trigger_leave_autocmds: bool) -> bool
         let tp = g_st().curtab;
 
         leaving_window(curwin_mut());
-        reset_VIsual_and_resel();
+        reset_visual_and_resel();
         if trigger_leave_autocmds {
             if !ptr::eq(new_curbuf, g_st().curbuf) {
                 apply_autocmds(
@@ -5677,7 +5677,7 @@ pub fn win_goto(wp: *mut WinInfoInfo) {
         }
 
         if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
-            reset_VIsual_and_resel();
+            reset_visual_and_resel();
         } else if g_st().Visual.active {
             (*wp).w_cursor = curwin_mut().w_cursor;
         }
@@ -5689,10 +5689,10 @@ pub fn win_goto(wp: *mut WinInfoInfo) {
         win_enter(wp, true);
 
         if win_valid(owp) && (*owp).w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
-            redrawWinline(&mut *owp, (*owp).w_cursor.lnum);
+            redraw_winline(&mut *owp, (*owp).w_cursor.lnum);
         }
         if curwin_mut().w_onebuf_opt.wo_cole > 0 && g_st().msg_scrolled == 0 {
-            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+            redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
     }
 }
@@ -6142,7 +6142,7 @@ pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> *mut WinInfoInfo {
         (*new_wp).w_fraction = 0;
         (*new_wp).w_prev_fraction_row = -1;
 
-        foldInitWin(&mut *new_wp);
+        fold_init_win(&mut *new_wp);
         unblock_autocmds();
         (*new_wp).w_next_match_id = 1000;
         new_wp
@@ -6152,7 +6152,7 @@ pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> *mut WinInfoInfo {
 pub fn win_free(wp: *mut WinInfoInfo, tp: *mut TabPageInfo) {
     unsafe {
         g_st().window_handles.remove(&(*wp).handle);
-        clearFolding(&mut *wp);
+        clear_folding(&mut *wp);
 
         (*wp).w_alist = None;
 
@@ -7479,7 +7479,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: c_int) {
                 }
             } else if sline > 0 {
                 while sline > 0 && lnum > 1 {
-                    hasFolding(wp, lnum, Some(&mut lnum), ptr::null_mut());
+                    has_folding(wp, lnum, Some(&mut lnum), ptr::null_mut());
                     if lnum == 1 {
                         line_size = c_int::from(!decor_conceal_line(wp, lnum - 1, false));
                         sline -= 1;
@@ -7495,7 +7495,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: c_int) {
                 }
 
                 if sline < 0 {
-                    hasFolding(wp, lnum, None, &raw mut lnum);
+                    has_folding(wp, lnum, None, &raw mut lnum);
                     lnum += 1;
                     wp.w_wrow -= line_size + sline;
                 } else if sline > 0 {

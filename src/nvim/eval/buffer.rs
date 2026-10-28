@@ -37,7 +37,7 @@ use crate::r#move::update_topline;
 use crate::path::path_with_url;
 use crate::sign::{buf_has_signs, get_buffer_signs};
 use crate::strings::concat_str;
-use crate::undo::{bufIsChanged, u_clearallandblockfree, u_save, u_savesub, u_sync};
+use crate::undo::{buf_is_changed_fn, u_clearallandblockfree, u_save, u_savesub, u_sync};
 use crate::window::WinInfoInfo;
 use std::ffi::c_int;
 use std::ptr;
@@ -744,7 +744,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> *mut TvDict {
         tv_dict_add_nr(
             &mut *dict,
             c"changed",
-            Varnumber::from(bufIsChanged(buf)),
+            Varnumber::from(buf_is_changed_fn(buf)),
         );
         tv_dict_add_nr(&mut *dict, c"changedtick", buf_get_changedtick(&*buf));
         tv_dict_add_nr(

@@ -1,6 +1,6 @@
 //! Nvim's own UI client, which attaches to a child or remote Nvim server (`src/nvim/ui_client.c`).
 
-use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
+use crate::api::private::dispatch::key_dict_highlight_get_field as highlight_get_field_cb;
 use crate::api::private::helpers::{
     OBJECT_NIL, api_dict_to_keydict, api_free_array, api_metadata, api_set_error, boolean_obj,
     copy_array, cstr_as_obj, cstr_as_string, integer_obj,
@@ -522,7 +522,7 @@ pub fn ui_client_event_restart(args: Array) {
         uic_st().restart_pending = true;
 }
 
-pub fn ui_client_event__set_restart_on_crash_exit(args: Array) {
+pub fn ui_client_event_set_restart_on_crash_exit(args: Array) {
     api_free_array(uic_st().restart_args_after_crash_exit);
         uic_st().restart_args_after_crash_exit = copy_array(args, None);
 }
@@ -1054,7 +1054,7 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
     UIClientHandler {
         name: c"_set_restart_on_crash_exit",
-        r#fn: Some(ui_client_event__set_restart_on_crash_exit),
+        r#fn: Some(ui_client_event_set_restart_on_crash_exit),
     },
 ];
 

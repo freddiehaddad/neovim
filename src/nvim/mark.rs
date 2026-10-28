@@ -19,7 +19,7 @@ use crate::eval::typval::{
 };
 use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS, Exarg};
 use crate::extmark::{ExtmarkOp, extmark_adjust, K_EXTMARK_NOOP};
-use crate::fold::{FoldEntry, foldMarkAdjust, hasFolding};
+use crate::fold::{FoldEntry, fold_mark_adjust, has_folding};
 use crate::globals::*;
 use crate::insert::beginline;
 use crate::lua::executor::nlua_call_excmd;
@@ -834,7 +834,7 @@ pub fn mark_view_restore(fm: Option<&Fmark>) {
             if topline >= 1 {
                 set_topline(curwin_mut(), topline);
                 curwin_mut().w_skipcol = if fm.view.skipcol > 0
-                    && !hasFolding(curwin_ptr(), topline, None, ptr::null_mut())
+                    && !has_folding(curwin_ptr(), topline, None, ptr::null_mut())
                     && fm.view.skipcol < linetabsize_eol(curwin_mut(), topline)
                 {
                     fm.view.skipcol
@@ -1674,7 +1674,7 @@ pub fn mark_adjust_buf(
                     }
 
                     if adjust_folds {
-                        foldMarkAdjust(&mut *win, line1, line2, amount, amount_after);
+                        fold_mark_adjust(&mut *win, line1, line2, amount, amount_after);
                     }
                 }
             }

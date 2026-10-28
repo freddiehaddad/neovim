@@ -20,11 +20,11 @@ use crate::buffer::{
 };
 use crate::charset::{
     NUL, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, is_special, skipwhite,
-    vim_isIDc, vim_isprintc, vim_iswordc, vim_str2nr,
+    vim_is_idc, vim_isprintc, vim_iswordc, vim_str2nr,
 };
 use crate::cmdexpand::{
     CmdlineColorChunk, CmdlineInfo, ColoredCmdline, CTRL_N, CTRL_P, EXPAND_NOTHING,
-    EXPAND_UNSUCCESSFUL, ExpandCleanup, ExpandInit, ExpandOne, SEARCH_NOOF, SEARCH_OPT,
+    EXPAND_UNSUCCESSFUL, expand_cleanup, expand_init, expand_one, SEARCH_NOOF, SEARCH_OPT,
     SEARCH_PEEK, SEARCH_START, WILD_ALL, WILD_APPLY, WILD_BUFLASTUSED, WILD_CANCEL,
     WILD_EXPAND_KEEP, WILD_FREE, WILD_FUNC_TRIGGER, WILD_LONGEST, WILD_MAY_EXPAND_PATTERN,
     WILD_NEXT, WILD_NO_BEEP, WILD_NOINSERT, WILD_NOSELECT, WILD_PAGEDOWN, WILD_PAGEUP, WILD_PREV,
@@ -70,7 +70,7 @@ use crate::globals::*;
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::{
     beep_flush, char_avail, ins_typebuf, map_execute_lua, plain_vgetc, stuff_empty,
-    stuffReadbuffSpecial, stuffcharReadbuff, vgetc, vpeekc, vpeekc_any, vungetc,
+    stuffReadbuffSpecial, stuffchar_readbuff, vgetc, vpeekc, vpeekc_any, vungetc,
 };
 use crate::input_cmdatom::{atom_cmdline_set, atom_payload_end, atom_payload_start};
 use crate::insert::get_literal;
@@ -582,7 +582,7 @@ pub fn parse_pattern_and_range(
         }
 
         p = skipwhite(p);
-        let delim = if delim_optional && vim_isIDc((crate::memory::cstr_first_byte(p)) as c_int) {
+        let delim = if delim_optional && vim_is_idc((crate::memory::cstr_first_byte(p)) as c_int) {
             b' ' as c_int
         } else {
             let d = *p as c_int;
@@ -917,7 +917,7 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut IncsearchState) 
                 };
                 if *c == search_delim || !vim_strchr(special_chars, *c).is_null() {
                     // put a backslash before special characters
-                    stuffcharReadbuff(*c);
+                    stuffchar_readbuff(*c);
                     *c = b'\\' as c_int;
                 }
                 // add any composing characters
@@ -926,7 +926,7 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut IncsearchState) 
                     while utf_char2len(*c) != utfc_ptr2len(get_cursor_pos_ptr()) {
                         curwin_mut().w_cursor.col += utf_char2len(*c);
                         *c = gchar_cursor();
-                        stuffcharReadbuff(*c);
+                        stuffchar_readbuff(*c);
                     }
                     *c = save_c;
                 }
@@ -1058,7 +1058,7 @@ fn command_line_enter(
         getln_st().ccline.level = getln_st().cmdline_level;
 
         if getln_st().cmdline_level != 50 {
-            ExpandInit(&mut (*s).xpc);
+            expand_init(&mut (*s).xpc);
             getln_st().ccline.xpc = &mut (*s).xpc;
             clear_cmdline_orig();
 
@@ -1240,7 +1240,7 @@ fn command_line_enter(
             (*s).did_wild_list = false;
             (*s).wim_index = 0;
 
-            ExpandCleanup(&mut (*s).xpc);
+            expand_cleanup(&mut (*s).xpc);
             getln_st().ccline.xpc = ptr::null_mut();
             clear_cmdline_orig();
 
@@ -1516,7 +1516,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> c_int {
             if g_st().got_int {
                 vpeekc();
                 g_st().got_int = false;
-                ExpandOne(&mut s.xpc, ptr::null_mut(), None, 0, WILD_FREE);
+                expand_one(&mut s.xpc, ptr::null_mut(), None, 0, WILD_FREE);
                 s.xpc.xp_context = EXPAND_NOTHING;
                 return CMDLINE_CHANGED;
             }
@@ -1620,7 +1620,7 @@ fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c: c_int
             cmdline_pum_remove(c != -1 && s.skip_pum_redraw);
         }
         if s.xpc.xp_numfiles != -1 {
-            ExpandOne(&mut s.xpc, ptr::null_mut(), None, 0, WILD_FREE);
+            expand_one(&mut s.xpc, ptr::null_mut(), None, 0, WILD_FREE);
         }
         s.did_wild_list = false;
         if opt_vars().p_wmnu == 0 || (c != K_UP && c != K_DOWN) {
@@ -4437,9 +4437,9 @@ pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) 
                     || c == CTRL_L_CONST
                     || (c == CTRL_BSL && *s as c_int == CTRL_N)
                 {
-                    stuffcharReadbuff(CTRL_V_CONST);
+                    stuffchar_readbuff(CTRL_V_CONST);
                 }
-                stuffcharReadbuff(c);
+                stuffchar_readbuff(c);
             }
         }
     }

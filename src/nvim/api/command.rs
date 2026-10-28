@@ -2,7 +2,7 @@
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::dispatch::{
-    KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
+    key_dict_cmd_magic_get_field, key_dict_cmd_mods_filter_get_field, key_dict_cmd_mods_get_field,
 };
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_dict, arena_string,
@@ -1013,7 +1013,7 @@ pub fn nvim_cmd(
                 let mut magic = KeyDict_cmd_magic::default();
                 if !api_dict_to_keydict(
                     (&raw mut magic).cast(),
-                    Some(KeyDict_cmd_magic_get_field),
+                    Some(key_dict_cmd_magic_get_field),
                     cmd.magic,
                     err,
                 ) {
@@ -1045,7 +1045,7 @@ pub fn nvim_cmd(
                 let mut mods = KeyDict_cmd_mods::default();
                 if !api_dict_to_keydict(
                     (&raw mut mods).cast(),
-                    Some(KeyDict_cmd_mods_get_field),
+                    Some(key_dict_cmd_mods_get_field),
                     cmd.mods,
                     err,
                 ) {
@@ -1057,7 +1057,7 @@ pub fn nvim_cmd(
                     let mut filter = KeyDict_cmd_mods_filter::default();
                     if !api_dict_to_keydict(
                         (&raw mut filter).cast(),
-                        Some(KeyDict_cmd_mods_filter_get_field),
+                        Some(key_dict_cmd_mods_filter_get_field),
                         mods.filter,
                         err,
                     ) {

@@ -15,7 +15,7 @@ use crate::ex_docmd::{
     EX_NOSPC, EX_XFILE, check_nextcmd, do_cmdline_cmd, ends_excmd, Exarg, expand_filename,
     find_nextcmd, separate_nextcmd,
 };
-use crate::fold::{foldUpdateAll, foldmethodIsSyntax};
+use crate::fold::{fold_update_all, foldmethod_is_syntax};
 use crate::globals::*;
 use crate::highlight_group::{
     highlight_group_name, highlight_link_id, highlight_num_groups, init_highlight, syn_check_group,
@@ -1129,8 +1129,8 @@ pub fn syn_stack_free_all(block: *mut Synblock) {
 
         if !g_st().curtab.is_null() {
             for wp in for_all_windows_mut() {
-                if win_s(wp) == block && foldmethodIsSyntax(wp) {
-                    foldUpdateAll(wp);
+                if win_s(wp) == block && foldmethod_is_syntax(wp) {
+                    fold_update_all(wp);
                 }
             }
         }
@@ -3790,8 +3790,8 @@ fn get_syn_options(
                     }
 
                     arg = skipwhite(arg);
-                } else if flags == HL_FOLD && foldmethodIsSyntax(curwin_mut()) {
-                    foldUpdateAll(curwin_mut());
+                } else if flags == HL_FOLD && foldmethod_is_syntax(curwin_mut()) {
+                    fold_update_all(curwin_mut());
                 }
             }
         }

@@ -3,7 +3,7 @@
 use crate::buffer::FileBuf;
 pub(super) use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 use crate::charset::{
-    getdigits_int, hex2nr, vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc_buf, vim_iswordp_buf,
+    getdigits_int, hex2nr, vim_is_idc, vim_isfilec, vim_isprintc, vim_iswordc_buf, vim_iswordp_buf,
 };
 use crate::cursor::{Colnr, Linenr, Lpos, lt};
 use crate::errors::*;
@@ -1365,37 +1365,37 @@ pub(super) fn tv_list_ref(l: Option<&mut TvList>) {
 }
 
 #[inline]
-pub(super) const fn Magic(x: c_int) -> c_int {
+pub(super) const fn magic_fn(x: c_int) -> c_int {
     x - 256
 }
 
 #[inline]
-pub(super) const fn un_Magic(x: c_int) -> c_int {
+pub(super) const fn un_magic(x: c_int) -> c_int {
     x + 256
 }
 
 #[inline]
-pub(super) const fn is_Magic(x: c_int) -> bool {
+pub(super) const fn is_magic_fn(x: c_int) -> bool {
     x < 0
 }
 
 #[inline]
-pub(super) const fn no_Magic(x: c_int) -> c_int {
-    if is_Magic(x) { un_Magic(x) } else { x }
+pub(super) const fn no_magic(x: c_int) -> c_int {
+    if is_magic_fn(x) { un_magic(x) } else { x }
 }
 
 #[inline]
-pub(super) const fn toggle_Magic(x: c_int) -> c_int {
-    if is_Magic(x) { un_Magic(x) } else { Magic(x) }
+pub(super) const fn toggle_magic(x: c_int) -> c_int {
+    if is_magic_fn(x) { un_magic(x) } else { magic_fn(x) }
 }
 
 #[inline]
-pub(super) fn UCHARAT(p: *const u8) -> c_int {
+pub(super) fn ucharat(p: *const u8) -> c_int {
     unsafe { *p as c_int }
 }
 
 #[inline]
-pub(super) fn REG_MULTI() -> bool {
+pub(super) fn reg_multi() -> bool {
     re_st().rex.reg_match.is_null()
 }
 
@@ -1412,10 +1412,10 @@ pub(super) fn mb_ptr_adv<T>(p: *mut *mut T) {
 /// Return MULTI_MULT if c is a multi "multi" operator.
 #[inline]
 pub(super) fn re_multi_type(c: c_int) -> c_int {
-    if c == Magic(b'@' as c_int) || c == Magic(b'=' as c_int) || c == Magic(b'?' as c_int) {
+    if c == magic_fn(b'@' as c_int) || c == magic_fn(b'=' as c_int) || c == magic_fn(b'?' as c_int) {
         return MULTI_ONE;
     }
-    if c == Magic(b'*' as c_int) || c == Magic(b'+' as c_int) || c == Magic(b'{' as c_int) {
+    if c == magic_fn(b'*' as c_int) || c == magic_fn(b'+' as c_int) || c == magic_fn(b'{' as c_int) {
         return MULTI_MULT;
     }
     NOT_MULTI
@@ -1770,39 +1770,39 @@ pub(super) fn peekchr() -> c_int {
         match re_st().curchr as u8 {
             b'.' | b'[' | b'~' => {
                 if re_st().reg_magic >= MAGIC_ON {
-                    re_st().curchr = Magic(re_st().curchr);
+                    re_st().curchr = magic_fn(re_st().curchr);
                 }
             }
             b'(' | b')' | b'{' | b'%' | b'+' | b'=' | b'?' | b'@' | b'!' | b'&' | b'|' | b'<'
             | b'>' | b'#' | b'"' | b'\'' | b',' | b'-' | b':' | b';' | b'`' | b'/' => {
                 if re_st().reg_magic == MAGIC_ALL {
-                    re_st().curchr = Magic(re_st().curchr);
+                    re_st().curchr = magic_fn(re_st().curchr);
                 }
             }
             b'*' => {
                 if re_st().reg_magic >= MAGIC_ON
                     && re_st().at_start == 0
-                    && !(re_st().prev_at_start != 0 && re_st().prevchr == Magic(b'^' as c_int))
+                    && !(re_st().prev_at_start != 0 && re_st().prevchr == magic_fn(b'^' as c_int))
                     && (re_st().peekchr_after_slash != 0
-                        || (re_st().prevchr != Magic(b'(' as c_int)
-                            && re_st().prevchr != Magic(b'&' as c_int)
-                            && re_st().prevchr != Magic(b'|' as c_int)))
+                        || (re_st().prevchr != magic_fn(b'(' as c_int)
+                            && re_st().prevchr != magic_fn(b'&' as c_int)
+                            && re_st().prevchr != magic_fn(b'|' as c_int)))
                 {
-                    re_st().curchr = Magic(b'*' as c_int);
+                    re_st().curchr = magic_fn(b'*' as c_int);
                 }
             }
             b'^' => {
                 if re_st().reg_magic >= MAGIC_OFF
                     && (re_st().at_start != 0
                         || re_st().reg_magic == MAGIC_ALL
-                        || re_st().prevchr == Magic(b'(' as c_int)
-                        || re_st().prevchr == Magic(b'|' as c_int)
-                        || re_st().prevchr == Magic(b'&' as c_int)
-                        || re_st().prevchr == Magic(b'n' as c_int)
-                        || (no_Magic(re_st().prevchr) == b'(' as c_int
-                            && re_st().prevprevchr == Magic(b'%' as c_int)))
+                        || re_st().prevchr == magic_fn(b'(' as c_int)
+                        || re_st().prevchr == magic_fn(b'|' as c_int)
+                        || re_st().prevchr == magic_fn(b'&' as c_int)
+                        || re_st().prevchr == magic_fn(b'n' as c_int)
+                        || (no_magic(re_st().prevchr) == b'(' as c_int
+                            && re_st().prevprevchr == magic_fn(b'%' as c_int)))
                 {
-                    re_st().curchr = Magic(b'^' as c_int);
+                    re_st().curchr = magic_fn(b'^' as c_int);
                     re_st().at_start = 1;
                     re_st().prev_at_start = 0;
                 }
@@ -1827,7 +1827,7 @@ pub(super) fn peekchr() -> c_int {
                         || (is_magic_all && matches!(*p, b'|' | b'&' | b')'))
                         || re_st().reg_magic == MAGIC_ALL
                     {
-                        re_st().curchr = Magic(b'$' as c_int);
+                        re_st().curchr = magic_fn(b'$' as c_int);
                     }
                 }
             }
@@ -1844,11 +1844,11 @@ pub(super) fn peekchr() -> c_int {
                     let _ = peekchr();
                     re_st().regparse = re_st().regparse.sub(1);
                     re_st().peekchr_after_slash -= 1;
-                    re_st().curchr = toggle_Magic(re_st().curchr);
+                    re_st().curchr = toggle_magic(re_st().curchr);
                 } else if !vim_strchr(REGEXP_ABBR, c).is_null() {
                     re_st().curchr = backslash_trans(c);
                 } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as c_int || c == b'^' as c_int) {
-                    re_st().curchr = toggle_Magic(c);
+                    re_st().curchr = toggle_magic(c);
                 } else {
                     re_st().curchr = if c >= 0x80 {
                         utf_ptr2char(re_st().regparse.add(1))
@@ -2103,7 +2103,7 @@ pub(super) fn reg_match_visual() -> bool {
         } else {
             re_st().rex.reg_win
         };
-        if re_st().rex.reg_buf != g_st().curbuf || g_st().Visual.start.lnum == 0 || !REG_MULTI() {
+        if re_st().rex.reg_buf != g_st().curbuf || g_st().Visual.start.lnum == 0 || !reg_multi() {
             return false;
         }
 
@@ -2190,7 +2190,7 @@ pub(super) fn reg_match_visual() -> bool {
 
 pub(super) fn prog_magic_wrong() -> bool {
     unsafe {
-        let prog = if REG_MULTI() {
+        let prog = if reg_multi() {
             (*re_st().rex.reg_mmatch).regprog
         } else {
             (*re_st().rex.reg_match).regprog
@@ -2198,7 +2198,7 @@ pub(super) fn prog_magic_wrong() -> bool {
         let RegProgEngine::Bt(ref bt_prog) = (*prog).engine else {
             return false;
         };
-        if UCHARAT(bt_prog.program.as_ptr()) != REGMAGIC {
+        if ucharat(bt_prog.program.as_ptr()) != REGMAGIC {
             emsg(tr(E_RE_CORR));
             return true;
         }
@@ -2211,7 +2211,7 @@ pub(super) fn cleanup_subexpr() {
         if re_st().rex.need_clear_subexpr == 0 {
             return;
         }
-        if REG_MULTI() {
+        if reg_multi() {
             let uninit_pos = Lpos { lnum: -1, col: -1 };
             std::slice::from_raw_parts_mut(re_st().rex.reg_startpos, NSUBEXP).fill(uninit_pos);
             std::slice::from_raw_parts_mut(re_st().rex.reg_endpos, NSUBEXP).fill(uninit_pos);
@@ -2227,7 +2227,7 @@ pub(super) fn cleanup_zsubexpr() {
     if re_st().rex.need_clear_zsubexpr == 0 {
             return;
         }
-        if REG_MULTI() {
+        if reg_multi() {
             let uninit_pos = Lpos { lnum: -1, col: -1 };
             re_st().reg_startzpos = [uninit_pos; NSUBEXP];
             re_st().reg_endzpos = [uninit_pos; NSUBEXP];
@@ -2894,7 +2894,7 @@ fn vim_regsub_both(
                     dst = dst.add(1);
                 } else {
                     let mut s: *mut c_char;
-                    if REG_MULTI() {
+                    if reg_multi() {
                         clnum = (*re_st().rex.reg_mmatch).startpos[no as usize].lnum;
                         if clnum < 0 || (*re_st().rex.reg_mmatch).endpos[no as usize].lnum < 0 {
                             s = ptr::null_mut();
@@ -2920,7 +2920,7 @@ fn vim_regsub_both(
                     if !s.is_null() {
                         loop {
                             if len == 0 {
-                                if REG_MULTI() {
+                                if reg_multi() {
                                     if (*re_st().rex.reg_mmatch).endpos[no as usize].lnum == clnum {
                                         break;
                                     }
@@ -3609,23 +3609,23 @@ mod tests {
     #[test]
     fn magic_helpers_round_trip() {
         let c = b'*' as c_int;
-        let m = Magic(c);
-        assert!(is_Magic(m));
-        assert_eq!(un_Magic(m), c);
-        assert_eq!(no_Magic(m), c);
-        assert_eq!(no_Magic(c), c);
-        assert_eq!(toggle_Magic(c), m);
-        assert_eq!(toggle_Magic(m), c);
+        let m = magic_fn(c);
+        assert!(is_magic_fn(m));
+        assert_eq!(un_magic(m), c);
+        assert_eq!(no_magic(m), c);
+        assert_eq!(no_magic(c), c);
+        assert_eq!(toggle_magic(c), m);
+        assert_eq!(toggle_magic(m), c);
     }
 
     #[test]
     fn re_multi_type_classifies_operators() {
-        assert_eq!(re_multi_type(Magic(b'*' as c_int)), MULTI_MULT);
-        assert_eq!(re_multi_type(Magic(b'+' as c_int)), MULTI_MULT);
-        assert_eq!(re_multi_type(Magic(b'{' as c_int)), MULTI_MULT);
-        assert_eq!(re_multi_type(Magic(b'=' as c_int)), MULTI_ONE);
-        assert_eq!(re_multi_type(Magic(b'?' as c_int)), MULTI_ONE);
-        assert_eq!(re_multi_type(Magic(b'@' as c_int)), MULTI_ONE);
+        assert_eq!(re_multi_type(magic_fn(b'*' as c_int)), MULTI_MULT);
+        assert_eq!(re_multi_type(magic_fn(b'+' as c_int)), MULTI_MULT);
+        assert_eq!(re_multi_type(magic_fn(b'{' as c_int)), MULTI_MULT);
+        assert_eq!(re_multi_type(magic_fn(b'=' as c_int)), MULTI_ONE);
+        assert_eq!(re_multi_type(magic_fn(b'?' as c_int)), MULTI_ONE);
+        assert_eq!(re_multi_type(magic_fn(b'@' as c_int)), MULTI_ONE);
         assert_eq!(re_multi_type(b'*' as c_int), NOT_MULTI);
     }
 

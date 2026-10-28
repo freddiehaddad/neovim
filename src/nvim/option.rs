@@ -64,7 +64,7 @@ use crate::ex_session::{OPT_SKIPRTP, put_eol, put_line};
 use crate::fileio::getuid;
 use crate::fileio::{EOL_DOS, EOL_UNIX, FILE, fprintf, fputs, K_OPT_FILEENCODING};
 use crate::fold::{
-    foldUpdateAll, foldmethodIsDiff, foldmethodIsIndent, foldmethodIsSyntax, newFoldLevel,
+    fold_update_all, foldmethod_is_diff, foldmethod_is_indent, foldmethod_is_syntax, new_fold_level,
 };
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, FuzmatchStr, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
@@ -134,7 +134,7 @@ use crate::strings::{
 use crate::tag::free_tagfunc_option;
 use crate::terminal::on_scrollback_option_changed;
 use crate::ui::ui_call_option_set;
-use crate::undo::{bufIsChanged, curbufIsChanged, u_compute_hash, u_read_undo, u_sync};
+use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn, u_compute_hash, u_read_undo, u_sync};
 use crate::window::{
     MIN_COLUMNS, STATUS_HEIGHT, check_colorcolumn, command_height, frame_new_height,
     global_stl_height, last_status, min_rows, min_rows_for_all_tabpages, set_winbar,
@@ -2834,8 +2834,8 @@ pub fn did_set_diff(args: &mut Optset) -> *const c_char {
     unsafe {
         let win = args.os_win;
         diff_buf_adjust(&mut *win);
-        if foldmethodIsDiff(&mut *win) {
-            foldUpdateAll(&mut *win);
+        if foldmethod_is_diff(&mut *win) {
+            fold_update_all(&mut *win);
         }
         ptr::null()
     }
@@ -2861,11 +2861,11 @@ pub fn did_set_foldenable(args: &mut Optset) -> *const c_char {
         let win = args.os_win;
         if args.os_varp == (&raw mut (*win).w_onebuf_opt.wo_fen).cast::<c_void>()
             && c_int::from(args.os_oldval.data.boolean()) != (*win).w_onebuf_opt.wo_fen
-            && foldmethodIsDiff(&mut *win)
+            && foldmethod_is_diff(&mut *win)
             && (*win).w_onebuf_opt.wo_scb != 0
         {
             for wp in for_all_windows_ptr() {
-                if wp != win && foldmethodIsDiff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
+                if wp != win && foldmethod_is_diff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
                     (*wp).w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
                     changed_window_setting(&mut *wp);
                 }
@@ -2877,14 +2877,14 @@ pub fn did_set_foldenable(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'foldlevel' option value.
 pub fn did_set_foldlevel(_args: &mut Optset) -> *const c_char {
-    newFoldLevel();
+    new_fold_level();
         ptr::null()
 }
 
 /// Process the new 'foldminlines' option value.
 pub fn did_set_foldminlines(args: &mut Optset) -> *const c_char {
     unsafe {
-        foldUpdateAll(&mut *args.os_win);
+        fold_update_all(&mut *args.os_win);
         ptr::null()
     }
 }
@@ -2893,8 +2893,8 @@ pub fn did_set_foldminlines(args: &mut Optset) -> *const c_char {
 pub fn did_set_foldnestmax(args: &mut Optset) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsSyntax(&mut *win) || foldmethodIsIndent(&mut *win) {
-            foldUpdateAll(&mut *win);
+        if foldmethod_is_syntax(&mut *win) || foldmethod_is_indent(&mut *win) {
+            fold_update_all(&mut *win);
         }
         ptr::null()
     }
@@ -3262,8 +3262,8 @@ pub fn did_set_shiftwidth_tabstop(args: &mut Optset) -> *const c_char {
         let win = args.os_win;
         let pp = args.os_varp.cast::<OptInt>();
 
-        if foldmethodIsIndent(&mut *win) {
-            foldUpdateAll(&mut *win);
+        if foldmethod_is_indent(&mut *win) {
+            fold_update_all(&mut *win);
         }
         if pp == &raw mut (*buf).b_p_sw || (*buf).b_p_sw == 0 {
             parse_cino(&mut *buf);
@@ -3355,7 +3355,7 @@ pub fn did_set_undofile(args: &mut Optset) -> *const c_char {
 
         for bp in for_all_buffers_ptr() {
             if (buf == bp || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
-                && !bufIsChanged(&mut *bp)
+                && !buf_is_changed_fn(&mut *bp)
                 && (*bp).b_ml.ml_mfp.is_some()
             {
                 u_compute_hash(&mut *bp, hash.as_mut_ptr());
@@ -5243,7 +5243,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
         }
 
         if varp.cast::<c_int>() == &raw mut (*g_st().curbuf).b_changed {
-            return boolean_obj(curbufIsChanged());
+            return boolean_obj(curbuf_is_changed_fn());
         }
 
         if is_callback_option(opt_idx) {
@@ -6386,7 +6386,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: c_int) {
             let val_int = if opt.immutable {
                 c_int::from(opt.def_val.data.boolean())
             } else if varp.cast::<c_int>() == &raw mut (*g_st().curbuf).b_changed {
-                c_int::from(curbufIsChanged())
+                c_int::from(curbuf_is_changed_fn())
             } else {
                 *(varp.cast::<c_int>())
             };
@@ -7907,7 +7907,7 @@ fn match_str(
     }
 }
 
-pub fn ExpandSettings(
+pub fn expand_settings(
     xp: &mut ExpandCtx,
     regmatch: &mut Regmatch,
     fuzzystr: impl crate::strings::IntoCCharPtr,
@@ -7991,7 +7991,7 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
 }
 
 /// Expansion handler for :set= when we just want to fill in with the existing value.
-pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> bool {
+pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
     matches.clear();
 
         if opt_st().EXPAND_OPTION_IDX == K_OPT_INVALID {
@@ -8019,7 +8019,7 @@ pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> bool {
 }
 
 /// Expansion handler for :set=/:set+= when the option has a custom expansion handler.
-pub fn ExpandStringSetting(
+pub fn expand_string_setting(
     xp: &mut ExpandCtx,
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
@@ -8054,7 +8054,7 @@ pub fn ExpandStringSetting(
 }
 
 /// Expansion handler for :set-=
-pub fn ExpandSettingSubtract(
+pub fn expand_setting_subtract(
     xp: &mut ExpandCtx,
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
@@ -8064,7 +8064,7 @@ pub fn ExpandSettingSubtract(
             || option_has_type(opt_st().EXPAND_OPTION_IDX, ObjectType::ObjectTypeInteger)
             || is_callback_option(opt_st().EXPAND_OPTION_IDX)
         {
-            return ExpandOldSetting(matches);
+            return expand_old_setting(matches);
         }
 
         let option_val =
@@ -8135,7 +8135,7 @@ pub fn ExpandSettingSubtract(
             return true;
         }
 
-        ExpandOldSetting(matches)
+        expand_old_setting(matches)
     }
 }
 

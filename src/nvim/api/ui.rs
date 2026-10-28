@@ -1773,7 +1773,7 @@ pub fn remote_ui_error_exit(ui: &mut RemoteUI, status: Integer) {
         push_call(ui, c"error_exit", args);
 }
 
-pub fn remote_ui__set_restart_on_crash_exit(
+pub fn remote_ui_set_restart_on_crash_exit(
     ui: &mut RemoteUI,
     progpath: NvimString,
     argv: Array,

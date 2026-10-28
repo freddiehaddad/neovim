@@ -21,7 +21,7 @@ use crate::globals::*;
 use crate::mark::{setmark, setpcmark};
 
 use crate::message::{emsg, semsg};
-use crate::normal::reset_VIsual_and_resel;
+use crate::normal::reset_visual_and_resel;
 use crate::option_vars::*;
 use crate::os::input::os_breakcheck;
 use crate::path::{
@@ -30,7 +30,7 @@ use crate::path::{
 };
 use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::gettext;
-use crate::undo::bufIsChanged;
+use crate::undo::buf_is_changed_fn;
 use crate::version::list_in_columns;
 use crate::window::{
     WSP_BELOW, WSP_ROOM, check_can_set_curbuf_forceit, goto_tabpage_tp, lastwin_nofloating,
@@ -967,9 +967,9 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     && (buf_hide(&*buf)
                         || aall_ref.forceit
                         || (*buf).b_nwindows > 1
-                        || !bufIsChanged(&mut *buf))
+                        || !buf_is_changed_fn(&mut *buf))
                 {
-                    if !buf_hide(&*buf) && (*buf).b_nwindows <= 1 && bufIsChanged(&mut *buf) {
+                    if !buf_hide(&*buf) && (*buf).b_nwindows <= 1 && buf_is_changed_fn(&mut *buf) {
                         let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf);
                         autowrite(&mut *buf, false);
@@ -987,7 +987,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     {
                         aall.use_firstwin = true;
                     } else {
-                        win_close(wp, !buf_hide(&*buf) && !bufIsChanged(&mut *buf), false);
+                        win_close(wp, !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf), false);
                         if !win_valid(wpnext) {
                             wpnext = if lastwin_mut().w_floating {
                                 g_st().lastwin
@@ -1083,7 +1083,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: c_int) {
                     ptr::null_mut(),
                     None,
                     ECMD_ONE,
-                    (if buf_hide(curwin_mut().buf_mut()) || bufIsChanged(curwin_mut().buf_mut()) {
+                    (if buf_hide(curwin_mut().buf_mut()) || buf_is_changed_fn(curwin_mut().buf_mut()) {
                         ECMD_HIDE
                     } else {
                         0
@@ -1136,7 +1136,7 @@ fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 
         let new_lu_tp = g_st().curtab;
 
-        reset_VIsual_and_resel();
+        reset_visual_and_resel();
 
         arg_all_close_unused_windows(&mut aall);
 

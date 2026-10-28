@@ -27,7 +27,7 @@ use crate::eval::typval::{
 use crate::ex_cmds::{BL_WHITE, ECMD_HIDE, do_ecmd};
 use crate::ex_docmd::Exarg;
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
-use crate::fold::foldOpenCursor;
+use crate::fold::fold_open_cursor;
 use crate::globals::*;
 use crate::grid::{Schar, schar_from_ascii, schar_from_cluster, schar_get};
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
@@ -39,7 +39,7 @@ use crate::marktree::{
     marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap, marktree_lookup_ns,
     mt_decor, mt_decor_sign, mt_end,
 };
-use crate::mbyte::{utf_ClusterInfo, utf_ptr2StrCharInfo};
+use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info};
 use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
@@ -496,9 +496,9 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: *mut Schar, text: *mut c_cha
         }
 
         let mut cells: usize = 0;
-        let mut ci = utf_ptr2StrCharInfo(text);
+        let mut ci = utf_ptr2_str_char_info(text);
         while !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
                 if sp.is_some() {
                     semsg!(gettext(c"E239: Invalid sign text: %s"), text);
@@ -804,7 +804,7 @@ fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut File
             }
         }
 
-        foldOpenCursor();
+        fold_open_cursor();
         lnum
     }
 }

@@ -3,10 +3,10 @@
 use crate::buffer::FileBuf;
 use crate::change::{TAB, inserted_bytes, K_OPT_VE_FLAG_ONEMORE};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
-use crate::fold::{hasAnyFolding, hasFolding};
+use crate::fold::{has_any_folding, has_folding};
 use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
-use crate::mbyte::{utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char};
+use crate::mbyte::{utf_cluster_info, utf_head_off, utf_ptr2_str_char_info, utf_ptr2char};
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
 };
@@ -217,10 +217,10 @@ fn coladvance2(
 
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(&mut csarg,  &mut *wp, pos.lnum, line);
-            let mut ci = utf_ptr2StrCharInfo(line);
+            let mut ci = utf_ptr2_str_char_info(line);
             col = 0;
             while col <= wcol && !crate::memory::cstr_is_empty(ci.ptr) {
-                let cli = utf_ClusterInfo(ci);
+                let cli = utf_cluster_info(ci);
                 let cs: CharSize =
                     win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
                 csize = cs.width;
@@ -335,7 +335,7 @@ pub fn dec_cursor() -> c_int {
 /// Get the line number relative to the current cursor position (`get_cursor_rel_lnum`).
 pub fn get_cursor_rel_lnum(wp: &mut WinInfoInfo, lnum: Linenr) -> Linenr {
     let cursor = wp.w_cursor.lnum;
-        if lnum == cursor || hasAnyFolding(wp) == 0 {
+        if lnum == cursor || has_any_folding(wp) == 0 {
             return lnum - cursor;
         }
 
@@ -344,7 +344,7 @@ pub fn get_cursor_rel_lnum(wp: &mut WinInfoInfo, lnum: Linenr) -> Linenr {
         let mut retval: Linenr = 0;
 
         while from_line < to_line {
-            hasFolding(wp, from_line, None, &raw mut from_line);
+            has_folding(wp, from_line, None, &raw mut from_line);
             from_line += 1;
             retval += 1;
         }
@@ -369,7 +369,7 @@ pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
     unsafe {
         let buf = win.w_buffer;
         if win.w_cursor.lnum > (*buf).b_ml.ml_line_count
-            && !hasFolding(
+            && !has_folding(
                 win,
                 (*buf).b_ml.ml_line_count,
                 Some(&mut win.w_cursor.lnum),

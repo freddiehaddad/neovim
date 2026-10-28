@@ -4229,7 +4229,7 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
 }
 
 /// Get next (unique) copy ID.
-pub fn get_copyID() -> c_int {
+pub fn get_copy_id() -> c_int {
     eval_st().CURRENT_COPY_ID = eval_st().CURRENT_COPY_ID.wrapping_add(COPYID_INC);
         eval_st().CURRENT_COPY_ID
 }
@@ -4250,7 +4250,7 @@ pub fn garbage_collect(testing: bool) -> bool {
             rt_st().exestack.shrink_to(keep);
         }
 
-        let copy_id = get_copyID();
+        let copy_id = get_copy_id();
 
         abort = abort || set_ref_in_previous_funccal(copy_id);
         abort = abort || garbage_collect_scriptvars(copy_id);

@@ -10,21 +10,21 @@ use crate::charset::{
     hexhex2nr, init_isf_chartab, init_isi_chartab, K_OPT_DY_FLAG_UHEX, transchar, transchar_byte,
     try_getdigits,
 };
-use crate::cmdexpand::{CompleteListItemGetter, ExpandGeneric};
+use crate::cmdexpand::{CompleteListItemGetter, expand_generic};
 use crate::cursor::{coladvance, Colnr, CursorPos};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
 use crate::diff::{diffanchors_changed, diffopt_changed, K_OPT_DIFFOPT};
 use crate::digraph::keymap_init;
 use crate::drawscreen::{
     UPD_INVERTED, UPD_NOT_VALID, UPD_VALID, comp_col, redraw_all_later, redraw_buf_later,
-    redraw_curbuf_later, redraw_later, redrawWinline, status_redraw_buf,
+    redraw_curbuf_later, redraw_later, redraw_winline, status_redraw_buf,
 };
 use crate::errors::*;
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT, check_opt_wim};
 use crate::fold::{
-    foldUpdateAll, foldmethodIsDiff, foldmethodIsExpr, foldmethodIsIndent, foldmethodIsMarker,
-    newFoldLevel,
+    fold_update_all, foldmethod_is_diff, foldmethod_is_expr, foldmethod_is_indent, foldmethod_is_marker,
+    new_fold_level,
 };
 use crate::globals::*;
 use crate::grid::{Schar, schar_from_char, schar_from_cluster, schar_from_str};
@@ -35,7 +35,7 @@ use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::mark::{Fmark, Fmarkv};
 use crate::mbyte::{
-    enc_canonize, get_encoding_name, utf_ClusterInfo, utf_ptr2StrCharInfo, utf_ptr2char,
+    enc_canonize, get_encoding_name, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2char,
     utfc_ptr2len,
 };
 use crate::memline::ml_setflags;
@@ -739,7 +739,7 @@ fn briopt_hash(key: &[u8]) -> isize {
     low
 }
 
-fn OptKeyDict_briopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+fn opt_key_dict_briopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = briopt_hash(key);
     (hash >= 0).then(|| &BRIOPT_TABLE[hash as usize])
 }
@@ -786,7 +786,7 @@ fn dip_hash(key: &[u8]) -> isize {
     -1
 }
 
-fn OptKeyDict_dip_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+fn opt_key_dict_dip_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = dip_hash(key);
     (hash >= 0).then(|| &DIP_TABLE[hash as usize])
 }
@@ -814,7 +814,7 @@ fn mopt_hash(key: &[u8]) -> isize {
     low
 }
 
-fn OptKeyDict_mopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+fn opt_key_dict_mopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = mopt_hash(key);
     (hash >= 0).then(|| &MOPT_TABLE[hash as usize])
 }
@@ -834,7 +834,7 @@ fn mousescroll_hash(key: &[u8]) -> isize {
     low
 }
 
-fn OptKeyDict_mousescroll_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+fn opt_key_dict_mousescroll_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = mousescroll_hash(key);
     (hash >= 0).then(|| &MOUSESCROLL_TABLE[hash as usize])
 }
@@ -855,34 +855,34 @@ fn pvp_hash(key: &[u8]) -> isize {
     low
 }
 
-fn OptKeyDict_pvp_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
+fn opt_key_dict_pvp_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
     let hash = pvp_hash(key);
     (hash >= 0).then(|| &PVP_TABLE[hash as usize])
 }
 
 pub(crate) fn opt_dict_schema(opt_idx: OptIndex) -> Option<&'static OptDictSchema> {
     static INFO_BRIOPT: OptDictSchema = OptDictSchema {
-        get_field: Some(OptKeyDict_briopt_get_field),
+        get_field: Some(opt_key_dict_briopt_get_field),
         schema: &OPT_BRIOPT_SCHEMA,
         size: std::mem::size_of::<OptKeyDict_briopt>(),
     };
     static INFO_DIP: OptDictSchema = OptDictSchema {
-        get_field: Some(OptKeyDict_dip_get_field),
+        get_field: Some(opt_key_dict_dip_get_field),
         schema: &OPT_DIP_SCHEMA,
         size: std::mem::size_of::<OptKeyDict_dip>(),
     };
     static INFO_MOPT: OptDictSchema = OptDictSchema {
-        get_field: Some(OptKeyDict_mopt_get_field),
+        get_field: Some(opt_key_dict_mopt_get_field),
         schema: &OPT_MOPT_SCHEMA,
         size: std::mem::size_of::<OptKeyDict_mopt>(),
     };
     static INFO_MOUSESCROLL: OptDictSchema = OptDictSchema {
-        get_field: Some(OptKeyDict_mousescroll_get_field),
+        get_field: Some(opt_key_dict_mousescroll_get_field),
         schema: &OPT_MOUSESCROLL_SCHEMA,
         size: std::mem::size_of::<OptKeyDict_mousescroll>(),
     };
     static INFO_PVP: OptDictSchema = OptDictSchema {
-        get_field: Some(OptKeyDict_pvp_get_field),
+        get_field: Some(opt_key_dict_pvp_get_field),
         schema: &OPT_PVP_SCHEMA,
         size: std::mem::size_of::<OptKeyDict_pvp>(),
     };
@@ -1373,7 +1373,7 @@ fn expand_set_opt_generic(
         };
         optstr_st().set_opt_callback_func = func;
 
-        ExpandGeneric(
+        expand_generic(
             c"",
             &mut *args.oe_xp,
             &mut *args.oe_regmatch,
@@ -2318,8 +2318,8 @@ pub fn did_set_filetype_or_syntax(args: &mut Optset) -> *const c_char {
 pub fn did_set_foldexpr(args: &mut Optset) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsExpr(&mut *win) {
-            foldUpdateAll(&mut *win);
+        if foldmethod_is_expr(&mut *win) {
+            fold_update_all(&mut *win);
         }
         ptr::null()
     }
@@ -2329,8 +2329,8 @@ pub fn did_set_foldexpr(args: &mut Optset) -> *const c_char {
 pub fn did_set_foldignore(args: &mut Optset) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsIndent(&mut *win) {
-            foldUpdateAll(&mut *win);
+        if foldmethod_is_indent(&mut *win) {
+            fold_update_all(&mut *win);
         }
         ptr::null()
     }
@@ -2356,8 +2356,8 @@ pub fn validate_foldmarker(args: &mut Optset) -> *const c_char {
 pub fn did_set_foldmarker(args: &mut Optset) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        if foldmethodIsMarker(&mut *win) {
-            foldUpdateAll(&mut *win);
+        if foldmethod_is_marker(&mut *win) {
+            fold_update_all(&mut *win);
         }
         ptr::null()
     }
@@ -2367,9 +2367,9 @@ pub fn did_set_foldmarker(args: &mut Optset) -> *const c_char {
 pub fn did_set_foldmethod(args: &mut Optset) -> *const c_char {
     unsafe {
         let win = args.os_win;
-        foldUpdateAll(&mut *win);
-        if foldmethodIsDiff(&mut *win) {
-            newFoldLevel();
+        fold_update_all(&mut *win);
+        if foldmethod_is_diff(&mut *win) {
+            new_fold_level();
         }
         ptr::null()
     }
@@ -2399,7 +2399,7 @@ pub fn did_set_guicursor(_args: &mut Optset) -> *const c_char {
             return errmsg;
         }
         if g_st().Visual.active {
-            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+            redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
         ptr::null()
     }
@@ -3170,8 +3170,8 @@ pub fn did_set_vartabstop(args: &mut Optset) -> *const c_char {
             &mut (*buf).b_p_vts_array
         };
         *array = args.os_prep.take_tabstop();
-        if !soft && foldmethodIsIndent(&mut *win) {
-            foldUpdateAll(&mut *win);
+        if !soft && foldmethod_is_indent(&mut *win) {
+            fold_update_all(&mut *win);
         }
         ptr::null()
     }
@@ -3627,8 +3627,8 @@ fn get_encoded_char_adv(p: *mut *const c_char) -> Schar {
             };
         }
 
-        let ci = utf_ptr2StrCharInfo(s);
-        let cli = utf_ClusterInfo(ci);
+        let ci = utf_ptr2_str_char_info(s);
+        let cli = utf_cluster_info(ci);
         *p = cli.next.ptr;
         if cli.cells > 1 {
             0

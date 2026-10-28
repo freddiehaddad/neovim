@@ -25,7 +25,7 @@ use crate::eval::vars::{
     VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list,
 };
 use crate::eval::{
-    VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copyID, K_LIST_LEN_UNKNOWN_CONST,
+    VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copy_id, K_LIST_LEN_UNKNOWN_CONST,
     set_ref_in_ht, set_ref_in_list_items, var_flavour, VarFlavour, var_set_global,
 };
 use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
@@ -749,17 +749,17 @@ fn shada_st() -> &'static mut ShadaModuleState {
 }
 
 use crate::api::private::dispatch::{
-    KeyDict__shada_buflist_item_get_field as shada_buflist_item_get_field_cb,
-    KeyDict__shada_mark_get_field as shada_mark_get_field_cb,
-    KeyDict__shada_register_get_field as shada_register_get_field_cb,
-    KeyDict__shada_search_pat_get_field as shada_search_pat_get_field_cb,
+    key_dict_shada_buflist_item_get_field as shada_buflist_item_get_field_cb,
+    key_dict_shada_mark_get_field as shada_mark_get_field_cb,
+    key_dict_shada_register_get_field as shada_register_get_field_cb,
+    key_dict_shada_search_pat_get_field as shada_search_pat_get_field_cb,
 };
 
 use crate::charset::NUL;
 use crate::eval::funcs::MPACK_EOF;
 use crate::event::r#loop::{NS_PER_SEC, uv_strerror};
 use crate::os::fs::MAXPATHL;
-use crate::version::longVersion;
+use crate::version::long_version;
 
 #[inline]
 fn file_eof(fp: &FileDescriptor) -> bool {
@@ -2693,7 +2693,7 @@ fn shada_write(
                 key: static_cstr_as_string(c"version"),
                 value: Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(longVersion())),
+                    data: ObjectData::String(cstr_as_string(long_version())),
                 },
             },
             KeyValuePair {
@@ -2765,7 +2765,7 @@ fn shada_write(
                         }
                         VarType::VarDict => {
                             let di = vartv.vval.v_dict();
-                            let copy_id = get_copyID();
+                            let copy_id = get_copy_id();
                             if !set_ref_in_ht(&mut (*di).dv_hashtab, copy_id, ptr::null_mut())
                                 && copy_id == (*di).dv_copyID
                             {
@@ -2775,7 +2775,7 @@ fn shada_write(
                         }
                         VarType::VarList => {
                             let l = vartv.vval.v_list();
-                            let copy_id = get_copyID();
+                            let copy_id = get_copy_id();
                             if !set_ref_in_list_items(l, copy_id, ptr::null_mut())
                                 && copy_id == (*l).lv_copyID
                             {

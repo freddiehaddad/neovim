@@ -22,7 +22,7 @@ use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
 use crate::os::env::home_replace_save;
 use crate::os::fs::{MAXPATHL, os_chdir, os_dirname, os_isdir};
-use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
+use crate::path::{add_pathsep, vim_full_name, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
 use crate::window::{Frame, TabPageInfo, tabpage_index, WinInfoInfo};
@@ -267,7 +267,7 @@ fn ses_arglist(
             let mut s = alist_name(entry);
             if !s.is_null() {
                 if fullname {
-                    vim_FullName(s, buf.as_mut_ptr(), MAXPATHL, false);
+                    vim_full_name(s, buf.as_mut_ptr(), MAXPATHL, false);
                     s = buf.as_mut_ptr();
                 }
                 let fname_esc = ses_escape_fname(s);
@@ -1163,7 +1163,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 emsg(gettext(E_WRITE));
             } else if eap.cmdidx == CMD_MKSESSION {
                 let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
-                if vim_FullName(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
+                if vim_full_name(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
                     set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr(), -1);
                 }
             }

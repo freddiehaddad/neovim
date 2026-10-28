@@ -5,7 +5,7 @@ use crate::change::{
 };
 use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skiptowhite, skipwhite,
-    vim_isIDc, vim_iswordc, vim_iswordp, vim_strsize,
+    vim_is_idc, vim_iswordc, vim_iswordp, vim_strsize,
 };
 use crate::cursor::{
     Colnr, get_cursor_line_ptr, get_cursor_pos_ptr, Linenr, Lpos, lt, CursorPos,
@@ -162,7 +162,7 @@ pub fn find_start_comment(ind_maxcomment: c_int) -> *mut CursorPos {
         pos
     }
 }
-fn ind_find_start_CORS(is_raw: Option<&mut Linenr>) -> *mut CursorPos {
+fn ind_find_start_cors(is_raw: Option<&mut Linenr>) -> *mut CursorPos {
     unsafe {
         let mut comment_pos = find_start_comment(curbuf_mut().b_ind_maxcomment);
         if !comment_pos.is_null() {
@@ -373,10 +373,10 @@ fn cin_has_js_key(text: impl crate::strings::IntoCCharPtr) -> bool { let text = 
             quote = *s;
             s = s.add(1);
         }
-        if !vim_isIDc(crate::memory::cstr_first_byte(s) as c_int) {
+        if !vim_is_idc(crate::memory::cstr_first_byte(s) as c_int) {
             return false;
         }
-        while vim_isIDc(crate::memory::cstr_first_byte(s) as c_int) {
+        while vim_is_idc(crate::memory::cstr_first_byte(s) as c_int) {
             s = s.add(1);
         }
         if !crate::memory::cstr_is_empty(s) && *s == quote {
@@ -388,10 +388,10 @@ fn cin_has_js_key(text: impl crate::strings::IntoCCharPtr) -> bool { let text = 
 }
 fn cin_islabel_skip(s: *mut *const c_char) -> bool {
     unsafe {
-        if !vim_isIDc(crate::memory::cstr_first_byte(*s) as c_int) {
+        if !vim_is_idc(crate::memory::cstr_first_byte(*s) as c_int) {
             return false;
         }
-        while vim_isIDc(crate::memory::cstr_first_byte(*s) as c_int) {
+        while vim_is_idc(crate::memory::cstr_first_byte(*s) as c_int) {
             *s = (*s).add(utfc_ptr2len(*s) as usize);
         }
         *s = cin_skipcomment(*s);
@@ -415,14 +415,14 @@ fn cin_islabel() -> bool {
         if !cin_islabel_skip(&raw mut s) {
             return false;
         }
-        if !ind_find_start_CORS(None).is_null() {
+        if !ind_find_start_cors(None).is_null() {
             return false;
         }
         let cursor_save = curwin_mut().w_cursor;
         while curwin_mut().w_cursor.lnum > 1 {
             curwin_mut().w_cursor.lnum -= 1;
             curwin_mut().w_cursor.col = 0;
-            let trypos = ind_find_start_CORS(None);
+            let trypos = ind_find_start_cors(None);
             if !trypos.is_null() {
                 curwin_mut().w_cursor = *trypos;
             }
@@ -474,8 +474,8 @@ fn cin_is_compound_init(s: impl crate::strings::IntoCCharPtr) -> bool { let s = 
                 r = cin_skipcomment(p.add(1));
                 p = r;
             } else if (crate::memory::cstr_prefix_bytes(p, 6) == &b"return"[..6])
-                && !vim_isIDc(crate::memory::cstr_byte_at(p, 6) as c_int)
-                && (p == s || (p > s && !vim_isIDc(*p.sub(1) as u8 as c_int)))
+                && !vim_is_idc(crate::memory::cstr_byte_at(p, 6) as c_int)
+                && (p == s || (p > s && !vim_is_idc(*p.sub(1) as u8 as c_int)))
             {
                 r = cin_skipcomment(p.add(6));
                 p = r;
@@ -759,7 +759,7 @@ fn cin_first_id_amount() -> c_int {
             }
         }
         len = 0;
-        while vim_isIDc(crate::memory::cstr_byte_at(p, len as usize) as c_int) {
+        while vim_is_idc(crate::memory::cstr_byte_at(p, len as usize) as c_int) {
             len += 1;
         }
         if len == 0 || !ascii_iswhite(crate::memory::cstr_char_at(p, len as usize)) || cin_nocode(p) {
@@ -1082,7 +1082,7 @@ fn cin_is_if_for_while_before_offset(line: impl crate::strings::IntoCCharPtr, po
         if !probably_found {
             return 0;
         }
-        if offset == 0 || !vim_isIDc(*line.add((offset - 1) as usize) as u8 as c_int) {
+        if offset == 0 || !vim_is_idc(*line.add((offset - 1) as usize) as u8 as c_int) {
             *poffset = offset;
             return 1;
         }
@@ -1208,8 +1208,8 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
                     s = cin_skipcomment(s.add(1));
                 }
             } else if ((crate::memory::cstr_prefix_bytes(s, 5) == &b"class"[..5])
-                && !vim_isIDc(crate::memory::cstr_byte_at(s, 5) as c_int))
-                || ((crate::memory::cstr_prefix_bytes(s, 6) == &b"struct"[..6]) && !vim_isIDc(crate::memory::cstr_byte_at(s, 6) as c_int))
+                && !vim_is_idc(crate::memory::cstr_byte_at(s, 5) as c_int))
+                || ((crate::memory::cstr_prefix_bytes(s, 6) == &b"struct"[..6]) && !vim_is_idc(crate::memory::cstr_byte_at(s, 6) as c_int))
             {
                 class_or_struct = true;
                 lookfor_ctor_init = false;
@@ -1228,7 +1228,7 @@ fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
                     lookfor_ctor_init = true;
                 } else if crate::memory::cstr_first_byte(s) == b'?' {
                     return false;
-                } else if !vim_isIDc(crate::memory::cstr_first_byte(s) as c_int) {
+                } else if !vim_is_idc(crate::memory::cstr_first_byte(s) as c_int) {
                     class_or_struct = false;
                     lookfor_ctor_init = false;
                 } else if pos.col == 0 {
@@ -1308,7 +1308,7 @@ fn cin_starts_with(s: impl crate::strings::IntoCCharPtr, word: &std::ffi::CStr) 
         let l = wb.len();
         crate::memory::xstrnlen(s, l) == l
             && crate::memory::cstr_slice(s, l) == wb
-            && !vim_isIDc(crate::memory::cstr_byte_at(s, l) as c_int)
+            && !vim_is_idc(crate::memory::cstr_byte_at(s, l) as c_int)
     }
 }
 fn cin_is_cpp_extern_c(s: impl crate::strings::IntoCCharPtr) -> bool { let mut s = s.into_c_char_ptr();
@@ -1391,7 +1391,7 @@ fn find_start_brace() -> *mut CursorPos {
             curwin_mut().w_cursor = *trypos;
             let mut pos: *mut CursorPos = ptr::null_mut();
             if cin_skip2pos(&mut *trypos) as Colnr == (*trypos).col && {
-                pos = ind_find_start_CORS(None);
+                pos = ind_find_start_cors(None);
                 pos.is_null()
             } {
                 break;
@@ -1432,7 +1432,7 @@ fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut CursorPos {
                     indc_st().match_char_pos_copy = *trypos;
                     trypos = &raw mut indc_st().match_char_pos_copy;
                     curwin_mut().w_cursor = *trypos;
-                    let trypos_wk = ind_find_start_CORS(None);
+                    let trypos_wk = ind_find_start_cors(None);
                     if !trypos_wk.is_null() {
                         ind_maxp_wk = ind_maxparen - (cursor_save.lnum - (*trypos_wk).lnum);
                         if ind_maxp_wk > 0 {
@@ -1922,7 +1922,7 @@ pub fn get_c_indent() -> c_int {
                                     continue;
                                 }
                                 curwin_mut().w_cursor.lnum = lnum;
-                                trypos = ind_find_start_CORS(None);
+                                trypos = ind_find_start_cors(None);
                                 if !trypos.is_null() {
                                     lnum = (*trypos).lnum;
                                     continue;
@@ -2204,7 +2204,7 @@ pub fn get_c_indent() -> c_int {
                                             }
                                             break;
                                         }
-                                        trypos = ind_find_start_CORS(None);
+                                        trypos = ind_find_start_cors(None);
                                         if !trypos.is_null() {
                                             curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
                                             curwin_mut().w_cursor.col = 0;
@@ -2291,7 +2291,7 @@ pub fn get_c_indent() -> c_int {
                                             {
                                                 break;
                                             }
-                                            trypos = ind_find_start_CORS(None);
+                                            trypos = ind_find_start_cors(None);
                                             if !trypos.is_null() {
                                                 curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
                                                 curwin_mut().w_cursor.col = 0;
@@ -2321,7 +2321,7 @@ pub fn get_c_indent() -> c_int {
                                     }
                                     break;
                                 }
-                                trypos = ind_find_start_CORS(Some(&mut raw_string_start));
+                                trypos = ind_find_start_cors(Some(&mut raw_string_start));
                                 if !trypos.is_null() {
                                     curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
                                     curwin_mut().w_cursor.col = 0;
@@ -2785,7 +2785,7 @@ pub fn get_c_indent() -> c_int {
                     curwin_mut().w_cursor.lnum -= 1;
                     curwin_mut().w_cursor.col = 0;
                     l = get_cursor_line_ptr();
-                    trypos = ind_find_start_CORS(None);
+                    trypos = ind_find_start_cors(None);
                     if !trypos.is_null() {
                         curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
                         curwin_mut().w_cursor.col = 0;

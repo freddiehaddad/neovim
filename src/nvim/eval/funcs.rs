@@ -24,7 +24,7 @@ use crate::channel::{
 };
 use crate::charset::{CTRL_V_CONST, VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
 use crate::cmdexpand::{
-    EXPAND_FILES, ExpandOne, SEARCH_START, WILD_ALL, WILD_ALL_KEEP, WILD_ICASE, WILD_KEEP_ALL,
+    EXPAND_FILES, expand_one, SEARCH_START, WILD_ALL, WILD_ALL_KEEP, WILD_ICASE, WILD_KEEP_ALL,
     WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH, Cmdidx,
     cmdline_pum_active,
 };
@@ -82,7 +82,7 @@ use crate::eval::{
     add_timer_info, add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx,
     callback_from_typval, common_job_callbacks, do_string_sub, eval_expr_to_bool, eval_expr_typval,
     eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job, find_timer_by_nr,
-    get_callback_depth, get_copyID, get_lval, K_LIST_LEN_MAY_KNOW_CONST, K_LIST_LEN_SHOULD_KNOW, K_LIST_LEN_UNKNOWN_CONST,
+    get_callback_depth, get_copy_id, get_lval, K_LIST_LEN_MAY_KNOW_CONST, K_LIST_LEN_SHOULD_KNOW, K_LIST_LEN_UNKNOWN_CONST,
     list2fpos, partial_name, save_tv_as_string, script_host_eval, string2float,
     timer_start, timer_stop, timer_stop_all, tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
 };
@@ -169,7 +169,7 @@ use crate::os::stdpaths::{XDGVarType, get_appname, get_xdg_home, stdpaths_get_xd
 use crate::os::time::{
     NS_PER_SEC, Tm, os_hrtime, os_localtime_r, os_strptime, os_time, strftime, time_t,
 };
-use crate::path::{ENV_SEPCHAR, concat_fnames_cstr, to_slash_save, vim_FullName};
+use crate::path::{ENV_SEPCHAR, concat_fnames_cstr, to_slash_save, vim_full_name};
 use crate::plines::{getvvcol, win_chartabsize};
 use crate::popupmenu::{pum_set_event_info, pum_visible};
 use crate::profile::{
@@ -1984,7 +1984,7 @@ pub fn f_deepcopy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             &mut argvars[0],
             rettv,
             true,
-            if noref == 0 { get_copyID() } else { 0 },
+            if noref == 0 { get_copy_id() } else { 0 },
         );
     }
 }
@@ -2388,14 +2388,14 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 }
                 if rettv.v_type == VarType::VarString {
                     if let Some(exp) =
-                        ExpandOne(&mut xpc, s.cast_mut(), None, options, WILD_ALL)
+                        expand_one(&mut xpc, s.cast_mut(), None, options, WILD_ALL)
                     {
                         crate::eval::typval::tv_set_string(rettv, exp.as_ptr());
                     } else {
                         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     }
                 } else {
-                    ExpandOne(&mut xpc, s.cast_mut(), None, options, WILD_ALL_KEEP);
+                    expand_one(&mut xpc, s.cast_mut(), None, options, WILD_ALL_KEEP);
                     tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                     for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                         tv_list_append_string(
@@ -2515,7 +2515,7 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
         }
 
         if make_copy {
-            list = tv_list_copy(None, unsafe { list.as_mut() }, false, get_copyID());
+            list = tv_list_copy(None, unsafe { list.as_mut() }, false, get_copy_id());
             rettv.vval = crate::eval::typval::TypvalVval::List(list);
             if list.is_null() {
                 return;
@@ -3992,7 +3992,7 @@ fn has_wsl() -> bool {
 }
 
 /// "highlightID(name)" function
-pub fn f_hlID(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(syn_name2id(tv_get_string(&argvars[0]))));
 }
@@ -4805,7 +4805,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
                 let namebuff = g_st().NameBuff.as_mut_ptr();
                 let iobuff = g_st().IObuff.as_mut_ptr();
-                vim_FullName(cwd, namebuff, MAXPATHL, false);
+                vim_full_name(cwd, namebuff, MAXPATHL, false);
                 let len = home_replace(None, namebuff, iobuff, IOSIZE, true);
                 if len != 1
                     && (crate::memory::cstr_byte_at(iobuff, len - 1) == b'\\'
@@ -8755,7 +8755,7 @@ pub fn f_swapname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 }
 
 /// "synID(lnum, col, trans)" function
-pub fn f_synID(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_syn_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let lnum = tv_get_lnum(&argvars[0]);
@@ -8778,7 +8778,7 @@ pub fn f_synID(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 }
 
 /// "synIDattr(id, what [, mode])" function
-pub fn f_synIDattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let id = tv_get_number(&argvars[0]) as c_int;
@@ -8864,7 +8864,7 @@ pub fn f_synIDattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 }
 
 /// "synIDtrans(id)" function
-pub fn f_synIDtrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_syn_idtrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     let mut id = tv_get_number(&argvars[0]) as c_int;
         if id > 0 {
@@ -9233,7 +9233,7 @@ use crate::charset::NUL;
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::cmdexpand::{f_cmdcomplete_info, f_getcompletion, f_getcompletiontype};
 use crate::cmdhist::{f_histadd, f_histdel, f_histget, f_histnr};
-use crate::diff::{f_diff_filler, f_diff_hlID};
+use crate::diff::{f_diff_filler, f_diff_hl_id};
 use crate::digraph::{
     f_digraph_get, f_digraph_getlist, f_digraph_set, f_digraph_setlist, K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST,
 };
@@ -9508,7 +9508,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         max_argc: 1,
         base_arg: 1,
         fast: false,
-        func: viml_fn!(f_hlID),
+        func: viml_fn!(f_hl_id),
         data: EvalFuncData::None,
     },
     EvalFuncDef {
@@ -9949,7 +9949,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         max_argc: 3,
         base_arg: BASE_NONE,
         fast: false,
-        func: viml_fn!(f_synID),
+        func: viml_fn!(f_syn_id),
         data: EvalFuncData::None,
     },
     EvalFuncDef {
@@ -11326,7 +11326,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         max_argc: 3,
         base_arg: 1,
         fast: false,
-        func: viml_fn!(f_synIDattr),
+        func: viml_fn!(f_syn_idattr),
         data: EvalFuncData::None,
     },
     EvalFuncDef {
@@ -11335,7 +11335,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         max_argc: 2,
         base_arg: 1,
         fast: false,
-        func: viml_fn!(f_diff_hlID),
+        func: viml_fn!(f_diff_hl_id),
         data: EvalFuncData::None,
     },
     EvalFuncDef {
@@ -12244,7 +12244,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         max_argc: 1,
         base_arg: 1,
         fast: false,
-        func: viml_fn!(f_synIDtrans),
+        func: viml_fn!(f_syn_idtrans),
         data: EvalFuncData::None,
     },
     EvalFuncDef {
@@ -12478,7 +12478,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         max_argc: 1,
         base_arg: 1,
         fast: false,
-        func: viml_fn!(f_hlID),
+        func: viml_fn!(f_hl_id),
         data: EvalFuncData::None,
     },
     EvalFuncDef {

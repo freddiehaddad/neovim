@@ -17,7 +17,7 @@ use crate::eval::vars::{
     VV_KEY, VV_VAL, get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr,
     set_vim_var_string, set_vim_var_type, tv_list_locked, var_check_fixed, var_check_ro,
 };
-use crate::eval::{eval_expr_typval, get_copyID, tv_blob_set_ret};
+use crate::eval::{eval_expr_typval, get_copy_id, tv_blob_set_ret};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
@@ -645,7 +645,7 @@ fn extend_dict(argvars: &mut [TypVal],
         }
 
         if is_new {
-            d1 = tv_dict_copy(None, d1.as_mut(), false, get_copyID());
+            d1 = tv_dict_copy(None, d1.as_mut(), false, get_copy_id());
             if d1.is_null() {
                 return;
             }
@@ -701,7 +701,7 @@ fn extend_list(argvars: &mut [TypVal],
         }
 
         if is_new {
-            l1 = tv_list_copy(None, unsafe { l1.as_mut() }, false, get_copyID());
+            l1 = tv_list_copy(None, unsafe { l1.as_mut() }, false, get_copy_id());
             if l1.is_null() {
                 return;
             }

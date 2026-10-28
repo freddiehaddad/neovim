@@ -27,7 +27,7 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal, UserFunc};
 use crate::eval::vars::{SID_STR, new_script_vars, Scid};
-use crate::eval::{eval_to_number, get_copyID};
+use crate::eval::{eval_to_number, get_copy_id};
 #[cfg(windows)]
 use crate::ex_docmd::CTRL_Z_CONST;
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, Exarg};
@@ -1880,7 +1880,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
     }
 }
 
-fn ExpandRTDir_int(
+fn expand_rtdir_int(
     pat: impl crate::strings::IntoCCharPtr,
     pat_len: usize,
     flags: c_int,
@@ -2033,7 +2033,7 @@ fn ExpandRTDir_int(
 }
 
 /// Expand color scheme, compiler or filetype names.
-pub fn ExpandRTDir(
+pub fn expand_rtdir(
     pat: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     file: &mut Vec<std::ffi::CString>,
@@ -2042,7 +2042,7 @@ pub fn ExpandRTDir(
      {
         file.clear();
 
-        ExpandRTDir_int(
+        expand_rtdir_int(
             pat,
             crate::memory::cstr_len(pat),
             flags,
@@ -2069,7 +2069,7 @@ pub fn expand_runtime_cmd(
 
         let pat_len = crate::memory::cstr_len(pat);
         let mut dirnames = [c"".as_ptr() as *mut c_char, ptr::null_mut()];
-        ExpandRTDir_int(
+        expand_rtdir_int(
             pat,
             pat_len,
             rt_st().runtime_expand_flags,
@@ -3299,7 +3299,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
                 if sid > 0 {
                     let var_dict =
-                        tv_dict_copy(None, Some(&mut (*si).sn_vars.sv_dict), true, get_copyID());
+                        tv_dict_copy(None, Some(&mut (*si).sn_vars.sv_dict), true, get_copy_id());
                     tv_dict_add_dict(&mut *d, c"variables", var_dict);
                     tv_dict_add_list(
                         &mut *d,

@@ -1499,7 +1499,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
     }
 }
 
-fn compat_luaL_setfuncs(l: *mut lua_State, reg: &[luaL_Reg], nup: c_int) {
+fn compat_lua_l_setfuncs(l: *mut lua_State, reg: &[luaL_Reg], nup: c_int) {
     unsafe {
         luaL_checkstack(l, nup, c"too many upvalues");
         for entry in reg {
@@ -1554,7 +1554,7 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
         lua_newtable(l);
 
         json_create_config(l);
-        compat_luaL_setfuncs(l, &reg, 1);
+        compat_lua_l_setfuncs(l, &reg, 1);
 
         lua_pushlstring(
             l,

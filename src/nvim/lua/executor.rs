@@ -48,9 +48,9 @@ use crate::lua::converter::{
     lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata, lua_type,
     lua_upvalueindex, luaL_checkinteger, luaL_checklstring, luaL_checktype, luaL_error,
     luaL_loadbuffer, luaL_newstate, luaL_openlibs, luaL_ref, luaL_unref, luaL_where,
-    nlua_init_types, nlua_pop_Array, nlua_pop_Array_opt, nlua_pop_Integer, nlua_pop_Object,
-    nlua_pop_Object_opt, nlua_pop_typval,
-    nlua_push_Array, nlua_push_Object, nlua_push_typval, NluaRefState,
+    nlua_init_types, nlua_pop_array, nlua_pop_array_opt, nlua_pop_integer, nlua_pop_object,
+    nlua_pop_object_opt, nlua_pop_typval,
+    nlua_push_array, nlua_push_object, nlua_push_typval, NluaRefState,
 };
 use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::nlua_treesitter_init;
@@ -805,7 +805,7 @@ fn nlua_luv_thread_common_cfpcall(
     }
 }
 
-unsafe extern "C-unwind" fn nlua_thr_api_nvim__get_runtime(lstate: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State) -> c_int {
     unsafe {
         if lua_gettop(lstate) != 3 {
             return luaL_error(lstate, c"Expected 3 arguments".as_ptr());
@@ -824,7 +824,7 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim__get_runtime(lstate: *mut lua_Stat
         lua_pop(lstate, 1);
 
         let mut err = Error::new();
-        let pat = nlua_pop_Array_opt(lstate, None, &mut err);
+        let pat = nlua_pop_array_opt(lstate, None, &mut err);
         if error_set(&err) {
             luaL_where(lstate, 1);
             lua_pushstring(lstate, err.msg_ptr());
@@ -834,7 +834,7 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim__get_runtime(lstate: *mut lua_Stat
         }
 
         let ret = runtime_get_named_thread(is_lua, pat, all);
-        nlua_push_Array(lstate, ret, K_NLUA_PUSH_SPECIAL);
+        nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL);
         api_free_array(ret);
         api_free_array(pat);
 
@@ -1372,7 +1372,7 @@ fn nlua_init_state(thread: bool) -> *mut lua_State {
         nlua_state_add_stdlib(lstate, true);
 
         lua_createtable(lstate, 0, 0);
-        lua_pushcfunction(lstate, Some(nlua_thr_api_nvim__get_runtime));
+        lua_pushcfunction(lstate, Some(nlua_thr_api_nvim_get_runtime));
         lua_setfield(lstate, -2, c"nvim__get_runtime");
         lua_setfield(lstate, -2, c"api");
 
@@ -1765,7 +1765,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
         let mut args = arena_array(&mut arena, nargs.max(0) as usize);
         for i in 0..nargs {
             lua_pushvalue(lstate, i + 3);
-            let obj = nlua_pop_Object(lstate, false, &mut arena, &mut err);
+            let obj = nlua_pop_object(lstate, false, &mut arena, &mut err);
             *args.items.add(args.size) = obj;
             args.size += 1;
             if error_set(&err) {
@@ -1778,7 +1778,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
                 let mut res_mem: ArenaMem = ptr::null_mut();
                 let mut result = rpc_send_call(chan_id, name, args, &mut res_mem, &mut err);
                 if !error_set(&err) {
-                    nlua_push_Object(lstate, &raw mut result, 0);
+                    nlua_push_object(lstate, &raw mut result, 0);
                     arena_mem_free(res_mem);
                 }
             } else if !rpc_send_event(chan_id, name, args) {
@@ -2076,7 +2076,7 @@ pub fn nlua_exec(
         }
 
         for i in 0..args.size {
-            nlua_push_Object(lstate, args.items.add(i), 0);
+            nlua_push_object(lstate, args.items.add(i), 0);
         }
 
         if nlua_pcall(lstate, args.size as c_int, 1) != 0 {
@@ -2208,7 +2208,7 @@ pub fn nlua_call_ref_ctx(
             nargs += 1;
         }
         for i in 0..args.size {
-            nlua_push_Object(lstate, args.items.add(i), 0);
+            nlua_push_object(lstate, args.items.add(i), 0);
         }
 
         if fast {
@@ -2275,7 +2275,7 @@ fn nlua_call_pop_retval(
                     data: ObjectData::LuaRef(ref_),
                 }
             }
-            K_RET_OBJECT => nlua_pop_Object_opt(lstate, false, arena, perr),
+            K_RET_OBJECT => nlua_pop_object_opt(lstate, false, arena, perr),
             K_RET_MULTI => {
                 let nres = lua_gettop(lstate) - pretop;
                 let mut res = crate::api::private::helpers::arena_array_opt(
@@ -2284,7 +2284,7 @@ fn nlua_call_pop_retval(
                 );
                 for i in 0..(nres as usize) {
                     *res.items.add((nres as usize) - i - 1) =
-                        nlua_pop_Object_opt(lstate, false, arena.as_deref_mut(), perr);
+                        nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), perr);
                     if error_set(perr) {
                         return OBJECT_NIL;
                     }
@@ -2539,9 +2539,9 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
             pos: 0,
             size: 0,
         };
-        let prefix_len = nlua_pop_Integer(lstate, &mut arena, &mut err) as isize;
+        let prefix_len = nlua_pop_integer(lstate, &mut arena, &mut err) as isize;
         if !error_set(&err) && prefix_len <= patlen {
-            let completions = nlua_pop_Array(lstate, &mut arena, &mut err);
+            let completions = nlua_pop_array(lstate, &mut arena, &mut err);
             if !error_set(&err) {
                 nlua_st().EXPAND_RESULT_ARRAY = Vec::with_capacity(completions.size);
 

@@ -10,7 +10,7 @@ use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_islower, ascii_iswhite, skipdigits, vim_isblankline,
 };
 use crate::cmdexpand::{
-    EXPAND_FILES, ExpandOne, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND, WILD_SILENT,
+    EXPAND_FILES, expand_one, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND, WILD_SILENT,
 };
 use crate::cursor::{check_cursor, Linenr, CursorPos};
 use crate::drawscreen::{UPD_VALID, redraw_later};
@@ -31,7 +31,7 @@ use crate::ex_docmd::{
 };
 use crate::file_search::{FINDFILE_FILE, vim_findfile, vim_findfile_init, vim_findfile_stopdir};
 use crate::fileio::{FILE, Off, vim_fgets, vim_fseek, vim_ftell};
-use crate::fold::foldOpenCursor;
+use crate::fold::fold_open_cursor;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::help::{
@@ -556,7 +556,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                         }
                         check_cursor(curwin_mut());
                         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
-                            foldOpenCursor();
+                            fold_open_cursor();
                         }
 
                         tag_st().DO_TAG_MATCHES.clear();
@@ -2969,7 +2969,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                         set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
                     }
                     if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
-                        foldOpenCursor();
+                        fold_open_cursor();
                     }
                 }
 
@@ -3012,7 +3012,7 @@ fn expand_tag_fname(
             && vim_strchr(fname.as_ptr(), b'`' as c_int).is_null()
         {
             xpc.xp_context = EXPAND_FILES;
-            if let Some(exp) = ExpandOne(
+            if let Some(exp) = expand_one(
                 &mut xpc,
                 fname.as_ptr().cast_mut(),
                 None,

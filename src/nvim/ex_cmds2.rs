@@ -38,12 +38,12 @@ use crate::message::{emsg, msg, msg_source, semsg, wait_return};
 use crate::r#move::validate_cursor;
 use crate::normal::do_check_scrollbind;
 use crate::option_vars::*;
-use crate::path::vim_FullName;
+use crate::path::vim_full_name;
 use crate::quickfix::{ex_cc, ex_cnext, qf_get_cur_idx, qf_get_valid_size};
 use crate::runtime::{DIP_ALL, source_runtime_vim_lua};
 use crate::strings::{gettext, vim_snprintf};
 use crate::ui::ui_has;
-use crate::undo::bufIsChanged;
+use crate::undo::buf_is_changed_fn;
 use crate::window::{
     goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
 };
@@ -134,7 +134,7 @@ pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
         set_bufref(&mut bufref, &raw mut *buf);
         let mut r = buf_write_all(buf, forceit) == OK;
 
-        if bufref_valid(Some(&bufref)) && bufIsChanged(buf) {
+        if bufref_valid(Some(&bufref)) && buf_is_changed_fn(buf) {
             r = false;
         }
         r
@@ -149,7 +149,7 @@ pub fn autowrite_all() {
 
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
-            if bufIsChanged(&mut *buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf.as_ref()) {
+            if buf_is_changed_fn(&mut *buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf.as_ref()) {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
                 buf_write_all(&mut *buf, false);
@@ -171,7 +171,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: c_int) -> bool {
         set_bufref(&mut bufref, &raw mut *buf);
 
         if !forceit
-            && bufIsChanged(buf)
+            && buf_is_changed_fn(buf)
             && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows <= 1)
             && ((flags & CCGD_AW) == 0 || !autowrite(buf, forceit))
         {
@@ -180,7 +180,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: c_int) -> bool {
 
                 if (flags & CCGD_ALLBUF) != 0 {
                     for buf2 in for_all_buffers_mut() {
-                        if bufIsChanged(buf2) && !buf2.b_ffname.is_null() {
+                        if buf_is_changed_fn(buf2) && !buf2.b_ffname.is_null() {
                             count += 1;
                         }
                     }
@@ -192,7 +192,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: c_int) -> bool {
                 if !bufref_valid(Some(&bufref)) {
                     return false;
                 }
-                return bufIsChanged(buf);
+                return buf_is_changed_fn(buf);
             }
             if (flags & CCGD_EXCMD) != 0 {
                 no_write_message();
@@ -249,7 +249,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
         } else if ret == VIM_ALL {
             let mut buf2 = g_st().firstbuf;
             while !buf2.is_null() {
-                if bufIsChanged(&mut *buf2) && !(*buf2).b_ffname.is_null() && (*buf2).b_p_ro == 0 {
+                if buf_is_changed_fn(&mut *buf2) && !(*buf2).b_ffname.is_null() && (*buf2).b_p_ro == 0 {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf2);
 
@@ -299,7 +299,7 @@ pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
 pub fn can_abandon(buf: &mut FileBuf, forceit: bool) -> bool {
     buf_hide(buf)
-            || !bufIsChanged(buf)
+            || !buf_is_changed_fn(buf)
             || buf.b_nwindows > 1
             || autowrite(buf, forceit)
             || forceit
@@ -349,7 +349,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let mut i: usize = 0;
         while i < bufnrs.len() {
             buf = buflist_findnr(bufnrs[i]);
-            if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && bufIsChanged(&mut *buf) {
+            if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && buf_is_changed_fn(&mut *buf) {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
 
@@ -802,7 +802,7 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
     unsafe {
         if eap.skip == 0 {
             let mut buffer = [0 as c_char; MAXPATHL];
-            vim_FullName(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
+            vim_full_name(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
 
             let args = tv_list_alloc(3);
             tv_list_append_string( &mut *args, buffer.as_ptr(), -1);
@@ -855,7 +855,7 @@ pub fn ex_drop(eap: &mut Exarg) {
                 if (*wp).w_buffer == buf {
                     goto_tabpage_win(&mut *tp, wp);
                     curwin_mut().w_arg_idx = 0;
-                    if !bufIsChanged(curbuf_mut()) {
+                    if !buf_is_changed_fn(curbuf_mut()) {
                         let save_ar = curbuf_mut().b_p_ar;
                         curbuf_mut().b_p_ar = 1;
                         buf_check_timestamp(curbuf_mut());

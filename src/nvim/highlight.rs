@@ -266,7 +266,7 @@ fn is_none_str(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_
 }
 
 use crate::api::private::dispatch::{
-    KeyDict_highlight_cterm_get_field, KeyDict_highlight_get_field,
+    key_dict_highlight_cterm_get_field, key_dict_highlight_get_field,
 };
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
 use crate::eval::funcs::{
@@ -526,7 +526,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
                 let mut dict = KeyDict_highlight::default();
                 if api_dict_to_keydict(
                     (&raw mut dict).cast(),
-                    Some(KeyDict_highlight_get_field),
+                    Some(key_dict_highlight_get_field),
                     ret.data.dict(),
                     &mut err,
                 ) {
@@ -1683,7 +1683,7 @@ pub fn dict2hlattrs(
             let mut cterm = KeyDict_highlight_cterm::default();
             if !api_dict_to_keydict(
                 (&raw mut cterm).cast(),
-                Some(KeyDict_highlight_cterm_get_field),
+                Some(key_dict_highlight_cterm_get_field),
                 dict.cterm,
                 err,
             ) {

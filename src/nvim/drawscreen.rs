@@ -26,7 +26,7 @@ use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
 use crate::ex_getln::{
     cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, Hlf, redrawcmdline,
 };
-use crate::fold::{fold_info, foldmethodIsSyntax, hasAnyFolding, hasFolding};
+use crate::fold::{fold_info, foldmethod_is_syntax, has_any_folding, has_folding};
 use crate::globals::*;
 use crate::grid::{
     grid_adjust, grid_alloc, grid_allocated, grid_clear, grid_clear_line, grid_del_lines,
@@ -218,7 +218,7 @@ pub fn conceal_check_cursor_line() {
             return;
         }
 
-        redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+        redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
 
         if decor_conceal_line(curwin_ptr(), curwin_mut().w_cursor.lnum - 1, true) {
             changed_window_setting(curwin_mut());
@@ -1540,11 +1540,11 @@ fn win_update(wp: &mut WinInfoInfo) {
                     }
                 }
 
-                hasFolding(&raw mut *wp, mod_top, Some(&mut mod_top), ptr::null_mut());
+                has_folding(&raw mut *wp, mod_top, Some(&mut mod_top), ptr::null_mut());
                 mod_top = mod_top.min(lnumt);
 
                 mod_bot -= 1;
-                hasFolding(&raw mut *wp, mod_bot, None, &raw mut mod_bot);
+                has_folding(&raw mut *wp, mod_bot, None, &raw mut mod_bot);
                 mod_bot += 1;
                 mod_bot = mod_bot.max(lnumb);
             }
@@ -1583,7 +1583,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             && decor_conceal_line(&raw mut *wp, topline_conceal - 1, false)
         {
             topline_conceal += 1;
-            hasFolding(
+            has_folding(
                 &raw mut *wp,
                 topline_conceal,
                 None,
@@ -1617,7 +1617,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                         if j >= wp.w_view_height - 2 {
                             break;
                         }
-                        hasFolding(&raw mut *wp, ln, None, &raw mut ln);
+                        has_folding(&raw mut *wp, ln, None, &raw mut ln);
                         ln += 1;
                     }
                 } else {
@@ -1935,7 +1935,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                                     || did_update == DidUpdate::Fold
                                     || (did_update == DidUpdate::Line
                                         && syntax_present(&mut *wp)
-                                        && ((foldmethodIsSyntax(&mut *wp) && hasAnyFolding(&mut *wp) != 0)
+                                        && ((foldmethod_is_syntax(&mut *wp) && has_any_folding(&mut *wp) != 0)
                                             || syntax_check_changed(lnum)))
                                     || (!wp.w_match_head.is_empty()
                                         && (*buf).b_mod_set
@@ -2173,7 +2173,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                             virt_below = false;
                             w_lines_at(&mut *wp, idx as usize).wl_lastlnum += 1;
                             let last_ptr = &raw mut w_lines_at(&mut *wp, idx as usize).wl_lastlnum;
-                            hasFolding(&raw mut *wp, *last_ptr, None, last_ptr);
+                            has_folding(&raw mut *wp, *last_ptr, None, last_ptr);
                         }
                     }
 
@@ -2641,7 +2641,7 @@ pub fn redraw_buf_line_later(buf: *mut FileBuf, line: Linenr, force: bool) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
-                redrawWinline(&mut *wp, line.min((*buf).b_ml.ml_line_count));
+                redraw_winline(&mut *wp, line.min((*buf).b_ml.ml_line_count));
                 if force && line > (*buf).b_ml.ml_line_count {
                     (*wp).w_redraw_bot = line;
                 }
@@ -2664,7 +2664,7 @@ pub fn redraw_win_range_later(wp: &mut WinInfoInfo, first: Linenr, last: Linenr)
     }
 }
 
-pub fn redrawWinline(wp: &mut WinInfoInfo, lnum: Linenr) {
+pub fn redraw_winline(wp: &mut WinInfoInfo, lnum: Linenr) {
     redraw_win_range_later( wp, lnum, lnum);
 }
 

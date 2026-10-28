@@ -42,7 +42,7 @@ use crate::marktree::{
     MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE, MTPair, mt_decor, mt_inspect,
     mt_invalid, mt_invalidate, mt_no_undo, mt_paired, mt_right,
 };
-use crate::mbyte::{mb_string2cells, utf_ClusterInfo, utf_ptr2StrCharInfo};
+use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena};
 use crate::r#move::changed_window_setting;
@@ -882,8 +882,8 @@ pub fn nvim_buf_set_extmark(
                     let conceal_str = opts.conceal.data.string();
                     hl.flags |= K_SHCONCEAL;
                     if conceal_str.size > 0 {
-                        let ci = utf_ptr2StrCharInfo(conceal_str.data);
-                        let cli = utf_ClusterInfo(ci);
+                        let ci = utf_ptr2_str_char_info(conceal_str.data);
+                        let cli = utf_cluster_info(ci);
                         if ci.chr.value < 0x20 || cli.cells > 2 {
                             api_set_error!(
                                 err,

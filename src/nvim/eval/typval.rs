@@ -21,7 +21,7 @@ use crate::eval::vars::{
     get_globvar_dict, valid_varname, var_check_fixed, var_check_ro, var_wrong_func_name,
 };
 use crate::eval::{
-    DICT_MAXNEST, STR2NR_ALL, callback_call, callback_from_typval, func_equal, get_copyID,
+    DICT_MAXNEST, STR2NR_ALL, callback_call, callback_from_typval, func_equal, get_copy_id,
     K_LIST_LEN_MAY_KNOW_CONST, partial_name, partial_unref, set_selfdict, var_item_copy, var2fpos,
 };
 use crate::globals::*;
@@ -4201,7 +4201,7 @@ fn nothing_convert_one_value(
 
 fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
     unsafe {
-        let copy_id = get_copyID();
+        let copy_id = get_copy_id();
 
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
         if !nothing_convert_one_value(&mut mpstack, top_tv, copy_id) {

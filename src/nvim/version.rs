@@ -3847,7 +3847,7 @@ pub const fn default_lib_dir() -> *const c_char {
 pub static MAIN_EXITFREE: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
 
 #[inline]
-pub const fn longVersion() -> *const c_char {
+pub const fn long_version() -> *const c_char {
     (&raw const LONG_VERSION_BUF).cast::<c_char>()
 }
 
@@ -4066,7 +4066,7 @@ pub fn list_lua_version() {
 pub fn list_version() {
      {
         msg_ext_set_kind(c"list_cmd");
-        msg_puts(longVersion());
+        msg_puts(long_version());
         msg_putchar(b'\n' as c_int);
         msg_puts(version_buildtype());
         msg_putchar(b'\n' as c_int);
@@ -4136,7 +4136,7 @@ pub fn intro_message(colon: bool) {
             c"││╲╲││".as_ptr(),
             c"││ ╲ │".as_ptr(),
             c"".as_ptr(),
-            longVersion(),
+            long_version(),
             c"────────────────────────────────────────────".as_ptr(),
             c"Nvim is open source and freely distributable".as_ptr(),
             c"https://neovim.io/#chat".as_ptr(),

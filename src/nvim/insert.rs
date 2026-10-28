@@ -31,7 +31,7 @@ use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
 use crate::drawline::{VALID_WCOL, VALID_WROW};
 use crate::drawscreen::{
-    UPD_VALID, redraw_later, redraw_statuslines, redrawWinline, redrawing, setcursor,
+    UPD_VALID, redraw_later, redraw_statuslines, redraw_winline, redrawing, setcursor,
     show_cursor_info_later, showmode, skip_showmode, status_redraw_curbuf, unshowmode,
     update_screen,
 };
@@ -50,7 +50,7 @@ use crate::ex_getln::{
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::fileio::check_timestamps;
 use crate::fold::{
-    foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding, hasFoldingWin,
+    fold_check_close, fold_open_cursor, fold_update_after_insert, has_folding, has_folding_win,
 };
 use crate::globals::*;
 use crate::grid::{
@@ -68,7 +68,7 @@ use crate::input::{
     K_COMPLETE_DELAY, K_PASTE_START, char_avail, K_INS_NONE, langmap_adjust, map_execute_lua,
     mb_byte2len_check, merge_modifiers, paste_repeat, plain_vgetc, prep_redo, redo_append_char,
     redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins, stuff_empty,
-    stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
+    stuff_readbuff_len, stuff_redo_readbuff, stuffchar_readbuff, vgetc, vpeekc, vungetc,
 };
 use crate::input_cmdatom::CmdSpec;
 use crate::insexpand::{
@@ -101,8 +101,8 @@ use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::K_MTMETA_INLINE;
 use crate::mbyte::{
-    GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_ClusterInfo, utf_char2bytes,
-    utf_char2len, utf_composinglike, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char, utf_ptr2len,
+    GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_cluster_info, utf_char2bytes,
+    utf_char2len, utf_composinglike, utf_head_off, utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
@@ -171,7 +171,7 @@ pub(crate) const CTRL_X_CONST: c_int = 24;
 pub(crate) const K_CHARSIZE_FAST: CSType = true;
 
 #[inline]
-const fn IS_SPECIAL(c: c_int) -> bool {
+const fn is_special_fn(c: c_int) -> bool {
     c < 0
 }
 
@@ -527,7 +527,7 @@ fn insert_enter(s: &mut InsertState) {
         g_st().where_paste_started.lnum = 0;
         g_st().Ins.can_cindent = true;
         if g_st().Ins.did_restart_edit == 0 {
-            foldOpenCursor();
+            fold_open_cursor();
         }
 
         s.i = 0;
@@ -560,7 +560,7 @@ fn insert_enter(s: &mut InsertState) {
         }
 
         pum_check_clear();
-        foldUpdateAfterInsert();
+        fold_update_after_insert();
         if s.cmdchar != b'r' as c_int && s.cmdchar != b'v' as c_int && s.c != CTRL_C_CONST {
             ins_apply_autocmds(EVENT_INSERTLEAVE);
         }
@@ -593,7 +593,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
         if !curbuf_mut().terminal.is_null() && !g_st().Ins.stop_insert_mode {
             g_st().Ins.stop_insert_mode = true;
             g_st().restart_edit = b'I' as c_int;
-            stuffcharReadbuff(K_NOP);
+            stuffchar_readbuff(K_NOP);
         }
 
         if g_st().Ins.stop_insert_mode && !ins_compl_active() {
@@ -615,11 +615,11 @@ fn insert_check(s: &mut InsertState) -> c_int {
         g_st().msg_scroll = 0;
 
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_INSERT) != 0 {
-            foldOpenCursor();
+            fold_open_cursor();
         }
 
         if !char_avail() {
-            foldCheckClose();
+            fold_check_close();
         }
 
         if bt_prompt(Some(crate::globals::curbuf_mut())) {
@@ -652,7 +652,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
             {
                 if curwin_mut().w_topfill > 0 {
                     curwin_mut().w_topfill -= 1;
-                } else if hasFolding(
+                } else if has_folding(
                     curwin_ptr(),
                     curwin_mut().w_topline,
                     None,
@@ -925,7 +925,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             K_SELECT | K_IGNORE => {}
             K_HELP | K_F1 | K_XF1 => {
-                stuffcharReadbuff(K_HELP);
+                stuffchar_readbuff(K_HELP);
                 return 0;
             }
             c if c == b' ' as c_int && g_st().mod_mask != MOD_MASK_CTRL => {
@@ -994,7 +994,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             }
             CTRL_W_CONST => {
                 if bt_prompt(Some(crate::globals::curbuf_mut())) && (g_st().mod_mask & MOD_MASK_SHIFT) == 0 {
-                    stuffcharReadbuff(CTRL_W_CONST);
+                    stuffchar_readbuff(CTRL_W_CONST);
                     g_st().restart_edit = b'A' as c_int;
                     s.nomove = true;
                     s.count = 0;
@@ -1310,7 +1310,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 }
 
                 auto_format(false, true);
-                foldOpenCursor();
+                fold_open_cursor();
                 if ins_compl_has_autocomplete() && !char_avail() && vim_isprintc(s.c) {
                     let _ = trigger_autocomplete(&mut *s);
                 }
@@ -1654,7 +1654,7 @@ pub fn edit_unputchar() {
                 curwin_mut().w_wcol += 1;
             }
             if ins_st().pc_status == PC_STATUS_RIGHT || ins_st().pc_status == PC_STATUS_LEFT {
-                redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+                redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
             } else {
                 grid_line_start(&raw mut (*curwin_ptr()).w_grid, ins_st().pc_row);
                 grid_line_put_schar(ins_st().pc_col, ins_st().pc_schar, ins_st().pc_attr);
@@ -1691,7 +1691,7 @@ pub fn undisplay_dollar() {
             return;
         }
         g_st().dollar_vcol = -1;
-        redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+        redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
     }
 }
 
@@ -1843,7 +1843,7 @@ fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_int) {
         if (g_st().mod_mask & MOD_MASK_CMD) != 0 {
             allow_modmask = 1;
         }
-        if IS_SPECIAL(c) || (g_st().mod_mask != 0 && allow_modmask != 0) {
+        if is_special_fn(c) || (g_st().mod_mask != 0 && allow_modmask != 0) {
             let p = get_special_key_name(c, g_st().mod_mask);
             let len = crate::memory::cstr_len(p);
             c = crate::memory::cstr_byte_at(p, len - 1) as c_int;
@@ -2046,7 +2046,7 @@ pub fn start_arrow(end_insert_pos: *mut CursorPos, end_change: bool, move_key: c
                 redo_append_str(c"\x1b", 1);
                 g_st().Ins.moved = K_INS_JUMP;
             } else {
-                if !IS_SPECIAL(move_key) {
+                if !is_special_fn(move_key) {
                     redo_append_char(CTRL_G);
                 }
                 redo_append_char(move_key);
@@ -2071,7 +2071,7 @@ fn check_spell_redraw() {
         if g_st().spell_redraw_lnum != 0 {
             let lnum = g_st().spell_redraw_lnum;
             g_st().spell_redraw_lnum = 0;
-            redrawWinline(crate::globals::curwin_mut(), lnum);
+            redraw_winline(crate::globals::curwin_mut(), lnum);
         }
     }
 }
@@ -2119,7 +2119,7 @@ pub fn stop_arrow() -> bool {
             g_st().Ins.need_undo = false;
         }
 
-        foldOpenCursor();
+        fold_open_cursor();
 
         !(g_st().Ins.moved != K_INS_NONE || g_st().Ins.need_undo)
     }
@@ -2358,7 +2358,7 @@ pub fn cursor_up_inner(wp: &mut WinInfoInfo, mut n: Linenr, skip_conceal: bool) 
         if n >= lnum {
             lnum = 1;
         } else if win_lines_concealed(&mut *wp) {
-            hasFolding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
+            has_folding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
             while n > 0 {
                 n -= 1;
                 lnum -= 1;
@@ -2369,7 +2369,7 @@ pub fn cursor_up_inner(wp: &mut WinInfoInfo, mut n: Linenr, skip_conceal: bool) 
                     n += 1;
                 }
                 if n > 0 || !((g_st().State & MODE_INSERT) != 0 || (opt_vars().fdo_flags & K_OPT_FDO_FLAG_ALL) != 0) {
-                    hasFolding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
+                    has_folding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
                 }
             }
             lnum = lnum.max(1);
@@ -2406,7 +2406,7 @@ pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: c_int, skip_conceal: bool)
             let mut last: Linenr = 0;
             while n > 0 {
                 n -= 1;
-                if hasFoldingWin(
+                if has_folding_win(
                     wp,
                     lnum,
                     None,
@@ -2437,7 +2437,7 @@ pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: c_int, skip_conceal: bool)
 pub fn cursor_down(n: c_int, upd_topline: bool) -> bool {
      {
         let mut lnum = curwin_mut().w_cursor.lnum;
-        hasFoldingWin(
+        has_folding_win(
             curwin_mut(),
             lnum,
             None,
@@ -2468,7 +2468,7 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
         }
 
         if c != NUL as c_int {
-            stuffcharReadbuff(c);
+            stuffchar_readbuff(c);
         }
 
         if insert.size > 0 {
@@ -2496,11 +2496,11 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
         }
 
         loop {
-            stuffReadbuffLen(insert.data, insert.size as isize);
+            stuff_readbuff_len(insert.data, insert.size as isize);
             if last == b'0' as c_char {
-                stuffReadbuffLen(c"\x16048", 4);
+                stuff_readbuff_len(c"\x16048", 4);
             } else if last == b'^' as c_char {
-                stuffReadbuffLen(c"\x16^", 2);
+                stuff_readbuff_len(c"\x16^", 2);
             }
             count -= 1;
             if count <= 0 {
@@ -2509,7 +2509,7 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
         }
 
         if no_esc == 0 {
-            stuffcharReadbuff(ESC);
+            stuffchar_readbuff(ESC);
         }
 
         true
@@ -2845,7 +2845,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
                 start_redo_ins();
                 if cmdchar == b'r' as c_int || cmdchar == b'v' as c_int {
-                    stuffRedoReadbuff(c"\x1b");
+                    stuff_redo_readbuff(c"\x1b");
                 }
                 g_st().RedrawingDisabled += 1;
                 ins_st().ins_esc_disabled_redraw = true;
@@ -2948,7 +2948,7 @@ fn ins_start_select(c: c_int) -> bool {
             K_KHOME | K_KEND | K_PAGEUP | K_KPAGEUP | K_PAGEDOWN | K_KPAGEDOWN | K_S_LEFT
             | K_S_RIGHT | K_S_UP | K_S_DOWN | K_S_END | K_S_HOME => {
                 start_selection();
-                stuffcharReadbuff(CTRL_O);
+                stuffchar_readbuff(CTRL_O);
                 if g_st().mod_mask != 0 {
                     let buf = [
                         K_SPECIAL as c_char,
@@ -2956,9 +2956,9 @@ fn ins_start_select(c: c_int) -> bool {
                         g_st().mod_mask as u8 as c_char,
                         NUL,
                     ];
-                    stuffReadbuffLen((&raw const buf).cast(), 3);
+                    stuff_readbuff_len((&raw const buf).cast(), 3);
                 }
-                stuffcharReadbuff(c);
+                stuffchar_readbuff(c);
                 true
             }
             _ => false,
@@ -3202,7 +3202,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
                 let mut vcol: Colnr = 0;
                 let mut space_vcol: Colnr = 0;
-                let mut sci = utf_ptr2StrCharInfo(line);
+                let mut sci = utf_ptr2_str_char_info(line);
                 let mut space_sci = sci;
                 let mut prev_space = false;
 
@@ -3212,7 +3212,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                         space_sci = sci;
                         space_vcol = vcol;
                     }
-                    let cli = utf_ClusterInfo(sci);
+                    let cli = utf_cluster_info(sci);
                     vcol +=
                         charsize_nowrap(curbuf_mut(), sci.ptr, use_ts, vcol, sci.chr.value, cli.cells);
                     sci = cli.next;
@@ -3231,7 +3231,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                 }
 
                 loop {
-                    let cli = utf_ClusterInfo(space_sci);
+                    let cli = utf_cluster_info(space_sci);
                     let size = charsize_nowrap(
                         curbuf_mut(),
                         space_sci.ptr,
@@ -3365,7 +3365,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
         }
 
         if did_backspace {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         did_backspace
     }
@@ -3375,7 +3375,7 @@ fn ins_left() {
      {
         let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         undisplay_dollar();
         let mut tpos = curwin_mut().w_cursor;
@@ -3400,7 +3400,7 @@ fn ins_left() {
 fn ins_home(c: c_int) {
      {
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         undisplay_dollar();
         let mut tpos = curwin_mut().w_cursor;
@@ -3421,7 +3421,7 @@ fn ins_home(c: c_int) {
 fn ins_end(c: c_int) {
      {
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         undisplay_dollar();
         let mut tpos = curwin_mut().w_cursor;
@@ -3442,7 +3442,7 @@ fn ins_s_left() {
      {
         let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         undisplay_dollar();
         if curwin_mut().w_cursor.lnum > 1 || curwin_mut().w_cursor.col > 0 {
@@ -3460,7 +3460,7 @@ fn ins_right() {
     unsafe {
         let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         undisplay_dollar();
         if gchar_cursor() != NUL as c_int || virtual_active(curwin_mut()) {
@@ -3494,7 +3494,7 @@ fn ins_s_right() {
      {
         let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         undisplay_dollar();
         if curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count || gchar_cursor() != NUL as c_int
@@ -3863,7 +3863,7 @@ pub fn ins_eol(c: c_int) -> bool {
         );
         g_st().old_indent = 0;
         g_st().Ins.can_cindent = true;
-        foldOpenCursor();
+        fold_open_cursor();
         i
     }
 }
@@ -3888,7 +3888,7 @@ fn ins_digraph() -> c_int {
             edit_unputchar();
         }
 
-        if IS_SPECIAL(c) || g_st().mod_mask != 0 {
+        if is_special_fn(c) || g_st().mod_mask != 0 {
             clear_showcmd();
             insert_special(c, 1, 0);
             return NUL as c_int;
@@ -3937,10 +3937,10 @@ pub fn ins_copychar(lnum: Linenr) -> c_int {
 
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
-        let mut ci = utf_ptr2StrCharInfo(line);
+        let mut ci = utf_ptr2_str_char_info(line);
         let mut vcol: c_int = 0;
         while vcol < end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             vcol += win_charsize(
                 cstype,
                 vcol,

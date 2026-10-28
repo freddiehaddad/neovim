@@ -10,7 +10,7 @@ use crate::eval::typval::{
     tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv, TypVal,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
-use crate::eval::{get_copyID, partial_name};
+use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
@@ -269,7 +269,7 @@ pub fn vim_to_object(
     reuse_strdata: bool,
 ) -> Object {
     unsafe {
-        let copy_id = get_copyID();
+        let copy_id = get_copy_id();
         let mut stack: Vec<Object> = Vec::with_capacity(4);
         let mut mpstack: Vec<ConvStackEntry> = Vec::new();
 

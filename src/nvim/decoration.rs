@@ -13,7 +13,7 @@ use crate::cursor::{Colnr, Lpos};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 use crate::extmark::{TriState, extmark_set, K_FALSE, K_NONE, K_TRUE};
-use crate::fold::{hasAnyFolding, hasFolding};
+use crate::fold::{has_any_folding, has_folding};
 use crate::globals::*;
 use crate::grid::{Schar, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
 use crate::highlight::{hl_add_url, hl_combine_attr};
@@ -1435,7 +1435,7 @@ pub fn decor_conceal_line(wp: *mut WinInfoInfo, row: c_int, check_cursor: bool) 
 }
 
 pub fn win_lines_concealed(wp: &mut WinInfoInfo) -> bool {
-    hasAnyFolding(wp) != 0 || wp.w_onebuf_opt.wo_cole >= 2
+    has_any_folding(wp) != 0 || wp.w_onebuf_opt.wo_cole >= 2
 }
 
 pub fn sign_item_cmp(s1: &SignItem<'_>, s2: &SignItem<'_>) -> Ordering {
@@ -1765,7 +1765,7 @@ pub fn decor_virt_lines(
                         if draw_row >= start_row
                             && draw_row < end_row
                             && (!apply_folds
-                                || !(hasFolding(wp, mrow + 1, None, ptr::null_mut())
+                                || !(has_folding(wp, mrow + 1, None, ptr::null_mut())
                                     || decor_conceal_line(wp, mrow, false)))
                         {
                             if decor_virt_line_wrap(wp, virt_lines[0].overflow) {

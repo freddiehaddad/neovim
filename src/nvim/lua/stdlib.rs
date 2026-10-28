@@ -24,7 +24,7 @@ use crate::ex_docmd::{
 };
 use crate::ex_eval::aborting;
 use crate::extmark::K_TRUE;
-use crate::fold::foldUpdate;
+use crate::fold::fold_update;
 use crate::globals::*;
 use crate::keycodes::{KeyChord, MOD_MASK_TABLE, vim_strsave_escape_ks};
 use crate::log::log_st;
@@ -613,7 +613,7 @@ unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
             return luaL_error(lstate, c"invalid bot".as_ptr());
         }
 
-        foldUpdate(win, top, bot);
+        fold_update(win, top, bot);
         0
     }
 }

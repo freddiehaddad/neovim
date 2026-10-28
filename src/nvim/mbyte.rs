@@ -925,7 +925,7 @@ pub fn utf_ptr2CharInfo(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo { l
             }
         } else {
             let mut len = c_int::from(UTF8LEN_TAB[first as usize]);
-            let code_point = utf_ptr2CharInfo_impl(p, len as usize);
+            let code_point = utf_ptr2_char_info_impl(p, len as usize);
             if code_point < 0 {
                 len = 1;
             }
@@ -938,7 +938,7 @@ pub fn utf_ptr2CharInfo(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo { l
 }
 
 #[inline]
-pub fn utf_ptr2StrCharInfo(ptr: impl crate::strings::IntoCCharPtr) -> StrCharInfo {
+pub fn utf_ptr2_str_char_info(ptr: impl crate::strings::IntoCCharPtr) -> StrCharInfo {
     let ptr = ptr.into_c_char_ptr();
     StrCharInfo {
             ptr,
@@ -965,7 +965,7 @@ pub fn utf_ptr2CharInfo_len(p_in: impl crate::strings::IntoCCharPtr, size: c_int
             if len > size {
                 return CharInfo { value: -1, len: 1 };
             }
-            let code_point = utf_ptr2CharInfo_impl(p, len as usize);
+            let code_point = utf_ptr2_char_info_impl(p, len as usize);
             if code_point < 0 {
                 len = 1;
             }
@@ -986,7 +986,7 @@ pub fn utf_ptr2StrCharInfo_len(ptr: impl crate::strings::IntoCCharPtr, size: c_i
 }
 
 #[inline]
-pub fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
+pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
     unsafe {
         if crate::memory::cstr_is_empty(cur.ptr) {
             return ClusterInfo {
@@ -1010,12 +1010,12 @@ pub fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
             };
         }
         let mut scratch = c_int::MAX;
-        utf_ClusterInfo_impl(cur, &mut scratch)
+        utf_cluster_info_impl(cur, &mut scratch)
     }
 }
 
 #[inline]
-pub fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
+pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
     unsafe {
         *size -= cur.chr.len;
         let nextptr = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
@@ -1033,7 +1033,7 @@ pub fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
                 first_compose: utf_iscomposing_first(cur.chr.value),
             };
         }
-        utf_ClusterInfo_impl(cur, size)
+        utf_cluster_info_impl(cur, size)
     }
 }
 
@@ -1155,7 +1155,7 @@ pub fn utf_char2cells(c: c_int) -> c_int {
 }
 
 pub fn ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> c_int { let p_in = p_in.into_c_char_ptr();
-    utf_ClusterInfo(utf_ptr2StrCharInfo(p_in)).cells
+    utf_cluster_info(utf_ptr2_str_char_info(p_in)).cells
 }
 
 pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> c_int {
@@ -1168,7 +1168,7 @@ pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> c_int {
     }
 }
 
-pub fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
+pub fn utf_ptr2_char_info_impl(p: *const u8, len: usize) -> i32 {
     unsafe {
         const CORRECTIONS: [u32; 7] = [
             1u32 << 31,
@@ -1234,9 +1234,9 @@ pub fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
 pub fn mb_string2cells(str_: impl crate::strings::IntoCCharPtr) -> usize { let str_ = str_.into_c_char_ptr();
      {
         let mut clen = 0usize;
-        let mut ci = utf_ptr2StrCharInfo(str_);
+        let mut ci = utf_ptr2_str_char_info(str_);
         while !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             clen += if ci.chr.value < 0x80 {
                 1
             } else {
@@ -1253,7 +1253,7 @@ pub fn mb_string2cells_len(str_: impl crate::strings::IntoCCharPtr, size: usize)
         let mut len = size as c_int;
         let mut ci = utf_ptr2StrCharInfo_len(str_, len);
         while len > 0 {
-            let cli = utf_ClusterInfo_len(ci, &mut len);
+            let cli = utf_cluster_info_len(ci, &mut len);
             clen += cli.cells as usize;
             ci = cli.next;
         }
@@ -2358,7 +2358,7 @@ pub fn utf_head_off(base_in: impl crate::strings::IntoCCharPtr, p_in: impl crate
         }
 
         let last_len = UTF8LEN_TAB[*start as usize];
-        let mut cur_code = utf_ptr2CharInfo_impl(start, usize::from(last_len));
+        let mut cur_code = utf_ptr2_char_info_impl(start, usize::from(last_len));
         if cur_code < 0 || p.offset_from(start) >= isize::from(last_len) {
             return 0;
         }
@@ -2389,7 +2389,7 @@ pub fn utf_head_off(base_in: impl crate::strings::IntoCCharPtr, p_in: impl crate
             }
 
             let prev_len = c_int::from(UTF8LEN_TAB[*start as usize]);
-            let prev_code = utf_ptr2CharInfo_impl(start, prev_len as usize);
+            let prev_code = utf_ptr2_char_info_impl(start, prev_len as usize);
             if prev_code < 0 || (prev_len as isize) < cur_pos.offset_from(start) {
                 start = cur_pos;
                 break;
@@ -2424,7 +2424,7 @@ pub fn utf_head_off(base_in: impl crate::strings::IntoCCharPtr, p_in: impl crate
     }
 }
 
-pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterInfo {
+pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterInfo {
     unsafe {
         let mut cells = basechar_cells_impl(base.chr);
         let first_compose = utf_iscomposing_first(base.chr.value);
@@ -2450,7 +2450,7 @@ pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterIn
                 };
             }
 
-            let next_code = utf_ptr2CharInfo_impl(next, usize::from(next_len));
+            let next_code = utf_ptr2_char_info_impl(next, usize::from(next_len));
             if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
                 return ClusterInfo {
                     next: StrCharInfo {

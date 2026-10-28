@@ -56,13 +56,13 @@ use crate::path::path_is_absolute;
 use crate::path::{
     EW_FILE, EW_KEEPALL, EW_SILENT, after_pathsep, concat_fnames, expand_wildcards_vec, fix_fname,
     K_PATH_CMP_FULL, K_PATH_CMP_LITERAL, path_equal, path_tail, same_directory, shorten_dir,
-    vim_FullName, vim_ispathsep,
+    vim_full_name, vim_ispathsep,
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
 use crate::strings::{gettext, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
-use crate::undo::bufIsChanged;
+use crate::undo::buf_is_changed_fn;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
@@ -696,7 +696,7 @@ pub fn ml_close_all(del_file: bool) {
 pub fn ml_close_notmod() {
     unsafe {
         for buf in for_all_buffers_ptr() {
-            if !bufIsChanged(&mut *buf) {
+            if !buf_is_changed_fn(&mut *buf) {
                 ml_close( &mut *buf, 1);
             }
         }
@@ -1936,7 +1936,7 @@ pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
             }
             ml_flush_line( &mut *buf, false);
             ml_find_line(&mut *buf, 0, ML_FLUSH);
-            if bufIsChanged(&mut *buf)
+            if buf_is_changed_fn(&mut *buf)
                 && check_file != 0
                 && mf_need_trans(&mut *mfp)
                 && !(*buf).b_ffname.is_null()
@@ -1956,7 +1956,7 @@ pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
                 mf_sync(
                     &mut *mfp,
                     (if check_char != 0 { MFS_STOP } else { 0 })
-                        | (if do_fsync && bufIsChanged(&mut *buf) {
+                        | (if do_fsync && buf_is_changed_fn(&mut *buf) {
                             MFS_FLUSH
                         } else {
                             0
@@ -3357,7 +3357,7 @@ pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: *mut c_cha
             }
         }
 
-        vim_FullName(tmp_ptr, buf, MAXPATHL, true)
+        vim_full_name(tmp_ptr, buf, MAXPATHL, true)
     }
 }
 
@@ -3804,8 +3804,8 @@ fn fnamecmp_ino(fname_c: impl crate::strings::IntoCCharPtr, fname_s: impl crate:
 
         let buf_c_ptr = (&raw mut buf_c).cast::<c_char>();
         let buf_s_ptr = (&raw mut buf_s).cast::<c_char>();
-        let retval_c = vim_FullName(fname_c, buf_c_ptr, MAXPATHL, true);
-        let retval_s = vim_FullName(fname_s, buf_s_ptr, MAXPATHL, true);
+        let retval_c = vim_full_name(fname_c, buf_c_ptr, MAXPATHL, true);
+        let retval_s = vim_full_name(fname_s, buf_s_ptr, MAXPATHL, true);
         if retval_c && retval_s {
             return crate::memory::cstr_as_bytes(buf_c_ptr) != crate::memory::cstr_as_bytes(buf_s_ptr);
         }

@@ -6,7 +6,7 @@ use crate::decoration::{VirtTextChunk, decor_check_invalid_glyphs, next_virt_tex
 use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::mbyte::{
-    mb_string2cells, utf_ClusterInfo_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
+    mb_string2cells, utf_cluster_info_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
     utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::msgpack_rpc::packer::ObjHandle;
@@ -556,7 +556,7 @@ pub fn grid_line_puts(
         let max_col = grid_st().grid_line_maxcol;
         let mut ci = utf_ptr2StrCharInfo_len(text, len);
         while col < max_col && len > 0 && !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_ClusterInfo_len(ci, &mut len);
+            let cli = utf_cluster_info_len(ci, &mut len);
             let mut mbyte_cells = cli.cells;
             let mut schar = if mbyte_cells > 2 || ci.chr.value < 0x20 {
                 mbyte_cells = 1;
@@ -1523,8 +1523,8 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
 
 #[cfg(test)]
 pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut c_int) -> Schar {
-    let ci = crate::mbyte::utf_ptr2StrCharInfo(buf.as_ptr());
-    let cli = crate::mbyte::utf_ClusterInfo(ci);
+    let ci = crate::mbyte::utf_ptr2_str_char_info(buf.as_ptr());
+    let cli = crate::mbyte::utf_cluster_info(ci);
     *firstc = ci.chr.value;
     if ci.chr.value >= 0 {
         schar_from_cluster(ci, cli)

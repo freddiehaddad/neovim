@@ -37,7 +37,7 @@ use crate::event::r#loop::uv_strerror;
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, Exarg};
 use crate::ex_eval::aborting;
-use crate::fold::{foldUpdateAll, foldmethodIsManual};
+use crate::fold::{fold_update_all, foldmethod_is_manual};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::{stuff_empty, typebuf_typed};
@@ -79,7 +79,7 @@ use crate::os::time::{os_hrtime, time_t};
 use crate::os::users::os_get_username;
 use crate::path::{
     add_pathsep, after_pathsep, dir_of_file_exists, K_PATH_CMP_LITERAL, path_equal, path_is_absolute,
-    path_shorten_fname, path_tail, path_with_url, vim_FullName, vim_ispathsep,
+    path_shorten_fname, path_tail, path_with_url, vim_full_name, vim_ispathsep,
 };
 use crate::regexp::{RE_MAGIC, Regmatch, Regprog, vim_regcomp, vim_regexec, vim_regfree};
 use crate::sha256::ContextSha256;
@@ -88,7 +88,7 @@ use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
 use crate::strings::{ngettext, tr, vim_snprintf, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::{
-    bufIsChanged, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
+    buf_is_changed_fn, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
     u_read_undo, u_savecommon, u_sync, u_unchanged, u_write_undo,
 };
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
@@ -2468,7 +2468,7 @@ pub fn readfile(
                 if newfile || read_buffer {
                     redraw_curbuf_later(UPD_NOT_VALID);
                     diff_invalidate(g_st().curbuf);
-                    foldUpdateAll(curwin_mut());
+                    fold_update_all(curwin_mut());
                 } else if linecnt != 0 {
                     appended_lines_mark(from, linecnt);
                 }
@@ -3812,14 +3812,14 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
             } else {
                 opt_vars().p_ar
             }) != 0
-                && !bufIsChanged(buf)
+                && !buf_is_changed_fn(buf)
                 && file_info_ok
             {
                 reload = RELOAD_NORMAL;
             } else {
                 let (reason, reasonlen) = if !file_info_ok {
                     (c"deleted", 7isize)
-                } else if bufIsChanged(buf) {
+                } else if buf_is_changed_fn(buf) {
                     (c"conflict", 8isize)
                 } else if orig_size != buf.b_orig_size || buf_contents_changed(&mut *buf) {
                     (c"changed", 7isize)
@@ -4095,8 +4095,8 @@ pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
 
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut( &*tp) {
-                if wp.w_buffer == curwin_mut().w_buffer && !foldmethodIsManual(wp) {
-                    foldUpdateAll(wp);
+                if wp.w_buffer == curwin_mut().w_buffer && !foldmethod_is_manual(wp) {
+                    fold_update_all(wp);
                 }
             }
         }
@@ -4464,7 +4464,7 @@ fn vim_settempdir(tempdir: impl crate::strings::IntoCCharPtr) -> bool { let temp
         let mut buf_vec: Vec<c_char> = vec![0; MAXPATHL + 2];
         let buf = buf_vec.as_mut_ptr();
 
-        vim_FullName(tempdir, buf, MAXPATHL, cfg!(windows));
+        vim_full_name(tempdir, buf, MAXPATHL, cfg!(windows));
 
         let mut buflen = crate::memory::cstr_len(buf);
         if after_pathsep(buf, buf.add(buflen)) == 0 {

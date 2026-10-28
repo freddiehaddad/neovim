@@ -36,7 +36,7 @@ use crate::charset::{
 };
 use crate::clipboard::{end_batch_changes, start_batch_changes};
 use crate::cmdexpand::{
-    CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, ExpandGeneric, ExpandOne,
+    CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, expand_generic, expand_one,
     LineGetter, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND, WILD_NOERROR,
     CmdAddr, Cmdidx, K_UICMDLINE,
 };
@@ -81,7 +81,7 @@ use crate::eval::vars::{
 };
 use crate::eval::window::{win_find_nr, win_has_winnr};
 use crate::eval::{
-    callback_call, eval_to_string, ex_echo, ex_echohl, ex_execute, get_copyID, K_MARK_ALL,
+    callback_call, eval_to_string, ex_echo, ex_echohl, ex_execute, get_copy_id, K_MARK_ALL,
     set_ref_in_callback, skip_expr,
 };
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_strerror};
@@ -120,7 +120,7 @@ use crate::file_search::{
     find_file_in_path, vim_chdir,
 };
 use crate::fileio::{FILE, readfile, shorten_fnames};
-use crate::fold::{foldCreate, foldManualAllowed, hasFolding, opFoldRange};
+use crate::fold::{fold_create, fold_manual_allowed, has_folding, op_fold_range};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::help::{ex_exusage, ex_help, ex_helpclose, ex_helptags, ex_viusage};
@@ -229,7 +229,7 @@ use crate::ui::{
     ui_flush, ui_has,
 };
 use crate::undo::{
-    bufIsChanged, curbufIsChanged, ex_undojoin, ex_undolist, u_clearline, u_compute_hash,
+    buf_is_changed_fn, curbuf_is_changed_fn, ex_undojoin, ex_undolist, u_clearline, u_compute_hash,
     u_read_undo, u_redo, u_save, u_undo, u_undo_and_forget, u_write_undo, uhp_ref, undo_time,
 };
 use crate::usercmd::{
@@ -6241,8 +6241,8 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> c_int {
                 && g_st().global_busy == 0
                 && eap.addr_type == ADDR_LINES
             {
-                hasFolding(curwin_ptr(), eap.line1, Some(&mut eap.line1), ptr::null_mut());
-                hasFolding(curwin_ptr(), eap.line2, None, &raw mut eap.line2);
+                has_folding(curwin_ptr(), eap.line1, Some(&mut eap.line1), ptr::null_mut());
+                has_folding(curwin_ptr(), eap.line2, None, &raw mut eap.line2);
             }
 
             if !parse_count(&mut *eap, &mut errormsg, true) {
@@ -6622,8 +6622,8 @@ fn do_one_cmd(
                 && g_st().global_busy == 0
                 && ea.addr_type == ADDR_LINES
             {
-                hasFolding(curwin_ptr(), ea.line1, Some(&mut ea.line1), ptr::null_mut());
-                hasFolding(curwin_ptr(), ea.line2, None, &raw mut ea.line2);
+                has_folding(curwin_ptr(), ea.line1, Some(&mut ea.line1), ptr::null_mut());
+                has_folding(curwin_ptr(), ea.line2, None, &raw mut ea.line2);
             }
 
             p = replace_makeprg(&mut ea, p, cmdlinep);
@@ -7968,7 +7968,7 @@ pub fn get_address(
                             && (op == b'-' as c_int || op == b'+' as c_int)
                             && address_count >= 2
                         {
-                            hasFolding(curwin_ptr(), lnum, None, &raw mut lnum);
+                            has_folding(curwin_ptr(), lnum, None, &raw mut lnum);
                         }
                         if op == b'-' as c_int {
                             lnum -= n;
@@ -8320,7 +8320,7 @@ pub fn expand_filename(
                 if opt_vars().p_wic != 0 {
                     options += WILD_ICASE;
                 }
-                let Some(expanded) = ExpandOne(
+                let Some(expanded) = expand_one(
                     &mut xpc,
                     eap.arg,
                     None,
@@ -8641,7 +8641,7 @@ pub fn expand_argopt(
             }
 
             if cb.is_some() {
-                ExpandGeneric(pat, xp, rmp, matches, cb, false);
+                expand_generic(pat, xp, rmp, matches, cb, false);
                 return true;
             }
             return false;
@@ -8654,7 +8654,7 @@ pub fn expand_argopt(
             return true;
         }
 
-        ExpandGeneric(pat, xp, rmp, matches, Some(get_argopt_name), false);
+        expand_generic(pat, xp, rmp, matches, Some(get_argopt_name), false);
         true
     }
 }
@@ -9589,13 +9589,13 @@ pub fn ex_win_close(forceit: c_int, win: &mut WinInfoInfo, tp: *mut TabPageInfo)
 
         let buf = win.w_buffer;
 
-        let mut need_hide = bufIsChanged(&mut *buf) && (*buf).b_nwindows <= 1;
+        let mut need_hide = buf_is_changed_fn(&mut *buf) && (*buf).b_nwindows <= 1;
         if need_hide && !buf_hide(&*buf) && forceit == 0 {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
                 dialog_changed(&mut *buf, false);
-                if bufref_valid(Some(&bufref)) && bufIsChanged(&mut *buf) {
+                if bufref_valid(Some(&bufref)) && buf_is_changed_fn(&mut *buf) {
                     return;
                 }
                 need_hide = false;
@@ -9831,7 +9831,7 @@ fn ex_exit(eap: &mut Exarg) {
         if check_more(false, eap.forceit != 0) && only_one_window() {
             g_st().exiting = true;
         }
-        if ((eap.cmdidx == Cmdidx::CmdWq as c_int || curbufIsChanged())
+        if ((eap.cmdidx == Cmdidx::CmdWq as c_int || curbuf_is_changed_fn())
             && !do_write(eap))
             || before_quit_autocmds(curwin_mut(), false, eap.forceit != 0)
             || !check_more(true, eap.forceit != 0)
@@ -9944,7 +9944,7 @@ fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut TvList {
         let mut retlist: *mut TvList = ptr::null_mut();
         if retval {
             if rettv.v_type == VarType::VarList {
-                retlist = tv_list_copy(None, rettv.vval.v_list().as_mut(), false, get_copyID());
+                retlist = tv_list_copy(None, rettv.vval.v_list().as_mut(), false, get_copy_id());
             } else {
                 let _ = emsg(gettext(E_INVALID_RETURN_TYPE_FROM_FINDFUNC));
             }
@@ -10267,7 +10267,7 @@ fn ex_tabs(_eap: &mut Exarg) {
                     b' ' as c_int
                 });
                 msg_putchar(b' ' as c_int);
-                msg_putchar(if bufIsChanged((*wp).buf_mut()) {
+                msg_putchar(if buf_is_changed_fn((*wp).buf_mut()) {
                     b'+' as c_int
                 } else {
                     b' ' as c_int
@@ -10593,7 +10593,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin: *mut WinInfoInfo) {
             )
             {
                 if !old_curwin.is_null() {
-                    let need_hide = curbufIsChanged() && curbuf_mut().b_nwindows <= 1;
+                    let need_hide = curbuf_is_changed_fn() && curbuf_mut().b_nwindows <= 1;
                     if !need_hide || buf_hide(curbuf_mut()) {
                         let mut cs: ExCleanup = ExCleanup::new();
                         enter_cleanup(&mut cs);
@@ -12591,7 +12591,7 @@ fn ex_nohlsearch(_eap: &mut Exarg) {
 
 fn ex_fold(eap: &mut Exarg) {
      {
-        if foldManualAllowed(true) != 0 {
+        if fold_manual_allowed(true) != 0 {
             let start = CursorPos {
                 lnum: eap.line1,
                 col: 1,
@@ -12602,7 +12602,7 @@ fn ex_fold(eap: &mut Exarg) {
                 col: 1,
                 coladd: 0,
             };
-            foldCreate(curwin_mut(), start, end);
+            fold_create(curwin_mut(), start, end);
         }
     }
 }
@@ -12618,7 +12618,7 @@ fn ex_foldopen(eap: &mut Exarg) {
             col: 1,
             coladd: 0,
         };
-        opFoldRange(
+        op_fold_range(
             start,
             end,
             c_int::from(eap.cmdidx == Cmdidx::CmdFoldopen as c_int),
@@ -12631,7 +12631,7 @@ fn ex_folddo(eap: &mut Exarg) {
      {
         let mut lnum = eap.line1;
         while lnum <= eap.line2 {
-            if hasFolding(curwin_ptr(), lnum, None, ptr::null_mut())
+            if has_folding(curwin_ptr(), lnum, None, ptr::null_mut())
                 == (eap.cmdidx == Cmdidx::CmdFolddoclosed as c_int)
             {
                 ml_setmarked(lnum);

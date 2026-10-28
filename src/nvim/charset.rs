@@ -4,8 +4,8 @@ use crate::buffer::FileBuf;
 use crate::cursor::get_cursor_line_ptr;
 use crate::globals::*;
 use crate::mbyte::{
-    mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_ClusterInfo, utf_char2bytes,
-    utf_char2cells, utf_char2len, utf_class_tab, utf_printable, utf_ptr2StrCharInfo, utf_ptr2char,
+    mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_cluster_info, utf_char2bytes,
+    utf_char2cells, utf_char2len, utf_class_tab, utf_printable, utf_ptr2_str_char_info, utf_ptr2char,
     utf_ptr2len, UTF8LEN_TAB, utfc_ptr2len,
 };
 use crate::memory::{cstr_from_bytes};
@@ -706,9 +706,9 @@ pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: c_int) -> c_i
     unsafe {
         assert!(!s.is_null());
         let mut size: c_int = 0;
-        let mut ci = utf_ptr2StrCharInfo(s);
+        let mut ci = utf_ptr2_str_char_info(s);
         while !crate::memory::cstr_is_empty(ci.ptr) && len > 0 {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             size += cli.cells;
             len -= cli.next.ptr.offset_from(ci.ptr) as c_int;
             ci = cli.next;
@@ -717,7 +717,7 @@ pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: c_int) -> c_i
     }
 }
 
-pub fn vim_isIDc(c: c_int) -> bool {
+pub fn vim_is_idc(c: c_int) -> bool {
     c > 0 && c < 0x100 && get_chartab((&raw const charset_st().isi_chartab).cast::<u64>(), c) != 0
 }
 

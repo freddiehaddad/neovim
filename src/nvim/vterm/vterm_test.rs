@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::grid::{Schar, schar_get};
-use crate::mbyte::utf_ptr2StrCharInfo;
+use crate::mbyte::utf_ptr2_str_char_info;
 use crate::vterm::keyboard::{VTermColor, VTermStateFull};
 use crate::vterm::mouse::VTermPos;
 use crate::vterm::pen::{
@@ -337,7 +337,7 @@ fn format_schar(out: &mut Vec<u8>, schar: Schar) {
     unsafe {
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(buf.as_mut_ptr(), schar);
-        let mut ci = utf_ptr2StrCharInfo(buf.as_ptr());
+        let mut ci = utf_ptr2_str_char_info(buf.as_ptr());
         let mut did = false;
         while *ci.ptr != 0 {
             if did {
@@ -349,7 +349,7 @@ fn format_schar(out: &mut Vec<u8>, schar: Schar) {
                 let _ = write!(out, "{:x}", ci.chr.value);
             }
             did = true;
-            ci = utf_ptr2StrCharInfo(ci.ptr.add(ci.chr.len as usize));
+            ci = utf_ptr2_str_char_info(ci.ptr.add(ci.chr.len as usize));
         }
     }
 }

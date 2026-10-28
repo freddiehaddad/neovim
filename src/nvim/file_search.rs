@@ -34,7 +34,7 @@ use crate::path::{
     simplify_filename, vim_isAbsName, vim_ispathsep,
 };
 #[cfg(windows)]
-use crate::path::{path_to_slash, vim_FullName};
+use crate::path::{path_to_slash, vim_full_name};
 use crate::state::SaveVEvent;
 use crate::strings::{tr, vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_long};
@@ -218,7 +218,7 @@ pub fn vim_findfile_init(
             #[cfg(windows)]
             let handled_drive = if !crate::memory::cstr_is_empty(path) && crate::memory::cstr_byte_at(path, 1) == b':' {
                 let drive: [c_char; 3] = [*path, b':' as c_char, NUL];
-                if !vim_FullName(drive.as_ptr(), expand_ptr, MAXPATHL, true) {
+                if !vim_full_name(drive.as_ptr(), expand_ptr, MAXPATHL, true) {
                     return None;
                 }
                 path = path.add(2);

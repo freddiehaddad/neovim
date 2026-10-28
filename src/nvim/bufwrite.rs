@@ -56,7 +56,7 @@ use crate::path::{after_pathsep, K_PATH_CMP_LITERAL, path_equal, path_tail};
 use crate::sha256::ContextSha256;
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
-use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
+use crate::undo::{curbuf_is_changed_fn, u_unchanged, u_update_save_nr, u_write_undo};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -430,10 +430,10 @@ fn buf_write_do_autocmds(
                 (eap.is_some()).then(||  { eap.unwrap() }),
             );
         } else if reset_changed && whole {
-            let was_changed = curbufIsChanged();
+            let was_changed = curbuf_is_changed_fn();
             did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
             if did_cmd {
-                if was_changed && !curbufIsChanged() {
+                if was_changed && !curbuf_is_changed_fn() {
                     u_unchanged(curbuf_mut());
                     u_update_save_nr(curbuf_mut());
                 }

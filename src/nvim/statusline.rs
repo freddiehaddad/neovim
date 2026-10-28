@@ -53,7 +53,7 @@ use crate::path::{path_tail, shorten_dir};
 use crate::sign::describe_sign_text;
 use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
-use crate::undo::bufIsChanged;
+use crate::undo::buf_is_changed_fn;
 use crate::window::{global_stl_height, lastwin_nofloating, tabline_height, WinInfoInfo};
 use std::ffi::{c_char, c_int};
 use std::ptr;
@@ -1026,7 +1026,7 @@ pub fn draw_tabline() {
                 while !wp.is_null() {
                     if !(*wp).w_config.focusable || (*wp).w_config.hide {
                         wincount -= 1;
-                    } else if bufIsChanged((*wp).buf_mut()) {
+                    } else if buf_is_changed_fn((*wp).buf_mut()) {
                         modified = true;
                     }
                     wp = (*wp).w_next;
@@ -2158,7 +2158,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_MODIFIED | STL_MODIFIED_ALT => {
                     itemisflag = true;
                     let code = c_int::from(opt == STL_MODIFIED_ALT)
-                        + c_int::from(bufIsChanged((*wp).buf_mut())) * 2
+                        + c_int::from(buf_is_changed_fn((*wp).buf_mut())) * 2
                         + c_int::from((*wp).buf_mut().b_p_ma == 0) * 4;
                     str = match code {
                         2 => c"[+]".as_ptr().cast_mut(),

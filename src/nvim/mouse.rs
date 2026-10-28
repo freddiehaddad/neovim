@@ -18,11 +18,11 @@ use crate::eval::typval::{
 use crate::eval::vars::{VV_LNUM, VV_VIRTNUM, get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
-use crate::fold::{closeFold, hasFolding, openFold};
+use crate::fold::{close_fold, has_folding, open_fold};
 use crate::globals::*;
 use crate::grid::{get_win_by_grid_handle, grid_adjust};
 use crate::input::{
-    prep_redo, redo_append_char, safe_vgetc, stuffReadbuff, stuffcharReadbuff, stuffnumReadbuff,
+    prep_redo, redo_append_char, safe_vgetc, stuff_readbuff, stuffchar_readbuff, stuffnum_readbuff,
     vpeekc, vungetc,
 };
 use crate::input_cmdatom::{CmdSpec, Cmdarg};
@@ -36,7 +36,7 @@ use crate::keycodes::{
     K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
 };
 use crate::mbyte::{
-    mb_get_class, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, UTF8LEN_TAB, utfc_ptr2len,
+    mb_get_class, utf_cluster_info, utf_head_off, utf_ptr2_str_char_info, UTF8LEN_TAB, utfc_ptr2len,
 };
 use crate::mcursor::mc_toggle;
 use crate::memline::{gchar_pos, inc, ml_get, ml_get_buf};
@@ -578,12 +578,12 @@ pub fn do_mouse(
 
         if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT {
             if (g_st().State & MODE_INSERT) != 0 {
-                stuffcharReadbuff(CTRL_O);
+                stuffchar_readbuff(CTRL_O);
             }
             if count > 1 {
-                stuffnumReadbuff(count);
+                stuffnum_readbuff(count);
             }
-            stuffcharReadbuff(CTRL_T_CONST);
+            stuffchar_readbuff(CTRL_T_CONST);
             mouse_st().got_click = false;
             if (g_st().State & MODE_INSERT) == 0 {
                 exec_stuffed(None);
@@ -621,15 +621,15 @@ pub fn do_mouse(
 
                 if g_st().Visual.active {
                     if g_st().Visual.select {
-                        stuffcharReadbuff(CTRL_G);
-                        stuffReadbuff(c"\"+p");
+                        stuffchar_readbuff(CTRL_G);
+                        stuff_readbuff(c"\"+p");
                     } else {
                         if regname != 0 {
-                            stuffcharReadbuff(b'"' as c_int);
-                            stuffcharReadbuff(regname);
+                            stuffchar_readbuff(b'"' as c_int);
+                            stuffchar_readbuff(regname);
                         }
-                        stuffcharReadbuff(b'y' as c_int);
-                        stuffcharReadbuff(K_MIDDLEMOUSE);
+                        stuffchar_readbuff(b'y' as c_int);
+                        stuffchar_readbuff(K_MIDDLEMOUSE);
                     }
                     exec_stuffed(None);
                     return false;
@@ -818,9 +818,9 @@ pub fn do_mouse(
             && which_button == MOUSE_LEFT
         {
             if (jump_flags & MOUSE_FOLD_OPEN) != 0 {
-                openFold(curwin_mut().w_cursor, 1);
+                open_fold(curwin_mut().w_cursor, 1);
             } else {
-                closeFold(curwin_mut().w_cursor, 1);
+                close_fold(curwin_mut().w_cursor, 1);
             }
             if curwin_ptr() == old_curwin {
                 curwin_mut().w_cursor = save_cursor;
@@ -997,7 +997,7 @@ pub fn do_mouse(
                 }
             }
         } else if (g_st().State & MODE_INSERT) != 0 && g_st().Visual.active {
-            stuffcharReadbuff(CTRL_O);
+            stuffchar_readbuff(CTRL_O);
         }
 
         if which_button == MOUSE_MIDDLE {
@@ -1066,21 +1066,21 @@ pub fn do_mouse(
             mouse_st().got_click = false;
         } else if curbuf_mut().b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
             if (g_st().State & MODE_INSERT) != 0 {
-                stuffcharReadbuff(CTRL_O);
+                stuffchar_readbuff(CTRL_O);
             }
-            stuffcharReadbuff(CTRL_RSB_CONST);
+            stuffchar_readbuff(CTRL_RSB_CONST);
             mouse_st().got_click = false;
             if (g_st().State & MODE_INSERT) == 0 {
                 exec_stuffed(None);
             }
         } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
             if (g_st().State & MODE_INSERT) != 0 || (g_st().Visual.active && g_st().Visual.select) {
-                stuffcharReadbuff(CTRL_O);
+                stuffchar_readbuff(CTRL_O);
             }
             if which_button == MOUSE_LEFT {
-                stuffcharReadbuff(b'*' as c_int);
+                stuffchar_readbuff(b'*' as c_int);
             } else {
-                stuffcharReadbuff(b'#' as c_int);
+                stuffchar_readbuff(b'#' as c_int);
             }
             if (g_st().State & MODE_INSERT) == 0 {
                 exec_stuffed(None);
@@ -1623,7 +1623,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                         break;
                     }
                     first = false;
-                    hasFolding(
+                    has_folding(
                         curwin_ptr(),
                         curwin_mut().w_topline,
                         Some(&mut curwin_mut().w_topline),
@@ -1658,7 +1658,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                     if curwin_mut().w_topfill > 0 {
                         curwin_mut().w_topfill -= 1;
                     } else {
-                        if hasFolding(
+                        if has_folding(
                             curwin_ptr(),
                             curwin_mut().w_topline,
                             None,
@@ -1841,7 +1841,7 @@ pub fn mouse_comp_pos(
                 break;
             }
 
-            hasFolding(&raw mut *win, lnum, None, &raw mut lnum);
+            has_folding(&raw mut *win, lnum, None, &raw mut lnum);
 
             if lnum == win.buf_mut().b_ml.ml_line_count {
                 retval = true;
@@ -1893,7 +1893,7 @@ pub fn mouse_comp_pos(
             && decor_conceal_line(&raw mut *win, lnum - 1, false)
         {
             lnum += 1;
-            hasFolding(&raw mut *win, lnum, None, &raw mut lnum);
+            has_folding(&raw mut *win, lnum, None, &raw mut lnum);
         }
 
         if !retval {
@@ -2043,10 +2043,10 @@ pub fn vcol2col(
         let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
-        let mut ci = utf_ptr2StrCharInfo(line);
+        let mut ci = utf_ptr2_str_char_info(line);
         let mut cur_vcol: c_int = 0;
         while cur_vcol < vcol && !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             let next_vcol = cur_vcol
                 + win_charsize(
                     cstype,

@@ -4,7 +4,7 @@ use crate::api::private::helpers::{MAXLNUM, SID_API_CLIENT, find_buffer_by_handl
 use crate::api::private::validate::{Error, ErrorType};
 use crate::buffer::FileBuf;
 use crate::cmdexpand::{
-    EXPAND_FILES, ExpandOne, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS, WILD_ICASE, WILD_KEEP_ALL,
+    EXPAND_FILES, expand_one, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS, WILD_ICASE, WILD_KEEP_ALL,
     WILD_SILENT, WILD_USE_NL, globpath,
 };
 use crate::errors::*;
@@ -1095,7 +1095,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 options += WILD_ICASE;
             }
             if rettv.v_type == VarType::VarString {
-                if let Some(exp) = ExpandOne(
+                if let Some(exp) = expand_one(
                     &mut xpc,
                     tv_get_string(&argvars[0]).cast_mut(),
                     None,
@@ -1107,7 +1107,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 }
             } else {
-                ExpandOne(
+                expand_one(
                     &mut xpc,
                     tv_get_string(&argvars[0]).cast_mut(),
                     None,

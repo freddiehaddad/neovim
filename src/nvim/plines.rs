@@ -8,7 +8,7 @@ use crate::decoration::{
     decor_conceal_line, decor_virt_lines, K_MTFILTER_SELECT, K_VPOS_INLINE, K_VTIS_LINES,
 };
 use crate::diff::{diff_check_fill, diffopt_filler};
-use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
+use crate::fold::{has_folding, has_folding_win, line_folded};
 use crate::globals::*;
 use crate::indent::{get_breakindent_win, tabstop_padding};
 use crate::keycodes::TAB;
@@ -16,7 +16,7 @@ use crate::marktree::{
     MarkTreeIter, K_MTMETA_COUNT, K_MTMETA_INLINE, K_MTMETA_LINES, marktree_itr_current,
     marktree_itr_get_filter, marktree_itr_next_filter, mt_decor, mt_invalid, mt_right,
 };
-use crate::mbyte::{ptr2cells, utf_ClusterInfo, utf_ptr2StrCharInfo, utf_ptr2char, utfc_ptr2len};
+use crate::mbyte::{ptr2cells, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
@@ -627,9 +627,9 @@ pub fn linesize_regular(
         let line: *const c_char = csarg.line;
         let mut vcol = i64::from(vcol_arg);
 
-        let mut ci = utf_ptr2StrCharInfo(line);
+        let mut ci = utf_ptr2_str_char_info(line);
         while (ci.ptr.offset_from(line) as Colnr) < len && !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             vcol +=
                 i64::from(charsize_regular(&mut *csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width);
             ci = cli.next;
@@ -662,9 +662,9 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: Colnr) -> c_
         let line: *const c_char = csarg.line;
         let mut vcol = i64::from(vcol_arg);
 
-        let mut ci = utf_ptr2StrCharInfo(line);
+        let mut ci = utf_ptr2_str_char_info(line);
         while (ci.ptr.offset_from(line) as Colnr) < len && !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_ClusterInfo(ci);
+            let cli = utf_cluster_info(ci);
             vcol += i64::from(
                 charsize_fast_impl( &mut *wp, ci.ptr, use_tabstop, vcol_arg, ci.chr.value, cli.cells)
                     .width,
@@ -711,7 +711,7 @@ pub fn getvcol(
 
         let mut vcol: Colnr = 0;
         let mut char_size: CharSize;
-        let mut ci = utf_ptr2StrCharInfo(line);
+        let mut ci = utf_ptr2_str_char_info(line);
         if cstype == K_CHARSIZE_FAST {
             let use_tabstop = csarg.use_tabstop;
             loop {
@@ -723,7 +723,7 @@ pub fn getvcol(
                     };
                     break;
                 }
-                let cli = utf_ClusterInfo(ci);
+                let cli = utf_cluster_info(ci);
                 char_size =
                     charsize_fast_impl( &mut *wp, ci.ptr, use_tabstop, vcol, ci.chr.value, cli.cells);
                 let next = cli.next;
@@ -735,7 +735,7 @@ pub fn getvcol(
             }
         } else {
             loop {
-                let cli = utf_ClusterInfo(ci);
+                let cli = utf_cluster_info(ci);
                 char_size = charsize_regular(&mut csarg, ci.ptr, vcol, ci.chr.value, cli.cells);
                 if crate::memory::cstr_is_empty(ci.ptr) {
                     char_size.width = 1 + csarg.cur_text_width_left + csarg.cur_text_width_right;
@@ -904,7 +904,7 @@ pub fn plines_win_nofill(wp: *mut WinInfoInfo, lnum: Linenr, limit_winheight: bo
         if decor_conceal_line(wp, lnum - 1, false) {
             return 0;
         }
-        if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 || lineFolded(&mut *wp, lnum) {
+        if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 || line_folded(&mut *wp, lnum) {
             return 1;
         }
         let lines = plines_win_nofold(&mut *wp, lnum);
@@ -965,19 +965,19 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: c_long) -> c_i
         let cstype = init_charsize_arg(&mut csarg,  &mut *wp, lnum, line);
 
         let mut vcol: Colnr = 0;
-        let mut ci = utf_ptr2StrCharInfo(line);
+        let mut ci = utf_ptr2_str_char_info(line);
         let limit_ptr = (line as *const c_char).add(column as usize);
         if cstype == K_CHARSIZE_FAST {
             let use_tabstop = csarg.use_tabstop;
             while !crate::memory::cstr_is_empty(ci.ptr) && ci.ptr < limit_ptr {
-                let cli = utf_ClusterInfo(ci);
+                let cli = utf_cluster_info(ci);
                 vcol += charsize_fast_impl( &mut *wp, ci.ptr, use_tabstop, vcol, ci.chr.value, cli.cells)
                     .width;
                 ci = cli.next;
             }
         } else {
             while !crate::memory::cstr_is_empty(ci.ptr) && ci.ptr < limit_ptr {
-                let cli = utf_ClusterInfo(ci);
+                let cli = utf_cluster_info(ci);
                 vcol += charsize_regular(&mut csarg, ci.ptr, vcol, ci.chr.value, cli.cells).width;
                 ci = cli.next;
             }
@@ -1008,7 +1008,7 @@ pub fn plines_win_full(
     limit_winheight: bool,
 ) -> c_int {
     unsafe {
-        let folded = hasFoldingWin(
+        let folded = has_folding_win(
              &mut *wp,
             lnum,
             Some(&mut lnum),
@@ -1098,7 +1098,7 @@ pub fn win_text_height(
 
         if start_vcol >= 0 {
             let mut lnum_next = lnum;
-            cur_folded = hasFolding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
+            cur_folded = has_folding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
             height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;
             let row_off = if start_vcol < i64::from(width1) || width2 <= 0 {
@@ -1112,7 +1112,7 @@ pub fn win_text_height(
 
         while lnum <= *end_lnum && height_sum_nofill + height_sum_fill < max {
             let mut lnum_next = lnum;
-            cur_folded = hasFolding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
+            cur_folded = has_folding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
             height_sum_fill += i64::from(win_get_fill(wp, lnum));
             height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;

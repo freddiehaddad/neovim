@@ -27,7 +27,7 @@ use crate::fileio::{FILE, buf_check_timestamp, fclose, fwrite, vim_fgets, vim_te
 #[cfg(unix)]
 use crate::fileio::{shorten_fnames, vim_gettempdir};
 use crate::fold::{
-    foldUpdate, foldUpdateAll, foldmethodIsDiff, foldmethodIsManual, hasFolding, newFoldLevel,
+    fold_update, fold_update_all, foldmethod_is_diff, foldmethod_is_manual, has_folding, new_fold_level,
 };
 use crate::globals::*;
 use crate::linematch::linematch_nbuffers;
@@ -690,8 +690,8 @@ pub fn diff_redraw(dofold: bool) {
             if wp != curwin_ptr() {
                 wp_other = wp;
             }
-            if dofold && foldmethodIsDiff(&mut *wp) {
-                foldUpdateAll(&mut *wp);
+            if dofold && foldmethod_is_diff(&mut *wp) {
+                fold_update_all(&mut *wp);
             }
             let n = diff_check_fill( &mut *wp, (*wp).w_topline);
             if (wp != curwin_ptr() && (*wp).w_topfill > 0) || n > 0 {
@@ -1462,7 +1462,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
      {
         let old_curwin = curwin_ptr();
         set_curwin(&raw mut *wp);
-        newFoldLevel();
+        new_fold_level();
         set_curwin(old_curwin);
         if wp.w_onebuf_opt.wo_diff == 0 {
             wp.w_onebuf_opt.wo_scb_save = wp.w_onebuf_opt.wo_scb;
@@ -1506,7 +1506,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
         wp.w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr());
         wp.w_onebuf_opt.wo_fen = 1;
         wp.w_onebuf_opt.wo_fdl = 0;
-        foldUpdateAll(wp);
+        fold_update_all(wp);
         changed_window_setting(wp);
         if vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
             do_cmdline_cmd(c"set sbo+=hor");
@@ -1562,13 +1562,13 @@ pub fn ex_diffoff(eap: &mut Exarg) {
                         (*wp).w_onebuf_opt.wo_fdl = (*wp).w_onebuf_opt.wo_fdl_save;
                     }
                     if (*wp).w_onebuf_opt.wo_fen != 0 {
-                        (*wp).w_onebuf_opt.wo_fen = if foldmethodIsManual(&mut *wp) {
+                        (*wp).w_onebuf_opt.wo_fen = if foldmethod_is_manual(&mut *wp) {
                             0
                         } else {
                             (*wp).w_onebuf_opt.wo_fen_save
                         };
                     }
-                    foldUpdateAll(&mut *wp);
+                    fold_update_all(&mut *wp);
                 }
                 (*wp).w_topfill = 0;
                 changed_window_setting(&mut *wp);
@@ -2050,7 +2050,7 @@ pub fn diff_check_with_linestatus(
             return 0;
         }
         let u_idx = idx as usize;
-        if hasFolding(wp, lnum, None, ptr::null_mut())
+        if has_folding(wp, lnum, None, ptr::null_mut())
             || decor_conceal_line(wp, lnum - 1, false)
         {
             return 0;
@@ -2292,7 +2292,7 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
         invalidate_botline_win(&mut *towin);
         changed_line_abv_curs_win(&mut *towin);
         check_topfill(towin, false);
-        hasFolding(
+        has_folding(
             &raw mut *towin,
             towin.w_topline,
             Some(&mut towin.w_topline),
@@ -3373,7 +3373,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                     && crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdm) == b'd'
                     && wp.w_onebuf_opt.wo_fen != 0
                 {
-                    foldUpdateAll(wp);
+                    fold_update_all(wp);
                 }
             }
         }
@@ -3563,7 +3563,7 @@ fn diff_fold_update(
         for wp in for_all_windows_ptr() {
             for i in 0..DB_COUNT {
                 if curtab_mut().tp_diffbuf[i] == (*wp).w_buffer && i != skip_idx {
-                    foldUpdate(wp, df_lnum[i], df_lnum[i] + df_count[i]);
+                    fold_update(wp, df_lnum[i], df_lnum[i] + df_count[i]);
                 }
             }
         }
@@ -3799,7 +3799,7 @@ pub fn f_diff_filler(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin_mut(), tv_get_lnum(&argvars[0])).max(0) as Varnumber);
     }
 }
-pub fn f_diff_hlID(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let mut diffline = Diffline::default();

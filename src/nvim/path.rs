@@ -242,8 +242,8 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
             return true;
         }
         if !id_ok1 && !id_ok2 && (flags & K_PATH_CMP_FULL) != 0 {
-            vim_FullName(expanded_s1.as_ptr(), full1.as_mut_ptr(), MAXPATHL, false);
-            vim_FullName(s2, full2.as_mut_ptr(), MAXPATHL, false);
+            vim_full_name(expanded_s1.as_ptr(), full1.as_mut_ptr(), MAXPATHL, false);
+            vim_full_name(s2, full2.as_mut_ptr(), MAXPATHL, false);
             return path_cmp(opt_vars().p_fic != 0, full1.as_ptr(), full2.as_ptr(), MAXPATHL) == 0;
         }
         false
@@ -580,7 +580,7 @@ pub fn FullName_save(fname: impl crate::strings::IntoCCharPtr, force: bool) -> O
     }
 
     let mut buf: Vec<c_char> = vec![0; MAXPATHL];
-        if !vim_FullName(fname, buf.as_mut_ptr(), MAXPATHL, force) {
+        if !vim_full_name(fname, buf.as_mut_ptr(), MAXPATHL, force) {
             return to_slash_save(fname);
         }
         Some(cstr_to_cstring(buf.as_ptr()))
@@ -1800,7 +1800,7 @@ pub fn vim_isAbsName(name: impl crate::strings::IntoCCharPtr) -> bool { let name
     path_with_url(name) != 0 || path_is_absolute(name)
 }
 
-pub fn vim_FullName(
+pub fn vim_full_name(
     fname: impl crate::strings::IntoCCharPtr,
     buf: *mut c_char,
     len: usize,
@@ -1927,7 +1927,7 @@ pub fn same_directory(f1: impl crate::strings::IntoCCharPtr, f2: impl crate::str
         }
 
         let mut ffname = [0 as c_char; MAXPATHL];
-        vim_FullName(f1, ffname.as_mut_ptr(), MAXPATHL, false);
+        vim_full_name(f1, ffname.as_mut_ptr(), MAXPATHL, false);
         let t1 = path_tail_with_sep(ffname.as_mut_ptr());
         let t2 = path_tail_with_sep(f2);
         let d1 = t1.offset_from(ffname.as_mut_ptr());
@@ -2680,8 +2680,8 @@ mod tests {
                 ));
 
             // vim_FullName
-            assert!(!vim_FullName(ptr::null(), out.as_mut_ptr(), 10, true));
-            assert!(vim_FullName(
+            assert!(!vim_full_name(ptr::null(), out.as_mut_ptr(), 10, true));
+            assert!(vim_full_name(
                     c"http://www.neovim.org",
                     out.as_mut_ptr(),
                     MAXPATHL,
@@ -2693,7 +2693,7 @@ mod tests {
             );
 
             let rel_dot = CString::new(format!("./{f1_rel}")).unwrap();
-            assert!(vim_FullName(rel_dot.as_ptr(), out.as_mut_ptr(), MAXPATHL, true));
+            assert!(vim_full_name(rel_dot.as_ptr(), out.as_mut_ptr(), MAXPATHL, true));
             assert_eq!(
                 CStr::from_ptr(out.as_ptr()).to_str().unwrap(),
                 format!("{abs_dir}/f1.o")

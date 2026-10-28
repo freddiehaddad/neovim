@@ -10,7 +10,7 @@ use crate::api::private::validate::{
 };
 use crate::api::ui::{
     K_LINE_FLAG_WRAP, K_UICMDLINE, K_UIEXT_COUNT, K_UIHL_STATE, K_UILINEGRID, K_UIMESSAGES, K_UIMULTIGRID,
-    K_UITERM_COLORS, remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
+    K_UITERM_COLORS, remote_ui_set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
     remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
     remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
     remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set,
@@ -1585,8 +1585,8 @@ pub fn ui_call_error_exit(status: Integer) {
     ui_call_loop!(true, c"error_exit", |ui| remote_ui_error_exit(ui, status));
 }
 
-pub fn ui_call__set_restart_on_crash_exit(progpath: NvimString, argv: Array) {
+pub fn ui_call_set_restart_on_crash_exit(progpath: NvimString, argv: Array) {
     ui_call_loop!(true, c"_set_restart_on_crash_exit", |ui| {
-        remote_ui__set_restart_on_crash_exit(ui, progpath, argv)
+        remote_ui_set_restart_on_crash_exit(ui, progpath, argv)
     });
 }

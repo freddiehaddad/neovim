@@ -532,7 +532,7 @@ pub fn termkey_interpret_mouse(
     }
 }
 
-fn handle_csi_R(
+fn handle_csi_r(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     cmd: c_int,
@@ -797,7 +797,7 @@ fn peekkey_csi_csi(
         let result = match (cmd & 0xff) as u8 {
             b'u' => handle_csi_u(tk, key, cmd_i32, &params, np_i32),
             b'M' | b'm' => handle_csi_m(tk, key, cmd_i32, &params, np_i32),
-            b'R' => handle_csi_R(tk, key, cmd_i32, &params, np_i32),
+            b'R' => handle_csi_r(tk, key, cmd_i32, &params, np_i32),
             b'y' => handle_csi_y(tk, key, cmd_i32, &params, np_i32),
             b'~' => handle_csifunc(tk, key, cmd_i32, &params, np_i32),
             b'A'..=b'F' | b'H' | b'P'..=b'S' | b'Z' => {

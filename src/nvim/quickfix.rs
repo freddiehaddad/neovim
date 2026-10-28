@@ -54,7 +54,7 @@ use crate::fileio::{
     EINTR, FILE, READ_DUMMY, READ_NEW, fclose, fdopen, ferror, fgets, readfile, shorten_buf_fname,
     shorten_fnames, vim_fgets, vim_tempname,
 };
-use crate::fold::{foldOpenCursor, foldUpdateAll};
+use crate::fold::{fold_open_cursor, fold_update_all};
 use crate::fuzzy::{FUZZY_MATCH_MAX_LEN, fuzzy_match};
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -94,7 +94,7 @@ use crate::message::{
 };
 use crate::r#move::update_topline;
 use crate::msgpack_rpc::packer::ObjHandle;
-use crate::normal::reset_VIsual_and_resel;
+use crate::normal::reset_visual_and_resel;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, free_string_option};
@@ -3398,7 +3398,7 @@ fn qf_jump_to_buffer(
         );
 
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_QUICKFIX) != 0 && openfold != 0 {
-            foldOpenCursor();
+            fold_open_cursor();
         }
         if print_message {
             qf_jump_print_msg(qi, qf_index, &mut *qf_ptr, &mut *old_curbuf, old_lnum);
@@ -4117,7 +4117,7 @@ pub fn ex_copen(eap: &mut Exarg) {
         } else {
             QF_WINHEIGHT
         };
-        reset_VIsual_and_resel();
+        reset_visual_and_resel();
 
         let mut status = false;
         if g_st().cmdmod.cmod_tab == 0 {
@@ -5919,7 +5919,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
                     decr_quickfix_busy();
 
                     if redraw_for_dummy {
-                        foldUpdateAll(curwin_mut());
+                        fold_update_all(curwin_mut());
                     }
                 } else {
                     decr_quickfix_busy();

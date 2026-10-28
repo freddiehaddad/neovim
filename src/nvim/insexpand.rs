@@ -16,7 +16,7 @@ use crate::change::{
 };
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, getwhitecols, skipwhite, str_foldcase,
-    vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc, vim_iswordp, vim_strsize,
+    vim_is_idc, vim_isfilec, vim_isprintc, vim_iswordc, vim_iswordp, vim_strsize,
 };
 use crate::cmdexpand::{
     CTRL_N, CTRL_P, EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL,
@@ -27,7 +27,7 @@ use crate::cursor::{
     get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor, Linenr, CursorPos,
 };
 use crate::drawscreen::{
-    conceal_cursor_line, K_SHM_COMPLETIONMENU, redrawWinline, setcursor, showmode, update_screen,
+    conceal_cursor_line, K_SHM_COMPLETIONMENU, redraw_winline, setcursor, showmode, update_screen,
 };
 use crate::errors::*;
 use crate::eval::typval::{
@@ -971,7 +971,7 @@ pub fn ins_compl_accept_char(c: c_int) -> bool {
         }
 
         if (insexp().ctrl_x_mode & CTRL_X_WANT_IDENT) != 0 {
-            return vim_isIDc(c);
+            return vim_is_idc(c);
         }
 
         match insexp().ctrl_x_mode {
@@ -2062,7 +2062,7 @@ pub fn ins_compl_show_pum() {
         curwin_mut().w_cursor.col = col;
 
         if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
-            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+            redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
 
         if insexp().compl_started && insexp().compl_curr_idx != insexp().compl_shown_idx {
@@ -2907,7 +2907,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             if !is_commit {
                 retval = true;
             }
-            redrawWinline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+            redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
 
         let arr = &insexp().compl_match_array;
@@ -5940,7 +5940,7 @@ fn get_normal_compl_info(
             if !compl_status_adding() {
                 while {
                     startcol -= 1;
-                    startcol >= 0 && vim_isIDc(c_int::from(crate::memory::cstr_byte_at(line, startcol as usize)))
+                    startcol >= 0 && vim_is_idc(c_int::from(crate::memory::cstr_byte_at(line, startcol as usize)))
                 } {}
                 startcol += 1;
                 insexp().compl_col += startcol;

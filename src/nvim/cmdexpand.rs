@@ -9,7 +9,7 @@ use crate::arglist::get_arglist_name;
 use crate::autocmd::{
     HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
 };
-use crate::buffer::{ExpandBufnames, K_UIMESSAGES};
+use crate::buffer::{expand_bufnames, K_UIMESSAGES};
 use crate::charset::{
     CTRL_V_CONST, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper,
     ascii_iswhite, backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite,
@@ -55,7 +55,7 @@ use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::lua::executor::{
     K_RET_OBJECT, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
-use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
+use crate::mapping::{expand_mappings, set_context_in_map_cmd};
 use crate::math::FAIL;
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
@@ -68,7 +68,7 @@ use crate::message::{
 #[cfg(unix)]
 use crate::option::csh_like_shell;
 use crate::option::{
-    ExpandOldSetting, ExpandSettingSubtract, ExpandSettings, ExpandStringSetting, OptInt,
+    expand_old_setting, expand_setting_subtract, expand_settings, expand_string_setting, OptInt,
     copy_option_part, get_findfunc, set_context_in_set_cmd,
 };
 use crate::option_vars::*;
@@ -96,7 +96,7 @@ use crate::regexp::{
     vim_regfree,
 };
 use crate::runtime::{
-    DIP_OPT, DIP_START, ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, script_id_valid,
+    DIP_OPT, DIP_START, ExpandPackAddDir, expand_rtdir, expand_runtime_cmd, script_id_valid,
     script_item, set_context_in_runtime_cmd,
 };
 use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
@@ -1849,7 +1849,7 @@ fn wildescape(xp: &mut ExpandCtx, str_arg: impl crate::strings::IntoCCharPtr, fi
 }
 
 /// Escape special characters in the cmdline completion matches.
-fn ExpandEscape(
+fn expand_escape(
     xp: &mut ExpandCtx,
     str_arg: impl crate::strings::IntoCCharPtr,
     files: &mut [CString],
@@ -1925,7 +1925,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
         }
 
         if wild_navigate {
-            p = ExpandOne(xp, ptr::null_mut(), None, 0, type_arg);
+            p = expand_one(xp, ptr::null_mut(), None, 0, type_arg);
         } else {
             let tmp = if cmdline_fuzzy_completion_supported(xp)
                 || xp.xp_context == EXPAND_PATTERN_IN_BUF
@@ -1948,7 +1948,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
                 (*ccline).cmdbuff.add(i as usize).cast::<u8>(),
                 xp.xp_pattern_len,
             ));
-            p = ExpandOne(
+            p = expand_one(
                 xp,
                 tmp.as_ptr().cast_mut(),
                 Some(orig),
@@ -2013,7 +2013,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
             && (options & (WILD_NOSELECT | WILD_NOINSERT)) == 0
             && !wild_navigate
         {
-            ExpandOne(xp, ptr::null_mut(), None, 0, WILD_FREE);
+            expand_one(xp, ptr::null_mut(), None, 0, WILD_FREE);
         }
 
         true
@@ -2463,7 +2463,7 @@ fn get_next_or_prev_match(mode: c_int, xp: &mut ExpandCtx) -> Option<CString> {
 }
 
 /// Start the command-line expansion and get the matches.
-fn ExpandOne_start(
+fn expand_one_start(
     mode: c_int,
     xp: &mut ExpandCtx,
     str_arg: *mut c_char,
@@ -2472,7 +2472,7 @@ fn ExpandOne_start(
     let mut ss: Option<CString> = None;
 
         let mut xp_files = std::mem::take(&mut xp.xp_files);
-        let expand_res = ExpandFromContext(xp, str_arg, &mut xp_files, options);
+        let expand_res = expand_from_context(xp, str_arg, &mut xp_files, options);
         xp.xp_files = xp_files;
         if !expand_res {
             xp.xp_numfiles = 0;
@@ -2489,7 +2489,7 @@ fn ExpandOne_start(
             } else {
                 let nfiles = xp.xp_numfiles as usize;
                 let mut xp_files = std::mem::take(&mut xp.xp_files);
-                ExpandEscape(
+                expand_escape(
                     xp,
                     str_arg,
                     &mut xp_files.as_mut_slice()[..nfiles],
@@ -2579,7 +2579,7 @@ pub fn free_xp_files_extra(xp: &mut ExpandCtx) {
 }
 
 /// Do wildcard expansion on the string "str".
-pub fn ExpandOne(
+pub fn expand_one(
     xp: &mut ExpandCtx,
     str_arg: *mut c_char,
     orig: Option<CString>,
@@ -2635,7 +2635,7 @@ pub fn ExpandOne(
         if xp.xp_numfiles == -1 && mode != WILD_APPLY && mode != WILD_CANCEL {
             xp.xp_orig = orig;
 
-            ss = ExpandOne_start(mode, xp, str_arg, options);
+            ss = expand_one_start(mode, xp, str_arg, options);
         }
 
         if mode == WILD_LONGEST && xp.xp_numfiles > 0 {
@@ -2674,7 +2674,7 @@ pub fn ExpandOne(
         }
 
         if mode == WILD_EXPAND_FREE || mode == WILD_ALL {
-            ExpandCleanup(xp);
+            expand_cleanup(xp);
         }
 
         ss
@@ -2682,12 +2682,12 @@ pub fn ExpandOne(
 }
 
 /// Prepare an expand structure for use.
-pub fn ExpandInit(xp: &mut ExpandCtx) {
+pub fn expand_init(xp: &mut ExpandCtx) {
     *xp = ExpandCtx::new();
 }
 
 /// Cleanup an expand structure after use.
-pub fn ExpandCleanup(xp: &mut ExpandCtx) {
+pub fn expand_cleanup(xp: &mut ExpandCtx) {
     if xp.xp_numfiles >= 0 {
         free_xp_files_extra(xp);
         xp.xp_numfiles = -1;
@@ -4045,7 +4045,7 @@ fn set_one_cmd_context(xp: &mut ExpandCtx, buff: impl crate::strings::IntoCCharP
         let mut forceit = false;
         let mut usefilter = false;
 
-        ExpandInit(xp);
+        expand_init(xp);
         xp.xp_pattern = buff.cast_mut();
         xp.xp_line = buff.cast_mut();
         xp.xp_context = EXPAND_COMMANDS;
@@ -4299,7 +4299,7 @@ pub fn expand_cmdline(
             options += WILD_ICASE;
         }
 
-        if !ExpandFromContext(xp, file_str.as_ptr().cast_mut(), matches, options) {
+        if !expand_from_context(xp, file_str.as_ptr().cast_mut(), matches, options) {
             matches.clear();
         }
 
@@ -4616,7 +4616,7 @@ fn get_packupdate_arg(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 }
 
 /// Do the expansion based on xp->xp_context and "rmp".
-fn ExpandOther(
+fn expand_other(
     pat: impl crate::strings::IntoCCharPtr,
     xp: &mut ExpandCtx,
     rmp: &mut Regmatch,
@@ -4859,7 +4859,7 @@ fn ExpandOther(
                 if entry.ic {
                     rmp.rm_ic = true;
                 }
-                ExpandGeneric(pat, xp, rmp, matches, Some(entry.func), entry.escaped);
+                expand_generic(pat, xp, rmp, matches, Some(entry.func), entry.escaped);
                 return true;
             }
         }
@@ -4891,7 +4891,7 @@ fn map_wildopts_to_ewflags(options: c_int) -> c_int {
 }
 
 /// Do the expansion based on xp->xp_context and "pat".
-fn ExpandFromContext(
+fn expand_from_context(
     xp: &mut ExpandCtx,
     mut pat: *mut c_char,
     matches: &mut Vec<CString>,
@@ -4930,13 +4930,13 @@ fn ExpandFromContext(
             return true;
         }
         if xp.xp_context == EXPAND_OLD_SETTING {
-            return ExpandOldSetting(matches);
+            return expand_old_setting(matches);
         }
         if xp.xp_context == EXPAND_BUFFERS {
-            return ExpandBufnames(pat, matches, options);
+            return expand_bufnames(pat, matches, options);
         }
         if xp.xp_context == EXPAND_DIFF_BUFFERS {
-            return ExpandBufnames(pat, matches, options | BUF_DIFF_FILTER);
+            return expand_bufnames(pat, matches, options | BUF_DIFF_FILTER);
         }
         if xp.xp_context == EXPAND_TAGS || xp.xp_context == EXPAND_TAGS_LISTFILES {
             return expand_tags(xp.xp_context == EXPAND_TAGS, pat, matches);
@@ -4944,17 +4944,17 @@ fn ExpandFromContext(
         if xp.xp_context == EXPAND_COLORS {
             let mut directories: [*mut c_char; 2] =
                 [c"colors".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(pat, DIP_START + DIP_OPT, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, DIP_START + DIP_OPT, matches, directories.as_mut_ptr());
         }
         if xp.xp_context == EXPAND_COMPILER {
             let mut directories: [*mut c_char; 2] =
                 [c"compiler".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
         }
         if xp.xp_context == EXPAND_OWNSYNTAX {
             let mut directories: [*mut c_char; 2] =
                 [c"syntax".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
         }
         if xp.xp_context == EXPAND_FILETYPE {
             let mut directories: [*mut c_char; 4] = [
@@ -4963,18 +4963,18 @@ fn ExpandFromContext(
                 c"ftplugin".as_ptr().cast_mut(),
                 ptr::null_mut(),
             ];
-            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
         }
         if xp.xp_context == EXPAND_KEYMAP {
             let mut directories: [*mut c_char; 2] =
                 [c"keymap".as_ptr().cast_mut(), ptr::null_mut()];
-            return ExpandRTDir(pat, 0, matches, directories.as_mut_ptr());
+            return expand_rtdir(pat, 0, matches, directories.as_mut_ptr());
         }
         if xp.xp_context == EXPAND_USER_LIST {
-            return ExpandUserList(xp, matches);
+            return expand_user_list(xp, matches);
         }
         if xp.xp_context == EXPAND_USER_LUA {
-            return ExpandUserLua(xp, matches);
+            return expand_user_lua(xp, matches);
         }
         if xp.xp_context == EXPAND_PACKADD {
             return ExpandPackAddDir(pat, matches);
@@ -5009,19 +5009,19 @@ fn ExpandFromContext(
 
         let ret = if xp.xp_context == EXPAND_SETTINGS || xp.xp_context == EXPAND_BOOL_SETTINGS
         {
-            ExpandSettings(xp, &mut regmatch, pat, matches, fuzzy)
+            expand_settings(xp, &mut regmatch, pat, matches, fuzzy)
         } else if xp.xp_context == EXPAND_STRING_SETTING {
-            ExpandStringSetting(xp, &mut regmatch, matches)
+            expand_string_setting(xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_SETTING_SUBTRACT {
-            ExpandSettingSubtract(xp, &mut regmatch, matches)
+            expand_setting_subtract(xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_MAPPINGS {
-            ExpandMappings(pat, &mut regmatch, matches)
+            expand_mappings(pat, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_ARGOPT {
             expand_argopt(pat, xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_USER_DEFINED {
-            ExpandUserDefined(pat, xp, &mut regmatch, matches)
+            expand_user_defined(pat, xp, &mut regmatch, matches)
         } else {
-            ExpandOther(pat, xp, &mut regmatch, matches)
+            expand_other(pat, xp, &mut regmatch, matches)
         };
 
         if !fuzzy {
@@ -5034,7 +5034,7 @@ fn ExpandFromContext(
 }
 
 /// Expand a list of names.
-pub fn ExpandGeneric(
+pub fn expand_generic(
     pat: impl crate::strings::IntoCCharPtr,
     xp: &mut ExpandCtx,
     regmatch: &mut Regmatch,
@@ -5320,7 +5320,7 @@ fn call_user_expand_func<R>(
 }
 
 /// Expand names with a function defined by the user (EXPAND_USER_DEFINED).
-fn ExpandUserDefined(
+fn expand_user_defined(
     pat: impl crate::strings::IntoCCharPtr,
     xp: &mut ExpandCtx,
     regmatch: &mut Regmatch,
@@ -5461,7 +5461,7 @@ pub fn expand_process_user_list(
 }
 
 /// Expand names with a list returned by a function defined by the user.
-fn ExpandUserList(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
+fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     matches.clear();
         let retlist = call_user_expand_func(call_func_retlist, xp, ptr::null_mut());
         if retlist.is_null() {
@@ -5473,7 +5473,7 @@ fn ExpandUserList(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
         true
 }
 
-fn ExpandUserLua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
+fn expand_user_lua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     let mut rettv: TypVal = TypVal::new();
         nlua_call_user_expand_func(xp, &mut rettv);
         if rettv.v_type != VarType::VarList {
@@ -5524,9 +5524,9 @@ pub fn globpath(
                 crate::memory::cstr_ncpy(buf.add(pathlen), file, filelen);
 
                 let mut p: Vec<CString> = Vec::new();
-                ExpandFromContext(&mut xpc, buf, &mut p, WILD_SILENT | expand_options);
+                expand_from_context(&mut xpc, buf, &mut p, WILD_SILENT | expand_options);
                 if !p.is_empty() {
-                    ExpandEscape(&mut xpc, buf, &mut p, WILD_SILENT | expand_options);
+                    expand_escape(&mut xpc, buf, &mut p, WILD_SILENT | expand_options);
                     ga.extend(p);
                 }
             }
@@ -5911,7 +5911,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             addstar(xpc.xp_pattern, xpc.xp_pattern_len, xpc.xp_context)
         };
 
-        ExpandOne(
+        expand_one(
             &mut xpc,
             pat.as_ptr().cast_mut(),
             None,
@@ -6304,10 +6304,10 @@ mod tests {
     #[test]
     fn expand_init_and_cleanup_work() {
         let mut xp: ExpandCtx = ExpandCtx::new();
-            ExpandInit(&mut xp);
+            expand_init(&mut xp);
             assert_eq!(xp.xp_context, EXPAND_NOTHING);
             assert_eq!(xp.xp_backslash, XP_BS_NONE);
-            ExpandCleanup(&mut xp);
+            expand_cleanup(&mut xp);
             assert!(!cmdline_pum_active());
     }
 

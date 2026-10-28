@@ -16,7 +16,7 @@ use crate::ex_docmd::find_cmdline_var;
 use crate::math::{xisinf, xisnan};
 use crate::mbyte::{
     mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
-    utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
+    utf_char2bytes, utf_head_off, utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
 use crate::memory::{xstrlcpy};
@@ -561,7 +561,7 @@ pub fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
         let mut i: usize = 0;
         let mut p = src;
         while *p != NUL {
-            let ci = utf_ptr2StrCharInfo(p).chr;
+            let ci = utf_ptr2_str_char_info(p).chr;
             let c = if ci.value < 0 {
                 (*p as u8) as c_int
             } else {
@@ -582,7 +582,7 @@ pub fn strcase_save<S: IntoCCharPtr>(orig: S, upper: bool) -> std::ffi::CString 
         let mut res = Vec::<c_char>::with_capacity(orig_len + 1);
 
         while *p != NUL {
-            let char_info = utf_ptr2StrCharInfo(p).chr;
+            let char_info = utf_ptr2_str_char_info(p).chr;
             let c = if char_info.value < 0 {
                 (*p as u8) as c_int
             } else {

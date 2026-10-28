@@ -81,7 +81,7 @@ use crate::lua::executor::{
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
 use crate::math::xpopcount;
-use crate::mbyte::{mb_string2cells, utf_ClusterInfo, utf_ptr2StrCharInfo};
+use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_alloc, arena_strdup};
 use crate::message::{
@@ -91,7 +91,7 @@ use crate::r#move::{changed_window_setting, update_topline, validate_cursor, win
 use crate::msgpack_rpc::channel::{ChannelStreamType, find_channel, rpc_set_client_info};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
-use crate::normal::reset_VIsual_and_resel;
+use crate::normal::reset_visual_and_resel;
 use crate::option::{
     OPT_LOCAL, OptTarget, buf_copy_options, K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, set_option_direct_for,
 };
@@ -117,7 +117,7 @@ use crate::terminal::{
     terminal_alloc, terminal_check_size, terminal_open, terminal_running,
     terminal_set_streamed_paste,
 };
-use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
+use crate::ui::{ui_array, ui_call_set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
 use crate::window::{
     global_stl_height, goto_tabpage_tp, goto_tabpage_win, WinInfoInfo, win_find_tabpage,
 };
@@ -1490,7 +1490,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         if w.w_buffer != g_st().curbuf {
-            reset_VIsual_and_resel();
+            reset_visual_and_resel();
         }
         goto_tabpage_win(&mut *win_find_tabpage(&raw mut *w), (&raw mut *w));
         try_leave(&tstate, err);
@@ -2891,8 +2891,8 @@ pub fn nvim_eval_statusline(
         if (opts.is_set__eval_statusline_ & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR))
             != 0
         {
-            let ci = utf_ptr2StrCharInfo(opts.fillchar.data);
-            let cli = utf_ClusterInfo(ci);
+            let ci = utf_ptr2_str_char_info(opts.fillchar.data);
+            let cli = utf_cluster_info(ci);
             if *ci.ptr == 0 || !crate::memory::cstr_is_empty(cli.next.ptr) || cli.cells != 1 {
                 api_err_exp(
                     err,
@@ -3372,7 +3372,7 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
 
 // DLLEXPORT void nvim__set_restart_on_crash(String progpath, Array argv);
 pub fn nvim__set_restart_on_crash(progpath: NvimString, argv: Array) {
-    ui_call__set_restart_on_crash_exit(progpath, argv);
+    ui_call_set_restart_on_crash_exit(progpath, argv);
 }
 
 #[cfg(test)]

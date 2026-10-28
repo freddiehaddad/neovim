@@ -16,14 +16,14 @@ use crate::cursor::{
 };
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
-    UPD_NOT_VALID, UPD_VALID, redraw_buf_status_later, redraw_later, redrawWinline,
+    UPD_NOT_VALID, UPD_VALID, redraw_buf_status_later, redraw_later, redraw_winline,
     set_must_redraw, showmode,
 };
 use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
 use crate::extmark::{
     Bcount, extmark_adjust, extmark_splice, extmark_splice_cols, K_EXTMARK_NOOP, K_EXTMARK_UNDO,
 };
-use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
+use crate::fold::{find_wl_entry, fold_update, has_any_folding, has_folding_win};
 use crate::globals::*;
 use crate::indent::{
     copy_indent, fixthisline, get_indent, get_lisp_indent, get_sw_value, indent_size_ts, may_do_si,
@@ -60,7 +60,7 @@ use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
 use crate::strings::{concat_str, tr, vim_strchr};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
-use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
+use crate::undo::{curbuf_is_changed_fn, u_clearline, u_save_cursor, u_savedel};
 use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -130,7 +130,7 @@ pub fn change_warning(buf: &mut FileBuf, col: c_int) {
      {
         const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
-        if !buf.b_did_warn && !curbufIsChanged() && !g_st().autocmd_busy && buf.b_p_ro != 0 {
+        if !buf.b_did_warn && !curbuf_is_changed_fn() && !g_st().autocmd_busy && buf.b_p_ro != 0 {
             buf.b_ro_locked += 1;
             apply_autocmds(
                 EVENT_FILECHANGEDRO,
@@ -401,9 +401,9 @@ fn changed_common(
                     (*wp).w_skipcol = 0;
                 }
 
-                foldUpdate(wp, lnum, last);
+                fold_update(wp, lnum, last);
 
-                let mut folded = hasFoldingWin(
+                let mut folded = has_folding_win(
                      &mut *wp,
                     lnum,
                     Some(&mut lnum),
@@ -414,7 +414,7 @@ fn changed_common(
                 if (*wp).w_cursor.lnum == lnum {
                     (*wp).w_cline_folded = folded;
                 }
-                folded = hasFoldingWin(
+                folded = has_folding_win(
                      &mut *wp,
                     last,
                     None,
@@ -428,7 +428,7 @@ fn changed_common(
 
                 changed_lines_invalidate_win(&mut *wp, lnum, col, lnume, xtra);
 
-                if hasAnyFolding(&mut *wp) != 0 {
+                if has_any_folding(&mut *wp) != 0 {
                     set_topline(&mut *wp, (*wp).w_topline);
                 }
 
@@ -471,7 +471,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
             && lnum < curbuf_mut().b_ml.ml_line_count
             && vim_strchr(opt_vars().p_cpo, K_CPO_DOLLAR).is_null()
         {
-            redrawWinline(crate::globals::curwin_mut(), lnum + 1);
+            redraw_winline(crate::globals::curwin_mut(), lnum + 1);
         }
         buf_updates_send_changes(curbuf_mut(), lnum, 1, 1);
 

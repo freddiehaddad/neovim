@@ -1414,7 +1414,7 @@ pub fn set_context_in_map_cmd(
 }
 
 /// Find all mapping/abbreviation names that match regexp "regmatch".
-pub fn ExpandMappings(
+pub fn expand_mappings(
     pat: impl crate::strings::IntoCCharPtr,
     regmatch: &mut Regmatch,
     matches: &mut Vec<CString>,

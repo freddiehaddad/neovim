@@ -1,7 +1,7 @@
 //! VTerm terminal state machine (`src/nvim/vterm/state.c`).
 
 use crate::grid::{Schar, schar_from_ascii, schar_from_buf};
-use crate::mbyte::{utf_ClusterInfo_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
+use crate::mbyte::{utf_cluster_info_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
 use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::terminal::Terminal;
 use crate::vterm::encoding::{VTermEncodingType, vterm_lookup_encoding};
@@ -650,7 +650,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
 
             let mut scratch = grapheme_len as c_int;
             let ci = utf_ptr2StrCharInfo_len(state.grapheme_buf.as_ptr(), scratch);
-            let cli = utf_ClusterInfo_len(ci, &mut scratch);
+            let cli = utf_cluster_info_len(ci, &mut scratch);
             let width = cli.cells;
 
             if state.at_phantom != 0 || state.pos.col + width > thisrowwidth(state) {

@@ -31,7 +31,7 @@ use crate::file_search::{
     FNAME_EXP, FNAME_INCL, FNAME_REL, file_name_in_line, find_file_name_in_path,
 };
 use crate::fileio::{FILE, vim_fgets};
-use crate::fold::{foldOpenCursor, hasFolding};
+use crate::fold::{fold_open_cursor, has_folding};
 use crate::globals::*;
 use crate::indent_c::{FM_BACKWARD, FM_BLOCKSTOP, FM_SKIPCOMM, check_linecomment};
 use crate::input::char_avail;
@@ -1287,10 +1287,10 @@ pub fn do_search(
         }
 
         if dirc == b'/' as c_int {
-            if hasFolding(curwin_ptr(), pos.lnum, None, &raw mut pos.lnum) {
+            if has_folding(curwin_ptr(), pos.lnum, None, &raw mut pos.lnum) {
                 pos.col = MAXCOL - 2;
             }
-        } else if hasFolding(curwin_ptr(), pos.lnum, Some(&mut pos.lnum), ptr::null_mut()) {
+        } else if has_folding(curwin_ptr(), pos.lnum, Some(&mut pos.lnum), ptr::null_mut()) {
             pos.col = 0;
         }
 
@@ -1605,7 +1605,7 @@ pub fn do_search(
                     count != 1
                         || has_offset
                         || ((opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) == 0
-                            && hasFolding(
+                            && has_folding(
                                 curwin_ptr(),
                                 curwin_mut().w_cursor.lnum,
                                 None,
@@ -2673,7 +2673,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
         }
 
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().KeyTyped {
-            foldOpenCursor();
+            fold_open_cursor();
         }
 
         may_start_select(b'c' as c_int);

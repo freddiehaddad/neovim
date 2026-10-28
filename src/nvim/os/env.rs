@@ -127,7 +127,7 @@ impl Default for ExpandCtx {
 
 impl Drop for ExpandCtx {
     fn drop(&mut self) {
-        crate::cmdexpand::ExpandCleanup(self);
+        crate::cmdexpand::expand_cleanup(self);
     }
 }
 

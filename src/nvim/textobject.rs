@@ -7,7 +7,7 @@ use crate::cursor::{
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, showmode};
 use crate::eval::funcs::{do_searchpair, MT_CHAR_WISE, MT_LINE_WISE};
-use crate::fold::hasFolding;
+use crate::fold::has_folding;
 use crate::globals::*;
 use crate::indent::inindent;
 use crate::insert::oneleft;
@@ -79,7 +79,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                 if dir == FORWARD {
                     goto_found = true;
                 }
-            } else if dir == FORWARD && pos.col == 0 && startPS(pos.lnum, c_int::from(NUL), false) {
+            } else if dir == FORWARD && pos.col == 0 && start_ps(pos.lnum, c_int::from(NUL), false) {
                 // if on the start of a paragraph or a section and searching forward,
                 // go to the next line
                 if pos.lnum == curbuf_mut().b_ml.ml_line_count {
@@ -123,7 +123,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                 loop {
                     c = gchar_pos(&mut pos);
                     if c == c_int::from(NUL)
-                        || (pos.col == 0 && startPS(pos.lnum, c_int::from(NUL), false))
+                        || (pos.col == 0 && start_ps(pos.lnum, c_int::from(NUL), false))
                     {
                         if dir == BACKWARD && pos.lnum != startlnum {
                             pos.lnum += 1;
@@ -221,12 +221,12 @@ pub fn findpar(pincl: &mut bool,
 
                 // skip folded lines
                 let mut fold_skipped = false;
-                if first && hasFolding(curwin_ptr(), curr, Some(&mut fold_first), &raw mut fold_last) {
+                if first && has_folding(curwin_ptr(), curr, Some(&mut fold_first), &raw mut fold_last) {
                     curr = (if dir > 0 { fold_last } else { fold_first }) + dir;
                     fold_skipped = true;
                 }
 
-                if !first && did_skip && startPS(curr, what, both) {
+                if !first && did_skip && start_ps(curr, what, both) {
                     break;
                 }
 
@@ -296,7 +296,7 @@ fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoC
 }
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
-pub fn startPS(lnum: Linenr, para: c_int, both: bool) -> bool {
+pub fn start_ps(lnum: Linenr, para: c_int, both: bool) -> bool {
     unsafe {
         let s = ml_get(lnum);
         if c_int::from(crate::memory::cstr_first_byte(s)) == para
@@ -338,7 +338,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
             count -= 1;
             count >= 0
         } {
-            if hasFolding(
+            if has_folding(
                 curwin_ptr(),
                 curwin_mut().w_cursor.lnum,
                 None,
@@ -390,7 +390,7 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
             count -= 1;
             count >= 0
         } {
-            if hasFolding(
+            if has_folding(
                 curwin_ptr(),
                 curwin_mut().w_cursor.lnum,
                 Some(&mut curwin_mut().w_cursor.lnum),
@@ -448,7 +448,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
             count -= 1;
             count >= 0
         } {
-            if hasFolding(
+            if has_folding(
                 curwin_ptr(),
                 curwin_mut().w_cursor.lnum,
                 None,
@@ -1325,7 +1325,7 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
                     if !linewhite(start_lnum - 1) {
                         break;
                     }
-                } else if linewhite(start_lnum - 1) || startPS(start_lnum, 0, false) {
+                } else if linewhite(start_lnum - 1) || start_ps(start_lnum, 0, false) {
                     break;
                 }
                 start_lnum -= 1;
@@ -1358,7 +1358,7 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
                     end_lnum += 1;
                     while end_lnum < curbuf_mut().b_ml.ml_line_count
                         && !linewhite(end_lnum + 1)
-                        && !startPS(end_lnum + 1, 0, false)
+                        && !start_ps(end_lnum + 1, 0, false)
                     {
                         end_lnum += 1;
                     }
@@ -1446,7 +1446,7 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
                     }
                     if start_is_white != linewhite(start_lnum + dir)
                         || (!start_is_white
-                            && startPS(start_lnum + if dir > 0 { 1 } else { 0 }, 0, false))
+                            && start_ps(start_lnum + if dir > 0 { 1 } else { 0 }, 0, false))
                     {
                         break;
                     }

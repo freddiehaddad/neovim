@@ -51,7 +51,7 @@ use crate::strings::{
 };
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
-use crate::undo::bufIsChanged;
+use crate::undo::buf_is_changed_fn;
 use std::ffi::{c_char, c_int, c_long, c_uint};
 use std::mem::size_of;
 use std::ptr;
@@ -5270,7 +5270,7 @@ pub fn spell_add_word(
             if !buf.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                 buf = ptr::null_mut();
             }
-            if !buf.is_null() && bufIsChanged(&mut *buf) {
+            if !buf.is_null() && buf_is_changed_fn(&mut *buf) {
                 emsg(gettext(E_BUFLOADED));
                 return;
             }

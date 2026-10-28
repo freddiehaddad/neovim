@@ -470,7 +470,7 @@ fn newroot2sib(l: *mut lua_State, tag: TTag) -> *mut TTree {
     }
 }
 
-unsafe extern "C-unwind" fn lp_P(l: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn lp_p(l: *mut lua_State) -> c_int {
     unsafe {
         luaL_checkany(l, 1);
         getpatt(l, 1, None);
@@ -690,7 +690,7 @@ unsafe extern "C-unwind" fn lp_behind(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe extern "C-unwind" fn lp_V(l: *mut lua_State) -> c_int {
+unsafe extern "C-unwind" fn lp_v(l: *mut lua_State) -> c_int {
     unsafe {
         let tree = newleaf(l, TOPEN_CALL);
         luaL_argcheck(
@@ -1263,7 +1263,7 @@ const PATTREG: [luaL_Reg; 24] = [
     },
     luaL_Reg {
         name: c"V".as_ptr(),
-        func: Some(lp_V),
+        func: Some(lp_v),
     },
     luaL_Reg {
         name: c"C".as_ptr(),
@@ -1307,7 +1307,7 @@ const PATTREG: [luaL_Reg; 24] = [
     },
     luaL_Reg {
         name: c"P".as_ptr(),
-        func: Some(lp_P),
+        func: Some(lp_p),
     },
     luaL_Reg {
         name: c"S".as_ptr(),

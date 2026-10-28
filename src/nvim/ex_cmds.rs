@@ -31,7 +31,7 @@ use crate::channel::channel_job_running;
 use crate::charset::{
     EOL_MAC, NUL, STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, ascii_isalnum, ascii_isalpha,
     ascii_isdigit, ascii_iswhite, getdigits_int, skiptobin, skiptodigit, skiptohex, skiptowhite,
-    skipwhite, transchar, transchar_nonprint, vim_isIDc, vim_isprintc, vim_str2nr,
+    skipwhite, transchar, transchar_nonprint, vim_is_idc, vim_isprintc, vim_str2nr,
 };
 use crate::cmdexpand::{RE_LAST, Cmdidx};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
@@ -64,7 +64,7 @@ use crate::fileio::{
     READ_FILTER, READ_KEEP_UNDO, READ_NOWINENTER, buf_check_timestamp, readfile, set_file_options,
     set_forced_fenc, vim_tempname, write_lnum_adjust,
 };
-use crate::fold::{foldMoveRange, foldUpdate, foldUpdateAll, hasAnyFolding};
+use crate::fold::{fold_move_range, fold_update, fold_update_all, has_any_folding};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::help::prepare_help_buffer;
@@ -108,7 +108,7 @@ use crate::r#move::{
     scrolldown_clamp, scrollup_clamp, update_topline, validate_cursor,
 };
 use crate::msgpack_rpc::packer::ObjHandle;
-use crate::normal::reset_VIsual;
+use crate::normal::reset_visual;
 use crate::ops::do_join;
 use crate::option::{
     OptInt, buf_copy_options, copy_option_part, get_fileformat, set_option_direct, shortmess,
@@ -322,7 +322,7 @@ fn excmds_st() -> &'static mut ExCmdsState {
 }
 
 use crate::buffer::bt_dontwrite_msg;
-use crate::undo::{bufIsChanged, curbufIsChanged};
+use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn};
 
 /// `":ascii"` and `"ga"` implementation.
 pub fn do_ascii(_eap: &mut Exarg) {
@@ -1224,7 +1224,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
             for tab in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut( &*tab) {
                     if win.w_buffer == g_st().curbuf {
-                        foldMoveRange(&mut win.w_folds, line1, line2, dest);
+                        fold_move_range(&mut win.w_folds, line1, line2, dest);
                     }
                 }
             }
@@ -1239,7 +1239,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
             for tab in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut( &*tab) {
                     if win.w_buffer == g_st().curbuf {
-                        foldMoveRange(&mut win.w_folds, dest + 1, line1 - 1, line2);
+                        fold_move_range(&mut win.w_folds, dest + 1, line1 - 1, line2);
                     }
                 }
             }
@@ -1732,7 +1732,7 @@ fn do_filter(
                             curbuf_mut().b_op_end.lnum -= linecount;
                         }
                         write_lnum_adjust(-linecount);
-                        foldUpdate(curwin_ptr(), curbuf_mut().b_op_start.lnum, curbuf_mut().b_op_end.lnum);
+                        fold_update(curwin_ptr(), curbuf_mut().b_op_start.lnum, curbuf_mut().b_op_end.lnum);
                     } else {
                         linecount = curbuf_mut().b_op_end.lnum - curbuf_mut().b_op_start.lnum + 1;
                         curwin_mut().w_cursor.lnum = curbuf_mut().b_op_end.lnum;
@@ -1803,7 +1803,7 @@ pub fn do_shell(cmd: impl crate::strings::IntoCCharPtr, flags: c_int) { let cmd 
 
         if opt_vars().p_warn != 0 && !g_st().autocmd_busy && g_st().msg_silent == 0 {
             for buf in for_all_buffers_mut() {
-                if bufIsChanged(buf) {
+                if buf_is_changed_fn(buf) {
                     msg_puts(gettext(c"[No write since last change]\n"));
                     break;
                 }
@@ -2119,7 +2119,7 @@ pub fn ex_file(eap: &mut Exarg) {
 /// `":update"`.
 pub fn ex_update(eap: &mut Exarg) {
      {
-        if curbufIsChanged()
+        if curbuf_is_changed_fn()
             || (!bt_nofilename(Some(crate::globals::curbuf_mut()))
                 && !curbuf_mut().b_ffname.is_null()
                 && !os_path_exists(curbuf_mut().b_ffname))
@@ -2477,7 +2477,7 @@ pub fn do_wqall(eap: &mut Exarg) {
                 error += 1;
                 buf = (*buf).b_next;
                 continue;
-            } else if !bufIsChanged(&mut *buf) || bt_dontwrite(buf.as_ref()) {
+            } else if !buf_is_changed_fn(&mut *buf) || bt_dontwrite(buf.as_ref()) {
                 buf = (*buf).b_next;
                 continue;
             }
@@ -2633,13 +2633,13 @@ pub fn getfile(
                 && !forceit
                 && curbuf_mut().b_nwindows == 1
                 && !buf_hide(curbuf_mut())
-                && curbufIsChanged()
+                && curbuf_is_changed_fn()
                 && !autowrite(curbuf_mut(), forceit)
             {
                 if opt_vars().p_confirm != 0 && opt_vars().p_write != 0 {
                     dialog_changed(curbuf_mut(), false);
                 }
-                if curbufIsChanged() {
+                if curbuf_is_changed_fn() {
                     g_st().no_wait_return -= 1;
                     no_write_message();
                     retval = GETFILE_NOT_WRITTEN;
@@ -2808,7 +2808,7 @@ pub fn do_ecmd(
                 break 'theend;
             }
 
-            reset_VIsual();
+            reset_visual();
 
             if !oldwin.is_null() && !win_valid(oldwin) {
                 oldwin = ptr::null_mut();
@@ -3075,7 +3075,7 @@ pub fn do_ecmd(
                 for tp in for_all_tabpages_ptr() {
                     for win in for_all_windows_in_tab_mut( &*tp) {
                         if win.w_buffer == g_st().curbuf {
-                            foldUpdateAll(win);
+                            fold_update_all(win);
                         }
                     }
                 }
@@ -4738,7 +4738,7 @@ fn do_sub(
             }
         }
 
-        if excmds_st().subflags.do_ask && hasAnyFolding(curwin_mut()) != 0 {
+        if excmds_st().subflags.do_ask && has_any_folding(curwin_mut()) != 0 {
             changed_window_setting(curwin_mut());
         }
 
@@ -5262,7 +5262,7 @@ pub fn skip_vimgrep_pat(
     mut flags: Option<&mut c_int>,
 ) -> *mut c_char {
     unsafe {
-        if vim_isIDc((crate::memory::cstr_first_byte(p)) as c_int) {
+        if vim_is_idc((crate::memory::cstr_first_byte(p)) as c_int) {
             if !s.is_null() {
                 *s = p;
             }

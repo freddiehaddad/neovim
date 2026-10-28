@@ -15,7 +15,7 @@ use crate::eval::typval::{
 };
 use crate::eval::window::find_win_by_nr_or_id;
 use crate::ex_docmd::{ends_excmd, ex_errmsg, Exarg, find_nextcmd, set_no_hlsearch};
-use crate::fold::hasFolding;
+use crate::fold::has_folding;
 use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
 use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
@@ -563,7 +563,7 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
                 if (*shl).first_lnum == 0 {
                     (*shl).first_lnum = lnum;
                     while (*shl).first_lnum > wp.w_topline {
-                        if hasFolding(&raw mut *wp, (*shl).first_lnum - 1, None, ptr::null_mut()) {
+                        if has_folding(&raw mut *wp, (*shl).first_lnum - 1, None, ptr::null_mut()) {
                             break;
                         }
                         (*shl).first_lnum -= 1;

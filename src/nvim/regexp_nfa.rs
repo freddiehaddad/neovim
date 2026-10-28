@@ -203,16 +203,16 @@ fn nfa_st() -> &'static mut RegexpNfaState {
 }
 
 #[inline]
-fn EMIT(c: c_int) {
+fn emit_fn(c: c_int) {
      {
         re_st().post_vec.push(c);
     }
 }
 
 #[inline]
-fn EMIT2(c: c_int) {
-    EMIT(c);
-        EMIT(NFA_CONCAT);
+fn emit2(c: c_int) {
+    emit_fn(c);
+        emit_fn(NFA_CONCAT);
 }
 
 fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
@@ -389,432 +389,432 @@ fn nfa_emit_equi_class(c: c_int) {
             | 0x1de | 0x1e0 | 0x1fa | 0x200 | 0x202 | 0x226 | 0x23a | 0x1e00 | 0x1ea0 | 0x1ea2
             | 0x1ea4 | 0x1ea6 | 0x1ea8 | 0x1eaa | 0x1eac | 0x1eae | 0x1eb0 | 0x1eb2 | 0x1eb4
             | 0x1eb6 => {
-                EMIT2(b'A' as c_int); EMIT2(0xc0); EMIT2(0xc1);
-                EMIT2(0xc2); EMIT2(0xc3);
-                EMIT2(0xc4); EMIT2(0xc5);
-                EMIT2(0x100); EMIT2(0x102); EMIT2(0x104);
-                EMIT2(0x1cd); EMIT2(0x1de); EMIT2(0x1e0);
-                EMIT2(0x1fa); EMIT2(0x200); EMIT2(0x202);
-                EMIT2(0x226); EMIT2(0x23a); EMIT2(0x1e00);
-                EMIT2(0x1ea0); EMIT2(0x1ea2); EMIT2(0x1ea4);
-                EMIT2(0x1ea6); EMIT2(0x1ea8); EMIT2(0x1eaa);
-                EMIT2(0x1eac); EMIT2(0x1eae); EMIT2(0x1eb0);
-                EMIT2(0x1eb2); EMIT2(0x1eb6); EMIT2(0x1eb4);
+                emit2(b'A' as c_int); emit2(0xc0); emit2(0xc1);
+                emit2(0xc2); emit2(0xc3);
+                emit2(0xc4); emit2(0xc5);
+                emit2(0x100); emit2(0x102); emit2(0x104);
+                emit2(0x1cd); emit2(0x1de); emit2(0x1e0);
+                emit2(0x1fa); emit2(0x200); emit2(0x202);
+                emit2(0x226); emit2(0x23a); emit2(0x1e00);
+                emit2(0x1ea0); emit2(0x1ea2); emit2(0x1ea4);
+                emit2(0x1ea6); emit2(0x1ea8); emit2(0x1eaa);
+                emit2(0x1eac); emit2(0x1eae); emit2(0x1eb0);
+                emit2(0x1eb2); emit2(0x1eb6); emit2(0x1eb4);
                 return;
             }
             0x42 | 0x181 | 0x243 | 0x1e02 | 0x1e04 | 0x1e06 => {
-                EMIT2(b'B' as c_int);
-                EMIT2(0x181); EMIT2(0x243); EMIT2(0x1e02);
-                EMIT2(0x1e04); EMIT2(0x1e06);
+                emit2(b'B' as c_int);
+                emit2(0x181); emit2(0x243); emit2(0x1e02);
+                emit2(0x1e04); emit2(0x1e06);
                 return;
             }
             0x43 | 0xc7 | 0x106 | 0x108 | 0x10a | 0x10c | 0x187 | 0x23b | 0x1e08 | 0xa792 => {
-                EMIT2(b'C' as c_int); EMIT2(0xc7);
-                EMIT2(0x106); EMIT2(0x108); EMIT2(0x10a);
-                EMIT2(0x10c); EMIT2(0x187); EMIT2(0x23b);
-                EMIT2(0x1e08); EMIT2(0xa792);
+                emit2(b'C' as c_int); emit2(0xc7);
+                emit2(0x106); emit2(0x108); emit2(0x10a);
+                emit2(0x10c); emit2(0x187); emit2(0x23b);
+                emit2(0x1e08); emit2(0xa792);
                 return;
             }
             0x44 | 0x10e | 0x110 | 0x18a | 0x1e0a | 0x1e0c | 0x1e0e | 0x1e10 | 0x1e12 => {
-                EMIT2(b'D' as c_int); EMIT2(0x10e); EMIT2(0x110); EMIT2(0x18a);
-                EMIT2(0x1e0a); EMIT2(0x1e0c); EMIT2(0x1e0e);
-                EMIT2(0x1e10); EMIT2(0x1e12);
+                emit2(b'D' as c_int); emit2(0x10e); emit2(0x110); emit2(0x18a);
+                emit2(0x1e0a); emit2(0x1e0c); emit2(0x1e0e);
+                emit2(0x1e10); emit2(0x1e12);
                 return;
             }
             0x45 | 0xc8 | 0xc9 | 0xca | 0xcb | 0x112 | 0x114 | 0x116 | 0x118 | 0x11a | 0x204
             | 0x206 | 0x228 | 0x246 | 0x1e14 | 0x1e16 | 0x1e18 | 0x1e1a | 0x1e1c | 0x1eb8
             | 0x1eba | 0x1ebc | 0x1ebe | 0x1ec0 | 0x1ec2 | 0x1ec4 | 0x1ec6 => {
-                EMIT2(b'E' as c_int); EMIT2(0xc8); EMIT2(0xc9);
-                EMIT2(0xca); EMIT2(0xcb);
-                EMIT2(0x112); EMIT2(0x114); EMIT2(0x116);
-                EMIT2(0x118); EMIT2(0x11a); EMIT2(0x204);
-                EMIT2(0x206); EMIT2(0x228); EMIT2(0x246);
-                EMIT2(0x1e14); EMIT2(0x1e16); EMIT2(0x1e18);
-                EMIT2(0x1e1a); EMIT2(0x1e1c); EMIT2(0x1eb8);
-                EMIT2(0x1eba); EMIT2(0x1ebc); EMIT2(0x1ebe);
-                EMIT2(0x1ec0); EMIT2(0x1ec2); EMIT2(0x1ec4);
-                EMIT2(0x1ec6);
+                emit2(b'E' as c_int); emit2(0xc8); emit2(0xc9);
+                emit2(0xca); emit2(0xcb);
+                emit2(0x112); emit2(0x114); emit2(0x116);
+                emit2(0x118); emit2(0x11a); emit2(0x204);
+                emit2(0x206); emit2(0x228); emit2(0x246);
+                emit2(0x1e14); emit2(0x1e16); emit2(0x1e18);
+                emit2(0x1e1a); emit2(0x1e1c); emit2(0x1eb8);
+                emit2(0x1eba); emit2(0x1ebc); emit2(0x1ebe);
+                emit2(0x1ec0); emit2(0x1ec2); emit2(0x1ec4);
+                emit2(0x1ec6);
                 return;
             }
             0x46 | 0x191 | 0x1e1e | 0xa798 => {
-                EMIT2(b'F' as c_int); EMIT2(0x191); EMIT2(0x1e1e); EMIT2(0xa798);
+                emit2(b'F' as c_int); emit2(0x191); emit2(0x1e1e); emit2(0xa798);
                 return;
             }
             0x47 | 0x11c | 0x11e | 0x120 | 0x122 | 0x193 | 0x1e4 | 0x1e6 | 0x1f4 | 0x1e20
             | 0xa7a0 => {
-                EMIT2(b'G' as c_int); EMIT2(0x11c); EMIT2(0x11e); EMIT2(0x120);
-                EMIT2(0x122); EMIT2(0x193); EMIT2(0x1e4);
-                EMIT2(0x1e6); EMIT2(0x1f4); EMIT2(0x1e20);
-                EMIT2(0xa7a0);
+                emit2(b'G' as c_int); emit2(0x11c); emit2(0x11e); emit2(0x120);
+                emit2(0x122); emit2(0x193); emit2(0x1e4);
+                emit2(0x1e6); emit2(0x1f4); emit2(0x1e20);
+                emit2(0xa7a0);
                 return;
             }
             0x48 | 0x124 | 0x126 | 0x21e | 0x1e22 | 0x1e24 | 0x1e26 | 0x1e28 | 0x1e2a | 0x2c67 => {
-                EMIT2(b'H' as c_int); EMIT2(0x124); EMIT2(0x126); EMIT2(0x21e);
-                EMIT2(0x1e22); EMIT2(0x1e24); EMIT2(0x1e26);
-                EMIT2(0x1e28); EMIT2(0x1e2a); EMIT2(0x2c67);
+                emit2(b'H' as c_int); emit2(0x124); emit2(0x126); emit2(0x21e);
+                emit2(0x1e22); emit2(0x1e24); emit2(0x1e26);
+                emit2(0x1e28); emit2(0x1e2a); emit2(0x2c67);
                 return;
             }
             0x49 | 0xcc | 0xcd | 0xce | 0xcf | 0x128 | 0x12a | 0x12c | 0x12e | 0x130 | 0x197
             | 0x1cf | 0x208 | 0x20a | 0x1e2c | 0x1e2e | 0x1ec8 | 0x1eca => {
-                EMIT2(b'I' as c_int); EMIT2(0xcc); EMIT2(0xcd);
-                EMIT2(0xce); EMIT2(0xcf);
-                EMIT2(0x128); EMIT2(0x12a); EMIT2(0x12c);
-                EMIT2(0x12e); EMIT2(0x130); EMIT2(0x197);
-                EMIT2(0x1cf); EMIT2(0x208); EMIT2(0x20a);
-                EMIT2(0x1e2c); EMIT2(0x1e2e); EMIT2(0x1ec8);
-                EMIT2(0x1eca);
+                emit2(b'I' as c_int); emit2(0xcc); emit2(0xcd);
+                emit2(0xce); emit2(0xcf);
+                emit2(0x128); emit2(0x12a); emit2(0x12c);
+                emit2(0x12e); emit2(0x130); emit2(0x197);
+                emit2(0x1cf); emit2(0x208); emit2(0x20a);
+                emit2(0x1e2c); emit2(0x1e2e); emit2(0x1ec8);
+                emit2(0x1eca);
                 return;
             }
             0x4a | 0x134 | 0x248 => {
-                EMIT2(b'J' as c_int); EMIT2(0x134); EMIT2(0x248);
+                emit2(b'J' as c_int); emit2(0x134); emit2(0x248);
                 return;
             }
             0x4b | 0x136 | 0x198 | 0x1e8 | 0x1e30 | 0x1e32 | 0x1e34 | 0x2c69 | 0xa740 => {
-                EMIT2(b'K' as c_int); EMIT2(0x136); EMIT2(0x198); EMIT2(0x1e8);
-                EMIT2(0x1e30); EMIT2(0x1e32); EMIT2(0x1e34);
-                EMIT2(0x2c69); EMIT2(0xa740);
+                emit2(b'K' as c_int); emit2(0x136); emit2(0x198); emit2(0x1e8);
+                emit2(0x1e30); emit2(0x1e32); emit2(0x1e34);
+                emit2(0x2c69); emit2(0xa740);
                 return;
             }
             0x4c | 0x139 | 0x13b | 0x13d | 0x13f | 0x141 | 0x23d | 0x1e36 | 0x1e38 | 0x1e3a
             | 0x1e3c | 0x2c60 => {
-                EMIT2(b'L' as c_int); EMIT2(0x139); EMIT2(0x13b);
-                EMIT2(0x13d); EMIT2(0x13f); EMIT2(0x141);
-                EMIT2(0x23d); EMIT2(0x1e36); EMIT2(0x1e38);
-                EMIT2(0x1e3a); EMIT2(0x1e3c); EMIT2(0x2c60);
+                emit2(b'L' as c_int); emit2(0x139); emit2(0x13b);
+                emit2(0x13d); emit2(0x13f); emit2(0x141);
+                emit2(0x23d); emit2(0x1e36); emit2(0x1e38);
+                emit2(0x1e3a); emit2(0x1e3c); emit2(0x2c60);
                 return;
             }
             0x4d | 0x1e3e | 0x1e40 | 0x1e42 => {
-                EMIT2(b'M' as c_int); EMIT2(0x1e3e); EMIT2(0x1e40);
-                EMIT2(0x1e42);
+                emit2(b'M' as c_int); emit2(0x1e3e); emit2(0x1e40);
+                emit2(0x1e42);
                 return;
             }
             0x4e | 0xd1 | 0x143 | 0x145 | 0x147 | 0x1f8 | 0x1e44 | 0x1e46 | 0x1e48 | 0x1e4a
             | 0xa7a4 => {
-                EMIT2(b'N' as c_int); EMIT2(0xd1);
-                EMIT2(0x143); EMIT2(0x145); EMIT2(0x147);
-                EMIT2(0x1f8); EMIT2(0x1e44); EMIT2(0x1e46);
-                EMIT2(0x1e48); EMIT2(0x1e4a); EMIT2(0xa7a4);
+                emit2(b'N' as c_int); emit2(0xd1);
+                emit2(0x143); emit2(0x145); emit2(0x147);
+                emit2(0x1f8); emit2(0x1e44); emit2(0x1e46);
+                emit2(0x1e48); emit2(0x1e4a); emit2(0xa7a4);
                 return;
             }
             0x4f | 0xd2 | 0xd3 | 0xd4 | 0xd5 | 0xd6 | 0xd8 | 0x14c | 0x14e | 0x150 | 0x19f
             | 0x1a0 | 0x1d1 | 0x1ea | 0x1ec | 0x1fe | 0x20c | 0x20e | 0x22a | 0x22c | 0x22e
             | 0x230 | 0x1e4c | 0x1e4e | 0x1e50 | 0x1e52 | 0x1ecc | 0x1ece | 0x1ed0 | 0x1ed2
             | 0x1ed4 | 0x1ed6 | 0x1ed8 | 0x1eda | 0x1edc | 0x1ede | 0x1ee0 | 0x1ee2 => {
-                EMIT2(b'O' as c_int); EMIT2(0xd2); EMIT2(0xd3);
-                EMIT2(0xd4); EMIT2(0xd5);
-                EMIT2(0xd6); EMIT2(0xd8);
-                EMIT2(0x14c); EMIT2(0x14e); EMIT2(0x150);
-                EMIT2(0x19f); EMIT2(0x1a0); EMIT2(0x1d1);
-                EMIT2(0x1ea); EMIT2(0x1ec); EMIT2(0x1fe);
-                EMIT2(0x20c); EMIT2(0x20e); EMIT2(0x22a);
-                EMIT2(0x22c); EMIT2(0x22e); EMIT2(0x230);
-                EMIT2(0x1e4c); EMIT2(0x1e4e); EMIT2(0x1e50);
-                EMIT2(0x1e52); EMIT2(0x1ecc); EMIT2(0x1ece);
-                EMIT2(0x1ed0); EMIT2(0x1ed2); EMIT2(0x1ed4);
-                EMIT2(0x1ed6); EMIT2(0x1ed8); EMIT2(0x1eda);
-                EMIT2(0x1edc); EMIT2(0x1ede); EMIT2(0x1ee0);
-                EMIT2(0x1ee2);
+                emit2(b'O' as c_int); emit2(0xd2); emit2(0xd3);
+                emit2(0xd4); emit2(0xd5);
+                emit2(0xd6); emit2(0xd8);
+                emit2(0x14c); emit2(0x14e); emit2(0x150);
+                emit2(0x19f); emit2(0x1a0); emit2(0x1d1);
+                emit2(0x1ea); emit2(0x1ec); emit2(0x1fe);
+                emit2(0x20c); emit2(0x20e); emit2(0x22a);
+                emit2(0x22c); emit2(0x22e); emit2(0x230);
+                emit2(0x1e4c); emit2(0x1e4e); emit2(0x1e50);
+                emit2(0x1e52); emit2(0x1ecc); emit2(0x1ece);
+                emit2(0x1ed0); emit2(0x1ed2); emit2(0x1ed4);
+                emit2(0x1ed6); emit2(0x1ed8); emit2(0x1eda);
+                emit2(0x1edc); emit2(0x1ede); emit2(0x1ee0);
+                emit2(0x1ee2);
                 return;
             }
             0x50 | 0x1a4 | 0x1e54 | 0x1e56 | 0x2c63 => {
-                EMIT2(b'P' as c_int); EMIT2(0x1a4); EMIT2(0x1e54); EMIT2(0x1e56);
-                EMIT2(0x2c63);
+                emit2(b'P' as c_int); emit2(0x1a4); emit2(0x1e54); emit2(0x1e56);
+                emit2(0x2c63);
                 return;
             }
             0x51 | 0x24a => {
-                EMIT2(b'Q' as c_int); EMIT2(0x24a);
+                emit2(b'Q' as c_int); emit2(0x24a);
                 return;
             }
             0x52 | 0x154 | 0x156 | 0x158 | 0x210 | 0x212 | 0x24c | 0x1e58 | 0x1e5a | 0x1e5c
             | 0x1e5e | 0x2c64 | 0xa7a6 => {
-                EMIT2(b'R' as c_int); EMIT2(0x154); EMIT2(0x156); EMIT2(0x158);
-                EMIT2(0x210); EMIT2(0x212); EMIT2(0x24c); EMIT2(0x1e58);
-                EMIT2(0x1e5a); EMIT2(0x1e5c); EMIT2(0x1e5e); EMIT2(0x2c64);
-                EMIT2(0xa7a6);
+                emit2(b'R' as c_int); emit2(0x154); emit2(0x156); emit2(0x158);
+                emit2(0x210); emit2(0x212); emit2(0x24c); emit2(0x1e58);
+                emit2(0x1e5a); emit2(0x1e5c); emit2(0x1e5e); emit2(0x2c64);
+                emit2(0xa7a6);
                 return;
             }
             0x53 | 0x15a | 0x15c | 0x15e | 0x160 | 0x218 | 0x1e60 | 0x1e62 | 0x1e64 | 0x1e66
             | 0x1e68 | 0x2c7e | 0xa7a8 => {
-                EMIT2(b'S' as c_int); EMIT2(0x15a); EMIT2(0x15c); EMIT2(0x15e);
-                EMIT2(0x160); EMIT2(0x218); EMIT2(0x1e60); EMIT2(0x1e62);
-                EMIT2(0x1e64); EMIT2(0x1e66); EMIT2(0x1e68); EMIT2(0x2c7e);
-                EMIT2(0xa7a8);
+                emit2(b'S' as c_int); emit2(0x15a); emit2(0x15c); emit2(0x15e);
+                emit2(0x160); emit2(0x218); emit2(0x1e60); emit2(0x1e62);
+                emit2(0x1e64); emit2(0x1e66); emit2(0x1e68); emit2(0x2c7e);
+                emit2(0xa7a8);
                 return;
             }
             0x54 | 0x162 | 0x164 | 0x166 | 0x1ac | 0x1ae | 0x21a | 0x23e | 0x1e6a | 0x1e6c
             | 0x1e6e | 0x1e70 => {
-                EMIT2(b'T' as c_int); EMIT2(0x162); EMIT2(0x164); EMIT2(0x166);
-                EMIT2(0x1ac); EMIT2(0x1ae); EMIT2(0x23e); EMIT2(0x21a);
-                EMIT2(0x1e6a); EMIT2(0x1e6c); EMIT2(0x1e6e); EMIT2(0x1e70);
+                emit2(b'T' as c_int); emit2(0x162); emit2(0x164); emit2(0x166);
+                emit2(0x1ac); emit2(0x1ae); emit2(0x23e); emit2(0x21a);
+                emit2(0x1e6a); emit2(0x1e6c); emit2(0x1e6e); emit2(0x1e70);
                 return;
             }
             0x55 | 0xd9 | 0xda | 0xdb | 0xdc | 0x168 | 0x16a | 0x16c | 0x16e | 0x170 | 0x172
             | 0x1af | 0x1d3 | 0x1d5 | 0x1d7 | 0x1d9 | 0x1db | 0x214 | 0x216 | 0x244 | 0x1e72
             | 0x1e74 | 0x1e76 | 0x1e78 | 0x1e7a | 0x1ee4 | 0x1ee6 | 0x1ee8 | 0x1eea | 0x1eec
             | 0x1eee | 0x1ef0 => {
-                EMIT2(b'U' as c_int); EMIT2(0xd9); EMIT2(0xda);
-                EMIT2(0xdc); EMIT2(0xdb);
-                EMIT2(0x168); EMIT2(0x16a);
-                EMIT2(0x16c); EMIT2(0x16e); EMIT2(0x170);
-                EMIT2(0x172); EMIT2(0x1af); EMIT2(0x1d3);
-                EMIT2(0x1d5); EMIT2(0x1d7); EMIT2(0x1d9);
-                EMIT2(0x1db); EMIT2(0x214); EMIT2(0x216);
-                EMIT2(0x244); EMIT2(0x1e72); EMIT2(0x1e74);
-                EMIT2(0x1e76); EMIT2(0x1e78); EMIT2(0x1e7a);
-                EMIT2(0x1ee4); EMIT2(0x1ee6); EMIT2(0x1ee8);
-                EMIT2(0x1eea); EMIT2(0x1eec); EMIT2(0x1eee);
-                EMIT2(0x1ef0);
+                emit2(b'U' as c_int); emit2(0xd9); emit2(0xda);
+                emit2(0xdc); emit2(0xdb);
+                emit2(0x168); emit2(0x16a);
+                emit2(0x16c); emit2(0x16e); emit2(0x170);
+                emit2(0x172); emit2(0x1af); emit2(0x1d3);
+                emit2(0x1d5); emit2(0x1d7); emit2(0x1d9);
+                emit2(0x1db); emit2(0x214); emit2(0x216);
+                emit2(0x244); emit2(0x1e72); emit2(0x1e74);
+                emit2(0x1e76); emit2(0x1e78); emit2(0x1e7a);
+                emit2(0x1ee4); emit2(0x1ee6); emit2(0x1ee8);
+                emit2(0x1eea); emit2(0x1eec); emit2(0x1eee);
+                emit2(0x1ef0);
                 return;
             }
             0x56 | 0x1b2 | 0x1e7c | 0x1e7e => {
-                EMIT2(b'V' as c_int); EMIT2(0x1b2); EMIT2(0x1e7c); EMIT2(0x1e7e);
+                emit2(b'V' as c_int); emit2(0x1b2); emit2(0x1e7c); emit2(0x1e7e);
                 return;
             }
             0x57 | 0x174 | 0x1e80 | 0x1e82 | 0x1e84 | 0x1e86 | 0x1e88 => {
-                EMIT2(b'W' as c_int); EMIT2(0x174); EMIT2(0x1e80); EMIT2(0x1e82);
-                EMIT2(0x1e84); EMIT2(0x1e86); EMIT2(0x1e88);
+                emit2(b'W' as c_int); emit2(0x174); emit2(0x1e80); emit2(0x1e82);
+                emit2(0x1e84); emit2(0x1e86); emit2(0x1e88);
                 return;
             }
             0x58 | 0x1e8a | 0x1e8c => {
-                EMIT2(b'X' as c_int); EMIT2(0x1e8a); EMIT2(0x1e8c);
+                emit2(b'X' as c_int); emit2(0x1e8a); emit2(0x1e8c);
                 return;
             }
             0x59 | 0xdd | 0x176 | 0x178 | 0x1b3 | 0x232 | 0x24e | 0x1e8e | 0x1ef2 | 0x1ef4
             | 0x1ef6 | 0x1ef8 => {
-                EMIT2(b'Y' as c_int); EMIT2(0xdd);
-                EMIT2(0x176); EMIT2(0x178); EMIT2(0x1b3);
-                EMIT2(0x232); EMIT2(0x24e); EMIT2(0x1e8e);
-                EMIT2(0x1ef2); EMIT2(0x1ef4); EMIT2(0x1ef6);
-                EMIT2(0x1ef8);
+                emit2(b'Y' as c_int); emit2(0xdd);
+                emit2(0x176); emit2(0x178); emit2(0x1b3);
+                emit2(0x232); emit2(0x24e); emit2(0x1e8e);
+                emit2(0x1ef2); emit2(0x1ef4); emit2(0x1ef6);
+                emit2(0x1ef8);
                 return;
             }
             0x5a | 0x179 | 0x17b | 0x17d | 0x1b5 | 0x1e90 | 0x1e92 | 0x1e94 | 0x2c6b => {
-                EMIT2(b'Z' as c_int); EMIT2(0x179); EMIT2(0x17b); EMIT2(0x17d);
-                EMIT2(0x1b5); EMIT2(0x1e90); EMIT2(0x1e92);
-                EMIT2(0x1e94); EMIT2(0x2c6b);
+                emit2(b'Z' as c_int); emit2(0x179); emit2(0x17b); emit2(0x17d);
+                emit2(0x1b5); emit2(0x1e90); emit2(0x1e92);
+                emit2(0x1e94); emit2(0x2c6b);
                 return;
             }
             0x61 | 0xe0 | 0xe1 | 0xe2 | 0xe3 | 0xe4 | 0xe5 | 0x101 | 0x103 | 0x105 | 0x1ce
             | 0x1df | 0x1e1 | 0x1fb | 0x201 | 0x203 | 0x227 | 0x1d8f | 0x1e01 | 0x1e9a
             | 0x1ea1 | 0x1ea3 | 0x1ea5 | 0x1ea7 | 0x1ea9 | 0x1eab | 0x1ead | 0x1eaf | 0x1eb1
             | 0x1eb3 | 0x1eb5 | 0x1eb7 | 0x2c65 => {
-                EMIT2(b'a' as c_int); EMIT2(0xe0); EMIT2(0xe1);
-                EMIT2(0xe2); EMIT2(0xe3);
-                EMIT2(0xe4); EMIT2(0xe5);
-                EMIT2(0x101); EMIT2(0x103); EMIT2(0x105);
-                EMIT2(0x1ce); EMIT2(0x1df); EMIT2(0x1e1);
-                EMIT2(0x1fb); EMIT2(0x201); EMIT2(0x203);
-                EMIT2(0x227); EMIT2(0x1d8f); EMIT2(0x1e01);
-                EMIT2(0x1e9a); EMIT2(0x1ea1); EMIT2(0x1ea3);
-                EMIT2(0x1ea5); EMIT2(0x1ea7); EMIT2(0x1ea9);
-                EMIT2(0x1eab); EMIT2(0x1ead); EMIT2(0x1eaf);
-                EMIT2(0x1eb1); EMIT2(0x1eb3); EMIT2(0x1eb5);
-                EMIT2(0x1eb7); EMIT2(0x2c65);
+                emit2(b'a' as c_int); emit2(0xe0); emit2(0xe1);
+                emit2(0xe2); emit2(0xe3);
+                emit2(0xe4); emit2(0xe5);
+                emit2(0x101); emit2(0x103); emit2(0x105);
+                emit2(0x1ce); emit2(0x1df); emit2(0x1e1);
+                emit2(0x1fb); emit2(0x201); emit2(0x203);
+                emit2(0x227); emit2(0x1d8f); emit2(0x1e01);
+                emit2(0x1e9a); emit2(0x1ea1); emit2(0x1ea3);
+                emit2(0x1ea5); emit2(0x1ea7); emit2(0x1ea9);
+                emit2(0x1eab); emit2(0x1ead); emit2(0x1eaf);
+                emit2(0x1eb1); emit2(0x1eb3); emit2(0x1eb5);
+                emit2(0x1eb7); emit2(0x2c65);
                 return;
             }
             0x62 | 0x180 | 0x253 | 0x1d6c | 0x1d80 | 0x1e03 | 0x1e05 | 0x1e07 => {
-                EMIT2(b'b' as c_int); EMIT2(0x180); EMIT2(0x253); EMIT2(0x1d6c);
-                EMIT2(0x1d80); EMIT2(0x1e03); EMIT2(0x1e05); EMIT2(0x1e07);
+                emit2(b'b' as c_int); emit2(0x180); emit2(0x253); emit2(0x1d6c);
+                emit2(0x1d80); emit2(0x1e03); emit2(0x1e05); emit2(0x1e07);
                 return;
             }
             0x63 | 0xe7 | 0x107 | 0x109 | 0x10b | 0x10d | 0x188 | 0x23c | 0x1e09 | 0xa793
             | 0xa794 => {
-                EMIT2(b'c' as c_int); EMIT2(0xe7);
-                EMIT2(0x107); EMIT2(0x109); EMIT2(0x10b);
-                EMIT2(0x10d); EMIT2(0x188); EMIT2(0x23c);
-                EMIT2(0x1e09); EMIT2(0xa793); EMIT2(0xa794);
+                emit2(b'c' as c_int); emit2(0xe7);
+                emit2(0x107); emit2(0x109); emit2(0x10b);
+                emit2(0x10d); emit2(0x188); emit2(0x23c);
+                emit2(0x1e09); emit2(0xa793); emit2(0xa794);
                 return;
             }
             0x64 | 0x10f | 0x111 | 0x257 | 0x1d6d | 0x1d81 | 0x1d91 | 0x1e0b | 0x1e0d | 0x1e0f
             | 0x1e11 | 0x1e13 => {
-                EMIT2(b'd' as c_int); EMIT2(0x10f); EMIT2(0x111);
-                EMIT2(0x257); EMIT2(0x1d6d); EMIT2(0x1d81);
-                EMIT2(0x1d91); EMIT2(0x1e0b); EMIT2(0x1e0d);
-                EMIT2(0x1e0f); EMIT2(0x1e11); EMIT2(0x1e13);
+                emit2(b'd' as c_int); emit2(0x10f); emit2(0x111);
+                emit2(0x257); emit2(0x1d6d); emit2(0x1d81);
+                emit2(0x1d91); emit2(0x1e0b); emit2(0x1e0d);
+                emit2(0x1e0f); emit2(0x1e11); emit2(0x1e13);
                 return;
             }
             0x65 | 0xe8 | 0xe9 | 0xea | 0xeb | 0x113 | 0x115 | 0x117 | 0x119 | 0x11b | 0x205
             | 0x207 | 0x229 | 0x247 | 0x1d92 | 0x1e15 | 0x1e17 | 0x1e19 | 0x1e1b | 0x1e1d
             | 0x1eb9 | 0x1ebb | 0x1ebd | 0x1ebf | 0x1ec1 | 0x1ec3 | 0x1ec5 | 0x1ec7 => {
-                EMIT2(b'e' as c_int); EMIT2(0xe8); EMIT2(0xe9);
-                EMIT2(0xea); EMIT2(0xeb);
-                EMIT2(0x113); EMIT2(0x115);
-                EMIT2(0x117); EMIT2(0x119); EMIT2(0x11b);
-                EMIT2(0x205); EMIT2(0x207); EMIT2(0x229);
-                EMIT2(0x247); EMIT2(0x1d92); EMIT2(0x1e15);
-                EMIT2(0x1e17); EMIT2(0x1e19); EMIT2(0x1e1b);
-                EMIT2(0x1e1d); EMIT2(0x1eb9); EMIT2(0x1ebb);
-                EMIT2(0x1ebd); EMIT2(0x1ebf); EMIT2(0x1ec1);
-                EMIT2(0x1ec3); EMIT2(0x1ec5); EMIT2(0x1ec7);
+                emit2(b'e' as c_int); emit2(0xe8); emit2(0xe9);
+                emit2(0xea); emit2(0xeb);
+                emit2(0x113); emit2(0x115);
+                emit2(0x117); emit2(0x119); emit2(0x11b);
+                emit2(0x205); emit2(0x207); emit2(0x229);
+                emit2(0x247); emit2(0x1d92); emit2(0x1e15);
+                emit2(0x1e17); emit2(0x1e19); emit2(0x1e1b);
+                emit2(0x1e1d); emit2(0x1eb9); emit2(0x1ebb);
+                emit2(0x1ebd); emit2(0x1ebf); emit2(0x1ec1);
+                emit2(0x1ec3); emit2(0x1ec5); emit2(0x1ec7);
                 return;
             }
             0x66 | 0x192 | 0x1d6e | 0x1d82 | 0x1e1f | 0xa799 => {
-                EMIT2(b'f' as c_int); EMIT2(0x192); EMIT2(0x1d6e); EMIT2(0x1d82);
-                EMIT2(0x1e1f); EMIT2(0xa799);
+                emit2(b'f' as c_int); emit2(0x192); emit2(0x1d6e); emit2(0x1d82);
+                emit2(0x1e1f); emit2(0xa799);
                 return;
             }
             0x67 | 0x11d | 0x11f | 0x121 | 0x123 | 0x1e5 | 0x1e7 | 0x1f5 | 0x260 | 0x1d83
             | 0x1e21 | 0xa7a1 => {
-                EMIT2(b'g' as c_int); EMIT2(0x11d); EMIT2(0x11f); EMIT2(0x121);
-                EMIT2(0x123); EMIT2(0x1e5); EMIT2(0x1e7);
-                EMIT2(0x1f5); EMIT2(0x260); EMIT2(0x1d83);
-                EMIT2(0x1e21); EMIT2(0xa7a1);
+                emit2(b'g' as c_int); emit2(0x11d); emit2(0x11f); emit2(0x121);
+                emit2(0x123); emit2(0x1e5); emit2(0x1e7);
+                emit2(0x1f5); emit2(0x260); emit2(0x1d83);
+                emit2(0x1e21); emit2(0xa7a1);
                 return;
             }
             0x68 | 0x125 | 0x127 | 0x21f | 0x1e23 | 0x1e25 | 0x1e27 | 0x1e29 | 0x1e2b | 0x1e96
             | 0x2c68 | 0xa795 => {
-                EMIT2(b'h' as c_int); EMIT2(0x125); EMIT2(0x127); EMIT2(0x21f);
-                EMIT2(0x1e23); EMIT2(0x1e25); EMIT2(0x1e27);
-                EMIT2(0x1e29); EMIT2(0x1e2b); EMIT2(0x1e96);
-                EMIT2(0x2c68); EMIT2(0xa795);
+                emit2(b'h' as c_int); emit2(0x125); emit2(0x127); emit2(0x21f);
+                emit2(0x1e23); emit2(0x1e25); emit2(0x1e27);
+                emit2(0x1e29); emit2(0x1e2b); emit2(0x1e96);
+                emit2(0x2c68); emit2(0xa795);
                 return;
             }
             0x69 | 0xec | 0xed | 0xee | 0xef | 0x129 | 0x12b | 0x12d | 0x12f | 0x1d0 | 0x209
             | 0x20b | 0x268 | 0x1d96 | 0x1e2d | 0x1e2f | 0x1ec9 | 0x1ecb => {
-                EMIT2(b'i' as c_int); EMIT2(0xec); EMIT2(0xed);
-                EMIT2(0xee); EMIT2(0xef);
-                EMIT2(0x129); EMIT2(0x12b); EMIT2(0x12d);
-                EMIT2(0x12f); EMIT2(0x1d0); EMIT2(0x209);
-                EMIT2(0x20b); EMIT2(0x268); EMIT2(0x1d96);
-                EMIT2(0x1e2d); EMIT2(0x1e2f); EMIT2(0x1ec9);
-                EMIT2(0x1ecb);
+                emit2(b'i' as c_int); emit2(0xec); emit2(0xed);
+                emit2(0xee); emit2(0xef);
+                emit2(0x129); emit2(0x12b); emit2(0x12d);
+                emit2(0x12f); emit2(0x1d0); emit2(0x209);
+                emit2(0x20b); emit2(0x268); emit2(0x1d96);
+                emit2(0x1e2d); emit2(0x1e2f); emit2(0x1ec9);
+                emit2(0x1ecb);
                 return;
             }
             0x6a | 0x135 | 0x1f0 | 0x249 => {
-                EMIT2(b'j' as c_int); EMIT2(0x135); EMIT2(0x1f0); EMIT2(0x249);
+                emit2(b'j' as c_int); emit2(0x135); emit2(0x1f0); emit2(0x249);
                 return;
             }
             0x6b | 0x137 | 0x199 | 0x1e9 | 0x1d84 | 0x1e31 | 0x1e33 | 0x1e35 | 0x2c6a | 0xa741 => {
-                EMIT2(b'k' as c_int); EMIT2(0x137); EMIT2(0x199); EMIT2(0x1e9);
-                EMIT2(0x1d84); EMIT2(0x1e31); EMIT2(0x1e33);
-                EMIT2(0x1e35); EMIT2(0x2c6a); EMIT2(0xa741);
+                emit2(b'k' as c_int); emit2(0x137); emit2(0x199); emit2(0x1e9);
+                emit2(0x1d84); emit2(0x1e31); emit2(0x1e33);
+                emit2(0x1e35); emit2(0x2c6a); emit2(0xa741);
                 return;
             }
             0x6c | 0x13a | 0x13c | 0x13e | 0x140 | 0x142 | 0x19a | 0x1e37 | 0x1e39 | 0x1e3b
             | 0x1e3d | 0x2c61 => {
-                EMIT2(b'l' as c_int); EMIT2(0x13a); EMIT2(0x13c);
-                EMIT2(0x13e); EMIT2(0x140); EMIT2(0x142);
-                EMIT2(0x19a); EMIT2(0x1e37); EMIT2(0x1e39);
-                EMIT2(0x1e3b); EMIT2(0x1e3d); EMIT2(0x2c61);
+                emit2(b'l' as c_int); emit2(0x13a); emit2(0x13c);
+                emit2(0x13e); emit2(0x140); emit2(0x142);
+                emit2(0x19a); emit2(0x1e37); emit2(0x1e39);
+                emit2(0x1e3b); emit2(0x1e3d); emit2(0x2c61);
                 return;
             }
             0x6d | 0x1d6f | 0x1e3f | 0x1e41 | 0x1e43 => {
-                EMIT2(b'm' as c_int); EMIT2(0x1d6f); EMIT2(0x1e3f);
-                EMIT2(0x1e41); EMIT2(0x1e43);
+                emit2(b'm' as c_int); emit2(0x1d6f); emit2(0x1e3f);
+                emit2(0x1e41); emit2(0x1e43);
                 return;
             }
             0x6e | 0xf1 | 0x144 | 0x146 | 0x148 | 0x149 | 0x1f9 | 0x1d70 | 0x1d87 | 0x1e45
             | 0x1e47 | 0x1e49 | 0x1e4b | 0xa7a5 => {
-                EMIT2(b'n' as c_int); EMIT2(0xf1);
-                EMIT2(0x144); EMIT2(0x146); EMIT2(0x148);
-                EMIT2(0x149); EMIT2(0x1f9); EMIT2(0x1d70);
-                EMIT2(0x1d87); EMIT2(0x1e45); EMIT2(0x1e47);
-                EMIT2(0x1e49); EMIT2(0x1e4b); EMIT2(0xa7a5);
+                emit2(b'n' as c_int); emit2(0xf1);
+                emit2(0x144); emit2(0x146); emit2(0x148);
+                emit2(0x149); emit2(0x1f9); emit2(0x1d70);
+                emit2(0x1d87); emit2(0x1e45); emit2(0x1e47);
+                emit2(0x1e49); emit2(0x1e4b); emit2(0xa7a5);
                 return;
             }
             0x6f | 0xf2 | 0xf3 | 0xf4 | 0xf5 | 0xf6 | 0xf8 | 0x14d | 0x14f | 0x151 | 0x1a1
             | 0x1d2 | 0x1eb | 0x1ed | 0x1ff | 0x20d | 0x20f | 0x22b | 0x22d | 0x22f | 0x231
             | 0x275 | 0x1e4d | 0x1e4f | 0x1e51 | 0x1e53 | 0x1ecd | 0x1ecf | 0x1ed1 | 0x1ed3
             | 0x1ed5 | 0x1ed7 | 0x1ed9 | 0x1edb | 0x1edd | 0x1edf | 0x1ee1 | 0x1ee3 => {
-                EMIT2(b'o' as c_int); EMIT2(0xf2); EMIT2(0xf3);
-                EMIT2(0xf4); EMIT2(0xf5);
-                EMIT2(0xf6); EMIT2(0xf8);
-                EMIT2(0x14d); EMIT2(0x14f); EMIT2(0x151);
-                EMIT2(0x1a1); EMIT2(0x1d2); EMIT2(0x1eb);
-                EMIT2(0x1ed); EMIT2(0x1ff); EMIT2(0x20d);
-                EMIT2(0x20f); EMIT2(0x22b); EMIT2(0x22d);
-                EMIT2(0x22f); EMIT2(0x231); EMIT2(0x275);
-                EMIT2(0x1e4d); EMIT2(0x1e4f); EMIT2(0x1e51);
-                EMIT2(0x1e53); EMIT2(0x1ecd); EMIT2(0x1ecf);
-                EMIT2(0x1ed1); EMIT2(0x1ed3); EMIT2(0x1ed5);
-                EMIT2(0x1ed7); EMIT2(0x1ed9); EMIT2(0x1edb);
-                EMIT2(0x1edd); EMIT2(0x1edf); EMIT2(0x1ee1);
-                EMIT2(0x1ee3);
+                emit2(b'o' as c_int); emit2(0xf2); emit2(0xf3);
+                emit2(0xf4); emit2(0xf5);
+                emit2(0xf6); emit2(0xf8);
+                emit2(0x14d); emit2(0x14f); emit2(0x151);
+                emit2(0x1a1); emit2(0x1d2); emit2(0x1eb);
+                emit2(0x1ed); emit2(0x1ff); emit2(0x20d);
+                emit2(0x20f); emit2(0x22b); emit2(0x22d);
+                emit2(0x22f); emit2(0x231); emit2(0x275);
+                emit2(0x1e4d); emit2(0x1e4f); emit2(0x1e51);
+                emit2(0x1e53); emit2(0x1ecd); emit2(0x1ecf);
+                emit2(0x1ed1); emit2(0x1ed3); emit2(0x1ed5);
+                emit2(0x1ed7); emit2(0x1ed9); emit2(0x1edb);
+                emit2(0x1edd); emit2(0x1edf); emit2(0x1ee1);
+                emit2(0x1ee3);
                 return;
             }
             0x70 | 0x1a5 | 0x1d71 | 0x1d7d | 0x1d88 | 0x1e55 | 0x1e57 => {
-                EMIT2(b'p' as c_int); EMIT2(0x1a5); EMIT2(0x1d71); EMIT2(0x1d7d);
-                EMIT2(0x1d88); EMIT2(0x1e55); EMIT2(0x1e57);
+                emit2(b'p' as c_int); emit2(0x1a5); emit2(0x1d71); emit2(0x1d7d);
+                emit2(0x1d88); emit2(0x1e55); emit2(0x1e57);
                 return;
             }
             0x71 | 0x24b | 0x2a0 => {
-                EMIT2(b'q' as c_int); EMIT2(0x24b); EMIT2(0x2a0);
+                emit2(b'q' as c_int); emit2(0x24b); emit2(0x2a0);
                 return;
             }
             0x72 | 0x155 | 0x157 | 0x159 | 0x211 | 0x213 | 0x24d | 0x27d | 0x1d72 | 0x1d73
             | 0x1d89 | 0x1e59 | 0x1e5b | 0x1e5d | 0x1e5f | 0xa7a7 => {
-                EMIT2(b'r' as c_int); EMIT2(0x155); EMIT2(0x157); EMIT2(0x159);
-                EMIT2(0x211); EMIT2(0x213); EMIT2(0x24d); EMIT2(0x27d);
-                EMIT2(0x1d72); EMIT2(0x1d73); EMIT2(0x1d89); EMIT2(0x1e59);
-                EMIT2(0x1e5b); EMIT2(0x1e5d); EMIT2(0x1e5f); EMIT2(0xa7a7);
+                emit2(b'r' as c_int); emit2(0x155); emit2(0x157); emit2(0x159);
+                emit2(0x211); emit2(0x213); emit2(0x24d); emit2(0x27d);
+                emit2(0x1d72); emit2(0x1d73); emit2(0x1d89); emit2(0x1e59);
+                emit2(0x1e5b); emit2(0x1e5d); emit2(0x1e5f); emit2(0xa7a7);
                 return;
             }
             0x73 | 0x15b | 0x15d | 0x15f | 0x161 | 0x219 | 0x23f | 0x1d74 | 0x1d8a | 0x1e61
             | 0x1e63 | 0x1e65 | 0x1e67 | 0x1e69 | 0xa7a9 => {
-                EMIT2(b's' as c_int); EMIT2(0x15b); EMIT2(0x15d); EMIT2(0x15f);
-                EMIT2(0x161); EMIT2(0x219); EMIT2(0x23f); EMIT2(0x1d74);
-                EMIT2(0x1d8a); EMIT2(0x1e61); EMIT2(0x1e63); EMIT2(0x1e65);
-                EMIT2(0x1e67); EMIT2(0x1e69); EMIT2(0xa7a9);
+                emit2(b's' as c_int); emit2(0x15b); emit2(0x15d); emit2(0x15f);
+                emit2(0x161); emit2(0x219); emit2(0x23f); emit2(0x1d74);
+                emit2(0x1d8a); emit2(0x1e61); emit2(0x1e63); emit2(0x1e65);
+                emit2(0x1e67); emit2(0x1e69); emit2(0xa7a9);
                 return;
             }
             0x74 | 0x163 | 0x165 | 0x167 | 0x1ab | 0x1ad | 0x21b | 0x288 | 0x1d75 | 0x1e6b
             | 0x1e6d | 0x1e6f | 0x1e71 | 0x1e97 | 0x2c66 => {
-                EMIT2(b't' as c_int); EMIT2(0x163); EMIT2(0x165); EMIT2(0x167);
-                EMIT2(0x1ab); EMIT2(0x1ad); EMIT2(0x21b); EMIT2(0x288);
-                EMIT2(0x1d75); EMIT2(0x1e6b); EMIT2(0x1e6d); EMIT2(0x1e6f);
-                EMIT2(0x1e71); EMIT2(0x1e97); EMIT2(0x2c66);
+                emit2(b't' as c_int); emit2(0x163); emit2(0x165); emit2(0x167);
+                emit2(0x1ab); emit2(0x1ad); emit2(0x21b); emit2(0x288);
+                emit2(0x1d75); emit2(0x1e6b); emit2(0x1e6d); emit2(0x1e6f);
+                emit2(0x1e71); emit2(0x1e97); emit2(0x2c66);
                 return;
             }
             0x75 | 0xf9 | 0xfa | 0xfb | 0xfc | 0x169 | 0x16b | 0x16d | 0x16f | 0x171 | 0x173
             | 0x1b0 | 0x1d4 | 0x1d6 | 0x1d8 | 0x1da | 0x1dc | 0x215 | 0x217 | 0x289 | 0x1d7e
             | 0x1d99 | 0x1e73 | 0x1e75 | 0x1e77 | 0x1e79 | 0x1e7b | 0x1ee5 | 0x1ee7 | 0x1ee9
             | 0x1eeb | 0x1eed | 0x1eef | 0x1ef1 => {
-                EMIT2(b'u' as c_int); EMIT2(0xf9); EMIT2(0xfa);
-                EMIT2(0xfb); EMIT2(0xfc);
-                EMIT2(0x169); EMIT2(0x16b);
-                EMIT2(0x16d); EMIT2(0x16f); EMIT2(0x171);
-                EMIT2(0x173); EMIT2(0x1d6); EMIT2(0x1d8);
-                EMIT2(0x215); EMIT2(0x217); EMIT2(0x1b0);
-                EMIT2(0x1d4); EMIT2(0x1da); EMIT2(0x1dc);
-                EMIT2(0x289); EMIT2(0x1e73); EMIT2(0x1d7e);
-                EMIT2(0x1d99); EMIT2(0x1e75); EMIT2(0x1e77);
-                EMIT2(0x1e79); EMIT2(0x1e7b); EMIT2(0x1ee5);
-                EMIT2(0x1ee7); EMIT2(0x1ee9); EMIT2(0x1eeb);
-                EMIT2(0x1eed); EMIT2(0x1eef); EMIT2(0x1ef1);
+                emit2(b'u' as c_int); emit2(0xf9); emit2(0xfa);
+                emit2(0xfb); emit2(0xfc);
+                emit2(0x169); emit2(0x16b);
+                emit2(0x16d); emit2(0x16f); emit2(0x171);
+                emit2(0x173); emit2(0x1d6); emit2(0x1d8);
+                emit2(0x215); emit2(0x217); emit2(0x1b0);
+                emit2(0x1d4); emit2(0x1da); emit2(0x1dc);
+                emit2(0x289); emit2(0x1e73); emit2(0x1d7e);
+                emit2(0x1d99); emit2(0x1e75); emit2(0x1e77);
+                emit2(0x1e79); emit2(0x1e7b); emit2(0x1ee5);
+                emit2(0x1ee7); emit2(0x1ee9); emit2(0x1eeb);
+                emit2(0x1eed); emit2(0x1eef); emit2(0x1ef1);
                 return;
             }
             0x76 | 0x28b | 0x1d8c | 0x1e7d | 0x1e7f => {
-                EMIT2(b'v' as c_int); EMIT2(0x28b); EMIT2(0x1d8c); EMIT2(0x1e7d);
-                EMIT2(0x1e7f);
+                emit2(b'v' as c_int); emit2(0x28b); emit2(0x1d8c); emit2(0x1e7d);
+                emit2(0x1e7f);
                 return;
             }
             0x77 | 0x175 | 0x1e81 | 0x1e83 | 0x1e85 | 0x1e87 | 0x1e89 | 0x1e98 => {
-                EMIT2(b'w' as c_int); EMIT2(0x175); EMIT2(0x1e81); EMIT2(0x1e83);
-                EMIT2(0x1e85); EMIT2(0x1e87); EMIT2(0x1e89); EMIT2(0x1e98);
+                emit2(b'w' as c_int); emit2(0x175); emit2(0x1e81); emit2(0x1e83);
+                emit2(0x1e85); emit2(0x1e87); emit2(0x1e89); emit2(0x1e98);
                 return;
             }
             0x78 | 0x1e8b | 0x1e8d => {
-                EMIT2(b'x' as c_int); EMIT2(0x1e8b); EMIT2(0x1e8d);
+                emit2(b'x' as c_int); emit2(0x1e8b); emit2(0x1e8d);
                 return;
             }
             0x79 | 0xfd | 0xff | 0x177 | 0x1b4 | 0x233 | 0x24f | 0x1e8f | 0x1e99 | 0x1ef3
             | 0x1ef5 | 0x1ef7 | 0x1ef9 => {
-                EMIT2(b'y' as c_int); EMIT2(0xfd); EMIT2(0xff);
-                EMIT2(0x177); EMIT2(0x1b4); EMIT2(0x233); EMIT2(0x24f);
-                EMIT2(0x1e8f); EMIT2(0x1e99); EMIT2(0x1ef3);
-                EMIT2(0x1ef5); EMIT2(0x1ef7); EMIT2(0x1ef9);
+                emit2(b'y' as c_int); emit2(0xfd); emit2(0xff);
+                emit2(0x177); emit2(0x1b4); emit2(0x233); emit2(0x24f);
+                emit2(0x1e8f); emit2(0x1e99); emit2(0x1ef3);
+                emit2(0x1ef5); emit2(0x1ef7); emit2(0x1ef9);
                 return;
             }
             0x7a | 0x17a | 0x17c | 0x17e | 0x1b6 | 0x1d76 | 0x1d8e | 0x1e91 | 0x1e93 | 0x1e95
             | 0x2c6c => {
-                EMIT2(b'z' as c_int); EMIT2(0x17a); EMIT2(0x17c); EMIT2(0x17e);
-                EMIT2(0x1b6); EMIT2(0x1d76); EMIT2(0x1d8e); EMIT2(0x1e91);
-                EMIT2(0x1e93); EMIT2(0x1e95); EMIT2(0x2c6c);
+                emit2(b'z' as c_int); emit2(0x17a); emit2(0x17c); emit2(0x17e);
+                emit2(0x1b6); emit2(0x1d76); emit2(0x1d8e); emit2(0x1e91);
+                emit2(0x1e93); emit2(0x1e95); emit2(0x2c6c);
                 return;
             }
             _ => {}
         }
-        EMIT2(c);
+        emit2(c);
 }
 
 fn nfa_regatom() -> bool {
@@ -832,32 +832,32 @@ fn nfa_regatom() -> bool {
             emsg(tr(E_NUL_FOUND));
             g_st().rc_did_emsg = true;
             return false;
-        } else if c == Magic(b'^' as c_int) {
-            EMIT(NFA_BOL);
+        } else if c == magic_fn(b'^' as c_int) {
+            emit_fn(NFA_BOL);
             return true;
-        } else if c == Magic(b'$' as c_int) {
-            EMIT(NFA_EOL);
+        } else if c == magic_fn(b'$' as c_int) {
+            emit_fn(NFA_EOL);
             re_st().had_eol = 1;
             return true;
-        } else if c == Magic(b'<' as c_int) {
-            EMIT(NFA_BOW);
+        } else if c == magic_fn(b'<' as c_int) {
+            emit_fn(NFA_BOW);
             return true;
-        } else if c == Magic(b'>' as c_int) {
-            EMIT(NFA_EOW);
+        } else if c == magic_fn(b'>' as c_int) {
+            emit_fn(NFA_EOW);
             return true;
-        } else if c == Magic(b'_' as c_int) {
-            c = no_Magic(getchr());
+        } else if c == magic_fn(b'_' as c_int) {
+            c = no_magic(getchr());
             if c == NUL as c_int {
                 emsg(tr(E_NUL_FOUND));
                 g_st().rc_did_emsg = true;
                 return false;
             }
             if c == b'^' as c_int {
-                EMIT(NFA_BOL);
+                emit_fn(NFA_BOL);
                 return true;
             }
             if c == b'$' as c_int {
-                EMIT(NFA_EOL);
+                emit_fn(NFA_EOL);
                 re_st().had_eol = 1;
                 return true;
             }
@@ -865,7 +865,7 @@ fn nfa_regatom() -> bool {
             if c == b'[' as c_int {
                 goto_collection = true;
             } else {
-                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_Magic(c)).cast::<u8>();
+                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
@@ -875,16 +875,16 @@ fn nfa_regatom() -> bool {
                     siemsg!(c"INTERNAL: Unknown character class char: %d", c);
                     return false;
                 }
-                if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
+                if c == magic_fn(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
                     old_regparse = re_st().regparse.cast();
                     c = getchr();
                     goto_multibyte = true;
                 } else {
                     let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
-                    EMIT(NFA_CLASSCODES[idx]);
+                    emit_fn(NFA_CLASSCODES[idx]);
                     if extra == NFA_ADD_NL {
-                        EMIT(NFA_NEWL);
-                        EMIT(NFA_OR);
+                        emit_fn(NFA_NEWL);
+                        emit_fn(NFA_OR);
                         re_st().regflags |= RF_HASNL;
                     }
                     return true;
@@ -895,35 +895,35 @@ fn nfa_regatom() -> bool {
         if !goto_collection && !goto_multibyte {
             if matches!(
                 c,
-                x if x == Magic(b'.' as c_int)
-                    || x == Magic(b'i' as c_int)
-                    || x == Magic(b'I' as c_int)
-                    || x == Magic(b'k' as c_int)
-                    || x == Magic(b'K' as c_int)
-                    || x == Magic(b'f' as c_int)
-                    || x == Magic(b'F' as c_int)
-                    || x == Magic(b'p' as c_int)
-                    || x == Magic(b'P' as c_int)
-                    || x == Magic(b's' as c_int)
-                    || x == Magic(b'S' as c_int)
-                    || x == Magic(b'd' as c_int)
-                    || x == Magic(b'D' as c_int)
-                    || x == Magic(b'x' as c_int)
-                    || x == Magic(b'X' as c_int)
-                    || x == Magic(b'o' as c_int)
-                    || x == Magic(b'O' as c_int)
-                    || x == Magic(b'w' as c_int)
-                    || x == Magic(b'W' as c_int)
-                    || x == Magic(b'h' as c_int)
-                    || x == Magic(b'H' as c_int)
-                    || x == Magic(b'a' as c_int)
-                    || x == Magic(b'A' as c_int)
-                    || x == Magic(b'l' as c_int)
-                    || x == Magic(b'L' as c_int)
-                    || x == Magic(b'u' as c_int)
-                    || x == Magic(b'U' as c_int)
+                x if x == magic_fn(b'.' as c_int)
+                    || x == magic_fn(b'i' as c_int)
+                    || x == magic_fn(b'I' as c_int)
+                    || x == magic_fn(b'k' as c_int)
+                    || x == magic_fn(b'K' as c_int)
+                    || x == magic_fn(b'f' as c_int)
+                    || x == magic_fn(b'F' as c_int)
+                    || x == magic_fn(b'p' as c_int)
+                    || x == magic_fn(b'P' as c_int)
+                    || x == magic_fn(b's' as c_int)
+                    || x == magic_fn(b'S' as c_int)
+                    || x == magic_fn(b'd' as c_int)
+                    || x == magic_fn(b'D' as c_int)
+                    || x == magic_fn(b'x' as c_int)
+                    || x == magic_fn(b'X' as c_int)
+                    || x == magic_fn(b'o' as c_int)
+                    || x == magic_fn(b'O' as c_int)
+                    || x == magic_fn(b'w' as c_int)
+                    || x == magic_fn(b'W' as c_int)
+                    || x == magic_fn(b'h' as c_int)
+                    || x == magic_fn(b'H' as c_int)
+                    || x == magic_fn(b'a' as c_int)
+                    || x == magic_fn(b'A' as c_int)
+                    || x == magic_fn(b'l' as c_int)
+                    || x == magic_fn(b'L' as c_int)
+                    || x == magic_fn(b'u' as c_int)
+                    || x == magic_fn(b'U' as c_int)
             ) {
-                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_Magic(c)).cast::<u8>();
+                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
@@ -933,45 +933,45 @@ fn nfa_regatom() -> bool {
                     siemsg!(c"INTERNAL: Unknown character class char: %d", c);
                     return false;
                 }
-                if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
+                if c == magic_fn(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
                     old_regparse = re_st().regparse.cast();
                     c = getchr();
                 } else {
                     let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
-                    EMIT(NFA_CLASSCODES[idx]);
+                    emit_fn(NFA_CLASSCODES[idx]);
                     if extra == NFA_ADD_NL {
-                        EMIT(NFA_NEWL);
-                        EMIT(NFA_OR);
+                        emit_fn(NFA_NEWL);
+                        emit_fn(NFA_OR);
                         re_st().regflags |= RF_HASNL;
                     }
                     return true;
                 }
-            } else if c == Magic(b'n' as c_int) {
+            } else if c == magic_fn(b'n' as c_int) {
                 if re_st().reg_string != 0 {
-                    EMIT(NL);
+                    emit_fn(NL);
                 } else {
-                    EMIT(NFA_NEWL);
+                    emit_fn(NFA_NEWL);
                     re_st().regflags |= RF_HASNL;
                 }
                 return true;
-            } else if c == Magic(b'(' as c_int) {
+            } else if c == magic_fn(b'(' as c_int) {
                 if !nfa_reg(REG_PAREN) {
                     return false;
                 }
                 return true;
-            } else if c == Magic(b'|' as c_int)
-                || c == Magic(b'&' as c_int)
-                || c == Magic(b')' as c_int)
-                || c == Magic(b'=' as c_int)
-                || c == Magic(b'?' as c_int)
-                || c == Magic(b'+' as c_int)
-                || c == Magic(b'@' as c_int)
-                || c == Magic(b'*' as c_int)
-                || c == Magic(b'{' as c_int)
+            } else if c == magic_fn(b'|' as c_int)
+                || c == magic_fn(b'&' as c_int)
+                || c == magic_fn(b')' as c_int)
+                || c == magic_fn(b'=' as c_int)
+                || c == magic_fn(b'?' as c_int)
+                || c == magic_fn(b'+' as c_int)
+                || c == magic_fn(b'@' as c_int)
+                || c == magic_fn(b'*' as c_int)
+                || c == magic_fn(b'{' as c_int)
             {
-                semsg!(tr(E_MISPLACED), no_Magic(c));
+                semsg!(tr(E_MISPLACED), no_magic(c));
                 return false;
-            } else if c == Magic(b'~' as c_int) {
+            } else if c == magic_fn(b'~' as c_int) {
                 let Some(prev_sub) = reg_prev_sub_ref() else {
                     emsg(tr(E_NOPRESUB));
                     return false;
@@ -979,34 +979,34 @@ fn nfa_regatom() -> bool {
                 let start_ptr = prev_sub.as_ptr().cast::<u8>();
                 let mut lp = start_ptr;
                 while *lp != NUL {
-                    EMIT(utf_ptr2char(lp.cast()));
+                    emit_fn(utf_ptr2char(lp.cast()));
                     if lp != start_ptr {
-                        EMIT(NFA_CONCAT);
+                        emit_fn(NFA_CONCAT);
                     }
                     lp = lp.add(utf_ptr2len(lp.cast()) as usize);
                 }
-                EMIT(NFA_NOPEN);
+                emit_fn(NFA_NOPEN);
                 return true;
-            } else if (Magic(b'1' as c_int)..=Magic(b'9' as c_int)).contains(&c) {
-                let refnum = no_Magic(c) - b'1' as c_int;
+            } else if (magic_fn(b'1' as c_int)..=magic_fn(b'9' as c_int)).contains(&c) {
+                let refnum = no_magic(c) - b'1' as c_int;
                 if !seen_endbrace(refnum + 1) {
                     return false;
                 }
-                EMIT(NFA_BACKREF1 + refnum);
+                emit_fn(NFA_BACKREF1 + refnum);
                 re_st().rex.nfa_has_backref = 1;
                 return true;
-            } else if c == Magic(b'z' as c_int) {
-                c = no_Magic(getchr());
+            } else if c == magic_fn(b'z' as c_int) {
+                c = no_magic(getchr());
                 match c as u8 {
                     b's' => {
-                        EMIT(NFA_ZSTART);
+                        emit_fn(NFA_ZSTART);
                         if !re_mult_next(c"\\zs") {
                             return false;
                         }
                         return true;
                     }
                     b'e' => {
-                        EMIT(NFA_ZEND);
+                        emit_fn(NFA_ZEND);
                         re_st().rex.nfa_has_zend = 1;
                         if !re_mult_next(c"\\ze") {
                             return false;
@@ -1019,7 +1019,7 @@ fn nfa_regatom() -> bool {
                             g_st().rc_did_emsg = true;
                             return false;
                         }
-                        EMIT(NFA_ZREF1 + (no_Magic(c) - b'1' as c_int));
+                        emit_fn(NFA_ZREF1 + (no_magic(c) - b'1' as c_int));
                         re_st().re_has_z = REX_USE;
                         return true;
                     }
@@ -1038,22 +1038,22 @@ fn nfa_regatom() -> bool {
                     _ => {
                         semsg!(
                             tr(c"E867: (NFA) Unknown operator '\\z%c'"),
-                            no_Magic(c),
+                            no_magic(c),
                         );
                         return false;
                     }
                 }
-            } else if c == Magic(b'%' as c_int) {
-                c = no_Magic(getchr());
+            } else if c == magic_fn(b'%' as c_int) {
+                c = no_magic(getchr());
                 if c == b'(' as c_int {
                     if !nfa_reg(REG_NPAREN) {
                         return false;
                     }
-                    EMIT(NFA_NOPEN);
+                    emit_fn(NFA_NOPEN);
                     return true;
                 }
                 return nfa_regatom_percent(c, save_prev_at_start);
-            } else if c == Magic(b'[' as c_int) {
+            } else if c == magic_fn(b'[' as c_int) {
                 goto_collection = true;
             }
         }
@@ -1076,9 +1076,9 @@ fn nfa_regatom() -> bool {
         if utf_char2len(c) != plen || utf_iscomposing_legacy(c) {
             let mut i: c_int = 0;
             loop {
-                EMIT(c);
+                emit_fn(c);
                 if i > 0 {
-                    EMIT(NFA_CONCAT);
+                    emit_fn(NFA_CONCAT);
                 }
                 i += utf_char2len(c);
                 if i >= plen {
@@ -1086,11 +1086,11 @@ fn nfa_regatom() -> bool {
                 }
                 c = utf_ptr2char(old_regparse.add(i as usize).cast());
             }
-            EMIT(NFA_COMPOSING);
+            emit_fn(NFA_COMPOSING);
             re_st().regparse = old_regparse.add(plen as usize).cast();
         } else {
-            c = no_Magic(c);
-            EMIT(c);
+            c = no_magic(c);
+            emit_fn(c);
         }
         true
     }
@@ -1121,15 +1121,15 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     g_st().rc_did_emsg = true;
                     return false;
                 }
-                EMIT(if nr == 0 { 0x0a } else { nr as c_int });
+                emit_fn(if nr == 0 { 0x0a } else { nr as c_int });
                 true
             }
             b'^' => {
-                EMIT(NFA_BOF);
+                emit_fn(NFA_BOF);
                 true
             }
             b'$' => {
-                EMIT(NFA_EOF);
+                emit_fn(NFA_EOF);
                 true
             }
             b'#' => {
@@ -1143,15 +1143,15 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     );
                     return false;
                 }
-                EMIT(NFA_CURSOR);
+                emit_fn(NFA_CURSOR);
                 true
             }
             b'V' => {
-                EMIT(NFA_VISUAL);
+                emit_fn(NFA_VISUAL);
                 true
             }
             b'C' => {
-                EMIT(NFA_ANY_COMPOSING);
+                emit_fn(NFA_ANY_COMPOSING);
                 true
             }
             b'[' => {
@@ -1191,9 +1191,9 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     g_st().rc_did_emsg = true;
                     return false;
                 }
-                EMIT(NFA_OPT_CHARS);
-                EMIT(n);
-                EMIT(NFA_NOPEN);
+                emit_fn(NFA_OPT_CHARS);
+                emit_fn(n);
+                emit_fn(NFA_NOPEN);
                 true
             }
             _ => {
@@ -1205,7 +1205,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 if c == b'<' as c_int || c == b'>' as c_int {
                     c = getchr();
                 }
-                if no_Magic(c) == b'.' as c_int {
+                if no_magic(c) == b'.' as c_int {
                     cur = true;
                     c = getchr();
                 }
@@ -1213,7 +1213,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     if cur {
                         semsg!(
                             tr(E_REGEXP_NUMBER_AFTER_DOT_POS_SEARCH_CHR),
-                            no_Magic(c),
+                            no_magic(c),
                         );
                         return false;
                     }
@@ -1228,14 +1228,14 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 if c == b'l' as c_int || c == b'c' as c_int || c == b'v' as c_int {
                     let mut limit = i32::MAX;
                     if !cur && !got_digit {
-                        semsg!(tr(E_NFA_REGEXP_MISSING_VALUE_IN_CHR), no_Magic(c));
+                        semsg!(tr(E_NFA_REGEXP_MISSING_VALUE_IN_CHR), no_magic(c));
                         return false;
                     }
                     if c == b'l' as c_int {
                         if cur {
                             n = i64::from(crate::globals::curwin_mut().w_cursor.lnum);
                         }
-                        EMIT(if cmp == b'<' as c_int {
+                        emit_fn(if cmp == b'<' as c_int {
                             NFA_LNUM_LT
                         } else if cmp == b'>' as c_int {
                             NFA_LNUM_GT
@@ -1249,7 +1249,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         if cur {
                             n = i64::from(crate::globals::curwin_mut().w_cursor.col) + 1;
                         }
-                        EMIT(if cmp == b'<' as c_int {
+                        emit_fn(if cmp == b'<' as c_int {
                             NFA_COL_LT
                         } else if cmp == b'>' as c_int {
                             NFA_COL_GT
@@ -1270,7 +1270,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                             vcol += 1;
                             n = i64::from(vcol);
                         }
-                        EMIT(if cmp == b'<' as c_int {
+                        emit_fn(if cmp == b'<' as c_int {
                             NFA_VCOL_LT
                         } else if cmp == b'>' as c_int {
                             NFA_VCOL_GT
@@ -1283,22 +1283,22 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         emsg(tr(E_VALUE_TOO_LARGE));
                         return false;
                     }
-                    EMIT(n as c_int);
+                    emit_fn(n as c_int);
                     return true;
-                } else if no_Magic(c) == b'\'' as c_int && n == 0 {
-                    EMIT(if cmp == b'<' as c_int {
+                } else if no_magic(c) == b'\'' as c_int && n == 0 {
+                    emit_fn(if cmp == b'<' as c_int {
                         NFA_MARK_LT
                     } else if cmp == b'>' as c_int {
                         NFA_MARK_GT
                     } else {
                         NFA_MARK
                     });
-                    EMIT(getchr());
+                    emit_fn(getchr());
                     return true;
                 }
                 semsg!(
                     tr(c"E867: (NFA) Unknown operator '\\%%%c'"),
-                    no_Magic(c),
+                    no_magic(c),
                 );
                 false
             }
@@ -1324,11 +1324,11 @@ fn nfa_regatom_collection(
             );
             if result != FAIL {
                 if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
-                    EMIT(result - NFA_ADD_NL);
-                    EMIT(NFA_NEWL);
-                    EMIT(NFA_OR);
+                    emit_fn(result - NFA_ADD_NL);
+                    emit_fn(NFA_NEWL);
+                    emit_fn(NFA_OR);
                 } else {
-                    EMIT(result);
+                    emit_fn(result);
                 }
                 re_st().regparse = endp.cast();
                 mb_ptr_adv(&raw mut re_st().regparse);
@@ -1339,14 +1339,14 @@ fn nfa_regatom_collection(
             if crate::memory::cstr_first_byte(re_st().regparse) == b'^' {
                 negated = true;
                 mb_ptr_adv(&raw mut re_st().regparse);
-                EMIT(NFA_START_NEG_COLL);
+                emit_fn(NFA_START_NEG_COLL);
             } else {
-                EMIT(NFA_START_COLL);
+                emit_fn(NFA_START_COLL);
             }
             if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
                 *startc = b'-' as c_int;
-                EMIT(*startc);
-                EMIT(NFA_CONCAT);
+                emit_fn(*startc);
+                emit_fn(NFA_CONCAT);
                 mb_ptr_adv(&raw mut re_st().regparse);
             }
 
@@ -1370,34 +1370,34 @@ fn nfa_regatom_collection(
 
                     if charclass != CLASS_NONE {
                         match charclass {
-                            CLASS_ALNUM => EMIT(NFA_CLASS_ALNUM),
-                            CLASS_ALPHA => EMIT(NFA_CLASS_ALPHA),
-                            CLASS_BLANK => EMIT(NFA_CLASS_BLANK),
-                            CLASS_CNTRL => EMIT(NFA_CLASS_CNTRL),
-                            CLASS_DIGIT => EMIT(NFA_CLASS_DIGIT),
-                            CLASS_GRAPH => EMIT(NFA_CLASS_GRAPH),
+                            CLASS_ALNUM => emit_fn(NFA_CLASS_ALNUM),
+                            CLASS_ALPHA => emit_fn(NFA_CLASS_ALPHA),
+                            CLASS_BLANK => emit_fn(NFA_CLASS_BLANK),
+                            CLASS_CNTRL => emit_fn(NFA_CLASS_CNTRL),
+                            CLASS_DIGIT => emit_fn(NFA_CLASS_DIGIT),
+                            CLASS_GRAPH => emit_fn(NFA_CLASS_GRAPH),
                             CLASS_LOWER => {
                                 re_st().wants_nfa = true;
-                                EMIT(NFA_CLASS_LOWER);
+                                emit_fn(NFA_CLASS_LOWER);
                             }
-                            CLASS_PRINT => EMIT(NFA_CLASS_PRINT),
-                            CLASS_PUNCT => EMIT(NFA_CLASS_PUNCT),
-                            CLASS_SPACE => EMIT(NFA_CLASS_SPACE),
+                            CLASS_PRINT => emit_fn(NFA_CLASS_PRINT),
+                            CLASS_PUNCT => emit_fn(NFA_CLASS_PUNCT),
+                            CLASS_SPACE => emit_fn(NFA_CLASS_SPACE),
                             CLASS_UPPER => {
                                 re_st().wants_nfa = true;
-                                EMIT(NFA_CLASS_UPPER);
+                                emit_fn(NFA_CLASS_UPPER);
                             }
-                            CLASS_XDIGIT => EMIT(NFA_CLASS_XDIGIT),
-                            CLASS_TAB => EMIT(NFA_CLASS_TAB),
-                            CLASS_RETURN => EMIT(NFA_CLASS_RETURN),
-                            CLASS_BACKSPACE => EMIT(NFA_CLASS_BACKSPACE),
-                            CLASS_ESCAPE => EMIT(NFA_CLASS_ESCAPE),
-                            CLASS_IDENT => EMIT(NFA_CLASS_IDENT),
-                            CLASS_KEYWORD => EMIT(NFA_CLASS_KEYWORD),
-                            CLASS_FNAME => EMIT(NFA_CLASS_FNAME),
+                            CLASS_XDIGIT => emit_fn(NFA_CLASS_XDIGIT),
+                            CLASS_TAB => emit_fn(NFA_CLASS_TAB),
+                            CLASS_RETURN => emit_fn(NFA_CLASS_RETURN),
+                            CLASS_BACKSPACE => emit_fn(NFA_CLASS_BACKSPACE),
+                            CLASS_ESCAPE => emit_fn(NFA_CLASS_ESCAPE),
+                            CLASS_IDENT => emit_fn(NFA_CLASS_IDENT),
+                            CLASS_KEYWORD => emit_fn(NFA_CLASS_KEYWORD),
+                            CLASS_FNAME => emit_fn(NFA_CLASS_FNAME),
                             _ => {}
                         }
-                        EMIT(NFA_CONCAT);
+                        emit_fn(NFA_CONCAT);
                         continue;
                     }
                     if equiclass != 0 {
@@ -1466,17 +1466,17 @@ fn nfa_regatom_collection(
                     }
                     if endc > *startc + 2 {
                         if *startc == 0 {
-                            EMIT(1);
+                            emit_fn(1);
                         } else {
                             re_st().post_vec.pop();
                         }
-                        EMIT(endc);
-                        EMIT(NFA_RANGE);
-                        EMIT(NFA_CONCAT);
+                        emit_fn(endc);
+                        emit_fn(NFA_RANGE);
+                        emit_fn(NFA_CONCAT);
                     } else {
                         for ch in (*startc + 1)..=endc {
-                            EMIT(ch);
-                            EMIT(NFA_CONCAT);
+                            emit_fn(ch);
+                            emit_fn(NFA_CONCAT);
                         }
                     }
                     emit_range = false;
@@ -1486,12 +1486,12 @@ fn nfa_regatom_collection(
                         *extra = NFA_ADD_NL;
                     }
                 } else if got_coll_char && *startc == 0 {
-                    EMIT(0x0a);
-                    EMIT(NFA_CONCAT);
+                    emit_fn(0x0a);
+                    emit_fn(NFA_CONCAT);
                 } else {
-                    EMIT(*startc);
+                    emit_fn(*startc);
                     if utf_ptr2len(re_st().regparse) == utfc_ptr2len(re_st().regparse) {
-                        EMIT(NFA_CONCAT);
+                        emit_fn(NFA_CONCAT);
                     }
                 }
 
@@ -1501,41 +1501,41 @@ fn nfa_regatom_collection(
                     *c = utf_ptr2char(re_st().regparse.add(i as usize));
                     loop {
                         if *c == 0 {
-                            EMIT(1);
+                            emit_fn(1);
                         } else {
-                            EMIT(*c);
+                            emit_fn(*c);
                         }
-                        EMIT(NFA_CONCAT);
+                        emit_fn(NFA_CONCAT);
                         i += utf_char2len(*c);
                         if i >= plen {
                             break;
                         }
                         *c = utf_ptr2char(re_st().regparse.add(i as usize));
                     }
-                    EMIT(NFA_COMPOSING);
-                    EMIT(NFA_CONCAT);
+                    emit_fn(NFA_COMPOSING);
+                    emit_fn(NFA_CONCAT);
                 }
                 mb_ptr_adv(&raw mut re_st().regparse);
             }
 
             mb_ptr_back(*old_regparse, &raw mut re_st().regparse);
             if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
-                EMIT(b'-' as c_int);
-                EMIT(NFA_CONCAT);
+                emit_fn(b'-' as c_int);
+                emit_fn(NFA_CONCAT);
             }
 
             re_st().regparse = endp.cast();
             mb_ptr_adv(&raw mut re_st().regparse);
 
             if negated {
-                EMIT(NFA_END_NEG_COLL);
+                emit_fn(NFA_END_NEG_COLL);
             } else {
-                EMIT(NFA_END_COLL);
+                emit_fn(NFA_END_COLL);
             }
 
             if *extra == NFA_ADD_NL {
-                EMIT(if re_st().reg_string != 0 { NL } else { NFA_NEWL });
-                EMIT(NFA_OR);
+                emit_fn(if re_st().reg_string != 0 { NL } else { NFA_NEWL });
+                emit_fn(NFA_OR);
             }
 
             return OK;
@@ -1580,26 +1580,26 @@ fn nfa_regpiece_multi(
         let mut maxval: c_int = 0;
         let mut new_state = ParseState::new();
         skipchr();
-        if op == Magic(b'*' as c_int) {
-            EMIT(NFA_STAR);
-        } else if op == Magic(b'+' as c_int) {
+        if op == magic_fn(b'*' as c_int) {
+            emit_fn(NFA_STAR);
+        } else if op == magic_fn(b'+' as c_int) {
             restore_parse_state(&mut *old_state);
             re_st().curchr = -1;
             if !nfa_regatom() {
                 return false;
             }
-            EMIT(NFA_STAR);
-            EMIT(NFA_CONCAT);
+            emit_fn(NFA_STAR);
+            emit_fn(NFA_CONCAT);
             skipchr();
-        } else if op == Magic(b'@' as c_int) {
+        } else if op == magic_fn(b'@' as c_int) {
             let c2 = getdecchrs();
-            let mut op2 = no_Magic(getchr());
+            let mut op2 = no_magic(getchr());
             let mut i: c_int = 0;
             match op2 as u8 {
                 b'=' => i = NFA_PREV_ATOM_NO_WIDTH,
                 b'!' => i = NFA_PREV_ATOM_NO_WIDTH_NEG,
                 b'<' => {
-                    op2 = no_Magic(getchr());
+                    op2 = no_magic(getchr());
                     if op2 == b'=' as c_int {
                         i = NFA_PREV_ATOM_JUST_BEFORE;
                     } else if op2 == b'!' as c_int {
@@ -1613,16 +1613,16 @@ fn nfa_regpiece_multi(
                 semsg!(tr(c"E869: (NFA) Unknown operator '\\@%c'"), op2);
                 return false;
             }
-            EMIT(i);
+            emit_fn(i);
             if i == NFA_PREV_ATOM_JUST_BEFORE || i == NFA_PREV_ATOM_JUST_BEFORE_NEG {
-                EMIT(c2 as c_int);
+                emit_fn(c2 as c_int);
             }
-        } else if op == Magic(b'?' as c_int) || op == Magic(b'=' as c_int) {
-            EMIT(NFA_QUEST);
-        } else if op == Magic(b'{' as c_int) {
+        } else if op == magic_fn(b'?' as c_int) || op == magic_fn(b'=' as c_int) {
+            emit_fn(NFA_QUEST);
+        } else if op == magic_fn(b'{' as c_int) {
             let mut greedy = true;
             let c2 = peekchr();
-            if c2 == b'-' as c_int || c2 == Magic(b'-' as c_int) {
+            if c2 == b'-' as c_int || c2 == magic_fn(b'-' as c_int) {
                 skipchr();
                 greedy = false;
             }
@@ -1634,13 +1634,13 @@ fn nfa_regpiece_multi(
             }
             if minval == 0 && maxval == MAX_LIMIT {
                 if greedy {
-                    EMIT(NFA_STAR);
+                    emit_fn(NFA_STAR);
                 } else {
-                    EMIT(NFA_STAR_NONGREEDY);
+                    emit_fn(NFA_STAR_NONGREEDY);
                 }
             } else if maxval == 0 {
                 re_st().post_vec.truncate(my_post_start);
-                EMIT(NFA_EMPTY);
+                emit_fn(NFA_EMPTY);
                 return true;
             } else {
                 if (re_st().nfa_re_flags & RE_AUTO) != 0
@@ -1667,16 +1667,16 @@ fn nfa_regpiece_multi(
                     if i + 1 > minval {
                         if maxval == MAX_LIMIT {
                             if greedy {
-                                EMIT(NFA_STAR);
+                                emit_fn(NFA_STAR);
                             } else {
-                                EMIT(NFA_STAR_NONGREEDY);
+                                emit_fn(NFA_STAR_NONGREEDY);
                             }
                         } else {
-                            EMIT(quest);
+                            emit_fn(quest);
                         }
                     }
                     if old_post_pos != my_post_start {
-                        EMIT(NFA_CONCAT);
+                        emit_fn(NFA_CONCAT);
                     }
                     if i + 1 > minval && maxval == MAX_LIMIT {
                         break;
@@ -1705,33 +1705,33 @@ fn nfa_regconcat() -> bool {
         while cont {
             let p = peekchr();
             if p == NUL as c_int
-                || p == Magic(b'|' as c_int)
-                || p == Magic(b'&' as c_int)
-                || p == Magic(b')' as c_int)
+                || p == magic_fn(b'|' as c_int)
+                || p == magic_fn(b'&' as c_int)
+                || p == magic_fn(b')' as c_int)
             {
                 cont = false;
-            } else if p == Magic(b'Z' as c_int) {
+            } else if p == magic_fn(b'Z' as c_int) {
                 re_st().regflags |= RF_ICOMBINE;
                 skipchr_keepstart();
-            } else if p == Magic(b'c' as c_int) {
+            } else if p == magic_fn(b'c' as c_int) {
                 re_st().regflags |= RF_ICASE;
                 skipchr_keepstart();
-            } else if p == Magic(b'C' as c_int) {
+            } else if p == magic_fn(b'C' as c_int) {
                 re_st().regflags |= RF_NOICASE;
                 skipchr_keepstart();
-            } else if p == Magic(b'v' as c_int) {
+            } else if p == magic_fn(b'v' as c_int) {
                 re_st().reg_magic = MAGIC_ALL;
                 skipchr_keepstart();
                 re_st().curchr = -1;
-            } else if p == Magic(b'm' as c_int) {
+            } else if p == magic_fn(b'm' as c_int) {
                 re_st().reg_magic = MAGIC_ON;
                 skipchr_keepstart();
                 re_st().curchr = -1;
-            } else if p == Magic(b'M' as c_int) {
+            } else if p == magic_fn(b'M' as c_int) {
                 re_st().reg_magic = MAGIC_OFF;
                 skipchr_keepstart();
                 re_st().curchr = -1;
-            } else if p == Magic(b'V' as c_int) {
+            } else if p == magic_fn(b'V' as c_int) {
                 re_st().reg_magic = MAGIC_NONE;
                 skipchr_keepstart();
                 re_st().curchr = -1;
@@ -1740,7 +1740,7 @@ fn nfa_regconcat() -> bool {
                     return false;
                 }
                 if !first {
-                    EMIT(NFA_CONCAT);
+                    emit_fn(NFA_CONCAT);
                 } else {
                     first = false;
                 }
@@ -1756,24 +1756,24 @@ fn nfa_regbranch() -> bool {
         if !nfa_regconcat() {
             return false;
         }
-        while peekchr() == Magic(b'&' as c_int) {
+        while peekchr() == magic_fn(b'&' as c_int) {
             skipchr();
             if old_post_pos == re_st().post_vec.len() {
-                EMIT(NFA_EMPTY);
+                emit_fn(NFA_EMPTY);
             }
-            EMIT(NFA_NOPEN);
-            EMIT(NFA_PREV_ATOM_NO_WIDTH);
+            emit_fn(NFA_NOPEN);
+            emit_fn(NFA_PREV_ATOM_NO_WIDTH);
             old_post_pos = re_st().post_vec.len();
             if !nfa_regconcat() {
                 return false;
             }
             if old_post_pos == re_st().post_vec.len() {
-                EMIT(NFA_EMPTY);
+                emit_fn(NFA_EMPTY);
             }
-            EMIT(NFA_CONCAT);
+            emit_fn(NFA_CONCAT);
         }
         if old_post_pos == re_st().post_vec.len() {
-            EMIT(NFA_EMPTY);
+            emit_fn(NFA_EMPTY);
         }
         true
     }
@@ -1812,16 +1812,16 @@ fn nfa_reg(paren: c_int) -> bool {
             re_st().nfa_reg_parse_depth -= 1;
             return false;
         }
-        while peekchr() == Magic(b'|' as c_int) {
+        while peekchr() == magic_fn(b'|' as c_int) {
             skipchr();
             if !nfa_regbranch() {
                 re_st().nfa_reg_parse_depth -= 1;
                 return false;
             }
-            EMIT(NFA_OR);
+            emit_fn(NFA_OR);
         }
 
-        if paren != REG_NOPAREN && getchr() != Magic(b')' as c_int) {
+        if paren != REG_NOPAREN && getchr() != magic_fn(b')' as c_int) {
             if paren == REG_NPAREN {
                 semsg!(
                     tr(E_UNMATCHED_STR_PERCENT_OPEN),
@@ -1845,7 +1845,7 @@ fn nfa_reg(paren: c_int) -> bool {
             re_st().nfa_reg_parse_depth -= 1;
             return false;
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
-            if peekchr() == Magic(b')' as c_int) {
+            if peekchr() == magic_fn(b')' as c_int) {
                 semsg!(
                     tr(E_UNMATCHED_STR_CLOSE),
                     if re_st().reg_magic == MAGIC_ALL {
@@ -1864,9 +1864,9 @@ fn nfa_reg(paren: c_int) -> bool {
 
         if paren == REG_PAREN {
             *(&raw mut re_st().had_endbrace).cast::<u8>().add(parno as usize) = 1;
-            EMIT(NFA_MOPEN + parno);
+            emit_fn(NFA_MOPEN + parno);
         } else if paren == REG_ZPAREN {
-            EMIT(NFA_ZOPEN + parno);
+            emit_fn(NFA_ZOPEN + parno);
         }
 
         re_st().nfa_reg_parse_depth -= 1;
@@ -1878,7 +1878,7 @@ fn re2post() -> bool {
     if !nfa_reg(REG_NOPAREN) {
             return false;
         }
-        EMIT(NFA_MOPEN);
+        emit_fn(NFA_MOPEN);
         true
 }
 
@@ -2381,7 +2381,7 @@ fn copy_pim(to: &mut NfaPim, from: &mut NfaPim) {
 fn clear_sub(sub: &mut Regsub) {
     {
         let n = re_st().rex.nfa_nsubexpr as usize;
-        if REG_MULTI() {
+        if reg_multi() {
             sub.list.multi_mut()[..n].fill(MultiPos {
                 start_lnum: -1,
                 end_lnum: -1,
@@ -2402,7 +2402,7 @@ fn copy_sub(to: &mut Regsub, from: &mut Regsub) {
     if in_use <= 0 {
         return;
     }
-    if REG_MULTI() {
+    if reg_multi() {
         to.orig_start_col = from.orig_start_col;
     }
     if in_use == 1 {
@@ -2427,7 +2427,7 @@ fn copy_ze_off(to: &mut Regsub, from: &mut Regsub) {
     if re_st().rex.nfa_has_zend == 0 {
             return;
         }
-        if REG_MULTI() {
+        if reg_multi() {
             let from_m = from.list.multi()[0];
             if from_m.end_lnum >= 0 {
                 to.list.multi_mut()[0].end_lnum = from_m.end_lnum;
@@ -2445,7 +2445,7 @@ fn copy_ze_off(to: &mut Regsub, from: &mut Regsub) {
 fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
     let todo = sub1.in_use.max(sub2.in_use) as usize;
     if todo == 1 && sub1.in_use == 1 && sub2.in_use == 1 && re_st().rex.nfa_has_backref == 0 {
-        if REG_MULTI() {
+        if reg_multi() {
             let m1 = sub1.list.multi()[0];
             let m2 = sub2.list.multi()[0];
             return m1.start_lnum == m2.start_lnum
@@ -2454,7 +2454,7 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
             return sub1.list.line()[0].start == sub2.list.line()[0].start;
         }
     }
-        if REG_MULTI() {
+        if reg_multi() {
             let m1 = sub1.list.multi();
             let m2 = sub2.list.multi();
             for i in 0..todo {
@@ -2568,7 +2568,7 @@ fn pim_equal(one: Option<&NfaPim>, two: Option<&NfaPim>) -> bool {
         if one.unwrap().state != two.unwrap().state {
             return false;
         }
-        if REG_MULTI() {
+        if reg_multi() {
             let p1 = one.unwrap().end.pos();
             let p2 = two.unwrap().end.pos();
             p1.lnum == p2.lnum && p1.col == p2.col
@@ -2694,7 +2694,7 @@ fn addstate_idx(
                     && re_st().rex.input > re_st().rex.line
                     && *re_st().rex.input != NUL
                     && (re_st().nfa_endp.is_null()
-                        || !REG_MULTI()
+                        || !reg_multi()
                         || re_st().rex.lnum == (*re_st().nfa_endp).se_u.pos().lnum)
                 {
                     return subs_arg;
@@ -2829,7 +2829,7 @@ fn addstate_eps(
                 let mut save_multipos = MultiPos::new();
                 let save_in_use: c_int;
 
-                if REG_MULTI() {
+                if reg_multi() {
                     let multi = (*sub).list.multi_mut();
                     if (subidx as c_int) < (*sub).in_use {
                         save_multipos = multi[subidx];
@@ -2879,7 +2879,7 @@ fn addstate_eps(
                         &raw mut (*subs).norm
                     };
                     if save_in_use == -1 {
-                        if REG_MULTI() {
+                        if reg_multi() {
                             (*sub).list.multi_mut()[subidx] = save_multipos;
                         } else {
                             (*sub).list.line_mut()[subidx].start = save_ptr;
@@ -2895,7 +2895,7 @@ fn addstate_eps(
             {
                 if c == NFA_MCLOSE
                     && re_st().rex.nfa_has_zend != 0
-                    && if REG_MULTI() {
+                    && if reg_multi() {
                         (*subs).norm.list.multi()[0].end_lnum >= 0
                     } else {
                         !(*subs).norm.list.line()[0].end.is_null()
@@ -2919,7 +2919,7 @@ fn addstate_eps(
                     }
                     let mut save_ptr: *mut u8 = ptr::null_mut();
                     let mut save_multipos = MultiPos::new();
-                    if REG_MULTI() {
+                    if reg_multi() {
                         let multi = (*sub).list.multi_mut();
                         save_multipos = multi[subidx];
                         if off == -1 {
@@ -2948,7 +2948,7 @@ fn addstate_eps(
                             &raw mut (*subs).norm
                         }
                         ;
-                        if REG_MULTI() {
+                        if reg_multi() {
                             (*sub).list.multi_mut()[subidx] = save_multipos;
                         } else {
                             (*sub).list.line_mut()[subidx].end = save_ptr;
@@ -3107,7 +3107,7 @@ fn check_char_class(cls: c_int, c: c_int) -> bool {
                 }
             }
             NFA_CLASS_IDENT => {
-                if vim_isIDc(c) {
+                if vim_is_idc(c) {
                     return true;
                 }
             }
@@ -3136,7 +3136,7 @@ fn match_backref(sub: &mut Regsub, subidx: c_int, bytelen: &mut c_int) -> bool {
             return true;
         }
         let idx = subidx as usize;
-        if REG_MULTI() {
+        if reg_multi() {
             let mpos = sub.list.multi()[idx];
             if mpos.start_lnum < 0 || mpos.end_lnum < 0 {
                 *bytelen = 0;
@@ -3258,7 +3258,7 @@ fn recursive_regmatch(
         let mut need_restore = false;
 
         if let Some(pim) = pim {
-            if REG_MULTI() {
+            if reg_multi() {
                 re_st().rex.input = re_st().rex.line.add(pim.end.pos().col as usize);
             } else {
                 re_st().rex.input = pim.end.ptr();
@@ -3273,7 +3273,7 @@ fn recursive_regmatch(
         {
             if let Some(pim) = pim {
                 endpos.se_u = pim.end;
-            } else if REG_MULTI() {
+            } else if reg_multi() {
                 endpos.se_u = crate::regexp::RegPos::Pos(Lpos {
                     col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
                     lnum: re_st().rex.lnum,
@@ -3284,7 +3284,7 @@ fn recursive_regmatch(
             endposp = &raw mut endpos;
 
             if st.val <= 0 {
-                if REG_MULTI() {
+                if reg_multi() {
                     re_st().rex.lnum -= 1;
                     re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                     if re_st().rex.line.is_null() {
@@ -3294,7 +3294,7 @@ fn recursive_regmatch(
                 }
                 re_st().rex.input = re_st().rex.line;
             } else {
-                if REG_MULTI() && (re_st().rex.input.offset_from(re_st().rex.line) as c_int) < st.val {
+                if reg_multi() && (re_st().rex.input.offset_from(re_st().rex.line) as c_int) < st.val {
                     re_st().rex.lnum -= 1;
                     re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                     if re_st().rex.line.is_null() {
@@ -3341,7 +3341,7 @@ fn recursive_regmatch(
         }
 
         re_st().rex.lnum = save_reglnum;
-        if REG_MULTI() {
+        if reg_multi() {
             re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
         }
         re_st().rex.input = re_st().rex.line.add(save_reginput_col);
@@ -3435,7 +3435,7 @@ fn find_match_text(startcol: &mut Colnr, regstart: c_int, match_text: *const u8)
             }
             if matched && !utf_iscomposing_legacy(utf_ptr2char(s2.cast())) {
                 cleanup_subexpr();
-                if REG_MULTI() {
+                if reg_multi() {
                     (*re_st().rex.reg_startpos).lnum = re_st().rex.lnum;
                     (*re_st().rex.reg_startpos).col = col;
                     (*re_st().rex.reg_endpos).lnum = re_st().rex.lnum;
@@ -3584,7 +3584,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
         ];
 
         let r = if toplevel {
-            if REG_MULTI() {
+            if reg_multi() {
                 let start_col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
                 m.norm.list.multi_mut()[0].start_lnum = re_st().rex.lnum;
                 m.norm.list.multi_mut()[0].start_col = start_col;
@@ -3701,7 +3701,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                     }
                     NFA_END_INVISIBLE | NFA_END_INVISIBLE_NEG | NFA_END_PATTERN => {
                         if !re_st().nfa_endp.is_null()
-                            && if REG_MULTI() {
+                            && if reg_multi() {
                                 let end_pos = (*re_st().nfa_endp).se_u.pos();
                                 re_st().rex.lnum != end_pos.lnum
                                     || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) != end_pos.col
@@ -3778,7 +3778,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                             pim.result = NFA_PIM_TODO;
                             pim.subs.norm.in_use = 0;
                             pim.subs.synt.in_use = 0;
-                            if REG_MULTI() {
+                            if reg_multi() {
                                 pim.end = crate::regexp::RegPos::Pos(Lpos {
                                     col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
                                     lnum: re_st().rex.lnum,
@@ -3848,7 +3848,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                                 if re_st().rex.nfa_has_zsubexpr != 0 {
                                     copy_sub_off(&mut (*t).subs.synt, &mut m.synt);
                                 }
-                                let bytelen = if REG_MULTI() {
+                                let bytelen = if reg_multi() {
                                     m.norm.list.multi()[0].end_col
                                         - (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
                                 } else {
@@ -3908,7 +3908,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                     NFA_BOF => {
                         if re_st().rex.lnum == 0
                             && re_st().rex.input == re_st().rex.line
-                            && (!REG_MULTI() || re_st().rex.reg_firstlnum == 1)
+                            && (!reg_multi() || re_st().rex.reg_firstlnum == 1)
                         {
                             add_here = true;
                             add_state = t_st.out;
@@ -3929,7 +3929,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                     NFA_NEWL => {
                         if curc == NUL as c_int
                             && !re_st().rex.reg_line_lbr
-                            && REG_MULTI()
+                            && reg_multi()
                             && re_st().rex.lnum <= re_st().rex.reg_maxline
                         {
                             go_to_nextline = true;
@@ -4027,13 +4027,13 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                         add_state = t_st.out;
                     }
                     NFA_IDENT => {
-                        if vim_isIDc(curc) {
+                        if vim_is_idc(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
                     }
                     NFA_SIDENT => {
-                        if !ascii_isdigit(curc) && vim_isIDc(curc) {
+                        if !ascii_isdigit(curc) && vim_is_idc(curc) {
                             add_state = t_st.out;
                             add_off = clen;
                         }
@@ -4245,7 +4245,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                         }
                     }
                     NFA_LNUM | NFA_LNUM_GT | NFA_LNUM_LT => {
-                        if REG_MULTI()
+                        if reg_multi()
                             && nfa_re_num_cmp(
                                 t_st.val as u64,
                                 t_st.c - NFA_LNUM,
@@ -4284,12 +4284,12 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                                 matched = i64::from(col) > i64::from(t_st.val) * ts;
                             }
                             if !matched {
-                                let mut lnum = if REG_MULTI() {
+                                let mut lnum = if reg_multi() {
                                     re_st().rex.reg_firstlnum + re_st().rex.lnum
                                 } else {
                                     1
                                 };
-                                if REG_MULTI()
+                                if reg_multi()
                                     && (lnum <= 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count)
                                 {
                                     lnum = 1;
@@ -4308,7 +4308,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                         }
                     }
                     NFA_MARK | NFA_MARK_GT | NFA_MARK_LT => {
-                        let col = if REG_MULTI() {
+                        let col = if reg_multi() {
                             re_st().rex.input.offset_from(re_st().rex.line) as usize
                         } else {
                             0
@@ -4320,7 +4320,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                             K_MARK_BUF_LOCAL,
                             t_st.val,
                         );
-                        if REG_MULTI() {
+                        if reg_multi() {
                             re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                             re_st().rex.input = re_st().rex.line.add(col);
                         }
@@ -4490,7 +4490,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                     && (re_st().rex.reg_maxcol == 0
                         || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) < re_st().rex.reg_maxcol))
                     || (!re_st().nfa_endp.is_null()
-                        && if REG_MULTI() {
+                        && if reg_multi() {
                             let end_pos = (*re_st().nfa_endp).se_u.pos();
                             re_st().rex.lnum < end_pos.lnum
                                 || (re_st().rex.lnum == end_pos.lnum
@@ -4518,7 +4518,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                         }
                     }
                     if add {
-                        if REG_MULTI() {
+                        if reg_multi() {
                             let start_col = (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + clen;
                             m.norm.list.multi_mut()[0].start_col = start_col;
                             m.norm.orig_start_col = start_col;
@@ -4546,7 +4546,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                     let save_input = re_st().rex.input;
                     let save_lnum = re_st().rex.lnum;
 
-                    if REG_MULTI()
+                    if reg_multi()
                         && clen == 0
                         && !re_st().nfa_endp.is_null()
                         && re_st().rex.lnum < (*re_st().nfa_endp).se_u.pos().lnum
@@ -4583,7 +4583,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
             if clen != 0 {
                 re_st().rex.input = re_st().rex.input.add(clen as usize);
             } else if go_to_nextline
-                || (!re_st().nfa_endp.is_null() && REG_MULTI() && re_st().rex.lnum < (*re_st().nfa_endp).se_u.pos().lnum)
+                || (!re_st().nfa_endp.is_null() && reg_multi() && re_st().rex.lnum < (*re_st().nfa_endp).se_u.pos().lnum)
             {
                 reg_nextline();
             } else {
@@ -4658,7 +4658,7 @@ fn nfa_regtry(
         }
 
         cleanup_subexpr();
-        if REG_MULTI() {
+        if reg_multi() {
             let norm_multi = subs.norm.list.multi();
             for (i, item) in norm_multi[..subs.norm.in_use as usize].iter().enumerate() {
                 (*re_st().rex.reg_startpos.add(i)).lnum = item.start_lnum;
@@ -4699,7 +4699,7 @@ fn nfa_regtry(
             cleanup_zsubexpr();
             let mut extmatch = RegExtmatch::default();
             for i in 1..subs.synt.in_use as usize {
-                if REG_MULTI() {
+                if reg_multi() {
                     let mpos = subs.synt.list.multi()[i];
                     if mpos.start_lnum >= 0
                         && mpos.start_lnum == mpos.end_lnum
@@ -4736,7 +4736,7 @@ fn nfa_regexec_both(
         let mut retval: c_int = 0;
         let mut col = startcol;
 
-        let prog: *mut NfaRegprog = if REG_MULTI() {
+        let prog: *mut NfaRegprog = if reg_multi() {
             let p = (*(*re_st().rex.reg_mmatch).regprog).nfa_mut();
             line = reg_getline(0).cast();
             re_st().rex.reg_startpos = (&raw mut (*re_st().rex.reg_mmatch).startpos).cast();
@@ -4795,7 +4795,7 @@ fn nfa_regexec_both(
                 && !re_st().rex.reg_icombine
             {
                 retval = find_match_text(&mut col, (*prog).regstart, mt.as_ptr().cast::<u8>());
-                if REG_MULTI() {
+                if reg_multi() {
                     (*re_st().rex.reg_mmatch).rmm_matchcol = col;
                 } else {
                     (*re_st().rex.reg_match).rm_matchcol = col;
@@ -4822,7 +4822,7 @@ fn nfa_regexec_both(
 fn finish_nfa_regexec(retval: c_int, col: Colnr) -> c_int {
     unsafe {
         if retval > 0 {
-            if REG_MULTI() {
+            if reg_multi() {
                 let start = (*re_st().rex.reg_mmatch).startpos[0];
                 let end = (*re_st().rex.reg_mmatch).endpos[0];
                 if end.lnum < start.lnum || (end.lnum == start.lnum && end.col < start.col) {

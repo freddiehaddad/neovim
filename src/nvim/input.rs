@@ -49,8 +49,8 @@ use crate::mapping::{
     langmap_adjust_mb, map_luaid_get, Mapblock, Typebuf,
 };
 use crate::mbyte::{
-    mb_cptr2char_adv, mb_unescape, utf_ClusterInfo, utf_byte2len, utf_char2bytes, utf_head_off,
-    utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char,
+    mb_cptr2char_adv, mb_unescape, utf_cluster_info, utf_byte2len, utf_char2bytes, utf_head_off,
+    utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char,
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
@@ -832,17 +832,17 @@ pub fn redo_append_char(c: c_int) {
 }
 
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
-pub fn stuffReadbuff(s: impl crate::strings::IntoCCharPtr) {
+pub fn stuff_readbuff(s: impl crate::strings::IntoCCharPtr) {
     let s = s.into_c_char_ptr();
     add_buff(&mut inp_st().readbuf1, s, -1);
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
-pub fn stuffRedoReadbuff(s: &std::ffi::CStr) {
+pub fn stuff_redo_readbuff(s: &std::ffi::CStr) {
     add_buff(&mut inp_st().readbuf2, s.as_ptr(), -1);
 }
 
-pub fn stuffReadbuffLen(s: impl crate::strings::IntoCCharPtr, len: isize) {
+pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
     let s = s.into_c_char_ptr();
     unsafe {
         if g_st().add_last_insert == 1 && len > 0 {
@@ -857,26 +857,26 @@ pub fn stuffReadbuffSpecial(s: impl crate::strings::IntoCCharPtr) { let mut s = 
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
             if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
-                stuffReadbuffLen(s, 3);
+                stuff_readbuff_len(s, 3);
                 s = s.add(3);
             } else {
                 let mut c = mb_cptr2char_adv(&raw mut s);
                 if c == CAR || c == NL || c == ESC {
                     c = b' ' as c_int;
                 }
-                stuffcharReadbuff(c);
+                stuffchar_readbuff(c);
             }
         }
     }
 }
 
 /// Appends character `c` to the stuff buffer, translated to typeahead encoding.
-pub fn stuffcharReadbuff(c: c_int) {
+pub fn stuffchar_readbuff(c: c_int) {
     add_char_buff(&mut inp_st().readbuf1, c);
 }
 
 /// Append a number to the stuff buffer.
-pub fn stuffnumReadbuff(n: c_int) {
+pub fn stuffnum_readbuff(n: c_int) {
     add_num_buff(&mut inp_st().readbuf1, n);
 }
 
@@ -891,15 +891,15 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) { l
                 arg = arg.add(1);
             }
             if arg > start {
-                stuffReadbuffLen(start, arg.offset_from(start));
+                stuff_readbuff_len(start, arg.offset_from(start));
             }
 
             if !crate::memory::cstr_is_empty(arg) {
                 let c = mb_cptr2char_adv(&raw mut arg);
                 if literally && ((c < b' ' as c_int && c != TAB) || c == DEL) {
-                    stuffcharReadbuff(CTRL_V_CONST);
+                    stuffchar_readbuff(CTRL_V_CONST);
                 }
-                stuffcharReadbuff(c);
+                stuffchar_readbuff(c);
             }
         }
     }
@@ -2683,13 +2683,13 @@ fn vgetorpeek(advance: bool) -> c_int {
                                         curwin_mut().w_cursor.lnum,
                                         ptr,
                                     );
-                                    let mut ci: StrCharInfo = utf_ptr2StrCharInfo(ptr);
+                                    let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr);
                                     let mut vcol: c_int = 0;
                                     while ci.ptr < endptr.cast_const() {
                                         if !ascii_iswhite(ci.chr.value) {
                                             curwin_mut().w_wcol = vcol;
                                         }
-                                        let cli: ClusterInfo = utf_ClusterInfo(ci);
+                                        let cli: ClusterInfo = utf_cluster_info(ci);
                                         vcol += win_charsize(
                                             cstype,
                                             vcol,

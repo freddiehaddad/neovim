@@ -35,12 +35,12 @@ use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, Exarg};
 use crate::ex_getln::{CTRL_A, CTRL_F_CONST, CTRL_L_CONST, CTRL_R_CONST, CTRL_W_CONST, cmdline_paste_str, getcmdline};
 use crate::extmark::{Bcount, extmark_splice, extmark_splice_cols, K_EXTMARK_NOOP, K_EXTMARK_UNDO};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
-use crate::fold::hasFolding;
+use crate::fold::has_folding;
 use crate::globals::*;
 use crate::indent::{get_indent, preprocs_left, set_indent, tabstop_padding};
 use crate::input::{
-    beep_flush, get_recorded, ins_typebuf, redo_append_char, stuffReadbuff, stuffReadbuffLen,
-    stuffcharReadbuff, stuffescaped,
+    beep_flush, get_recorded, ins_typebuf, redo_append_char, stuff_readbuff, stuff_readbuff_len,
+    stuffchar_readbuff, stuffescaped,
 };
 use crate::insert::{beginline, get_last_insert, get_last_insert_save, oneright, stuff_inserted};
 use crate::insexpand::{ins_compl_delete, ins_compl_preinsert_effect};
@@ -50,8 +50,8 @@ use crate::keycodes::{
 use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::mark::mark_adjust;
 use crate::mbyte::{
-    mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_ClusterInfo, utf_head_off,
-    utf_ptr2StrCharInfo, utfc_ptr2len,
+    mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_cluster_info, utf_head_off,
+    utf_ptr2_str_char_info, utfc_ptr2len,
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
@@ -903,7 +903,7 @@ pub fn insert_reg(regname: c_int, mut reg: *mut Yankreg, literally_arg: bool) ->
                         if reg_ref.y_type == MotionType::MtLineWise
                             || i < reg_ref.y_array.len() - 1
                         {
-                            stuffcharReadbuff(c_int::from(b'\n'));
+                            stuffchar_readbuff(c_int::from(b'\n'));
                         }
                     }
                 }
@@ -1584,23 +1584,23 @@ pub fn do_put(
             if (flags & PUT_LINE) != 0 {
                 let save_add_last_insert = g_st().add_last_insert;
                 g_st().add_last_insert = 0;
-                stuffcharReadbuff(K_COMMAND);
+                stuffchar_readbuff(K_COMMAND);
                 if dir == FORWARD {
-                    stuffReadbuffLen(c"put _", 5);
+                    stuff_readbuff_len(c"put _", 5);
                 } else {
-                    stuffReadbuffLen(c"put! _", 6);
+                    stuff_readbuff_len(c"put! _", 6);
                 }
-                stuffcharReadbuff(c_int::from(CAR as u8));
+                stuffchar_readbuff(c_int::from(CAR as u8));
                 g_st().add_last_insert = save_add_last_insert;
             }
 
             if (flags & PUT_LINE) != 0 {
-                stuffcharReadbuff(command_start_char);
+                stuffchar_readbuff(command_start_char);
                 while count > 0 {
                     stuff_inserted(0, 1, c_int::from(count != 1));
                     if count != 1 {
                         let s: [u8; 4] = [b'\n', b' ', CTRL_U_CONST, 0];
-                        stuffReadbuffLen(s.as_ptr().cast::<c_char>(), 3);
+                        stuff_readbuff_len(s.as_ptr().cast::<c_char>(), 3);
                     }
                     count -= 1;
                 }
@@ -1624,7 +1624,7 @@ pub fn do_put(
 
             if (flags & PUT_CURSEND) != 0 {
                 if (flags & PUT_LINE) != 0 {
-                    stuffReadbuff(c"j0");
+                    stuff_readbuff(c"j0");
                 } else {
                     let cursor_pos = get_cursor_pos_ptr();
                     let one_past_line = crate::memory::cstr_is_empty(cursor_pos);
@@ -1638,11 +1638,11 @@ pub fn do_put(
                     let eof =
                         curbuf_mut().b_ml.ml_line_count == curwin_mut().w_cursor.lnum && one_past_line;
                     if ve_allows || !(eol || eof) {
-                        stuffcharReadbuff(c_int::from(b'l'));
+                        stuffchar_readbuff(c_int::from(b'l'));
                     }
                 }
             } else if (flags & PUT_LINE) != 0 {
-                stuffReadbuff(c"g'[");
+                stuff_readbuff(c"g'[");
             }
 
             if command_start_char == c_int::from(b'a')
@@ -1814,9 +1814,9 @@ pub fn do_put(
             } else if y_type == MotionType::MtLineWise {
                 lnum = curwin_mut().w_cursor.lnum;
                 if dir == BACKWARD {
-                    hasFolding(curwin_ptr(), lnum, Some(&mut lnum), ptr::null_mut());
+                    has_folding(curwin_ptr(), lnum, Some(&mut lnum), ptr::null_mut());
                 } else {
-                    hasFolding(curwin_ptr(), lnum, None, &raw mut lnum);
+                    has_folding(curwin_ptr(), lnum, None, &raw mut lnum);
                 }
                 if dir == FORWARD {
                     lnum += 1;
@@ -1949,10 +1949,10 @@ pub fn do_put(
                     let mut csarg = CharsizeArg::new();
                     let mut cstype: CSType =
                         init_charsize_arg(&mut csarg, curwin_mut(), curwin_mut().w_cursor.lnum, oldp);
-                    let mut ci = utf_ptr2StrCharInfo(oldp);
+                    let mut ci = utf_ptr2_str_char_info(oldp);
                     vcol = 0;
                     while vcol < col && !crate::memory::cstr_is_empty(ci.ptr) {
-                        let cli = utf_ClusterInfo(ci);
+                        let cli = utf_cluster_info(ci);
                         incr = win_charsize(
                             cstype,
                             vcol,
@@ -1991,9 +1991,9 @@ pub fn do_put(
 
                         cstype =
                             init_charsize_arg(&mut csarg, curwin_mut(), 0, (*y_array.add(i)).data);
-                        ci = utf_ptr2StrCharInfo((*y_array.add(i)).data);
+                        ci = utf_ptr2_str_char_info((*y_array.add(i)).data);
                         while !crate::memory::cstr_is_empty(ci.ptr) {
-                            let cli = utf_ClusterInfo(ci);
+                            let cli = utf_cluster_info(ci);
                             spaces -= win_charsize(
                                 cstype,
                                 0,
