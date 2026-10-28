@@ -3170,7 +3170,7 @@ pub fn msg_add_fileformat(eol_type: i32) -> bool {
             let _dst: *mut c_char = iobuf_ptr;
             let _dsize: usize = IOSIZE;
             let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]"), _dsize - _dlen);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[dos]"), _dsize - _dlen);
         };
         return true;
     }
@@ -4933,7 +4933,7 @@ pub fn read_eintr(fd: i32, buf: *mut c_void, bufsize: usize) -> isize {
         #[cfg(windows)]
         let ret = unsafe { _read(fd, buf, bufsize as u32) } as isize;
         #[cfg(not(windows))]
-        let ret = read(fd, buf, bufsize);
+        let ret = unsafe { read(fd, buf, bufsize) };
         if ret >= 0 || os_errno() != EINTR {
             return ret;
         }
@@ -4950,7 +4950,7 @@ pub fn write_eintr(fd: i32, buf: *const c_void, bufsize: usize) -> isize {
         let wlen = unsafe { _write(fd, buf.cast::<u8>().wrapping_offset(ret).cast(), rem as u32) }
             as isize;
         #[cfg(not(windows))]
-        let wlen = write(fd, buf.cast::<u8>().offset(ret).cast(), rem);
+        let wlen = unsafe { write(fd, buf.cast::<u8>().wrapping_offset(ret).cast(), rem) };
         if wlen < 0 {
             if os_errno() != EINTR {
                 break;

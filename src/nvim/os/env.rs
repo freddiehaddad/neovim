@@ -697,21 +697,23 @@ pub fn expand_env_esc(
 
                     #[cfg(not(windows))]
                     if crate::memory::cstr_first_byte(tail) == b'{' {
-                        tail = tail.add(1);
+                        tail = tail.wrapping_add(1);
                         while c > 0
                             && !crate::memory::cstr_is_empty(tail)
                             && crate::memory::cstr_first_byte(tail) != b'}'
                         {
                             c -= 1;
-                            *var = *tail;
-                            var = var.add(1);
-                            tail = tail.add(1);
+                            unsafe {
+                                *var = *tail;
+                            }
+                            var = var.wrapping_add(1);
+                            tail = tail.wrapping_add(1);
                         }
                     } else {
                         let len = env_name_len(tail).min(c.max(0) as usize);
-                        ptr::copy_nonoverlapping(tail, var, len);
-                        var = var.add(len);
-                        tail = tail.add(len);
+                        unsafe { ptr::copy_nonoverlapping(tail, var, len) };
+                        var = var.wrapping_add(len);
+                        tail = tail.wrapping_add(len);
                     }
 
                     #[cfg(windows)]
@@ -729,9 +731,11 @@ pub fn expand_env_esc(
                         var = ptr::null_mut();
                     } else {
                         if crate::memory::cstr_byte_at(src, 1) == b'{' {
-                            tail = tail.add(1);
+                            tail = tail.wrapping_add(1);
                         }
-                        *var = NUL;
+                        unsafe {
+                            *var = NUL;
+                        }
                         var_cstr = vim_getenv(dst);
                         if let Some(ref c) = var_cstr {
                             to_slash(c.as_ptr().cast_mut());
@@ -773,20 +777,24 @@ pub fn expand_env_esc(
                         var = dst;
                         let mut c = dstlen - 1;
                         while c > 0
-                            && *tail != 0
+                            && unsafe { *tail } != 0
                             && vim_isfilec(i32::from(crate::memory::cstr_first_byte(tail)))
                             && !vim_ispathsep(i32::from(crate::memory::cstr_first_byte(tail)))
                         {
                             c -= 1;
-                            *var = *tail;
-                            var = var.add(1);
-                            tail = tail.add(1);
+                            unsafe {
+                                *var = *tail;
+                            }
+                            var = var.wrapping_add(1);
+                            tail = tail.wrapping_add(1);
                         }
-                        *var = NUL;
+                        unsafe {
+                            *var = NUL;
+                        }
                         if crate::memory::cstr_is_empty(dst) {
                             var = ptr::null_mut();
                         } else {
-                            var_cstr = os_get_userdir(dst.add(1));
+                            var_cstr = os_get_userdir(dst.wrapping_add(1));
                             var = var_cstr
                                 .as_ref()
                                 .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());

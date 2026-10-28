@@ -996,7 +996,7 @@ fn terminfo_start(tui: &mut TUIData) {
             let mut retry_count = 10;
             let mut ret;
             loop {
-                ret = uv_tty_set_mode(output_handle.cast(), UV_TTY_MODE_IO);
+                ret = unsafe { uv_tty_set_mode(output_handle.cast(), UV_TTY_MODE_IO) };
                 if ret == UV_EINTR && retry_count > 0 {
                     retry_count -= 1;
                 } else {
@@ -1011,7 +1011,7 @@ fn terminfo_start(tui: &mut TUIData) {
                     638,
                     true,
                     c"uv_tty_set_mode failed: %s",
-                    uv_strerror(ret),
+                    unsafe { uv_strerror(ret) },
                 );
             }
         }
@@ -2209,7 +2209,7 @@ fn tui_suspend_cb(tui: &mut TUIData) {
     unsafe {
         let input = tui_input(tui);
         tui_terminal_stop(tui);
-        stream_set_blocking((*input).in_fd, true);
+        stream_set_blocking(input.in_fd, true);
 
         let ppid = getppid();
         if getpgid(ppid) == getpgrp() {
@@ -2222,7 +2222,7 @@ fn tui_suspend_cb(tui: &mut TUIData) {
         if tui.mouse_enabled_save {
             tui_mouse_on(tui);
         }
-        stream_set_blocking((*input).in_fd, false);
+        stream_set_blocking(input.in_fd, false);
         ui_client_attach(tui.width, tui.height, tui.term.as_deref(), tui.rgb);
     }
 }
@@ -3084,7 +3084,7 @@ fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
     #[cfg(unix)]
     {
         let mut t = unix_termios::termios::new();
-        if unix_termios::tcgetattr(input.in_fd, &raw mut t) != -1 {
+        if unsafe { unix_termios::tcgetattr(input.in_fd, &raw mut t) } != -1 {
             tui_st().stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
             tui_st().stty_erase_buf[1] = NUL;
             if log_st().g_min_log_level <= LOGLVL_DBG {

@@ -1821,7 +1821,7 @@ pub fn buf_write(
                                 }
                             }
                             buf_set_file_id(&mut *buf);
-                        } else if !(*buf).file_id_valid {
+                        } else if !buf.file_id_valid {
                             buf_set_file_id(&mut *buf);
                         }
 

@@ -638,7 +638,7 @@ pub fn path_has_wildcard(p: impl crate::strings::IntoCCharPtr, all: bool) -> boo
             #[cfg(unix)]
             if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0
             {
-                p = p.add(2);
+                p = p.wrapping_add(2);
                 continue;
             }
             if crate::strings::vim_haschr(wildcards, crate::memory::cstr_first_byte(p) as i32)
@@ -1386,7 +1386,7 @@ pub fn gen_expand_wildcards_vec(
 
     #[cfg(unix)]
     for i in 0..num_pat {
-        let pi = *pat.add(i as usize);
+        let pi = unsafe { *pat.wrapping_add(i as usize) };
         if has_special_wildchar(pi, flags)
             && !(vim_backtick(pi) && crate::memory::cstr_byte_at(pi, 1) == b'=')
         {
@@ -2923,7 +2923,9 @@ mod tests {
             );
             #[cfg(not(any(windows, target_os = "macos")))]
             assert_eq!(
-                CStr::from_ptr(case_buf.as_ptr().cast()).to_str().unwrap(),
+                crate::memory::cstr_from_ptr(case_buf.as_ptr().cast())
+                    .to_str()
+                    .unwrap(),
                 format!("{rel_dir}/camelcase")
             );
 

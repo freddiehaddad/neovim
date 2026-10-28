@@ -1138,7 +1138,7 @@ fn command_line_enter(
         s.xpc.xp_backslash = XP_BS_NONE;
         #[cfg(not(windows))]
         {
-            (*s).xpc.xp_shell = false;
+            s.xpc.xp_shell = false;
         }
 
         if getln_st().ccline.input_fn != 0 {

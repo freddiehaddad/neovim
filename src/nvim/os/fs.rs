@@ -31,7 +31,6 @@ use crate::strings::gettext;
 #[cfg(unix)]
 use crate::strings::strerror;
 use crate::ui::ui_call_chdir;
-#[cfg(windows)]
 use std::ffi::{CStr, c_char, c_void};
 use std::ptr;
 
@@ -981,7 +980,13 @@ pub fn os_read(
                 )
             } as isize;
             #[cfg(not(windows))]
-            let cur_read_bytes = read(fd, ret_buf.add(read_bytes).cast(), size - read_bytes);
+            let cur_read_bytes = unsafe {
+                read(
+                    fd,
+                    ret_buf.wrapping_add(read_bytes).cast(),
+                    size - read_bytes,
+                )
+            };
 
             if cur_read_bytes > 0 {
                 read_bytes += cur_read_bytes as usize;
@@ -1099,7 +1104,13 @@ pub fn os_write(
                 )
             } as isize;
             #[cfg(not(windows))]
-            let cur_written_bytes = write(fd, buf.add(written_bytes).cast(), size - written_bytes);
+            let cur_written_bytes = unsafe {
+                write(
+                    fd,
+                    buf.wrapping_add(written_bytes).cast(),
+                    size - written_bytes,
+                )
+            };
 
             if cur_written_bytes > 0 {
                 written_bytes += cur_written_bytes as usize;

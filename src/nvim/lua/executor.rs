@@ -719,7 +719,7 @@ fn nlua_luv_thread_common_cfpcall(
             }
             #[cfg(not(windows))]
             {
-                pthread_exit(ptr::null_mut());
+                unsafe { pthread_exit(ptr::null_mut()) };
             }
         }
         let mut len: usize = 0;

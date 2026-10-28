@@ -138,7 +138,7 @@ pub fn ui_client_start_server(
             }
             #[cfg(not(windows))]
             {
-                let _ = dup(if g_st().stderr_isatty { 2 } else { 1 });
+                let _ = unsafe { dup(if g_st().stderr_isatty { 2 } else { 1 }) };
             }
         }
 

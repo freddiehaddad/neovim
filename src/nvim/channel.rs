@@ -558,7 +558,7 @@ pub fn channel_job_start(
             #[cfg(windows)]
             let mut err = callback_reader_set(&chan.on_stderr);
             #[cfg(not(windows))]
-            let err = callback_reader_set(&(*chan).on_stderr);
+            let err = callback_reader_set(&chan.on_stderr);
             (*pt).fwd_err = chan.on_stderr.fwd_err;
             #[cfg(windows)]
             if !err && (*pt).fwd_err && (*pt).detach {
@@ -714,10 +714,10 @@ pub fn channel_from_stdio(rpc: bool, on_output: CallbackReader, error: *mut *con
 
     #[cfg(not(windows))]
     if g_st().embedded_mode {
-        stdin_dup_fd = fcntl(STDIN_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
-        stdout_dup_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
-        let _ = dup2(STDERR_FILENO, STDOUT_FILENO);
-        let _ = dup2(STDERR_FILENO, STDIN_FILENO);
+        stdin_dup_fd = unsafe { fcntl(STDIN_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1) };
+        stdout_dup_fd = unsafe { fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1) };
+        let _ = unsafe { dup2(STDERR_FILENO, STDOUT_FILENO) };
+        let _ = unsafe { dup2(STDERR_FILENO, STDIN_FILENO) };
     }
 
     let stdio_in = unsafe { &mut (*channel).stdio_in };

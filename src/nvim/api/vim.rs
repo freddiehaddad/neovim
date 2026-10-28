@@ -2491,7 +2491,7 @@ pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object
         rvobj
     }
     #[cfg(not(windows))]
-    unsafe {
+    {
         let mut rvobj = nil_obj();
         let mut a_items = [integer_obj(pid)];
         let a = Array {

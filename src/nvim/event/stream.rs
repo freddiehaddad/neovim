@@ -248,8 +248,8 @@ pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: i32, has_uvstream:
             #[cfg(not(windows))]
             {
                 assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
-                uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
-                uv_pipe_open(uv_ptr.cast(), fd);
+                unsafe { uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0) };
+                unsafe { uv_pipe_open(uv_ptr.cast(), fd) };
                 stream.has_uvstream = true;
             }
         }

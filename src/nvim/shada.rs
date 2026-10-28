@@ -3293,8 +3293,8 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                 let is_dir = (old_info.stat.st_mode & S_IFMT) == S_IFDIR;
                 #[cfg(unix)]
                 let unix_not_writable = |info: &FileInfo| -> bool {
-                    let uid = getuid();
-                    let gid = getgid();
+                    let uid = unsafe { getuid() };
+                    let gid = unsafe { getgid() };
                     uid != ROOT_UID
                         && !(if info.stat.st_uid == u64::from(uid) {
                             (info.stat.st_mode & 0o200) != 0
@@ -3321,9 +3321,9 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                     let chown_ok = true;
                     #[cfg(unix)]
                     {
-                        if getuid() == ROOT_UID
+                        if unsafe { getuid() } == ROOT_UID
                             && (old_info.stat.st_uid != u64::from(ROOT_UID)
-                                || old_info.stat.st_gid != u64::from(getgid()))
+                                || old_info.stat.st_gid != u64::from(unsafe { getgid() }))
                         {
                             let old_uid = old_info.stat.st_uid as u32;
                             let old_gid = old_info.stat.st_gid as u32;
@@ -3332,7 +3332,7 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                                 semsg!(
                                     gettext(c"E136: Failed setting uid and gid for file %s: %s",),
                                     tempname,
-                                    uv_strerror(fchown_ret),
+                                    unsafe { uv_strerror(fchown_ret) },
                                 );
                                 chown_ok = false;
                             }

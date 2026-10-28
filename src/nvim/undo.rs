@@ -1277,7 +1277,7 @@ pub fn u_read_undo(
                 if os_fileinfo(orig_name, &mut file_info_orig)
                     && os_fileinfo(f, &mut file_info_undo)
                     && file_info_orig.stat.st_uid != file_info_undo.stat.st_uid
-                    && file_info_undo.stat.st_uid != u64::from(getuid())
+                    && file_info_undo.stat.st_uid != u64::from(unsafe { getuid() })
                 {
                     if opt_vars().p_verbose > 0 {
                         verbose_enter();

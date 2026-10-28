@@ -3028,7 +3028,7 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
     #[cfg(unix)]
-    let mut s: *const c_char = nl_langinfo(CODESET);
+    let mut s: *const c_char = unsafe { nl_langinfo(CODESET) };
     #[cfg(not(unix))]
     let mut s: *const c_char = ptr::null();
 

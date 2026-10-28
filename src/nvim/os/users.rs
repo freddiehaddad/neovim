@@ -131,8 +131,8 @@ fn collect_usernames() -> Vec<CString> {
             if pw.is_null() {
                 break;
             }
-            let pw = unsafe { &mut *pw };
-            add_user(&mut users, (*pw).pw_name);
+            let pw = { &mut *pw };
+            add_user(&mut users, pw.pw_name);
         }
         endpwent();
 

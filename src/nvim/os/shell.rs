@@ -53,8 +53,6 @@ use crate::path::{
     invocation_path_tail, path_has_wildcard, path_tail,
 };
 use crate::profile::{Proftime, prof_child_enter, prof_child_exit};
-#[cfg(unix)]
-use crate::strings::vim_strchr;
 use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
@@ -235,7 +233,7 @@ pub fn os_expand_wildcards(
         if shell_style != STYLE_BT {
             let sh_len = crate::memory::cstr_len(opt_vars().p_sh);
             if sh_len >= 3 {
-                let tail3 = (&crate::memory::cstr_as_bytes(opt_vars().p_sh)[sh_len - 3..]);
+                let tail3 = &crate::memory::cstr_as_bytes(opt_vars().p_sh)[sh_len - 3..];
                 if tail3 == b"csh" {
                     shell_style = STYLE_GLOB;
                 } else if tail3 == b"zsh" {

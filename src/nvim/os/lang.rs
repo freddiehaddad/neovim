@@ -735,8 +735,8 @@ pub fn ex_language(eap: &mut Exarg) {
         };
         #[cfg(not(windows))]
         let loc = {
-            let l = setlocale(what, name);
-            let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
+            let l = unsafe { setlocale(what, name) };
+            let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr()) };
             l
         };
 

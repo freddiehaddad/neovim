@@ -287,11 +287,8 @@ mod unix_impl {
             }
 
             let proc_: *mut Proc = ptyproc;
-            let proc_ = unsafe { &mut *proc_ };
             let hdr = proc_;
-            let hdr = unsafe { &mut *hdr };
             let ptail = pty_proc_unix_tail(ptyproc);
-            let ptail = unsafe { &mut *ptail };
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -308,7 +305,7 @@ mod unix_impl {
                 ws_ypixel: 0,
             };
             uv_disable_stdio_inheritance();
-            let prog = proc_get_exepath(&mut *proc_);
+            let prog = proc_get_exepath(&*proc_);
             debug_assert!(!(*hdr).env.is_null());
             let new_env = tv_dict_to_env(((*hdr).env).as_ref());
             let mut new_env_ptrs: Vec<*mut c_char> = new_env
@@ -430,7 +427,6 @@ mod unix_impl {
     pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
-            let ptail = unsafe { &mut *ptail };
             (*ptail).winsize = winsize {
                 ws_row: height,
                 ws_col: width,
@@ -478,7 +474,6 @@ mod unix_impl {
     pub fn pty_proc_close_master(ptyproc: &mut PtyProc) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
-            let ptail = unsafe { &mut *ptail };
             if (*ptail).tty_fd >= 0 {
                 close((*ptail).tty_fd);
                 (*ptail).tty_fd = -1;
@@ -629,48 +624,53 @@ mod unix_impl {
     }
 
     unsafe extern "C" fn chld_handler(handle: *mut uv_signal_t, _signum: i32) {
-        let mut stat: i32 = 0;
-        let uv_loop = uv_handle_get_loop(handle.cast());
-        let loop_ = *uv_loop.cast::<*mut Loop>();
-        let qc = loop_queues(&mut *loop_);
+        unsafe {
+            let mut stat: i32 = 0;
+            let uv_loop = uv_handle_get_loop(handle.cast());
+            let loop_ = *uv_loop.cast::<*mut Loop>();
+            let qc = loop_queues(&mut *loop_);
 
-        for &proc_ in &(*qc).children {
-            let hdr = proc_;
-            let hdr = { &mut *hdr };
-            let proc_t = proc_;
+            for &proc_ in &qc.children {
+                let hdr = proc_;
+                let proc_t = proc_;
 
-            let mut pid: i32;
-            loop {
-                pid = waitpid((*hdr).pid, &raw mut stat, WNOHANG | WUNTRACED | WCONTINUED);
-                if !(pid < 0 && os_errno() == EINTR) {
-                    break;
+                let mut pid: i32;
+                loop {
+                    pid = waitpid((*hdr).pid, &raw mut stat, WNOHANG | WUNTRACED | WCONTINUED);
+                    if !(pid < 0 && os_errno() == EINTR) {
+                        break;
+                    }
                 }
-            }
 
-            if pid <= 0 {
-                continue;
-            }
-
-            if wifstopped(stat) {
-                if !(*hdr).data.is_null() {
-                    crate::channel::channel_proc_state_cb(&mut *proc_, true, &mut *(*hdr).data);
+                if pid <= 0 {
+                    continue;
                 }
-                continue;
-            }
-            if wifcontinued(stat) {
-                if !(*hdr).data.is_null() {
-                    crate::channel::channel_proc_state_cb(&mut *proc_, false, &mut *(*hdr).data);
-                }
-                continue;
-            }
 
-            if wifexited(stat) {
-                (*hdr).status = wexitstatus(stat);
-            } else if wifsignaled(stat) {
-                (*hdr).status = 128 + wtermsig(stat);
+                if wifstopped(stat) {
+                    if !(*hdr).data.is_null() {
+                        crate::channel::channel_proc_state_cb(&mut *proc_, true, &mut *(*hdr).data);
+                    }
+                    continue;
+                }
+                if wifcontinued(stat) {
+                    if !(*hdr).data.is_null() {
+                        crate::channel::channel_proc_state_cb(
+                            &mut *proc_,
+                            false,
+                            &mut *(*hdr).data,
+                        );
+                    }
+                    continue;
+                }
+
+                if wifexited(stat) {
+                    (*hdr).status = wexitstatus(stat);
+                } else if wifsignaled(stat) {
+                    (*hdr).status = 128 + wtermsig(stat);
+                }
+                let _ = proc_t;
+                crate::event::proc::on_proc_exit(&mut *proc_);
             }
-            let _ = proc_t;
-            crate::event::proc::on_proc_exit(&mut *proc_);
         }
     }
 }

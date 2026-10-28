@@ -983,7 +983,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let is_global_local_option = option_is_global_local(opt_idx);
 
     #[cfg(unix)]
-    if opt_idx == K_OPT_MODELINE && getuid() == ROOT_UID {
+    if opt_idx == K_OPT_MODELINE && unsafe { getuid() } == ROOT_UID {
         return boolean_obj(false);
     }
 
@@ -7848,7 +7848,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                 #[cfg(not(windows))]
                 let comma_unesc = crate::memory::cstr_first_byte(p) == b','
                     && (flags & K_OPT_FLAG_COMMA) != 0
-                    && p.offset_from(s) < 2;
+                    && unsafe { p.offset_from(s) } < 2;
 
                 if (crate::memory::cstr_first_byte(p) == b' '
                     && ((xp.xp_backslash & XP_BS_THREE) != 0

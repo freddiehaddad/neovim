@@ -1997,13 +1997,13 @@ pub fn make_filter_cmd(
                         let _dst: *mut c_char = buf;
                         let _dsize: usize = len - 1;
                         let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.add(_dlen), c" < ", _dsize - _dlen);
+                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c" < ", _dsize - _dlen);
                     };
                     {
                         let _dst: *mut c_char = buf;
                         let _dsize: usize = len - 1;
                         let _dlen = crate::memory::cstr_len(_dst);
-                        crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen);
+                        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), itmp, _dsize - _dlen);
                     };
                 }
             }
