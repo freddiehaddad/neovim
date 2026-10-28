@@ -3514,7 +3514,7 @@ fn op_function(oap: &oparg_T) {
                 (&raw mut argv).cast::<typval_T>(),
                 &mut rettv,
             ) {
-                tv_clear(&raw mut rettv);
+                tv_clear(&mut rettv);
             }
             restore_redobuff(&mut save_redo);
 

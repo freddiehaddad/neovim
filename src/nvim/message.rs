@@ -3372,7 +3372,7 @@ fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
                 vval: TypvalVval::Number(0),
             };
             callback_call(&mut g_st().on_print, 1, argv.as_mut_ptr(), &mut rettv);
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             return;
         }
 

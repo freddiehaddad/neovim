@@ -273,7 +273,7 @@ impl qfline_T {
 
 impl Drop for qfline_T {
     fn drop(&mut self) {
-        tv_clear(&raw mut self.qf_user_data);
+        tv_clear(&mut self.qf_user_data);
     }
 }
 
@@ -4493,7 +4493,7 @@ fn call_qftf_func(
                     qftf_list = rettv.vval.v_list();
                     tv_list_ref(qftf_list);
                 }
-                tv_clear(&raw mut rettv);
+                tv_clear(&mut rettv);
             }
             g_st().textlock -= 1;
             tv_dict_unref(dict);
@@ -6479,7 +6479,7 @@ fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
             let mut tv: typval_T = typval_T::new();
             callback_put(&mut qfl.qf_qftf_cb, &mut tv);
             let status = tv_dict_add_tv(retdict, c"quickfixtextfunc", 16, &mut tv);
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
             status
         } else {
             tv_dict_add_str_len(retdict, c"quickfixtextfunc", c"", 0)
@@ -6663,7 +6663,7 @@ fn qf_add_entry_from_dict(
         drop(module);
         drop(pattern);
         drop(text);
-        tv_clear(&raw mut user_data);
+        tv_clear(&mut user_data);
 
         if valid {
             *valid_entry = true;
@@ -7499,7 +7499,7 @@ pub fn ex_cexpr(eap: &mut exarg_T) {
         };
 
         let _ = cexpr_core(eap, &mut tv);
-        tv_clear(&raw mut tv);
+        tv_clear(&mut tv);
 }
 
 fn hgr_get_ll(new_ll: &mut bool) -> *mut qf_info_T {

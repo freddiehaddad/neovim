@@ -2717,7 +2717,7 @@ fn vim_regsub_both(
                             *eval_slot = Some(crate::memory::cstr_to_cstring(s));
                         }
                     }
-                    tv_clear(&raw mut rettv);
+                    tv_clear(&mut rettv);
                 } else {
                     *eval_slot = eval_to_string(source.add(2), true, false);
                 }

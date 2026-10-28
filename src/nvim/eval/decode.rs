@@ -1258,7 +1258,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                                 }
                                 hi = hi.add(1);
                             }
-                            tv_clear(result);
+                            tv_clear(&mut *result);
                             crate::eval::typval::tv_dict_item_free(di);
                             can_be_dict = false;
                             break;
@@ -1269,7 +1269,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
 
                 if can_be_dict {
                     for pair in &mut items[..len] {
-                        tv_clear(&raw mut pair[0]);
+                        tv_clear(&mut pair[0]);
                     }
                 } else {
                     let list = decode_create_map_special_dict(&mut *result, len as isize);
@@ -1314,7 +1314,7 @@ pub fn unpack_typval(
     let status = mpack_parse_typval(&mut parser, data, size);
     if status != MPACK_OK {
         typval_parser_error_free(&mut parser);
-        tv_clear(&raw mut *ret);
+        tv_clear(&mut *ret);
     }
     status
 }
@@ -1330,7 +1330,7 @@ mod tests {
             let mut tv = decode_string(c"hello", 5, false, false);
             assert_eq!(tv.v_type, VarType::VAR_STRING);
             assert_eq!(CStr::from_ptr(tv.vval.v_string()).to_str().unwrap(), "hello");
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
     }
 

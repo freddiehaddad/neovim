@@ -2119,7 +2119,7 @@ fn shada_read_when_writing(
                         shada_free_shada_entry(&mut e);
                         return;
                     }
-                    shada_free_shada_entry(wms_entry);
+                    shada_free_shada_entry(&mut *wms_entry);
                 }
                 *wms_entry = e;
             };
@@ -2300,7 +2300,7 @@ fn shada_read_when_writing(
                                     continue;
                                 }
                                 if (*wms_entry).can_free_entry {
-                                    shada_free_shada_entry(wms_entry);
+                                    shada_free_shada_entry(&mut *wms_entry);
                                 }
                             } else {
                                 for buf in for_all_buffers_mut() {
@@ -3412,49 +3412,46 @@ pub fn shada_read_everything(
         )
 }
 
-fn shada_free_shada_entry(entry: *mut ShadaEntry) {
-    if entry.is_null() {
-        return;
-    }
-    unsafe {
-        if !(*entry).can_free_entry {
+fn shada_free_shada_entry(entry: &mut ShadaEntry) {
+     {
+        if !entry.can_free_entry {
             return;
         }
-        match (*entry).entry_type {
+        match entry.entry_type {
             ShadaEntryType::kSDItemMissing => {}
             ShadaEntryType::kSDItemUnknown => {}
             ShadaEntryType::kSDItemHeader => {
-                api_free_dict((*entry).data.header());
+                api_free_dict(entry.data.header());
             }
             ShadaEntryType::kSDItemChange
             | ShadaEntryType::kSDItemJump
             | ShadaEntryType::kSDItemGlobalMark
             | ShadaEntryType::kSDItemLocalMark => {
-                (*entry).data.filemark_mut().fname = None;
+                entry.data.filemark_mut().fname = None;
             }
             ShadaEntryType::kSDItemSearchPattern => {
-                api_free_string((*entry).data.search_pattern().pat);
+                api_free_string(entry.data.search_pattern().pat);
             }
             ShadaEntryType::kSDItemRegister => {
-                for s in (*entry).data.reg_mut().contents.drain(..) {
+                for s in entry.data.reg_mut().contents.drain(..) {
                     api_free_string(s);
                 }
             }
             ShadaEntryType::kSDItemHistoryEntry => {
-                (*entry).data.history_item_mut().string = None;
+                entry.data.history_item_mut().string = None;
             }
             ShadaEntryType::kSDItemVariable => {
-                (*entry).data.global_var_mut().name = None;
-                tv_clear(&mut (*entry).data.global_var_mut().value);
+                entry.data.global_var_mut().name = None;
+                tv_clear(&mut entry.data.global_var_mut().value);
             }
             ShadaEntryType::kSDItemSubString => {
-                (*entry).data.sub_string_mut().sub = None;
+                entry.data.sub_string_mut().sub = None;
             }
             ShadaEntryType::kSDItemBufferList => {
-                (*entry).data.buffer_list_mut().buffers.clear();
+                entry.data.buffer_list_mut().buffers.clear();
             }
         }
-        (*entry).additional_data = None;
+        entry.additional_data = None;
     }
 }
 

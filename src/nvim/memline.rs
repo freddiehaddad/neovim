@@ -886,7 +886,7 @@ pub fn ml_recover(checkext: bool) {
             let n_swaps = tv_list_len(items_tv.vval.v_list());
 
             if n_swaps == 0 {
-                tv_clear(&raw mut items_tv);
+                tv_clear(&mut items_tv);
                 semsg!(tr(c"E305: No swap file found for %s"), fname);
                 ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
@@ -899,13 +899,13 @@ pub fn ml_recover(checkext: bool) {
                     (&raw mut lua_args).cast(),
                     None,
                 );
-                tv_clear(&raw mut items_tv);
+                tv_clear(&mut items_tv);
                 ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }
             let first_str = (*tv_list_first(items_tv.vval.v_list())).li_tv.vval.v_string();
             fname_used = (!first_str.is_null()).then(|| crate::memory::cstr_to_cstring(first_str));
-            tv_clear(&raw mut items_tv);
+            tv_clear(&mut items_tv);
         }
         let Some(fname_used) = fname_used else {
             ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);

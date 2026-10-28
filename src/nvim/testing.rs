@@ -271,8 +271,8 @@ fn fill_assert_error(
         }
 
         if did_copy {
-            tv_clear(exp_tv);
-            tv_clear(got_tv);
+            tv_clear(&mut *exp_tv);
+            tv_clear(&mut *got_tv);
         }
     }
 }

@@ -838,7 +838,7 @@ pub fn get_func_tv(
 
         while argcount > 0 {
             argcount -= 1;
-            tv_clear(&raw mut argvars[argcount as usize]);
+            tv_clear(&mut argvars[argcount as usize]);
         }
 
         *arg = skipwhite(argp);
@@ -1553,7 +1553,7 @@ pub fn call_user_func(
         g_st().did_emsg |= save_did_emsg;
         uf_st().call_depth -= 1;
         for &tv in tv_to_free.iter().take(tv_to_free_len) {
-            tv_clear(tv);
+            tv_clear(&mut *tv);
         }
         cleanup_function_call(&mut *fc);
 
@@ -1659,7 +1659,7 @@ pub fn set_current_funccal(fc: *mut funccall_T) {
 pub fn free_all_functions() {
     unsafe {
         while !uf_st().current_funccal.is_null() {
-            tv_clear((*uf_st().current_funccal).fc_rettv);
+            tv_clear(&mut *(*uf_st().current_funccal).fc_rettv);
             cleanup_function_call(&mut *uf_st().current_funccal);
             let stack = &raw const uf_st().funccal_stack;
             if uf_st().current_funccal.is_null() && !(*stack).is_empty() {
@@ -1773,7 +1773,7 @@ pub fn func_call(
 
         while argc > 0 {
             argc -= 1;
-            tv_clear(&raw mut argv[argc as usize]);
+            tv_clear(&mut argv[argc as usize]);
         }
 
         r
@@ -1791,7 +1791,7 @@ pub fn callback_call_retnr(
         }
 
         let retval = tv_get_number_chk(&rettv, None);
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
         retval
 }
 
@@ -2005,7 +2005,7 @@ pub fn call_func(
 
         while argv_clear > 0 {
             argv_clear -= 1;
-            tv_clear(&raw mut argv[(argv_clear + argv_base) as usize]);
+            tv_clear(&mut argv[(argv_clear + argv_base) as usize]);
         }
 
         drop(tofree);
@@ -3218,7 +3218,7 @@ pub fn ex_function(eap: &mut exarg_T) {
                         erret!();
                     }
                 } else {
-                    tv_clear(&raw mut (*fudi.fd_di).di_tv);
+                    tv_clear(&mut (*fudi.fd_di).di_tv);
                 }
                 crate::eval::typval::tv_set_string_len(
                     &mut (*fudi.fd_di).di_tv,
@@ -3536,7 +3536,7 @@ pub fn ex_return(eap: &mut exarg_T) {
             if eap.skip == 0 {
                 returning = do_return(eap, false, true, Some(rettv));
             } else {
-                tv_clear(&raw mut rettv);
+                tv_clear(&mut rettv);
             }
         } else if eap.skip == 0 {
             update_force_abort();
@@ -3601,7 +3601,7 @@ fn ex_call_inner(
                 break;
             }
 
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             if funcexe.fe_doesrange {
                 break;
             }
@@ -3683,7 +3683,7 @@ fn ex_defer_inner(
         if !r {
             while argcount > 0 {
                 argcount -= 1;
-                tv_clear(&raw mut argvars[argcount as usize]);
+                tv_clear(&mut argvars[argcount as usize]);
             }
             return false;
         }
@@ -3752,12 +3752,12 @@ fn handle_defer_one(funccal: &mut funccall_T) {
 
             exception_state_restore(&mut estate);
 
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             drop(name_cstr);
             let mut i = argcount - 1;
             while i >= 0 {
                 let dr = &mut (&mut funccal.fc_defer)[idx as usize];
-                tv_clear(&raw mut dr.dr_argvars[i as usize]);
+                tv_clear(&mut dr.dr_argvars[i as usize]);
                 i -= 1;
             }
             (&mut funccal.fc_defer)[idx as usize].dr_argvars.clear();
@@ -3830,7 +3830,7 @@ pub fn ex_call(eap: &mut exarg_T) {
             let mut rettv: typval_T = typval_T::new();
             g_st().emsg_skip += 1;
             if eval0(eap.arg, &mut rettv, Some(&mut *eap), &mut evalarg) {
-                tv_clear(&raw mut rettv);
+                tv_clear(&mut rettv);
             }
             g_st().emsg_skip -= 1;
             return;
@@ -3947,7 +3947,7 @@ pub fn do_return(
             (*uf_st().current_funccal).fc_returned = 1;
 
             if !reanimate && let Some(tv) = rettv {
-                tv_clear((*uf_st().current_funccal).fc_rettv);
+                tv_clear(&mut *(*uf_st().current_funccal).fc_rettv);
                 *(*uf_st().current_funccal).fc_rettv = tv;
             }
         }

@@ -333,7 +333,7 @@ impl Drop for compl_T {
                 }
             }
             api_clear_string(&mut self.cp_str);
-            tv_clear(&raw mut self.cp_user_data);
+            tv_clear(&mut self.cp_user_data);
         }
     }
 }
@@ -3354,7 +3354,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
                     matchdict = rettv.vval.v_dict();
                 }
                 _ => {
-                    tv_clear(&raw mut rettv);
+                    tv_clear(&mut rettv);
                 }
             }
         }
@@ -3437,7 +3437,7 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
             word = tv_get_string_chk(&*tv);
         }
         if word.is_null() || (!empty && *word == NUL) {
-            tv_clear(&raw mut user_data);
+            tv_clear(&mut user_data);
             return FAIL;
         }
         let status = ins_compl_add(
@@ -3455,7 +3455,7 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
             commit_chars,
         );
         if status == FAIL {
-            tv_clear(&raw mut user_data);
+            tv_clear(&mut user_data);
         }
         status
     }

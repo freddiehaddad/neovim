@@ -388,7 +388,7 @@ fn call_click_def_func(
             argv.as_mut_ptr(),
             &mut rettv,
         );
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
         mouse_st().got_click = false;
     }
 }

@@ -126,7 +126,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 allocated_arg = crate::eval::typval::tv_take_string(rettv.vval.v_string());
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
-                tv_clear(&raw mut rettv);
+                tv_clear(&mut rettv);
                 emsg(gettext(e_noident));
                 return;
             }
@@ -364,11 +364,11 @@ pub fn find_help_tags(
             Some(&mut rettv),
         );
         if rettv.v_type != VarType::VAR_STRING || rettv.vval.v_string().is_null() {
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             return false;
         }
         xstrlcpy((&raw mut g_st().IObuff).cast(), rettv.vval.v_string(), IOSIZE);
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
 
         matches.clear();
         let mut flags = TAG_HELP | TAG_REGEXP | TAG_NAMES | TAG_VERBOSE | TAG_NO_TAGFUNC;

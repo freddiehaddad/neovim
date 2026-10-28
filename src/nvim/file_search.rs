@@ -1543,7 +1543,7 @@ fn eval_includeexpr(ptr: *const c_char, len: usize) -> Option<std::ffi::CString>
         if eval_expr_option_tv(&mut curbuf_mut().b_p_inex, use_sandbox, &mut tv) {
             let s = tv_get_string(&tv);
             res = Some(crate::memory::cstr_to_cstring(s));
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
 
         set_vim_var_string(VV_FNAME, ptr::null(), 0);

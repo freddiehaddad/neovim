@@ -935,7 +935,7 @@ fn select_tag_match(eap: Option<&exarg_T>,
             let i = idx as c_int;
             os_breakcheck();
             if g_st().got_int {
-                tv_clear(&raw mut items_tv);
+                tv_clear(&mut items_tv);
                 return;
             }
             let mut tagp = tagptrs_T::default();
@@ -996,8 +996,8 @@ fn select_tag_match(eap: Option<&exarg_T>,
             Some(&mut extra_tv),
         );
 
-        tv_clear(&raw mut items_tv);
-        tv_clear(&raw mut extra_tv);
+        tv_clear(&mut items_tv);
+        tv_clear(&mut extra_tv);
     }
 }
 
@@ -1340,11 +1340,11 @@ fn find_tagfunc_tags(
             return FAIL;
         }
         if rettv.v_type == VarType::VAR_SPECIAL && rettv.vval.v_special() == kSpecialVarNull {
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             return NOTDONE;
         }
         if rettv.v_type != VarType::VAR_LIST || rettv.vval.v_list().is_null() {
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
             return FAIL;
         }
@@ -1499,7 +1499,7 @@ fn find_tagfunc_tags(
 
         }
 
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
 
         *match_count = ntags;
         result

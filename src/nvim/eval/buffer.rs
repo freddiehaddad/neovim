@@ -375,8 +375,8 @@ pub fn prompt_invoke_callback() {
                 argv.as_mut_ptr(),
                 &mut rettv,
             );
-            tv_clear(&raw mut argv[0]);
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut argv[0]);
+            tv_clear(&mut rettv);
         }
 
         u_clearallandblockfree(curbuf_mut());
@@ -412,7 +412,7 @@ pub fn invoke_prompt_interrupt() -> bool {
             argv.as_mut_ptr(),
             &mut rettv,
         );
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
         ret
     }
 }

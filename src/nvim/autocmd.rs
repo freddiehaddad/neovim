@@ -2605,7 +2605,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                         continue;
                     }
                     tv_dict_add_tv(&mut *v_event, item.key.data, item.key.size, &mut tv);
-                    tv_clear(&raw mut tv);
+                    tv_clear(&mut tv);
                 }
             }
             tv_dict_set_keys_readonly(&mut *v_event);

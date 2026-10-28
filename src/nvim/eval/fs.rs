@@ -1400,7 +1400,7 @@ pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> var
                 retval = -1;
             }
 
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
         }
 
         set_vim_var_string(VV_VAL, ptr::null(), 0);

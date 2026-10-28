@@ -601,7 +601,7 @@ pub fn dict_set_var(
                         &mut type_error,
                     )
                 {
-                    tv_clear(&raw mut tv);
+                    tv_clear(&mut tv);
                     if type_error {
                         api_set_error!(
                             err,
@@ -615,15 +615,15 @@ pub fn dict_set_var(
                 if watched {
                     tv_copy(&(*di).di_tv, &mut oldtv);
                 }
-                tv_clear(&raw mut (*di).di_tv);
+                tv_clear(&mut (*di).di_tv);
             }
 
             tv_copy(&tv, &mut (*di).di_tv);
             if watched {
                 tv_dict_watcher_notify(dict, key.data, &raw mut tv, Some(&oldtv));
-                tv_clear(&raw mut oldtv);
+                tv_clear(&mut oldtv);
             }
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
 
         rv

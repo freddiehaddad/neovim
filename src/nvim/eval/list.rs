@@ -46,7 +46,7 @@ fn filter_map_one(
     newtv: &mut typval_T,
     remp: &mut bool,
 ) -> bool {
-    unsafe {
+     {
         let mut retval = false;
         tv_copy(&*tv, &mut *get_vim_var_tv(VV_VAL));
 

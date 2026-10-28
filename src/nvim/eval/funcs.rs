@@ -4089,7 +4089,7 @@ pub fn f_index(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 }
 
 fn indexof_eval_expr(expr: &mut typval_T) -> varnumber_T {
-    unsafe {
+     {
         let mut argv = [tv_initial_value(); 3];
         argv[0] = *get_vim_var_tv(VV_KEY);
         argv[1] = *get_vim_var_tv(VV_VAL);
@@ -4101,7 +4101,7 @@ fn indexof_eval_expr(expr: &mut typval_T) -> varnumber_T {
 
         let mut error = false;
         let found = tv_get_bool_chk(&newtv, Some(&mut error));
-        tv_clear(&raw mut newtv);
+        tv_clear(&mut newtv);
 
         if error { 0 } else { found }
     }
@@ -5396,7 +5396,7 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
                             let li2 = (*li1).li_next;
                             let li3 = (*li2).li_next;
                             let li4 = (*li3).li_next;
-                            tv_clear(&raw mut (*li1).li_tv);
+                            tv_clear(&mut (*li1).li_tv);
 
                             let rd = regmatch.endp[0].offset_from(regmatch.startp[0]) as usize;
                             crate::eval::typval::tv_set_string_len(
@@ -6628,7 +6628,7 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
             rettv.v_type = VarType::VAR_UNKNOWN;
 
             let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
-            tv_clear(&raw mut argv[0]);
+            tv_clear(&mut argv[0]);
             if !r || g_st().called_emsg != called_emsg_start {
                 break;
             }
@@ -6675,8 +6675,8 @@ fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
             crate::eval::typval::tv_set_string_len(&mut argv[1], p, len as usize);
 
             let r = eval_expr_typval(&*expr, true, argv.as_mut_ptr(), 2, &mut *rettv);
-            tv_clear(&raw mut argv[0]);
-            tv_clear(&raw mut argv[1]);
+            tv_clear(&mut argv[0]);
+            tv_clear(&mut argv[1]);
             if !r || g_st().called_emsg != called_emsg_start {
                 break;
             }
@@ -7667,7 +7667,7 @@ pub fn f_serverlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             lua_args.as_mut_ptr(),
             Some(&mut *rettv),
         );
-        tv_clear(&raw mut addrs_tv);
+        tv_clear(&mut addrs_tv);
     }
 }
 

@@ -945,7 +945,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
         }
 
         if !ret {
-            tv_clear(ret_tv);
+            tv_clear(&mut *ret_tv);
             *ret_tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,

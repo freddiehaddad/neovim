@@ -5458,7 +5458,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                 if rettv.v_type != VarType::VAR_BOOL || rettv.vval.v_bool() != kBoolVarTrue {
                     clearopbeep(cap.oap_mut());
                 }
-                tv_clear(&raw mut rettv);
+                tv_clear(&mut rettv);
             }
         } else if cap.nchar == b'r' as c_int
             || cap.nchar == b's' as c_int

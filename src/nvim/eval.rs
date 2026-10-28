@@ -477,7 +477,7 @@ pub fn eval_to_bool(
             *error = false;
             if !skip {
                 retval = tv_get_number_chk(&tv, Some(&mut *error)) != 0;
-                tv_clear(&raw mut tv);
+                tv_clear(&mut tv);
             }
         }
         if skip {
@@ -641,7 +641,7 @@ pub fn eval_expr_to_bool(expr: &typval_T, error: &mut bool) -> bool {
             return false;
         }
         let res = tv_get_number_chk(&rettv, Some(&mut *error)) != 0;
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
         res
 }
 
@@ -663,7 +663,7 @@ pub fn eval_to_string_skip(
             retval = None;
         } else {
             retval = Some(cstr_to_cstring(tv_get_string(&tv)));
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
         if skip {
             g_st().emsg_skip -= 1;
@@ -738,7 +738,7 @@ pub fn eval_to_string_eap(
             retval = None;
         } else {
             retval = typval2string(&mut tv, join_list);
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
 
         retval
@@ -803,7 +803,7 @@ pub fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> varnumber
             retval = -1;
         } else {
             retval = tv_get_number_chk(&rettv, None);
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
         }
         {
             g_st().emsg_off -= 1;
@@ -851,7 +851,7 @@ pub fn call_vim_function(
             func = func.add(6);
             len = check_luafunc_name(func, false);
             if len == 0 {
-                tv_clear(&raw mut *rettv);
+                tv_clear(&mut *rettv);
                 return false;
             }
             pt = get_vim_var_partial(VV_LUA);
@@ -873,7 +873,7 @@ pub fn call_vim_function(
         let ret = call_func(func, len, &mut *rettv, argc, argv, &mut funcexe);
 
         if !ret {
-            tv_clear(&raw mut *rettv);
+            tv_clear(&mut *rettv);
         }
 
         ret
@@ -892,7 +892,7 @@ pub fn call_func_retstr(
         }
 
         let retval = cstr_to_cstring(tv_get_string(&rettv));
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
         Some(retval)
 }
 
@@ -909,7 +909,7 @@ pub fn call_func_retlist(
         }
 
         if rettv.v_type != VarType::VAR_LIST {
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             return ptr::null_mut();
         }
 
@@ -929,7 +929,7 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> c_int {
         let mut retval = -1;
         if callback_call(&mut copy, 0, argv.as_mut_ptr(), &mut tv) {
             retval = tv_get_number_chk(&tv, None) as c_int;
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
         g_st().emsg_off -= 1;
         if use_sandbox {
@@ -1004,7 +1004,7 @@ pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
                 }
                 retval = varnumber_T::from(crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(s)) as std::ffi::c_long);
             }
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
 
         g_st().emsg_off -= 1;
@@ -1045,7 +1045,7 @@ pub fn eval_foldtext(wp: &mut win_T) -> Object {
                     data: ObjectData::String(cstr_to_string(tv_get_string(&tv))),
                 };
             }
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
         }
         retval
     }
@@ -1302,8 +1302,8 @@ fn get_lval_subscript(lp: &mut lval_T,
                 if !quiet {
                     emsg(gettext(c"E708: [:] must come last"));
                 }
-                tv_clear(&raw mut var1);
-                tv_clear(&raw mut var2);
+                tv_clear(&mut var1);
+                tv_clear(&mut var2);
                 return ptr::null_mut();
             }
 
@@ -1332,13 +1332,13 @@ fn get_lval_subscript(lp: &mut lval_T,
                     empty1 = false;
                     let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
                     if !eval1(&raw mut p, &mut var1, (!evalarg_ptr.is_null()).then(|| &mut *evalarg_ptr)) {
-                        tv_clear(&raw mut var1);
-                        tv_clear(&raw mut var2);
+                        tv_clear(&mut var1);
+                        tv_clear(&mut var2);
                         return ptr::null_mut();
                     }
                     if !tv_check_str(&var1) {
-                        tv_clear(&raw mut var1);
-                        tv_clear(&raw mut var2);
+                        tv_clear(&mut var1);
+                        tv_clear(&mut var2);
                         return ptr::null_mut();
                     }
                     p = skipwhite(p);
@@ -1349,8 +1349,8 @@ fn get_lval_subscript(lp: &mut lval_T,
                         if !quiet {
                             emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
                         }
-                        tv_clear(&raw mut var1);
-                        tv_clear(&raw mut var2);
+                        tv_clear(&mut var1);
+                        tv_clear(&mut var2);
                         return ptr::null_mut();
                     }
                     if rettv.is_some()
@@ -1362,8 +1362,8 @@ fn get_lval_subscript(lp: &mut lval_T,
                         if !quiet {
                             emsg(gettext(c"E709: [:] requires a List or Blob value"));
                         }
-                        tv_clear(&raw mut var1);
-                        tv_clear(&raw mut var2);
+                        tv_clear(&mut var1);
+                        tv_clear(&mut var2);
                         return ptr::null_mut();
                     }
                     p = skipwhite(p.add(1));
@@ -1375,8 +1375,8 @@ fn get_lval_subscript(lp: &mut lval_T,
                         if !eval1(&raw mut p, &mut var2, (!evalarg_ptr.is_null()).then(|| &mut *evalarg_ptr))
                             || !tv_check_str(&var2)
                         {
-                            tv_clear(&raw mut var1);
-                            tv_clear(&raw mut var2);
+                            tv_clear(&mut var1);
+                            tv_clear(&mut var2);
                             return ptr::null_mut();
                         }
                     }
@@ -1389,8 +1389,8 @@ fn get_lval_subscript(lp: &mut lval_T,
                     if !quiet {
                         emsg(gettext(E_MISSBRAC));
                     }
-                    tv_clear(&raw mut var1);
-                    tv_clear(&raw mut var2);
+                    tv_clear(&mut var1);
+                    tv_clear(&mut var2);
                     return ptr::null_mut();
                 }
 
@@ -1410,8 +1410,8 @@ fn get_lval_subscript(lp: &mut lval_T,
                     (rettv.is_some()).then(||  { rettv.as_deref_mut().unwrap() }),
                 );
                 if glv_status == GLV_FAIL {
-                    tv_clear(&raw mut var1);
-                    tv_clear(&raw mut var2);
+                    tv_clear(&mut var1);
+                    tv_clear(&mut var2);
                     return ptr::null_mut();
                 }
                 if glv_status == GLV_STOP {
@@ -1419,26 +1419,26 @@ fn get_lval_subscript(lp: &mut lval_T,
                 }
             } else if (*lp.ll_tv).v_type == VarType::VAR_BLOB {
                 if !get_lval_blob(&mut *lp, &mut var1, &mut var2, empty1, quiet) {
-                    tv_clear(&raw mut var1);
-                    tv_clear(&raw mut var2);
+                    tv_clear(&mut var1);
+                    tv_clear(&mut var2);
                     return ptr::null_mut();
                 }
                 break;
             } else if !get_lval_list(&mut *lp, &mut var1, &mut var2, empty1, flags, quiet)
             {
-                tv_clear(&raw mut var1);
-                tv_clear(&raw mut var2);
+                tv_clear(&mut var1);
+                tv_clear(&mut var2);
                 return ptr::null_mut();
             }
 
-            tv_clear(&raw mut var1);
-            tv_clear(&raw mut var2);
+            tv_clear(&mut var1);
+            tv_clear(&mut var2);
             var1.v_type = VarType::VAR_UNKNOWN;
             var2.v_type = VarType::VAR_UNKNOWN;
         }
 
-        tv_clear(&raw mut var1);
-        tv_clear(&raw mut var2);
+        tv_clear(&mut var1);
+        tv_clear(&mut var2);
         p
     }
 }
@@ -1628,7 +1628,7 @@ pub fn set_var_lval(
                     {
                         set_var(lp.ll_name, lp.ll_name_len, &mut tv, false);
                     }
-                    tv_clear(&raw mut tv);
+                    tv_clear(&mut tv);
                 }
             } else {
                 set_var_const(lp.ll_name, lp.ll_name_len, rettv, copy, is_const);
@@ -1695,7 +1695,7 @@ pub fn set_var_lval(
                     eexe_mod_op(&mut *lp.ll_tv, &*rettv, op);
                     skip_assign = true;
                 } else {
-                    tv_clear(lp.ll_tv);
+                    tv_clear(&mut *lp.ll_tv);
                 }
             }
 
@@ -1717,7 +1717,7 @@ pub fn set_var_lval(
                     let di_ = lp.ll_di;
                     let key_ptr = (*di_).di_key.as_ptr();
                     tv_dict_watcher_notify(&mut *dict, key_ptr, lp.ll_tv, Some(&oldtv));
-                    tv_clear(&raw mut oldtv);
+                    tv_clear(&mut oldtv);
                 }
             }
         }
@@ -1771,7 +1771,7 @@ pub fn eval_for_line(
                 if tv.v_type == VarType::VAR_LIST {
                     let l = tv.vval.v_list();
                     if l.is_null() {
-                        tv_clear(&raw mut tv);
+                        tv_clear(&mut tv);
                     } else {
                         let lw = std::rc::Rc::new(listwatch_T {
                             lw_item: std::cell::Cell::new(tv_list_first(l)),
@@ -1786,7 +1786,7 @@ pub fn eval_for_line(
                         (*tv.vval.v_blob()).bv_ga.clone()
                     };
                     fi.fi_source = ForSource::Blob { bytes, idx: 0 };
-                    tv_clear(&raw mut tv);
+                    tv_clear(&mut tv);
                 } else if tv.v_type == VarType::VAR_STRING {
                     let text = if tv.vval.v_string().is_null() {
                         std::ffi::CString::default()
@@ -1794,10 +1794,10 @@ pub fn eval_for_line(
                         crate::memory::cstr_to_cstring(tv.vval.v_string())
                     };
                     fi.fi_source = ForSource::Str { text, byte_idx: 0 };
-                    tv_clear(&raw mut tv);
+                    tv_clear(&mut tv);
                 } else {
                     emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED));
-                    tv_clear(&raw mut tv);
+                    tv_clear(&mut tv);
                 }
             }
         }
@@ -1857,7 +1857,7 @@ pub fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                     0,
                     ptr::null_mut(),
                 );
-                tv_clear(&raw mut tv);
+                tv_clear(&mut tv);
                 result
             }
             ForSource::List { list: _, lw } => {
@@ -2320,7 +2320,7 @@ fn eval2(arg: *mut *mut c_char, rettv: &mut typval_T, mut evalarg: Option<&mut e
                     if tv_get_number_chk(&var2, Some(&mut error)) != 0 {
                         result = true;
                     }
-                    tv_clear(&raw mut var2);
+                    tv_clear(&mut var2);
                     if error {
                         return false;
                     }
@@ -2384,7 +2384,7 @@ fn eval3(arg: *mut *mut c_char, rettv: &mut typval_T, mut evalarg: Option<&mut e
                     if tv_get_number_chk(&var2, Some(&mut error)) == 0 {
                         result = false;
                     }
-                    tv_clear(&raw mut var2);
+                    tv_clear(&mut var2);
                     if error {
                         return false;
                     }
@@ -2483,7 +2483,7 @@ fn eval4(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut eva
             }
             if evalarg.as_ref().is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0) {
                 let ret = typval_compare(rettv, &mut var2, expr_type, ic);
-                tv_clear(&raw mut var2);
+                tv_clear(&mut var2);
                 return ret;
             }
         }
@@ -2688,7 +2688,7 @@ fn eval5(arg: *mut *mut c_char,rettv: &mut typval_T,mut evalarg: Option<&mut eva
                 } else if !eval_addsub_number(rettv, &mut var2, op) {
                     return false;
                 }
-                tv_clear(&raw mut var2);
+                tv_clear(&mut var2);
             }
         }
         true
@@ -3048,7 +3048,7 @@ fn call_func_rettv(
                 funcname = functv.vval.v_string();
                 if funcname.is_null() || *funcname == NUL {
                     emsg(gettext(E_EMPTY_FUNCTION_NAME));
-                    tv_clear(&raw mut functv);
+                    tv_clear(&mut functv);
                     return false;
                 }
             }
@@ -3082,7 +3082,7 @@ fn call_func_rettv(
         );
 
         if evaluate {
-            tv_clear(&raw mut functv);
+            tv_clear(&mut functv);
         }
 
         ret
@@ -3129,7 +3129,7 @@ fn eval_lambda(
         };
 
         if evaluate {
-            tv_clear(&raw mut base);
+            tv_clear(&mut base);
         }
 
         ret
@@ -3224,7 +3224,7 @@ fn eval_method(
                     }
                     ret = false;
                 }
-                tv_clear(&raw mut ref_tv);
+                tv_clear(&mut ref_tv);
                 *paren = b'(' as c_char;
             }
 
@@ -3270,7 +3270,7 @@ fn eval_method(
         }
 
         if evaluate {
-            tv_clear(&raw mut base);
+            tv_clear(&mut base);
         }
         drop(tofree);
         drop(alias);
@@ -3315,7 +3315,7 @@ fn eval_index(
             } else if !eval1(arg, &mut var1, evalarg.as_deref_mut()) {
                 return false;
             } else if evaluate && !tv_check_str(&var1) {
-                tv_clear(&raw mut var1);
+                tv_clear(&mut var1);
                 return false;
             }
 
@@ -3326,14 +3326,14 @@ fn eval_index(
                     empty2 = true;
                 } else if !eval1(arg, &mut var2, evalarg) {
                     if !empty1 {
-                        tv_clear(&raw mut var1);
+                        tv_clear(&mut var1);
                     }
                     return false;
                 } else if evaluate && !tv_check_str(&var2) {
                     if !empty1 {
-                        tv_clear(&raw mut var1);
+                        tv_clear(&mut var1);
                     }
-                    tv_clear(&raw mut var2);
+                    tv_clear(&mut var2);
                     return false;
                 }
             }
@@ -3342,9 +3342,9 @@ fn eval_index(
                 if verbose {
                     emsg(gettext(E_MISSBRAC));
                 }
-                tv_clear(&raw mut var1);
+                tv_clear(&mut var1);
                 if range {
-                    tv_clear(&raw mut var2);
+                    tv_clear(&mut var2);
                 }
                 return false;
             }
@@ -3371,10 +3371,10 @@ fn eval_index(
                 verbose,
             );
             if !empty1 {
-                tv_clear(&raw mut var1);
+                tv_clear(&mut var1);
             }
             if range {
-                tv_clear(&raw mut var2);
+                tv_clear(&mut var2);
             }
             return res;
         }
@@ -4040,7 +4040,7 @@ pub fn eval_interp_string(
                         buf.extend_from_slice(std::slice::from_raw_parts(tv.vval.v_string(), len));
                     }
                 }
-                tv_clear(&raw mut tv);
+                tv_clear(&mut tv);
             }
 
             if **arg != b'{' as c_char {
@@ -4722,7 +4722,7 @@ fn eval_dict(
                     gettext(c"E720: Missing colon in Dictionary: %s"),
                     *arg,
                 );
-                tv_clear(&raw mut tvkey);
+                tv_clear(&mut tvkey);
                 if !d.is_null() {
                     tv_dict_free(d);
                 }
@@ -4731,7 +4731,7 @@ fn eval_dict(
             if evaluate {
                 key = tv_get_string_buf_chk(&tvkey, buf.as_mut_ptr()).cast_mut();
                 if key.is_null() {
-                    tv_clear(&raw mut tvkey);
+                    tv_clear(&mut tvkey);
                     if !d.is_null() {
                         tv_dict_free(d);
                     }
@@ -4741,7 +4741,7 @@ fn eval_dict(
 
             *arg = skipwhite((*arg).add(1));
             if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
-                tv_clear(&raw mut tvkey);
+                tv_clear(&mut tvkey);
                 if !d.is_null() {
                     tv_dict_free(d);
                 }
@@ -4754,8 +4754,8 @@ fn eval_dict(
                         gettext(c"E721: Duplicate key in Dictionary: \"%s\""),
                         key,
                     );
-                    tv_clear(&raw mut tvkey);
-                    tv_clear(&raw mut tv);
+                    tv_clear(&mut tvkey);
+                    tv_clear(&mut tv);
                     if !d.is_null() {
                         tv_dict_free(d);
                     }
@@ -4768,7 +4768,7 @@ fn eval_dict(
                     tv_dict_item_free(item);
                 }
             }
-            tv_clear(&raw mut tvkey);
+            tv_clear(&mut tvkey);
 
             let had_comma = **arg == b',' as c_char;
             if had_comma {
@@ -5403,7 +5403,7 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut timer_T) {
             timer_stop(timer);
         }
 
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
 
         if !timer.stopped && timer.timeout == 0 {
             time_watcher_start(&mut timer.watcher, 0, 0);
@@ -6538,7 +6538,7 @@ pub fn ex_echo(eap: &mut exarg_T) {
                     &mut need_clear,
                 );
             }
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             arg = skipwhite(arg);
         }
         eap.nextcmd = check_nextcmd(arg);
@@ -6614,7 +6614,7 @@ pub fn ex_execute(eap: &mut exarg_T) {
                 drop(argstr_owned);
             }
 
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             arg = skipwhite(arg);
         }
 
@@ -6989,7 +6989,7 @@ pub fn eval_call_provider(
         }
 
         if discard {
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
         }
 
         rettv
@@ -7383,7 +7383,7 @@ mod tests {
                 ));
             assert_eq!(rettv.v_type, VarType::VAR_STRING);
             assert!(rettv.vval.v_string().is_null());
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
 
             let mut expr2 = *b"v:_null_list\0";
             assert!(eval0(
@@ -7394,7 +7394,7 @@ mod tests {
                 ));
             assert_eq!(rettv.v_type, VarType::VAR_LIST);
             assert!(rettv.vval.v_list().is_null());
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
 
             let mut expr3 = *b"v:_null_dict\0";
             assert!(eval0(
@@ -7405,6 +7405,6 @@ mod tests {
                 ));
             assert_eq!(rettv.v_type, VarType::VAR_DICT);
             assert!(rettv.vval.v_dict().is_null());
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
     }
 }

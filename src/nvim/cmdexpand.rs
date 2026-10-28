@@ -5481,7 +5481,7 @@ fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> bool {
     let mut rettv: typval_T = typval_T::new();
         nlua_call_user_expand_func(xp, &mut rettv);
         if rettv.v_type != VarType::VAR_LIST {
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
             return false;
         }
 

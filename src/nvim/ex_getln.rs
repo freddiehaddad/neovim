@@ -3971,7 +3971,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 .unwrap_or_default(),
             )
         });
-        tv_clear(&raw mut tv);
+        tv_clear(&mut tv);
         ret
     }
 }

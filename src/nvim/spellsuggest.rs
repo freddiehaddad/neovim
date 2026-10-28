@@ -687,8 +687,8 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
             (&raw mut lua_args).cast(),
             None,
         );
-        tv_clear(&raw mut items_tv);
-        tv_clear(&raw mut bad_tv);
+        tv_clear(&mut items_tv);
+        tv_clear(&mut bad_tv);
     }
 }
 /// "z=": Find badly spelled word under or after the cursor.

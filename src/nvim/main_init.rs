@@ -674,7 +674,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 lua_args.as_mut_ptr(),
                 None,
             );
-            tv_clear(&raw mut items_tv);
+            tv_clear(&mut items_tv);
             os_exit(0);
         }
 

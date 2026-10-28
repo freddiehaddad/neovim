@@ -402,7 +402,7 @@ impl Default for listitem_T {
 
 impl Drop for listitem_T {
     fn drop(&mut self) {
-        tv_clear(&raw mut self.li_tv);
+        tv_clear(&mut self.li_tv);
     }
 }
 
@@ -470,7 +470,7 @@ impl dictitem_T {
 impl Drop for dictitem_T {
     fn drop(&mut self) {
         if (self.di_flags & DI_FLAGS_ALLOC) != 0 {
-            tv_clear(&raw mut self.di_tv);
+            tv_clear(&mut self.di_tv);
         }
     }
 }
@@ -1485,7 +1485,7 @@ pub fn tv_list_assign_range(
             if !op.is_null() && *op != b'=' as c_char {
                 eexe_mod_op(&mut (*dest_li).li_tv, &(*src_li).li_tv, op);
             } else {
-                tv_clear(&raw mut (*dest_li).li_tv);
+                tv_clear(&mut (*dest_li).li_tv);
                 tv_copy(&(*src_li).li_tv, &mut (*dest_li).li_tv);
             }
             src_li = (*src_li).li_next;
@@ -1736,13 +1736,13 @@ pub fn tv_list_slice_or_index(
                 n2 = -1;
             }
             let l = tv_list_slice(rettv.vval.v_list(), n1, n2);
-            tv_clear(&raw mut *rettv);
+            tv_clear(&mut *rettv);
             tv_list_set_ret_inline(rettv, l);
         } else {
             let found = tv_list_find(rettv.vval.v_list(), n1 as c_int);
             let mut var1 = tv_initial_value();
             tv_copy(&(*found).li_tv, &mut var1);
-            tv_clear(&raw mut *rettv);
+            tv_clear(&mut *rettv);
             *rettv = var1;
         }
         true
@@ -2109,8 +2109,8 @@ fn item_compare2(
             argv.as_mut_ptr(),
             &mut funcexe,
         );
-        tv_clear(&raw mut argv[0]);
-        tv_clear(&raw mut argv[1]);
+        tv_clear(&mut argv[0]);
+        tv_clear(&mut argv[1]);
 
         let mut res = if !ok {
             info.item_compare_func_err = true;
@@ -2128,7 +2128,7 @@ fn item_compare2(
         if info.item_compare_func_err {
             res = ITEM_COMPARE_FAIL;
         }
-        tv_clear(&raw mut rettv);
+        tv_clear(&mut rettv);
 
         if res == 0 && !keep_zero {
             res = if si1.idx > si2.idx { 1 } else { -1 };
@@ -2788,7 +2788,7 @@ pub fn tv_dict_watcher_notify(
                 let w = &mut (&mut dict.watchers)[i];
                 w.callback = cb;
                 w.busy = false;
-                tv_clear(&raw mut rettv);
+                tv_clear(&mut rettv);
                 if w.needs_free {
                     any_needs_free = true;
                 }
@@ -2838,7 +2838,7 @@ pub fn tv_dict_item_free(item: *mut dictitem_T) {
         if ((*item).di_flags & DI_FLAGS_ALLOC) != 0 {
             drop(Box::from_raw(item));
         } else {
-            tv_clear(&raw mut (*item).di_tv);
+            tv_clear(&mut (*item).di_tv);
         }
     }
 }
@@ -3116,7 +3116,7 @@ pub fn tv_dict_get_callback(
         tv_copy(&(*di).di_tv, &mut tv);
         set_selfdict(&mut tv,  &mut *d);
         let res = callback_from_typval(result, &tv);
-        tv_clear(&raw mut tv);
+        tv_clear(&mut tv);
         res
     }
 }
@@ -3406,7 +3406,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
                         tv_copy(&(*di1).di_tv, &mut oldtv);
                     }
 
-                    tv_clear(&raw mut (*di1).di_tv);
+                    tv_clear(&mut (*di1).di_tv);
                     tv_copy(&(*di2).di_tv, &mut (*di1).di_tv);
 
                     if watched {
@@ -3416,7 +3416,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
                             &raw mut (*di1).di_tv,
                             Some(&oldtv),
                         );
-                        tv_clear(&raw mut oldtv);
+                        tv_clear(&mut oldtv);
                     }
                 }
             }
@@ -3619,7 +3619,7 @@ fn tv_blob_slice(
             n2 -= 1;
         }
         if n1 >= len64 || n2 < 0 || n1 > n2 {
-            tv_clear(&raw mut *rettv);
+            tv_clear(&mut *rettv);
             rettv.v_type = VarType::VAR_BLOB;
             rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
         } else {
@@ -3627,7 +3627,7 @@ fn tv_blob_slice(
             let src_blob = rettv.vval.v_blob();
             let new_bv = &mut (*new_blob).bv_ga;
             new_bv.extend_from_slice(&(&(*src_blob).bv_ga)[(n1 as usize)..=(n2 as usize)]);
-            tv_clear(&raw mut *rettv);
+            tv_clear(&mut *rettv);
             tv_blob_set_ret_inline(rettv, new_blob);
         }
 
@@ -3647,7 +3647,7 @@ fn tv_blob_index(
         }
         if idx < len64 && idx >= 0 {
             let v = i64::from(tv_blob_get_inline(&*rettv.vval.v_blob(), idx as c_int));
-            tv_clear(&raw mut *rettv);
+            tv_clear(&mut *rettv);
             rettv.v_type = VarType::VAR_NUMBER;
             rettv.vval = crate::eval::typval::TypvalVval::Number(v);
         } else {
@@ -4385,14 +4385,12 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> bool {
 }
 
 /// Free memory for a variable value and set the value to NULL or 0.
-pub fn tv_clear(tv: *mut typval_T) {
-    unsafe {
-        if tv.is_null() || (*tv).v_type == VarType::VAR_UNKNOWN {
-            return;
-        }
-        let evn_ret = encode_vim_to_nothing(&mut *tv);
-        debug_assert!(evn_ret);
+pub fn tv_clear(tv: &mut typval_T) {
+    if tv.v_type == VarType::VAR_UNKNOWN {
+        return;
     }
+    let evn_ret = encode_vim_to_nothing(tv);
+    debug_assert!(evn_ret);
 }
 
 /// Copy typval from one location to another.
@@ -5309,7 +5307,7 @@ mod tests {
             let mut cat_tv = tv_initial_value();
             assert!(tv_list_concat(l2, l2_copy, &mut cat_tv));
             assert_eq!(tv_list_len_inline(cat_tv.vval.v_list()), 6);
-            tv_clear(&raw mut cat_tv);
+            tv_clear(&mut cat_tv);
 
             tv_list_extend(&mut *l2, l2_copy, ptr::null_mut());
             assert_eq!(tv_list_len_inline(l2), 6);
@@ -5453,9 +5451,9 @@ mod tests {
             tv_dict_alloc_ret(&mut tv_d);
             assert_eq!(tv_d.v_type, VarType::VAR_DICT);
 
-            tv_clear(&raw mut tv_str);
-            tv_clear(&raw mut tv_l);
-            tv_clear(&raw mut tv_d);
+            tv_clear(&mut tv_str);
+            tv_clear(&mut tv_l);
+            tv_clear(&mut tv_d);
             crate::globals::g_st().emsg_skip -= 1;
         }
     }

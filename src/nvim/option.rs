@@ -2689,10 +2689,10 @@ pub fn apply_optionset_autocmd_now(
         );
         reset_v_option_vars();
 
-        tv_clear(&raw mut oldval_tv);
-        tv_clear(&raw mut oldval_g_tv);
-        tv_clear(&raw mut oldval_l_tv);
-        tv_clear(&raw mut newval_tv);
+        tv_clear(&mut oldval_tv);
+        tv_clear(&mut oldval_g_tv);
+        tv_clear(&mut oldval_l_tv);
+        tv_clear(&mut newval_tv);
     }
 }
 
@@ -5181,7 +5181,7 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
                 let mut tv = typval_T::new();
                 callback_put(cb, &mut tv);
                 let str_ = encode_tv2string(&mut tv, None);
-                tv_clear(&raw mut tv);
+                tv_clear(&mut tv);
                 return cstr_to_obj(str_.as_ptr());
             }
             kCallbackNone => {}
@@ -8272,13 +8272,13 @@ pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> bo
 
         let mut cb = Callback::NONE;
         if !callback_from_typval(&mut cb, &tv) || cb.cb_type() == kCallbackNone {
-            tv_clear(&raw mut tv);
+            tv_clear(&mut tv);
             return false;
         }
 
         callback_free(optcb);
         *optcb = cb;
-        tv_clear(&raw mut tv);
+        tv_clear(&mut tv);
         true
     }
 }
@@ -8556,7 +8556,7 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
                         (*opt).fullname.to_bytes().len(),
                         &mut opt_tv,
                     );
-                    tv_clear(&raw mut opt_tv);
+                    tv_clear(&mut opt_tv);
                     optval_free_read(opt_idx, ov);
                 }
             }

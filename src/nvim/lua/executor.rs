@@ -1577,7 +1577,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
                 || *input.vval.v_string() == NUL
                 || crate::memory::cstr_as_bytes(input.vval.v_string()) == b"cont"
             {
-                tv_clear(&raw mut input);
+                tv_clear(&mut input);
                 if ui_has(kUICmdline) {
                     ui_ext_cmdline_block_leave();
                 }
@@ -1602,7 +1602,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
                     gettext(c"E5116: Calling Lua debug string: %.*s"),
                 );
             }
-            tv_clear(&raw mut input);
+            tv_clear(&mut input);
         }
     }
 }
@@ -1712,12 +1712,12 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             if !error_set(&err) {
                 nlua_push_typval(lstate, &raw mut rettv, 0);
             }
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
         }
 
         while i > 0 {
             i -= 1;
-            tv_clear(&raw mut vim_args[i]);
+            tv_clear(&mut vim_args[i]);
         }
         if error_set(&err) {
             lua_pushstring(lstate, err.msg_ptr());

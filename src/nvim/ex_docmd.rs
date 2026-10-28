@@ -9162,7 +9162,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 &g_st().cmdmod,
                 Some(&mut extra_tv),
             );
-            tv_clear(&raw mut extra_tv);
+            tv_clear(&mut extra_tv);
             return;
         }
 
@@ -9961,7 +9961,7 @@ fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut list_T {
             } else {
                 let _ = emsg(gettext(e_invalid_return_type_from_findfunc));
             }
-            tv_clear(&raw mut rettv);
+            tv_clear(&mut rettv);
         }
 
         retlist
@@ -12733,7 +12733,7 @@ fn ex_terminal(eap: &mut exarg_T) {
                 &g_st().cmdmod,
                 Some(&mut shell_tv),
             );
-            tv_clear(&raw mut shell_tv);
+            tv_clear(&mut shell_tv);
         }
     }
 }

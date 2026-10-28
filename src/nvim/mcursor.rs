@@ -277,7 +277,7 @@ pub fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
 }
 
 pub fn mc_replaying() -> bool {
-    unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool() == kBoolVarTrue }
+     get_vim_var_tv(VV_CASCADING).vval.v_bool() == kBoolVarTrue
 }
 
 fn mc_mark_upd(buf: &mut buf_T, mark: &mut u32, pos: pos_T) {

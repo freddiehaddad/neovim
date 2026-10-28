@@ -1017,7 +1017,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
 
     let mut rettv: typval_T = typval_T::new();
     let _ = callback_call(unsafe { &mut *cb }, 3, argv.as_mut_ptr(), &mut rettv);
-    tv_clear(&raw mut rettv);
+    tv_clear(&mut rettv);
 
     if is_stderr.is_some() {
         tv_list_unref(argv[1].vval.v_list());

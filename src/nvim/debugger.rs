@@ -769,7 +769,7 @@ fn debuggy_find(
                             tv_clear(old_val);
                             bp.dbg_val = v;
                         }
-                        tv_clear(&raw mut tv);
+                        tv_clear(&mut tv);
                     } else {
                         dbg_st().DEBUG_OLDVAL = Some(typval_tostring(None, true));
                         bp.dbg_val = Some(tv);
