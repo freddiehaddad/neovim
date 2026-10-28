@@ -742,7 +742,7 @@ pub fn ex_language(eap: &mut exarg_T) {
             #[cfg(not(windows))]
             let loc = {
                 let l = setlocale(what, name);
-                let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
+                let _ = setlocale(LC_NUMERIC, c"C");
                 l
             };
 
@@ -839,8 +839,8 @@ pub fn lang_init() {
     unsafe {
         if !os_env_exists(c"LANG", true) {
             let _ = os_setenv(c"LANG", c"C.UTF-8", 1);
-            let _ = setlocale(LC_ALL, c"C.UTF-8".as_ptr());
-            let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
+            let _ = setlocale(LC_ALL, c"C.UTF-8");
+            let _ = setlocale(LC_NUMERIC, c"C");
         }
     }
 }

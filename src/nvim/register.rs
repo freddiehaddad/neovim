@@ -629,7 +629,7 @@ pub fn do_record(c: c_int) -> bool {
     }
 }
 
-fn put_in_typebuf(s: *mut c_char, esc: bool, colon: bool, silent: c_int) -> bool {
+fn put_in_typebuf(s: impl crate::strings::IntoCCharPtr, esc: bool, colon: bool, silent: c_int) -> bool { let s = s.into_c_char_ptr();
     let mut retval = true;
         let is_silent = silent != 0;
 

@@ -472,11 +472,11 @@ fn spell_check_magic_string(fd: *mut FILE) -> c_int {
 
 /// Load one spell file and store the info into a slang_T.
 pub fn spell_load_file(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     lang: *mut c_char,
     old_lp: *mut slang_T,
     silent: bool,
-) -> *mut slang_T {
+) -> *mut slang_T { let fname = fname.into_c_char_ptr();
     unsafe {
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
@@ -1642,7 +1642,7 @@ fn read_tree_node(
     }
 }
 
-fn spell_reload_one(fname: *mut c_char, added_word: bool) {
+fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut didit = false;
 
@@ -2900,9 +2900,9 @@ fn aff_check_string(
 
 fn add_fromto(
     gap: &mut Vec<fromto_T>,
-    from: *mut c_char,
-    to: *mut c_char,
-) {
+    from: impl crate::strings::IntoCCharPtr,
+    to: impl crate::strings::IntoCCharPtr,
+) { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
      {
         let mut word = [0 as c_char; MAXWLEN];
         spell_casefold(
@@ -2929,7 +2929,7 @@ fn sal_to_bool(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_
      crate::memory::cstr_as_bytes(s) == b"1" || crate::memory::cstr_as_bytes(s) == b"true"
 }
 
-fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T) -> bool {
+fn spell_read_dic(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr, affile: &afffile_T) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut line = [0 as c_char; MAXLINELEN];
@@ -3552,7 +3552,7 @@ fn store_aff_word(
     }
 }
 
-fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
+fn spell_read_wordfile(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut lnum: linenr_T = 0;
         let mut rline = [0 as c_char; MAXLINELEN];
@@ -3789,12 +3789,12 @@ fn valid_spell_word(word: impl crate::strings::IntoCCharPtr, end: impl crate::st
 
 fn store_word(
     spin: &mut spellinfo_T,
-    word: *mut c_char,
+    word: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     region: c_int,
     pfxlist: impl crate::strings::IntoCCharPtr,
     need_affix: bool,
-) -> bool { let pfxlist = pfxlist.into_c_char_ptr();
+) -> bool { let word = word.into_c_char_ptr(); let pfxlist = pfxlist.into_c_char_ptr();
     unsafe {
         let len = crate::memory::cstr_len(word) as c_int;
         let ct = captype(word, word.offset(len as isize));
@@ -4176,7 +4176,7 @@ fn node_equal(nodes: &[wordnode_T], n1: usize, n2: usize) -> bool {
     p1.is_none() && p2.is_none()
 }
 
-fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> bool {
+fn write_vim_spell(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut retval = true;
 
@@ -4630,7 +4630,7 @@ pub fn ex_mkspell(eap: &mut exarg_T) {
     }
 }
 
-fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
+fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: impl crate::strings::IntoCCharPtr) { let wfname = wfname.into_c_char_ptr();
     unsafe {
         let mut slang = spell_priv_st().first_lang
             .iter_mut()
@@ -4886,7 +4886,7 @@ fn offset2bytes(nr: c_int, buf_in: *mut c_char) -> c_int {
     }
 }
 
-fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
+fn sug_write(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
     unsafe {
         let fd = os_fopen(fname, c"w");
         if fd.is_null() {
@@ -5205,12 +5205,12 @@ pub fn ex_spell(eap: &mut exarg_T) {
 
 /// Add "word[len]" to 'spellfile' as a good or bad word.
 pub fn spell_add_word(
-    word: *mut c_char,
+    word: impl crate::strings::IntoCCharPtr,
     len: c_int,
     what: SpellAddType,
     idx: c_int,
     undo: bool,
-) {
+) { let word = word.into_c_char_ptr();
     unsafe {
         let mut fd: *mut FILE = ptr::null_mut();
         let mut buf: *mut buf_T = ptr::null_mut();

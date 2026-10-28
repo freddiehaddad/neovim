@@ -821,7 +821,7 @@ fn menu_get_recursive(menu: Option<&vimmenu_T>, modes: c_int) -> *mut dict_T {
 }
 
 /// Export menus matching path `path_name` (`menu_get`).
-pub fn menu_get(path_name: *mut c_char, modes: c_int, list: &mut list_T) -> bool {
+pub fn menu_get(path_name: impl crate::strings::IntoCCharPtr, modes: c_int, list: &mut list_T) -> bool { let path_name = path_name.into_c_char_ptr();
     unsafe {
         let root = get_root_menu(path_name);
         if !crate::memory::cstr_is_empty(path_name) {
@@ -890,7 +890,7 @@ fn find_menu(
 }
 
 /// Show the mapping associated with a menu item or hierarchy in a sub-menu (`show_menus`).
-fn show_menus(path_name: *mut c_char, modes: c_int) -> bool {
+fn show_menus(path_name: impl crate::strings::IntoCCharPtr, modes: c_int) -> bool { let path_name = path_name.into_c_char_ptr();
     unsafe {
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         if !crate::memory::cstr_is_empty(path_name) {
@@ -1377,7 +1377,7 @@ const fn get_menu_mode_str(modes: c_int) -> *const c_char {
 }
 
 /// Modify a menu name starting with `"PopUp"` to include the mode character (`popup_mode_name`).
-fn popup_mode_name(name: *mut c_char, idx: usize) -> std::ffi::CString {
+fn popup_mode_name(name: impl crate::strings::IntoCCharPtr, idx: usize) -> std::ffi::CString { let name = name.into_c_char_ptr();
      {
         let name_bytes = crate::memory::cstr_as_bytes(name);
         debug_assert!(name_bytes.len() >= 4);
@@ -1455,7 +1455,7 @@ pub fn menu_is_toolbar(name: impl crate::strings::IntoCCharPtr) -> bool { let na
 }
 
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
-pub fn menu_is_separator(name: *mut c_char) -> bool {
+pub fn menu_is_separator(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
      {
         let len = crate::memory::cstr_len(name);
         len > 0 && crate::memory::cstr_first_byte(name) == b'-' && crate::memory::cstr_byte_at(name, len - 1) == b'-'
@@ -1463,7 +1463,7 @@ pub fn menu_is_separator(name: *mut c_char) -> bool {
 }
 
 /// True if a popup menu or starts with `MNU_HIDDEN_CHAR` (`menu_is_hidden`).
-fn menu_is_hidden(name: *mut c_char) -> bool {
+fn menu_is_hidden(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     unsafe { *name == MNU_HIDDEN_CHAR || (menu_is_popup(name) && crate::memory::cstr_byte_at(name, 5) != 0) }
 }
 
@@ -1630,7 +1630,7 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
 }
 
 /// Lookup a menu by the descriptor name e.g. `"File.New"` (`menu_getbyname`).
-fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
+fn menu_getbyname(name_arg: impl crate::strings::IntoCCharPtr) -> *mut vimmenu_T { let name_arg = name_arg.into_c_char_ptr();
     unsafe {
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(name_arg);
         let saved_name = saved_name_vec.as_mut_ptr();

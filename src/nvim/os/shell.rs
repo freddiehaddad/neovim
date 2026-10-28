@@ -412,7 +412,7 @@ pub fn os_expand_wildcards(
             return false;
         }
 
-        let fd = fopen(tempname, c"rb".as_ptr());
+        let fd = fopen(tempname, c"rb");
         if fd.is_null() {
             if (flags & EW_SILENT) == 0 {
                 msg(gettext(e_wildexpand), 0);
@@ -636,7 +636,7 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
 }
 
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
-pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
+pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_args: impl crate::strings::IntoCCharPtr) -> c_int { let cmd = cmd.into_c_char_ptr(); let extra_args = extra_args.into_c_char_ptr();
     let mut input: Vec<c_char> = Vec::new();
         let mut output: Vec<c_char> = Vec::new();
         let mut want_output = false;
@@ -698,7 +698,7 @@ pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> 
 }
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
-pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -> c_int {
+pub fn call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_shell_arg: impl crate::strings::IntoCCharPtr) -> c_int { let cmd = cmd.into_c_char_ptr(); let extra_shell_arg = extra_shell_arg.into_c_char_ptr();
      {
         let mut wait_time: proftime_T = 0;
 
@@ -739,9 +739,9 @@ pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -
 /// Get the stdout of an external command.
 pub fn get_cmd_output(
     cmd: impl crate::strings::IntoCCharPtr,
-    infile: *mut c_char,
+    infile: impl crate::strings::IntoCCharPtr,
     flags: c_int,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let infile = infile.into_c_char_ptr();
     let cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if check_secure() {

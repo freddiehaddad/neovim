@@ -65,7 +65,7 @@ pub struct KeyDict_option {
 
 fn validate_option_value_args(
     opts: &mut KeyDict_option,
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     allow_tab: bool,
     opt_idxp: &mut OptIndex,
     opt_flags: &mut c_int,
@@ -75,7 +75,7 @@ fn validate_option_value_args(
     operation: Option<&mut set_op_T>,
     dry_run: Option<&mut bool>,
     err: &mut Error,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mask = opts.is_set__option_;
         if has_key(mask, KEYSET_OPTIDX_option__filetype)

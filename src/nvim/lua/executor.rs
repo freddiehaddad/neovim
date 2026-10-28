@@ -1004,7 +1004,7 @@ unsafe extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> c_int {
             return luaL_error(
                 lstate,
                 e_fast_api_disabled.as_ptr(),
-                c"os.exit".as_ptr(),
+                c"os.exit",
             );
         }
 
@@ -1734,7 +1734,7 @@ unsafe extern "C-unwind" fn nlua_rpcrequest(lstate: *mut lua_State) -> c_int {
             return luaL_error(
                 lstate,
                 e_fast_api_disabled.as_ptr(),
-                c"rpcrequest".as_ptr(),
+                c"rpcrequest",
             );
         }
         nlua_rpc(lstate, true)
@@ -2001,7 +2001,7 @@ fn nlua_exec_typval(
     }
 }
 
-pub fn nlua_exec_lines(lines: &[std::ffi::CString], name: *mut c_char) {
+pub fn nlua_exec_lines(lines: &[std::ffi::CString], name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
     let mut code: Vec<u8> = Vec::new();
         for (i, line) in lines.iter().enumerate() {
             if i > 0 {

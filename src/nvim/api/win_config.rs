@@ -1590,9 +1590,9 @@ fn generate_api_error(wp: Option<&win_T>, attribute: &std::ffi::CStr, err: &mut 
 /// Parses a border style name or custom (comma-separated) style.
 // DLLEXPORT bool parse_winborder(WinConfig *fconfig, char *border_opt, Error *err);
 pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
-    border_opt: *mut c_char,
+    border_opt: impl crate::strings::IntoCCharPtr,
     err: &mut Error,
-) -> bool {
+) -> bool { let border_opt = border_opt.into_c_char_ptr();
      {
         if fconfig.is_none() {
             return false;

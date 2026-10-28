@@ -4857,7 +4857,7 @@ fn get_register_completion() {
     }
 }
 
-fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> CptFuncSource {
+fn get_callback_if_cpt_func(p: impl crate::strings::IntoCCharPtr, idx: c_int) -> CptFuncSource { let p = p.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(p) == b'o' {
             return CptFuncSource::Ofu;
@@ -5358,7 +5358,7 @@ pub fn ins_compl_delete(new_leader: bool) {
     }
 }
 
-fn ins_compl_expand_multiple(str_ptr: *mut c_char) {
+fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let mut start = str_ptr;
         let mut curr = str_ptr;
@@ -6033,7 +6033,7 @@ fn get_normal_compl_info(
     }
 }
 
-fn get_wholeline_compl_info(line: *mut c_char, curs_col: colnr_T) -> bool {
+fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: colnr_T) -> bool { let line = line.into_c_char_ptr();
     unsafe {
         insexp().compl_col = getwhitecols(line) as colnr_T;
         insexp().compl_length = curs_col - insexp().compl_col;
@@ -6102,7 +6102,7 @@ fn get_filename_compl_info(
     }
 }
 
-fn get_cmdline_compl_info(line: *mut c_char, curs_col: colnr_T) -> bool {
+fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: colnr_T) -> bool { let line = line.into_c_char_ptr();
     unsafe {
         set_compl_pattern_bytes(line, curs_col as usize);
         set_cmd_context(
@@ -6301,7 +6301,7 @@ fn compl_get_info(
     }
 }
 
-fn ins_compl_continue_search(line: *mut c_char) {
+fn ins_compl_continue_search(line: impl crate::strings::IntoCCharPtr) { let line = line.into_c_char_ptr();
     unsafe {
         insexp().compl_cont_status &= !CONT_INTRPT;
         if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {

@@ -280,7 +280,7 @@ pub fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char 
 ///
 /// # Safety
 /// `name` must be a valid C string.
-pub fn match_user(name: *mut c_char) -> c_int {
+pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
      {
         init_users();
         let target = crate::memory::cstr_as_bytes(name);

@@ -1538,10 +1538,10 @@ fn do_filter(
     line1: linenr_T,
     line2: linenr_T,
     eap: &mut exarg_T,
-    cmd: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     do_in: bool,
     do_out: bool,
-) {
+) { let cmd = cmd.into_c_char_ptr();
      {
         let mut itmp_owned: Option<std::ffi::CString> = None;
         let mut otmp_owned: Option<std::ffi::CString> = None;
@@ -1791,7 +1791,7 @@ fn do_filter(
 }
 
 /// Call a shell to execute a command.
-pub fn do_shell(cmd: *mut c_char, flags: c_int) {
+pub fn do_shell(cmd: impl crate::strings::IntoCCharPtr, flags: c_int) { let cmd = cmd.into_c_char_ptr();
      {
         if check_secure() {
             msg_end();
@@ -1854,11 +1854,11 @@ fn find_pipe(cmd: impl crate::strings::IntoCCharPtr) -> *mut c_char { let cmd = 
 /// Create a shell command from a command string, input redirection file and
 /// output redirection file.
 pub fn make_filter_cmd(
-    cmd: *mut c_char,
-    itmp: *mut c_char,
-    otmp: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
+    itmp: impl crate::strings::IntoCCharPtr,
+    otmp: impl crate::strings::IntoCCharPtr,
     do_in: bool,
-) -> std::ffi::CString {
+) -> std::ffi::CString { let cmd = cmd.into_c_char_ptr(); let itmp = itmp.into_c_char_ptr(); let otmp = otmp.into_c_char_ptr();
     unsafe {
         #[cfg(unix)]
         let is_fish_shell = crate::memory::cstr_prefix_bytes(
@@ -2682,7 +2682,7 @@ pub fn getfile(
 }
 
 /// Set `v:swapcommand` for the `SwapExists` autocommands.
-pub fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
+pub fn set_swapcommand(command: impl crate::strings::IntoCCharPtr, newlnum: linenr_T) -> bool { let command = command.into_c_char_ptr();
     unsafe {
         if (command.is_null() && newlnum <= 0) || *get_vim_var_str(VV_SWAPCOMMAND) != NUL {
             return false;
@@ -4832,7 +4832,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
     }
 }
 
-fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
+fn global_exe_one(cmd: impl crate::strings::IntoCCharPtr, lnum: linenr_T) { let cmd = cmd.into_c_char_ptr();
      {
         curwin_mut().w_cursor.lnum = lnum;
         curwin_mut().w_cursor.col = 0;
@@ -4994,7 +4994,7 @@ pub fn ex_global(eap: &mut exarg_T) {
 }
 
 /// Execute `cmd` on lines marked with `ml_setmarked()`.
-pub fn global_exe(cmd: *mut c_char) {
+pub fn global_exe(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
      {
         let old_buf = g_st().curbuf;
 

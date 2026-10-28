@@ -4144,12 +4144,12 @@ pub fn intro_message(colon: bool) {
             c"type  :help nvim<Enter>     if you are new! ".as_ptr(),
             c"type  :checkhealth<Enter>   to optimize Nvim".as_ptr(),
             c"type  :q<Enter>             to exit         ".as_ptr(),
-            c"type  :help<Enter>          for help        ".as_ptr(),
-            c"────────────────────────────────────────────".as_ptr(),
-            c"type  :help news<Enter>     for v%s.%s notes ".as_ptr(),
-            c"────────────────────────────────────────────".as_ptr(),
-            c"Help poor children in Uganda!".as_ptr(),
-            c"type  :help Kuwasha<Enter>  for information ".as_ptr(),
+            c"type  :help<Enter>          for help        ",
+            c"────────────────────────────────────────────",
+            c"type  :help news<Enter>     for v%s.%s notes ",
+            c"────────────────────────────────────────────",
+            c"Help poor children in Uganda!",
+            c"type  :help Kuwasha<Enter>  for information ",
         ];
 
         let lines_size = lines.len() as c_int;

@@ -385,10 +385,10 @@ fn filter_map_list(
 fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMap) {
      {
         let (func_name, arg_errmsg) = match filtermap {
-            FilterMap::Map => (c"map()".as_ptr(), c"map() argument".as_ptr()),
-            FilterMap::MapNew => (c"mapnew()".as_ptr(), c"mapnew() argument".as_ptr()),
-            FilterMap::Filter => (c"filter()".as_ptr(), c"filter() argument".as_ptr()),
-            FilterMap::ForEach => (c"foreach()".as_ptr(), c"foreach() argument".as_ptr()),
+            FilterMap::Map => (c"map()", c"map() argument"),
+            FilterMap::MapNew => (c"mapnew()", c"mapnew() argument"),
+            FilterMap::Filter => (c"filter()", c"filter() argument"),
+            FilterMap::ForEach => (c"foreach()", c"foreach() argument"),
         };
 
         let (first, rest) = argvars.split_at_mut(1);

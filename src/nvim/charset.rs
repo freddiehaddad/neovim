@@ -272,7 +272,7 @@ pub fn init_isi_chartab() -> bool {
         true
 }
 
-pub fn check_isopt(var: *mut c_char) -> bool {
+pub fn check_isopt(var: impl crate::strings::IntoCCharPtr) -> bool { let var = var.into_c_char_ptr();
     parse_isopt(var, ptr::null_mut())
 }
 
@@ -504,11 +504,11 @@ pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, unt
 }
 
 pub fn str_foldcase(
-    str_: *mut c_char,
+    str_: impl crate::strings::IntoCCharPtr,
     orglen: c_int,
     buf: *mut c_char,
     buflen: c_int,
-) -> Option<CString> {
+) -> Option<CString> { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut vec: Vec<c_char> = Vec::new();
         let mut len = orglen;
@@ -1018,7 +1018,7 @@ pub fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
     }
 }
 
-pub fn vim_isblankline(lbuf: *mut c_char) -> bool {
+pub fn vim_isblankline(lbuf: impl crate::strings::IntoCCharPtr) -> bool { let lbuf = lbuf.into_c_char_ptr();
      {
         let p = skipwhite(lbuf);
         crate::memory::cstr_is_empty(p) || crate::memory::cstr_first_byte(p) == b'\r' || crate::memory::cstr_first_byte(p) == b'\n'

@@ -269,7 +269,7 @@ pub fn findpar(pincl: &mut bool,
 }
 
 /// Check if the string `s` is a nroff macro that is in option `opt` (`inmacro`).
-fn inmacro(opt: *mut c_char, s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr();
+fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoCCharPtr) -> bool { let opt = opt.into_c_char_ptr(); let s = s.into_c_char_ptr();
     unsafe {
         let mut macro_p = opt;
         let s0 = *s;
@@ -1475,11 +1475,11 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
 
 /// Search quote char from string `line[col]` (`find_next_quote`).
 fn find_next_quote(
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     mut col: c_int,
     quotechar: c_int,
-    escape: *mut c_char,
-) -> c_int {
+    escape: impl crate::strings::IntoCCharPtr,
+) -> c_int { let line = line.into_c_char_ptr(); let escape = escape.into_c_char_ptr();
     unsafe {
         loop {
             let c = c_int::from(crate::memory::cstr_byte_at(line, col as usize));
@@ -1501,11 +1501,11 @@ fn find_next_quote(
 
 /// Search backwards in `line` from column `col_start` to find `quotechar` (`find_prev_quote`).
 fn find_prev_quote(
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     mut col_start: c_int,
     quotechar: c_int,
-    escape: *mut c_char,
-) -> c_int {
+    escape: impl crate::strings::IntoCCharPtr,
+) -> c_int { let line = line.into_c_char_ptr(); let escape = escape.into_c_char_ptr();
     unsafe {
         while col_start > 0 {
             col_start -= 1;

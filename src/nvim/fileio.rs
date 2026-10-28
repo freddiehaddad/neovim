@@ -884,7 +884,7 @@ fn call_umask(mask: c_uint) -> c_uint {
 }
 
 /// Shows a message about file `name`, e.g. `"foo.txt" [New]`.
-fn filemess(buf: *mut buf_T, name: *mut c_char, s: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
+fn filemess(buf: *mut buf_T, name: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg_id = msg_id.into_c_char_ptr();
     let s = s.into_c_char_ptr();
     unsafe {
         let prev_msg_col = g_st().msg_col;
@@ -932,7 +932,7 @@ fn filemess(buf: *mut buf_T, name: *mut c_char, s: impl crate::strings::IntoCCha
 
 /// Shows file `name` before writing it, as a "bufwrite" message with `msg_id`, which buf_write()
 /// replaces when done (or with a progress-message, if slow).
-pub fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
+pub fn filemess_bufwrite(buf: *mut buf_T, name: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg_id = msg_id.into_c_char_ptr();
     filemess(buf, name, c"", msg_id);
 }
 
@@ -2815,7 +2815,7 @@ pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 /// Estimate the line number where we are now.
-fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: impl crate::strings::IntoCCharPtr) -> linenr_T { let endp = endp.into_c_char_ptr();
+fn readfile_linenr(linecnt: linenr_T, p: impl crate::strings::IntoCCharPtr, endp: impl crate::strings::IntoCCharPtr) -> linenr_T { let p = p.into_c_char_ptr(); let endp = endp.into_c_char_ptr();
     unsafe {
         let mut lnum = curbuf_mut().b_ml.ml_line_count - linecnt + 1;
         let mut s: *const c_char = p;
@@ -2910,10 +2910,10 @@ fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
 
 /// Convert a file with the 'charconvert' expression.
 fn readfile_charconvert(
-    fname: *mut c_char,
-    fenc: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    fenc: impl crate::strings::IntoCCharPtr,
     fdp: &mut c_int,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let fname = fname.into_c_char_ptr(); let fenc = fenc.into_c_char_ptr();
     unsafe {
         let mut errmsg: *mut c_char = ptr::null_mut();
 
@@ -3817,15 +3817,15 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                 reload = RELOAD_NORMAL;
             } else {
                 let (reason, reasonlen) = if !file_info_ok {
-                    (c"deleted".as_ptr(), 7isize)
+                    (c"deleted", 7isize)
                 } else if bufIsChanged(buf) {
-                    (c"conflict".as_ptr(), 8isize)
+                    (c"conflict", 8isize)
                 } else if orig_size != buf.b_orig_size || buf_contents_changed(&mut *buf) {
-                    (c"changed".as_ptr(), 7isize)
+                    (c"changed", 7isize)
                 } else if orig_mode != buf.b_orig_mode {
-                    (c"mode".as_ptr(), 4isize)
+                    (c"mode", 4isize)
                 } else {
-                    (c"time".as_ptr(), 4isize)
+                    (c"time", 4isize)
                 };
 
                 BUSY.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -4458,7 +4458,7 @@ pub fn vim_gettempdir() -> *mut c_char {
 }
 
 /// Sets Nvim's own temporary directory name to `tempdir`.
-fn vim_settempdir(tempdir: *mut c_char) -> bool {
+fn vim_settempdir(tempdir: impl crate::strings::IntoCCharPtr) -> bool { let tempdir = tempdir.into_c_char_ptr();
     unsafe {
         let mut buf_vec: Vec<c_char> = vec![0; MAXPATHL + 2];
         let buf = buf_vec.as_mut_ptr();
@@ -4509,13 +4509,13 @@ pub fn vim_tempname() -> Option<std::ffi::CString> {
 /// Tries matching a filename with a "pattern" ("prog" is None), or use the
 /// precompiled regprog "prog" ("pattern" is NULL).
 pub fn match_file_pat(
-    pattern: *mut c_char,
+    pattern: impl crate::strings::IntoCCharPtr,
     prog: Option<&regprog_T>,
-    fname: *mut c_char,
-    sfname: *mut c_char,
-    tail: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    sfname: impl crate::strings::IntoCCharPtr,
+    tail: impl crate::strings::IntoCCharPtr,
     allow_dirs: c_int,
-) -> bool {
+) -> bool { let pattern = pattern.into_c_char_ptr(); let fname = fname.into_c_char_ptr(); let sfname = sfname.into_c_char_ptr(); let tail = tail.into_c_char_ptr();
     let mut regmatch: regmatch_T = regmatch_T::new();
         let mut result = false;
 

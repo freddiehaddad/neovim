@@ -4899,7 +4899,7 @@ fn restore_dbg_stuff(dsp: &mut dbg_stuff) {
 }
 
 /// Check if ffname differs from fnum.
-fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
+fn is_other_file(fnum: c_int, ffname: impl crate::strings::IntoCCharPtr) -> bool { let ffname = ffname.into_c_char_ptr();
      {
         if fnum != 0 {
             if fnum == curbuf_mut().b_fnum {
@@ -4925,7 +4925,7 @@ fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
 }
 
 /// Print the executed command for when 'verbose' is set.
-fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
+fn msg_verbose_cmd(lnum: linenr_T, cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
     g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
@@ -5722,7 +5722,7 @@ fn skip_colon_white(p: impl crate::strings::IntoCCharPtr, skipleadingwhite: bool
     }
 }
 
-pub fn set_cmd_addr_type(eap: &mut exarg_T, p: *mut c_char) {
+pub fn set_cmd_addr_type(eap: &mut exarg_T, p: impl crate::strings::IntoCCharPtr) { let p = p.into_c_char_ptr();
     {
         if is_user_cmdidx(cmdidx_T::from_raw(eap.cmdidx)) {
             return;
@@ -7509,7 +7509,7 @@ pub fn find_ex_command(eap: &mut exarg_T,mut full: Option<&mut c_int>) -> *mut c
     }
 }
 
-pub fn modifier_len(cmd: *mut c_char) -> c_int {
+pub fn modifier_len(cmd: impl crate::strings::IntoCCharPtr) -> c_int { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let mut p = cmd;
         if ascii_isdigit(*cmd) {
@@ -8618,11 +8618,11 @@ fn get_argopt_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 pub fn expand_argopt(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     xp: &mut expand_T,
     rmp: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
     unsafe {
         if xp.xp_pattern > xp.xp_line && *xp.xp_pattern.sub(1) == b'=' as c_char {
             let mut cb: CompleteListItemGetter = None;
@@ -11573,7 +11573,7 @@ pub fn vim_mkdir_emsg(name: impl crate::strings::IntoCCharPtr, prot: c_int) -> b
     }
 }
 
-pub fn open_exfile(fname: *mut c_char, forceit: c_int, mode: &std::ffi::CStr) -> *mut FILE {
+pub fn open_exfile(fname: impl crate::strings::IntoCCharPtr, forceit: c_int, mode: &std::ffi::CStr) -> *mut FILE { let fname = fname.into_c_char_ptr();
     #[cfg(unix)]
     if os_isdir(fname) {
         let _ = semsg!(gettext(e_isadir2), fname);
@@ -11817,7 +11817,7 @@ fn ex_stopinsert(_eap: &mut exarg_T) {
         clearmode();
 }
 
-pub fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
+pub fn exec_normal_cmd(cmd: impl crate::strings::IntoCCharPtr, remap: c_int, silent: bool) { let cmd = cmd.into_c_char_ptr();
     let _ = ins_typebuf(cmd, remap, 0, true, silent);
         exec_normal(false, false);
 }
@@ -12364,7 +12364,7 @@ pub fn eval_vars(
     }
 }
 
-pub fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
+pub fn expand_sfile(arg: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let arg = arg.into_c_char_ptr();
     unsafe {
         let mut result_vec: Vec<c_char> = cstr_to_cstring(arg)
             .into_bytes_with_nul()
@@ -12779,7 +12779,7 @@ fn ex_fclose(eap: &mut exarg_T) {
     win_float_remove(eap.forceit != 0, eap.line1);
 }
 
-pub fn verify_command(cmd: *mut c_char) {
+pub fn verify_command(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
     const SMILE_LINES: [&CStr; 105] = [
         c" #xxn`          #xnxx`        ,+x@##@Mz;`        .xxxxxxxxxnz+,      znnnnnnnnnnnnnnnn.",
         c" n###z          x####`      :x##########W+`      ,#############M;    W################.",

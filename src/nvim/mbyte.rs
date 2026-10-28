@@ -3170,11 +3170,11 @@ pub fn convert_setup(vcp: &mut vimconv_T, from: impl crate::strings::IntoCCharPt
 
 pub fn convert_setup_ext(
     vcp: &mut vimconv_T,
-    from: *mut c_char,
+    from: impl crate::strings::IntoCCharPtr,
     from_unicode_is_utf8: bool,
-    to: *mut c_char,
+    to: impl crate::strings::IntoCCharPtr,
     to_unicode_is_utf8: bool,
-) -> bool {
+) -> bool { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
      {
         *vcp = vimconv_T {
             vc_type: CONV_NONE,
@@ -3237,16 +3237,16 @@ pub fn convert_setup_ext(
 
 pub fn string_convert(
     vcp: &vimconv_T,
-    ptr: *mut c_char,lenp: Option<&mut usize>,
-) -> Option<Vec<u8>> {
+    ptr: impl crate::strings::IntoCCharPtr,lenp: Option<&mut usize>,
+) -> Option<Vec<u8>> { let ptr = ptr.into_c_char_ptr();
     string_convert_ext(vcp, ptr, lenp, None)
 }
 
 pub fn string_convert_ext(
     vcp: &vimconv_T,
-    ptr: *mut c_char,mut lenp: Option<&mut usize>,
+    ptr: impl crate::strings::IntoCCharPtr,mut lenp: Option<&mut usize>,
     mut unconvlenp: Option<&mut usize>,
-) -> Option<Vec<u8>> {
+) -> Option<Vec<u8>> { let ptr = ptr.into_c_char_ptr();
     unsafe {
         let len = if lenp.is_none() {
             crate::memory::cstr_len(ptr)

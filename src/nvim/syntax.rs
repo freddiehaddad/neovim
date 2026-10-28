@@ -2687,14 +2687,14 @@ fn syn_regexec(
 }
 
 fn check_keyword_id(
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     startcol: c_int,
     endcolp: &mut c_int,
     flagsp: &mut c_int,
     next_listp: &mut SynIdList,
     cur_si: *mut stateitem_T,
     ccharp: &mut c_int,
-) -> c_int {
+) -> c_int { let line = line.into_c_char_ptr();
     unsafe {
         let kwp = line.offset(startcol as isize);
         let mut kwlen: c_int = 0;
@@ -2736,10 +2736,10 @@ fn check_keyword_id(
 }
 
 fn match_keyword(
-    keyword: *mut c_char,
+    keyword: impl crate::strings::IntoCCharPtr,
     ht: &std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
     cur_si: *mut stateitem_T,
-) -> *const keyentry_T {
+) -> *const keyentry_T { let keyword = keyword.into_c_char_ptr();
     unsafe {
         let key_bytes = crate::memory::cstr_as_bytes(keyword);
         if let Some(entries) = ht.get(key_bytes) {
@@ -3585,14 +3585,14 @@ fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>) 
 }
 
 fn add_keyword(
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     namelen: usize,
     id: c_int,
     flags: c_int,
     cont_in_list: &SynIdList,
     next_list: &SynIdList,
     conceal_char: c_int,
-) {
+) { let name = name.into_c_char_ptr();
     unsafe {
         let mut name_folded = [0 as c_char; MAXKEYWLEN + 1];
         let (name_ic, name_iclen): (*const c_char, usize) = if (*win_s(curwin_mut())).b_syn_ic != 0 {

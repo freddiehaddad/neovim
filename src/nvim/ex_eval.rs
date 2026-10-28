@@ -334,7 +334,7 @@ pub fn free_global_msglist() {
     }
 }
 
-pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: *mut c_char) {
+pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: impl crate::strings::IntoCCharPtr) { let cmdname = cmdname.into_c_char_ptr();
     unsafe {
         if exeval_st().cause_abort {
             exeval_st().cause_abort = false;
@@ -390,7 +390,7 @@ enum ExceptionValue {
     User(CString),
 }
 
-pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdname: *mut c_char) -> CString { let mesg = mesg.into_c_char_ptr();
+pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdname: impl crate::strings::IntoCCharPtr) -> CString { let cmdname = cmdname.into_c_char_ptr(); let mesg = mesg.into_c_char_ptr();
     unsafe {
         let mut out: Vec<u8> = Vec::new();
         if !crate::memory::cstr_is_empty(cmdname) {
@@ -440,7 +440,7 @@ pub fn get_error_exception_string(mesg: impl crate::strings::IntoCCharPtr, cmdna
     }
 }
 
-fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
+fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCharPtr) -> bool { let cmdname = cmdname.into_c_char_ptr();
     unsafe {
         let (r#type, mut messages, excp_value) = match value {
             ExceptionValue::User(val_str) => {
@@ -1691,7 +1691,7 @@ pub fn ex_endfunction(_eap: &mut exarg_T) {
         );
 }
 
-pub fn has_loop_cmd(mut p: *mut c_char) -> bool {
+pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool { let mut p = p.into_c_char_ptr();
     unsafe {
         loop {
             while crate::memory::cstr_first_byte(p) == b' ' || crate::memory::cstr_first_byte(p) == b'\t' || crate::memory::cstr_first_byte(p) == b':' {

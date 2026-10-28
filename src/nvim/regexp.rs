@@ -2605,12 +2605,12 @@ pub fn vim_regsub_multi(
 }
 
 fn vim_regsub_both(
-    source: *mut c_char,
+    source: impl crate::strings::IntoCCharPtr,
     expr: Option<&typval_T>,
     dest: *mut c_char,
     destlen: c_int,
     flags: c_int,
-) -> c_int {
+) -> c_int { let source = source.into_c_char_ptr();
     unsafe {
         let mut no: c_int = -1;
         let mut func_all: Option<CaseConv> = None;

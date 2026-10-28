@@ -162,7 +162,7 @@ pub fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
-pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: *mut c_char, len: usize) {
+pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: impl crate::strings::IntoCCharPtr, len: usize) { let data = data.into_c_char_ptr();
     ret_fp.wr = false;
     ret_fp.non_blocking = false;
     ret_fp.fd = -1;

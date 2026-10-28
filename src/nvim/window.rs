@@ -5075,10 +5075,10 @@ pub fn free_tabpage(tp: *mut tabpage_T) {
 
 pub fn win_new_tabpage(
     after: c_int,
-    filename: *mut c_char,
+    filename: impl crate::strings::IntoCCharPtr,
     enter: bool,
     first: *mut *mut win_T,
-) -> *mut tabpage_T {
+) -> *mut tabpage_T { let filename = filename.into_c_char_ptr();
     unsafe {
         let old_curtab = g_st().curtab;
 

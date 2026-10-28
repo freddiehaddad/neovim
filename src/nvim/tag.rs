@@ -998,7 +998,7 @@ fn select_tag_match(eap: Option<&exarg_T>,
 }
 
 /// Add the matching tags to the location list for the current window.
-fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
+fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>]) -> bool { let tag = tag.into_c_char_ptr();
     unsafe {
         let mut tag_name = [0 as c_char; 128 + 1];
         let mut tagp = tagptrs_T::default();

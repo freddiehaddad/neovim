@@ -990,7 +990,7 @@ fn spell_find_suggest(
         }
     }
 }
-fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
+fn spell_suggest_expr(su: &mut suginfo_T, expr: impl crate::strings::IntoCCharPtr) { let expr = expr.into_c_char_ptr();
     unsafe {
         let mut p: *const c_char = ptr::null();
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
@@ -1019,7 +1019,7 @@ fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
     }
 }
-fn spell_suggest_file(su: &mut suginfo_T, fname: *mut c_char) {
+fn spell_suggest_file(su: &mut suginfo_T, fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut line: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2205,7 +2205,7 @@ fn go_deeper(stack: &mut [trystate_T; MAXWLEN], depth: usize, score_add: c_int) 
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;
 }
-fn find_keepcap_word(slang: &mut slang_T, fword: *mut c_char, kword: *mut c_char) {
+fn find_keepcap_word(slang: &mut slang_T, fword: impl crate::strings::IntoCCharPtr, kword: *mut c_char) { let fword = fword.into_c_char_ptr();
     unsafe {
         let mut uword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
@@ -2420,8 +2420,8 @@ fn stp_sal_score(
     stp: &suggest_T,
     su: &suginfo_T,
     slang: &mut slang_T,
-    badsound: *mut c_char,
-) -> c_int {
+    badsound: impl crate::strings::IntoCCharPtr,
+) -> c_int { let badsound = badsound.into_c_char_ptr();
     unsafe {
         let mut badsound2: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2513,7 +2513,7 @@ fn suggest_try_soundalike_finish() {
         }
     }
 }
-fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp: &langp_T) {
+fn add_sound_suggest(su: &mut suginfo_T, goodword: impl crate::strings::IntoCCharPtr, score: c_int, lp: &langp_T) { let goodword = goodword.into_c_char_ptr();
     unsafe {
         let slang = &mut *lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2661,7 +2661,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
         }
     }
 }
-fn soundfold_find(slang: &mut slang_T, word: *mut c_char) -> c_int {
+fn soundfold_find(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr) -> c_int { let word = word.into_c_char_ptr();
     unsafe {
         let mut arridx: idx_T = 0;
         let mut wlen: usize = 0;
@@ -2928,7 +2928,7 @@ fn cleanup_suggestions(gap: &mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -
         }
         maxscore
 }
-fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
+fn soundalike_score(goodstart: impl crate::strings::IntoCCharPtr, badstart: impl crate::strings::IntoCCharPtr) -> c_int { let goodstart = goodstart.into_c_char_ptr(); let badstart = badstart.into_c_char_ptr();
     unsafe {
         let mut goodsound = goodstart;
         let mut badsound = badstart;
@@ -3153,10 +3153,10 @@ fn spell_edit_score(
 }
 fn spell_edit_score_limit(
     slang: Option<&mut slang_T>,
-    badword: *mut c_char,
-    goodword: *mut c_char,
+    badword: impl crate::strings::IntoCCharPtr,
+    goodword: impl crate::strings::IntoCCharPtr,
     limit: c_int,
-) -> c_int {
+) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
     spell_edit_score_limit_w(slang, badword, goodword, limit)
 }
 fn spell_edit_score_limit_w(

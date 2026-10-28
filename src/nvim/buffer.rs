@@ -3100,7 +3100,7 @@ fn buflist_getfpos() {
 }
 
 /// Find file in buffer list by name (it has to be for the current window).
-pub fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
+pub fn buflist_findname_exp(fname: impl crate::strings::IntoCCharPtr) -> *mut buf_T { let fname = fname.into_c_char_ptr();
     let mut buf: *mut buf_T = ptr::null_mut();
         if let Some(ffname) = FullName_save(fname, cfg!(unix)) {
             buf = buflist_findname(ffname.as_ptr().cast_mut());
@@ -3109,7 +3109,7 @@ pub fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
 }
 
 /// Find file in buffer list by name.
-pub fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
+pub fn buflist_findname(ffname: impl crate::strings::IntoCCharPtr) -> *mut buf_T { let ffname = ffname.into_c_char_ptr();
     unsafe {
         let mut file_id: FileID = FileID::new();
         let file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
@@ -3118,10 +3118,10 @@ pub fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
 }
 
 fn buflist_findname_file_id(
-    ffname: *mut c_char,
+    ffname: impl crate::strings::IntoCCharPtr,
     file_id: &mut FileID,
     file_id_valid: bool,
-) -> *mut buf_T {
+) -> *mut buf_T { let ffname = ffname.into_c_char_ptr();
     unsafe {
         for buf in for_all_buffers_rev_ptr() {
             if ((*buf).b_flags & BF_DUMMY) == 0
@@ -3244,10 +3244,10 @@ fn buf_time_compare(buf1: &buf_T, buf2: &buf_T) -> std::cmp::Ordering {
 
 /// Find all buffer names that match.
 pub fn ExpandBufnames(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     file: &mut Vec<std::ffi::CString>,
     options: c_int,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut matches: Vec<bufmatch_T> = Vec::new();
 
@@ -3916,16 +3916,16 @@ pub fn buflist_altfpos(win: &mut win_T) {
 }
 
 /// Check that `ffname` is not the same file as current file.
-pub fn otherfile(ffname: *mut c_char) -> bool {
+pub fn otherfile(ffname: impl crate::strings::IntoCCharPtr) -> bool { let ffname = ffname.into_c_char_ptr();
      otherfile_buf(curbuf_mut(), ffname, ptr::null_mut(), false)
 }
 
 fn otherfile_buf(
     buf: &mut buf_T,
-    ffname: *mut c_char,
+    ffname: impl crate::strings::IntoCCharPtr,
     mut file_id_p: *mut FileID,
     mut file_id_valid: bool,
-) -> bool {
+) -> bool { let ffname = ffname.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_is_empty(ffname) || buf.b_ffname.is_null() {
             return true;
@@ -4260,7 +4260,7 @@ pub fn maketitle() {
     }
 }
 
-fn value_change(str_: *mut c_char, last: &mut Option<std::ffi::CString>) -> bool {
+fn value_change(str_: impl crate::strings::IntoCCharPtr, last: &mut Option<std::ffi::CString>) -> bool { let str_ = str_.into_c_char_ptr();
      {
         let last_ptr = last.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         if str_.is_null() != last_ptr.is_null()

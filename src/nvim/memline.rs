@@ -1725,7 +1725,7 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut dict_T) {
     }
 }
 
-fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
+fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) -> time_t { let fname = fname.into_c_char_ptr();
     unsafe {
         assert!(!fname.is_null());
         let mut b0 = ZeroBlock::new();
@@ -1844,7 +1844,7 @@ fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
     }
 }
 
-fn swapfile_unchanged(fname: *mut c_char) -> bool {
+fn swapfile_unchanged(fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         if !os_path_exists(fname) {
             return false;
@@ -1892,9 +1892,9 @@ fn swapfile_unchanged(fname: *mut c_char) -> bool {
 
 fn recov_file_names(
     names: &mut Vec<std::ffi::CString>,
-    path: *mut c_char,
+    path: impl crate::strings::IntoCCharPtr,
     prepend_dot: bool,
-) {
+) { let path = path.into_c_char_ptr();
     if prepend_dot {
             let Some(m) = modname(path, c".sw?", true) else {
                 return;
@@ -2185,10 +2185,10 @@ pub fn ml_line_alloced() -> c_int {
 fn ml_append_int(
     buf: &mut buf_T,
     lnum: linenr_T,
-    line_arg: *mut c_char,
+    line_arg: impl crate::strings::IntoCCharPtr,
     len_arg: colnr_T,
     flags: c_int,
-) -> bool {
+) -> bool { let line_arg = line_arg.into_c_char_ptr();
     unsafe {
         let line = line_arg;
         let mut len = len_arg;
@@ -2575,10 +2575,10 @@ fn ml_append_int(
 fn ml_append_flush(
     buf: &mut buf_T,
     lnum: linenr_T,
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     len: colnr_T,
     flags: c_int,
-) -> bool {
+) -> bool { let line = line.into_c_char_ptr();
      {
         if lnum > buf.b_ml.ml_line_count {
             return false;
@@ -2599,10 +2599,10 @@ pub fn ml_append(lnum: linenr_T, line: impl crate::strings::IntoCCharPtr, len: c
 /// Append a line after `lnum` using `ML_APPEND_` flags.
 pub fn ml_append_flags(
     lnum: linenr_T,
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     len: colnr_T,
     flags: c_int,
-) -> bool {
+) -> bool { let line = line.into_c_char_ptr();
      {
         if curbuf_mut().b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
             return false;
@@ -2615,10 +2615,10 @@ pub fn ml_append_flags(
 pub fn ml_append_buf(
     buf: &mut buf_T,
     lnum: linenr_T,
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     len: colnr_T,
     newfile: bool,
-) -> bool {
+) -> bool { let line = line.into_c_char_ptr();
      {
         if buf.b_ml.ml_mfp.is_none() {
             return false;
@@ -2633,11 +2633,11 @@ pub fn ml_append_buf(
     }
 }
 
-pub fn ml_add_deleted_len(ptr: *mut c_char, len: isize) {
+pub fn ml_add_deleted_len(ptr: impl crate::strings::IntoCCharPtr, len: isize) { let ptr = ptr.into_c_char_ptr();
     ml_add_deleted_len_buf(curbuf_mut(), ptr, len);
 }
 
-pub fn ml_add_deleted_len_buf(buf: &mut buf_T, ptr: *mut c_char, mut len: isize) {
+pub fn ml_add_deleted_len_buf(buf: &mut buf_T, ptr: impl crate::strings::IntoCCharPtr, mut len: isize) { let ptr = ptr.into_c_char_ptr();
      {
         if g_st().inhibit_delete_count != 0 {
             return;
@@ -2662,7 +2662,7 @@ pub fn ml_add_deleted_len_buf(buf: &mut buf_T, ptr: *mut c_char, mut len: isize)
 }
 
 /// Replace line `lnum`, with buffering, in current buffer.
-pub fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> bool {
+pub fn ml_replace(lnum: linenr_T, line: impl crate::strings::IntoCCharPtr, copy: bool) -> bool { let line = line.into_c_char_ptr();
     ml_replace_buf(curbuf_mut(), lnum, line, copy, false)
 }
 
@@ -3456,10 +3456,10 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
 
 fn attention_message(
     buf: &mut buf_T,
-    fname: *mut c_char,
-    fhname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    fhname: impl crate::strings::IntoCCharPtr,
     msg: &mut Vec<u8>,
-) {
+) { let fname = fname.into_c_char_ptr(); let fhname = fhname.into_c_char_ptr();
     assert!(!buf.b_fname.is_null());
 
         emsg(tr(c"E325: ATTENTION"));
@@ -3512,7 +3512,7 @@ fn attention_message(
         sb_push_cstr(msg, tr(c"\"\n    to avoid this message.\n"));
 }
 
-fn do_swapexists(buf: &mut buf_T, fname: *mut c_char) -> sea_choice_T {
+fn do_swapexists(buf: &mut buf_T, fname: impl crate::strings::IntoCCharPtr) -> sea_choice_T { let fname = fname.into_c_char_ptr();
     unsafe {
         set_vim_var_string(VV_SWAPNAME, fname, -1);
         set_vim_var_string(VV_SWAPCHOICE, ptr::null(), -1);
@@ -3544,9 +3544,9 @@ fn do_swapexists(buf: &mut buf_T, fname: *mut c_char) -> sea_choice_T {
 fn findswapname(
     buf: &mut buf_T,
     dirp: *mut *mut c_char,
-    old_fname: *mut c_char,
+    old_fname: impl crate::strings::IntoCCharPtr,
     found_existing_dir: &mut bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let old_fname = old_fname.into_c_char_ptr();
     unsafe {
         let buf_fname = buf.b_fname;
         let dir_len = crate::memory::cstr_len(*dirp) + 1;
@@ -3781,7 +3781,7 @@ fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
             || b0p.b0_magic_char != B0_MAGIC_CHAR
 }
 
-fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c_long) -> bool {
+fn fnamecmp_ino(fname_c: impl crate::strings::IntoCCharPtr, fname_s: impl crate::strings::IntoCCharPtr, ino_block0: c_long) -> bool { let fname_c = fname_c.into_c_char_ptr(); let fname_s = fname_s.into_c_char_ptr();
      {
         let mut ino_c: u64 = 0;
         let mut buf_c = [0 as c_char; MAXPATHL];

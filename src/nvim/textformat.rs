@@ -588,10 +588,10 @@ fn ends_in_white(lnum: linenr_T) -> bool {
 fn same_leader(
     lnum: linenr_T,
     leader1_len: c_int,
-    leader1_flags: *mut c_char,
+    leader1_flags: impl crate::strings::IntoCCharPtr,
     leader2_len: c_int,
-    leader2_flags: *mut c_char,
-) -> bool {
+    leader2_flags: impl crate::strings::IntoCCharPtr,
+) -> bool { let leader1_flags = leader1_flags.into_c_char_ptr(); let leader2_flags = leader2_flags.into_c_char_ptr();
     unsafe {
         if leader1_len == 0 {
             return leader2_len == 0;

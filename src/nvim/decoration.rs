@@ -1978,10 +1978,10 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             }
 
             let hls = [
-                (c"sign_hl_group".as_ptr(), sh_sign.hl_id),
-                (c"number_hl_group".as_ptr(), sh_sign.number_hl_id),
-                (c"line_hl_group".as_ptr(), sh_sign.line_hl_id),
-                (c"cursorline_hl_group".as_ptr(), sh_sign.cursorline_hl_id),
+                (c"sign_hl_group", sh_sign.hl_id),
+                (c"number_hl_group", sh_sign.number_hl_id),
+                (c"line_hl_group", sh_sign.line_hl_id),
+                (c"cursorline_hl_group", sh_sign.cursorline_hl_id),
             ];
             for (name, val) in hls {
                 if val != 0 {

@@ -1851,10 +1851,10 @@ fn wildescape(xp: &mut expand_T, str_arg: impl crate::strings::IntoCCharPtr, fil
 /// Escape special characters in the cmdline completion matches.
 fn ExpandEscape(
     xp: &mut expand_T,
-    str_arg: *mut c_char,
+    str_arg: impl crate::strings::IntoCCharPtr,
     files: &mut [CString],
     options: c_int,
-) {
+) { let str_arg = str_arg.into_c_char_ptr();
     if (options & WILD_HOME_REPLACE) != 0 && !files.is_empty() {
             tilde_replace(str_arg, files);
         }
@@ -2150,7 +2150,7 @@ fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
 }
 
 /// Return the number of characters that should be skipped in the wildmenu.
-fn skip_wildmenu_char(xp: &expand_T, s: *mut c_char) -> c_int {
+fn skip_wildmenu_char(xp: &expand_T, s: impl crate::strings::IntoCCharPtr) -> c_int { let s = s.into_c_char_ptr();
      {
         if (rem_backslash(s)
             && xp.xp_context != EXPAND_HELP
@@ -2173,7 +2173,7 @@ fn skip_wildmenu_char(xp: &expand_T, s: *mut c_char) -> c_int {
 }
 
 /// Get the length of an item as it will be shown in the status line.
-fn wildmenu_match_len(xp: &expand_T, mut s: *mut c_char) -> c_int {
+fn wildmenu_match_len(xp: &expand_T, s: impl crate::strings::IntoCCharPtr) -> c_int { let mut s = s.into_c_char_ptr();
     unsafe {
         let mut len: c_int = 0;
         let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
@@ -2957,7 +2957,7 @@ fn expand_showtail(xp: &mut expand_T) -> bool {
 }
 
 /// Prepare a string for expansion.
-pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
+pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context: c_int) -> CString { let fname = fname.into_c_char_ptr();
     unsafe {
         if context != EXPAND_FILES
             && context != EXPAND_FILES_IN_PATH
@@ -4617,11 +4617,11 @@ fn get_packupdate_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Do the expansion based on xp->xp_context and "rmp".
 fn ExpandOther(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     xp: &mut expand_T,
     rmp: &mut regmatch_T,
     matches: &mut Vec<CString>,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
     struct ExpGen {
         context: c_int,
         func: fn(&mut expand_T, c_int) -> *mut c_char,
@@ -5173,7 +5173,7 @@ fn expand_shellcmd_onedir(
 }
 
 /// Complete a shell command.
-fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c_int) {
+fn expand_shellcmd(filepat: impl crate::strings::IntoCCharPtr, matches: &mut Vec<CString>, flagsarg: c_int) { let filepat = filepat.into_c_char_ptr();
     unsafe {
         matches.clear();
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
@@ -5490,11 +5490,11 @@ fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> bool {
 /// Expand `file` for all comma-separated directories in `path`.
 pub fn globpath(
     mut path: *mut c_char,
-    file: *mut c_char,
+    file: impl crate::strings::IntoCCharPtr,
     ga: &mut Vec<CString>,
     expand_options: c_int,
     dirs: bool,
-) {
+) { let file = file.into_c_char_ptr();
     unsafe {
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
         let buf = buf_vec.as_mut_ptr();
@@ -6118,11 +6118,11 @@ fn is_regex_match(pat: impl crate::strings::IntoCCharPtr, str_arg: impl crate::s
 
 /// Constructs a new match string by appending text from the buffer to `pat`.
 fn concat_pattern_with_buffer_match(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     pat_len: c_int,
     end_match_pos: &mut pos_T,
     lowercase: bool,
-) -> CString {
+) -> CString { let pat = pat.into_c_char_ptr();
     unsafe {
         let line = ml_get(end_match_pos.lnum);
         let word_end = find_word_end(line.add(end_match_pos.col as usize));
@@ -6152,10 +6152,10 @@ fn concat_pattern_with_buffer_match(
 
 /// Search for strings matching "pat" in the specified range and return them.
 fn expand_pattern_in_buf(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     dir: Direction,
     matches: &mut Vec<CString>,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
      {
         let exacttext = (opt_vars().wop_flags & kOptWopFlagExacttext) != 0;
         let has_range = g_st().Search.first_line != 0;

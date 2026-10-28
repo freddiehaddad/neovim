@@ -147,7 +147,7 @@ fn do_checkbacktracelevel() {
         }
 }
 
-fn do_setdebugtracelevel(arg: *mut c_char) {
+fn do_setdebugtracelevel(arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
      {
         let level = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
         if crate::memory::cstr_first_byte(arg) == b'+' || level < 0 {
@@ -204,7 +204,7 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into
 }
 
 /// Interactive debug mode loop (`do_debug`).
-pub fn do_debug(cmd: *mut c_char) {
+pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let save_msg_scroll = g_st().msg_scroll;
         let save_state = g_st().State;
@@ -437,9 +437,9 @@ pub fn dbg_check_breakpoint(eap: &mut exarg_T) {
                     && (crate::memory::cstr_byte_at(bp_name, 1)) == KS_EXTRA
                     && (crate::memory::cstr_byte_at(bp_name, 2)) == KE_SNR;
                 let (prefix, rest) = if is_snr {
-                    (c"<SNR>".as_ptr(), bp_name.add(3))
+                    (c"<SNR>", bp_name.add(3))
                 } else {
-                    (c"".as_ptr(), bp_name)
+                    (c"", bp_name)
                 };
                 let lnum = dbg_st().DEBUG_BREAKPOINT_LNUM;
                 let fmt_str = format!("Breakpoint in \"%s%s\" line {lnum}\0");
@@ -477,7 +477,7 @@ pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
         true
 }
 
-fn eval_expr_no_emsg(name: *mut c_char) -> Option<typval_T> {
+fn eval_expr_no_emsg(name: impl crate::strings::IntoCCharPtr) -> Option<typval_T> { let name = name.into_c_char_ptr();
     g_st().emsg_off += 1;
         let tv = eval_expr(name, None);
         g_st().emsg_off -= 1;
@@ -718,11 +718,11 @@ pub fn ex_breaklist(_eap: &mut exarg_T) {
 
 fn debuggy_find(
     file: bool,
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     after: i32,
     gap: &mut [debuggy],
     is_prof: bool,mut fp: Option<&mut bool>,
-) -> i32 {
+) -> i32 { let fname = fname.into_c_char_ptr();
     unsafe {
         if gap.is_empty() {
             return 0;
@@ -796,13 +796,13 @@ fn debuggy_find(
 }
 
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
-pub fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
+pub fn dbg_find_breakpoint(file: bool, fname: impl crate::strings::IntoCCharPtr, after: i32) -> i32 { let fname = fname.into_c_char_ptr();
     let gap = dbg_vec_mut(false);
         debuggy_find(file, fname, after, gap, false, None)
 }
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
-pub fn has_profiling(file: bool, fname: *mut c_char,fp: Option<&mut bool>) -> bool {
+pub fn has_profiling(file: bool, fname: impl crate::strings::IntoCCharPtr,fp: Option<&mut bool>) -> bool { let fname = fname.into_c_char_ptr();
     let gap = dbg_vec_mut(true);
         debuggy_find(file, fname, 0, gap, true, fp) != 0
 }

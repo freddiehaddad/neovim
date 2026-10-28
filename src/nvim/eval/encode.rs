@@ -819,7 +819,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_ext_string(&mut self, buf: *mut c_char, len: usize, ext_type: i8) -> bool {
+    fn conv_ext_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize, ext_type: i8) -> bool { let buf = buf.into_c_char_ptr();
         unsafe {
             match self {
                 Self::Text {

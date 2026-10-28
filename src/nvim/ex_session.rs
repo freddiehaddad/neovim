@@ -301,7 +301,7 @@ fn ses_fname(fd: *mut FILE, buf: &mut buf_T, flagp: &mut c_uint, add_eol: bool) 
         true
 }
 
-fn ses_escape_fname(name: *mut c_char) -> CString {
+fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString { let name = name.into_c_char_ptr();
     unsafe {
         let mut sname_vec: Vec<c_char> = home_replace_save(None, name)
             .into_bytes_with_nul()
@@ -321,7 +321,7 @@ fn ses_escape_fname(name: *mut c_char) -> CString {
     }
 }
 
-fn ses_put_fname(fd: *mut FILE, name: *mut c_char, _flagp: &mut c_uint) -> bool {
+fn ses_put_fname(fd: *mut FILE, name: impl crate::strings::IntoCCharPtr, _flagp: &mut c_uint) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let p = ses_escape_fname(name);
         fputs(p.as_ptr(), fd) >= 0
@@ -602,7 +602,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
     }
 }
 
-fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
+fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool { let dirnow = dirnow.into_c_char_ptr();
     unsafe {
         let mut only_save_windows = true;
         let mut edited_win: *mut win_T = ptr::null_mut();

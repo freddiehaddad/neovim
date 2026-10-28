@@ -685,14 +685,14 @@ pub fn file_ff_differs(buf: &mut buf_T, ignore_empty: bool) -> bool {
 }
 
 /// Insert string `p` at the cursor position. Stops at a NUL byte.
-pub fn ins_bytes(p: *mut c_char) {
+pub fn ins_bytes(p: impl crate::strings::IntoCCharPtr) { let p = p.into_c_char_ptr();
      {
         ins_bytes_len(p, crate::memory::cstr_len(p));
     }
 }
 
 /// Insert string `p` with length `len` at the cursor position.
-pub fn ins_bytes_len(p: *mut c_char, len: usize) {
+pub fn ins_bytes_len(p: impl crate::strings::IntoCCharPtr, len: usize) { let p = p.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
         while i < len {
@@ -714,7 +714,7 @@ pub fn ins_char(c: c_int) {
         ins_char_bytes(buf.as_mut_ptr(), n);
 }
 
-pub fn ins_char_bytes(buf: *mut c_char, charlen: usize) {
+pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) { let buf = buf.into_c_char_ptr();
     unsafe {
         if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance_force(getviscol());
@@ -1877,11 +1877,11 @@ pub fn del_lines(nlines: linenr_T, undo: bool) {
 
 /// Returns the length in bytes of the prefix of the given string which introduces a comment.
 pub fn get_leader_len(
-    line: *mut c_char,
+    line: impl crate::strings::IntoCCharPtr,
     flags: *mut *mut c_char,
     backward: bool,
     include_space: bool,
-) -> c_int {
+) -> c_int { let line = line.into_c_char_ptr();
     unsafe {
         let mut got_com = false;
         let mut part_buf: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
@@ -2005,7 +2005,7 @@ pub fn get_leader_len(
 }
 
 /// Return the offset at which the last comment in `line` starts, or -1 if none.
-pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_int {
+pub fn get_last_leader_offset(line: impl crate::strings::IntoCCharPtr, flags: *mut *mut c_char) -> c_int { let line = line.into_c_char_ptr();
     unsafe {
         let mut result: c_int = -1;
         let mut lower_check_bound: c_int = 0;

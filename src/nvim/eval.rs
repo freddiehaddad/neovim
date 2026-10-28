@@ -451,12 +451,12 @@ pub fn fill_evalarg_from_eap(evalarg: &mut evalarg_T, skip: bool) {
 /// Top level evaluation function, returning a boolean.
 /// Sets "error" to true if there was an error.
 pub fn eval_to_bool(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     error: &mut bool,
     eap: &mut exarg_T,
     skip: bool,
     use_simple_function: bool,
-) -> bool {
+) -> bool { let arg = arg.into_c_char_ptr();
     let mut tv = tv_initial_value();
         let mut retval = false;
         let mut evalarg = evalarg_T::new();
@@ -647,10 +647,10 @@ pub fn eval_expr_to_bool(expr: &typval_T, error: &mut bool) -> bool {
 
 /// Top level evaluation function, returning a string.
 pub fn eval_to_string_skip(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     eap: &mut exarg_T,
     skip: bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let arg = arg.into_c_char_ptr();
     let mut tv = tv_initial_value();
         let retval: Option<std::ffi::CString>;
         let mut evalarg = evalarg_T::new();
@@ -719,10 +719,10 @@ fn typval2string(tv: &mut typval_T, join_list: bool) -> Option<std::ffi::CString
 
 /// Top level evaluation function, returning a string.
 pub fn eval_to_string_eap(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     join_list: bool,eap: Option<&mut exarg_T>,
     use_simple_function: bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let arg = arg.into_c_char_ptr();
      {
         let mut tv = tv_initial_value();
         let retval: Option<std::ffi::CString>;
@@ -756,10 +756,10 @@ pub fn eval_to_string(
 
 /// Call eval_to_string() without using current local variables and using textlock.
 pub fn eval_to_string_safe(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     use_sandbox: bool,
     use_simple_function: bool,
-) -> Option<std::ffi::CString> {
+) -> Option<std::ffi::CString> { let arg = arg.into_c_char_ptr();
     save_funccal();
         {
             if use_sandbox {
@@ -779,7 +779,7 @@ pub fn eval_to_string_safe(
 }
 
 /// Top level evaluation function, returning a number.
-pub fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> varnumber_T {
+pub fn eval_to_number(expr: impl crate::strings::IntoCCharPtr, use_simple_function: bool) -> varnumber_T { let expr = expr.into_c_char_ptr();
     let mut rettv = tv_initial_value();
         let retval: varnumber_T;
         let mut p = skipwhite(expr);
@@ -813,14 +813,14 @@ pub fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> varnumber
 }
 
 /// Top level evaluation function.
-pub fn eval_expr(arg: *mut c_char,eap: Option<&mut exarg_T>) -> Option<typval_T> {
+pub fn eval_expr(arg: impl crate::strings::IntoCCharPtr,eap: Option<&mut exarg_T>) -> Option<typval_T> { let arg = arg.into_c_char_ptr();
     eval_expr_ext(arg, eap, false)
 }
 
 pub fn eval_expr_ext(
-    arg: *mut c_char,mut eap: Option<&mut exarg_T>,
+    arg: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut exarg_T>,
     use_simple_function: bool,
-) -> Option<typval_T> {
+) -> Option<typval_T> { let arg = arg.into_c_char_ptr();
      {
         let mut tv = tv_initial_value();
         let mut evalarg = evalarg_T::new();
@@ -1076,7 +1076,7 @@ fn to_name_end(arg: impl crate::strings::IntoCCharPtr, use_namespace: bool) -> *
 
 fn get_lval_dict_item(
     lp: &mut lval_T,
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     mut key: *mut c_char,
     len: c_int,
     key_end: *mut *mut c_char,
@@ -1084,7 +1084,7 @@ fn get_lval_dict_item(
     flags: c_int,
     unlet: bool,
     rettv: Option<&mut typval_T>,
-) -> glv_status_T {
+) -> glv_status_T { let name = name.into_c_char_ptr();
     unsafe {
         let quiet = (flags & GLV_QUIET) != 0;
         let p = *key_end;
@@ -2036,10 +2036,10 @@ pub fn pattern_match(pat: impl crate::strings::IntoCCharPtr, text: impl crate::s
 /// "expr->name(arg)".
 fn eval_func(
     arg: *mut *mut c_char,evalarg: Option<&mut evalarg_T>,
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: c_int,rettv: &mut typval_T,
     flags: c_int,basetv: Option<&mut typval_T>,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let evaluate = (flags & EVAL_EVALUATE) != 0;
         let mut s = name;
@@ -2101,8 +2101,8 @@ fn eval_func(
 /// After using "evalarg" filled from "eap": free the memory.
 /// Handle zero level expression.
 pub fn eval0(
-    arg: *mut c_char,rettv: &mut typval_T,mut eap: Option<&mut exarg_T>,evalarg: &mut evalarg_T,
-) -> bool {
+    arg: impl crate::strings::IntoCCharPtr,rettv: &mut typval_T,mut eap: Option<&mut exarg_T>,evalarg: &mut evalarg_T,
+) -> bool { let arg = arg.into_c_char_ptr();
      {
         let did_emsg_before = g_st().did_emsg;
         let called_emsg_before = g_st().called_emsg;
@@ -2172,11 +2172,11 @@ pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr,rettv: &mut t
 }
 
 fn eval0_simple_funccal(
-    arg: *mut c_char,
+    arg: impl crate::strings::IntoCCharPtr,
     rettv: &mut typval_T,
     eap: Option<&mut exarg_T>,
     evalarg: &mut evalarg_T,
-) -> bool {
+) -> bool { let arg = arg.into_c_char_ptr();
     let r = may_call_simple_func(arg, rettv);
 
     if r == NOTDONE {

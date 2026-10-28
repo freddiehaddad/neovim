@@ -1109,7 +1109,7 @@ fn buf_do_map(
 
 /// Set or remove a mapping or an abbreviation in the current buffer, OR
 /// display (matching) mappings/abbreviations.
-pub fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) -> c_int {
+pub fn do_map(maptype: c_int, arg: impl crate::strings::IntoCCharPtr, mode: c_int, is_abbrev: bool) -> c_int { let arg = arg.into_c_char_ptr();
      {
         let mut parsed_args = MapArguments::new();
         let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
@@ -1165,7 +1165,7 @@ fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
     }
 }
 
-fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, abbr: c_int) {
+fn do_mapclear(mut cmdp: *mut c_char, arg: impl crate::strings::IntoCCharPtr, forceit: c_int, abbr: c_int) { let arg = arg.into_c_char_ptr();
      {
         let local = crate::memory::cstr_as_bytes(arg) == b"<buffer>";
         if !local && !crate::memory::cstr_is_empty(arg) {
@@ -1415,10 +1415,10 @@ pub fn set_context_in_map_cmd(
 
 /// Find all mapping/abbreviation names that match regexp "regmatch".
 pub fn ExpandMappings(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
     let fuzzy = cmdline_fuzzy_complete(pat);
 
         matches.clear();

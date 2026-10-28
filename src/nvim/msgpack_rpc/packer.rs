@@ -316,7 +316,7 @@ pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &m
 ///
 /// # Safety
 /// `buf` must be valid for `len` bytes when `len > 0`, and `packer` must be valid.
-pub fn mpack_ext(buf: *mut c_char, len: usize, ext_type: i8, packer: &mut PackerBuffer) {
+pub fn mpack_ext(buf: impl crate::strings::IntoCCharPtr, len: usize, ext_type: i8, packer: &mut PackerBuffer) { let buf = buf.into_c_char_ptr();
     if len == 1 {
             mpack_w(&mut packer.ptr, 0xd4);
         } else if len == 2 {

@@ -159,17 +159,17 @@ impl Drop for ff_search_ctx_T {
 
 /// Initialization routine for `vim_findfile()`.
 pub fn vim_findfile_init(
-    mut path: *mut c_char,
-    filename: *mut c_char,
+    path: impl crate::strings::IntoCCharPtr,
+    filename: impl crate::strings::IntoCCharPtr,
     filenamelen: usize,
-    stopdirs: *mut c_char,
+    stopdirs: impl crate::strings::IntoCCharPtr,
     level: c_int,
     free_visited: c_int,
     find_what: c_int,
     search_ctx_arg: Option<ff_search_ctx_T>,
     tagfile: c_int,
-    rel_fname: *mut c_char,
-) -> Option<ff_search_ctx_T> {
+    rel_fname: impl crate::strings::IntoCCharPtr,
+) -> Option<ff_search_ctx_T> { let mut path = path.into_c_char_ptr(); let filename = filename.into_c_char_ptr(); let stopdirs = stopdirs.into_c_char_ptr(); let rel_fname = rel_fname.into_c_char_ptr();
     unsafe {
         let mut search_ctx = search_ctx_arg.unwrap_or_default();
         search_ctx.ffsc_find_what = find_what;
@@ -1657,11 +1657,11 @@ pub fn find_file_name_in_path(
 }
 
 pub fn do_autocmd_dirchanged(
-    new_dir: *mut c_char,
+    new_dir: impl crate::strings::IntoCCharPtr,
     scope: CdScope,
     cause: CdCause,
     pre: bool,
-) {
+) { let new_dir = new_dir.into_c_char_ptr();
     unsafe {
         static RECURSIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -1720,7 +1720,7 @@ pub fn do_autocmd_dirchanged(
 }
 
 /// Change to a file's directory.
-pub fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> bool {
+pub fn vim_chdirfile(fname: impl crate::strings::IntoCCharPtr, cause: CdCause) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut dir: [c_char; MAXPATHL] = [0; MAXPATHL];
         let name_buff = g_st().NameBuff.as_mut_ptr();

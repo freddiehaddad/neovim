@@ -1712,11 +1712,11 @@ fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: c_int) -> bool
 }
 
 pub fn func_call(
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     args: &mut typval_T,
     partial: *mut partial_T,
     selfdict: *mut dict_T,rettv: &mut typval_T,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut argv: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut argc = 0;
@@ -2378,7 +2378,7 @@ pub fn trans_function_name(
     }
 }
 
-pub fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CString> {
+pub fn get_scriptlocal_funcname(funcname: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> { let funcname = funcname.into_c_char_ptr();
     unsafe {
         if funcname.is_null() {
             return None;
@@ -2493,7 +2493,7 @@ fn list_functions_matching_pat(eap: &mut exarg_T) -> *mut c_char {
     }
 }
 
-fn list_one_function(eap: &mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
+fn list_one_function(eap: &mut exarg_T, name: impl crate::strings::IntoCCharPtr, p: *mut c_char) -> *mut ufunc_T { let name = name.into_c_char_ptr();
     unsafe {
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
             semsg!(gettext(e_trailing_arg), p);
@@ -3414,7 +3414,7 @@ pub fn ex_delfunction(eap: &mut exarg_T) {
 
 /// Unreference a Function: decrement the reference count and free it when it
 /// becomes zero.
-pub fn func_unref(name: *mut c_char) {
+pub fn func_unref(name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
      {
         if name.is_null() || !func_name_refcount(name) {
             return;
@@ -3440,7 +3440,7 @@ pub fn func_ptr_unref(fp: *mut ufunc_T) {
     }
 }
 
-pub fn func_ref(name: *mut c_char) {
+pub fn func_ref(name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
     unsafe {
         if name.is_null() || !func_name_refcount(name) {
             return;
@@ -3586,11 +3586,11 @@ fn ex_call_inner(
 }
 
 fn ex_defer_inner(
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     arg: *mut *mut c_char,
     partial: Option<&partial_T>,
     evalarg: &mut evalarg_T,
-) -> bool {
+) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut argvars: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
         let mut partial_argc = 0;
@@ -4414,7 +4414,7 @@ pub fn set_ref_in_func_args(copyID: c_int) -> bool {
     }
 }
 
-pub fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_int) -> bool {
+pub fn set_ref_in_func(name: impl crate::strings::IntoCCharPtr, fp_in: *mut ufunc_T, copyID: c_int) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut fp = fp_in;
         let mut error = FCERR_NONE;

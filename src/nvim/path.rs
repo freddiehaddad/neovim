@@ -859,7 +859,7 @@ fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> bool {
     }
 }
 
-fn is_unique(maybe_unique: *mut c_char, gap: &[std::ffi::CString], i: usize) -> bool {
+fn is_unique(maybe_unique: impl crate::strings::IntoCCharPtr, gap: &[std::ffi::CString], i: usize) -> bool { let maybe_unique = maybe_unique.into_c_char_ptr();
     unsafe {
         let candidate_len = crate::memory::cstr_len(maybe_unique);
 
@@ -884,10 +884,10 @@ fn is_unique(maybe_unique: *mut c_char, gap: &[std::ffi::CString], i: usize) -> 
 }
 
 fn expand_path_option(
-    curdir: *mut c_char,
+    curdir: impl crate::strings::IntoCCharPtr,
     mut path_option: *mut c_char,
     gap: &mut Vec<std::ffi::CString>,
-) {
+) { let curdir = curdir.into_c_char_ptr();
     unsafe {
         let mut buf_arr = [0 as c_char; MAXPATHL];
         let buf = buf_arr.as_mut_ptr();
@@ -1156,9 +1156,9 @@ pub fn gettail_dir(fname: impl crate::strings::IntoCCharPtr) -> *const c_char { 
 
 fn expand_in_path(
     gap: &mut Vec<std::ffi::CString>,
-    pattern: *mut c_char,
+    pattern: impl crate::strings::IntoCCharPtr,
     flags: c_int,
-) -> c_int {
+) -> c_int { let pattern = pattern.into_c_char_ptr();
      {
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
         let path_option = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
@@ -1429,9 +1429,9 @@ fn vim_backtick(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c
 
 fn expand_backtick(
     gap: &mut Vec<std::ffi::CString>,
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     flags: c_int,
-) -> c_int {
+) -> c_int { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut cnt: c_int = 0;
         let pat_len = crate::memory::cstr_len(pat);
@@ -1539,7 +1539,7 @@ pub fn path_to_slash_save(p: impl crate::strings::IntoCCharPtr) -> Option<std::f
     }
 }
 
-pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: *mut c_char, flags: c_int) {
+pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCharPtr, flags: c_int) { let f = f.into_c_char_ptr();
     unsafe {
         let mut file_info: FileInfo = FileInfo::new();
 
@@ -2123,7 +2123,7 @@ pub fn expand_wildcards_eval(
     }
 }
 
-pub fn match_suffix(fname: *mut c_char) -> bool {
+pub fn match_suffix(fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut suf_buf = [0 as c_char; MAXSUFLEN];
         let fnamelen = crate::memory::cstr_len(fname);
@@ -2156,7 +2156,7 @@ pub fn match_suffix(fname: *mut c_char) -> bool {
     }
 }
 
-pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usize) -> bool {
+pub fn path_full_dir_name(directory: impl crate::strings::IntoCCharPtr, buffer: *mut c_char, len: usize) -> bool { let directory = directory.into_c_char_ptr();
      {
         if crate::memory::cstr_is_empty(directory) {
             return os_dirname(buffer, len);

@@ -417,7 +417,7 @@ pub fn clr_history(histype: c_int) -> bool {
     }
 }
 
-fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
+fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let hislen = hist_st().HISLEN;
         if hislen == 0

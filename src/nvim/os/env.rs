@@ -582,16 +582,16 @@ pub fn free_homedir() {
 }
 
 /// Call `expand_env()` and store the result in an allocated string.
-pub fn expand_env_save(src: *mut c_char) -> std::ffi::CString {
+pub fn expand_env_save(src: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let src = src.into_c_char_ptr();
     expand_env_save_opt(src, false, ptr::null_mut())
 }
 
 /// Similar to `expand_env_save()` with `one` and `esc_chars`.
 pub fn expand_env_save_opt(
-    src: *mut c_char,
+    src: impl crate::strings::IntoCCharPtr,
     one: bool,
-    esc_chars: *mut c_char,
-) -> std::ffi::CString {
+    esc_chars: impl crate::strings::IntoCCharPtr,
+) -> std::ffi::CString { let src = src.into_c_char_ptr(); let esc_chars = esc_chars.into_c_char_ptr();
     let mut p = [0 as c_char; MAXPATHL];
         let _ = expand_env_esc(
             src,
@@ -615,10 +615,10 @@ pub fn expand_env_esc(
     srcp: impl crate::strings::IntoCCharPtr,
     mut dst: *mut c_char,
     mut dstlen: c_int,
-    esc_chars: *mut c_char,
+    esc_chars: impl crate::strings::IntoCCharPtr,
     one: bool,
-    prefix: *mut c_char,
-) -> usize {
+    prefix: impl crate::strings::IntoCCharPtr,
+) -> usize { let esc_chars = esc_chars.into_c_char_ptr(); let prefix = prefix.into_c_char_ptr();
     let srcp = srcp.into_c_char_ptr();
     unsafe {
         let mut at_start = true;

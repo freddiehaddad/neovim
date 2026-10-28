@@ -1273,7 +1273,7 @@ fn uhp_table_find(uhp_table: &[(u_header_T, [c_int; 4])], seq: c_int) -> c_int {
 }
 
 /// Loads the undo tree from an undo file.
-pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: impl crate::strings::IntoCCharPtr) { let orig_name = orig_name.into_c_char_ptr();
+pub fn u_read_undo(name: impl crate::strings::IntoCCharPtr, hash: *const u8, orig_name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let orig_name = orig_name.into_c_char_ptr();
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;

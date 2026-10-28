@@ -797,11 +797,11 @@ fn qf_init_process_nextline(
 pub fn qf_init(
     wp: Option<&mut win_T>,
     efile: impl crate::strings::IntoCCharPtr,
-    errorformat: *mut c_char,
+    errorformat: impl crate::strings::IntoCCharPtr,
     newlist: c_int,
     qf_title: impl crate::strings::IntoCCharPtr,
-    enc: *mut c_char,
-) -> c_int { let efile = efile.into_c_char_ptr(); let qf_title = qf_title.into_c_char_ptr();
+    enc: impl crate::strings::IntoCCharPtr,
+) -> c_int { let errorformat = errorformat.into_c_char_ptr(); let enc = enc.into_c_char_ptr(); let efile = efile.into_c_char_ptr(); let qf_title = qf_title.into_c_char_ptr();
     unsafe {
         let qi = wp.map_or_else(ql_info_ptr, ll_get_or_alloc_list);
         assert!(!qi.is_null());
@@ -1073,7 +1073,7 @@ fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> c_int {
     }
 }
 
-fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
+fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<efm_T> { let mut efm = efm.into_c_char_ptr();
     unsafe {
         let mut fmt_list: Vec<efm_T> = Vec::new();
 
@@ -1372,11 +1372,11 @@ fn qf_get_list(qi: &mut qf_info_T, idx: c_int) -> &'static mut qf_list_T {
 
 fn qf_parse_line(
     qfl: &mut qf_list_T,
-    mut linebuf: *mut c_char,
+    linebuf: impl crate::strings::IntoCCharPtr,
     mut linelen: usize,
     fmt_first: &[efm_T],
     fields: &mut qffields_T,
-) -> c_int {
+) -> c_int { let mut linebuf = linebuf.into_c_char_ptr();
      {
         let fmt_len = fmt_first.len();
         loop {
@@ -1470,12 +1470,12 @@ fn qf_parse_line(
 
 fn qf_setup_state(
     pstate: &mut qfstate_T,
-    enc: *mut c_char,
+    enc: impl crate::strings::IntoCCharPtr,
     efile: impl crate::strings::IntoCCharPtr,tv: Option<&mut typval_T>,
     buf: *mut buf_T,
     lnumfirst: linenr_T,
     lnumlast: linenr_T,
-) -> bool { let efile = efile.into_c_char_ptr();
+) -> bool { let enc = enc.into_c_char_ptr(); let efile = efile.into_c_char_ptr();
     unsafe {
         pstate.vc.vc_type = CONV_NONE;
         if !crate::memory::cstr_is_empty(enc) {
@@ -1516,13 +1516,13 @@ fn qf_init_ext(
     mut qf_idx: c_int,
     efile: impl crate::strings::IntoCCharPtr,
     buf: *mut buf_T,mut tv: Option<&mut typval_T>,
-    errorformat: *mut c_char,
+    errorformat: impl crate::strings::IntoCCharPtr,
     newlist: bool,
     lnumfirst: linenr_T,
     lnumlast: linenr_T,
     qf_title: impl crate::strings::IntoCCharPtr,
-    enc: *mut c_char,
-) -> c_int { let efile = efile.into_c_char_ptr(); let qf_title = qf_title.into_c_char_ptr();
+    enc: impl crate::strings::IntoCCharPtr,
+) -> c_int { let errorformat = errorformat.into_c_char_ptr(); let enc = enc.into_c_char_ptr(); let efile = efile.into_c_char_ptr(); let qf_title = qf_title.into_c_char_ptr();
     unsafe {
         let mut state = qfstate_T::default();
         let mut fields = qffields_T::default();
@@ -1895,7 +1895,7 @@ fn qf_parse_fmt_o(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
 }
 
 fn qf_parse_match(
-    linebuf: *mut c_char,
+    linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
     fmt_ptr: &efm_T,
     regmatch: &mut regmatch_T,
@@ -1903,7 +1903,7 @@ fn qf_parse_match(
     qf_multiline: c_int,
     qf_multiscan: c_int,
     tail: *mut *mut c_char,
-) -> c_int {
+) -> c_int { let linebuf = linebuf.into_c_char_ptr();
     let idx = fmt_ptr.prefix;
 
         if (idx == b'C' as c_char || idx == b'Z' as c_char) && qf_multiline == 0 {
@@ -1956,14 +1956,14 @@ fn qf_parse_match(
 }
 
 fn qf_parse_get_fields(
-    linebuf: *mut c_char,
+    linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
     fmt_ptr: &efm_T,
     fields: &mut qffields_T,
     qf_multiline: c_int,
     qf_multiscan: c_int,
     tail: *mut *mut c_char,
-) -> c_int {
+) -> c_int { let linebuf = linebuf.into_c_char_ptr();
     unsafe {
         if qf_multiscan != 0
             && vim_strchr(c"OPQ", c_int::from(fmt_ptr.prefix as u8)).is_null()
@@ -2059,10 +2059,10 @@ fn qf_parse_file_pfx(
 }
 
 fn qf_parse_line_nomatch(
-    linebuf: *mut c_char,
+    linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
     fields: &mut qffields_T,
-) -> c_int {
+) -> c_int { let linebuf = linebuf.into_c_char_ptr();
     unsafe {
         *fields.namebuf.as_mut_ptr() = NUL;
         fields.lnum = 0;
@@ -5421,7 +5421,7 @@ fn vgr_get_auname(cmdidx: c_int) -> *const c_char {
     }
 }
 
-fn vgr_init_regmatch(regmatch: &mut regmmatch_T, s: *mut c_char) {
+fn vgr_init_regmatch(regmatch: &mut regmmatch_T, s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
      {
         regmatch.regprog = ptr::null_mut();
 
@@ -5440,7 +5440,7 @@ fn vgr_init_regmatch(regmatch: &mut regmmatch_T, s: *mut c_char) {
     }
 }
 
-fn vgr_display_fname(fname: *mut c_char) {
+fn vgr_display_fname(fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
     msg_start();
         match msg_strtrunc(fname, 1) {
             Some(p) => msg_outtrans(p.as_ptr(), 0, false),
@@ -5475,8 +5475,8 @@ fn vgr_qflist_valid(
     wp: *mut win_T,
     qi: &mut qf_info_T,
     qfid: c_uint,
-    title: *mut c_char,
-) -> bool {
+    title: impl crate::strings::IntoCCharPtr,
+) -> bool { let title = title.into_c_char_ptr();
     if !qflist_valid(wp, qfid) {
             if !wp.is_null() {
                 emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
@@ -6734,9 +6734,9 @@ fn qf_add_entries(
     qi: &mut qf_info_T,
     mut qf_idx: c_int,
     list: Option<&list_T>,
-    title: *mut c_char,
+    title: impl crate::strings::IntoCCharPtr,
     action: c_int,
-) -> c_int {
+) -> c_int { let title = title.into_c_char_ptr();
     unsafe {
         let mut qfl = qf_get_list(&mut *qi, qf_idx);
         let mut retval = OK;
@@ -7034,8 +7034,8 @@ fn qf_set_properties(
     qi: &mut qf_info_T,
     what: &dict_T,
     action: c_int,
-    title: *mut c_char,
-) -> bool {
+    title: impl crate::strings::IntoCCharPtr,
+) -> bool { let title = title.into_c_char_ptr();
     unsafe {
         let mut newlist = action == b' ' as c_int || qf_stack_empty(Some(&*qi));
         let mut qf_idx = qf_setprop_get_qfidx(qi, what, action, &mut newlist);
@@ -7127,9 +7127,9 @@ pub fn set_errorlist(
     wp: *mut win_T,
     list: Option<&list_T>,
     action: c_int,
-    title: *mut c_char,
+    title: impl crate::strings::IntoCCharPtr,
     what: Option<&dict_T>,
-) -> bool {
+) -> bool { let title = title.into_c_char_ptr();
     unsafe {
         let qi = if !wp.is_null() {
             ll_get_or_alloc_list( &mut *wp)

@@ -611,7 +611,7 @@ pub fn last_csearch_until() -> c_int {
     c_int::from(srch().last_t_cmd)
 }
 
-pub fn set_last_csearch(c: c_int, s: *mut c_char, len: c_int) {
+pub fn set_last_csearch(c: c_int, s: impl crate::strings::IntoCCharPtr, len: c_int) { let s = s.into_c_char_ptr();
     unsafe {
         srch().lastc[0] = c as u8;
         srch().lastc_bytelen = len;
@@ -1654,8 +1654,8 @@ pub fn search_for_exact_line(
     buf: &mut buf_T,
     pos: &mut pos_T,
     dir: Direction,
-    pat: *mut c_char,
-) -> bool {
+    pat: impl crate::strings::IntoCCharPtr,
+) -> bool { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut start: linenr_T = 0;
         let compl_len = ins_compl_len();
@@ -1804,11 +1804,11 @@ pub fn findmatch(oap: Option<&mut oparg_T>, initc: c_int) -> *mut pos_T {
 }
 
 fn check_prevcol(
-    linep: *mut c_char,
+    linep: impl crate::strings::IntoCCharPtr,
     mut col: c_int,
     ch: c_int,
     prevcol: Option<&mut c_int>,
-) -> bool {
+) -> bool { let linep = linep.into_c_char_ptr();
     unsafe {
         col -= 1;
         if col > 0 {
@@ -1822,10 +1822,10 @@ fn check_prevcol(
 }
 
 fn find_rawstring_end(
-    linep: *mut c_char,
+    linep: impl crate::strings::IntoCCharPtr,
     startpos: &pos_T,
     endpos: &pos_T,
-) -> bool {
+) -> bool { let linep = linep.into_c_char_ptr();
     unsafe {
         let mut p = linep.add((startpos.col + 1) as usize);
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'(' {
@@ -2686,12 +2686,12 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
 }
 
 fn is_zero_width(
-    mut pattern: *mut c_char,
+    pattern: impl crate::strings::IntoCCharPtr,
     mut patternlen: usize,
     move_to_start: bool,
     cur: &mut pos_T,
     direction: Direction,
-) -> c_int {
+) -> c_int { let mut pattern = pattern.into_c_char_ptr();
      {
         let mut regmatch: regmmatch_T = regmmatch_T::new();
         let mut result: c_int = -1;
@@ -3176,7 +3176,7 @@ fn get_line_and_copy(lnum: linenr_T, buf: *mut c_char) -> *mut c_char {
 }
 
 pub fn find_pattern_in_path(
-    ptr_pat: *mut c_char,
+    ptr_pat: impl crate::strings::IntoCCharPtr,
     mut dir: Direction,
     len: usize,
     whole: bool,
@@ -3188,7 +3188,7 @@ pub fn find_pattern_in_path(
     mut end_lnum: linenr_T,
     forceit: bool,
     silent: bool,
-) {
+) { let ptr_pat = ptr_pat.into_c_char_ptr();
     unsafe {
         let mut max_path_depth: c_int = 50;
         let mut match_count: c_int = 1;

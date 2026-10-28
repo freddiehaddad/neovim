@@ -795,7 +795,7 @@ pub fn briopt_check(mut wp: Option<&mut win_T>) {
 }
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
-pub fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
+pub fn get_breakindent_win(wp: &mut win_T, line: impl crate::strings::IntoCCharPtr) -> c_int { let line = line.into_c_char_ptr();
     unsafe {
         let eff_wwidth = wp.w_view_width - win_col_off(&raw mut *wp) + win_col_off2(wp);
         let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
@@ -1292,7 +1292,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
 }
 
 /// Copy the indent from `src` to the current line (and fill to `size`) (`copy_indent`).
-pub fn copy_indent(size: c_int, src: *mut c_char) -> bool {
+pub fn copy_indent(size: c_int, src: impl crate::strings::IntoCCharPtr) -> bool { let src = src.into_c_char_ptr();
     unsafe {
         let mut p: *mut c_char = ptr::null_mut();
         let mut line_vec: Vec<c_char> = Vec::new();

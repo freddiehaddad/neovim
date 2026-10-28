@@ -3327,12 +3327,12 @@ fn is_ident(line: impl crate::strings::IntoCCharPtr, offset: c_int) -> bool { le
 }
 
 pub fn find_decl(
-    ptr: *mut c_char,
+    ptr: impl crate::strings::IntoCCharPtr,
     len: usize,
     locally: bool,
     thisblock: bool,
     flags_arg: c_int,
-) -> bool {
+) -> bool { let ptr = ptr.into_c_char_ptr();
     unsafe {
         let par_pos: pos_T;
         let mut found_pos: pos_T = pos_T {
@@ -4288,7 +4288,7 @@ pub fn do_nv_ident(c1: c_int, c2: c_int) {
 
 fn nv_K_getcmd(
     cap: &mut cmdarg_T,
-    kp: *mut c_char,
+    kp: impl crate::strings::IntoCCharPtr,
     kp_help: bool,
     kp_ex: bool,
     ptr_arg: *mut *mut c_char,
@@ -4296,7 +4296,7 @@ fn nv_K_getcmd(
     buf: *mut c_char,
     bufsize: usize,
     buflen: &mut usize,
-) -> usize {
+) -> usize { let kp = kp.into_c_char_ptr();
     unsafe {
         if kp_help {
             crate::memory::cstr_cpy(buf, c"help! ");

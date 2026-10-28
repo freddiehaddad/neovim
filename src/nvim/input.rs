@@ -1402,7 +1402,7 @@ pub fn restore_typeahead(tp: &mut tasave_T) {
 }
 
 /// Open a new script file for the `":source!"` command.
-pub fn openscript(name: *mut c_char, directly: bool) {
+pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let name = name.into_c_char_ptr();
     unsafe {
         if inp_st().curscript + 1 == NSCRIPT as c_int {
             emsg(gettext(e_nesting));
@@ -1488,7 +1488,7 @@ pub fn close_all_scripts() {
         }
 }
 
-pub fn open_scriptin(scriptin_name: *mut c_char) -> bool {
+pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool { let scriptin_name = scriptin_name.into_c_char_ptr();
     unsafe {
         assert!(inp_st().curscript == -1);
         inp_st().curscript += 1;

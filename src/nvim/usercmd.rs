@@ -591,7 +591,7 @@ pub fn cmdcomplete_str_to_type(complete_str: impl crate::strings::IntoCCharPtr) 
     }
 }
 
-fn uc_list(name: *mut c_char, name_len: usize) {
+fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name = name.into_c_char_ptr();
     unsafe {
         let mut found = false;
 
@@ -1084,7 +1084,7 @@ pub fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
 
 /// Create a new user command `name`, if one doesn't already exist (`uc_add_command`).
 pub fn uc_add_command(
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     name_len: usize,
     rep: impl crate::strings::IntoCCharPtr,
     argt: u32,
@@ -1098,7 +1098,7 @@ pub fn uc_add_command(
     mut luaref: LuaRef,
     desc: impl crate::strings::IntoCCharPtr,
     force: bool,
-) -> bool { let rep = rep.into_c_char_ptr(); let desc = desc.into_c_char_ptr();
+) -> bool { let name = name.into_c_char_ptr(); let rep = rep.into_c_char_ptr(); let desc = desc.into_c_char_ptr();
     unsafe {
         let mut cmd: *mut ucmd_T = ptr::null_mut();
         let mut cmp: c_int = 1;
@@ -1655,14 +1655,14 @@ enum CodeType {
 
 /// Check for a `<>` code in a user command (`uc_check_code`).
 fn uc_check_code(
-    code: *mut c_char,
+    code: impl crate::strings::IntoCCharPtr,
     len: usize,
     mut buf: *mut c_char,
     cmd: &mut ucmd_T,
     eap: &mut exarg_T,
     split_buf: &mut Option<CString>,
     split_len: &mut usize,
-) -> usize {
+) -> usize { let code = code.into_c_char_ptr();
     unsafe {
         let mut result: usize = 0;
         let mut p = code.add(1);

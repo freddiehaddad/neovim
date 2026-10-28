@@ -894,7 +894,7 @@ pub fn init_highlight(both: bool, reset: bool) {
     }
 }
 
-pub fn load_colors(name: *mut c_char) -> bool {
+pub fn load_colors(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
      {
         if hlg_st().load_colors_recursive {
             return true;

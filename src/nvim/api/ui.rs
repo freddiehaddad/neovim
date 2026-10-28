@@ -436,7 +436,7 @@ pub fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
 }
 
 // DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
-pub fn remote_ui_connect(channel_id: u64, server_addr: *mut c_char, err: &mut Error) {
+pub fn remote_ui_connect(channel_id: u64, server_addr: impl crate::strings::IntoCCharPtr, err: &mut Error) { let server_addr = server_addr.into_c_char_ptr();
     let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
         };

@@ -604,10 +604,10 @@ pub fn pum_display(
 
 /// Computes attributes of text on the popup menu (`pum_compute_text_attrs`).
 fn pum_compute_text_attrs(
-    text: *mut c_char,
+    text: impl crate::strings::IntoCCharPtr,
     hlf: hlf_T,
     user_hlattr: c_int,
-) -> Option<Vec<c_int>> {
+) -> Option<Vec<c_int>> { let text = text.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_is_empty(text)
             || (hlf != HLF_PSI && hlf != HLF_PNI)

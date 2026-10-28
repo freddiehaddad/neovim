@@ -749,9 +749,9 @@ fn set_init_default_backupskip() {
         #[cfg(unix)]
         let names: [*const c_char; 4] = [
             c"".as_ptr(),
-            c"TMPDIR".as_ptr(),
-            c"TEMP".as_ptr(),
-            c"TMP".as_ptr(),
+            c"TMPDIR",
+            c"TEMP",
+            c"TMP",
         ];
         #[cfg(not(unix))]
         let names: [*const c_char; 3] = [c"TMPDIR".as_ptr(), c"TEMP".as_ptr(), c"TMP".as_ptr()];
@@ -765,11 +765,11 @@ fn set_init_default_backupskip() {
                 if crate::memory::cstr_is_empty(name) {
                     #[cfg(target_os = "macos")]
                     {
-                        (None, c"/private/tmp".as_ptr(), "/private/tmp".len())
+                        (None, c"/private/tmp", "/private/tmp".len())
                     }
                     #[cfg(not(target_os = "macos"))]
                     {
-                        (None, c"/tmp".as_ptr(), "/tmp".len())
+                        (None, c"/tmp", "/tmp".len())
                     }
                 } else {
                     let env = vim_getenv(name);
@@ -2233,7 +2233,7 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
 }
 
 /// Convert a key name or string into a key value.
-pub fn string_to_key(arg: *mut c_char) -> c_int {
+pub fn string_to_key(arg: impl crate::strings::IntoCCharPtr) -> c_int { let arg = arg.into_c_char_ptr();
     unsafe {
         if crate::memory::cstr_first_byte(arg) == b'<' && crate::memory::cstr_byte_at(arg, 1) != 0 {
             return find_key_len(arg.add(1), crate::memory::cstr_len(arg), true);
@@ -6546,11 +6546,11 @@ pub fn makefoldset(fd: *mut FILE) -> bool {
 
 fn put_set_value(
     fd: *mut FILE,
-    cmd: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     opt_idx: OptIndex,
     varp: *mut c_void,
     value: Object,
-) -> bool {
+) -> bool { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let opt = get_option(opt_idx);
         let name = (*opt).fullname.as_ptr();
@@ -6648,7 +6648,7 @@ fn put_set_value(
     }
 }
 
-fn put_set(fd: *mut FILE, cmd: *mut c_char, opt_idx: OptIndex, varp: *mut c_void) -> bool {
+fn put_set(fd: *mut FILE, cmd: impl crate::strings::IntoCCharPtr, opt_idx: OptIndex, varp: *mut c_void) -> bool { let cmd = cmd.into_c_char_ptr();
     let value = opt_from_varp(opt_idx, varp);
         let ret = if value.obj_type == ObjectType::kObjectTypeLuaRef {
             true
@@ -7893,10 +7893,10 @@ fn match_str(
 pub fn ExpandSettings(
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
-    fuzzystr: *mut c_char,
+    fuzzystr: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<std::ffi::CString>,
     can_fuzzy: bool,
-) -> bool {
+) -> bool { let fuzzystr = fuzzystr.into_c_char_ptr();
     unsafe {
         let names: [*mut c_char; 1] = [c"all".as_ptr().cast_mut()];
         let ic = regmatch.rm_ic;
@@ -7942,7 +7942,7 @@ pub fn ExpandSettings(
 }
 
 /// Escape an option value that can be used on the command-line with :set.
-pub fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
+pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let var_arg = var_arg.into_c_char_ptr();
     let buf_cstr = vim_strsave_escaped(var_arg, escape_chars);
 
     #[cfg(windows)]
@@ -8179,7 +8179,7 @@ pub fn shortmess(x: c_int) -> bool {
                     && !vim_strchr(SHM_ALL_ABBREVIATIONS, x).is_null()))
 }
 
-pub fn vimrc_found(fname: *mut c_char, envname: &std::ffi::CStr) {
+pub fn vimrc_found(fname: impl crate::strings::IntoCCharPtr, envname: &std::ffi::CStr) { let fname = fname.into_c_char_ptr();
     if !fname.is_null()
         && vim_getenv(envname.as_ptr().cast_mut()).is_none()
         && let Some(p) = FullName_save(fname, false)
@@ -8205,7 +8205,7 @@ pub fn reset_option_was_set(opt_idx: OptIndex) {
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
-pub fn fill_culopt_flags(val: *mut c_char, flags: &mut c_uint) -> bool {
+pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut c_uint) -> bool { let val = val.into_c_char_ptr();
     unsafe {
         let mut p = val;
         let mut culopt_flags_new: u8 = 0;
@@ -8245,7 +8245,7 @@ pub fn fill_culopt_flags(val: *mut c_char, flags: &mut c_uint) -> bool {
 }
 
 /// Set the callback function value for an option that accepts a function name, lambda, et al.
-pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> bool {
+pub fn option_set_callback_func(optval: impl crate::strings::IntoCCharPtr, optcb: &mut Callback) -> bool { let optval = optval.into_c_char_ptr();
      {
         if crate::memory::cstr_is_empty(optval) {
             callback_free(optcb);

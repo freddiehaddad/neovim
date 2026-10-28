@@ -836,10 +836,10 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
     }
 }
 pub fn match_checkcompoundpattern(
-    ptr: *mut c_char,
+    ptr: impl crate::strings::IntoCCharPtr,
     wlen: c_int,
     gap: &[std::ffi::CString],
-) -> bool {
+) -> bool { let ptr = ptr.into_c_char_ptr();
     unsafe {
         let mut i: usize = 0;
         while i + 1 < gap.len() {
@@ -930,10 +930,10 @@ pub fn valid_word_prefix(
     totprefcnt: c_int,
     arridx: c_int,
     flags: c_int,
-    word: *mut c_char,
+    word: impl crate::strings::IntoCCharPtr,
     slang: &mut slang_T,
     cond_req: bool,
-) -> c_int {
+) -> c_int { let word = word.into_c_char_ptr();
     let prefid = ((flags as u32) >> 24) as c_int;
         let mut prefcnt = totprefcnt - 1;
         while prefcnt >= 0 {
@@ -1283,7 +1283,7 @@ pub fn spell_move_to(
         ret
     }
 }
-pub fn spell_cat_line(buf: *mut c_char, line: *mut c_char, maxlen: c_int) {
+pub fn spell_cat_line(buf: *mut c_char, line: impl crate::strings::IntoCCharPtr, maxlen: c_int) { let line = line.into_c_char_ptr();
     unsafe {
         let mut p = skipwhite(line);
         while !vim_strchr(c"*#/\"\t", crate::memory::cstr_first_byte(p) as c_int).is_null() {
@@ -1299,7 +1299,7 @@ pub fn spell_cat_line(buf: *mut c_char, line: *mut c_char, maxlen: c_int) {
         }
     }
 }
-fn spell_load_lang(lang: *mut c_char) {
+fn spell_load_lang(lang: impl crate::strings::IntoCCharPtr) { let lang = lang.into_c_char_ptr();
     unsafe {
         let mut fname_enc: [c_char; 85] = [0; 85];
         let mut r: c_int = FAIL;
@@ -1406,7 +1406,7 @@ fn int_wordlist_spl(fname: *mut c_char) {
         );
     }
 }
-pub fn slang_alloc(lang: *mut c_char) -> Box<slang_T> {
+pub fn slang_alloc(lang: impl crate::strings::IntoCCharPtr) -> Box<slang_T> { let lang = lang.into_c_char_ptr();
      {
         Box::new(slang_T {
             sl_name: if !lang.is_null() {
@@ -1529,7 +1529,7 @@ pub fn spell_load_cb(
         !fnames.is_empty()
     }
 }
-pub fn count_common_word(lp: &mut slang_T, word: *mut c_char, len: c_int, count: u8) {
+pub fn count_common_word(lp: &mut slang_T, word: impl crate::strings::IntoCCharPtr, len: c_int, count: u8) { let word = word.into_c_char_ptr();
      {
         if len >= MAXWLEN as c_int {
             return;
@@ -2350,7 +2350,13 @@ pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut c_char) 
         *d = NUL;
     }
 }
-pub fn nofold_len(fword: *mut c_char, flen: c_int, word: *mut c_char) -> c_int {
+pub fn nofold_len(
+    fword: impl crate::strings::IntoCCharPtr,
+    flen: c_int,
+    word: impl crate::strings::IntoCCharPtr,
+) -> c_int {
+    let fword = fword.into_c_char_ptr().cast_mut();
+    let word = word.into_c_char_ptr().cast_mut();
     unsafe {
         let mut p = fword;
         let mut i: c_int = 0;
@@ -2367,7 +2373,7 @@ pub fn nofold_len(fword: *mut c_char, flen: c_int, word: *mut c_char) -> c_int {
         p.offset_from(word) as c_int
     }
 }
-pub fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_int) {
+pub fn make_case_word(fword: impl crate::strings::IntoCCharPtr, cword: *mut c_char, flags: c_int) { let fword = fword.into_c_char_ptr();
      {
         if (flags & WF_ALLCAP) != 0 {
             allcap_copy(fword, cword);

@@ -296,13 +296,13 @@ fn match_positions(
 
 /// Fuzzy match `pat_arg` in `str` (`fuzzy_match`).
 pub fn fuzzy_match(
-    str_ptr: *mut c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
     pat_arg: impl crate::strings::IntoCCharPtr,
     matchseq: bool,
     out_score: &mut c_int,
     matches: *mut u32,
     max_matches: c_int,
-) -> bool { let pat_arg = pat_arg.into_c_char_ptr();
+) -> bool { let str_ptr = str_ptr.into_c_char_ptr(); let pat_arg = pat_arg.into_c_char_ptr();
     unsafe {
         let mut complete = false;
         let mut num_matches: c_int = 0;
@@ -415,14 +415,14 @@ fn fuzzy_match_item_compare(
 
 fn fuzzy_match_in_list(
     l: Option<&list_T>,
-    str_ptr: *mut c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
     matchseq: bool,
     key: impl crate::strings::IntoCCharPtr,
     item_cb: &mut Callback,
     retmatchpos: bool,
     fmatchlist: &mut list_T,
     max_matches: c_int,
-) { let key = key.into_c_char_ptr();
+) { let str_ptr = str_ptr.into_c_char_ptr(); let key = key.into_c_char_ptr();
     unsafe {
         let mut len = tv_list_len(l);
         if len == 0 {
@@ -682,7 +682,7 @@ fn fuzzy_match_func_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
 }
 
 /// Fuzzy match `pat` in `str` (`fuzzy_match_str`).
-pub fn fuzzy_match_str(str_ptr: *mut c_char, pat: impl crate::strings::IntoCCharPtr) -> c_int { let pat = pat.into_c_char_ptr();
+pub fn fuzzy_match_str(str_ptr: impl crate::strings::IntoCCharPtr, pat: impl crate::strings::IntoCCharPtr) -> c_int { let str_ptr = str_ptr.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
     if str_ptr.is_null() || pat.is_null() {
         return 0;
     }
@@ -702,9 +702,9 @@ pub fn fuzzy_match_str(str_ptr: *mut c_char, pat: impl crate::strings::IntoCChar
 
 /// Fuzzy match positions of `pat` in `str` (`fuzzy_match_str_with_pos`).
 pub fn fuzzy_match_str_with_pos(
-    str_ptr: *mut c_char,
+    str_ptr: impl crate::strings::IntoCCharPtr,
     pat: impl crate::strings::IntoCCharPtr,
-) -> Option<Vec<u32>> { let pat = pat.into_c_char_ptr();
+) -> Option<Vec<u32>> { let str_ptr = str_ptr.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
     unsafe {
         if str_ptr.is_null() || pat.is_null() {
             return None;
@@ -742,11 +742,11 @@ pub fn fuzzy_match_str_with_pos(
 /// Fuzzy match a word in line `*ptr` (`fuzzy_match_str_in_line`).
 pub fn fuzzy_match_str_in_line(
     ptr: *mut *mut c_char,
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     len: &mut c_int,
     current_pos: Option<&mut pos_T>,
     score: &mut c_int,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut str_cur = *ptr;
         let str_begin = str_cur;
@@ -797,13 +797,13 @@ pub fn fuzzy_match_str_in_line(
 pub fn search_for_fuzzy_match(
     buf: &mut buf_T,
     pos: &mut pos_T,
-    pattern: *mut c_char,
+    pattern: impl crate::strings::IntoCCharPtr,
     dir: c_int,
     start_pos: &pos_T,
     len: &mut c_int,
     ptr: *mut *mut c_char,
     score: &mut c_int,
-) -> bool {
+) -> bool { let pattern = pattern.into_c_char_ptr();
     unsafe {
         let mut current_pos = *pos;
         let mut found_new_match = false;

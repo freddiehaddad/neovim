@@ -2884,7 +2884,7 @@ fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
         empty_pattern_magic(p, len, magic_val)
 }
 
-fn empty_pattern_magic(p: *mut c_char, mut len: usize, magic_val: magic_T) -> bool {
+fn empty_pattern_magic(p: impl crate::strings::IntoCCharPtr, mut len: usize, magic_val: magic_T) -> bool { let p = p.into_c_char_ptr();
      {
         while len >= 2
             && crate::memory::cstr_byte_at(p, len - 2) == b'\\'
@@ -4654,7 +4654,7 @@ pub fn escape_fname_cstr(s: &mut std::ffi::CString) {
 
 /// For each file name in `files`:
 /// If `orig_pat` starts with `~/`, replace the home directory with `~`.
-pub fn tilde_replace(orig_pat: *mut c_char, files: &mut [std::ffi::CString]) {
+pub fn tilde_replace(orig_pat: impl crate::strings::IntoCCharPtr, files: &mut [std::ffi::CString]) { let orig_pat = orig_pat.into_c_char_ptr();
      {
         if crate::memory::cstr_first_byte(orig_pat) == b'~' && vim_ispathsep((crate::memory::cstr_byte_at(orig_pat, 1)) as c_int) {
             for f in files {

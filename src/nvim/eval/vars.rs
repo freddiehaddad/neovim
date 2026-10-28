@@ -838,7 +838,7 @@ pub fn eval_patch(origfile: impl crate::strings::IntoCCharPtr, difffile: impl cr
 }
 
 /// Evaluate an expression to a list with suggestions.
-pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
+pub fn eval_spell_expr(badword: impl crate::strings::IntoCCharPtr, expr: impl crate::strings::IntoCCharPtr) -> *mut list_T { let badword = badword.into_c_char_ptr(); let expr = expr.into_c_char_ptr();
     unsafe {
         let mut save_val: typval_T = typval_T::new();
         let mut rettv: typval_T = typval_T::new();
@@ -1046,9 +1046,9 @@ fn eval_all_expr_in_str(str_arg: *mut c_char) -> Option<std::ffi::CString> {
 /// Get a list of lines from a HERE document.
 pub fn heredoc_get(
     eap: &mut exarg_T,
-    mut cmd: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     script_get: bool,
-) -> *mut list_T {
+) -> *mut list_T { let mut cmd = cmd.into_c_char_ptr();
     unsafe {
         let mut marker_indent_len: c_int = 0;
         let mut text_indent_len: c_int = 0;
@@ -3648,7 +3648,7 @@ pub fn var_exists(var: impl crate::strings::IntoCCharPtr) -> bool { let mut var 
 }
 
 /// Start recording command output to a variable.
-pub fn var_redir_start(name: *mut c_char, append: bool) -> bool {
+pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         if !eval_isnamec1(crate::memory::cstr_first_byte(name) as c_int) {
             emsg(gettext(e_invarg));

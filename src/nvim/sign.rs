@@ -176,11 +176,11 @@ fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
 fn buf_set_sign(
     buf: &mut buf_T,
     id: &mut u32,
-    group: *mut c_char,
+    group: impl crate::strings::IntoCCharPtr,
     prio: c_int,
     lnum: linenr_T,
     sp: &mut sign_T,
-) {
+) { let group = group.into_c_char_ptr();
      {
         if !group.is_null() && find_ns_by_name(group) == 0 {
             let ns_vec = &mut sign_st().sign_ns;
@@ -237,10 +237,10 @@ fn buf_set_sign(
 fn buf_mod_sign(
     buf: &mut buf_T,
     id: &mut u32,
-    group: *mut c_char,
+    group: impl crate::strings::IntoCCharPtr,
     prio: c_int,
     sp: &mut sign_T,
-) -> linenr_T {
+) -> linenr_T { let group = group.into_c_char_ptr();
      {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
@@ -255,7 +255,7 @@ fn buf_mod_sign(
     }
 }
 
-fn buf_findsign(buf: &mut buf_T, id: c_int, group: *mut c_char) -> c_int {
+fn buf_findsign(buf: &mut buf_T, id: c_int, group: impl crate::strings::IntoCCharPtr) -> c_int { let group = group.into_c_char_ptr();
      {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
@@ -287,10 +287,10 @@ fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
 
 fn buf_delete_signs(
     buf: &mut buf_T,
-    group: *mut c_char,
+    group: impl crate::strings::IntoCCharPtr,
     id: c_int,
     atlnum: linenr_T,
-) -> bool {
+) -> bool { let group = group.into_c_char_ptr();
      {
         let ns = group_get_ns(group);
         if ns < 0 {
@@ -355,7 +355,7 @@ pub fn buf_has_signs(buf: &buf_T) -> bool {
      buf_meta_total(buf, kMTMetaSignHL) + buf_meta_total(buf, kMTMetaSignText) != 0
 }
 
-fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
+fn sign_list_placed(rbuf: *mut buf_T, group: impl crate::strings::IntoCCharPtr) { let group = group.into_c_char_ptr();
     unsafe {
         let mut lbuf = [0 as c_char; MSG_BUF_LEN];
         let mut namebuf = [0 as c_char; MSG_BUF_LEN];
@@ -450,7 +450,7 @@ fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
     }
 }
 
-fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
+fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_char) -> c_int { let begin_cmd = begin_cmd.into_c_char_ptr();
     unsafe {
         let save = *end_cmd;
         *end_cmd = NUL;
@@ -673,7 +673,7 @@ fn sign_list_defined(sp: &mut sign_T) {
         }
 }
 
-fn sign_list_by_name(name: *mut c_char) {
+fn sign_list_by_name(name: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr();
     unsafe {
         let sp = pmap_get_sign(name);
         if !sp.is_null() {
@@ -686,12 +686,12 @@ fn sign_list_by_name(name: *mut c_char) {
 
 fn sign_place(
     id: &mut u32,
-    group: *mut c_char,
-    name: *mut c_char,
+    group: impl crate::strings::IntoCCharPtr,
+    name: impl crate::strings::IntoCCharPtr,
     buf: &mut buf_T,
     mut lnum: linenr_T,
     mut prio: c_int,
-) -> bool {
+) -> bool { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
     unsafe {
         if !group.is_null() && (crate::memory::cstr_first_byte(group) == b'*' || crate::memory::cstr_is_empty(group)) {
             return false;
@@ -731,9 +731,9 @@ fn sign_place(
 fn sign_unplace_inner(
     buf: &mut buf_T,
     id: c_int,
-    group: *mut c_char,
+    group: impl crate::strings::IntoCCharPtr,
     atlnum: linenr_T,
-) -> bool {
+) -> bool { let group = group.into_c_char_ptr();
      {
         if !buf_has_signs( buf) {
             return false;
@@ -754,7 +754,7 @@ fn sign_unplace_inner(
     }
 }
 
-fn sign_unplace(buf: Option<&mut buf_T>, id: c_int, group: *mut c_char, atlnum: linenr_T) -> bool {
+fn sign_unplace(buf: Option<&mut buf_T>, id: c_int, group: impl crate::strings::IntoCCharPtr, atlnum: linenr_T) -> bool { let group = group.into_c_char_ptr();
      {
         if let Some(buf) = buf {
             sign_unplace_inner( buf, id, group, atlnum)
@@ -770,7 +770,7 @@ fn sign_unplace(buf: Option<&mut buf_T>, id: c_int, group: *mut c_char, atlnum: 
     }
 }
 
-fn sign_jump(id: c_int, group: *mut c_char, buf: &mut buf_T) -> linenr_T {
+fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut buf_T) -> linenr_T { let group = group.into_c_char_ptr();
      {
         let lnum = buf_findsign( buf, id, group);
         if lnum <= 0 {
@@ -857,11 +857,11 @@ fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
 fn sign_place_cmd(
     buf: *mut buf_T,
     lnum: linenr_T,
-    name: *mut c_char,
+    name: impl crate::strings::IntoCCharPtr,
     id: c_int,
-    group: *mut c_char,
+    group: impl crate::strings::IntoCCharPtr,
     prio: c_int,
-) {
+) { let name = name.into_c_char_ptr(); let group = group.into_c_char_ptr();
     unsafe {
         if id <= 0 {
             if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
@@ -885,8 +885,8 @@ fn sign_unplace_cmd(
     mut lnum: linenr_T,
     name: impl crate::strings::IntoCCharPtr,
     id: c_int,
-    group: *mut c_char,
-) { let name = name.into_c_char_ptr();
+    group: impl crate::strings::IntoCCharPtr,
+) { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
     unsafe {
         if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
             emsg(gettext(e_invarg));
@@ -909,8 +909,8 @@ fn sign_jump_cmd(
     lnum: linenr_T,
     name: impl crate::strings::IntoCCharPtr,
     id: c_int,
-    group: *mut c_char,
-) { let name = name.into_c_char_ptr();
+    group: impl crate::strings::IntoCCharPtr,
+) { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
      {
         if name.is_null() && group.is_null() && id == -1 {
             emsg(gettext(e_argreq));

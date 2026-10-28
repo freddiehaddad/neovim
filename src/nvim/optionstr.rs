@@ -1217,7 +1217,7 @@ pub fn check_stl_option(mut s: *mut c_char, errbuf: Option<CharBuf>) -> *const c
 }
 
 /// Check for a "normal" directory or file name in some options.
-pub fn check_illegal_path_names(val: *mut c_char, flags: u32) -> bool {
+pub fn check_illegal_path_names(val: impl crate::strings::IntoCCharPtr, flags: u32) -> bool { let val = val.into_c_char_ptr();
      {
         let nfname_illegal = if g_st().secure != 0 {
             c"/\\*?[|;&<>\r\n".as_ptr()

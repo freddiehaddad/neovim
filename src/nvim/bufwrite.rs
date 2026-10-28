@@ -553,12 +553,12 @@ fn buf_write_do_autocmds(
 
 fn buf_write_do_post_autocmds(
     buf: *mut buf_T,
-    fname: *mut c_char,eap: Option<&exarg_T>,
+    fname: impl crate::strings::IntoCCharPtr,eap: Option<&exarg_T>,
     append: bool,
     filtering: bool,
     reset_changed: bool,
     whole: bool,
-) {
+) { let fname = fname.into_c_char_ptr();
      {
         let mut aco: CtxSwitch = CtxSwitch::new();
         curbuf_mut().b_no_eol_lnum = 0;

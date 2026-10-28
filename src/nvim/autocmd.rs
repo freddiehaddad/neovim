@@ -1784,7 +1784,7 @@ pub fn augroup_del_by_id(id: c_int) {
         }
 }
 
-pub fn augroup_del(name: *mut c_char, id_for_error: c_int, stupid_legacy_mode: bool) {
+pub fn augroup_del(name: impl crate::strings::IntoCCharPtr, id_for_error: c_int, stupid_legacy_mode: bool) { let name = name.into_c_char_ptr();
      {
         let group = augroup_find(name);
         if group == AUGROUP_ERROR {
@@ -1882,7 +1882,7 @@ pub fn augroup_exists(name: impl crate::strings::IntoCCharPtr) -> bool {
     augroup_find(name) > 0
 }
 
-pub fn do_augroup(arg: *mut c_char, del_group: bool) {
+pub fn do_augroup(arg: impl crate::strings::IntoCCharPtr, del_group: bool) { let arg = arg.into_c_char_ptr();
      {
         if del_group {
             if crate::memory::cstr_is_empty(arg) {
@@ -2162,10 +2162,10 @@ pub fn do_all_autocmd_events(
     pat: impl crate::strings::IntoCCharPtr,
     once: bool,
     nested: c_int,
-    cmd: *mut c_char,
+    cmd: impl crate::strings::IntoCCharPtr,
     del: bool,
     group: c_int,
-) { let pat = pat.into_c_char_ptr();
+) { let cmd = cmd.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
     for event in 0..NUM_EVENTS as event_T {
             if !do_autocmd_event(event, pat, once, nested, cmd, del, group) {
                 return;
@@ -2266,10 +2266,10 @@ pub fn autocmd_register(
     group: c_int,
     once: bool,
     nested: bool,
-    desc: *mut c_char,
+    desc: impl crate::strings::IntoCCharPtr,
     handler_cmd: impl crate::strings::IntoCCharPtr,
     handler_fn: &mut Callback,
-) -> bool { let mut pat = pat.into_c_char_ptr(); let handler_cmd = handler_cmd.into_c_char_ptr();
+) -> bool { let desc = desc.into_c_char_ptr(); let mut pat = pat.into_c_char_ptr(); let handler_cmd = handler_cmd.into_c_char_ptr();
     unsafe {
         assert!(group != 0);
 
@@ -2542,11 +2542,11 @@ pub fn check_nomodeline(argp: *mut *mut c_char) -> bool {
 
 pub fn aucmd_defer(
     event: event_T,
-    fname: *mut c_char,
-    fname_io: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    fname_io: impl crate::strings::IntoCCharPtr,
     group: c_int,
     buf: &mut buf_T,data: Option<&mut Object>,
-) {
+) { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
      {
         let evdata = Box::new(AutoCmdEvent {
             event,
@@ -2651,10 +2651,10 @@ pub fn aucmd_defer_modified(buf: &mut buf_T, new_val: bool) {
 pub fn apply_autocmds(
     event: event_T,
     fname: impl crate::strings::IntoCCharPtr,
-    fname_io: *mut c_char,
+    fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
     buf: *mut buf_T,
-) -> bool {
+) -> bool { let fname_io = fname_io.into_c_char_ptr();
     let fname = fname.into_c_char_ptr().cast_mut();
      {
         apply_autocmds_group(
@@ -2674,12 +2674,12 @@ pub fn apply_autocmds(
 
 pub fn apply_autocmds_win(
     event: event_T,
-    fname: *mut c_char,
-    fname_io: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
     buf: *mut buf_T,
     win: Option<&win_T>,
-) -> bool {
+) -> bool { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
     apply_autocmds_group(
             event,
             fname,
@@ -2696,11 +2696,11 @@ pub fn apply_autocmds_win(
 
 pub fn apply_autocmds_exarg(
     event: event_T,
-    fname: *mut c_char,
-    fname_io: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
     buf: *mut buf_T,eap: Option<&exarg_T>,
-) -> bool {
+) -> bool { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
      {
         apply_autocmds_group(
             event,
@@ -2719,12 +2719,12 @@ pub fn apply_autocmds_exarg(
 
 pub fn apply_autocmds_retval(
     event: event_T,
-    fname: *mut c_char,
-    fname_io: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
     buf: *mut buf_T,
     retval: &mut c_int,
-) -> bool {
+) -> bool { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
      {
         if should_abort(*retval) {
             return false;
@@ -2781,15 +2781,15 @@ pub fn trigger_cursorhold() -> bool {
 
 pub fn apply_autocmds_group(
     event: event_T,
-    mut fname: *mut c_char,
-    fname_io: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
+    fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
     group: c_int,
     buf: *mut buf_T,
     win: Option<&win_T>,eap: Option<&exarg_T>,
     data: *mut Object,
     with_buf: bool,
-) -> bool {
+) -> bool { let mut fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
     unsafe {
         let mut retval = false;
         let mut wait_time: proftime_T = 0;
@@ -3455,9 +3455,9 @@ pub fn getnextac(
 
 fn has_autocmd_ext(
     event: event_T,
-    sfname: *mut c_char,mut buf: Option<&mut buf_T>,
+    sfname: impl crate::strings::IntoCCharPtr,mut buf: Option<&mut buf_T>,
     is_full: bool,
-) -> bool {
+) -> bool { let sfname = sfname.into_c_char_ptr();
     unsafe {
         if !has_event(event) {
             return false;
@@ -3501,11 +3501,11 @@ fn has_autocmd_ext(
     }
 }
 
-pub fn has_autocmd(event: event_T, sfname: *mut c_char,buf: Option<&mut buf_T>) -> bool {
+pub fn has_autocmd(event: event_T, sfname: impl crate::strings::IntoCCharPtr,buf: Option<&mut buf_T>) -> bool { let sfname = sfname.into_c_char_ptr();
     has_autocmd_ext(event, sfname, buf, false)
 }
 
-pub fn has_autocmd_fullname(event: event_T, fname: *mut c_char,buf: Option<&mut buf_T>) -> bool {
+pub fn has_autocmd_fullname(event: event_T, fname: impl crate::strings::IntoCCharPtr,buf: Option<&mut buf_T>) -> bool { let fname = fname.into_c_char_ptr();
     has_autocmd_ext(event, fname, buf, true)
 }
 

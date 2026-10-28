@@ -1075,11 +1075,11 @@ fn runtime_get_named_common(
 
 /// Find "name" in "path".
 pub fn do_in_path_and_pp(
-    path: *mut c_char,
-    name: *mut c_char,
+    path: impl crate::strings::IntoCCharPtr,
+    name: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
-) -> bool {
+) -> bool { let path = path.into_c_char_ptr(); let name = name.into_c_char_ptr();
      {
         let mut done = false;
 
@@ -1125,10 +1125,10 @@ pub fn do_in_path_and_pp(
 fn push_path(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
-    entry: *mut c_char,
+    entry: impl crate::strings::IntoCCharPtr,
     after: bool,
     pos_in_rtp: usize,
-) -> bool {
+) -> bool { let entry = entry.into_c_char_ptr();
      {
         if rtp_used.insert(crate::memory::cstr_as_bytes(entry).to_vec()) {
             search_path.push(SearchPathItem {
@@ -1384,12 +1384,12 @@ pub fn source_runtime(name: impl crate::strings::IntoCCharPtr, flags: c_int) -> 
 }
 
 /// Just like source_runtime(), but only source vim and lua files.
-pub fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> bool {
+pub fn source_runtime_vim_lua(name: impl crate::strings::IntoCCharPtr, flags: c_int) -> bool { let name = name.into_c_char_ptr();
     do_in_runtimepath(name, flags, &mut RuntimeCallback::SourceVimLua)
 }
 
 /// Just like source_runtime(), but use "path" instead of 'runtimepath' and only source .vim and .lua files.
-pub fn source_in_path_vim_lua(path: *mut c_char, name: *mut c_char, flags: c_int) -> bool {
+pub fn source_in_path_vim_lua(path: impl crate::strings::IntoCCharPtr, name: impl crate::strings::IntoCCharPtr, flags: c_int) -> bool { let path = path.into_c_char_ptr(); let name = name.into_c_char_ptr();
     do_in_path_and_pp(path, name, flags, &mut RuntimeCallback::SourceVimLua)
 }
 
@@ -1411,7 +1411,7 @@ fn gen_expand_wildcards_and_cb(
         true
 }
 
-fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
+fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut retval = false;
 
@@ -1644,7 +1644,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
     }
 }
 
-fn load_pack_plugin(opt: bool, fname: *mut c_char) -> bool {
+fn load_pack_plugin(opt: bool, fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     let ffname_cstr = fix_fname(fname).unwrap_or_default();
         let ffname = ffname_cstr.as_ptr();
         let len = ffname_cstr.as_bytes().len() + 14;
@@ -1881,13 +1881,13 @@ pub fn ex_packadd(eap: &mut exarg_T) {
 }
 
 fn ExpandRTDir_int(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     pat_len: usize,
     flags: c_int,
     keep_ext: bool,
     gap: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
-) {
+) { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut i = 0usize;
         while !(*dirnames.add(i)).is_null() {
@@ -2034,11 +2034,11 @@ fn ExpandRTDir_int(
 
 /// Expand color scheme, compiler or filetype names.
 pub fn ExpandRTDir(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     file: &mut Vec<std::ffi::CString>,
     dirnames: *mut *mut c_char,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
      {
         file.clear();
 
@@ -2061,9 +2061,9 @@ pub fn ExpandRTDir(
 
 /// Handle command line completion for :runtime command.
 pub fn expand_runtime_cmd(
-    pat: *mut c_char,
+    pat: impl crate::strings::IntoCCharPtr,
     matches: &mut Vec<std::ffi::CString>,
-) -> bool {
+) -> bool { let pat = pat.into_c_char_ptr();
      {
         matches.clear();
 
@@ -2097,7 +2097,7 @@ pub fn expand_runtime_cmd(
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
-pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> bool {
+pub fn ExpandPackAddDir(pat: impl crate::strings::IntoCCharPtr, file: &mut Vec<std::ffi::CString>) -> bool { let pat = pat.into_c_char_ptr();
      {
         file.clear();
         let pat_len = crate::memory::cstr_len(pat);
@@ -2727,13 +2727,13 @@ pub fn do_source_str(str_ptr: impl crate::strings::IntoCCharPtr, traceback_name:
 }
 
 fn do_source_ext(
-    fname: *mut c_char,
+    fname: impl crate::strings::IntoCCharPtr,
     check_other: bool,
     is_vimrc: c_int,
     ret_sid: *mut c_int,eap: Option<&exarg_T>,
     ex_lua: bool,
     str_ptr: impl crate::strings::IntoCCharPtr,
-) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
+) -> bool { let fname = fname.into_c_char_ptr(); let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         let mut cookie = source_cookie_T::new();
         let mut firstline: Option<std::ffi::CString> = None;
@@ -3092,7 +3092,7 @@ pub fn script_is_lua(sid: scid_T) -> bool {
 }
 
 /// Find an already loaded script "name".
-pub fn find_script_by_name(name: *mut c_char) -> c_int {
+pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> c_int { let name = name.into_c_char_ptr();
     unsafe {
         let mut sid = script_items_len();
         while sid > 0 {

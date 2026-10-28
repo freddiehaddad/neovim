@@ -936,7 +936,7 @@ pub fn fmarks_check_names(buf: &mut buf_T) {
     }
 }
 
-fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: &mut buf_T) {
+fn fmarks_check_one(fm: &mut xfmark_T, name: impl crate::strings::IntoCCharPtr, buf: &mut buf_T) { let name = name.into_c_char_ptr();
     {
         if fm.fmark.fnum == 0
             && fm

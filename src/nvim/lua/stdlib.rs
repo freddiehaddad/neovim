@@ -93,8 +93,8 @@ fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
 fn regex_match(
     lstate: *mut lua_State,
     prog: *mut *mut regprog_T,
-    str_: *mut c_char,
-) -> c_int {
+    str_: impl crate::strings::IntoCCharPtr,
+) -> c_int { let str_ = str_.into_c_char_ptr();
     unsafe {
         let mut rm: regmatch_T = regmatch_T::new();
         rm.regprog = *prog;
