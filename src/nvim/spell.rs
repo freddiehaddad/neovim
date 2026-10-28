@@ -2162,11 +2162,11 @@ pub fn spell_casefold(
     len: c_int,
     buf: *mut c_char,
     buflen: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         if len >= buflen {
             *buf = NUL;
-            return FAIL;
+            return false;
         }
         let mut outi: c_int = 0;
         let mut p = str_;
@@ -2174,7 +2174,7 @@ pub fn spell_casefold(
         while p < end {
             if outi + MB_MAXBYTES as c_int > buflen {
                 *buf.add(outi as usize) = NUL;
-                return FAIL;
+                return false;
             }
             let mut c = mb_cptr2char_adv(&raw mut p);
             if c == 0x03a3 || c == 0x03c2 {
@@ -2189,7 +2189,7 @@ pub fn spell_casefold(
             outi += utf_char2bytes(c, buf.add(outi as usize));
         }
         *buf.add(outi as usize) = NUL;
-        OK
+        true
     }
 }
 pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {

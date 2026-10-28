@@ -45,7 +45,6 @@ const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
 use crate::charset::NUL;
 use crate::ex_cmds::kWinPreview;
-use crate::math::FAIL;
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
 pub fn win_new_float(
@@ -348,7 +347,7 @@ pub fn win_float_remove(bang: bool, mut count: c_int) {
             float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse((*w).w_config.zindex));
         }
         for w in float_win_arr {
-            if win_valid(w) && win_close(w, false, false) == FAIL {
+            if win_valid(w) && !win_close(w, false, false) {
                 break;
             }
             if !bang {

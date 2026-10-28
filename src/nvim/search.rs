@@ -1715,7 +1715,7 @@ pub fn search_for_exact_line(
     }
 }
 
-pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
+pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
     unsafe {
         let mut c = cap.nchar;
         let mut dir = cap.arg;
@@ -1740,7 +1740,7 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
             }
         } else {
             if srch().lastc[0] == 0 && srch().lastc_bytelen <= 1 {
-                return FAIL;
+                return false;
             }
             dir = if dir != 0 { -srch().lastcdir } else { srch().lastcdir };
             t_cmd = srch().last_t_cmd;
@@ -1763,11 +1763,11 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
                 if dir > 0 {
                     col += utfc_ptr2len(p.add(col as usize));
                     if col >= len {
-                        return FAIL;
+                        return false;
                     }
                 } else {
                     if col == 0 {
-                        return FAIL;
+                        return false;
                     }
                     col -= utf_head_off(p, p.add((col - 1) as usize)) + 1;
                 }
@@ -1794,7 +1794,7 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
         }
         (**curwin.as_ptr()).w_cursor.col = col;
 
-        OK
+        true
     }
 }
 
@@ -2556,7 +2556,7 @@ pub fn showmatch(c: c_int) {
     }
 }
 
-pub fn current_search(count: c_int, forward: bool) -> c_int {
+pub fn current_search(count: c_int, forward: bool) -> bool {
     unsafe {
         let old_p_ws = opt_vars().p_ws;
         let save_VIsual = g_st().Visual.start;
@@ -2585,7 +2585,7 @@ pub fn current_search(count: c_int, forward: bool) -> c_int {
             FORWARD,
         );
         if zero_width == -1 {
-            return FAIL;
+            return false;
         }
 
         let mut end_pos = pos;
@@ -2633,7 +2633,7 @@ pub fn current_search(count: c_int, forward: bool) -> c_int {
                 if g_st().Visual.active {
                     g_st().Visual.start = save_VIsual;
                 }
-                return FAIL;
+                return false;
             } else if i == 0 && result == 0 {
                 if forward {
                     clearpos(&mut pos);
@@ -2680,7 +2680,7 @@ pub fn current_search(count: c_int, forward: bool) -> c_int {
         redraw_curbuf_later(UPD_INVERTED);
         showmode();
 
-        OK
+        true
     }
 }
 

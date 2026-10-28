@@ -6503,7 +6503,7 @@ pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int {
                         if put_set(fd, cmd, opt_idx, varp) == FAIL {
                             return FAIL;
                         }
-                        if do_endif && put_line(fd.cast(), c"endif".as_ptr().cast_mut()) == FAIL {
+                        if do_endif && !put_line(fd.cast(), c"endif".as_ptr().cast_mut()) {
                             return FAIL;
                         }
 

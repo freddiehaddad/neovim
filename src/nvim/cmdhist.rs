@@ -653,7 +653,7 @@ pub fn ex_history(eap: &mut exarg_T) {
             }
         }
 
-        if get_list_range(&mut end, &mut hisidx1, &mut hisidx2) == 0 || *end != 0 {
+        if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || *end != 0 {
             if *end != 0 {
                 semsg!(e_trailing_arg.as_ptr(), end);
             } else {

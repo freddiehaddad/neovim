@@ -3255,7 +3255,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     unsafe {
         tv_list_alloc_ret(rettv, script_items_len() as isize);
 
-        if tv_check_for_opt_dict_arg(argvars, 0) == FAIL {
+        if !tv_check_for_opt_dict_arg(argvars, 0) {
             return;
         }
 

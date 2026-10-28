@@ -51,7 +51,7 @@ fn tobj_st() -> &'static mut TextobjectState {
 
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).
-pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
+pub fn findsent(dir: Direction, mut count: c_int) -> bool {
     unsafe {
         let mut c: c_int;
         let func: fn(&mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
@@ -84,7 +84,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
                 // if on the start of a paragraph or a section and searching forward,
                 // go to the next line
                 if pos.lnum == (*g_st().curbuf).b_ml.ml_line_count {
-                    return FAIL;
+                    return false;
                 }
                 pos.lnum += 1;
                 goto_found = true;
@@ -160,7 +160,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
                     }
                     if func(&mut pos) == -1 {
                         if count != 0 {
-                            return FAIL;
+                            return false;
                         }
                         noskip = true;
                         break;
@@ -182,7 +182,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
                 // didn't actually move, advance one character and try again
                 if func(&mut pos) == -1 {
                     if count != 0 {
-                        return FAIL;
+                        return false;
                     }
                     break;
                 }
@@ -192,7 +192,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
 
         setpcmark();
         (**curwin.as_ptr()).w_cursor = pos;
-        OK
+        true
     }
 }
 
@@ -383,7 +383,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
 }
 
 /// Move backward `count` words (`bck_word`).
-pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
+pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -401,7 +401,7 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
             }
             let sclass = cls();
             if dec_cursor() == -1 {
-                return FAIL;
+                return false;
             }
 
             let mut finished = false;
@@ -412,12 +412,12 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
                         break;
                     }
                     if dec_cursor() == -1 {
-                        return OK;
+                        return true;
                     }
                 }
 
                 if !finished && skip_chars(cls(), BACKWARD) {
-                    return OK;
+                    return true;
                 }
             }
 
@@ -427,7 +427,7 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
             stop = false;
         }
         adjust_skipcol();
-        OK
+        true
     }
 }
 
@@ -492,7 +492,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
 }
 
 /// Move back to the end of the word (`bckend_word`).
-pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
+pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
     unsafe {
         (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
@@ -503,17 +503,17 @@ pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
             let sclass = cls();
             let mut i = dec_cursor();
             if i == -1 {
-                return FAIL;
+                return false;
             }
             if eol && i == 1 {
-                return OK;
+                return true;
             }
 
             if sclass != 0 {
                 while cls() == sclass {
                     i = dec_cursor();
                     if i == -1 || (eol && i == 1) {
-                        return OK;
+                        return true;
                     }
                 }
             }
@@ -524,12 +524,12 @@ pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
                 }
                 i = dec_cursor();
                 if i == -1 || (eol && i == 1) {
-                    return OK;
+                    return true;
                 }
             }
         }
         adjust_skipcol();
-        OK
+        true
     }
 }
 
@@ -601,7 +601,7 @@ pub fn current_word(
     mut count: c_int,
     include: bool,
     bigword: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut start_pos = pos_T {
             lnum: 0,
@@ -624,7 +624,7 @@ pub fn current_word(
 
             if (cls() == 0) == include {
                 if end_word(1, bigword, true, true) == FAIL {
-                    return FAIL;
+                    return false;
                 }
             } else {
                 fwd_word(1, bigword, true);
@@ -653,31 +653,31 @@ pub fn current_word(
             inclusive = true;
             if g_st().Visual.active && lt((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
                 if decl(&mut (**curwin.as_ptr()).w_cursor) == -1 {
-                    return FAIL;
+                    return false;
                 }
                 if include != (cls() != 0) {
-                    if bck_word(1, bigword, true) == FAIL {
-                        return FAIL;
+                    if !bck_word(1, bigword, true) {
+                        return false;
                     }
                 } else {
-                    if bckend_word(1, bigword, true) == FAIL {
-                        return FAIL;
+                    if !bckend_word(1, bigword, true) {
+                        return false;
                     }
                     let _ = incl(&mut (**curwin.as_ptr()).w_cursor);
                 }
             } else {
                 if incl(&mut (**curwin.as_ptr()).w_cursor) == -1 {
-                    return FAIL;
+                    return false;
                 }
                 if include != (cls() == 0) {
                     if fwd_word(1, bigword, true) == FAIL && count > 1 {
-                        return FAIL;
+                        return false;
                     }
                     if !oneleft() {
                         inclusive = false;
                     }
                 } else if end_word(1, bigword, true, true) == FAIL {
-                    return FAIL;
+                    return false;
                 }
             }
             count -= 1;
@@ -711,12 +711,12 @@ pub fn current_word(
             oap.inclusive = inclusive;
         }
 
-        OK
+        true
     }
 }
 
 /// Find the current line ("il") or all lines ("al") (`current_line`).
-pub fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
+pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
     unsafe {
         if include {
             if g_st().Visual.active {
@@ -737,7 +737,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
             (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
             (**curwin.as_ptr()).w_cursor.col = 0;
             (**curwin.as_ptr()).w_cursor.coladd = 0;
-            return OK;
+            return true;
         }
 
         let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
@@ -751,7 +751,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
             end = prev;
         }
         if start == end {
-            return FAIL;
+            return false;
         }
 
         let mut start_pos = (**curwin.as_ptr()).w_cursor;
@@ -778,12 +778,12 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> c_int {
             (**curwin.as_ptr()).w_cursor = end_pos;
         }
 
-        OK
+        true
     }
 }
 
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
-pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> c_int {
+pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> bool {
     unsafe {
         let mut start_pos = (**curwin.as_ptr()).w_cursor;
         let mut pos = start_pos;
@@ -839,13 +839,13 @@ pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> c_int
                     g_st().Visual.mode = b'v' as c_int;
                     g_st().redraw_cmdline = true;
                     redraw_curbuf_later(UPD_INVERTED);
-                    return OK;
+                    return true;
                 }
             } else {
                 oap.inclusive = incl(&mut (**curwin.as_ptr()).w_cursor) == -1;
                 oap.start = start_pos;
                 oap.motion_type = kMTCharWise;
-                return OK;
+                return true;
             }
             let _ = &mut ncount;
         }
@@ -915,7 +915,7 @@ pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> c_int
                 (**curwin.as_ptr()).w_cursor.col += 1;
             }
         }
-        OK
+        true
     }
 }
 
@@ -926,7 +926,7 @@ pub fn current_block(
     include: bool,
     what: c_int,
     other: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut pos: *mut pos_T;
         let mut start_pos = pos_T {
@@ -1001,7 +1001,7 @@ pub fn current_block(
             end_pos.is_null()
         } {
             (**curwin.as_ptr()).w_cursor = old_pos;
-            return FAIL;
+            return false;
         }
         (**curwin.as_ptr()).w_cursor = *end_pos;
 
@@ -1019,7 +1019,7 @@ pub fn current_block(
 
                 if equalpos(start_pos, *end_pos) && g_st().Visual.active {
                     (**curwin.as_ptr()).w_cursor = old_pos;
-                    return FAIL;
+                    return false;
                 }
 
                 if !lt(start_pos, old_start)
@@ -1032,14 +1032,14 @@ pub fn current_block(
                     pos = findmatch(ptr::null_mut(), what);
                     if pos.is_null() {
                         (**curwin.as_ptr()).w_cursor = old_pos;
-                        return FAIL;
+                        return false;
                     }
                     start_pos = *pos;
                     (**curwin.as_ptr()).w_cursor = *pos;
                     end_pos = findmatch(ptr::null_mut(), other);
                     if end_pos.is_null() {
                         (**curwin.as_ptr()).w_cursor = old_pos;
-                        return FAIL;
+                        return false;
                     }
                     (**curwin.as_ptr()).w_cursor = *end_pos;
                 } else {
@@ -1072,7 +1072,7 @@ pub fn current_block(
             }
         }
 
-        OK
+        true
     }
 }
 

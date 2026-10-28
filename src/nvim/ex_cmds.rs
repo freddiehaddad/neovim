@@ -2085,7 +2085,7 @@ pub fn rename_buffer(new_fname: *mut c_char) -> c_int {
         let fname = fname_cstr
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        if setfname(g_st().curbuf, new_fname, ptr::null_mut(), true) == FAIL {
+        if !setfname(g_st().curbuf, new_fname, ptr::null_mut(), true) {
             (*g_st().curbuf).restore_fnames(fname_cstr, sfname_cstr);
             return FAIL;
         }

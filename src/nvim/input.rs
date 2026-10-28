@@ -923,7 +923,7 @@ pub fn stuffescaped(mut arg: *const c_char, literally: bool) {
 }
 
 /// Dot-repeat `"."` command.
-pub fn start_redo(count: c_int, old_redo: bool) -> c_int {
+pub fn start_redo(count: c_int, old_redo: bool) -> bool {
     unsafe {
         let rd = if old_redo {
             &raw mut inp_st().redobuff.old
@@ -931,7 +931,7 @@ pub fn start_redo(count: c_int, old_redo: bool) -> c_int {
             &raw mut inp_st().redobuff.cur
         };
         if (*rd).body.is_empty() && (*rd).regname == 0 && (*rd).count == 0 {
-            return FAIL;
+            return false;
         }
 
         let mut spec = (*rd).without_body();
@@ -954,7 +954,7 @@ pub fn start_redo(count: c_int, old_redo: bool) -> c_int {
             (*rd).body.as_ptr(),
             (*rd).body.len() as isize,
         );
-        OK
+        true
     }
 }
 
@@ -1892,7 +1892,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
         let mut cursor_flag: c_char = NUL as c_char;
 
         if argvars[0].v_type != VarType::VAR_UNKNOWN
-            && tv_check_for_opt_dict_arg(argvars, 1) == FAIL
+            && !tv_check_for_opt_dict_arg(argvars, 1)
         {
             return;
         }
@@ -2066,7 +2066,7 @@ fn put_string_in_typebuf(
     slen: c_int,
     string: *mut u8,
     new_slen: c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let extra = new_slen - slen;
         *string.add(new_slen as usize) = NUL as u8;
@@ -2081,14 +2081,14 @@ fn put_string_in_typebuf(
                 false,
             ) == FAIL
         {
-            return FAIL;
+            return false;
         }
         ptr::copy(
             string,
             tb_buf_ptr().add((g_st().typebuf.tb_off + offset) as usize),
             new_slen as usize,
         );
-        OK
+        true
     }
 }
 
@@ -2141,13 +2141,12 @@ fn check_simplify_modifier(max_offset: c_int) -> c_int {
                         utf_char2bytes(new_c, new_string.as_mut_ptr().cast())
                     };
                     if modifier == 0 {
-                        if put_string_in_typebuf(offset, 4, new_string.as_mut_ptr(), len) == FAIL {
+                        if !put_string_in_typebuf(offset, 4, new_string.as_mut_ptr(), len) {
                             return -1;
                         }
                     } else {
                         *tp.add(2) = modifier as u8;
-                        if put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len)
-                            == FAIL
+                        if !put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len)
                         {
                             return -1;
                         }

@@ -96,7 +96,6 @@ use crate::api::ui::NO_SCREEN;
 use crate::api::vim::{HLF_N, HLF_SC};
 use crate::api::win_config::{FR_COL, kUIMultigrid};
 use crate::extmark::kFalse;
-use crate::math::{FAIL, OK};
 use crate::os::fs::MAXPATHL;
 
 pub const UPD_VALID: c_int = 10;
@@ -468,7 +467,7 @@ pub fn redrawing() -> bool {
     g_st().RedrawingDisabled == 0 && !(opt_vars().p_lz != 0 && char_avail() && !g_st().KeyTyped && !g_st().do_redraw)
 }
 
-pub fn update_screen() -> c_int {
+pub fn update_screen() -> bool {
     unsafe {
         if ds_st().still_may_intro && !may_show_intro() {
             redraw_later(g_st().firstwin, UPD_NOT_VALID);
@@ -478,7 +477,7 @@ pub fn update_screen() -> c_int {
         let is_stl_global = global_stl_height() > 0;
 
         if ds_st().resizing_autocmd || !grid_allocated(&g_st().default_grid) {
-            return FAIL;
+            return false;
         }
 
         if g_st().need_diff_redraw {
@@ -486,7 +485,7 @@ pub fn update_screen() -> c_int {
         }
 
         if !redrawing() || g_st().updating_screen || cmdline_number_prompt() {
-            return FAIL;
+            return false;
         }
 
         let save_curwin = ctx_saved_curwin();
@@ -774,7 +773,7 @@ pub fn update_screen() -> c_int {
             g_st().curbuf = (**curwin.as_ptr()).w_buffer;
         }
 
-        OK
+        true
     }
 }
 

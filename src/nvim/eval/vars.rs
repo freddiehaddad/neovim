@@ -2039,7 +2039,7 @@ fn do_unlet_var(
 
             if *lp.ll_name == b'$' as c_char {
                 vim_unsetenv_ext(lp.ll_name.add(1));
-            } else if do_unlet(lp.ll_name, lp.ll_name_len, forceit) == FAIL {
+            } else if !do_unlet(lp.ll_name, lp.ll_name_len, forceit) {
                 ret = FAIL;
             }
             *name_end = cc;
@@ -2113,7 +2113,7 @@ fn tv_list_unlet_range(
 }
 
 /// unlet a variable.
-pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int {
+pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> bool {
     unsafe {
         let mut varname: *const c_char = ptr::null();
         let mut dict: *mut dict_T = ptr::null_mut();
@@ -2132,7 +2132,7 @@ pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int {
                 }
                 if d.is_null() {
                     internal_error(c"do_unlet()".as_ptr());
-                    return FAIL;
+                    return false;
                 }
             }
 
@@ -2146,11 +2146,11 @@ pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int {
                     || var_check_ro(c_int::from((*di).di_flags), name, TV_CSTRING)
                     || value_check_lock((*d).dv_lock, name, TV_CSTRING)
                 {
-                    return FAIL;
+                    return false;
                 }
 
                 if value_check_lock((*d).dv_lock, name, TV_CSTRING) {
-                    return FAIL;
+                    return false;
                 }
 
                 let mut oldtv: typval_T = typval_T::new();
@@ -2166,14 +2166,14 @@ pub fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int {
                     tv_dict_watcher_notify(&mut *dict, varname, ptr::null_mut(), Some(&oldtv));
                     tv_clear(&raw mut oldtv);
                 }
-                return OK;
+                return true;
             }
         }
         if forceit {
-            return OK;
+            return true;
         }
         semsg!(gettext(c"E108: No such variable: \"%s\"".as_ptr()), name);
-        FAIL
+        false
     }
 }
 

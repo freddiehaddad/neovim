@@ -718,7 +718,7 @@ pub fn mark_get_motion(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fm
                     BACKWARD
                 },
                 1,
-            ) != 0
+            )
         {
             mark = pos_to_mark(buf, None, (*win).w_cursor);
         }

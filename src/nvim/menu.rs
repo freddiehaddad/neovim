@@ -608,10 +608,10 @@ fn menu_enable_recurse(
     name: *mut c_char,
     modes: c_int,
     enable: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         if menus.is_empty() {
-            return OK;
+            return true;
         }
         let p = menu_name_skip(name);
 
@@ -622,10 +622,10 @@ fn menu_enable_recurse(
                 if *p != NUL {
                     if menu.children.is_empty() {
                         emsg(gettext(E_NOTSUBMENU.as_ptr()));
-                        return FAIL;
+                        return false;
                     }
-                    if menu_enable_recurse(&mut menu.children, p, modes, enable) == FAIL {
-                        return FAIL;
+                    if !menu_enable_recurse(&mut menu.children, p, modes, enable) {
+                        return false;
                     }
                 } else if enable {
                     menu.enabled |= modes;
@@ -640,10 +640,10 @@ fn menu_enable_recurse(
         }
         if *name != NUL && *name != b'*' as c_char && !matched {
             semsg!(gettext(E_NOMENU.as_ptr()), name);
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -653,10 +653,10 @@ fn remove_menu(
     name: *mut c_char,
     modes: c_int,
     silent: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         if menup.is_empty() {
-            return OK;
+            return true;
         }
         let p = menu_name_skip(name);
 
@@ -669,17 +669,17 @@ fn remove_menu(
                     if !silent {
                         emsg(gettext(E_NOTSUBMENU.as_ptr()));
                     }
-                    return FAIL;
+                    return false;
                 }
                 if ((*menu).modes & modes) != 0 {
-                    if remove_menu(&mut (*menu).children, p, modes, silent) == FAIL {
-                        return FAIL;
+                    if !remove_menu(&mut (*menu).children, p, modes, silent) {
+                        return false;
                     }
                 } else if *name != NUL {
                     if !silent {
                         emsg(gettext(e_menu_only_exists_in_another_mode.as_ptr()));
                     }
-                    return FAIL;
+                    return false;
                 }
 
                 if *name != NUL {
@@ -705,7 +705,7 @@ fn remove_menu(
                 if !silent {
                     semsg!(gettext(E_NOMENU.as_ptr()), name);
                 }
-                return FAIL;
+                return false;
             }
 
             let found = &raw mut menup[idx];
@@ -721,7 +721,7 @@ fn remove_menu(
             }
         }
 
-        OK
+        true
     }
 }
 

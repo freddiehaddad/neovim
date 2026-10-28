@@ -1437,12 +1437,12 @@ pub fn scroll_redraw(up: c_int, count: linenr_T) {
                 && (**curwin.as_ptr()).w_topfill == prev_topfill
             {
                 if up != 0 {
-                    if (**curwin.as_ptr()).w_cursor.lnum > prev_lnum || cursor_down(1, false) == FAIL {
+                    if (**curwin.as_ptr()).w_cursor.lnum > prev_lnum || !cursor_down(1, false) {
                         break;
                     }
                 } else if (**curwin.as_ptr()).w_cursor.lnum < prev_lnum
                     || prev_topline == 1
-                    || cursor_up(1, false) == FAIL
+                    || !cursor_up(1, false)
                 {
                     break;
                 }

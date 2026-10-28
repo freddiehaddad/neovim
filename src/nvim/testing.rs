@@ -20,7 +20,6 @@ use crate::fileio::{fclose, fgetc};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
-use crate::math::FAIL;
 use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, msg_reset_scroll};
@@ -588,13 +587,13 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let mut wrong_arg_msg: *const c_char = std::ptr::null();
         let mut tofree: Option<std::ffi::CString> = None;
 
-        if tv_check_for_string_or_number_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_string_or_list_arg(argvars, 1) == FAIL
+        if !tv_check_for_string_or_number_arg(argvars, 0)
+            || !tv_check_for_opt_string_or_list_arg(argvars, 1)
             || (argvars[1].v_type != VarType::VAR_UNKNOWN
                 && argvars[2].v_type != VarType::VAR_UNKNOWN
-                && (tv_check_for_opt_number_arg(argvars, 3) == FAIL
+                && (!tv_check_for_opt_number_arg(argvars, 3)
                     || (argvars[3].v_type != VarType::VAR_UNKNOWN
-                        && tv_check_for_opt_string_arg(argvars, 4) == FAIL)))
+                        && !tv_check_for_opt_string_arg(argvars, 4))))
         {
             return;
         }
@@ -860,7 +859,7 @@ pub fn f_assert_inrange(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
     if !tv_check_for_float_or_nr_arg(argvars, 0)
         || !tv_check_for_float_or_nr_arg(argvars, 1)
         || !tv_check_for_float_or_nr_arg(argvars, 2)
-        || tv_check_for_opt_string_arg(argvars, 3) == FAIL
+        || !tv_check_for_opt_string_arg(argvars, 3)
     {
         return;
     }

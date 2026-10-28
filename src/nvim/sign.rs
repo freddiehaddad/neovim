@@ -294,11 +294,11 @@ fn buf_delete_signs(
     group: *mut c_char,
     id: c_int,
     atlnum: linenr_T,
-) -> c_int {
+) -> bool {
     unsafe {
         let ns = group_get_ns(group);
         if ns < 0 {
-            return FAIL;
+            return false;
         }
 
         let mut itr = MarkTreeIter::new();
@@ -307,7 +307,7 @@ fn buf_delete_signs(
 
         if atlnum > 0 {
             if !marktree_itr_get_overlap(&(*buf).b_marktree, row, 0, &mut itr) {
-                return FAIL;
+                return false;
             }
 
             let mut pair: MTPair = MTPair::new();
@@ -348,10 +348,10 @@ fn buf_delete_signs(
             let first = signs[0];
             extmark_del_id(&mut *buf, first.ns, first.id);
         } else if atlnum > 0 {
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -486,7 +486,7 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
     }
 }
 
-pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_char) -> c_int {
+pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_char) -> bool {
     unsafe {
         let mut endp = text.add(CStr::from_ptr(text).to_bytes().len());
         let mut s = if !sp.is_null() { text } else { endp };
@@ -507,7 +507,7 @@ pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_cha
                 if !sp.is_null() {
                     semsg!(gettext(c"E239: Invalid sign text: %s".as_ptr()), text);
                 }
-                return FAIL;
+                return false;
             }
             *sign_text.add(cells) = schar_from_cluster(ci, cli);
             debug_assert!(cli.cells <= 2);
@@ -524,7 +524,7 @@ pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_cha
             *sign_text.add(1) = schar_from_ascii(b' ');
         }
 
-        OK
+        true
     }
 }
 
@@ -569,7 +569,7 @@ fn sign_define_by_name(
             (*sp).sn_icon = Some(std::ffi::CString::new(icon_vec).unwrap());
         }
 
-        if !text.is_null() && init_sign_text(sp, (*sp).sn_text.as_mut_ptr(), text) == FAIL {
+        if !text.is_null() && !init_sign_text(sp, (*sp).sn_text.as_mut_ptr(), text) {
             return FAIL;
         }
 
@@ -749,7 +749,7 @@ fn sign_unplace_inner(
         }
 
         if id == 0 || atlnum > 0 || (!group.is_null() && *group == b'*' as c_char) {
-            if buf_delete_signs(buf, group, id, atlnum) == 0 {
+            if !buf_delete_signs(buf, group, id, atlnum) {
                 return FAIL;
             }
         } else {
@@ -1474,7 +1474,7 @@ pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             return;
         }
 
-        if tv_check_for_opt_dict_arg(argvars, 1) == FAIL {
+        if !tv_check_for_opt_dict_arg(argvars, 1) {
             return;
         }
 
@@ -1834,7 +1834,7 @@ pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
     if !tv_check_for_string_arg(argvars, 0)
-        || tv_check_for_opt_dict_arg(argvars, 1) == FAIL
+        || !tv_check_for_opt_dict_arg(argvars, 1)
     {
         return;
     }

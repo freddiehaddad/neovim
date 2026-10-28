@@ -2284,7 +2284,7 @@ fn do_buffer_ext(
                 && !(win_locked(&mut **curwin.as_ptr()) != 0 || (*(**curwin.as_ptr()).w_buffer).b_locked > 0)
                 && (is_ctx_win(g_st().lastwin) || !last_window(*curwin.as_ptr()))
             {
-                if win_close(*curwin.as_ptr(), false, false) == FAIL {
+                if !win_close(*curwin.as_ptr(), false, false) {
                     break;
                 }
             }
@@ -3818,7 +3818,7 @@ pub fn setfname(
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
     message: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut ffname = ffname_arg;
         let mut sfname = sfname_arg;
@@ -3830,7 +3830,7 @@ pub fn setfname(
             (*buf).clear_fnames();
         } else {
             let Some(ffname_cstr) = fname_expand(buf, &raw mut ffname, &raw mut sfname) else {
-                return FAIL;
+                return false;
             };
 
             file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
@@ -3862,7 +3862,7 @@ pub fn setfname(
                             c"E95: Buffer with this name already exists".as_ptr(),
                         ));
                     }
-                    return FAIL;
+                    return false;
                 }
                 close_buffer(ptr::null_mut(), obuf, DOBUF_WIPE, false, false, false);
             }
@@ -3887,7 +3887,7 @@ pub fn setfname(
         }
 
         buf_name_changed(buf);
-        OK
+        true
     }
 }
 
@@ -4540,7 +4540,7 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
                     && !(win_locked(&mut *wp) != 0 || (*(*wp).w_buffer).b_locked > 0)
                     && !is_ctx_win(wp)
                 {
-                    if win_close(wp, false, false) == FAIL {
+                    if !win_close(wp, false, false) {
                         break;
                     }
                     wpnext = if (*g_st().lastwin).w_floating {

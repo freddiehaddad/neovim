@@ -35,7 +35,6 @@ use std::ptr;
 use crate::change::MB_MAXCHAR;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::eval::kListLenMayKnow;
-use crate::math::{FAIL, OK};
 
 const SEARCH_HL_PRIORITY: c_int = 0;
 
@@ -925,11 +924,11 @@ fn matchadd_dict_arg(
     tv: &mut typval_T,
     conceal_char: *mut *const c_char,
     win: *mut *mut win_T,
-) -> c_int {
+) -> bool {
     unsafe {
         if tv.v_type != VarType::VAR_DICT {
             emsg(gettext((&raw const e_dictreq).cast()));
-            return FAIL;
+            return false;
         }
 
         let di = tv_dict_find(tv.vval.v_dict(), c"conceal".as_ptr(), 7);
@@ -939,16 +938,16 @@ fn matchadd_dict_arg(
 
         let di = tv_dict_find(tv.vval.v_dict(), c"window".as_ptr(), 6);
         if di.is_null() {
-            return OK;
+            return true;
         }
 
         *win = find_win_by_nr_or_id(&(*di).di_tv);
         if (*win).is_null() {
             emsg(gettext((&raw const e_invalwindow).cast()));
-            return FAIL;
+            return false;
         }
 
-        OK
+        true
     }
 }
 
@@ -1150,8 +1149,7 @@ pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
                 id = tv_get_number_chk(&argvars[3], Some(&mut error)) as c_int;
                 if argvars[4].v_type != VarType::VAR_UNKNOWN
-                    && matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
-                        == FAIL
+                    && !matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
                 {
                     return;
                 }
@@ -1208,8 +1206,7 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
                 id = tv_get_number_chk(&argvars[3], Some(&mut error)) as c_int;
                 if argvars[4].v_type != VarType::VAR_UNKNOWN
-                    && matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
-                        == FAIL
+                    && !matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
                 {
                     return;
                 }

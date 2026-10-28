@@ -13,7 +13,7 @@ use crate::eval::typval::{
     tv_get_string_chk, tv_list_alloc_ret, tv_list_append_number, typval_T, varnumber_T,
 };
 use crate::ex_docmd::find_cmdline_var;
-use crate::math::{FAIL, OK, xisinf, xisnan};
+use crate::math::{xisinf, xisnan};
 use crate::mbyte::{
     mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
     utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
@@ -881,7 +881,7 @@ pub fn get_unsigned_int(
     p: *mut *const c_char,
     uj: &mut c_uint,
     overflow_err: bool,
-) -> c_int {
+) -> bool {
     unsafe {
         *uj = ((**p as u8) - b'0') as c_uint;
         *p = (*p).add(1);
@@ -894,12 +894,12 @@ pub fn get_unsigned_int(
         if *uj > MAX_ALLOWED_STRING_WIDTH {
             if overflow_err {
                 format_overflow_error(pstart);
-                return FAIL;
+                return false;
             } else {
                 *uj = MAX_ALLOWED_STRING_WIDTH;
             }
         }
-        OK
+        true
     }
 }
 
@@ -956,7 +956,7 @@ pub fn parse_fmt_types(
                         fail!();
                     }
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(pstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
+                    if !get_unsigned_int(pstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         fail!();
                     }
                     pos_arg = uj as c_int;
@@ -974,8 +974,7 @@ pub fn parse_fmt_types(
                     p = p.add(1);
                     if ascii_isdigit(*p) {
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null())
-                            == FAIL
+                        if !get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null())
                         {
                             fail!();
                         }
@@ -996,7 +995,7 @@ pub fn parse_fmt_types(
                 } else if ascii_isdigit(*p) {
                     let digstart = p;
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
+                    if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         fail!();
                     }
                     if *p == b'$' as c_char {
@@ -1012,8 +1011,7 @@ pub fn parse_fmt_types(
                         p = p.add(1);
                         if ascii_isdigit(*p) {
                             let mut uj: c_uint = 0;
-                            if get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null())
-                                == FAIL
+                            if !get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null())
                             {
                                 fail!();
                             }
@@ -1035,8 +1033,7 @@ pub fn parse_fmt_types(
                     } else if ascii_isdigit(*p) {
                         let digstart = p;
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
-                            == FAIL
+                        if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                         {
                             fail!();
                         }
@@ -1359,7 +1356,7 @@ fn vim_vsnprintf_typval_inner(
                 if *ptype == b'$' as c_char {
                     let digstart = p;
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
+                    if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         had_error = true;
                         break 'fmt_loop;
                     }
@@ -1403,8 +1400,7 @@ fn vim_vsnprintf_typval_inner(
 
                     if ascii_isdigit(*p) {
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
-                            == FAIL
+                        if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                         {
                             had_error = true;
                             break 'fmt_loop;
@@ -1438,7 +1434,7 @@ fn vim_vsnprintf_typval_inner(
                 } else if ascii_isdigit(*p) {
                     let digstart = p;
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
+                    if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) {
                         had_error = true;
                         break 'fmt_loop;
                     }
@@ -1452,8 +1448,7 @@ fn vim_vsnprintf_typval_inner(
                     if ascii_isdigit(*p) {
                         let digstart = p;
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
-                            == FAIL
+                        if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                         {
                             had_error = true;
                             break 'fmt_loop;
@@ -1465,8 +1460,7 @@ fn vim_vsnprintf_typval_inner(
 
                         if ascii_isdigit(*p) {
                             let mut uj: c_uint = 0;
-                            if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
-                                == FAIL
+                            if !get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                             {
                                 had_error = true;
                                 break 'fmt_loop;
@@ -2346,9 +2340,9 @@ pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
         if !tv_check_for_string_arg(argvars, 0)
             || !tv_check_for_number_arg(argvars, 1)
-            || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
+            || !tv_check_for_opt_bool_arg(argvars, 2)
             || (argvars[2].v_type != VarType::VAR_UNKNOWN
-                && tv_check_for_opt_bool_arg(argvars, 3) == FAIL)
+                && !tv_check_for_opt_bool_arg(argvars, 3))
         {
             return;
         }
@@ -2602,7 +2596,7 @@ pub fn f_strutf16len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if !tv_check_for_string_arg(argvars, 0)
-            || tv_check_for_opt_bool_arg(argvars, 1) == FAIL
+            || !tv_check_for_opt_bool_arg(argvars, 1)
         {
             return;
         }
@@ -2834,10 +2828,10 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if !tv_check_for_string_arg(argvars, 0)
-            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
-            || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
+            || !tv_check_for_opt_number_arg(argvars, 1)
+            || !tv_check_for_opt_bool_arg(argvars, 2)
             || (argvars[2].v_type != VarType::VAR_UNKNOWN
-                && tv_check_for_opt_bool_arg(argvars, 3) == FAIL)
+                && !tv_check_for_opt_bool_arg(argvars, 3))
         {
             return;
         }
@@ -3011,7 +3005,7 @@ pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             return;
         }
 
-        if tv_check_for_opt_string_arg(argvars, 1) == FAIL {
+        if !tv_check_for_opt_string_arg(argvars, 1) {
             return;
         }
 

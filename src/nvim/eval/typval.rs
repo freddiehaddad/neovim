@@ -4893,14 +4893,9 @@ pub fn tv_check_for_nonempty_string_arg(args: &[typval_T], idx: c_int) -> bool {
 }
 
 /// Check for an optional string argument at "idx".
-pub fn tv_check_for_opt_string_arg(args: &[typval_T], idx: c_int) -> c_int {
-    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+pub fn tv_check_for_opt_string_arg(args: &[typval_T], idx: c_int) -> bool {
+    args[idx as usize].v_type == VarType::VAR_UNKNOWN
         || tv_check_for_string_arg(args, idx)
-    {
-        OK
-    } else {
-        FAIL
-    }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a number.
@@ -4913,14 +4908,9 @@ pub fn tv_check_for_number_arg(args: &[typval_T], idx: c_int) -> bool {
 }
 
 /// Check for an optional number argument at "idx".
-pub fn tv_check_for_opt_number_arg(args: &[typval_T], idx: c_int) -> c_int {
-    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+pub fn tv_check_for_opt_number_arg(args: &[typval_T], idx: c_int) -> bool {
+    args[idx as usize].v_type == VarType::VAR_UNKNOWN
         || tv_check_for_number_arg(args, idx)
-    {
-        OK
-    } else {
-        FAIL
-    }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a float or a number.
@@ -4937,22 +4927,22 @@ pub fn tv_check_for_float_or_nr_arg(args: &[typval_T], idx: c_int) -> bool {
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a bool.
-pub fn tv_check_for_bool_arg(args: &[typval_T], idx: c_int) -> c_int {
+pub fn tv_check_for_bool_arg(args: &[typval_T], idx: c_int) -> bool {
     let arg = &args[idx as usize];
     if arg.v_type != VarType::VAR_BOOL
         && !(arg.v_type == VarType::VAR_NUMBER
             && (arg.vval.v_number() == 0 || arg.vval.v_number() == 1))
     {
         semsg!(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
-        return FAIL;
+        return false;
     }
-    OK
+    true
 }
 
 /// Check for an optional bool argument at "idx".
-pub fn tv_check_for_opt_bool_arg(args: &[typval_T], idx: c_int) -> c_int {
+pub fn tv_check_for_opt_bool_arg(args: &[typval_T], idx: c_int) -> bool {
     if args[idx as usize].v_type == VarType::VAR_UNKNOWN {
-        return OK;
+        return true;
     }
     tv_check_for_bool_arg(args, idx)
 }
@@ -5000,36 +4990,31 @@ pub fn tv_check_for_nonnull_dict_arg(args: &[typval_T], idx: c_int) -> bool {
 }
 
 /// Check for an optional dict argument at "idx".
-pub fn tv_check_for_opt_dict_arg(args: &[typval_T], idx: c_int) -> c_int {
-    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+pub fn tv_check_for_opt_dict_arg(args: &[typval_T], idx: c_int) -> bool {
+    args[idx as usize].v_type == VarType::VAR_UNKNOWN
         || tv_check_for_dict_arg(args, idx)
-    {
-        OK
-    } else {
-        FAIL
-    }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a number.
-pub fn tv_check_for_string_or_number_arg(args: &[typval_T], idx: c_int) -> c_int {
+pub fn tv_check_for_string_or_number_arg(args: &[typval_T], idx: c_int) -> bool {
     let vt = args[idx as usize].v_type;
     if vt != VarType::VAR_STRING && vt != VarType::VAR_NUMBER {
         semsg!(
             tr(E_STRING_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
             idx + 1,
         );
-        return FAIL;
+        return false;
     }
-    OK
+    true
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a buffer number.
-pub fn tv_check_for_buffer_arg(args: &[typval_T], idx: c_int) -> c_int {
+pub fn tv_check_for_buffer_arg(args: &[typval_T], idx: c_int) -> bool {
     tv_check_for_string_or_number_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a line number.
-pub fn tv_check_for_lnum_arg(args: &[typval_T], idx: c_int) -> c_int {
+pub fn tv_check_for_lnum_arg(args: &[typval_T], idx: c_int) -> bool {
     tv_check_for_string_or_number_arg(args, idx)
 }
 
@@ -5060,14 +5045,9 @@ pub fn tv_check_for_string_or_list_or_blob_arg(args: &[typval_T], idx: c_int) ->
 }
 
 /// Check for an optional string or list argument at "idx".
-pub fn tv_check_for_opt_string_or_list_arg(args: &[typval_T], idx: c_int) -> c_int {
-    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+pub fn tv_check_for_opt_string_or_list_arg(args: &[typval_T], idx: c_int) -> bool {
+    args[idx as usize].v_type == VarType::VAR_UNKNOWN
         || tv_check_for_string_or_list_arg(args, idx)
-    {
-        OK
-    } else {
-        FAIL
-    }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a function reference.

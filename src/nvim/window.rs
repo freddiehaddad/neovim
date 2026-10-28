@@ -3357,7 +3357,7 @@ pub fn close_windows(buf: *mut buf_T, keep_curwin: bool) {
                     g_st().RedrawingDisabled -= 1;
                     return;
                 }
-                if win_close(wp, false, false) == FAIL {
+                if !win_close(wp, false, false) {
                     break;
                 }
                 wp = g_st().lastwin;
@@ -3540,7 +3540,7 @@ fn win_unclose_buffer(win: *mut win_T, _bufref: &mut bufref_T) {
     }
 }
 
-pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
+pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
     unsafe {
         let prev_curtab = g_st().curtab;
         let win_frame = if (*win).w_floating {
@@ -3552,47 +3552,47 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
 
         if last_window(win) {
             emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW.as_ptr()));
-            return FAIL;
+            return false;
         }
         if !(*win).w_floating && window_layout_locked(cmdidx_T::CMD_close) {
-            return FAIL;
+            return false;
         }
 
         if win_locked(&mut *win) != 0 || (!(*win).w_buffer.is_null() && (*(*win).w_buffer).b_locked > 0) {
-            return FAIL;
+            return false;
         }
         if is_ctx_win(win) {
             emsg(gettext(e_autocmd_close.as_ptr()));
-            return FAIL;
+            return false;
         }
         if (*g_st().lastwin).w_floating && one_window(win, ptr::null_mut()) {
             if is_ctx_win(g_st().lastwin) {
                 emsg(gettext(
                     c"E814: Cannot close window, only autocmd window would remain".as_ptr(),
                 ));
-                return FAIL;
+                return false;
             }
             if force || can_close_floating_windows(ptr::null_mut()) {
                 while (*g_st().lastwin).w_floating {
-                    if win_close(g_st().lastwin, !buf_hide(&*(*g_st().lastwin).w_buffer), true) == FAIL {
-                        return FAIL;
+                    if !win_close(g_st().lastwin, !buf_hide(&*(*g_st().lastwin).w_buffer), true) {
+                        return false;
                     }
                 }
                 if !win_valid_any_tab(win) {
-                    return FAIL;
+                    return false;
                 }
                 if last_window(win) {
                     emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW.as_ptr()));
-                    return FAIL;
+                    return false;
                 }
             } else {
                 emsg(e_floatonly.as_ptr());
-                return FAIL;
+                return false;
             }
         }
 
         if close_last_window_tabpage(win, free_buf, &mut *prev_curtab) {
-            return FAIL;
+            return false;
         }
 
         let mut help_window = false;
@@ -3626,7 +3626,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
 
                 other_buffer = true;
                 if !win_valid(win) {
-                    return FAIL;
+                    return false;
                 }
                 (*win).w_locked += 1;
                 apply_autocmds(
@@ -3637,11 +3637,11 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
                     g_st().curbuf,
                 );
                 if !win_valid(win) {
-                    return FAIL;
+                    return false;
                 }
                 (*win).w_locked -= 1;
                 if last_window(win) {
-                    return FAIL;
+                    return false;
                 }
             }
             (*win).w_locked += 1;
@@ -3653,20 +3653,20 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
                 g_st().curbuf,
             );
             if !win_valid(win) {
-                return FAIL;
+                return false;
             }
             (*win).w_locked -= 1;
             if last_window(win) {
-                return FAIL;
+                return false;
             }
             if aborting() {
-                return FAIL;
+                return false;
             }
         }
 
         do_autocmd_winclosed(win);
         if !win_valid_any_tab(win) {
-            return OK;
+            return true;
         }
 
         let mut bufref: bufref_T = bufref_T::new();
@@ -3682,11 +3682,11 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
         }
         if !ptr::eq(g_st().curtab, prev_curtab) && win_valid_any_tab(win) && (*win).w_buffer.is_null() {
             win_close_othertab(win, 0, prev_curtab, force);
-            return FAIL;
+            return false;
         }
 
         if !win_valid(win) {
-            return FAIL;
+            return false;
         }
         if one_window(win, ptr::null_mut())
             && ((*g_st().first_tabpage).tp_next.is_null() || (*g_st().lastwin).w_floating)
@@ -3695,10 +3695,10 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
                 emsg(e_floatonly.as_ptr());
             }
             win_unclose_buffer(win, &mut bufref);
-            return FAIL;
+            return false;
         }
         if close_last_window_tabpage(win, free_buf, &mut *prev_curtab) {
-            return FAIL;
+            return false;
         }
 
         win_st().split_disallowed += 1;
@@ -3859,7 +3859,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
         if !was_floating {
             redraw_all_later(UPD_NOT_VALID);
         }
-        OK
+        true
     }
 }
 

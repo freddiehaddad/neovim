@@ -1976,7 +1976,7 @@ pub(super) fn getoctchrs() -> i64 {
     }
 }
 
-pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_int {
+pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> bool {
     unsafe {
         let mut reverse = false;
         if *re_st().regparse == b'-' as c_char {
@@ -2010,13 +2010,13 @@ pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_int {
                 },
             );
             g_st().rc_did_emsg = true;
-            return FAIL;
+            return false;
         }
         if (!reverse && *minval > *maxval) || (reverse && *minval < *maxval) {
             ptr::swap(minval, maxval);
         }
         skipchr();
-        OK
+        true
     }
 }
 

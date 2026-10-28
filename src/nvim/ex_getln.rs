@@ -4939,7 +4939,7 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
      {
         if !tv_check_for_string_arg(argvars, 0)
-            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
+            || !tv_check_for_opt_number_arg(argvars, 1)
         {
             return;
         }
@@ -4978,7 +4978,7 @@ pub fn get_cmdline_firstc() -> c_int {
 }
 
 /// Get indices that specify a range within a list from a string.
-pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int) -> c_int {
+pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int) -> bool {
     unsafe {
         let mut len: c_int = 0;
         let mut first = false;
@@ -4999,7 +4999,7 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
             );
             *str = (*str).add(len as usize);
             if num > c_int::MAX as varnumber_T {
-                return FAIL;
+                return false;
             }
 
             *num1 = num as c_int;
@@ -5022,17 +5022,17 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
             if len > 0 {
                 *str = skipwhite((*str).add(len as usize));
                 if num > c_int::MAX as varnumber_T {
-                    return FAIL;
+                    return false;
                 }
 
                 *num2 = num as c_int;
             } else if !first {
-                return FAIL;
+                return false;
             }
         } else if first {
             *num2 = *num1;
         }
-        OK
+        true
     }
 }
 

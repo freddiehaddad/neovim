@@ -1721,7 +1721,7 @@ pub fn f_char2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 fn get_col(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) {
     unsafe {
         if !tv_check_for_string_or_list_arg(argvars, 0)
-            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
+            || !tv_check_for_opt_number_arg(argvars, 1)
         {
             return;
         }
@@ -1971,7 +1971,7 @@ pub fn f_debugbreak(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 pub fn f_deepcopy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
      {
-        if tv_check_for_opt_bool_arg(argvars, 1) == FAIL {
+        if !tv_check_for_opt_bool_arg(argvars, 1) {
             return;
         }
         let mut noref: varnumber_T = 0;
@@ -3238,7 +3238,7 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
 
         if !tv_check_for_list_arg(argvars, 0)
             || !tv_check_for_list_arg(argvars, 1)
-            || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
+            || !tv_check_for_opt_dict_arg(argvars, 2)
         {
             return false;
         }
@@ -4208,7 +4208,7 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
         if !tv_check_for_list_or_blob_arg(argvars, 0)
             || !tv_check_for_string_or_func_arg(argvars, 1)
-            || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
+            || !tv_check_for_opt_dict_arg(argvars, 2)
         {
             return;
         }
@@ -5561,11 +5561,11 @@ pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         tv_list_alloc_ret(rettv, kListLenUnknown);
         let retlist = rettv.vval.v_list();
 
-        if tv_check_for_buffer_arg(argvars, 0) == FAIL
+        if !tv_check_for_buffer_arg(argvars, 0)
             || !tv_check_for_string_arg(argvars, 1)
-            || tv_check_for_lnum_arg(argvars, 2) == FAIL
-            || tv_check_for_lnum_arg(argvars, 3) == FAIL
-            || tv_check_for_opt_dict_arg(argvars, 4) == FAIL
+            || !tv_check_for_lnum_arg(argvars, 2)
+            || !tv_check_for_lnum_arg(argvars, 3)
+            || !tv_check_for_opt_dict_arg(argvars, 4)
         {
             return;
         }
@@ -5678,7 +5678,7 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
         if !tv_check_for_list_arg(argvars, 0)
             || !tv_check_for_string_arg(argvars, 1)
-            || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
+            || !tv_check_for_opt_dict_arg(argvars, 2)
         {
             return;
         }
@@ -9064,7 +9064,7 @@ pub fn f_timer_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
     unsafe {
         tv_list_alloc_ret(rettv, kListLenUnknown);
-        if tv_check_for_opt_number_arg(argvars, 0) == FAIL {
+        if !tv_check_for_opt_number_arg(argvars, 0) {
             return;
         }
         if argvars[0].v_type != VarType::VAR_UNKNOWN {

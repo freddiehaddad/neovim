@@ -1633,7 +1633,7 @@ fn nfa_regpiece_multi(
                 skipchr();
                 greedy = false;
             }
-            if read_limits(&mut minval, &mut maxval) == 0 {
+            if !read_limits(&mut minval, &mut maxval) {
                 emsg(tr(
                     c"E870: (NFA regexp) Error reading repetition limits".as_ptr()
                 ));
@@ -3035,109 +3035,109 @@ fn addstate_here(
     }
 }
 
-fn check_char_class(cls: c_int, c: c_int) -> c_int {
+fn check_char_class(cls: c_int, c: c_int) -> bool {
     match cls {
             NFA_CLASS_ALNUM => {
                 if (1..128).contains(&c) && (c as u8).is_ascii_alphanumeric() {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_ALPHA => {
                 if (1..128).contains(&c) && (c as u8).is_ascii_alphabetic() {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_BLANK => {
                 if c == b' ' as c_int || c == b'\t' as c_int {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_CNTRL => {
                 if (1..=127).contains(&c) && (c as u8).is_ascii_control() {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_DIGIT => {
                 if ascii_isdigit(c) {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_GRAPH => {
                 if (1..=127).contains(&c) && (c as u8).is_ascii_graphic() {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_LOWER => {
                 if mb_islower(c) && c != 170 && c != 186 {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_PRINT => {
                 if vim_isprintc(c) {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_PUNCT => {
                 if (1..128).contains(&c) && (c as u8).is_ascii_punctuation() {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_SPACE => {
                 if (9..=13).contains(&c) || c == b' ' as c_int {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_UPPER => {
                 if mb_isupper(c) {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_XDIGIT => {
                 if ascii_isxdigit(c) {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_TAB => {
                 if c == b'\t' as c_int {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_RETURN => {
                 if c == b'\r' as c_int {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_BACKSPACE => {
                 if c == BS {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_ESCAPE => {
                 if c == ESC {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_IDENT => {
                 if vim_isIDc(c) {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_KEYWORD => {
                 if reg_iswordc(c) {
-                    return OK;
+                    return true;
                 }
             }
             NFA_CLASS_FNAME => {
                 if vim_isfilec(c) {
-                    return OK;
+                    return true;
                 }
             }
             _ => {
                 siemsg!(tr(e_ill_char_class.as_ptr()), i64::from(cls));
-                return FAIL;
+                return false;
             }
         }
-        FAIL
+        false
 }
 
 fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) -> bool {
@@ -4011,7 +4011,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                     state = next_st.out;
                                     continue;
                                 } else if if st.c < 0 {
-                                    check_char_class(st.c, curc) != 0
+                                    check_char_class(st.c, curc)
                                 } else {
                                     curc == st.c || (re_st().rex.reg_ic && utf_fold(curc) == utf_fold(st.c))
                                 } {

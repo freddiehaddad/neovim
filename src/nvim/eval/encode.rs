@@ -720,7 +720,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_float(&mut self, flt: f64) -> c_int {
+    fn conv_float(&mut self, flt: f64) -> bool {
         unsafe {
             match self {
                 Self::Text {
@@ -744,7 +744,7 @@ impl EncodeBackend<'_> {
                         );
                         buf_concat_len(gap, numbuf.as_ptr(), len);
                     }
-                    OK
+                    true
                 }
                 Self::Text {
                     gap,
@@ -752,10 +752,10 @@ impl EncodeBackend<'_> {
                 } => {
                     if flt.is_nan() {
                         emsg(c"E474: Unable to represent NaN value in JSON".as_ptr());
-                        return FAIL;
+                        return false;
                     } else if flt.is_infinite() {
                         emsg(c"E474: Unable to represent infinity in JSON".as_ptr());
-                        return FAIL;
+                        return false;
                     } else {
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
                         let len = vim_snprintf_safelen!(
@@ -766,11 +766,11 @@ impl EncodeBackend<'_> {
                         );
                         buf_concat_len(gap, numbuf.as_ptr(), len);
                     }
-                    OK
+                    true
                 }
                 Self::Msgpack { packer } => {
                     mpack_float8(&mut (**packer).ptr, flt);
-                    OK
+                    true
                 }
             }
         }
@@ -1193,7 +1193,7 @@ fn convert_one_value(
                 backend.conv_number(tv_ref.vval.v_number());
             }
             VarType::VAR_FLOAT => {
-                if backend.conv_float(tv_ref.vval.v_float()) == FAIL {
+                if !backend.conv_float(tv_ref.vval.v_float()) {
                     return FAIL;
                 }
             }
@@ -1345,8 +1345,7 @@ fn convert_one_value(
                                     }
                                     K_MP_FLOAT => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_FLOAT {
-                                            if backend.conv_float((*val_di).di_tv.vval.v_float())
-                                                == FAIL
+                                            if !backend.conv_float((*val_di).di_tv.vval.v_float())
                                             {
                                                 return FAIL;
                                             }

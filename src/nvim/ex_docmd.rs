@@ -9922,7 +9922,7 @@ fn ex_recover(eap: &mut exarg_T) {
                 | CCGD_MULTWIN
                 | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
                 | CCGD_EXCMD,
-        ) && (*eap.arg == NUL || setfname(g_st().curbuf, eap.arg, ptr::null_mut(), true) == OK)
+        ) && (*eap.arg == NUL || setfname(g_st().curbuf, eap.arg, ptr::null_mut(), true))
         {
             ml_recover(true);
         }

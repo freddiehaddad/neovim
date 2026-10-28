@@ -1767,7 +1767,7 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
             regtail(ret, next);
             regoptail(ret, next);
         } else if op == Magic(b'{' as c_int) {
-            if read_limits(&mut minval, &mut maxval) == 0 {
+            if !read_limits(&mut minval, &mut maxval) {
                 return ptr::null_mut();
             }
             if (flags & SIMPLE) != 0 {

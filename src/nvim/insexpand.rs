@@ -5073,18 +5073,18 @@ fn compl_source_start_timer(source_idx: c_int) {
         }
 }
 
-fn advance_cpt_sources_index_safe() -> c_int {
+fn advance_cpt_sources_index_safe() -> bool {
     unsafe {
         let cpt_sources = &raw const insexp().cpt_sources_array;
         if insexp().cpt_sources_index >= 0 && (insexp().cpt_sources_index as usize) + 1 < (*cpt_sources).len() {
             insexp().cpt_sources_index += 1;
-            return OK;
+            return true;
         }
         semsg!(
             gettext((&raw const e_list_index_out_of_range_nr).cast()),
             i64::from(insexp().cpt_sources_index),
         );
-        FAIL
+        false
     }
 }
 
@@ -5175,7 +5175,7 @@ fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
                 }
                 if status == INS_COMPL_CPT_CONT {
                     if may_advance_cpt_idx {
-                        if advance_cpt_sources_index_safe() == 0 {
+                        if !advance_cpt_sources_index_safe() {
                             break;
                         }
                         compl_source_start_timer(insexp().cpt_sources_index);
@@ -5205,7 +5205,7 @@ fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
             }
 
             if may_advance_cpt_idx {
-                if advance_cpt_sources_index_safe() == 0 {
+                if !advance_cpt_sources_index_safe() {
                     break;
                 }
                 compl_source_start_timer(insexp().cpt_sources_index);

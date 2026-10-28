@@ -3616,7 +3616,7 @@ pub fn qf_list(eap: &mut exarg_T) {
         }
         let mut idx1: c_int = 1;
         let mut idx2: c_int = -1;
-        if get_list_range(&raw mut arg, &mut idx1, &mut idx2) == FAIL || *arg != NUL {
+        if !get_list_range(&raw mut arg, &mut idx1, &mut idx2) || *arg != NUL {
             semsg!(gettext((&raw const e_trailing_arg).cast()), arg);
             return;
         }
@@ -6060,7 +6060,7 @@ fn wipe_dummy_buffer(buf: &mut buf_T, dirname_start: *mut c_char) {
                 let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if (*wp).w_buffer == buf {
-                        if win_close(wp, false, false) == OK {
+                        if win_close(wp, false, false) {
                             did_one = true;
                         }
                         break;

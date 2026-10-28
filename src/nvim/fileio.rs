@@ -2974,7 +2974,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
             return false;
         }
 
-        if setfname(g_st().curbuf, fname, sfname, false) == OK {
+        if setfname(g_st().curbuf, fname, sfname, false) {
             (*g_st().curbuf).b_flags |= BF_NOTEDITED;
         }
 

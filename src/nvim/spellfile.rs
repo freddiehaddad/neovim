@@ -3083,8 +3083,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 }
 
                 if affile.af_pfxpostpone != 0 {
-                    if get_pfxlist(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
-                        == FAIL
+                    if !get_pfxlist(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
                     {
                         retval = FAIL;
                         break;
@@ -3093,8 +3092,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T
                 }
 
                 if spin.si_compflags.is_some()
-                    && get_compflags(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
-                        == FAIL
+                    && !get_compflags(affile, afflist, store_afflist.as_mut_ptr(), &mut totlen)
                 {
                     retval = FAIL;
                     break;
@@ -3207,7 +3205,7 @@ fn get_pfxlist(
     afflist: *mut c_char,
     store_afflist: *mut c_char,
     cntp: &mut c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
@@ -3220,7 +3218,7 @@ fn get_pfxlist(
                 if let Some(ah) = affile.af_pref.get(key_bytes) {
                     let id = ah.ah_newID;
                     if id != 0 && !store_afflist_add(store_afflist, cntp, id) {
-                        return FAIL;
+                        return false;
                     }
                 }
             }
@@ -3228,7 +3226,7 @@ fn get_pfxlist(
                 p = p.add(1);
             }
         }
-        OK
+        true
     }
 }
 
@@ -3237,7 +3235,7 @@ fn get_compflags(
     afflist: *mut c_char,
     store_afflist: *mut c_char,
     cntp: &mut c_int,
-) -> c_int {
+) -> bool {
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
@@ -3250,14 +3248,14 @@ fn get_compflags(
                 if let Some(ci) = affile.af_comp.get(key_bytes)
                     && !store_afflist_add(store_afflist, &mut *cntp, ci.ci_newID)
                 {
-                    return FAIL;
+                    return false;
                 }
             }
             if affile.af_flagtype == AFT_NUM && *p == b',' as c_char {
                 p = p.add(1);
             }
         }
-        OK
+        true
     }
 }
 
@@ -3375,12 +3373,12 @@ fn store_aff_word(
                                     let mut listlen: c_int = 0;
 
                                     if affile.af_pfxpostpone != 0 {
-                                        if get_pfxlist(
+                                        if !get_pfxlist(
                                             affile,
                                             ae_flags,
                                             store_afflist.as_mut_ptr(),
                                             &mut listlen,
-                                        ) == FAIL
+                                        )
                                         {
                                             retval = FAIL;
                                             break;
@@ -3418,12 +3416,12 @@ fn store_aff_word(
                                     }
 
                                     if spin.si_compflags.is_some() {
-                                        if get_compflags(
+                                        if !get_compflags(
                                             affile,
                                             ae_flags,
                                             use_pfxlist,
                                             &mut listlen,
-                                        ) == FAIL
+                                        )
                                         {
                                             retval = FAIL;
                                             break;

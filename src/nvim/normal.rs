@@ -4861,7 +4861,7 @@ fn nv_up(cap: &mut cmdarg_T) {
         }
 
         (*cap.oap).motion_type = kMTLineWise;
-        if cursor_up(cap.count1, (*cap.oap).op_type == OP_NOP) == 0 {
+        if !cursor_up(cap.count1, (*cap.oap).op_type == OP_NOP) {
             clearopbeep(&mut *cap.oap);
         } else if cap.arg != 0 {
             beginline(BL_WHITE | BL_FIX);
@@ -4888,7 +4888,7 @@ fn nv_down(cap: &mut cmdarg_T) {
             }
         } else {
             (*cap.oap).motion_type = kMTLineWise;
-            if cursor_down(cap.count1, (*cap.oap).op_type == OP_NOP) == 0 {
+            if !cursor_down(cap.count1, (*cap.oap).op_type == OP_NOP) {
                 clearopbeep(&mut *cap.oap);
             } else if cap.arg != 0 {
                 beginline(BL_WHITE | BL_FIX);
@@ -4956,7 +4956,7 @@ fn nv_dollar(cap: &mut cmdarg_T) {
         {
             (**curwin.as_ptr()).w_curswant = MAXCOL;
         }
-        if cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) == 0 {
+        if !cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) {
             clearopbeep(&mut *cap.oap);
         } else if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped && (*cap.oap).op_type == OP_NOP {
             foldOpenCursor();
@@ -5107,7 +5107,7 @@ fn nv_csearch(cap: &mut cmdarg_T) {
         let t_cmd = cap.cmdchar == b't' as c_int || cap.cmdchar == b'T' as c_int;
 
         (*cap.oap).motion_type = kMTCharWise;
-        if is_special(cap.nchar) || searchc(cap, t_cmd) == 0 {
+        if is_special(cap.nchar) || !searchc(cap, t_cmd) {
             clearopbeep(&mut *cap.oap);
             if cursor_dec {
                 adjust_for_sel(cap);
@@ -5413,14 +5413,14 @@ fn nv_brackets(cap: &mut cmdarg_T) {
                 clearopbeep(&mut *cap.oap);
             }
         } else if cap.nchar == b'c' as c_int {
-            if diff_move_to(
+            if !diff_move_to(
                 if cap.cmdchar == b']' as c_int {
                     FORWARD
                 } else {
                     BACKWARD
                 },
                 cap.count1,
-            ) == 0
+            )
             {
                 clearopbeep(&mut *cap.oap);
             }
@@ -5590,7 +5590,7 @@ fn nv_brace(cap: &mut cmdarg_T) {
         (*cap.oap).inclusive = false;
         (**curwin.as_ptr()).w_set_curswant = true;
 
-        if findsent(cap.arg, cap.count1) == FAIL {
+        if !findsent(cap.arg, cap.count1) {
             clearopbeep(&mut *cap.oap);
             return;
         }
@@ -6430,7 +6430,7 @@ fn nv_g_underscore_cmd(cap: &mut cmdarg_T) {
         (*cap.oap).motion_type = kMTCharWise;
         (*cap.oap).inclusive = true;
         (**curwin.as_ptr()).w_curswant = MAXCOL;
-        if cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) == 0 {
+        if !cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) {
             clearopbeep(&mut *cap.oap);
             return;
         }
@@ -6602,14 +6602,14 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                 nv_visual(cap);
             }
             c if c == b'N' as c_int || c == b'n' as c_int => {
-                if current_search(cap.count1, cap.nchar == b'n' as c_int) == 0 {
+                if !current_search(cap.count1, cap.nchar == b'n' as c_int) {
                     clearopbeep(&mut *oap);
                 }
             }
             c if c == b'j' as c_int || c == K_DOWN => {
                 let ok = if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap == 0 {
                     (*oap).motion_type = kMTLineWise;
-                    cursor_down(cap.count1, (*oap).op_type == OP_NOP) != 0
+                    cursor_down(cap.count1, (*oap).op_type == OP_NOP)
                 } else {
                     nv_screengo(&mut *oap, FORWARD, cap.count1, false)
                 };
@@ -6620,7 +6620,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
             c if c == b'k' as c_int || c == K_UP => {
                 let ok = if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap == 0 {
                     (*oap).motion_type = kMTLineWise;
-                    cursor_up(cap.count1, (*oap).op_type == OP_NOP) != 0
+                    cursor_up(cap.count1, (*oap).op_type == OP_NOP)
                 } else {
                     nv_screengo(&mut *oap, BACKWARD, cap.count1, false)
                 };
@@ -6668,7 +6668,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                 (*oap).motion_type = kMTCharWise;
                 (**curwin.as_ptr()).w_set_curswant = true;
                 (*oap).inclusive = true;
-                if bckend_word(cap.count1, cap.nchar == b'E' as c_int, false) == 0 {
+                if !bckend_word(cap.count1, cap.nchar == b'E' as c_int, false) {
                     clearopbeep(&mut *oap);
                 }
             }
@@ -6847,7 +6847,7 @@ fn nv_dot(cap: &mut cmdarg_T) {
             return;
         }
 
-        if start_redo(cap.count0, g_st().restart_edit != 0 && g_st().Ins.moved == kInsNone) == 0 {
+        if !start_redo(cap.count0, g_st().restart_edit != 0 && g_st().Ins.moved == kInsNone) {
             clearopbeep(&mut *cap.oap);
             return;
         }
@@ -6947,7 +6947,7 @@ fn set_op_var(optype: c_int) {
 fn nv_lineop(cap: &mut cmdarg_T) {
     unsafe {
         (*cap.oap).motion_type = kMTLineWise;
-        if cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) == 0 {
+        if !cursor_down(cap.count1 - 1, (*cap.oap).op_type == OP_NOP) {
             clearopbeep(&mut *cap.oap);
         } else if ((*cap.oap).op_type == OP_DELETE
             && (*cap.oap).motion_force != b'v' as c_int
@@ -6994,7 +6994,7 @@ fn nv_bck_word(cap: &mut cmdarg_T) {
         (*cap.oap).motion_type = kMTCharWise;
         (*cap.oap).inclusive = false;
         (**curwin.as_ptr()).w_set_curswant = true;
-        if bck_word(cap.count1, cap.arg != 0, false) == 0 {
+        if !bck_word(cap.count1, cap.arg != 0, false) {
             clearopbeep(&mut *cap.oap);
         } else if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped && (*cap.oap).op_type == OP_NOP {
             foldOpenCursor();
@@ -7322,8 +7322,8 @@ fn nv_object(cap: &mut cmdarg_T) {
         (*g_st().curbuf).b_p_mps = c"(:),{:},[:],<:>".as_ptr().cast_mut();
 
         let flag = match cap.nchar {
-            c if c == b'w' as c_int => current_word(&mut *cap.oap, cap.count1, include, false) != 0,
-            c if c == b'W' as c_int => current_word(&mut *cap.oap, cap.count1, include, true) != 0,
+            c if c == b'w' as c_int => current_word(&mut *cap.oap, cap.count1, include, false),
+            c if c == b'W' as c_int => current_word(&mut *cap.oap, cap.count1, include, true),
             c if c == b'b' as c_int || c == b'(' as c_int || c == b')' as c_int => {
                 current_block(
                     &mut *cap.oap,
@@ -7331,7 +7331,7 @@ fn nv_object(cap: &mut cmdarg_T) {
                     include,
                     b'(' as c_int,
                     b')' as c_int,
-                ) != 0
+                )
             }
             c if c == b'B' as c_int || c == b'{' as c_int || c == b'}' as c_int => {
                 current_block(
@@ -7340,7 +7340,7 @@ fn nv_object(cap: &mut cmdarg_T) {
                     include,
                     b'{' as c_int,
                     b'}' as c_int,
-                ) != 0
+                )
             }
             c if c == b'[' as c_int || c == b']' as c_int => {
                 current_block(
@@ -7349,7 +7349,7 @@ fn nv_object(cap: &mut cmdarg_T) {
                     include,
                     b'[' as c_int,
                     b']' as c_int,
-                ) != 0
+                )
             }
             c if c == b'<' as c_int || c == b'>' as c_int => {
                 current_block(
@@ -7358,7 +7358,7 @@ fn nv_object(cap: &mut cmdarg_T) {
                     include,
                     b'<' as c_int,
                     b'>' as c_int,
-                ) != 0
+                )
             }
             c if c == b't' as c_int => {
                 cap.retval |= CA_NO_ADJ_OP_END;
@@ -7367,8 +7367,8 @@ fn nv_object(cap: &mut cmdarg_T) {
             c if c == b'p' as c_int => {
                 current_par(&mut *cap.oap, cap.count1, include, b'p' as c_int) != 0
             }
-            c if c == b'l' as c_int => current_line(&mut *cap.oap, include) != 0,
-            c if c == b's' as c_int => current_sent(&mut *cap.oap, cap.count1, include) != 0,
+            c if c == b'l' as c_int => current_line(&mut *cap.oap, include),
+            c if c == b's' as c_int => current_sent(&mut *cap.oap, cap.count1, include),
             c if c == b'"' as c_int || c == b'\'' as c_int || c == b'`' as c_int => {
                 current_quote(&mut *cap.oap, cap.count1, include, cap.nchar)
             }

@@ -1059,7 +1059,7 @@ pub fn ml_recover(checkext: bool) {
                 namebuff_ptr,
                 MAXPATHL as c_int,
             );
-            if setfname(g_st().curbuf, namebuff_ptr, ptr::null_mut(), true) == FAIL {
+            if !setfname(g_st().curbuf, namebuff_ptr, ptr::null_mut(), true) {
                 ml_recover_theend(mfp, hp, buf_box, serious_error, called_from_main);
                 return;
             }

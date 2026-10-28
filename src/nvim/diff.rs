@@ -613,7 +613,7 @@ fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
         if i_org == DB_COUNT {
             return;
         }
-        if diff_check_sanity(tp, &(&tp.tp_diffs)[dp_idx]) == FAIL {
+        if !diff_check_sanity(tp, &(&tp.tp_diffs)[dp_idx]) {
             return;
         }
         let mut off_org: linenr_T = 0;
@@ -672,17 +672,17 @@ fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
         }
     }
 }
-fn diff_check_sanity(tp: &tabpage_T, dp: &diff_T) -> c_int {
+fn diff_check_sanity(tp: &tabpage_T, dp: &diff_T) -> bool {
     unsafe {
         for i in 0..DB_COUNT {
             let buf = tp.tp_diffbuf[i];
             if !buf.is_null()
                 && dp.df_lnum[i] + dp.df_count[i] - 1 > (*buf).b_ml.ml_line_count
             {
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
     }
 }
 pub fn diff_redraw(dofold: bool) {
@@ -2092,7 +2092,7 @@ pub fn diff_check_with_linestatus(
             && lnum < wp.w_botline
             && !(&(*g_st().curtab).tp_diffs)[dp_idx].is_linematched
             && diff_linematch(&(&(*g_st().curtab).tp_diffs)[dp_idx])
-            && diff_check_sanity(&*g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) != 0
+            && diff_check_sanity(&*g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx])
         {
             run_linematch_algorithm(dp_idx);
         }
@@ -2174,7 +2174,7 @@ fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
         if dp.df_count[idx1] != dp.df_count[idx2] {
             return false;
         }
-        if diff_check_sanity(&*g_st().curtab, dp) == FAIL {
+        if !diff_check_sanity(&*g_st().curtab, dp) {
             return false;
         }
         for i in 0..dp.df_count[idx1] {
@@ -3090,7 +3090,7 @@ pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: &mut diffline_
         else {
             return false;
         };
-        if diff_check_sanity(&*g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) == FAIL {
+        if !diff_check_sanity(&*g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) {
             return false;
         }
         let off = lnum - (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[u_idx];
@@ -3606,19 +3606,19 @@ pub fn diff_mode_buf(buf: *mut buf_T) -> bool {
         false
     }
 }
-pub fn diff_move_to(dir: c_int, mut count: c_int) -> c_int {
+pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
     unsafe {
         let mut lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let idx = diff_buf_idx(g_st().curbuf, &mut *g_st().curtab);
         if idx == DB_COUNT as c_int || (*g_st().curtab).tp_diffs.is_empty() {
-            return FAIL;
+            return false;
         }
         let u_idx = idx as usize;
         if (*g_st().curtab).tp_diff_invalid != 0 {
             ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         if (*g_st().curtab).tp_diffs.is_empty() {
-            return FAIL;
+            return false;
         }
         while {
             count -= 1;
@@ -3640,12 +3640,12 @@ pub fn diff_move_to(dir: c_int, mut count: c_int) -> c_int {
         }
         lnum = lnum.min((*g_st().curbuf).b_ml.ml_line_count);
         if lnum == (**curwin.as_ptr()).w_cursor.lnum {
-            return FAIL;
+            return false;
         }
         setpcmark();
         (**curwin.as_ptr()).w_cursor.lnum = lnum;
         (**curwin.as_ptr()).w_cursor.col = 0;
-        OK
+        true
     }
 }
 fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {

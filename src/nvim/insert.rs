@@ -2391,17 +2391,17 @@ pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
         wp.w_cursor.lnum = lnum;
 }
 
-pub fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
+pub fn cursor_up(n: linenr_T, upd_topline: bool) -> bool {
     unsafe {
         if n > 0 && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
-            return FAIL;
+            return false;
         }
         cursor_up_inner(&mut **curwin.as_ptr(), n, false);
         coladvance(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
         if upd_topline {
             update_topline(*curwin.as_ptr());
         }
-        OK
+        true
     }
 }
 
@@ -2445,7 +2445,7 @@ pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
     }
 }
 
-pub fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
+pub fn cursor_down(n: c_int, upd_topline: bool) -> bool {
     unsafe {
         let mut lnum = (**curwin.as_ptr()).w_cursor.lnum;
         hasFoldingWin(
@@ -2457,14 +2457,14 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
             None,
         );
         if n > 0 && lnum >= (*(**curwin.as_ptr()).w_buffer).b_ml.ml_line_count {
-            return FAIL;
+            return false;
         }
         cursor_down_inner(&mut **curwin.as_ptr(), n, false);
         coladvance(&mut **curwin.as_ptr(), (**curwin.as_ptr()).w_curswant);
         if upd_topline {
             update_topline(*curwin.as_ptr());
         }
-        OK
+        true
     }
 }
 
@@ -3526,7 +3526,7 @@ fn ins_up(startcol: bool) {
 
         undisplay_dollar();
         let mut tpos = (**curwin.as_ptr()).w_cursor;
-        if cursor_up(1, true) == OK {
+        if cursor_up(1, true) {
             if startcol {
                 coladvance(&mut **curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
             }
@@ -3574,7 +3574,7 @@ fn ins_down(startcol: bool) {
 
         undisplay_dollar();
         let mut tpos = (**curwin.as_ptr()).w_cursor;
-        if cursor_down(1, true) == OK {
+        if cursor_down(1, true) {
             if startcol {
                 coladvance(&mut **curwin.as_ptr(), getvcol_nolist(&mut g_st().Ins.start));
             }

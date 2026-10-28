@@ -14,7 +14,7 @@ use crate::eval::typval::{EvalFuncData, kCallbackNone, tv_get_lnum, typval_T};
 use crate::globals::*;
 use crate::indent::{fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value};
 use crate::keycodes::get_special_key_code;
-use crate::math::{FAIL, OK, trim_to_int};
+use crate::math::trim_to_int;
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_pos};
 use crate::option::{copy_option_part, skip_to_option_part};
@@ -2148,7 +2148,7 @@ pub fn get_c_indent() -> c_int {
                             }
                             if lookfor != LOOKFOR_INITIAL {
                                 (**curwin.as_ptr()).w_cursor.lnum = cur_curpos.lnum;
-                                if find_match(lookfor, ourscope) == OK {
+                                if find_match(lookfor, ourscope) {
                                     amount = get_indent();
                                     break 'theend;
                                 }
@@ -2576,7 +2576,7 @@ pub fn get_c_indent() -> c_int {
                                             }
                                             trypos = find_start_brace();
                                             if trypos.is_null()
-                                                || find_match(LOOKFOR_IF, (*trypos).lnum) == FAIL
+                                                || !find_match(LOOKFOR_IF, (*trypos).lnum)
                                             {
                                                 break;
                                             }
@@ -2730,8 +2730,7 @@ pub fn get_c_indent() -> c_int {
                                             {
                                                 trypos = find_start_brace();
                                                 if trypos.is_null()
-                                                    || find_match(LOOKFOR_IF, (*trypos).lnum)
-                                                        == FAIL
+                                                    || !find_match(LOOKFOR_IF, (*trypos).lnum)
                                                 {
                                                     break 'scope_loop;
                                                 }
@@ -2920,7 +2919,7 @@ pub fn get_c_indent() -> c_int {
         amount
     }
 }
-fn find_match(lookfor: c_int, ourscope: linenr_T) -> c_int {
+fn find_match(lookfor: c_int, ourscope: linenr_T) -> bool {
     unsafe {
         let mut elselevel: c_int;
         let mut whilelevel: c_int;
@@ -2977,10 +2976,10 @@ fn find_match(lookfor: c_int, ourscope: linenr_T) -> c_int {
                 whilelevel -= 1;
             }
             if elselevel <= 0 && whilelevel <= 0 {
-                return OK;
+                return true;
             }
         }
-        FAIL
+        false
     }
 }
 /// Check that "cinkeys" contains the key "keytyped".

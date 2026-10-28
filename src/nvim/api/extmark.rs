@@ -1053,11 +1053,11 @@ pub fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__sign_text) {
                 sign.text[0] = 0;
-                if init_sign_text(
+                if !init_sign_text(
                     ptr::null_mut(),
                     sign.text.as_mut_ptr(),
                     opts.sign_text.data,
-                ) == 0
+                )
                 {
                     api_err_invalid(err, c"sign_text".as_ptr(), c"".as_ptr(), 0, true);
                     break 'error;

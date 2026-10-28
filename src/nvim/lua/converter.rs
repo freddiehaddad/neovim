@@ -874,18 +874,18 @@ fn lua_conv_empty_dict(lstate: *mut lua_State) {
 }
 
 #[inline]
-fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
+fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> bool {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
             semsg!(
                 c"E5102: Lua failed to grow stack to %i".as_ptr(),
                 lua_gettop(lstate) + 3,
             );
-            return FAIL;
+            return false;
         }
         lua_createtable(lstate, len, 0);
         lua_pushnumber(lstate, 1.0);
-        OK
+        true
     }
 }
 
@@ -1017,7 +1017,7 @@ fn lua_convert_one_value(
                     if csr != NOTDONE {
                         return csr;
                     }
-                    if lua_conv_list_start(lstate, tv_list_len(list)) == FAIL {
+                    if !lua_conv_list_start(lstate, tv_list_len(list)) {
                         return FAIL;
                     }
                     mpstack.push(MPConvStackVal {
@@ -1148,8 +1148,7 @@ fn lua_convert_one_value(
                                             if csr != NOTDONE {
                                                 return csr;
                                             }
-                                            if lua_conv_list_start(lstate, tv_list_len(val_list))
-                                                == FAIL
+                                            if !lua_conv_list_start(lstate, tv_list_len(val_list))
                                             {
                                                 return FAIL;
                                             }

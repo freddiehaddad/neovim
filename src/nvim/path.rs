@@ -830,7 +830,7 @@ fn do_path_expand(
     }
 }
 
-fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> c_int {
+fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> bool {
     unsafe {
         if *psep > path && vim_ispathsep(**psep as c_int) {
             *psep = (*psep).sub(1);
@@ -838,13 +838,13 @@ fn find_previous_pathsep(path: *mut c_char, psep: *mut *mut c_char) -> c_int {
 
         while *psep > path {
             if vim_ispathsep(**psep as c_int) {
-                return OK;
+                return true;
             }
             let off = utf_head_off(path, (*psep).sub(1)) + 1;
             *psep = (*psep).sub(off as usize);
         }
 
-        FAIL
+        false
     }
 }
 
@@ -1042,7 +1042,7 @@ fn uniquefy_paths(
                 gap[i] = CStr::from_ptr(path_cutoff).to_owned();
             } else {
                 let mut pathsep_p = path.add(len.saturating_sub(1));
-                while find_previous_pathsep(path, &mut pathsep_p) != 0 {
+                while find_previous_pathsep(path, &mut pathsep_p) {
                     let candidate = pathsep_p.add(1);
                     if vim_regexec(&mut regmatch, candidate, 0)
                         && is_unique(candidate, gap, i)

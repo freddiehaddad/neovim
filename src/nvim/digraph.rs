@@ -2031,7 +2031,7 @@ pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 pub fn f_digraph_getlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
      {
-        if tv_check_for_opt_bool_arg(argvars, 0) == FAIL {
+        if !tv_check_for_opt_bool_arg(argvars, 0) {
             return;
         }
 

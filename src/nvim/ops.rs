@@ -1171,7 +1171,7 @@ fn replace_character(c: c_int) {
         dec_cursor();
 }
 
-fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
+fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
     unsafe {
         let mut n: c_int;
         let mut bd = block_def::new();
@@ -1179,7 +1179,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
         let mut had_ctrl_v_cr = false;
 
         if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 || oap.empty {
-            return OK;
+            return true;
         }
         if c == REPLACE_CR_NCHAR {
             had_ctrl_v_cr = true;
@@ -1192,7 +1192,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
         mb_adjust_opend(oap);
 
         if u_save(oap.start.lnum - 1, oap.end.lnum + 1) == FAIL {
-            return FAIL;
+            return false;
         }
 
         if oap.motion_type == kMTBlockWise {
@@ -1403,7 +1403,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> c_int {
             (*g_st().curbuf).b_op_end = oap.end;
         }
 
-        OK
+        true
     }
 }
 
