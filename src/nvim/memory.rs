@@ -872,7 +872,7 @@ mod tests {
 
     #[test]
     fn arena_lifecycle() {
-        unsafe {
+        {
             let mut arena = Arena {
                 cur_blk: std::ptr::null_mut(),
                 pos: 0,
@@ -881,7 +881,10 @@ mod tests {
             let s1 = arena_strdup(&mut arena, c"hello arena");
             let big = arena_alloc(&mut arena, 8192, true);
             assert!(!big.is_null());
-            assert_eq!(CStr::from_ptr(s1).to_str().unwrap(), "hello arena");
+            assert_eq!(
+                unsafe { CStr::from_ptr(s1) }.to_str().unwrap(),
+                "hello arena"
+            );
             let mem = arena_finish(&mut arena);
             arena_mem_free(mem);
             arena_free_reuse_blks();

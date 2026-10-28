@@ -1075,7 +1075,7 @@ fn command_line_enter(
     indent: i32,
     clear_ccline: bool,
 ) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         getln_st().cmdline_level += 1;
 
         let save_cmdpreview = g_st().cmdpreview;
@@ -1139,8 +1139,7 @@ fn command_line_enter(
             if getln_st().ccline.input_fn != 0 {
                 s.xpc.xp_context = getln_st().ccline.xp_context;
                 s.xpc.xp_pattern = getln_st().ccline.cmdbuff;
-                s.xpc.xp_arg = (&raw const getln_st().ccline.xp_arg)
-                    .as_ref()
+                s.xpc.xp_arg = unsafe { (&raw const getln_st().ccline.xp_arg).as_ref() }
                     .unwrap()
                     .as_ref()
                     .map_or(ptr::null_mut(), |a| a.as_ptr().cast_mut());
@@ -3206,7 +3205,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
 /// Show `'inccommand'` preview if command is previewable.
 fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
-    unsafe {
+    {
         let mut ea: Exarg = Exarg::new();
         let mut cmod: Cmdmod = Cmdmod::new();
         let mut cmdpreview_type: i32;
@@ -3277,7 +3276,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         }
 
         if icm_split && cmdpreview_type == 2 {
-            cmdpreview_win = cmdpreview_open_win(&mut *cmdpreview_buf);
+            cmdpreview_win = cmdpreview_open_win(unsafe { &mut *cmdpreview_buf });
             if cmdpreview_win.is_null() {
                 cmdpreview_type = 1;
             }
@@ -3484,7 +3483,7 @@ pub fn getcmdline_prompt(
 /// Parse `'wildmode'`, updating flags only when non-NULL and the value is valid.
 pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -> bool {
     let value = value.into_c_char_ptr();
-    unsafe {
+    {
         let mut new_wim_flags: [u8; 4] = [0; 4];
         let mut idx: usize = 0;
 
@@ -3534,7 +3533,7 @@ pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -
         }
 
         if !flags.is_null() {
-            ptr::copy_nonoverlapping(new_wim_flags.as_ptr(), flags, 4);
+            unsafe { ptr::copy_nonoverlapping(new_wim_flags.as_ptr(), flags, 4) };
         }
         true
     }
@@ -4108,7 +4107,7 @@ fn draw_cmdline(start: i32, len: i32) {
 }
 
 fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
-    unsafe {
+    {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
             pos: 0,
@@ -4124,7 +4123,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
                 len += 1;
             }
             let buf = arena_alloc(&mut arena, len, false).cast::<c_char>();
-            ptr::write_bytes(buf.cast::<u8>(), b'*', len);
+            unsafe { ptr::write_bytes(buf.cast::<u8>(), b'*', len) };
             let mut item = arena_array(&mut arena, 3);
             add_c(&mut item, integer_obj(0));
             add_c(&mut item, string_obj(cbuf_as_string(buf, len)));
@@ -4190,11 +4189,11 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
 
 pub fn ui_ext_cmdline_block_append(indent: usize, line: impl crate::strings::IntoCCharPtr) {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         let line_len = crate::memory::cstr_len(line);
         let mut buf: Vec<c_char> = Vec::with_capacity(indent + line_len);
         buf.resize(indent, b' ' as c_char);
-        buf.extend_from_slice(std::slice::from_raw_parts(line, line_len));
+        buf.extend_from_slice(unsafe { std::slice::from_raw_parts(line, line_len) });
 
         let mut item = Array {
             size: 0,
@@ -5316,7 +5315,7 @@ pub fn is_in_cmdwin() -> bool {
 
 /// Get script string.
 pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         let mut cmd = eap.arg;
 
         if crate::memory::cstr_first_byte(cmd) != b'<'
@@ -5343,7 +5342,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
             Vec::new()
         };
 
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(l.as_ref())) {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe { l.as_ref() })) {
             if eap.skip == 0 {
                 let s = tv_get_string(&li.li_tv);
                 if !s.is_null() {

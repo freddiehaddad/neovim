@@ -174,7 +174,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
 /// @param[out] err Error details, if any.
 // DLLEXPORT void ui_detach_channel(uint64_t chan, Error *err);
 pub fn ui_detach_channel(chan: u64, err: &mut Error) {
-    unsafe {
+    {
         let c = find_channel(chan);
         if c.is_null() {
             api_set_error!(
@@ -185,7 +185,7 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
             );
             return;
         }
-        let c = { &mut *c };
+        let c = unsafe { &mut *c };
         #[cfg(windows)]
         let detach_stdio = c.streamtype == K_CHANNEL_STREAM_STDIO;
         c.detach = true;

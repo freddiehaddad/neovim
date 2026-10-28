@@ -1666,7 +1666,7 @@ pub fn nvim_buf_debug_extmarks(
 ///
 // DLLEXPORT void nvim__ns_set(Integer ns_id, Dict(ns_opts) *opts, Error *err);
 pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) {
-    unsafe {
+    {
         if !ns_initialized(ns_id as u32) {
             api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
             return;
@@ -1687,7 +1687,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
                 if wp.is_null() {
                     return;
                 }
-                let wp = { &mut *wp };
+                let wp = unsafe { &mut *wp };
                 windows.insert(wp);
             }
 

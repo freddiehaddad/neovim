@@ -1127,7 +1127,7 @@ fn find_dup_item(
 
 /// Free all options.
 pub fn free_all_options() {
-    unsafe {
+    {
         for opt_idx in 0..K_OPT_COUNT {
             let opt = get_option(opt_idx);
             let hidden = is_option_hidden(opt_idx);
@@ -1137,7 +1137,7 @@ pub fn free_all_options() {
                 && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
             {
                 if is_callback_option(opt_idx) {
-                    callback_free(&mut *opt.var.cast::<Callback>());
+                    callback_free(unsafe { &mut *opt.var.cast::<Callback>() });
                 } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
                     crate::optionstr::clear_string_option(opt.var.cast::<*mut c_char>());
                 }
@@ -1429,7 +1429,7 @@ fn stropt_remove_val(
 ) {
     let origval = origval.into_c_char_ptr();
     let mut strval = strval.into_c_char_ptr();
-    unsafe {
+    {
         crate::memory::cstr_cpy(newval, origval);
         if !crate::memory::cstr_is_empty(strval) {
             if (flags & K_OPT_FLAG_COMMA) != 0 {
@@ -1444,11 +1444,13 @@ fn stropt_remove_val(
             }
             let src = strval.wrapping_add(len as usize);
             let dst_off = crate::memory::ptr_offset_from(strval, origval) as usize;
-            ptr::copy(
-                src,
-                newval.wrapping_add(dst_off),
-                crate::memory::cstr_len(src) + 1,
-            );
+            unsafe {
+                ptr::copy(
+                    src,
+                    newval.wrapping_add(dst_off),
+                    crate::memory::cstr_len(src) + 1,
+                )
+            };
         }
     }
 }
@@ -3291,7 +3293,7 @@ pub fn did_set_paste(_args: &mut Optset) -> *const c_char {
 
 /// Validate the 'previewwindow' option.
 pub fn validate_previewwindow(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.data.boolean() {
             return ptr::null();
         }
@@ -3301,7 +3303,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> *const c_char {
         } else {
             win_find_tabpage(win)
         };
-        for wp in for_all_windows_in_tab_ptr(&*tab) {
+        for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
             if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
                 return E_PREVIEW_WINDOW_ALREADY_EXISTS;
             }
@@ -6360,7 +6362,7 @@ pub fn set_option_value_for(
 }
 
 fn showoptions(all: bool, opt_flags: i32) {
-    unsafe {
+    {
         const INC: i32 = 20;
         const GAP: i32 = 3;
 
@@ -6430,7 +6432,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                 let mut i = row as usize;
                 while i < item_count {
                     msg_advance(col);
-                    showoneopt(&mut *items[i], opt_flags);
+                    showoneopt(unsafe { &mut *items[i] }, opt_flags);
                     col += INC;
                     i += rows as usize;
                 }
@@ -8081,7 +8083,7 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
     let buf_cstr = vim_strsave_escaped(var_arg, ESCAPE_CHARS);
 
     #[cfg(windows)]
-    unsafe {
+    {
         let mut bytes = buf_cstr.into_bytes_with_nul();
         let buf = bytes.as_mut_ptr().cast::<c_char>();
         let mut var = buf;
@@ -8095,7 +8097,7 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
                     || (var == buf && crate::memory::cstr_byte_at(var, 4) != b'\\'))
             {
                 let src = var.wrapping_add(1);
-                ptr::copy(src, var, crate::memory::cstr_len(src) + 1);
+                unsafe { ptr::copy(src, var, crate::memory::cstr_len(src) + 1) };
             }
             var = var.wrapping_add(utfc_ptr2len(var) as usize);
         }
@@ -8779,7 +8781,7 @@ pub fn get_option_info(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
+    {
         let opt_idx = find_option_len(name.data, name.size);
         if opt_idx == K_OPT_INVALID {
             api_set_error!(
@@ -8791,7 +8793,13 @@ pub fn get_option_info(
             return Dict::new();
         }
 
-        option_info_dict(&mut *get_option(opt_idx), opt_flags, &mut *buf, win, arena)
+        option_info_dict(
+            &mut *get_option(opt_idx),
+            opt_flags,
+            unsafe { &mut *buf },
+            win,
+            arena,
+        )
     }
 }
 

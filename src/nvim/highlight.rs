@@ -1044,7 +1044,7 @@ fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
 }
 
 pub fn hl_blend_attrs(back_attr: i32, front_attr: i32, through: &mut bool) -> i32 {
-    unsafe {
+    {
         if front_attr < 0 || back_attr < 0 {
             return front_attr;
         }
@@ -1063,7 +1063,7 @@ pub fn hl_blend_attrs(back_attr: i32, front_attr: i32, through: &mut bool) -> i3
         } else {
             &raw mut hl_st().blend_attr_entries
         };
-        let map = &mut *map_ptr;
+        let map = unsafe { &mut *map_ptr };
         let mut id = map.get(&combine_tag).copied().unwrap_or(0);
         if id > 0 {
             return id;

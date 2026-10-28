@@ -1091,9 +1091,9 @@ pub fn check_can_set_curbuf_forceit(forceit: i32) -> bool {
 /// Return the current window, unless in the cmdline window and "prevwin" is
 /// set, then return "prevwin".
 pub fn prevwin_curwin() -> &'static mut WinInfoInfo {
-    unsafe {
+    {
         if is_in_cmdwin() && !g_st().prevwin.is_null() {
-            &mut *g_st().prevwin
+            unsafe { &mut *g_st().prevwin }
         } else {
             curwin_mut()
         }
@@ -1153,7 +1153,7 @@ fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [c_char; 40]) {
 }
 
 fn do_window_gotofile(nchar: i32, prenum1: i32) {
-    unsafe {
+    {
         if check_text_or_curbuf_locked(None) {
             return;
         }
@@ -1189,7 +1189,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
                     win_close(curwin_ptr(), false, false);
                     g_st().got_int = g_st().got_int || old_got_int;
 
-                    goto_tabpage_win(&mut *oldtab, oldwin);
+                    goto_tabpage_win(unsafe { &mut *oldtab }, oldwin);
                 } else {
                     wp = curwin_ptr();
                 }
@@ -2847,7 +2847,7 @@ fn win_rotate(upwards: bool, mut count: i32) {
 }
 
 pub fn win_splitmove(wp: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
-    unsafe {
+    {
         let mut dir: i32 = 0;
         let height = wp.w_height;
 
@@ -2872,7 +2872,7 @@ pub fn win_splitmove(wp: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
         if win_split_ins(size, flags, (&raw mut *wp), dir, unflat_altfr).is_null() {
             if !wp.w_floating {
                 debug_assert!(!unflat_altfr.is_null());
-                winframe_restore(wp, dir, &mut *unflat_altfr);
+                winframe_restore(wp, dir, unsafe { &mut *unflat_altfr });
             }
             win_append(wp.w_prev, (&raw mut *wp), ptr::null_mut());
             return false;
@@ -5015,14 +5015,14 @@ pub fn use_tabpage(tp: *mut TabPageInfo) {
 }
 
 pub fn win_alloc_first() {
-    unsafe {
+    {
         if !win_alloc_firstwin(None) {
             std::process::abort();
         }
 
         g_st().first_tabpage = alloc_tabpage();
         g_st().curtab = g_st().first_tabpage;
-        unuse_tabpage(&mut *g_st().first_tabpage);
+        unuse_tabpage(unsafe { &mut *g_st().first_tabpage });
     }
 }
 
@@ -5095,7 +5095,7 @@ pub fn win_init_size() {
 }
 
 fn alloc_tabpage() -> &'static mut TabPageInfo {
-    unsafe {
+    {
         let tp = Box::leak(Box::new(TabPageInfo::new()));
         win_st().last_tp_handle += 1;
         tp.handle = win_st().last_tp_handle;
@@ -5103,7 +5103,7 @@ fn alloc_tabpage() -> &'static mut TabPageInfo {
 
         init_var_dict(
             &mut *tv_dict_alloc(),
-            &mut *(&raw mut tp.tp_winvar).cast(),
+            unsafe { &mut *(&raw mut tp.tp_winvar).cast() },
             VAR_SCOPE,
         );
         tp.tp_ch_used = opt_vars().p_ch;
@@ -5132,9 +5132,9 @@ impl Drop for TabPageInfo {
 }
 
 pub fn free_tabpage(tp: *mut TabPageInfo) {
-    unsafe {
+    {
         if !tp.is_null() {
-            drop(Box::from_raw(tp));
+            drop(unsafe { Box::from_raw(tp) });
         }
     }
 }
@@ -6176,7 +6176,7 @@ pub fn buf_jump_open_tab(buf: *mut FileBuf) -> *mut WinInfoInfo {
 }
 
 pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> &'static mut WinInfoInfo {
-    unsafe {
+    {
         let new_wp = Box::leak(Box::new(WinInfoInfo::new()));
 
         win_st().last_win_id += 1;
@@ -6187,7 +6187,7 @@ pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> &'static mut WinInfoI
 
         init_var_dict(
             &mut *tv_dict_alloc(),
-            &mut *(&raw mut new_wp.w_winvar).cast(),
+            unsafe { &mut *(&raw mut new_wp.w_winvar).cast() },
             VAR_SCOPE,
         );
 
@@ -6485,13 +6485,13 @@ pub fn win_new_screen_rows() {
 }
 
 pub fn win_new_screen_cols() {
-    unsafe {
+    {
         if g_st().firstwin.is_null() {
             return;
         }
 
         frame_new_width(topframe_mut(), g_st().columns_global, false, true);
-        if !frame_check_width(&*g_st().topframe, g_st().columns_global) {
+        if !frame_check_width(unsafe { &*g_st().topframe }, g_st().columns_global) {
             frame_new_width(topframe_mut(), g_st().columns_global, false, false);
         }
 
@@ -6824,7 +6824,7 @@ pub fn win_size_save(gap: &mut Vec<i32>) {
 }
 
 pub fn win_size_restore(gap: &[i32]) {
-    unsafe {
+    {
         if (win_count() * 2 + 1) as usize == gap.len()
             && gap[0] == rows_avail() as i32 + global_stl_height() - last_stl_height(false)
         {
@@ -6835,7 +6835,7 @@ pub fn win_size_restore(gap: &[i32]) {
                     let height = gap[i + 1];
                     i += 2;
                     if !wp.w_floating {
-                        frame_setwidth(&mut *wp.w_frame, width, true);
+                        frame_setwidth(unsafe { &mut *wp.w_frame }, width, true);
                         win_setheight_win(height, &mut *wp, true);
                     }
                 }
@@ -6906,7 +6906,7 @@ pub fn win_setheight(height: i32) {
 }
 
 pub fn win_setheight_win(mut height: i32, win: &mut WinInfoInfo, from_top: bool) {
-    unsafe {
+    {
         let min_wmh = if ptr::eq(win, curwin_ptr()) {
             opt_vars().p_wmh.max(1)
         } else {
@@ -6920,7 +6920,7 @@ pub fn win_setheight_win(mut height: i32, win: &mut WinInfoInfo, from_top: bool)
             redraw_later(Some(&mut *win), UPD_VALID);
         } else {
             frame_setheight(
-                &mut *win.w_frame,
+                unsafe { &mut *win.w_frame },
                 height + win.w_hsep_height + win.w_status_height,
                 from_top,
             );
@@ -7061,7 +7061,7 @@ pub fn win_setwidth(width: i32) {
 }
 
 pub fn win_setwidth_win(mut width: i32, wp: &mut WinInfoInfo, from_left: bool) {
-    unsafe {
+    {
         if ptr::eq(wp, curwin_ptr()) {
             width = width.max(opt_vars().p_wmw as i32).max(1);
         } else if width < 0 {
@@ -7072,7 +7072,11 @@ pub fn win_setwidth_win(mut width: i32, wp: &mut WinInfoInfo, from_left: bool) {
             win_config_float(wp, wp.w_config.clone());
             redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         } else {
-            frame_setwidth(&mut *wp.w_frame, width + wp.w_vsep_width, from_left);
+            frame_setwidth(
+                unsafe { &mut *wp.w_frame },
+                width + wp.w_vsep_width,
+                from_left,
+            );
 
             win_comp_pos();
             redraw_all_later(UPD_NOT_VALID);
@@ -7584,7 +7588,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: i32) {
 }
 
 pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
-    unsafe {
+    {
         let mut width = wp.w_width_request;
         if width == 0 {
             width = wp.w_width;
@@ -7641,7 +7645,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
         }
 
         if !wp.buf_mut().terminal.is_null() {
-            terminal_check_size(&mut *wp.buf_mut().terminal);
+            terminal_check_size(unsafe { &mut *wp.buf_mut().terminal });
         }
 
         let float_stl_height = if wp.w_floating && wp.w_status_height != 0 {
@@ -7816,8 +7820,8 @@ fn find_horizontally_resizable_frame(fr: &mut Frame) -> *mut Frame {
 }
 
 fn resize_frame_for_status(fr: &mut Frame) -> bool {
-    unsafe {
-        let wp = &mut *fr.fr_win;
+    {
+        let wp = unsafe { &mut *fr.fr_win };
         let fp = find_horizontally_resizable_frame(fr);
 
         if fp.is_null() {
@@ -7851,9 +7855,9 @@ fn resize_frame_for_winbar(fr: &mut Frame) -> bool {
 }
 
 fn last_status_rec(fr: &mut Frame, statusline: bool, is_stl_global: bool) {
-    unsafe {
+    {
         if fr.fr_layout == FR_LEAF {
-            let wp = &mut *fr.fr_win;
+            let wp = unsafe { &mut *fr.fr_win };
             let is_last = is_bottom_win(&mut *wp);
 
             if is_last {
@@ -7885,7 +7889,7 @@ fn last_status_rec(fr: &mut Frame, statusline: bool, is_stl_global: bool) {
 }
 
 pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool) -> i32 {
-    unsafe {
+    {
         let winbar_height = if wp.w_floating {
             i32::from(!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr))
         } else {
@@ -7900,7 +7904,7 @@ pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool)
                 if wp.w_floating {
                     emsg(gettext(E_NOROOM));
                     return NOTDONE;
-                } else if !make_room || !resize_frame_for_winbar(&mut *wp.w_frame) {
+                } else if !make_room || !resize_frame_for_winbar(unsafe { &mut *wp.w_frame }) {
                     return FAIL;
                 }
             }
@@ -7991,12 +7995,12 @@ pub fn last_stl_height(morewin: bool) -> i32 {
 }
 
 pub fn min_rows(tp: &mut TabPageInfo) -> i32 {
-    unsafe {
+    {
         if g_st().firstwin.is_null() {
             return MIN_LINES;
         }
 
-        let mut total = frame_minheight(&mut *tp.tp_topframe, ptr::null_mut());
+        let mut total = frame_minheight(unsafe { &mut *tp.tp_topframe }, ptr::null_mut());
         total += tabline_height() + global_stl_height();
         if (if ptr::eq(tp, g_st().curtab) {
             opt_vars().p_ch
@@ -8011,14 +8015,14 @@ pub fn min_rows(tp: &mut TabPageInfo) -> i32 {
 }
 
 pub fn min_rows_for_all_tabpages() -> i32 {
-    unsafe {
+    {
         if g_st().firstwin.is_null() {
             return MIN_LINES;
         }
 
         let mut total: i32 = 0;
         for tp in for_all_tabpages_ptr() {
-            let mut n = frame_minheight(&mut *tp.tp_topframe, ptr::null_mut());
+            let mut n = frame_minheight(unsafe { &mut *tp.tp_topframe }, ptr::null_mut());
             if (if ptr::eq(tp, g_st().curtab) {
                 opt_vars().p_ch
             } else {
@@ -8035,7 +8039,7 @@ pub fn min_rows_for_all_tabpages() -> i32 {
 }
 
 pub fn only_one_window() -> bool {
-    unsafe {
+    {
         if !crate::globals::first_tabpage_mut().tp_next.is_null() {
             return false;
         }
@@ -8043,7 +8047,7 @@ pub fn only_one_window() -> bool {
         let mut count: i32 = 0;
         for wp in for_all_windows_ptr() {
             if !wp.w_buffer.is_null()
-                && (!((bt_help((wp.w_buffer).as_ref())
+                && (!((bt_help(unsafe { (wp.w_buffer).as_ref() })
                     && !bt_help(Some(crate::globals::curbuf_mut())))
                     || wp.w_floating
                     || wp.w_onebuf_opt.wo_pvw != 0)

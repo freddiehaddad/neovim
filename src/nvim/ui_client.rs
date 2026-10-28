@@ -146,7 +146,7 @@ pub fn ui_client_start_server(
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
 pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, rgb: bool) {
-    unsafe {
+    {
         let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
         let mut opts = Dict {
             items: opts_items.as_mut_ptr(),
@@ -223,7 +223,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
             },
             KeyValuePair {
                 key: cstr_as_string(c"pid"),
-                value: integer_obj(Integer::from(uv_os_getpid())),
+                value: integer_obj(Integer::from(unsafe { uv_os_getpid() })),
             },
         ];
         let info = Dict {
@@ -426,7 +426,7 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
 }
 
 pub fn ui_client_event_connect(args: Array) {
-    unsafe {
+    {
         if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
             logmsg!(
                 LOGLVL_ERR,
@@ -448,7 +448,7 @@ pub fn ui_client_event_connect(args: Array) {
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
         multiqueue_put_event(
-            &mut *loop_queues(&mut g_st().main_loop).fast_events,
+            unsafe { &mut *loop_queues(&mut g_st().main_loop).fast_events },
             Event::UiClientConnect(server_addr),
         );
         g_st().ui_client_channel_id = u64::MAX;

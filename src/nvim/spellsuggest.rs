@@ -849,15 +849,17 @@ pub fn spell_suggest_list(
     need_cap: bool,
     interactive: bool,
 ) -> Vec<CString> {
-    unsafe {
+    {
         let mut sug = Suginfo::default();
         spell_find_suggest(word, 0, &mut sug, maxcount, false, need_cap, interactive);
         let mut res = Vec::with_capacity(sug.su_ga.len());
         for stp in &sug.su_ga {
-            let word_bytes = std::slice::from_raw_parts(
-                stp.st_word.as_ptr().cast::<u8>(),
-                stp.st_wordlen as usize,
-            );
+            let word_bytes = unsafe {
+                std::slice::from_raw_parts(
+                    stp.st_word.as_ptr().cast::<u8>(),
+                    stp.st_wordlen as usize,
+                )
+            };
             let tail_bytes = &crate::memory::cstr_as_bytes(sug.su_badptr)[stp.st_orglen as usize..];
             let mut bytes = Vec::with_capacity(word_bytes.len() + tail_bytes.len());
             bytes.extend_from_slice(word_bytes);
@@ -877,7 +879,7 @@ fn spell_find_suggest(
     interactive: bool,
 ) {
     let badptr = badptr.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut attr: Hlf = HLF_COUNT;
         let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut do_combine = false;
@@ -924,7 +926,7 @@ fn spell_find_suggest(
         }
         if !su.su_sallang.is_null() {
             spell_soundfold(
-                &mut *su.su_sallang,
+                unsafe { &mut *su.su_sallang },
                 (&raw mut su.su_fbadword).cast(),
                 true,
                 (&raw mut su.su_sal_badword).cast(),
@@ -2541,10 +2543,10 @@ fn stp_sal_score(
     }
 }
 fn suggest_try_soundalike_prep() {
-    unsafe {
+    {
         let w_s = curwin_mut().w_s_ptr();
         for lp in &w_s.b_langp {
-            let slang = &mut *lp.lp_slang;
+            let slang = unsafe { &mut *lp.lp_slang };
             if slang.has_sal() && !slang.sl_sbyts.is_empty() {
                 slang.sl_sounddone.clear();
             }
@@ -2552,11 +2554,11 @@ fn suggest_try_soundalike_prep() {
     }
 }
 fn suggest_try_soundalike(su: &mut Suginfo) {
-    unsafe {
+    {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let w_s = curwin_mut().w_s_ptr();
         for lp in &w_s.b_langp {
-            let slang = &mut *lp.lp_slang;
+            let slang = unsafe { &mut *lp.lp_slang };
             if slang.has_sal() && !slang.sl_sbyts.is_empty() {
                 spell_soundfold(
                     &mut *slang,
@@ -2570,10 +2572,10 @@ fn suggest_try_soundalike(su: &mut Suginfo) {
     }
 }
 fn suggest_try_soundalike_finish() {
-    unsafe {
+    {
         let w_s = curwin_mut().w_s_ptr();
         for lp in &w_s.b_langp {
-            let slang = &mut *lp.lp_slang;
+            let slang = unsafe { &mut *lp.lp_slang };
             if slang.has_sal() && !slang.sl_sbyts.is_empty() {
                 slang.sl_sounddone.clear();
             }

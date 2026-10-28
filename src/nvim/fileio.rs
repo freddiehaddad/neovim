@@ -617,15 +617,17 @@ mod win_iconv {
                 };
 
                 let mut wide = [0u16; 2];
-                let wlen = unsafe {
-                    MultiByteToWideChar(
-                        cp,
-                        MB_ERR_INVALID_CHARS,
-                        in_ptr.cast(),
-                        in_len,
-                        wide.as_mut_ptr(),
-                        2,
-                    )
+                let wlen = {
+                    unsafe {
+                        MultiByteToWideChar(
+                            cp,
+                            MB_ERR_INVALID_CHARS,
+                            in_ptr.cast(),
+                            in_len,
+                            wide.as_mut_ptr(),
+                            2,
+                        )
+                    }
                 };
                 if wlen <= 0 {
                     return StepResult::Invalid;
@@ -689,32 +691,36 @@ mod win_iconv {
                 let mut wide = [0u16; 2];
                 let wlen = ch.encode_utf16(&mut wide).len() as i32;
                 if cp == 54936 || cp == 65001 {
-                    let n = unsafe {
-                        WideCharToMultiByte(
-                            cp,
-                            WC_ERR_INVALID_CHARS,
-                            wide.as_ptr(),
-                            wlen,
-                            buf.as_mut_ptr().cast(),
-                            8,
-                            ptr::null(),
-                            ptr::null_mut(),
-                        )
+                    let n = {
+                        unsafe {
+                            WideCharToMultiByte(
+                                cp,
+                                WC_ERR_INVALID_CHARS,
+                                wide.as_ptr(),
+                                wlen,
+                                buf.as_mut_ptr().cast(),
+                                8,
+                                ptr::null(),
+                                ptr::null_mut(),
+                            )
+                        }
                     };
                     if n <= 0 { None } else { Some(n as usize) }
                 } else {
                     let mut used_def: i32 = 0;
-                    let n = unsafe {
-                        WideCharToMultiByte(
-                            cp,
-                            WC_NO_BEST_FIT_CHARS,
-                            wide.as_ptr(),
-                            wlen,
-                            buf.as_mut_ptr().cast(),
-                            8,
-                            ptr::null(),
-                            &raw mut used_def,
-                        )
+                    let n = {
+                        unsafe {
+                            WideCharToMultiByte(
+                                cp,
+                                WC_NO_BEST_FIT_CHARS,
+                                wide.as_ptr(),
+                                wlen,
+                                buf.as_mut_ptr().cast(),
+                                8,
+                                ptr::null(),
+                                &raw mut used_def,
+                            )
+                        }
                     };
                     if n <= 0 || used_def != 0 {
                         None
@@ -3002,7 +3008,7 @@ fn readfile_charconvert(
 ) -> Option<std::ffi::CString> {
     let fname = fname.into_c_char_ptr();
     let fenc = fenc.into_c_char_ptr();
-    unsafe {
+    {
         let mut errmsg: *mut c_char = ptr::null_mut();
 
         let mut tmpname = vim_tempname();
@@ -3011,7 +3017,7 @@ fn readfile_charconvert(
                 errmsg = tr(c"Can't find temp file for conversion");
             }
             Some(ref tn) => {
-                close(*fdp);
+                unsafe { close(*fdp) };
                 *fdp = -1;
                 if !eval_charconvert(fenc, c"utf-8", fname, tn.as_ptr()) {
                     errmsg = tr(c"Conversion with 'charconvert' failed");
@@ -3606,11 +3612,11 @@ pub fn get4c(fd: *mut FILE) -> i32 {
 
 /// Read 8 bytes from `fd` and turn them into a time_t, MSB first.
 pub fn get8ctime(fd: *mut FILE) -> time_t {
-    unsafe {
+    {
         let mut n: time_t = 0;
 
         for _ in 0..8 {
-            let c = fgetc(fd);
+            let c = unsafe { fgetc(fd) };
             if c == EOF {
                 return -1;
             }
@@ -3622,10 +3628,10 @@ pub fn get8ctime(fd: *mut FILE) -> time_t {
 
 /// Reads a string of length "cnt" from "fd" into allocated memory.
 pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
-    unsafe {
+    {
         let mut buf: Vec<c_char> = Vec::with_capacity(cnt + 1);
         for _ in 0..cnt {
-            let c = fgetc(fd);
+            let c = unsafe { fgetc(fd) };
             if c == EOF {
                 return None;
             }
@@ -3638,10 +3644,10 @@ pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
 
 /// Writes a number to file "fd", most significant bit first, in "len" bytes.
 pub fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
-    unsafe {
+    {
         debug_assert!(len > 0);
         for i in (0..len).rev() {
-            if fputc(((number >> (i * 8)) & 0xff) as i32, fd) == EOF {
+            if unsafe { fputc(((number >> (i * 8)) & 0xff) as i32, fd) } == EOF {
                 return false;
             }
         }
@@ -4115,7 +4121,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
 
 /// Reload a buffer that is already loaded.
 pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
-    unsafe {
+    {
         let mut ea: Exarg = Exarg::new();
         let old_ro = buf.b_p_ro;
         let savebuf: *mut FileBuf;
@@ -4202,7 +4208,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
                             break;
                         }
                     }
-                    move_lines(&mut *savebuf, buf);
+                    move_lines(unsafe { &mut *savebuf }, buf);
                 }
             } else if ptr::eq(buf, g_st().curbuf) {
                 unchanged(&mut *buf, true, true);
@@ -4625,7 +4631,7 @@ pub fn vim_gettempdir() -> *mut c_char {
 /// Sets Nvim's own temporary directory name to `tempdir`.
 fn vim_settempdir(tempdir: impl crate::strings::IntoCCharPtr) -> bool {
     let tempdir = tempdir.into_c_char_ptr();
-    unsafe {
+    {
         let mut buf_vec: Vec<c_char> = vec![0; MAXPATHL + 2];
         let buf = buf_vec.as_mut_ptr();
 
@@ -4634,11 +4640,13 @@ fn vim_settempdir(tempdir: impl crate::strings::IntoCCharPtr) -> bool {
         let mut buflen = crate::memory::cstr_len(buf);
         if after_pathsep(buf, buf.wrapping_add(buflen)) == 0 {
             let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
-            ptr::copy_nonoverlapping(
-                sep_bytes.as_ptr().cast::<c_char>(),
-                buf.wrapping_add(buflen),
-                sep_bytes.len(),
-            );
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    sep_bytes.as_ptr().cast::<c_char>(),
+                    buf.wrapping_add(buflen),
+                    sep_bytes.len(),
+                )
+            };
             buflen += sep_bytes.len() - 1;
         }
         fio_st().vim_tempdir = Some(
@@ -4953,10 +4961,10 @@ pub fn file_pat_to_reg_pat(
 
 /// Version of read() that retries when interrupted by EINTR.
 pub fn read_eintr(fd: i32, buf: *mut c_void, bufsize: usize) -> isize {
-    unsafe {
+    {
         loop {
             #[cfg(windows)]
-            let ret = _read(fd, buf, bufsize as u32) as isize;
+            let ret = unsafe { _read(fd, buf, bufsize as u32) } as isize;
             #[cfg(not(windows))]
             let ret = read(fd, buf, bufsize);
             if ret >= 0 || os_errno() != EINTR {
@@ -4968,14 +4976,15 @@ pub fn read_eintr(fd: i32, buf: *mut c_void, bufsize: usize) -> isize {
 
 /// Version of write() that retries when interrupted by EINTR.
 pub fn write_eintr(fd: i32, buf: *const c_void, bufsize: usize) -> isize {
-    unsafe {
+    {
         let mut ret: isize = 0;
 
         while (ret as usize) < bufsize {
             let rem = bufsize - (ret as usize);
             #[cfg(windows)]
             let wlen =
-                _write(fd, buf.cast::<u8>().wrapping_offset(ret).cast(), rem as u32) as isize;
+                unsafe { _write(fd, buf.cast::<u8>().wrapping_offset(ret).cast(), rem as u32) }
+                    as isize;
             #[cfg(not(windows))]
             let wlen = write(fd, buf.cast::<u8>().offset(ret).cast(), rem);
             if wlen < 0 {

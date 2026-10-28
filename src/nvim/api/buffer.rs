@@ -1833,9 +1833,9 @@ fn fix_cursor_cols(
 
 #[inline]
 fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &mut Arena) {
-    unsafe {
+    {
         if !lstate.is_null() {
-            lua_createtable(lstate, size as i32, 0);
+            unsafe { lua_createtable(lstate, size as i32, 0) };
         } else {
             *a = arena_array(arena, size);
         }

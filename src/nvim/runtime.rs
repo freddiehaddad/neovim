@@ -709,7 +709,7 @@ pub fn do_in_path(
 ) -> bool {
     let path = path.into_c_char_ptr();
     let name = name.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut did_one = false;
 
         let rtp_copy = cstr_to_cstring(path);
@@ -756,11 +756,13 @@ pub fn do_in_path(
                     if buflen + 2 + prefix_len + name_len < MAXPATHL {
                         add_pathsep(buf);
                         let cur_len = crate::memory::cstr_len(buf);
-                        ptr::copy_nonoverlapping(
-                            prefix.as_ptr(),
-                            buf.wrapping_add(cur_len),
-                            prefix_len + 1,
-                        );
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                prefix.as_ptr(),
+                                buf.wrapping_add(cur_len),
+                                prefix_len + 1,
+                            )
+                        };
                         let tail = buf.wrapping_add(crate::memory::cstr_len(buf));
 
                         let mut np = name;
@@ -957,8 +959,8 @@ pub fn runtime_inspect(arena: &mut Arena) -> Array {
 }
 
 pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: &mut Arena) -> Array {
-    unsafe {
-        let path = &mut *runtime_search_path_get_cached();
+    {
+        let path = unsafe { &mut *runtime_search_path_get_cached() };
         let rv = runtime_get_named_common(
             lua,
             pat,
@@ -2567,7 +2569,7 @@ pub fn source_level(sp: &mut SourceCookie) -> i32 {
 
 fn fopen_noinh_readbin(filename: impl crate::strings::IntoCCharPtr) -> *mut FILE {
     let filename = filename.into_c_char_ptr();
-    unsafe {
+    {
         #[cfg(windows)]
         let fd_tmp = os_open(filename, O_RDONLY | O_BINARY | O_NOINHERIT, 0);
         #[cfg(not(windows))]
@@ -2579,7 +2581,7 @@ fn fopen_noinh_readbin(filename: impl crate::strings::IntoCCharPtr) -> *mut FILE
 
         os_set_cloexec(fd_tmp);
 
-        fdopen(fd_tmp, c"rb".as_ptr())
+        unsafe { fdopen(fd_tmp, c"rb".as_ptr()) }
     }
 }
 
@@ -2589,7 +2591,7 @@ fn concat_continued_line(
     mut len: usize,
 ) -> bool {
     let p = p.into_c_char_ptr();
-    unsafe {
+    {
         let line = skipwhite_len(p, len);
         len -= (line as usize) - (p as usize);
         let slice = crate::memory::cstr_slice(line, len);
@@ -2600,7 +2602,9 @@ fn concat_continued_line(
             return false;
         }
         if len > 1 {
-            ga.extend_from_slice(std::slice::from_raw_parts(line.wrapping_add(1), len - 1));
+            ga.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(line.wrapping_add(1), len - 1)
+            });
         }
         true
     }
@@ -3550,7 +3554,7 @@ pub fn sourcing_a_script(eap: &mut Exarg) -> i32 {
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
 pub fn ex_scriptencoding(eap: &mut Exarg) {
-    unsafe {
+    {
         let Some(sp) = eap.ea_getline.as_source() else {
             emsg(gettext(
                 c"E167: :scriptencoding used outside of a sourced file",
@@ -3566,7 +3570,7 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
             eap.arg
         };
 
-        convert_setup(&mut (*sp).conv, name, opt_vars().p_enc);
+        convert_setup(unsafe { &mut (*sp).conv }, name, opt_vars().p_enc);
     }
 }
 

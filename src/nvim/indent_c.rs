@@ -3063,7 +3063,7 @@ pub fn get_c_indent() -> i32 {
     }
 }
 fn find_match(lookfor: i32, ourscope: Linenr) -> bool {
-    unsafe {
+    {
         let mut elselevel: i32;
         let mut whilelevel: i32;
         if lookfor == LOOKFOR_IF {
@@ -3089,7 +3089,7 @@ fn find_match(lookfor: i32, ourscope: Linenr) -> bool {
             if theirscope.is_null() {
                 break;
             }
-            let theirscope = { &mut *theirscope };
+            let theirscope = unsafe { &mut *theirscope };
             if theirscope.lnum < ourscope {
                 break;
             }

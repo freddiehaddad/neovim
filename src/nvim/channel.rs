@@ -178,12 +178,14 @@ use crate::fileio::freopen;
 #[inline]
 fn redirect_stderr_to_null() {
     #[cfg(windows)]
-    unsafe {
-        let _ = freopen(
-            c"NUL:".as_ptr(),
-            c"w".as_ptr(),
-            crate::log::log_get_stderr().cast(),
-        );
+    {
+        let _ = unsafe {
+            freopen(
+                c"NUL:".as_ptr(),
+                c"w".as_ptr(),
+                crate::log::log_get_stderr().cast(),
+            )
+        };
     }
     #[cfg(not(windows))]
     unsafe {
@@ -213,9 +215,9 @@ pub fn channel_teardown() {
 }
 
 pub fn channel_free_all_mem() {
-    unsafe {
+    {
         for (_, chan) in std::mem::take(&mut g_st().channels) {
-            drop(Box::from_raw(chan));
+            drop(unsafe { Box::from_raw(chan) });
         }
 
         callback_free(&mut g_st().on_print);
@@ -404,7 +406,7 @@ pub fn channel_incref(chan: &mut Channel) {
 }
 
 pub fn channel_decref(chan: &mut Channel) {
-    unsafe {
+    {
         if chan.refcount == 1 && !chan.did_close_event {
             chan.did_close_event = true;
             channel_event(chan, EVENT_CHANCLOSE);
@@ -413,7 +415,10 @@ pub fn channel_decref(chan: &mut Channel) {
         chan.refcount -= 1;
         if chan.refcount == 0 {
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event(&mut *qc.events, Event::ChannelFree(&raw mut *chan));
+            multiqueue_put_event(
+                unsafe { &mut *qc.events },
+                Event::ChannelFree(&raw mut *chan),
+            );
         }
     }
 }
@@ -430,7 +435,7 @@ pub fn free_channel_event(chan: &mut Channel) {
 }
 
 fn channel_destroy_early(chan: &mut Channel) {
-    unsafe {
+    {
         chan_st().next_chan_id -= 1;
         if chan.id != chan_st().next_chan_id {
             std::process::abort();
@@ -444,7 +449,10 @@ fn channel_destroy_early(chan: &mut Channel) {
         }
 
         let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event(&mut *qc.events, Event::ChannelFree(&raw mut *chan));
+        multiqueue_put_event(
+            unsafe { &mut *qc.events },
+            Event::ChannelFree(&raw mut *chan),
+        );
     }
 }
 
@@ -1120,11 +1128,11 @@ pub fn channel_term_resume(chan: &mut Channel) {
 }
 
 pub fn term_delayed_free(chan: &mut Channel) {
-    unsafe {
+    {
         let proc_ptr = &mut chan.uv.proc_;
         if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
             multiqueue_put_event(
-                &mut *chan.events,
+                unsafe { &mut *chan.events },
                 Event::ChannelTermDelayedFree(&raw mut *chan),
             );
             return;
@@ -1138,7 +1146,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
 }
 
 pub fn channel_term_close(chan: &mut Channel) {
-    unsafe {
+    {
         if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             let internal = &mut chan.internal;
             terminal_destroy(&raw mut chan.term);
@@ -1149,19 +1157,19 @@ pub fn channel_term_close(chan: &mut Channel) {
         }
         proc_stop(&mut chan.uv.proc_);
         multiqueue_put_event(
-            &mut *chan.events,
+            unsafe { &mut *chan.events },
             Event::ChannelTermDelayedFree(&raw mut *chan),
         );
     }
 }
 
 pub fn channel_event(chan: &mut Channel, event: AuEvent) {
-    unsafe {
+    {
         if has_event(event) {
             channel_incref(chan);
             let qc = loop_queues(&mut g_st().main_loop);
             multiqueue_put_event(
-                &mut *qc.events,
+                unsafe { &mut *qc.events },
                 Event::ChannelSetInfo {
                     chan: &raw mut *chan,
                     event,

@@ -1018,9 +1018,9 @@ pub(crate) fn system_data_cb(
     _eof: bool,
 ) -> usize {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         if !buf.is_null() && count > 0 {
-            dbuf.extend_from_slice(std::slice::from_raw_parts(buf, count));
+            dbuf.extend_from_slice(unsafe { std::slice::from_raw_parts(buf, count) });
         }
         count
     }
@@ -1296,11 +1296,11 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
 }
 
 pub(crate) fn shell_write_cb(stream: &mut Stream, status: i32) {
-    unsafe {
+    {
         if status != 0 {
             msg_schedule_semsg!(
                 gettext(c"E5677: Error writing input to shell-command: %s"),
-                uv_err_name(status),
+                unsafe { uv_err_name(status) },
             );
         }
         stream_may_close(stream);

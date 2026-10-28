@@ -925,10 +925,10 @@ pub fn suggest_load_files() {
 }
 
 fn read_cnt_string(fd: *mut FILE, cnt_bytes: i32, cntp: &mut i32) -> Option<Vec<c_char>> {
-    unsafe {
+    {
         let mut cnt: i32 = 0;
         for _ in 0..cnt_bytes {
-            let c = fgetc(fd);
+            let c = unsafe { fgetc(fd) };
             if c == EOF {
                 *cntp = SP_TRUNCERROR;
                 return None;
@@ -987,7 +987,7 @@ fn read_charflags_section(fd: *mut FILE) -> i32 {
 }
 
 fn read_prefcond_section(fd: *mut FILE, lp: &mut Slang) -> i32 {
-    unsafe {
+    {
         let cnt = get2c(fd);
         if cnt <= 0 {
             return SP_FORMERROR;
@@ -996,7 +996,7 @@ fn read_prefcond_section(fd: *mut FILE, lp: &mut Slang) -> i32 {
         lp.sl_prefprog.resize_with(cnt as usize, || None);
 
         for i in 0..cnt {
-            let n = fgetc(fd);
+            let n = unsafe { fgetc(fd) };
             if n < 0 || n >= MAXWLEN as i32 {
                 return SP_FORMERROR;
             }
@@ -1190,14 +1190,14 @@ fn read_sal_section(fd: *mut FILE, slang: &mut Slang) -> i32 {
 }
 
 fn read_words_section(fd: *mut FILE, lp: &mut Slang, len: i32) -> i32 {
-    unsafe {
+    {
         let mut done: i32 = 0;
         let mut word = [0u8; MAXWLEN];
 
         while done < len {
             let mut i: usize = 0;
             loop {
-                let c = fgetc(fd);
+                let c = unsafe { fgetc(fd) };
                 if c == EOF {
                     return SP_TRUNCERROR;
                 }
@@ -1642,13 +1642,13 @@ fn read_tree_node(
 
 fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut didit = false;
 
         let len = spell_priv_st().first_lang.len();
         for i in (0..len).rev() {
             let slang: *mut Slang = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
-            let slang = &mut *slang;
+            let slang = unsafe { &mut *slang };
             if slang
                 .sl_fname
                 .as_ref()
@@ -2599,7 +2599,7 @@ fn is_aff_rule(
 }
 
 fn aff_process_flags(affile: &Afffile, entry: &mut Affentry) {
-    unsafe {
+    {
         if let Some(ref flags_cstr) = entry.ae_flags
             && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
         {
@@ -2613,7 +2613,7 @@ fn aff_process_flags(affile: &Afffile, entry: &mut Affentry) {
                 let prevp = p;
                 let flag = get_affitem(affile.af_flagtype, &raw mut p);
                 if flag == affile.af_comppermit || flag == affile.af_compforbid {
-                    ptr::copy(p, prevp, crate::memory::cstr_len(p) + 1);
+                    unsafe { ptr::copy(p, prevp, crate::memory::cstr_len(p) + 1) };
                     p = prevp;
                     if flag == affile.af_comppermit {
                         entry.ae_comppermit = 1;

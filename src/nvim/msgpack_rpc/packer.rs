@@ -296,12 +296,14 @@ pub fn mpack_raw(data: impl crate::strings::IntoCCharPtr, len: usize, packer: &m
         let remaining = mpack_remaining(packer);
         let to_copy = (len - pos).min(remaining);
         if to_copy > 0 {
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    data.wrapping_add(pos).cast::<u8>(),
-                    packer.ptr.cast::<u8>(),
-                    to_copy,
-                );
+            {
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        data.wrapping_add(pos).cast::<u8>(),
+                        packer.ptr.cast::<u8>(),
+                        to_copy,
+                    )
+                };
                 packer.ptr = packer.ptr.wrapping_add(to_copy);
             }
             pos += to_copy;
@@ -349,7 +351,7 @@ pub fn mpack_ext(
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
 pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut PackerBuffer) {
     let exttype = ((obj_type as i32) - EXT_OBJECT_TYPE_SHIFT) as u8;
-    unsafe {
+    {
         if (-0x1f..=0x7f).contains(&handle) {
             mpack_w(&mut packer.ptr, 0xd4);
             mpack_w(&mut packer.ptr, exttype);
@@ -363,11 +365,13 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
             mpack_w(&mut packer.ptr, 0xc7);
             mpack_w(&mut packer.ptr, packsize as u8);
             mpack_w(&mut packer.ptr, exttype);
-            std::ptr::copy_nonoverlapping(
-                buf.as_ptr().cast::<u8>(),
-                packer.ptr.cast::<u8>(),
-                packsize,
-            );
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    buf.as_ptr().cast::<u8>(),
+                    packer.ptr.cast::<u8>(),
+                    packsize,
+                )
+            };
             packer.ptr = packer.ptr.wrapping_add(packsize);
         }
     }

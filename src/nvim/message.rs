@@ -768,7 +768,7 @@ pub fn msg_keep(
     multiline: bool,
 ) -> bool {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         if keep && multiline {
             std::process::abort();
         }
@@ -792,8 +792,7 @@ pub fn msg_keep(
         msg_st().msg_keep_entered += 1;
 
         // Add message to history unless it's a multihl, repeated kept or truncated message.
-        let keep_msg_ptr = (&raw const g_st().keep_msg)
-            .as_ref()
+        let keep_msg_ptr = unsafe { (&raw const g_st().keep_msg).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null(), |k| k.as_ptr());
@@ -1107,7 +1106,7 @@ pub fn emsg_multiline(
 ) -> bool {
     let s = s.into_c_char_ptr();
     let kind = kind.into_c_char_ptr();
-    unsafe {
+    {
         let mut ignore = false;
 
         // Skip this if not giving error messages at the moment.
@@ -1131,8 +1130,7 @@ pub fn emsg_multiline(
             }
 
             if g_st().in_assert_fails
-                && (&raw const g_st().emsg_assert_fails_msg)
-                    .as_ref()
+                && unsafe { (&raw const g_st().emsg_assert_fails_msg).as_ref() }
                     .unwrap()
                     .is_none()
             {
@@ -3562,7 +3560,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
 
 /// Show the more-prompt and handle the user response.
 fn do_more_prompt(typed_char: i32) -> bool {
-    unsafe {
+    {
         let mut used_typed_char = typed_char;
         let old_state = g_st().state_global;
         let mut retval = false;
@@ -3658,7 +3656,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left = g_st().rows_global - 1;
                 }
                 K_EVENT => {
-                    multiqueue_process_events( &mut *g_st().resize_events);
+                    multiqueue_process_events( unsafe { &mut *g_st().resize_events });
                     to_redraw = true;
                 }
                 _ => {
@@ -4319,7 +4317,7 @@ mod tests {
         ];
 
         for &(s, expected, room) in cases {
-            unsafe {
+            {
                 let mut buf = [0 as c_char; 40];
                 let c_s = std::ffi::CString::new(s).unwrap();
                 trunc_string(c_s.as_ptr(), buf.as_mut_ptr(), room, 40);
@@ -4329,7 +4327,9 @@ mod tests {
                 );
 
                 let mut inplace = [0 as c_char; 40];
-                ptr::copy_nonoverlapping(c_s.as_ptr(), inplace.as_mut_ptr(), s.len() + 1);
+                unsafe {
+                    ptr::copy_nonoverlapping(c_s.as_ptr(), inplace.as_mut_ptr(), s.len() + 1)
+                };
                 trunc_string(inplace.as_ptr(), inplace.as_mut_ptr(), room, 40);
                 assert_eq!(
                     crate::memory::cstr_from_ptr(inplace.as_ptr())

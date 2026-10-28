@@ -95,7 +95,7 @@ pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<Bhdr>>, key: i64) 
 
 /// Open a new or existing memory block file.
 pub fn mf_open(fname: Option<std::ffi::CString>, flags: i32) -> Option<Box<Memfile>> {
-    unsafe {
+    {
         let mut mfp = Box::new(Memfile {
             mf_fname: None,
             mf_ffname: None,
@@ -131,7 +131,7 @@ pub fn mf_open(fname: Option<std::ffi::CString>, flags: i32) -> Option<Box<Memfi
 
         let size: Off;
         if mfp.mf_fd < 0 || (flags & (O_TRUNC | O_EXCL)) != 0 || {
-            size = vim_lseek(mfp.mf_fd, 0, SEEK_END);
+            size = unsafe { vim_lseek(mfp.mf_fd, 0, SEEK_END) };
             size <= 0
         } {
             mfp.mf_blocknr_max = 0;
@@ -163,8 +163,8 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
     let Some(mfp) = mfp else {
         return;
     };
-    unsafe {
-        if mfp.mf_fd >= 0 && close(mfp.mf_fd) < 0 {
+    {
+        if mfp.mf_fd >= 0 && unsafe { close(mfp.mf_fd) } < 0 {
             emsg(gettext(E_SWAPCLOSE));
         }
         if del_file && let Some(ref fname) = mfp.mf_fname {
@@ -428,14 +428,14 @@ fn mf_alloc_bhdr(mfp: &mut Memfile, bnum: Blocknr, page_count: u32, flags: u32) 
 }
 
 fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
-    unsafe {
+    {
         if mfp.mf_fd < 0 {
             return false;
         }
 
         let page_size = mfp.mf_page_size;
         let offset = i64::from(page_size).wrapping_mul(hp.bh_bnum);
-        if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
+        if unsafe { vim_lseek(mfp.mf_fd, offset, SEEK_SET) } != offset {
             perror_msg(c"E294: Seek error in swap file read");
             return false;
         }

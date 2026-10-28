@@ -163,9 +163,9 @@ mod win_impl {
 
     #[inline]
     fn connect_req_handle_ptr(req: *mut uv_connect_t) -> *mut *mut uv_stream_t {
-        unsafe {
+        {
             req.cast::<u8>()
-                .wrapping_add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
+                .wrapping_add(unsafe { uv_req_size(UV_REQ) } + size_of::<*mut c_void>())
                 .cast::<*mut uv_stream_t>()
         }
     }
@@ -467,7 +467,7 @@ mod win_impl {
     }
 
     fn build_cmd_line(argv: &[std::ffi::CString], cmd_line: &mut Vec<u16>, is_cmdexe: bool) -> i32 {
-        unsafe {
+        {
             let mut utf8_cmd_line: Vec<c_char> = Vec::new();
             let mut arg_buf: Vec<c_char> = Vec::new();
 
@@ -483,7 +483,8 @@ mod win_impl {
                         arg_str
                     };
                     let src_len = crate::memory::cstr_len(src);
-                    utf8_cmd_line.extend_from_slice(std::slice::from_raw_parts(src, src_len));
+                    utf8_cmd_line
+                        .extend_from_slice(unsafe { std::slice::from_raw_parts(src, src_len) });
                 } else {
                     let buf_len = arg_cstr.as_bytes().len() * 2 + 3;
                     arg_buf.resize(buf_len, 0);

@@ -530,13 +530,13 @@ pub fn f_buflisted(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// `bufload(expr)` function (`f_bufload`).
 pub fn f_bufload(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let buf = get_buf_arg(&mut argvars[0]);
         if !buf.is_null() {
             if g_st().swap_exists_action != SEA_READONLY {
                 g_st().swap_exists_action = SEA_NONE;
             }
-            buf_ensure_loaded(&mut *buf);
+            buf_ensure_loaded(unsafe { &mut *buf });
         }
     }
 }

@@ -235,7 +235,7 @@ pub fn rpc_init() {
 }
 
 pub fn rpc_start(channel: &mut Channel) {
-    unsafe {
+    {
         channel_incref(&mut *channel);
         channel.is_rpc = true;
         let rpc = &mut channel.rpc;
@@ -253,7 +253,7 @@ pub fn rpc_start(channel: &mut Channel) {
 
         if channel.streamtype != K_CHANNEL_STREAM_INTERNAL {
             let out = channel_outstream(channel);
-            rstream_start(&mut *out, StreamCbData::ChannelRpc(channel));
+            rstream_start(unsafe { &mut *out }, StreamCbData::ChannelRpc(channel));
         }
     }
 }
@@ -618,13 +618,13 @@ pub fn request_event(mut e: RequestEvent) {
 }
 
 pub fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
-    unsafe {
+    {
         let channel = find_rpc_channel(id);
         if channel.is_null() {
             return false;
         }
 
-        channel_write(&mut *channel, buffer)
+        channel_write(unsafe { &mut *channel }, buffer)
     }
 }
 
@@ -741,7 +741,7 @@ fn has_undetached_rpc_chan() -> bool {
 }
 
 pub fn rpc_close(channel: &mut Channel) {
-    unsafe {
+    {
         if channel.rpc.closed {
             return;
         }
@@ -750,7 +750,10 @@ pub fn rpc_close(channel: &mut Channel) {
 
         {
             let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event(&mut *qc.fast_events, Event::RpcClose(&raw mut *channel));
+            multiqueue_put_event(
+                unsafe { &mut *qc.fast_events },
+                Event::RpcClose(&raw mut *channel),
+            );
         }
     }
 }

@@ -661,11 +661,10 @@ fn compl_pattern_len() -> usize {
 #[inline]
 fn set_compl_pattern_bytes(ptr: impl crate::strings::IntoCCharPtr, len: usize) {
     let ptr = ptr.into_c_char_ptr();
-    unsafe {
-        insexp().compl_pattern = Some(crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-            ptr.cast::<u8>(),
-            len,
-        )));
+    {
+        insexp().compl_pattern = Some(crate::memory::cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts(ptr.cast::<u8>(), len)
+        }));
     }
 }
 
@@ -2287,7 +2286,7 @@ fn ins_compl_files(
     buf: *mut c_char,
     dir: &mut Direction,
 ) {
-    unsafe {
+    {
         let leader = if cot_fuzzy() {
             ins_compl_leader()
         } else {
@@ -2415,7 +2414,7 @@ fn ins_compl_files(
                 line_breakcheck();
                 ins_compl_check_keys(50, false);
             }
-            fclose(fp);
+            unsafe { fclose(fp) };
         }
     }
 }
@@ -3994,7 +3993,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
 }
 
 pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_dict_alloc_ret(rettv);
 
         let mut what_list: *mut TvList = ptr::null_mut();
@@ -4006,7 +4005,7 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             }
             what_list = argvars[0].vval.v_list();
         }
-        get_complete_info(what_list.as_ref(), rettv.vval.v_dict_ref());
+        get_complete_info(unsafe { what_list.as_ref() }, rettv.vval.v_dict_ref());
     }
 }
 
@@ -4299,7 +4298,7 @@ fn ins_compl_longest_insert(prefix: impl crate::strings::IntoCCharPtr) {
 }
 
 fn fuzzy_longest_match() {
-    unsafe {
+    {
         if insexp().compl_num_bests == 0 {
             return;
         }
@@ -4375,7 +4374,7 @@ fn fuzzy_longest_match() {
                 == crate::memory::cstr_prefix_bytes(leader, leader_len))
         {
             let mut dup_vec: Vec<c_char> = vec![0; prefix_len as usize + 1];
-            ptr::copy_nonoverlapping(prefix, dup_vec.as_mut_ptr(), prefix_len as usize);
+            unsafe { ptr::copy_nonoverlapping(prefix, dup_vec.as_mut_ptr(), prefix_len as usize) };
             ins_compl_longest_insert(dup_vec.as_mut_ptr());
         }
 
@@ -4986,7 +4985,7 @@ fn get_callback_if_cpt_func(p: impl crate::strings::IntoCCharPtr, idx: i32) -> C
 }
 
 fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut CursorPos) -> bool {
-    unsafe {
+    {
         let mut found_new_match = FAIL;
 
         match type_ {
@@ -5012,7 +5011,7 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
             }
             CTRL_X_FUNCTION => {
                 if ctrl_x_mode_normal() {
-                    get_cpt_func_completion_matches(&mut *st.func_cb.as_ptr());
+                    get_cpt_func_completion_matches(unsafe { &mut *st.func_cb.as_ptr() });
                 } else {
                     expand_by_function(type_, compl_pattern_ptr(), ptr::null_mut());
                 }
@@ -5411,7 +5410,7 @@ fn ins_compl_update_shown_match() {
 }
 
 pub fn ins_compl_delete(new_leader: bool) {
-    unsafe {
+    {
         let mut orig_col: i32 = 0;
         if new_leader {
             let mut orig = insexp().compl_orig_text.data;
@@ -5441,7 +5440,7 @@ pub fn ins_compl_delete(new_leader: bool) {
             if curwin_mut().w_cursor.col < get_cursor_line_len() {
                 let len = get_cursor_pos_len() as usize;
                 let mut v = vec![0; len + 1];
-                ptr::copy_nonoverlapping(get_cursor_pos_ptr(), v.as_mut_ptr(), len);
+                unsafe { ptr::copy_nonoverlapping(get_cursor_pos_ptr(), v.as_mut_ptr(), len) };
                 remaining_vec = Some(v);
             }
 
@@ -5505,7 +5504,7 @@ fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) {
 }
 
 fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char {
-    unsafe {
+    {
         let cpt_sources = &insexp().cpt_sources_array;
         let is_cpt_completion = !cpt_sources.is_empty();
 
@@ -5522,7 +5521,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
         let mut len: i32 = -1;
         for compl in list {
             let leader = get_leader_for_startcol(Some(&*compl), true);
-            let leader = { &mut *leader };
+            let leader = unsafe { &mut *leader };
 
             if ctrl_x_mode_normal()
                 && opt_vars().p_inf == 0
@@ -7133,7 +7132,7 @@ fn get_cpt_func_completion_matches(cb: &mut Callback) {
 }
 
 fn cpt_compl_refresh() {
-    unsafe {
+    {
         ins_compl_make_linear();
         let mut cpt_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(curbuf_mut().b_p_cpt);
         let cpt = cpt_vec.as_mut_ptr();
@@ -7175,7 +7174,7 @@ fn cpt_compl_refresh() {
                         startcol;
                     if ret {
                         compl_source_start_timer(insexp().cpt_sources_index);
-                        get_cpt_func_completion_matches(&mut *cb);
+                        get_cpt_func_completion_matches(unsafe { &mut *cb });
                     }
                 }
             }

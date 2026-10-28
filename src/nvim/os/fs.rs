@@ -489,13 +489,13 @@ pub fn os_set_errno(val: i32) {
 /// Changes the current directory to `path`.
 pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
     let path = path.into_c_char_ptr();
-    unsafe {
+    {
         if opt_vars().p_verbose >= 5 {
             verbose_enter();
             let _ = smsg!(0, c"chdir(%s)", path);
             verbose_leave();
         }
-        let err = uv_chdir(path);
+        let err = unsafe { uv_chdir(path) };
         if err == 0 {
             ui_call_chdir(cstr_as_string(path));
         }
@@ -583,8 +583,8 @@ pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> i32 {
 
 /// Gets the absolute path of the currently running executable.
 pub fn os_exepath(buffer: *mut c_char, size: &mut usize) -> i32 {
-    unsafe {
-        let r = uv_exepath(buffer, size);
+    {
+        let r = unsafe { uv_exepath(buffer, size) };
         to_slash(buffer);
         r
     }

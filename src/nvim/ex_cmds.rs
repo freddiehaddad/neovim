@@ -587,9 +587,9 @@ fn string_compare(
 ) -> i32 {
     let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
-    unsafe {
+    {
         if excmds_st().sort_lc {
-            return strcoll(s1, s2);
+            return unsafe { strcoll(s1, s2) };
         }
         if excmds_st().sort_ic {
             crate::memory::cstr_as_bytes(s1)
@@ -1187,7 +1187,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
 
 /// `:move` command - move lines `line1`-`line2` to line `dest`.
 pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
-    unsafe {
+    {
         if dest >= line1 && dest < line2 {
             emsg(gettext(c"E134: Cannot move a range of lines into itself"));
             return false;
@@ -1215,10 +1215,12 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
 
         let mut extra: Linenr = 0;
         for l in line1..=line2 {
-            let str_cstr = cstr_from_bytes(std::slice::from_raw_parts(
-                ml_get(l + extra).cast::<u8>(),
-                ml_get_len(l + extra) as usize,
-            ));
+            let str_cstr = cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts(
+                    ml_get(l + extra).cast::<u8>(),
+                    ml_get_len(l + extra) as usize,
+                )
+            });
             ml_append(dest + l - line1, str_cstr.as_ptr().cast_mut(), 0, false);
             if dest < line1 {
                 extra += 1;
@@ -1347,7 +1349,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
 
 /// `":copy"`.
 pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
-    unsafe {
+    {
         let count = line2 - line1 + 1;
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
             curbuf_mut().b_op_start.lnum = n + 1;
@@ -1362,10 +1364,9 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
 
         curwin_mut().w_cursor.lnum = n;
         while line1 <= line2 {
-            let p = cstr_from_bytes(std::slice::from_raw_parts(
-                ml_get(line1).cast::<u8>(),
-                ml_get_len(line1) as usize,
-            ));
+            let p = cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts(ml_get(line1).cast::<u8>(), ml_get_len(line1) as usize)
+            });
             ml_append(curwin_mut().w_cursor.lnum, p.as_ptr().cast_mut(), 0, false);
 
             if line1 == n {

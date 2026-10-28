@@ -2521,11 +2521,11 @@ fn has_state_with_pos(
     subs: &mut Regsubs,
     pim: Option<&NfaPim>,
 ) -> bool {
-    unsafe {
+    {
         let tp = l.t.as_mut_ptr();
         for i in 0..l.n as usize {
             let thread = tp.wrapping_add(i);
-            let thread = { &mut *thread };
+            let thread = unsafe { &mut *thread };
             let thread = { &mut *thread };
             let thread = { &mut *thread };
             if thread.state == Some(state)
@@ -3129,7 +3129,7 @@ fn check_char_class(cls: i32, c: i32) -> bool {
 }
 
 fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
-    unsafe {
+    {
         if sub.in_use <= subidx {
             *bytelen = 0;
             return true;
@@ -3172,7 +3172,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
                 *bytelen = 0;
                 return true;
             }
-            let mut len = lpos.end.offset_from(lpos.start) as i32;
+            let mut len = unsafe { lpos.end.offset_from(lpos.start) } as i32;
             if cstrncmp(lpos.start.cast(), re_st().rex.input.cast(), &mut len) == 0 {
                 *bytelen = len;
                 return true;
@@ -3415,12 +3415,12 @@ fn failure_chance(states: &[NfaState], state: Option<usize>, depth: i32) -> i32 
 }
 
 fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
-    unsafe {
+    {
         let s = cstrchr(re_st().rex.line.wrapping_add(*colp as usize).cast(), c);
         if s.is_null() {
             return false;
         }
-        *colp = s.cast::<u8>().offset_from(re_st().rex.line) as Colnr;
+        *colp = unsafe { s.cast::<u8>().offset_from(re_st().rex.line) } as Colnr;
         true
     }
 }

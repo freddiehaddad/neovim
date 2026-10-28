@@ -1165,14 +1165,14 @@ pub fn tag_freematch() {
 
 /// Print the tag stack.
 pub fn do_tags(_eap: &mut Exarg) {
-    unsafe {
+    {
         let tagstackidx = curwin_mut().w_tagstackidx;
         let tagstacklen = curwin_mut().w_tagstacklen;
 
         msg_puts_title(gettext(c"\n  # TO tag         FROM line  in file/text"));
         for i in 0..tagstacklen {
             let entry = (&raw mut curwin_mut().w_tagstack[i as usize]);
-            let entry = { &mut *entry };
+            let entry = unsafe { &mut *entry };
             if let Some(ref tagname) = entry.tagname {
                 let Some(name) = fm_getname(&mut entry.fmark, 30) else {
                     continue;

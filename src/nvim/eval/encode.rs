@@ -497,7 +497,7 @@ fn convert_to_single_quoted_string(
     len: usize,
 ) {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         if buf.is_null() {
             ga_concat_literal(gap, b"''");
         } else {
@@ -507,7 +507,7 @@ fn convert_to_single_quoted_string(
                 if _sz == 0 {
                     0
                 } else {
-                    std::slice::from_raw_parts(_d, _sz)
+                    unsafe { std::slice::from_raw_parts(_d, _sz) }
                         .iter()
                         .filter(|&&_b| _b == (b'\'' as c_char) as u8)
                         .count()
@@ -708,7 +708,7 @@ impl EncodeBackend<'_> {
 
     #[inline]
     fn conv_nil(&mut self) {
-        unsafe {
+        {
             match self {
                 Self::Text {
                     gap,
@@ -718,14 +718,14 @@ impl EncodeBackend<'_> {
                     gap,
                     mode: TextEncodeMode::Json,
                 } => ga_concat_literal(gap, b"null"),
-                Self::Msgpack { packer } => mpack_nil(&mut (**packer).ptr),
+                Self::Msgpack { packer } => mpack_nil(unsafe { &mut (**packer).ptr }),
             }
         }
     }
 
     #[inline]
     fn conv_bool(&mut self, val: bool) {
-        unsafe {
+        {
             match self {
                 Self::Text {
                     gap,
@@ -747,27 +747,27 @@ impl EncodeBackend<'_> {
                         ga_concat_literal(gap, b"false");
                     }
                 }
-                Self::Msgpack { packer } => mpack_bool(&mut (**packer).ptr, val),
+                Self::Msgpack { packer } => mpack_bool(unsafe { &mut (**packer).ptr }, val),
             }
         }
     }
 
     #[inline]
     fn conv_number(&mut self, num: i64) {
-        unsafe {
+        {
             match self {
                 Self::Text { gap, .. } => {
                     let s = num.to_string();
                     ga_concat_literal(gap, s.as_bytes());
                 }
-                Self::Msgpack { packer } => mpack_integer(&mut (**packer).ptr, num),
+                Self::Msgpack { packer } => mpack_integer(unsafe { &mut (**packer).ptr }, num),
             }
         }
     }
 
     #[inline]
     fn conv_unsigned_number(&mut self, num: u64) {
-        unsafe {
+        {
             match self {
                 Self::Text {
                     gap,
@@ -777,14 +777,14 @@ impl EncodeBackend<'_> {
                     ga_concat_literal(gap, s.as_bytes());
                 }
                 Self::Text { .. } => {}
-                Self::Msgpack { packer } => mpack_uint64(&mut (**packer).ptr, num),
+                Self::Msgpack { packer } => mpack_uint64(unsafe { &mut (**packer).ptr }, num),
             }
         }
     }
 
     #[inline]
     fn conv_float(&mut self, flt: f64) -> bool {
-        unsafe {
+        {
             match self {
                 Self::Text {
                     gap,
@@ -824,7 +824,7 @@ impl EncodeBackend<'_> {
                     true
                 }
                 Self::Msgpack { packer } => {
-                    mpack_float8(&mut (**packer).ptr, flt);
+                    mpack_float8(unsafe { &mut (**packer).ptr }, flt);
                     true
                 }
             }
@@ -834,7 +834,7 @@ impl EncodeBackend<'_> {
     #[inline]
     fn conv_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool {
         let buf = buf.into_c_char_ptr();
-        unsafe {
+        {
             match self {
                 Self::Text {
                     gap,
@@ -853,7 +853,7 @@ impl EncodeBackend<'_> {
                             data: buf.cast_mut(),
                             size: len,
                         },
-                        &mut **packer,
+                        unsafe { &mut **packer },
                     );
                     true
                 }
@@ -864,7 +864,7 @@ impl EncodeBackend<'_> {
     #[inline]
     fn conv_str_string(&mut self, buf: impl crate::strings::IntoCCharPtr, len: usize) -> bool {
         let buf = buf.into_c_char_ptr();
-        unsafe {
+        {
             match self {
                 Self::Text { .. } => self.conv_string(buf, len),
                 Self::Msgpack { packer } => {
@@ -873,7 +873,7 @@ impl EncodeBackend<'_> {
                             data: buf.cast_mut(),
                             size: len,
                         },
-                        &mut **packer,
+                        unsafe { &mut **packer },
                     );
                     true
                 }
@@ -889,7 +889,7 @@ impl EncodeBackend<'_> {
         ext_type: i8,
     ) -> bool {
         let buf = buf.into_c_char_ptr();
-        unsafe {
+        {
             match self {
                 Self::Text {
                     mode: TextEncodeMode::Json,
@@ -900,7 +900,7 @@ impl EncodeBackend<'_> {
                 }
                 Self::Text { .. } => true,
                 Self::Msgpack { packer } => {
-                    mpack_ext(buf, len, ext_type, &mut **packer);
+                    mpack_ext(buf, len, ext_type, unsafe { &mut **packer });
                     true
                 }
             }
@@ -909,7 +909,7 @@ impl EncodeBackend<'_> {
 
     #[inline]
     fn conv_blob(&mut self, blob: Option<&TvBlob>, len: i32) {
-        unsafe {
+        {
             match self {
                 Self::Text {
                     gap,
@@ -971,7 +971,7 @@ impl EncodeBackend<'_> {
                             data,
                             size: len as usize,
                         },
-                        &mut **packer,
+                        unsafe { &mut **packer },
                     );
                 }
             }
@@ -1059,20 +1059,20 @@ impl EncodeBackend<'_> {
 
     #[inline]
     fn conv_empty_list(&mut self) {
-        unsafe {
+        {
             match self {
                 Self::Text { gap, .. } => ga_concat_literal(gap, b"[]"),
-                Self::Msgpack { packer } => mpack_array(&mut (**packer).ptr, 0),
+                Self::Msgpack { packer } => mpack_array(unsafe { &mut (**packer).ptr }, 0),
             }
         }
     }
 
     #[inline]
     fn conv_list_start(&mut self, len: i32) {
-        unsafe {
+        {
             match self {
                 Self::Text { gap, .. } => gap.push(b'['),
-                Self::Msgpack { packer } => mpack_array(&mut (**packer).ptr, len as u32),
+                Self::Msgpack { packer } => mpack_array(unsafe { &mut (**packer).ptr }, len as u32),
             }
         }
     }
@@ -1093,20 +1093,20 @@ impl EncodeBackend<'_> {
 
     #[inline]
     fn conv_empty_dict(&mut self) {
-        unsafe {
+        {
             match self {
                 Self::Text { gap, .. } => ga_concat_literal(gap, b"{}"),
-                Self::Msgpack { packer } => mpack_map(&mut (**packer).ptr, 0),
+                Self::Msgpack { packer } => mpack_map(unsafe { &mut (**packer).ptr }, 0),
             }
         }
     }
 
     #[inline]
     fn conv_dict_start(&mut self, len: usize) {
-        unsafe {
+        {
             match self {
                 Self::Text { gap, .. } => gap.push(b'{'),
-                Self::Msgpack { packer } => mpack_map(&mut (**packer).ptr, len as u32),
+                Self::Msgpack { packer } => mpack_map(unsafe { &mut (**packer).ptr }, len as u32),
             }
         }
     }

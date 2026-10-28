@@ -327,19 +327,21 @@ fn tinput_flush(input: &mut TermInput) {
 
 fn tinput_enqueue(input: &mut TermInput, buf: impl crate::strings::IntoCCharPtr, size: usize) {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         if input.key_buffer_len > KEY_BUFFER_SIZE.saturating_sub(size) {
             tinput_flush(input);
         }
         let to_copy = size.min(KEY_BUFFER_SIZE - input.key_buffer_len);
-        ptr::copy_nonoverlapping(
-            buf,
-            input
-                .key_buffer
-                .as_mut_ptr()
-                .wrapping_add(input.key_buffer_len),
-            to_copy,
-        );
+        unsafe {
+            ptr::copy_nonoverlapping(
+                buf,
+                input
+                    .key_buffer
+                    .as_mut_ptr()
+                    .wrapping_add(input.key_buffer_len),
+                to_copy,
+            )
+        };
         input.key_buffer_len += to_copy;
     }
 }
@@ -704,7 +706,7 @@ fn send_termresponse(response: &[u8]) {
 }
 
 fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
-    unsafe {
+    {
         let mut str_ptr: *const c_char = ptr::null();
         if termkey_interpret_string(input.tk(), key, &raw mut str_ptr) == TERMKEY_RES_KEY {
             assert!(!str_ptr.is_null());
@@ -713,7 +715,7 @@ fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
             if key.r#type == TERMKEY_TYPE_DCS
                 && (s_bytes.starts_with(b"1$r4:3m") || s_bytes.starts_with(b"1$r0;4:3m"))
             {
-                tui_enable_extended_underline(&mut *input.tui_data);
+                tui_enable_extended_underline(unsafe { &mut *input.tui_data });
             }
 
             let prefix: &[u8] = match key.r#type {
@@ -734,9 +736,9 @@ fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
 }
 
 fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam], nparams: usize) {
-    unsafe {
+    {
         if let Some(action) = input.primary_device_attr.take() {
-            tui_handle_primary_device_attr(&mut *input.tui_data, action);
+            tui_handle_primary_device_attr(unsafe { &mut *input.tui_data }, action);
         }
 
         if nparams == 0 {
@@ -763,14 +765,14 @@ fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam],
 }
 
 fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
-    unsafe {
+    {
         let mut initial: i32 = 0;
         let mut mode: i32 = 0;
         let mut value: i32 = 0;
         if termkey_interpret_modereport(input.tk(), key, &mut initial, &mut mode, &mut value)
             == TERMKEY_RES_KEY
         {
-            tui_handle_term_mode(&mut *input.tui_data, mode, value);
+            tui_handle_term_mode(unsafe { &mut *input.tui_data }, mode, value);
         }
     }
 }

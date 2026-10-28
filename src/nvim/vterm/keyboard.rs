@@ -527,7 +527,7 @@ fn vterm_state_get_key_encoding_disambiguate(state: &VTermStateFull) -> bool {
 }
 
 pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifier) {
-    unsafe {
+    {
         let passthru = if c == u32::from(b' ') {
             mod_ == VTERM_MOD_NONE
         } else {
@@ -542,7 +542,7 @@ pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifie
         }
 
         let state: *const VTermStateFull = vt.state_ptr();
-        if vterm_state_get_key_encoding_disambiguate(&*state) {
+        if vterm_state_get_key_encoding_disambiguate(unsafe { &*state }) {
             if (u32::from(b'A')..=u32::from(b'Z')).contains(&c) {
                 c += u32::from(b'a' - b'A');
                 mod_ |= VTERM_MOD_SHIFT;

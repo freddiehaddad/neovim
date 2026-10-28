@@ -125,9 +125,8 @@ pub fn get_hislen() -> i32 {
 
 /// Return a slice of a specified history table (`get_histentry`).
 pub fn get_histentry(hist_type: i32) -> &'static [Histentry] {
-    unsafe {
-        (&raw const hist_st().history[hist_type as usize])
-            .as_ref()
+    {
+        unsafe { (&raw const hist_st().history[hist_type as usize]).as_ref() }
             .unwrap()
             .as_slice()
     }

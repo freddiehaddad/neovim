@@ -297,7 +297,7 @@ fn process_xdl_diff_opts(
     let mut opts = KeyDict_xdl_diff::init();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
 
-    unsafe {
+    {
         nlua_pop_keydict_opt(
             lstate,
             (&raw mut opts).cast(),
@@ -405,7 +405,7 @@ fn process_xdl_diff_opts(
             if opts.has_key(KEYSET_OPTIDX_ON_HUNK) {
                 mode = NluaXdiffMode::OnHunkCb;
                 nlua_pushref(lstate, opts.on_hunk);
-                if lua_type(lstate, -1) != LUA_TFUNCTION {
+                if unsafe { lua_type(lstate, -1) } != LUA_TFUNCTION {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,

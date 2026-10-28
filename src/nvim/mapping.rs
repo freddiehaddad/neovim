@@ -280,9 +280,8 @@ use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
 pub fn get_maphash_list(state: i32, c: i32) -> &'static [Mapblock] {
-    unsafe {
-        (&raw const map_st().maphash[map_hash(state, c as u8)])
-            .as_ref()
+    {
+        unsafe { (&raw const map_st().maphash[map_hash(state, c as u8)]).as_ref() }
             .unwrap()
             .as_slice()
     }
@@ -1595,7 +1594,7 @@ pub fn expand_mappings(
 
 /// Check for an abbreviation.
 pub fn check_abbr(mut c: i32, mut ptr_arg: *mut c_char, col: i32, mincol: i32) -> bool {
-    unsafe {
+    {
         let mut tb = [0u8; MB_MAXBYTES + 4];
 
         if g_st().typebuf.tb_no_abbr_cnt != 0 {
@@ -1696,11 +1695,13 @@ pub fn check_abbr(mut c: i32, mut ptr_arg: *mut c_char, col: i32, mincol: i32) -
                             vim_strsave_escape_ks(tb.as_mut_ptr().wrapping_add(j).cast::<c_char>());
                         let escaped_bytes = escaped.to_bytes();
                         newlen = escaped_bytes.len();
-                        ptr::copy(
-                            escaped_bytes.as_ptr(),
-                            tb.as_mut_ptr().wrapping_add(j),
-                            newlen,
-                        );
+                        unsafe {
+                            ptr::copy(
+                                escaped_bytes.as_ptr(),
+                                tb.as_mut_ptr().wrapping_add(j),
+                                newlen,
+                            )
+                        };
                         j += newlen;
                     }
                     tb[j] = 0;
@@ -1746,17 +1747,16 @@ pub fn check_abbr(mut c: i32, mut ptr_arg: *mut c_char, col: i32, mincol: i32) -
 /// Evaluate the RHS of a mapping or abbreviations and take care of escaping
 /// special characters.
 pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
-    unsafe {
+    {
         let mut p: Option<CString> = None;
         let mut expr_bytes: Vec<c_char> = Vec::new();
         let luaref = mp.m_luaref;
         let replace_keycodes = mp.m_replace_keycodes;
 
         if luaref == LUA_NOREF {
-            expr_bytes.extend_from_slice(std::slice::from_raw_parts(
-                mp.m_str.as_ptr(),
-                mp.m_str.to_bytes_with_nul().len(),
-            ));
+            expr_bytes.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(mp.m_str.as_ptr(), mp.m_str.to_bytes_with_nul().len())
+            });
             vim_unescape_ks(expr_bytes.as_mut_ptr());
         }
 

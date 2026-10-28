@@ -511,10 +511,10 @@ fn do_concat_fnames(
 }
 
 pub fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> std::ffi::CString {
-    unsafe {
+    {
         let mut buf = vec![0 as c_char; fname1.size + usize::from(sep) + fname2.size + 1];
         if fname1.size > 0 {
-            ptr::copy(fname1.data, buf.as_mut_ptr(), fname1.size);
+            unsafe { ptr::copy(fname1.data, buf.as_mut_ptr(), fname1.size) };
         }
         buf[fname1.size] = NUL;
         let mut size: usize = 0;
@@ -541,7 +541,7 @@ pub fn concat_fnames_cstr(
 ) -> std::ffi::CString {
     let fname1 = fname1.into_c_char_ptr();
     let fname2 = fname2.into_c_char_ptr();
-    unsafe {
+    {
         let len1 = if fname1.is_null() {
             0
         } else {
@@ -554,7 +554,7 @@ pub fn concat_fnames_cstr(
         };
         let mut buf = vec![0 as c_char; len1 + len2 + 3];
         if len1 > 0 {
-            ptr::copy_nonoverlapping(fname1, buf.as_mut_ptr(), len1);
+            unsafe { ptr::copy_nonoverlapping(fname1, buf.as_mut_ptr(), len1) };
         }
         let mut len: usize = 0;
         do_concat_fnames(
@@ -574,7 +574,7 @@ pub fn concat_fnames_cstr(
 }
 
 pub fn add_pathsep(p: *mut c_char) -> bool {
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(p) {
             return true;
         }
@@ -585,11 +585,13 @@ pub fn add_pathsep(p: *mut c_char) -> bool {
             if plen > MAXPATHL - pathsep_len {
                 return false;
             }
-            ptr::copy_nonoverlapping(
-                PATHSEPSTR.as_ptr().cast::<c_char>(),
-                p.wrapping_add(plen),
-                pathsep_len,
-            );
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    PATHSEPSTR.as_ptr().cast::<c_char>(),
+                    p.wrapping_add(plen),
+                    pathsep_len,
+                )
+            };
         }
         true
     }
@@ -1054,7 +1056,7 @@ fn uniquefy_paths(
 ) {
     let path_option = path_option.into_c_char_ptr().cast_mut();
     let pattern = pattern.into_c_char_ptr();
-    unsafe {
+    {
         let mut sort_again = false;
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
 
@@ -1063,7 +1065,7 @@ fn uniquefy_paths(
         let mut len = crate::memory::cstr_len(pattern);
         let mut file_pattern = Vec::with_capacity(len + 2);
         file_pattern.push(b'*' as c_char);
-        file_pattern.extend_from_slice(std::slice::from_raw_parts(pattern, len + 1));
+        file_pattern.extend_from_slice(unsafe { std::slice::from_raw_parts(pattern, len + 1) });
         let Some(pat) = file_pat_to_reg_pat(file_pattern.as_ptr(), ptr::null(), ptr::null_mut(), 0)
         else {
             return;
@@ -1578,7 +1580,7 @@ fn expand_backtick(
 
 #[cfg(windows)]
 pub fn slash_adjust(p: *mut c_char) {
-    unsafe {
+    {
         if path_with_url(p) != 0 {
             return;
         }
@@ -1603,7 +1605,7 @@ pub fn slash_adjust(p: *mut c_char) {
         {
             let _p = p;
             let _len = crate::memory::cstr_len(_p);
-            for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) {
+            for _b in unsafe { std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) } {
                 if *_b == (from) as u8 {
                     *_b = (to) as u8;
                 }
@@ -1615,11 +1617,11 @@ pub fn slash_adjust(p: *mut c_char) {
 #[cfg(windows)]
 pub fn path_to_backslash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
-        unsafe {
+        {
             {
                 let _p = p;
                 let _len = crate::memory::cstr_len(_p);
-                for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) {
+                for _b in unsafe { std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) } {
                     if *_b == (PATHSEP) as u8 {
                         *_b = (b'\\' as c_char) as u8;
                     }
@@ -1633,12 +1635,12 @@ pub fn path_to_backslash(p: *mut c_char) -> *mut c_char {
 #[cfg(windows)]
 pub fn path_to_slash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
-        unsafe {
+        {
             if path_with_url(p) == 0 {
                 {
                     let _p = p;
                     let _len = crate::memory::cstr_len(_p);
-                    for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) {
+                    for _b in unsafe { std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) } {
                         if *_b == (b'\\' as c_char) as u8 {
                             *_b = (PATHSEP) as u8;
                         }
@@ -1664,7 +1666,7 @@ pub fn path_to_slash_save(p: impl crate::strings::IntoCCharPtr) -> Option<std::f
 
 pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCharPtr, flags: i32) {
     let f = f.into_c_char_ptr();
-    unsafe {
+    {
         let mut file_info: FileInfo = FileInfo::new();
 
         if (flags & EW_NOTFOUND) == 0
@@ -1696,7 +1698,7 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCh
 
         let flen = crate::memory::cstr_len(f);
         let mut buf = vec![0 as c_char; flen + 1 + usize::from(isdir)];
-        ptr::copy_nonoverlapping(f, buf.as_mut_ptr(), flen + 1);
+        unsafe { ptr::copy_nonoverlapping(f, buf.as_mut_ptr(), flen + 1) };
         to_slash(buf.as_mut_ptr());
         if isdir && (flags & EW_ADDSLASH) != 0 {
             add_pathsep(buf.as_mut_ptr());

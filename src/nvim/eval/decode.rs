@@ -54,7 +54,7 @@ struct ValuesStackItem {
 }
 
 fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
-    unsafe {
+    {
         let dict = tv_dict_alloc();
         let type_di = tv_dict_item_alloc_len(c"_TYPE", 5);
         type_di.di_tv.v_type = VarType::VarList;
@@ -62,7 +62,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
         type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(
             (*eval_msgpack_type_lists_mut())[mp_type].cast_mut(),
         );
-        tv_list_ref(type_di.di_tv.vval.v_list().as_mut());
+        tv_list_ref(unsafe { type_di.di_tv.vval.v_list().as_mut() });
         tv_dict_add(&mut *dict, type_di);
 
         let val_di = tv_dict_item_alloc_len(c"_VAL", 4);

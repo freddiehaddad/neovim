@@ -748,7 +748,7 @@ fn remove_menu(
 
 /// Export menus recursively (`menu_get_recursive`).
 fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> *mut TvDict {
-    unsafe {
+    {
         if menu.is_none() || (menu.unwrap().modes & modes) == 0 {
             return ptr::null_mut();
         }
@@ -832,7 +832,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> *mut TvDict {
             let children_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
             for child in &menu.unwrap().children {
                 let d = menu_get_recursive(Some(child), modes);
-                if tv_dict_len(d.as_ref()) > 0 {
+                if tv_dict_len(unsafe { d.as_ref() }) > 0 {
                     tv_list_append_dict(&mut *children_list, d);
                 }
             }
@@ -879,7 +879,7 @@ fn find_menu(
     modes: i32,
 ) -> *mut Vimmenu {
     let path_name = path_name.into_c_char_ptr();
-    unsafe {
+    {
         debug_assert!(!crate::memory::cstr_is_empty(path_name));
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(path_name);
         let mut name = saved_name_vec.as_mut_ptr();
@@ -910,7 +910,7 @@ fn find_menu(
             }
             name = p;
             debug_assert!(!crate::memory::cstr_is_empty(name));
-            menus = &mut (*found).children;
+            menus = unsafe { &mut (*found).children };
         }
 
         found
@@ -1455,7 +1455,7 @@ fn menu_text(
     actext: Option<&mut Option<std::ffi::CString>>,
 ) -> std::ffi::CString {
     let str = str.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = vim_strchr(str, i32::from(TAB as u8));
         let mut text_vec: Vec<c_char> = if !p.is_null() {
             if let Some(actext_out) = actext {
@@ -1463,7 +1463,7 @@ fn menu_text(
             }
             let len = crate::memory::ptr_offset_from(p, str) as usize;
             let mut v = Vec::with_capacity(len + 1);
-            v.extend_from_slice(std::slice::from_raw_parts(str, len));
+            v.extend_from_slice(unsafe { std::slice::from_raw_parts(str, len) });
             v.push(0);
             v
         } else {
@@ -1744,7 +1744,7 @@ fn menu_getbyname(name_arg: impl crate::strings::IntoCCharPtr) -> *mut Vimmenu {
 
 /// `:emenu` (`ex_emenu`).
 pub fn ex_emenu(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut arg = eap.arg;
         let mut mode_idx = MENU_INDEX_INVALID;
 
@@ -1771,7 +1771,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
             return;
         }
 
-        execute_menu(eap, &mut *menu, mode_idx);
+        execute_menu(eap, unsafe { &mut *menu }, mode_idx);
     }
 }
 

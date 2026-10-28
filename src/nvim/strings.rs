@@ -2267,7 +2267,7 @@ pub fn vim_snprintf_typval_only(
 }
 
 pub fn reverse_text<S: IntoCCharPtr>(s: S) -> std::ffi::CString {
-    unsafe {
+    {
         let s = s.into_c_char_ptr();
         let len = crate::memory::cstr_len(s);
         let mut rev = vec![0u8; len];
@@ -2276,11 +2276,13 @@ pub fn reverse_text<S: IntoCCharPtr>(s: S) -> std::ffi::CString {
         while s_i < len {
             let mb_len = utfc_ptr2len(s.wrapping_add(s_i)) as usize;
             rev_i -= mb_len;
-            ptr::copy(
-                s.wrapping_add(s_i).cast::<u8>(),
-                rev.as_mut_ptr().wrapping_add(rev_i),
-                mb_len,
-            );
+            unsafe {
+                ptr::copy(
+                    s.wrapping_add(s_i).cast::<u8>(),
+                    rev.as_mut_ptr().wrapping_add(rev_i),
+                    mb_len,
+                )
+            };
             s_i += mb_len;
         }
         crate::memory::cstr_from_bytes(&rev)

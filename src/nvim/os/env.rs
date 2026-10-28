@@ -308,14 +308,14 @@ pub fn os_getenv_buf<S: crate::strings::IntoCCharPtr>(
 /// Returns true if environment variable `name` is defined (even if empty).
 pub fn os_env_exists<S: crate::strings::IntoCCharPtr>(name: S, nonempty: bool) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if !env_name_valid(name) {
             return false;
         }
         {
             let mut buf = [0 as c_char; 2];
             let mut size = buf.len();
-            let r = uv_os_getenv(name, buf.as_mut_ptr(), &mut size);
+            let r = unsafe { uv_os_getenv(name, buf.as_mut_ptr(), &mut size) };
             assert_ne!(r, UV_EINVAL);
             (r == 0 && (!nonempty || size > 0)) || r == UV_ENOBUFS
         }
@@ -369,12 +369,12 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
 /// Unset environment variable.
 pub fn os_unsetenv(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if !env_name_valid(name) {
             return -1;
         }
         {
-            let r = uv_os_unsetenv(name);
+            let r = unsafe { uv_os_unsetenv(name) };
             if r == 0 { 0 } else { -1 }
         }
     }

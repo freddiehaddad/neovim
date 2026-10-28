@@ -1313,7 +1313,7 @@ fn expand_set_opt_string(
     values: &[&CStr],
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    unsafe {
+    {
         let regmatch = args.oe_regmatch;
         let include_orig_val = args.oe_include_orig_val;
         let option_val = args.oe_opt_value;
@@ -1333,7 +1333,7 @@ fn expand_set_opt_string(
             {
                 continue;
             }
-            if vim_regexec(&mut *regmatch, val.as_ptr(), 0) {
+            if vim_regexec(unsafe { &mut *regmatch }, val.as_ptr(), 0) {
                 matches.push(val.to_owned());
             }
         }
@@ -2181,10 +2181,10 @@ pub fn did_set_display(args: &mut Optset) -> *const c_char {
 
 /// Validate and canonize 'encoding', 'fileencoding' or 'makeencoding'.
 pub fn validate_encoding(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         if args.os_idx == K_OPT_FILEENCODING {
             let buf = args.os_buf;
-            if !modifiable(&*buf) && args.os_flags != OPT_GLOBAL {
+            if !modifiable(unsafe { &*buf }) && args.os_flags != OPT_GLOBAL {
                 return E_MODIFIABLE.as_ptr();
             }
 
@@ -2274,9 +2274,9 @@ pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::
 }
 
 pub fn validate_fileformat(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let buf = args.os_buf;
-        if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(&*buf) {
+        if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(unsafe { &*buf }) {
             return E_MODIFIABLE.as_ptr();
         }
         validate_str_generic(args)
@@ -2483,11 +2483,11 @@ pub fn validate_isopt(args: &mut Optset) -> *const c_char {
 
 /// The 'iskeyword' option is changed.
 pub fn did_set_iskeyword(args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let varp = args.os_varp.cast::<*mut c_char>();
         if !ptr::eq(varp, &raw mut opt_vars().p_isk) {
             let buf = args.os_buf;
-            if !buf_init_isk_chartab(&mut *buf) {
+            if !buf_init_isk_chartab(unsafe { &mut *buf }) {
                 return E_INVARG.as_ptr();
             }
         }
@@ -3563,12 +3563,12 @@ pub fn opt_keyset(
     mut keyset: *mut OptKeySet,
 ) -> *mut OptKeySet {
     let value = value.into_c_char_ptr();
-    unsafe {
+    {
         if keyset.is_null() {
             keyset = (&raw mut optstr_st().opt_keyset_shared).cast::<OptKeySet>();
         }
         let si = opt_dict_schema(opt_idx).unwrap();
-        ptr::write_bytes(keyset.cast::<u8>(), 0, si.size);
+        unsafe { ptr::write_bytes(keyset.cast::<u8>(), 0, si.size) };
         if !value.is_null() {
             opt_fill(value, si.get_field, keyset);
         }

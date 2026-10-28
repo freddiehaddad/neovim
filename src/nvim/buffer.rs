@@ -1577,7 +1577,7 @@ pub fn buf_clear() {
 
 /// Free all things allocated for a buffer that are related to the file.
 pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
-    unsafe {
+    {
         let is_curbuf = (&raw mut *buf) == g_st().curbuf;
         let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf);
         let the_curwin = curwin_ptr();
@@ -1637,7 +1637,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
         if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin) {
             block_autocmds();
-            goto_tabpage_win(&mut *the_curtab, the_curwin);
+            goto_tabpage_win(unsafe { &mut *the_curtab }, the_curwin);
             unblock_autocmds();
         }
         if (flags & BFA_IGNORE_ABORT) == 0 && aborting() {
@@ -1813,7 +1813,7 @@ fn clear_wininfo(buf: &mut FileBuf) {
 }
 
 fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
-    unsafe {
+    {
         if (free_flags & K_BFF_CLEAR_WIN_INFO) != 0 {
             clear_wininfo(buf);
             free_buf_options(buf, true);
@@ -1822,7 +1822,9 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
         {
             let changedtick_hi = hash_find(&buf.b_vars().dv_hashtab, c"changedtick");
             debug_assert!(!changedtick_hi.is_null());
-            hash_remove(&mut buf.b_vars().dv_hashtab, &mut *changedtick_hi);
+            hash_remove(&mut buf.b_vars().dv_hashtab, unsafe {
+                &mut *changedtick_hi
+            });
         }
         vars_clear(&mut buf.b_vars().dv_hashtab);
         if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {
@@ -3142,9 +3144,9 @@ pub fn buflist_findname_exp(fname: impl crate::strings::IntoCCharPtr) -> *mut Fi
 /// Find file in buffer list by name.
 pub fn buflist_findname(ffname: impl crate::strings::IntoCCharPtr) -> *mut FileBuf {
     let ffname = ffname.into_c_char_ptr();
-    unsafe {
+    {
         let mut file_id: FileID = FileID::new();
-        let file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
+        let file_id_valid = os_fileid(ffname, unsafe { &mut *(&raw mut file_id).cast() });
         buflist_findname_file_id(ffname, &mut file_id, file_id_valid)
     }
 }
@@ -3455,12 +3457,12 @@ pub fn buflist_findnr(mut nr: i32) -> *mut FileBuf {
 }
 
 pub fn buflist_nr2name(n: i32, fullname: i32, helptail: i32) -> Option<std::ffi::CString> {
-    unsafe {
+    {
         let buf = buflist_findnr(n);
         if buf.is_null() {
             return None;
         }
-        let buf = &mut *buf;
+        let buf = unsafe { &mut *buf };
         Some(home_replace_save(
             (helptail != 0).then_some(&*buf),
             if fullname != 0 {
@@ -3615,12 +3617,12 @@ pub fn get_winopts(buf: &mut FileBuf) {
 
 /// Find the mark for the buffer `buf` for the current window.
 pub fn buflist_findfmark(buf: &mut FileBuf) -> &'static mut Fmark {
-    unsafe {
+    {
         let wip = find_wininfo(buf, false, false);
         if wip.is_null() {
             &mut buf_st().no_position
         } else {
-            &mut (*wip).wi_mark
+            unsafe { &mut (*wip).wi_mark }
         }
     }
 }
@@ -3972,7 +3974,7 @@ fn otherfile_buf(
     mut file_id_valid: bool,
 ) -> bool {
     let ffname = ffname.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(ffname) || buf.b_ffname.is_null() {
             return true;
         }
@@ -3983,7 +3985,7 @@ fn otherfile_buf(
             let mut file_id: FileID = FileID::new();
             if file_id_p.is_null() {
                 file_id_p = &raw mut file_id;
-                file_id_valid = os_fileid(ffname, &mut *file_id_p.cast());
+                file_id_valid = os_fileid(ffname, unsafe { &mut *file_id_p.cast() });
             }
             if !file_id_valid {
                 return true;
@@ -4001,9 +4003,11 @@ fn otherfile_buf(
 
 /// Set `file_id` for a buffer.
 pub fn buf_set_file_id(buf: &mut FileBuf) {
-    unsafe {
+    {
         let mut file_id: FileID = FileID::new();
-        if !buf.b_fname.is_null() && os_fileid(buf.b_fname, &mut *(&raw mut file_id).cast()) {
+        if !buf.b_fname.is_null()
+            && os_fileid(buf.b_fname, unsafe { &mut *(&raw mut file_id).cast() })
+        {
             buf.file_id_valid = true;
             buf.file_id = file_id;
         } else {
@@ -4187,7 +4191,7 @@ pub fn col_print(buf: *mut c_char, buflen: usize, col: i32, vcol: i32) -> i32 {
 
 /// Put the title name in the title bar and icon of the window.
 pub fn maketitle() {
-    unsafe {
+    {
         let mut title_str: *mut c_char = ptr::null_mut();
         let mut icon_str: *mut c_char = ptr::null_mut();
         let mut buf = [0 as c_char; IOSIZE];
@@ -4290,7 +4294,7 @@ pub fn maketitle() {
                     icon_str = opt_vars().p_iconstring;
                 }
             } else {
-                let mut name = buf_spname(&*(g_st().curbuf));
+                let mut name = buf_spname(unsafe { &*(g_st().curbuf) });
                 if name.is_null() {
                     name = path_tail(curbuf_mut().b_ffname);
                 }

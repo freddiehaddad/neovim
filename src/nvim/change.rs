@@ -287,7 +287,7 @@ pub fn changed_lines_invalidate_buf(
 
 /// Common code for when a change was made.
 fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xtra: Linenr) {
-    unsafe {
+    {
         changed(buf);
 
         for win in for_all_windows_mut() {
@@ -344,11 +344,13 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
                     if buf.b_changelistlen == JUMPLISTSIZE {
                         buf.b_changelistlen = JUMPLISTSIZE - 1;
-                        ptr::copy(
-                            buf.b_changelist.as_ptr().wrapping_add(1),
-                            buf.b_changelist.as_mut_ptr(),
-                            (JUMPLISTSIZE - 1) as usize,
-                        );
+                        unsafe {
+                            ptr::copy(
+                                buf.b_changelist.as_ptr().wrapping_add(1),
+                                buf.b_changelist.as_mut_ptr(),
+                                (JUMPLISTSIZE - 1) as usize,
+                            )
+                        };
                         for_all_tab_windows(|wp| {
                             if wp.w_buffer == (&raw mut *buf) && wp.w_changelistidx > 0 {
                                 wp.w_changelistidx -= 1;
@@ -1872,7 +1874,7 @@ pub fn open_line(
 
 /// Delete from cursor to end of line.
 pub fn truncate_line(fixpos: i32) {
-    unsafe {
+    {
         let lnum = curwin_mut().w_cursor.lnum;
         let col = curwin_mut().w_cursor.col;
         let old_line = ml_get(lnum);
@@ -1880,7 +1882,7 @@ pub fn truncate_line(fixpos: i32) {
             vec![NUL]
         } else {
             let mut v = Vec::with_capacity(col as usize + 1);
-            v.extend_from_slice(std::slice::from_raw_parts(old_line, col as usize));
+            v.extend_from_slice(unsafe { std::slice::from_raw_parts(old_line, col as usize) });
             v.push(NUL);
             v
         };

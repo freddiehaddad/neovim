@@ -257,8 +257,8 @@ fn output_mouse(
 }
 
 pub fn vterm_mouse_move(vt: &mut VTerm, row: i32, col: i32, mod_: VTermModifier) {
-    unsafe {
-        let state = &mut *vt.state_mut_ptr();
+    {
+        let state = unsafe { &mut *vt.state_mut_ptr() };
 
         if col == state.mouse_col && row == state.mouse_row {
             return;
@@ -285,8 +285,8 @@ pub fn vterm_mouse_move(vt: &mut VTerm, row: i32, col: i32, mod_: VTermModifier)
 }
 
 pub fn vterm_mouse_button(vt: &mut VTerm, button: i32, pressed: bool, mod_: VTermModifier) {
-    unsafe {
-        let state = &mut *vt.state_mut_ptr();
+    {
+        let state = unsafe { &mut *vt.state_mut_ptr() };
 
         let old_buttons = state.mouse_buttons;
 

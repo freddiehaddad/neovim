@@ -447,7 +447,7 @@ pub fn redo_spec() -> CmdSpec {
 
 fn add_buff(buf: &mut StuffBuf, s: impl crate::strings::IntoCCharPtr, mut slen: isize) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if slen < 0 {
             slen = crate::memory::cstr_len(s) as isize;
         }
@@ -455,7 +455,7 @@ fn add_buff(buf: &mut StuffBuf, s: impl crate::strings::IntoCCharPtr, mut slen: 
             return;
         }
         let slen_u = slen as usize;
-        let slice = std::slice::from_raw_parts(s, slen_u);
+        let slice = unsafe { std::slice::from_raw_parts(s, slen_u) };
         let insert = buf.insert;
         buf.keys.splice(insert..insert, slice.iter().copied());
         buf.insert += slen_u;
@@ -483,7 +483,7 @@ fn key_byte_encode(c: i32, temp: &mut [c_char; 4]) -> isize {
 }
 
 fn key_char_encode(c: i32, buf: *mut c_char) -> usize {
-    unsafe {
+    {
         let mut bytes = [0u8; MB_MAXBYTES + 1];
         let len = if is_special(c) {
             1
@@ -494,7 +494,7 @@ fn key_char_encode(c: i32, buf: *mut c_char) -> usize {
         for &b in bytes.iter().take(len as usize) {
             let mut tmp = [0 as c_char; 4];
             let n = key_byte_encode(if is_special(c) { c } else { b as i32 }, &mut tmp) as usize;
-            ptr::copy_nonoverlapping(tmp.as_ptr(), buf.wrapping_add(off), n + 1);
+            unsafe { ptr::copy_nonoverlapping(tmp.as_ptr(), buf.wrapping_add(off), n + 1) };
             off += n;
         }
         off
@@ -667,7 +667,7 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
 /// Prepare for redo of a Visual-mode command.
 pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spec: CmdSpec) {
     let keys = keys.into_c_char_ptr();
-    unsafe {
+    {
         let mut stored = spec.without_body();
         stored.regname = 0;
         stored.count = 0;
@@ -681,7 +681,7 @@ pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spe
                 .redobuff
                 .cur
                 .body
-                .extend_from_slice(std::slice::from_raw_parts(keys, len));
+                .extend_from_slice(unsafe { std::slice::from_raw_parts(keys, len) });
         }
         redo_prefix(&spec, &mut inp_st().redobuff.cur.body, false);
         redo_chars(&spec, &mut inp_st().redobuff.cur.body, false);
@@ -720,7 +720,7 @@ pub fn restore_redobuff(save_redo: &mut RedoState) {
 /// Append `len` bytes of `s` (-1: up to the NUL) to the redo buffer.
 pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if !inp_st().block_redo {
             let slen = if len < 0 {
                 crate::memory::cstr_len(s)
@@ -732,7 +732,7 @@ pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
                     .redobuff
                     .cur
                     .body
-                    .extend_from_slice(std::slice::from_raw_parts(s, slen));
+                    .extend_from_slice(unsafe { std::slice::from_raw_parts(s, slen) });
             }
         }
     }
@@ -802,13 +802,13 @@ pub fn redo_append_lit(str_: impl crate::strings::IntoCCharPtr, len: i32) {
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
 pub fn sb_add_spec(buf: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) {
     let mut s = s.into_c_char_ptr();
-    unsafe {
+    {
         while !crate::memory::cstr_is_empty(s) {
             if crate::memory::cstr_first_byte(s) == K_SPECIAL
                 && crate::memory::cstr_byte_at(s, 1) != 0
                 && crate::memory::cstr_byte_at(s, 2) != 0
             {
-                buf.extend_from_slice(std::slice::from_raw_parts(s, 3));
+                buf.extend_from_slice(unsafe { std::slice::from_raw_parts(s, 3) });
                 s = s.wrapping_add(3);
             } else {
                 let c = mb_cptr2char_adv(&raw mut s);
@@ -851,11 +851,11 @@ pub fn stuff_redo_readbuff(s: &std::ffi::CStr) {
 
 pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if g_st().add_last_insert == 1 && len > 0 {
             g_st()
                 .last_insert_ga
-                .extend_from_slice(std::slice::from_raw_parts(s, len as usize));
+                .extend_from_slice(unsafe { std::slice::from_raw_parts(s, len as usize) });
         }
         add_buff(&mut inp_st().readbuf1, s, len);
     }
@@ -1507,7 +1507,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
 }
 
 fn closescript() {
-    unsafe {
+    {
         assert!(inp_st().curscript >= 0);
         free_typebuf();
         g_st().typebuf = std::mem::replace(
@@ -1518,7 +1518,7 @@ fn closescript() {
         let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
             .wrapping_add(inp_st().curscript as usize);
-        file_close(&mut *scriptin_ptr, false);
+        file_close(unsafe { &mut *scriptin_ptr }, false);
         inp_st().curscript -= 1;
     }
 }
@@ -1583,11 +1583,11 @@ pub fn before_blocking() {
 }
 
 fn updatescript(c: i32) {
-    unsafe {
+    {
         if c != 0
             && let Some(ref so) = g_st().scriptout
         {
-            fputc(c, so.as_ptr());
+            unsafe { fputc(c, so.as_ptr()) };
         }
         let idle = c == 0;
         if idle

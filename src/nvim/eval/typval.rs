@@ -1117,9 +1117,9 @@ pub extern "C" fn tv_list_free(l: *mut TvList) {
 
 /// Unreference a list.
 pub fn tv_list_unref(l: *mut TvList) {
-    unsafe {
+    {
         if !l.is_null() {
-            let l = { &mut *l };
+            let l = unsafe { &mut *l };
             l.lv_refcount -= 1;
             if l.lv_refcount <= 0 {
                 tv_list_free(l);
@@ -1325,7 +1325,7 @@ pub fn tv_list_copy(
     deep: bool,
     copy_id: i32,
 ) -> *mut TvList {
-    unsafe {
+    {
         if orig.is_none() {
             return ptr::null_mut();
         }
@@ -1343,7 +1343,7 @@ pub fn tv_list_copy(
             let ni = tv_list_item_alloc();
             if deep {
                 if !var_item_copy(conv, &mut item.li_tv, &mut ni.li_tv, deep, copy_id) {
-                    drop(Box::from_raw(ni));
+                    drop(unsafe { Box::from_raw(ni) });
                     tv_list_unref(copy);
                     return ptr::null_mut();
                 }
@@ -2471,13 +2471,13 @@ pub fn tv_list_find_nr(
 
 /// Get list item l[n] as a string.
 pub fn tv_list_find_str(l: Option<&mut TvList>, n: i32) -> *const c_char {
-    unsafe {
+    {
         let li = tv_list_find(l, n);
         if li.is_null() {
             semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(n));
             return ptr::null();
         }
-        tv_get_string(&(*li).li_tv)
+        tv_get_string(unsafe { &(*li).li_tv })
     }
 }
 
@@ -2519,15 +2519,14 @@ pub fn tv_dict_watcher_add(
     callback: Callback,
 ) {
     let key_pattern = key_pattern.into_c_char_ptr();
-    unsafe {
+    {
         if dict.is_none() {
             return;
         }
         dict.unwrap().watchers.push(DictWatcher {
-            key_pattern: crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-                key_pattern.cast::<u8>(),
-                key_pattern_len,
-            )),
+            key_pattern: crate::memory::cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts(key_pattern.cast::<u8>(), key_pattern_len)
+            }),
             key_pattern_len,
             callback,
             busy: false,
@@ -2932,7 +2931,7 @@ pub fn tv_dict_find<S: crate::strings::IntoCCharPtr>(
     len: isize,
 ) -> *mut Dictitem {
     let key = key.into_c_char_ptr();
-    unsafe {
+    {
         if d.is_none() {
             return ptr::null_mut();
         }
@@ -2941,7 +2940,7 @@ pub fn tv_dict_find<S: crate::strings::IntoCCharPtr>(
         } else {
             hash_find_len(&d.unwrap().dv_hashtab, key, len as usize)
         };
-        if hashitem_empty(&*hi) {
+        if hashitem_empty(unsafe { &*hi }) {
             return ptr::null_mut();
         }
         tv_dict_hi2di(hi)
@@ -2998,7 +2997,7 @@ pub fn tv_dict_get_bool(d: Option<&TvDict>, key: &std::ffi::CStr, def: i32) -> V
 
 /// Converts a dict to an environment.
 pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
-    unsafe {
+    {
         let env_size = tv_dict_len_inline(denv) as usize;
         let mut env = Vec::with_capacity(env_size);
 
@@ -3006,7 +3005,7 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
             let mut todo = denv.dv_hashtab.ht_used;
             let mut hi = denv.dv_hashtab.array_ptr();
             while todo > 0 {
-                if !hashitem_empty(&*hi) {
+                if !hashitem_empty(unsafe { &*hi }) {
                     todo -= 1;
                     let var = tv_dict_hi2di(hi);
                     let str_ = tv_get_string(&var.di_tv);
@@ -3145,7 +3144,7 @@ pub fn tv_dict_add_list<S: crate::strings::IntoCCharPtr>(
     list: *mut TvList,
 ) -> bool {
     let key = key.into_c_char_ptr();
-    unsafe {
+    {
         let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
         item.di_tv.v_type = VarType::VarList;
         item.di_tv.vval = crate::eval::typval::TypvalVval::List(list);
@@ -3154,7 +3153,7 @@ pub fn tv_dict_add_list<S: crate::strings::IntoCCharPtr>(
             tv_dict_item_free(item);
             return false;
         }
-        tv_list_ref_inline(list.as_mut());
+        tv_list_ref_inline(unsafe { list.as_mut() });
         true
     }
 }
@@ -3508,11 +3507,11 @@ pub fn tv_dict_copy(
 
 /// Set all existing keys in "dict" as read-only.
 pub fn tv_dict_set_keys_readonly(dict: &mut TvDict) {
-    unsafe {
+    {
         let mut todo = dict.dv_hashtab.ht_used;
         let mut hi = dict.dv_hashtab.array_ptr();
         while todo > 0 {
-            if !hashitem_empty(&*hi) {
+            if !hashitem_empty(unsafe { &*hi }) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
                 di.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
@@ -3566,7 +3565,7 @@ fn tv_blob_slice(
     exclusive: bool,
     rettv: &mut TypVal,
 ) -> bool {
-    unsafe {
+    {
         let len64 = i64::from(len);
         if n1 < 0 {
             n1 += len64;
@@ -3590,7 +3589,8 @@ fn tv_blob_slice(
             let new_blob = tv_blob_alloc();
             let src_blob = rettv.vval.v_blob();
             let new_bv = &mut new_blob.bv_ga;
-            new_bv.extend_from_slice(&(&(*src_blob).bv_ga)[(n1 as usize)..=(n2 as usize)]);
+            new_bv
+                .extend_from_slice(&(unsafe { &(*src_blob).bv_ga })[(n1 as usize)..=(n2 as usize)]);
             tv_clear(&mut *rettv);
             tv_blob_set_ret_inline(rettv, new_blob);
         }
@@ -3600,13 +3600,16 @@ fn tv_blob_slice(
 }
 
 fn tv_blob_index(len: i32, mut idx: Varnumber, rettv: &mut TypVal) -> bool {
-    unsafe {
+    {
         let len64 = i64::from(len);
         if idx < 0 {
             idx += len64;
         }
         if idx < len64 && idx >= 0 {
-            let v = i64::from(tv_blob_get_inline(&*rettv.vval.v_blob(), idx as i32));
+            let v = i64::from(tv_blob_get_inline(
+                unsafe { &*rettv.vval.v_blob() },
+                idx as i32,
+            ));
             tv_clear(&mut *rettv);
             rettv.v_type = VarType::VarNumber;
             rettv.vval = crate::eval::typval::TypvalVval::Number(v);
@@ -5039,11 +5042,12 @@ pub fn tv_check_for_list_or_blob_arg(args: &[TypVal], idx: i32) -> bool {
 
 /// Get the string value of a "stringish" Vimscript object.
 pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
-    unsafe {
+    {
         match tv.v_type {
             VarType::VarNumber => {
                 use std::io::Write;
-                let mut slice = std::slice::from_raw_parts_mut(buf.cast::<u8>(), NUMBUFLEN);
+                let mut slice =
+                    unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), NUMBUFLEN) };
                 let _ = write!(slice, "{}\0", tv.vval.v_number());
                 buf
             }

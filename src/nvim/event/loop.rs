@@ -659,9 +659,9 @@ pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
 }
 
 pub fn loop_on_put(loop_: &mut Loop) {
-    unsafe {
+    {
         if loop_.recursive != 0 {
-            uv_stop((&raw mut loop_.uv).cast());
+            unsafe { uv_stop((&raw mut loop_.uv).cast()) };
         }
     }
 }

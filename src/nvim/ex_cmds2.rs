@@ -762,7 +762,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
 
 /// `:checktime [buffer]` (`ex_checktime`).
 pub fn ex_checktime(eap: &mut Exarg) {
-    unsafe {
+    {
         let save_no_check_timestamps = g_st().no_check_timestamps;
 
         g_st().no_check_timestamps = 0;
@@ -771,7 +771,7 @@ pub fn ex_checktime(eap: &mut Exarg) {
         } else {
             let buf = buflist_findnr(eap.line2);
             if !buf.is_null() {
-                buf_check_timestamp(&mut *buf);
+                buf_check_timestamp(unsafe { &mut *buf });
             }
         }
         g_st().no_check_timestamps = save_no_check_timestamps;

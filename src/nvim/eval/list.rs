@@ -586,7 +586,7 @@ fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i6
 }
 
 fn count_dict(d: Option<&TvDict>, needle: &TypVal, ic: bool) -> i64 {
-    unsafe {
+    {
         if d.is_none() {
             return 0;
         }
@@ -594,7 +594,7 @@ fn count_dict(d: Option<&TvDict>, needle: &TypVal, ic: bool) -> i64 {
         let mut todo = d.unwrap().dv_hashtab.ht_used;
         let mut hi = d.unwrap().dv_hashtab.array_ptr();
         while todo > 0 {
-            if !hashitem_empty(&*hi) {
+            if !hashitem_empty(unsafe { &*hi }) {
                 todo -= 1;
                 let di = crate::eval::typval::tv_dict_hi2di(hi);
                 if tv_equal(&di.di_tv, needle, ic) {

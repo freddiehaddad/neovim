@@ -841,27 +841,29 @@ impl std::hash::Hash for PathKey {
 
 #[inline]
 fn hmll_init(hmll: &mut HMLList, size: usize) {
-    unsafe {
-        ptr::write(
-            hmll,
-            HMLList {
-                entries: vec![
-                    HMLListEntry {
-                        data: MISSING_ENTRY,
-                        next: None,
-                        prev: None,
-                    };
-                    size
-                ],
-                first: None,
-                last: None,
-                free_entry: None,
-                last_free_entry: 0,
-                size,
-                num_entries: 0,
-                contained_entries: std::collections::HashMap::new(),
-            },
-        );
+    {
+        unsafe {
+            ptr::write(
+                hmll,
+                HMLList {
+                    entries: vec![
+                        HMLListEntry {
+                            data: MISSING_ENTRY,
+                            next: None,
+                            prev: None,
+                        };
+                        size
+                    ],
+                    first: None,
+                    last: None,
+                    free_entry: None,
+                    last_free_entry: 0,
+                    size,
+                    num_entries: 0,
+                    contained_entries: std::collections::HashMap::new(),
+                },
+            )
+        };
     }
 }
 
@@ -951,12 +953,12 @@ fn hmll_dealloc(hmll: &mut HMLList) {
 }
 
 fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadResult {
-    unsafe {
+    {
         let skip_bytes = file_skip((&raw mut *sd_reader), offset);
         if skip_bytes < 0 {
             semsg!(
                 gettext(c"E886: System error while skipping in ShaDa file: %s"),
-                uv_strerror(skip_bytes as i32),
+                unsafe { uv_strerror(skip_bytes as i32) },
             );
             return ShaDaReadResult::SDReadStatusReadError;
         } else if skip_bytes != (offset as isize) {
@@ -981,12 +983,12 @@ fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadRes
 }
 
 fn close_file(cookie: &mut FileDescriptor) {
-    unsafe {
+    {
         let error = file_close(cookie, opt_vars().p_fs != 0);
         if error != 0 {
             semsg!(
                 gettext(c"E886: System error while closing ShaDa file: %s"),
-                uv_strerror(error),
+                unsafe { uv_strerror(error) },
             );
         }
     }
@@ -994,7 +996,7 @@ fn close_file(cookie: &mut FileDescriptor) {
 
 fn shada_read_file(file: impl crate::strings::IntoCCharPtr, flags: i32) -> bool {
     let file = file.into_c_char_ptr();
-    unsafe {
+    {
         let Some(fname_cstr) = shada_filename(file) else {
             return false;
         };
@@ -1039,7 +1041,7 @@ fn shada_read_file(file: impl crate::strings::IntoCCharPtr, flags: i32) -> bool 
                 semsg!(
                     gettext(c"E886: System error while opening ShaDa file %s for reading: %s",),
                     fname,
-                    uv_strerror(of_ret),
+                    unsafe { uv_strerror(of_ret) },
                 );
             }
             return false;
@@ -1207,10 +1209,10 @@ fn var_shada_iter(
     rettv: &mut TypVal,
     flavour: VarFlavour,
 ) -> Option<usize> {
-    unsafe {
+    {
         let globvarht = get_globvar_ht();
         let hinum = globvarht.ht_mask + 1;
-        let harray = std::slice::from_raw_parts(globvarht.array_ptr(), hinum);
+        let harray = unsafe { std::slice::from_raw_parts(globvarht.array_ptr(), hinum) };
         *name = ptr::null();
         let mut idx = if let Some(i) = iter {
             i
@@ -1706,14 +1708,13 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
 }
 
 fn shada_get_default_file() -> *const c_char {
-    unsafe {
+    {
         if shada_st().default_shada_file.is_none() {
             let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
             shada_st().default_shada_file =
                 Some(concat_fnames_cstr(shada_dir.as_ptr(), c"main.shada", true));
         }
-        (&raw const shada_st().default_shada_file)
-            .as_ref()
+        unsafe { (&raw const shada_st().default_shada_file).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr())
@@ -1722,7 +1723,7 @@ fn shada_get_default_file() -> *const c_char {
 
 fn shada_filename(file: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> {
     let mut file = file.into_c_char_ptr();
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(file) {
             if !opt_vars().p_shadafile.is_null()
                 && !crate::memory::cstr_is_empty(opt_vars().p_shadafile)
@@ -1740,10 +1741,9 @@ fn shada_filename(file: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
                 let name_buff_ptr = g_st().name_buff.as_mut_ptr();
                 let len = expand_env(file.cast_mut(), name_buff_ptr, MAXPATHL as i32);
                 return Some(
-                    std::ffi::CString::new(std::slice::from_raw_parts(
-                        name_buff_ptr.cast::<u8>(),
-                        len,
-                    ))
+                    std::ffi::CString::new(unsafe {
+                        std::slice::from_raw_parts(name_buff_ptr.cast::<u8>(), len)
+                    })
                     .unwrap_or_default(),
                 );
             }
@@ -2495,7 +2495,7 @@ fn add_search_pattern(
 
 #[inline]
 fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, scale_ts: bool) {
-    unsafe {
+    {
         let mut reg_iter: Option<usize> = None;
         let limit_reg_lines = max_reg_lines >= 0;
         loop {
@@ -2506,7 +2506,7 @@ fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, sc
             if name == NUL {
                 break;
             }
-            let reg_ref = &*reg;
+            let reg_ref = unsafe { &*reg };
             if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
                 if reg_iter.is_none() {
                     break;
@@ -3477,12 +3477,12 @@ fn fread_len(
     length: usize,
 ) -> ShaDaReadResult {
     let buffer = buffer.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let read_bytes = file_read(sd_reader, buffer, length);
         if read_bytes < 0 {
             semsg!(
                 gettext(c"E886: System error while reading ShaDa file: %s"),
-                uv_strerror(read_bytes as i32),
+                unsafe { uv_strerror(read_bytes as i32) },
             );
             return ShaDaReadResult::SDReadStatusReadError;
         }
@@ -3504,14 +3504,14 @@ fn msgpack_read_uint64(
     allow_eof: bool,
     result: &mut u64,
 ) -> ShaDaReadResult {
-    unsafe {
+    {
         let fpos = sd_reader.bytes_read;
         let mut ret: u8 = 0;
         let read_bytes = file_read((&raw mut *sd_reader), (&raw mut ret).cast::<c_char>(), 1);
         if read_bytes < 0 {
             semsg!(
                 gettext(c"E886: System error while reading integer from ShaDa file: %s"),
-                uv_strerror(read_bytes as i32),
+                unsafe { uv_strerror(read_bytes as i32) },
             );
             return ShaDaReadResult::SDReadStatusReadError;
         } else if read_bytes == 0 {

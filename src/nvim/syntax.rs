@@ -1179,9 +1179,9 @@ fn syn_stack_alloc() {
 
 /// Check for changes in a buffer to affect stored syntax states.
 pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
-    unsafe {
+    {
         let buf_ptr = &raw mut *buf;
-        syn_stack_apply_changes_block(&mut buf.b_s, &mut *buf_ptr);
+        syn_stack_apply_changes_block(&mut buf.b_s, unsafe { &mut *buf_ptr });
 
         if !g_st().curtab.is_null() {
             for wp in for_all_windows_mut() {
@@ -1420,7 +1420,7 @@ fn load_current_state(from: &Synstate) {
 }
 
 fn syn_stack_equal(sp: &Synstate) -> bool {
-    unsafe {
+    {
         if sp.sst_stack.len() as i32 != cur_state_len()
             || !syn_id_list_eq(&sp.sst_next_list, &syn_st().current_next_list)
         {
@@ -1432,7 +1432,7 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
         let mut i = cur_state_len() - 1;
         while i >= 0 {
             let cur_si = cur_state_at(i);
-            let b = &*bp.wrapping_offset(i as isize);
+            let b = unsafe { &*bp.wrapping_offset(i as isize) };
             if b.bs_idx != cur_si.si_idx {
                 break;
             }
@@ -2387,7 +2387,7 @@ fn find_endpos(
     end_idx: &mut i32,
     start_ext: Option<std::rc::Rc<RegExtmatch>>,
 ) {
-    unsafe {
+    {
         if idx < 0 {
             return;
         }
@@ -2456,7 +2456,7 @@ fn find_endpos(
             }
 
             if !spp_skip.is_null() {
-                let spp_skip = { &mut *spp_skip };
+                let spp_skip = unsafe { &mut *spp_skip };
                 let spp_skip = { &mut *spp_skip };
                 let mut lc_col = matchcol - spp_skip.sp_offsets[SPO_LC_OFF];
                 if lc_col < 0 {
@@ -2718,7 +2718,7 @@ fn check_keyword_id(
     ccharp: &mut i32,
 ) -> i32 {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         let kwp = line.wrapping_offset(startcol as isize);
         let mut kwlen: i32 = 0;
         loop {
@@ -2747,7 +2747,7 @@ fn check_keyword_id(
         }
 
         if !kp.is_null() {
-            let kp = &*kp;
+            let kp = unsafe { &*kp };
             *endcolp = startcol + kwlen;
             *flagsp = kp.flags;
             *next_listp = kp.next_list.clone();
@@ -2765,7 +2765,7 @@ fn match_keyword(
     cur_si: *mut Stateitem,
 ) -> *const Keyentry {
     let keyword = keyword.into_c_char_ptr();
-    unsafe {
+    {
         let key_bytes = crate::memory::cstr_as_bytes(keyword);
         if let Some(entries) = ht.get(key_bytes) {
             let cur_next_list = &syn_st().current_next_list;
@@ -2776,7 +2776,12 @@ fn match_keyword(
                 } else if cur_si.is_null() {
                     (kp.flags & HL_CONTAINED) == 0
                 } else {
-                    in_id_list(cur_si, &(*cur_si).si_cont_list, &mut k_syn, kp.flags) != 0
+                    in_id_list(
+                        cur_si,
+                        unsafe { &(*cur_si).si_cont_list },
+                        &mut k_syn,
+                        kp.flags,
+                    ) != 0
                 } {
                     return kp;
                 }
@@ -3129,12 +3134,12 @@ fn syn_cmd_off(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
-    unsafe {
+    {
         eap.nextcmd = check_nextcmd(eap.arg);
         if eap.skip == 0 {
             syn_st().did_syntax_onoff = true;
             let mut buf = [0 as c_char; 100];
-            ptr::copy_nonoverlapping(c"so ".as_ptr(), buf.as_mut_ptr(), 4);
+            unsafe { ptr::copy_nonoverlapping(c"so ".as_ptr(), buf.as_mut_ptr(), 4) };
             vim_snprintf!(
                 buf.as_mut_ptr().wrapping_add(3),
                 100 - 3,
@@ -3645,7 +3650,7 @@ fn add_keyword(
     conceal_char: i32,
 ) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut name_folded = [0 as c_char; MAXKEYWLEN + 1];
         let (name_ic, name_iclen): (*const c_char, usize) = if win_s(curwin_mut()).b_syn_ic != 0 {
             str_foldcase(
@@ -3663,7 +3668,7 @@ fn add_keyword(
         };
 
         let mut kw_vec = Vec::with_capacity(name_iclen + 1);
-        kw_vec.extend_from_slice(std::slice::from_raw_parts(name_ic, name_iclen));
+        kw_vec.extend_from_slice(unsafe { std::slice::from_raw_parts(name_ic, name_iclen) });
         kw_vec.push(NUL);
         if cont_in_list.is_some() {
             win_s(curwin_mut()).b_syn_containedin = 1;

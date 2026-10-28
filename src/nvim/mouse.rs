@@ -286,7 +286,7 @@ fn move_tab_to_mouse() {
 
 /// Close the current or specified tab page.
 fn mouse_tab_close(c1: i32) {
-    unsafe {
+    {
         let tp = if c1 == 999 {
             g_st().curtab
         } else {
@@ -297,7 +297,7 @@ fn mouse_tab_close(c1: i32) {
                 tabpage_close(0);
             }
         } else if !tp.is_null() {
-            tabpage_close_other(&mut *tp, 0);
+            tabpage_close_other(unsafe { &mut *tp }, 0);
         }
     }
 }
@@ -2161,7 +2161,7 @@ fn find_longest_lnum() -> Linenr {
 
 /// Check clicked cell on its grid
 fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut i32) {
-    unsafe {
+    {
         let mut click_grid = g_st().mouse_grid;
         let mut click_row = g_st().mouse_row;
         let mut click_col = g_st().mouse_col;
@@ -2173,7 +2173,7 @@ fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut i32) {
         }
         let mut start_row: i32 = 0;
         let mut start_col: i32 = 0;
-        let gp = &*grid_adjust(&mut curwin_mut().w_grid, &mut start_row, &mut start_col);
+        let gp = unsafe { &*grid_adjust(&mut curwin_mut().w_grid, &mut start_row, &mut start_col) };
         if gp.handle != click_grid || gp.chars.is_empty() {
             return;
         }

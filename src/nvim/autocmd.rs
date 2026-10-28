@@ -2679,7 +2679,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
 }
 
 pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
-    unsafe {
+    {
         if !has_event(EVENT_OPTIONSET)
             || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
             || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE))
@@ -2687,7 +2687,7 @@ pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
             return;
         }
         multiqueue_put_event(
-            &mut *g_st().deferred_events,
+            unsafe { &mut *g_st().deferred_events },
             Event::AutoCmdOptionSetModified {
                 bufnr: buf.b_fnum,
                 new_val,
@@ -3335,7 +3335,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
 }
 
 fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> bool {
-    unsafe {
+    {
         if callback.cb_type() == K_CALLBACK_LUA {
             let mut data_items = [KeyValuePair {
                 key: NvimString {
@@ -3364,8 +3364,7 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
             data_items[size] = KeyValuePair {
                 key: static_cstr_as_string(c"match"),
                 value: cstr_as_obj(
-                    (&raw const g_st().autocmd_match)
-                        .as_ref()
+                    unsafe { (&raw const g_st().autocmd_match).as_ref() }
                         .unwrap()
                         .as_ref()
                         .map_or(ptr::null(), |s| s.as_ptr()),
@@ -3428,8 +3427,8 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
 }
 
 pub fn getnextac(_c: i32, apc: *mut AutoPatCmd, _indent: i32, _do_concat: bool) -> Option<CString> {
-    unsafe {
-        let apc = &mut *apc;
+    {
+        let apc = unsafe { &mut *apc };
         let acs = &mut au_st().autocmds[apc.event as usize];
         aucmd_next(apc);
         apc.lastpat.as_ref()?;
@@ -3931,7 +3930,7 @@ pub fn vimresume_event() {
 }
 
 pub fn may_trigger_vim_suspend_resume(suspend: bool) {
-    unsafe {
+    {
         if suspend && au_st().pending_vimresume == K_FALSE {
             au_st().pending_vimresume = K_NONE;
             apply_autocmds(
@@ -3945,7 +3944,7 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
         } else if !suspend && au_st().pending_vimresume == K_TRUE {
             au_st().pending_vimresume = K_NONE;
             let events = loop_queues(&mut g_st().main_loop).events;
-            multiqueue_put_event(&mut *events, Event::AutoCmdVimResume);
+            multiqueue_put_event(unsafe { &mut *events }, Event::AutoCmdVimResume);
         }
     }
 }

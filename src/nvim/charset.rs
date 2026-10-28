@@ -696,7 +696,7 @@ pub fn transchar_hex(buf: *mut c_char, c: i32) -> usize {
 }
 
 pub fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
-    unsafe {
+    {
         let mut p1 = str_;
         let mut p2 = if !end.is_null() {
             end
@@ -705,7 +705,7 @@ pub fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
         }
         .wrapping_sub(1);
         while p1 < p2 {
-            ptr::swap(p1, p2);
+            unsafe { ptr::swap(p1, p2) };
             p1 = p1.wrapping_add(1);
             p2 = p2.wrapping_sub(1);
         }

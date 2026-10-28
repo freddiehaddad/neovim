@@ -115,9 +115,9 @@ use crate::event::r#loop::{
 
 #[inline]
 fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut addrinfo {
-    unsafe {
+    {
         req.cast::<u8>()
-            .wrapping_add(uv_req_size(UV_GETADDRINFO) - 2 * size_of::<*mut c_void>())
+            .wrapping_add(unsafe { uv_req_size(UV_GETADDRINFO) } - 2 * size_of::<*mut c_void>())
             .cast::<*mut addrinfo>()
     }
 }
@@ -266,7 +266,7 @@ pub fn socket_watcher_init(
 /// Check if a socket is alive by attempting to connect to it.
 fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bool {
     let addr = addr.into_c_char_ptr();
-    unsafe {
+    {
         let mut stream = RStream::new();
         let mut error: *const c_char = std::ptr::null();
 
@@ -280,7 +280,7 @@ fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bo
         let closed_ptr: *mut bool = &raw mut closed;
         stream.s.internal_data = StreamInternalData::Closed(closed_ptr);
         stream_may_close(&mut stream.s);
-        poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
+        poll_main_loop_until(-1, || unsafe { ptr::read_volatile(closed_ptr) });
 
         true
     }

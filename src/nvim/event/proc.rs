@@ -401,11 +401,11 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
 }
 
 pub fn proc_close_event(proc_: &mut Proc) {
-    unsafe {
+    {
         if !proc_.data.is_null() {
             let status = proc_.status;
             let data = proc_.data;
-            crate::channel::channel_proc_exit_cb(proc_, status, &mut *data);
+            crate::channel::channel_proc_exit_cb(proc_, status, unsafe { &mut *data });
         }
     }
 }
@@ -522,12 +522,12 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
 }
 
 pub fn exit_event(status: i32) {
-    unsafe {
+    {
         if proc_st().exit_need_delay != 0 {
             let mloop = main_loop_ptr();
             let exit_timer = loop_exit_delay_timer(&mut *mloop);
             proc_st().exit_delay_status = status;
-            uv_timer_start(exit_timer, Some(exit_delay_cb), 0, 0);
+            unsafe { uv_timer_start(exit_timer, Some(exit_delay_cb), 0, 0) };
             return;
         }
 

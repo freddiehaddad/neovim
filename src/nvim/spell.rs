@@ -1333,7 +1333,7 @@ pub fn spell_move_to(
 }
 pub fn spell_cat_line(buf: *mut c_char, line: impl crate::strings::IntoCCharPtr, maxlen: i32) {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = skipwhite(line);
         while crate::strings::vim_haschr(c"*#/\"\t", crate::memory::cstr_first_byte(p) as i32) {
             p = skipwhite(p.wrapping_add(1));
@@ -1343,7 +1343,7 @@ pub fn spell_cat_line(buf: *mut c_char, line: impl crate::strings::IntoCCharPtr,
         }
         let n = crate::memory::ptr_offset_from(p, line) as i32 + 1;
         if n < maxlen - 1 {
-            ptr::write_bytes(buf.cast::<u8>(), b' ', n as usize);
+            unsafe { ptr::write_bytes(buf.cast::<u8>(), b' ', n as usize) };
             xstrlcpy(buf.wrapping_add(n as usize), p, (maxlen - n) as usize);
         }
     }
@@ -1445,13 +1445,12 @@ pub fn spell_enc() -> *mut c_char {
     }
 }
 fn int_wordlist_spl(fname: *mut c_char) {
-    unsafe {
+    {
         vim_snprintf!(
             fname,
             MAXPATHL,
             c"%s.%s.spl",
-            (&raw const spell_priv_st().int_wordlist)
-                .as_ref()
+            unsafe { (&raw const spell_priv_st().int_wordlist).as_ref() }
                 .unwrap()
                 .as_ref()
                 .map_or(std::ptr::null(), |s| s.as_ptr()),
@@ -2326,7 +2325,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
     }
 }
 pub fn ex_spellrepall(_eap: &mut Exarg) {
-    unsafe {
+    {
         let pos = curwin_mut().w_cursor;
         let save_ws = opt_vars().p_ws;
         let mut prev_lnum: Linenr = 0;
@@ -2377,7 +2376,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
                 let mut p_vec: Vec<c_char> =
                     vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
                 let p = p_vec.as_mut_ptr();
-                ptr::copy(line, p, curwin_mut().w_cursor.col as usize);
+                unsafe { ptr::copy(line, p, curwin_mut().w_cursor.col as usize) };
                 crate::memory::cstr_cpy(
                     p.wrapping_add(curwin_mut().w_cursor.col as usize),
                     repl_to_ptr,

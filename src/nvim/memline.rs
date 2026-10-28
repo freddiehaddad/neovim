@@ -396,10 +396,12 @@ fn hp_ptr_block(hp: *mut Bhdr) -> &'static mut PointerBlock {
 
 #[inline]
 fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
-    unsafe {
-        &mut *(&raw mut pp.pb_pointer)
-            .cast::<PointerEntry>()
-            .wrapping_add(idx)
+    {
+        unsafe {
+            &mut *(&raw mut pp.pb_pointer)
+                .cast::<PointerEntry>()
+                .wrapping_add(idx)
+        }
     }
 }
 
@@ -847,11 +849,11 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
 
 fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: impl crate::strings::IntoCCharPtr) -> i32 {
     let swap_fname = swap_fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut st = FileInfo::new();
         let mut uptime: f64 = 0.0;
         if os_fileinfo(swap_fname, &mut st)
-            && uv_uptime(&mut uptime) == 0
+            && unsafe { uv_uptime(&mut uptime) } == 0
             && (st.stat.st_mtim.tv_sec as Timestamp) < os_time().wrapping_sub(uptime as Timestamp)
         {
             return 0;
@@ -1711,7 +1713,7 @@ pub fn make_percent_swname(
 /// For Vimscript `swapinfo()`.
 pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut b0 = ZeroBlock::new();
         let fd = os_open(fname, O_RDONLY, 0);
         if fd >= 0 {
@@ -1751,7 +1753,7 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
             } else {
                 tv_dict_add_str_len(d, c"error", c"Cannot read file", 16);
             }
-            close(fd);
+            unsafe { close(fd) };
         } else {
             tv_dict_add_str_len(d, c"error", c"Cannot open file", 16);
         }
@@ -1760,7 +1762,7 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
 
 fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) -> time_t {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         assert!(!fname.is_null());
         let mut b0 = ZeroBlock::new();
         let mut x: time_t = 0;
@@ -1867,7 +1869,7 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
             } else {
                 sb_push_cstr(msg, tr(c"         [cannot be read]"));
             }
-            close(fd);
+            unsafe { close(fd) };
         } else {
             sb_push_cstr(msg, tr(c"         [cannot be opened]"));
         }
@@ -2102,7 +2104,7 @@ pub fn ml_get_buf_len(buf: &mut FileBuf, lnum: Linenr) -> Colnr {
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
 pub fn ml_region_text(buf: &mut FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8> {
-    unsafe {
+    {
         let mut sb = Vec::<u8>::new();
         for lnum in start.lnum..=end.lnum {
             let line = ml_get_buf(buf, lnum);
@@ -2117,10 +2119,12 @@ pub fn ml_region_text(buf: &mut FileBuf, start: CursorPos, end: CursorPos) -> Ve
             } else {
                 len
             };
-            let slice = std::slice::from_raw_parts(
-                line.wrapping_add(from as usize).cast::<u8>(),
-                (to - from) as usize,
-            );
+            let slice = unsafe {
+                std::slice::from_raw_parts(
+                    line.wrapping_add(from as usize).cast::<u8>(),
+                    (to - from) as usize,
+                )
+            };
             sb.extend_from_slice(slice);
             if lnum < end.lnum {
                 sb.push(NL as u8);
@@ -2139,7 +2143,7 @@ pub fn gchar_pos(pos: &mut CursorPos) -> i32 {
 }
 
 fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *mut c_char {
-    unsafe {
+    {
         if buf.b_ml.ml_mfp.is_none() {
             buf.b_ml.ml_line_textlen = 1;
             return c"".as_ptr().cast_mut();
@@ -2176,7 +2180,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *m
                 }
                 return ml_get_errorret(buf, lnum);
             }
-            let hp = { &mut *hp };
+            let hp = unsafe { &mut *hp };
 
             let dp = hp_data_block(hp);
             let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
@@ -2762,7 +2766,7 @@ pub fn ml_replace_buf_len(
     noalloc: bool,
 ) -> bool {
     let line_arg = line_arg.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut line = line_arg;
         if line.is_null() {
             return false;
@@ -2776,7 +2780,7 @@ pub fn ml_replace_buf_len(
             assert!(!noalloc);
             let mut v = Vec::with_capacity(len_arg + 1);
             if len_arg > 0 {
-                v.extend_from_slice(std::slice::from_raw_parts(line, len_arg));
+                v.extend_from_slice(unsafe { std::slice::from_raw_parts(line, len_arg) });
             }
             v.push(NUL);
             Some(v)
@@ -2977,7 +2981,7 @@ pub fn ml_delete_flags(lnum: Linenr, flags: i32) -> bool {
 
 /// Set the `DB_MARKED` flag for line `lnum`.
 pub fn ml_setmarked(lnum: Linenr) {
-    unsafe {
+    {
         if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count || curbuf_mut().b_ml.ml_mfp.is_none()
         {
             return;
@@ -2990,7 +2994,7 @@ pub fn ml_setmarked(lnum: Linenr) {
         if hp.is_null() {
             return;
         }
-        let hp = { &mut *hp };
+        let hp = unsafe { &mut *hp };
         let dp = hp_data_block(hp);
         *db_idx_ptr(&mut *dp, (lnum - curbuf_mut().b_ml.ml_locked_low) as usize) |= DB_MARKED;
         curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;

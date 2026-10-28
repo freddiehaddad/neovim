@@ -5336,7 +5336,7 @@ fn expand_shellcmd(
     flagsarg: i32,
 ) {
     let filepat = filepat.into_c_char_ptr();
-    unsafe {
+    {
         matches.clear();
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
         let buf = buf_vec.as_mut_ptr();
@@ -5353,7 +5353,7 @@ fn expand_shellcmd(
             if crate::memory::cstr_first_byte(s) == b'\\' {
                 let p = s.wrapping_add(1);
                 if crate::memory::cstr_first_byte(p) == b' ' {
-                    ptr::copy(p, s, (crate::memory::ptr_offset_from(e, p) as usize) + 1);
+                    unsafe { ptr::copy(p, s, (crate::memory::ptr_offset_from(e, p) as usize) + 1) };
                     e = e.wrapping_sub(1);
                 }
             }
@@ -5747,13 +5747,15 @@ pub fn wildmenu_translate_key(
 
 /// Delete characters on the command line, from "from" to the current position.
 fn cmdline_del(cclp: &mut CmdlineInfo, from: i32) {
-    unsafe {
+    {
         debug_assert!(cclp.cmdpos <= cclp.cmdlen);
-        ptr::copy(
-            cclp.cmdbuff.wrapping_add(cclp.cmdpos as usize),
-            cclp.cmdbuff.wrapping_add(from as usize),
-            (cclp.cmdlen as usize) - (cclp.cmdpos as usize) + 1,
-        );
+        unsafe {
+            ptr::copy(
+                cclp.cmdbuff.wrapping_add(cclp.cmdpos as usize),
+                cclp.cmdbuff.wrapping_add(from as usize),
+                (cclp.cmdlen as usize) - (cclp.cmdpos as usize) + 1,
+            )
+        };
         cclp.cmdlen -= cclp.cmdpos - from;
         cclp.cmdpos = from;
     }
@@ -5972,7 +5974,7 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
 
 /// "getcompletion()" function.
 pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut xpc: ExpandCtx = ExpandCtx::new();
         let mut filtered = false;
         let mut options =
@@ -6083,10 +6085,9 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
         }
         let pat = if cmdline_fuzzy_completion_supported(&xpc) {
-            cstr_from_bytes(std::slice::from_raw_parts(
-                xpc.xp_pattern.cast::<u8>(),
-                xpc.xp_pattern_len,
-            ))
+            cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts(xpc.xp_pattern.cast::<u8>(), xpc.xp_pattern_len)
+            })
         } else {
             addstar(xpc.xp_pattern, xpc.xp_pattern_len, xpc.xp_context)
         };

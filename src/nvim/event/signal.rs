@@ -47,13 +47,15 @@ pub fn signal_watcher_init(
 }
 
 pub fn signal_watcher_start(watcher: &mut SignalWatcher, signum: i32) {
-    unsafe {
+    {
         watcher.signum = signum;
-        uv_signal_start(
-            (&raw mut watcher.uv).cast(),
-            Some(signal_watcher_cb),
-            signum,
-        );
+        unsafe {
+            uv_signal_start(
+                (&raw mut watcher.uv).cast(),
+                Some(signal_watcher_cb),
+                signum,
+            )
+        };
     }
 }
 
@@ -70,11 +72,11 @@ pub fn signal_watcher_close(watcher: &mut SignalWatcher) {
 }
 
 pub fn signal_event(watcher: &mut SignalWatcher) {
-    unsafe {
+    {
         if watcher.data.is_null() {
             crate::os::signal::on_signal(watcher.signum);
         } else {
-            crate::tui::tui::sigwinch_cb(&mut *watcher.data);
+            crate::tui::tui::sigwinch_cb(unsafe { &mut *watcher.data });
         }
     }
 }

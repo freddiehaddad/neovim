@@ -964,9 +964,9 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: *mut TypVal) -> bool {
 
 #[inline]
 fn lua_conv_nil(lstate: *mut lua_State) {
-    unsafe {
+    {
         if luaconv_st().typval_conv_special {
-            lua_pushnil(lstate);
+            unsafe { lua_pushnil(lstate) };
         } else {
             nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
         }
@@ -1027,7 +1027,7 @@ fn lua_check_self_reference(
     mpstack: &[MPConvStackVal],
     copy_id: i32,
 ) -> i32 {
-    unsafe {
+    {
         if *val_copy_id != copy_id {
             *val_copy_id = copy_id;
             return NOTDONE;
@@ -1043,7 +1043,7 @@ fn lua_check_self_reference(
             };
             if matched {
                 let stack_offset = -(((mpstack.len() - backref + 1) * 2) as i32);
-                lua_pushvalue(lstate, stack_offset);
+                unsafe { lua_pushvalue(lstate, stack_offset) };
                 break;
             }
             backref -= 1;
@@ -1678,8 +1678,8 @@ pub fn nlua_pop_integer(lstate: *mut lua_State, _arena: &mut Arena, err: &mut Er
 
 /// Convert Lua value to `Boolean` (`nlua_pop_Boolean`).
 pub fn nlua_pop_boolean(lstate: *mut lua_State, _arena: &mut Arena, _err: &mut Error) -> Boolean {
-    unsafe {
-        let ret = lua_toboolean(lstate, -1) != 0;
+    {
+        let ret = unsafe { lua_toboolean(lstate, -1) } != 0;
         lua_pop(lstate, 1);
         ret
     }
@@ -1713,8 +1713,8 @@ fn nlua_check_type(
     err: &mut Error,
     expected_type: ObjectType,
 ) -> LuaTableProps {
-    unsafe {
-        if lua_type(lstate, -1) != LUA_TTABLE {
+    {
+        if unsafe { lua_type(lstate, -1) } != LUA_TTABLE {
             let name = if expected_type == ObjectType::ObjectTypeFloat {
                 c"number".as_ptr()
             } else {
@@ -1780,14 +1780,14 @@ fn nlua_pop_array_unchecked(
     mut arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+    {
         let mut ret = arena_array_opt(arena.as_deref_mut(), table_props.maxidx);
         if table_props.maxidx == 0 {
             lua_pop(lstate, 1);
             return ret;
         }
         for i in 1..=table_props.maxidx {
-            lua_rawgeti(lstate, -1, i as i32);
+            unsafe { lua_rawgeti(lstate, -1, i as i32) };
             let val = nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), err);
             if error_set(err) {
                 lua_pop(lstate, 1);

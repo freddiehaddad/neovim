@@ -305,12 +305,12 @@ fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [*mut CursorPos; 6]
 }
 
 pub fn ctx_free(ctx: &mut Context) {
-    unsafe {
+    {
         let buf = handle_get_buffer(ctx.buf);
         if !buf.is_null() {
             for i in 0..ctx.pos_marks.len() {
                 if ctx.pos_marks[i] != 0 {
-                    extmark_del_id(&mut *buf, ctx_marks_ns(), ctx.pos_marks[i]);
+                    extmark_del_id(unsafe { &mut *buf }, ctx_marks_ns(), ctx.pos_marks[i]);
                 }
             }
         }
@@ -495,13 +495,13 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
 }
 
 fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
-    unsafe {
+    {
         let mut sbuf = Vec::new();
         let mut list_tv: TypVal = TypVal::new();
         object_to_vim(array_obj(array), &mut list_tv, err);
 
         assert_eq!(list_tv.v_type, VarType::VarList);
-        if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list().as_ref()) {
+        if let Some(buf) = encode_vim_list_to_buf(unsafe { list_tv.vval.v_list().as_ref() }) {
             sbuf = buf.into_iter().map(|c| c as u8).collect();
         } else {
             api_set_error!(
@@ -680,7 +680,7 @@ fn ctx_dirs_save(
 }
 
 fn ctx_dirs_restore(cs: &mut CtxSwitch) {
-    unsafe {
+    {
         if cs.cs_ctxwin_idx >= 0 {
             return;
         }
@@ -693,7 +693,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
                     break;
                 }
             }
-            ctx_localdirs_restore(&mut *cs, None, dirs_tab.as_mut(), false);
+            ctx_localdirs_restore(&mut *cs, None, unsafe { dirs_tab.as_mut() }, false);
         } else if cs.cs_cwd.is_some() && !ctx_st().ctx_did_chdir {
             g_st().globaldir = cs.cs_globaldir.take();
         }

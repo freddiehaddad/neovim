@@ -1566,7 +1566,7 @@ pub fn prompt_text() -> *mut c_char {
 }
 
 fn init_prompt(cmdchar_todo: i32) {
-    unsafe {
+    {
         let prompt = prompt_text();
         let prompt_len = crate::memory::cstr_len(prompt) as Colnr;
 
@@ -1592,13 +1592,15 @@ fn init_prompt(cmdchar_todo: i32) {
         if curbuf_mut().b_prompt_start.mark.lnum == curwin_mut().w_cursor.lnum
             && (curbuf_mut().b_prompt_start.mark.col < prompt_len
                 || curbuf_mut().b_prompt_start.mark.col > text_len
-                || std::slice::from_raw_parts(
-                    text.wrapping_offset(
-                        (curbuf_mut().b_prompt_start.mark.col - prompt_len) as isize,
+                || unsafe {
+                    std::slice::from_raw_parts(
+                        text.wrapping_offset(
+                            (curbuf_mut().b_prompt_start.mark.col - prompt_len) as isize,
+                        )
+                        .cast::<u8>(),
+                        prompt_len as usize,
                     )
-                    .cast::<u8>(),
-                    prompt_len as usize,
-                ) != crate::memory::cstr_slice(prompt, prompt_len as usize))
+                } != crate::memory::cstr_slice(prompt, prompt_len as usize))
         {
             if crate::memory::cstr_is_empty(text) {
                 ml_replace(curbuf_mut().b_prompt_start.mark.lnum, prompt, true);
@@ -2577,14 +2579,14 @@ fn echeck_abbr(c: i32) -> bool {
 /// Push character that is replaced onto the replace stack.
 pub fn replace_push(str_: impl crate::strings::IntoCCharPtr, len: usize) {
     let str_ = str_.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let stack = replace_stack_mut();
         let off = g_st().replace_offset as usize;
         if stack.len() < off {
             return;
         }
         let pos = stack.len() - off;
-        let slice = std::slice::from_raw_parts(str_, len);
+        let slice = unsafe { std::slice::from_raw_parts(str_, len) };
         stack.splice(pos..pos, slice.iter().copied());
     }
 }

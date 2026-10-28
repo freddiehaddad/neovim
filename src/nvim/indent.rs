@@ -774,7 +774,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
 
 /// Check `briopt` as `'breakindentopt'` and update the members of `wp` (`briopt_check`).
 pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
-    unsafe {
+    {
         if wp.is_none() {
             return;
         }
@@ -784,7 +784,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
             ptr::null_mut(),
         )
         .cast::<OptKeyDict_briopt>();
-        let vr = &*v;
+        let vr = unsafe { &*v };
         wp.as_deref_mut().unwrap().w_briopt_shift =
             if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
                 vr.shift as i32

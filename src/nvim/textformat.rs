@@ -200,7 +200,7 @@ pub fn internal_format(
     format_only: bool,
     c: i32,
 ) {
-    unsafe {
+    {
         let mut cc: i32;
         let mut save_char: c_char = NUL;
         let mut haveto_redraw = false;
@@ -460,8 +460,9 @@ pub fn internal_format(
                 let pos_len = get_cursor_pos_len() as usize;
                 let keep_len = (startcol as usize).min(pos_len);
                 saved_text.reserve_exact(keep_len + 1);
-                saved_text
-                    .extend_from_slice(std::slice::from_raw_parts(get_cursor_pos_ptr(), keep_len));
+                saved_text.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(get_cursor_pos_ptr(), keep_len)
+                });
                 saved_text.push(NUL);
                 curwin_mut().w_cursor.col = orig_col;
 

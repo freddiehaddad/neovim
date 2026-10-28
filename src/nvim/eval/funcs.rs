@@ -1548,7 +1548,7 @@ pub fn f_byte2line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "call(func, arglist [, dict])" function
 pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         if !tv_check_for_list_arg(argvars, 1) {
             return;
         }
@@ -1563,7 +1563,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             func = argvars[0].vval.v_string();
         } else if argvars[0].v_type == VarType::VarPartial {
             partial = argvars[0].vval.v_partial();
-            func = partial_name(partial.as_ref());
+            func = partial_name(unsafe { partial.as_ref() });
         } else if nlua_is_table_from_lua(&argvars[0]) {
             func = nlua_register_table_as_callable(&argvars[0]);
             owned = true;
@@ -2415,13 +2415,13 @@ pub fn f_menu_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "expandcmd()" function
 pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut errormsg: *const c_char = ptr::null();
         let mut emsgoff = true;
 
         if argvars[1].v_type == VarType::VarDict
             && tv_dict_get_bool(
-                argvars[1].vval.v_dict().as_ref(),
+                unsafe { argvars[1].vval.v_dict().as_ref() },
                 c"errmsg",
                 K_BOOL_VAR_FALSE_CONST,
             ) != 0
@@ -3073,13 +3073,13 @@ pub fn f_getfontname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
 /// "getjumplist()" function
 pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         let wp = find_tabwin(&argvars[0], &argvars[1]);
         if wp.is_null() {
             return;
         }
-        let wp = { &mut *wp };
+        let wp = unsafe { &mut *wp };
 
         cleanup_jumplist(&mut *wp, true);
 
@@ -3122,7 +3122,7 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// "getmarklist()" function
 pub fn f_getmarklist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         if argvars[0].v_type == VarType::VarUnknown {
             get_global_marks(rettv.vval.v_list_ref());
@@ -3132,7 +3132,7 @@ pub fn f_getmarklist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if buf.is_null() {
             return;
         }
-        get_buf_local_marks(&*buf, rettv.vval.v_list_ref());
+        get_buf_local_marks(unsafe { &*buf }, rettv.vval.v_list_ref());
     }
 }
 
@@ -3157,17 +3157,19 @@ pub fn f_getpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// Convert from `BlockDef` to a byte vector.
 fn block_def2str(bd: &BlockDef) -> Vec<c_char> {
-    unsafe {
+    {
         let startspaces = bd.startspaces as usize;
         let endspaces = bd.endspaces as usize;
         let textlen = bd.textlen as usize;
         let size = startspaces + endspaces + textlen;
         let mut data = vec![b' ' as c_char; size];
-        ptr::copy(
-            bd.textstart,
-            data.as_mut_ptr().wrapping_add(startspaces),
-            textlen,
-        );
+        unsafe {
+            ptr::copy(
+                bd.textstart,
+                data.as_mut_ptr().wrapping_add(startspaces),
+                textlen,
+            )
+        };
         data
     }
 }
@@ -3544,7 +3546,7 @@ fn getreg_get_regname(argvars: &mut [TypVal]) -> i32 {
 
 /// "getreg()" function
 pub fn f_getreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut arg2: i32 = 0;
         let mut return_list = false;
 
@@ -3573,7 +3575,7 @@ pub fn f_getreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             if rettv.vval.v_list().is_null() {
                 rettv.vval = crate::eval::typval::TypvalVval::List(tv_list_alloc(0));
             }
-            tv_list_ref(rettv.vval.v_list().as_mut());
+            tv_list_ref(unsafe { rettv.vval.v_list().as_mut() });
         } else {
             let reg_str =
                 get_reg_contents_str(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 });
@@ -3605,7 +3607,7 @@ pub fn f_getregtype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "gettagstack()" function
 pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut wp = curwin_ptr();
         tv_dict_alloc_ret(rettv);
         if argvars[0].v_type != VarType::VarUnknown {
@@ -3614,7 +3616,7 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                 return;
             }
         }
-        get_tagstack(&mut *wp, rettv.vval.v_dict_ref());
+        get_tagstack(unsafe { &mut *wp }, rettv.vval.v_dict_ref());
     }
 }
 
@@ -3718,7 +3720,7 @@ pub fn f_gettext(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// "has()" function
 pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut x = false;
         let mut n = false;
         let name = tv_get_string(&argvars[0]);
@@ -3736,9 +3738,10 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     .take_while(|b| b.is_ascii_digit())
                     .count();
                 let end = s6.wrapping_add(dlen);
-                let major = std::str::from_utf8_unchecked(crate::memory::cstr_slice(s6, dlen))
-                    .parse::<i32>()
-                    .unwrap_or(0);
+                let major =
+                    unsafe { std::str::from_utf8_unchecked(crate::memory::cstr_slice(s6, dlen)) }
+                        .parse::<i32>()
+                        .unwrap_or(0);
                 if crate::memory::cstr_first_byte(end) == b'.'
                     && ascii_isdigit(crate::memory::cstr_char_at(end, 1))
                     && crate::memory::cstr_byte_at(end, 2) == b'.'
@@ -5852,7 +5855,7 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
 /// "msgpackdump()" function
 pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         if argvars[0].v_type != VarType::VarList {
             semsg!(gettext(E_LISTARG), c"msgpackdump()");
             return;
@@ -5861,9 +5864,9 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         let mut packer: PackerBuffer = packer_string_buffer();
         let msg = gettext(c"msgpackdump() argument, index %i");
         let mut msgbuf = [0 as c_char; 31 * 4 + NUMBUFLEN];
-        for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(tv_list_first(
-            list.as_ref(),
-        ))) {
+        for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(tv_list_first(unsafe {
+            list.as_ref()
+        }))) {
             vim_snprintf!(msgbuf.as_mut_ptr(), msgbuf.len(), msg, idx);
             if !encode_vim_to_msgpack(&mut packer, &mut li.li_tv, msgbuf.as_ptr()) {
                 break;
@@ -6134,16 +6137,18 @@ pub fn f_py3eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 fn init_srand(x: &mut u32) {
-    unsafe {
+    {
         let mut number: u32 = 0;
-        if uv_random(
-            ptr::null_mut(),
-            ptr::null_mut(),
-            (&raw mut number).cast(),
-            size_of::<u32>(),
-            0,
-            ptr::null(),
-        ) == 0
+        if unsafe {
+            uv_random(
+                ptr::null_mut(),
+                ptr::null_mut(),
+                (&raw mut number).cast(),
+                size_of::<u32>(),
+                0,
+                ptr::null(),
+            )
+        } == 0
         {
             *x = number;
             return;
@@ -6706,7 +6711,7 @@ fn reduce_blob(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
 /// "reduce()" function
 pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         if argvars[0].v_type != VarType::VarString
             && argvars[0].v_type != VarType::VarList
             && argvars[0].v_type != VarType::VarBlob
@@ -6718,7 +6723,7 @@ pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let func_name = if argvars[1].v_type == VarType::VarFunc {
             argvars[1].vval.v_string().cast_const()
         } else if argvars[1].v_type == VarType::VarPartial {
-            partial_name(argvars[1].vval.v_partial().as_ref())
+            partial_name(unsafe { argvars[1].vval.v_partial().as_ref() })
         } else {
             tv_get_string(&argvars[1])
         };
@@ -7122,14 +7127,14 @@ fn screenchar_adjust(grid: *mut *mut ScreenGrid, row: &mut i32, col: &mut i32) {
 
 /// "screenattr()" function
 pub fn f_screenattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut row = (tv_get_number_chk(&argvars[0], None) as i32) - 1;
         let mut col = (tv_get_number_chk(&argvars[1], None) as i32) - 1;
 
         let mut grid: *mut ScreenGrid = ptr::null_mut();
         screenchar_adjust(&raw mut grid, &mut row, &mut col);
 
-        let grid = &*grid;
+        let grid = unsafe { &*grid };
         let c = if row < 0 || row >= grid.rows || col < 0 || col >= grid.cols {
             -1
         } else {
@@ -7606,7 +7611,7 @@ pub fn f_serverlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "serverstart()" function
 pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
@@ -7633,7 +7638,7 @@ pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                 if result > 0 {
                     c"Unknown system error".as_ptr()
                 } else {
-                    uv_strerror(result)
+                    unsafe { uv_strerror(result) }
                 },
             );
             return;
@@ -8043,13 +8048,17 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// "sha256({expr})" function
 pub fn f_sha256(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if argvars[0].v_type == VarType::VarBlob {
             let blob = argvars[0].vval.v_blob().cast::<TvBlob>();
-            let slice: &[u8] = if !blob.is_null() { &(*blob).bv_ga } else { &[] };
+            let slice: &[u8] = if !blob.is_null() {
+                unsafe { &(*blob).bv_ga }
+            } else {
+                &[]
+            };
             let hex = sha256_hex(slice, None);
             crate::eval::typval::tv_set_string_len(rettv, hex.as_ptr().cast(), hex.len());
         } else {
@@ -8328,7 +8337,7 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 }
 
 pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut col: Colnr = 0;
         let mut keepempty = false;
         let mut typeerr = false;
@@ -8376,7 +8385,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                     };
                     if keepempty
                         || end > str_
-                        || (tv_list_len(rettv.vval.v_list().as_ref()) > 0
+                        || (tv_list_len(unsafe { rettv.vval.v_list().as_ref() }) > 0
                             && !crate::memory::cstr_is_empty(str_)
                             && match_found
                             && end < regmatch.endp[0].cast_const())
@@ -8494,7 +8503,7 @@ pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "strftime({format}[, {time}])" function
 pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarString;
         let mut p = tv_get_string(&argvars[0]).cast_mut();
         let seconds: time_t = if argvars[1].v_type == VarType::VarUnknown {
@@ -8527,7 +8536,9 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             p_owned = None;
         }
         let mut result_buf = [0 as c_char; 256];
-        if p.is_null() || strftime(result_buf.as_mut_ptr(), result_buf.len(), p, curtime_ptr) == 0 {
+        if p.is_null()
+            || unsafe { strftime(result_buf.as_mut_ptr(), result_buf.len(), p, curtime_ptr) } == 0
+        {
             result_buf[0] = NUL;
         }
         drop(p_owned);
@@ -8547,7 +8558,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "strptime({format}, {timestring})" function
 pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut fmt_buf = [0 as c_char; NUMBUFLEN];
         let mut str_buf = [0 as c_char; NUMBUFLEN];
 
@@ -8575,7 +8586,7 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if fmt.is_null() || os_strptime(str_, fmt, &raw mut tmval).is_null() {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         } else {
-            let t = mktime(&raw mut tmval);
+            let t = unsafe { mktime(&raw mut tmval) };
             rettv.vval =
                 crate::eval::typval::TypvalVval::Number(if t == -1 { 0 } else { t as Varnumber });
         }
@@ -9022,7 +9033,7 @@ pub fn f_timer_start(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// "timer_stop(timerid)" function
 pub fn f_timer_stop(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         if !tv_check_for_number_arg(argvars, 0) {
             return;
         }
@@ -9030,7 +9041,7 @@ pub fn f_timer_stop(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFunc
         if timer.is_null() {
             return;
         }
-        timer_stop(&mut *timer);
+        timer_stop(unsafe { &mut *timer });
     }
 }
 

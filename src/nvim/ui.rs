@@ -178,13 +178,13 @@ pub fn ui_free_all_mem() {
 }
 
 pub fn ui_rgb_attached() -> bool {
-    unsafe {
+    {
         if opt_vars().p_tgc != 0 {
             return true;
         }
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             let is_tui = ui.stdin_tty || ui.stdout_tty;
             if !is_tui && ui.rgb {
                 return true;
@@ -195,10 +195,10 @@ pub fn ui_rgb_attached() -> bool {
 }
 
 pub fn ui_gui_attached() -> bool {
-    unsafe {
+    {
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             let is_tui = ui.stdin_tty || ui.stdout_tty;
             if !is_tui {
                 return true;
@@ -209,10 +209,10 @@ pub fn ui_gui_attached() -> bool {
 }
 
 pub fn ui_override() -> bool {
-    unsafe {
+    {
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             if ui.r#override {
                 return true;
             }
@@ -306,11 +306,11 @@ pub fn ui_refresh() {
 }
 
 pub fn ui_pum_get_height() -> i32 {
-    unsafe {
+    {
         let mut pum_height: i32 = 0;
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             let ui_pum_height = ui.pum_nlines;
             if ui_pum_height != 0 {
                 pum_height = if pum_height != 0 {
@@ -325,10 +325,10 @@ pub fn ui_pum_get_height() -> i32 {
 }
 
 pub fn ui_pum_get_pos(pwidth: &mut f64, pheight: &mut f64, prow: &mut f64, pcol: &mut f64) -> bool {
-    unsafe {
+    {
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             if !ui.pum_pos {
                 continue;
             }
@@ -419,10 +419,10 @@ pub fn vim_beep(val: u32) {
 }
 
 pub fn do_autocmd_uienter_all() {
-    unsafe {
+    {
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             do_autocmd_uienter(ui.channel_id, true);
         }
     }
@@ -436,7 +436,7 @@ pub fn ui_can_attach_more() -> bool {
 }
 
 pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
-    unsafe {
+    {
         let uis_ptr = &mut ui_state().uis;
         if uis_ptr.len() >= MAX_UI_COUNT {
             std::process::abort();
@@ -454,7 +454,7 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
 
         let mut cwd: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut cwdlen = MAXPATHL;
-        if uv_cwd(cwd.as_mut_ptr(), &mut cwdlen) == 0 {
+        if unsafe { uv_cwd(cwd.as_mut_ptr(), &mut cwdlen) } == 0 {
             ui_call_chdir(NvimString {
                 data: cwd.as_mut_ptr(),
                 size: cwdlen,
@@ -775,12 +775,12 @@ pub fn ui_has(ext: UIExtension) -> bool {
 }
 
 pub fn ui_array(arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let uis_ptr = &ui_state().uis;
         let mut all_uis = arena_array(arena, uis_ptr.len());
 
         for &ui_ptr in uis_ptr {
-            let ui = &mut *ui_ptr;
+            let ui = unsafe { &mut *ui_ptr };
             let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
             let mut put_info = |k: &std::ffi::CStr, v: Object| {
                 *info.next_slot_mut() = KeyValuePair {
@@ -835,7 +835,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
 }
 
 pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut Error) {
-    unsafe {
+    {
         if grid_handle == DEFAULT_GRID_HANDLE {
             screen_resize(width, height);
             return;
@@ -851,7 +851,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
             );
             return;
         }
-        let wp = { &mut *wp };
+        let wp = unsafe { &mut *wp };
 
         if wp.w_floating {
             if width != wp.w_width || height != wp.w_height {
@@ -896,7 +896,7 @@ fn ui_attach_error(
 }
 
 pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
-    unsafe {
+    {
         let save_expr_map_lock = g_st().expr_map_lock;
         let save_textlock = g_st().textlock;
         g_st().expr_map_lock = 0;
@@ -937,7 +937,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
         if !handled {
             let uis_ptr = &ui_state().uis;
             for &ui_ptr in uis_ptr {
-                remote_ui_event(&mut *ui_ptr, name, args);
+                remote_ui_event(unsafe { &mut *ui_ptr }, name, args);
             }
         }
     }

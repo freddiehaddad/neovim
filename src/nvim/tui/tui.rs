@@ -1620,11 +1620,13 @@ fn cursor_goto(tui: &mut TUIData, row: i32, col: i32) {
 }
 
 fn print_spaces(tui: &mut TUIData, width: i32) {
-    unsafe {
+    {
         let mut left = width as usize;
         loop {
             let buf_fit = left.min(tui.buf.len() - tui.bufpos);
-            ptr::write_bytes(tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), b' ', buf_fit);
+            unsafe {
+                ptr::write_bytes(tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), b' ', buf_fit)
+            };
             tui.bufpos += buf_fit;
             left -= buf_fit;
             if left == 0 {
@@ -2036,7 +2038,7 @@ pub fn tui_bell(tui: &mut TUIData) {
 }
 
 pub fn tui_visual_bell(tui: &mut TUIData) {
-    unsafe {
+    {
         if tui.screen_or_tmux {
             let seq = b"\x1bg";
             out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
@@ -2045,7 +2047,7 @@ pub fn tui_visual_bell(tui: &mut TUIData) {
             out(tui, on.as_ptr().cast::<c_char>(), on.len());
 
             flush_buf(tui, FlushBufFinish::FlushBufFinal);
-            uv_sleep(100);
+            unsafe { uv_sleep(100) };
 
             let off = b"\x1b[?5l";
             out(tui, off.as_ptr().cast::<c_char>(), off.len());
@@ -2512,13 +2514,14 @@ fn parse_sscanf_int(val: impl crate::strings::IntoCCharPtr, out: &mut i32) -> bo
 }
 
 pub fn tui_guess_size(tui: &mut TUIData) {
-    unsafe {
+    {
         let mut width: i32 = 0;
         let mut height: i32 = 0;
 
         let mut got_size = false;
         if tui.out_isatty
-            && uv_tty_get_winsize(tui_output_handle(tui).cast(), &mut width, &mut height) == 0
+            && unsafe { uv_tty_get_winsize(tui_output_handle(tui).cast(), &mut width, &mut height) }
+                == 0
         {
             got_size = true;
         }
@@ -2548,7 +2551,7 @@ pub fn tui_guess_size(tui: &mut TUIData) {
 }
 
 fn out(tui: &mut TUIData, str_: *const c_char, len: usize) {
-    unsafe {
+    {
         let available = tui.buf.len() - tui.bufpos;
         if len > available {
             flush_buf(tui, FlushBufFinish::FlushBufPartial);
@@ -2559,7 +2562,9 @@ fn out(tui: &mut TUIData, str_: *const c_char, len: usize) {
             }
         }
 
-        ptr::copy_nonoverlapping(str_, tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), len);
+        unsafe {
+            ptr::copy_nonoverlapping(str_, tui.buf.as_mut_ptr().wrapping_add(tui.bufpos), len)
+        };
         tui.bufpos += len;
     }
 }
@@ -2571,7 +2576,7 @@ fn out_len(tui: &mut TUIData, bytes: Option<&[u8]>) {
 }
 
 fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
-    unsafe {
+    {
         assert!(limit <= tui.buf.len());
         let available = tui.buf.len() - tui.bufpos;
         if available < limit {
@@ -2579,11 +2584,13 @@ fn out_printf_str(tui: &mut TUIData, limit: usize, formatted: &str) {
         }
         let bytes = formatted.as_bytes();
         let copy_len = bytes.len().min(limit.saturating_sub(1));
-        ptr::copy_nonoverlapping(
-            bytes.as_ptr().cast::<c_char>(),
-            tui.buf.as_mut_ptr().wrapping_add(tui.bufpos),
-            copy_len,
-        );
+        unsafe {
+            ptr::copy_nonoverlapping(
+                bytes.as_ptr().cast::<c_char>(),
+                tui.buf.as_mut_ptr().wrapping_add(tui.bufpos),
+                copy_len,
+            )
+        };
         if limit > 0 {
             tui.buf[tui.bufpos + copy_len] = 0;
         }
@@ -2613,7 +2620,7 @@ fn terminfo_print_num(tui: &mut TUIData, what: TerminfoDef, num1: i32, num2: i32
 }
 
 fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
-    unsafe {
+    {
         if what >= K_TERM_COUNT {
             std::process::abort();
         }
@@ -2630,7 +2637,7 @@ fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
         let buf_end = buf_start.wrapping_add(tui.buf.len());
         if tui.buf.len() - tui.bufpos > TERMINFO_SEQ_LIMIT {
             let mut copy_params = [TPVAR::default(); 9];
-            ptr::copy_nonoverlapping(params, copy_params.as_mut_ptr(), 9);
+            unsafe { ptr::copy_nonoverlapping(params, copy_params.as_mut_ptr(), 9) };
             let len = terminfo_fmt(
                 buf_start.wrapping_add(tui.bufpos),
                 buf_end,

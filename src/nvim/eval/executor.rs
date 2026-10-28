@@ -32,9 +32,9 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
         return true;
     }
 
-    unsafe {
+    {
         if !b2.bv_ga.is_empty() {
-            let b1_ref = &mut *b1;
+            let b1_ref = unsafe { &mut *b1 };
             if std::ptr::eq(b1_ref, b2) {
                 let copy = b1_ref.bv_ga.clone();
                 b1_ref.bv_ga.extend_from_slice(&copy);

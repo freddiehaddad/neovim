@@ -228,12 +228,12 @@ fn pum() -> &'static mut PopupmenuState {
 use crate::api::private::helpers::cstr_to_string;
 
 fn pum_compute_size() {
-    unsafe {
+    {
         pum().base_width = 0;
         pum().kind_width = 0;
         pum().extra_width = 0;
         for i in 0..(pum().size as usize) {
-            let item = &*pum().array.wrapping_add(i);
+            let item = unsafe { &*pum().array.wrapping_add(i) };
             if let Some(ref text) = item.pum_text {
                 let w = vim_strsize(text.as_ptr().cast_mut());
                 if pum().base_width < w {
@@ -763,8 +763,8 @@ fn pum_align_order(order: &mut [i32; 3]) {
 
 #[inline]
 fn pum_get_item(index: i32, type_: i32) -> *mut c_char {
-    unsafe {
-        let item = &*pum().array.wrapping_add(index as usize);
+    {
+        let item = unsafe { &*pum().array.wrapping_add(index as usize) };
         match type_ {
             CPT_ABBR => item.text_ptr(),
             CPT_KIND => item.kind_ptr(),
@@ -776,8 +776,8 @@ fn pum_get_item(index: i32, type_: i32) -> *mut c_char {
 
 #[inline]
 fn pum_user_attr_combine(idx: i32, type_: i32, attr: i32) -> i32 {
-    unsafe {
-        let item = &*pum().array.wrapping_add(idx as usize);
+    {
+        let item = unsafe { &*pum().array.wrapping_add(idx as usize) };
         let user_attr = [item.pum_user_abbr_hlattr, item.pum_user_kind_hlattr];
         let u = user_attr[type_ as usize];
         if u > 0 {

@@ -362,7 +362,7 @@ fn do_markset_autocmd(c: c_char, pos: &CursorPos, buf: &mut FileBuf) {
 
 /// Set named mark `c` to position `pos` (`setmark_pos`).
 pub fn setmark_pos(c: i32, pos: &mut CursorPos, fnum: i32, view_pt: Option<&Fmarkv>) -> bool {
-    unsafe {
+    {
         let view = if let Some(view_pt) = view_pt {
             *view_pt
         } else {
@@ -387,7 +387,7 @@ pub fn setmark_pos(c: i32, pos: &mut CursorPos, fnum: i32, view_pt: Option<&Fmar
         if buf.is_null() {
             return false;
         }
-        let buf = { &mut *buf };
+        let buf = unsafe { &mut *buf };
 
         if c == b'"' as i32 {
             reset_fmark(&mut buf.b_last_cursor, *pos, buf.b_fnum, view);
@@ -919,7 +919,7 @@ fn fname2fnum(fm: &mut Xfmark) {
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
 pub fn fmarks_check_names(buf: &mut FileBuf) {
-    unsafe {
+    {
         let name = buf.b_ffname;
         if name.is_null() {
             return;
@@ -927,7 +927,7 @@ pub fn fmarks_check_names(buf: &mut FileBuf) {
 
         for i in 0..NGLOBALMARKS {
             fmarks_check_one(
-                &mut *(&raw mut g_st().namedfm).cast::<Xfmark>().wrapping_add(i),
+                unsafe { &mut *(&raw mut g_st().namedfm).cast::<Xfmark>().wrapping_add(i) },
                 name,
                 buf,
             );
@@ -1203,7 +1203,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
 
 /// Print the jumplist (`ex_jumps`).
 pub fn ex_jumps(_eap: &mut Exarg) {
-    unsafe {
+    {
         cleanup_jumplist(curwin_mut(), true);
         msg_ext_set_kind(c"list_cmd");
         msg_puts_title(gettext(c"\n jump line  col file/text"));
@@ -1240,11 +1240,13 @@ pub fn ex_jumps(_eap: &mut Exarg) {
                 let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
                 let bytes = s.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
-                ptr::copy_nonoverlapping(
-                    bytes.as_ptr().cast::<c_char>(),
-                    g_st().iobuff.as_mut_ptr(),
-                    copy_len,
-                );
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        bytes.as_ptr().cast::<c_char>(),
+                        g_st().iobuff.as_mut_ptr(),
+                        copy_len,
+                    )
+                };
                 g_st().iobuff[copy_len] = NUL;
 
                 msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
@@ -1277,7 +1279,7 @@ pub fn ex_clearjumps(_eap: &mut Exarg) {
 
 /// Print the changelist (`ex_changes`).
 pub fn ex_changes(_eap: &mut Exarg) {
-    unsafe {
+    {
         msg_ext_set_kind(c"list_cmd");
         msg_puts_title(gettext(c"\nchange line  col text"));
 
@@ -1300,11 +1302,13 @@ pub fn ex_changes(_eap: &mut Exarg) {
                 let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
                 let bytes = s.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
-                ptr::copy_nonoverlapping(
-                    bytes.as_ptr().cast::<c_char>(),
-                    g_st().iobuff.as_mut_ptr(),
-                    copy_len,
-                );
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        bytes.as_ptr().cast::<c_char>(),
+                        g_st().iobuff.as_mut_ptr(),
+                        copy_len,
+                    )
+                };
                 g_st().iobuff[copy_len] = NUL;
 
                 msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
@@ -2231,12 +2235,12 @@ pub fn get_raw_global_mark(name: c_char) -> Xfmark {
 
 /// Get information about global marks (`get_global_marks`).
 pub fn get_global_marks(l: &mut TvList) {
-    unsafe {
+    {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 
         let fm_base = (&raw const g_st().namedfm).cast::<Xfmark>();
         for i in 0..(NMARKS + EXTRA_MARKS) {
-            let fm = &*fm_base.wrapping_add(i);
+            let fm = unsafe { &*fm_base.wrapping_add(i) };
             let owned_name = if fm.fmark.fnum != 0 {
                 buflist_nr2name(fm.fmark.fnum, 1, 1)
             } else {

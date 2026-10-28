@@ -195,11 +195,11 @@ pub fn schar_from_str(str_: impl crate::strings::IntoCCharPtr) -> Schar {
 
 pub fn schar_from_buf(buf: impl crate::strings::IntoCCharPtr, len: usize) -> Schar {
     let buf = buf.into_c_char_ptr();
-    unsafe {
+    {
         assert!(len < MAX_SCHAR_SIZE);
         if len <= 4 {
             let mut sc: Schar = 0;
-            ptr::copy_nonoverlapping(buf.cast::<u8>(), (&raw mut sc).cast::<u8>(), len);
+            unsafe { ptr::copy_nonoverlapping(buf.cast::<u8>(), (&raw mut sc).cast::<u8>(), len) };
             sc
         } else {
             let bytes = crate::memory::cstr_slice(buf, len);
@@ -507,10 +507,10 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
 }
 
 pub fn grid_line_getchar(mut col: i32, mut attr: Option<&mut i32>) -> Schar {
-    unsafe {
+    {
         if col < grid_st().grid_line_maxcol {
             col += grid_st().grid_line_coloff;
-            let grid = &*grid_st().grid_line_grid;
+            let grid = unsafe { &*grid_st().grid_line_grid };
             let off = grid.line_offset[grid_st().grid_line_row as usize] + col as usize;
             if let Some(ref mut p) = attr {
                 **p = grid.attrs[off];
@@ -700,7 +700,7 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
 }
 
 pub fn grid_line_flush() {
-    unsafe {
+    {
         let grid = grid_st().grid_line_grid;
         grid_st().grid_line_grid = ptr::null_mut();
         grid_st().grid_line_clear_to = grid_st().grid_line_last.max(grid_st().grid_line_clear_to);
@@ -710,7 +710,7 @@ pub fn grid_line_flush() {
         }
 
         grid_put_linebuf(
-            &mut *grid,
+            unsafe { &mut *grid },
             grid_st().grid_line_row,
             grid_st().grid_line_coloff,
             grid_st().grid_line_first,
@@ -1048,10 +1048,10 @@ pub fn grid_free_all_mem() {
 }
 
 pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
-    unsafe {
+    {
         let grid = &mut wp.w_grid;
         let grid_allocated: *mut ScreenGrid = &raw mut wp.w_grid_alloc;
-        let grid_allocated = &mut *grid_allocated;
+        let grid_allocated = unsafe { &mut *grid_allocated };
 
         let total_rows = wp.w_height_outer;
         let total_cols = wp.w_width_outer;

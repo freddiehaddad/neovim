@@ -1547,7 +1547,7 @@ pub fn swapchar(op_type: i32, pos: &mut CursorPos) -> bool {
 
 /// Insert and append operators for Visual mode.
 pub fn op_insert(oap: &mut Oparg, count1: i32) {
-    unsafe {
+    {
         let mut pre_textlen: i32 = 0;
         let mut ind_pre_col: Colnr = 0;
         let mut ind_pre_vcol: i32 = 0;
@@ -1713,7 +1713,9 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             let ins_len = len - pre_textlen - offset;
             if pre_textlen >= 0 && ins_len > 0 {
                 let mut ins_text = Vec::with_capacity(ins_len as usize + 1);
-                ins_text.extend_from_slice(std::slice::from_raw_parts(firstline, ins_len as usize));
+                ins_text.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(firstline, ins_len as usize)
+                });
                 ins_text.push(NUL);
                 if u_save(oap.start.lnum, oap.end.lnum + 1) {
                     block_insert(

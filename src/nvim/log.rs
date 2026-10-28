@@ -249,8 +249,8 @@ fn log_path_init() {
 }
 
 pub fn log_init() {
-    unsafe {
-        uv_mutex_init_recursive((&raw mut log_st().mutex).cast());
+    {
+        unsafe { uv_mutex_init_recursive((&raw mut log_st().mutex).cast()) };
         log_path_init();
         log_st().did_log_init = true;
     }
@@ -287,7 +287,7 @@ pub fn logmsg_str(
     let context = context.into_c_char_ptr();
     let func_name = func_name.into_c_char_ptr();
     let msg = msg.into_c_char_ptr();
-    unsafe {
+    {
         if !log_st().did_log_init {
             g_st().g_stats.log_skip += 1;
             return false;
@@ -334,7 +334,7 @@ pub fn logmsg_str(
         let log_file = open_log_file();
         let ret = do_log_to_file_str(log_file, log_level, context, func_name, line_num, eol, msg);
         if !log_is_std_stream(log_file) {
-            fclose(log_file);
+            unsafe { fclose(log_file) };
         }
         log_st().recursive = false;
         log_unlock();

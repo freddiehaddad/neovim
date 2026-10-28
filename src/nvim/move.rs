@@ -875,8 +875,8 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 /// fold column and sign column.
 #[unsafe(no_mangle)]
 pub extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> i32 {
-    unsafe {
-        let wp = &mut *wp;
+    {
+        let wp = unsafe { &mut *wp };
         let num_off = if wp.w_onebuf_opt.wo_nu != 0
             || wp.w_onebuf_opt.wo_rnu != 0
             || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
@@ -908,7 +908,7 @@ pub fn win_col_off2(wp: &mut WinInfoInfo) -> i32 {
 /// Compute `wp->w_wcol` and `wp->w_virtcol`, and update `wp->w_wrow`,
 /// `wp->w_cline_row`, and `wp->w_leftcol`.
 pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
-    unsafe {
+    {
         let mut startcol: Colnr = 0;
         let mut endcol: Colnr = 0;
 
@@ -925,7 +925,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
         } else {
             let wp_ptr: *mut WinInfoInfo = wp;
             getvvcol(
-                &mut *wp_ptr,
+                unsafe { &mut *wp_ptr },
                 &mut wp.w_cursor,
                 Some(&mut startcol),
                 Some(&mut wp.w_virtcol),

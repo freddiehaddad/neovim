@@ -2089,7 +2089,7 @@ fn reg(paren: i32, flagp: &mut i32) -> *mut u8 {
 }
 
 pub(super) fn bt_regcomp(expr: *mut u8, re_flags: i32) -> Option<BtRegprog> {
-    unsafe {
+    {
         let mut flags: i32 = 0;
 
         if expr.is_null() {
@@ -2182,7 +2182,8 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: i32) -> Option<BtRegprog> {
                     scan = regnext(scan);
                 }
                 if !longest.is_null() {
-                    r.regmust_off = Some(longest.offset_from(r.program.as_ptr()) as usize);
+                    r.regmust_off =
+                        Some(unsafe { longest.offset_from(r.program.as_ptr()) } as usize);
                 }
                 r.regmlen = len;
             }
@@ -2192,11 +2193,11 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: i32) -> Option<BtRegprog> {
 }
 
 fn reg_save(save: &mut Regsave) {
-    unsafe {
+    {
         let len = re_st().backpos.len() as i32;
         if reg_multi() {
             save.rs_u = crate::regexp::RegPos::Pos(Lpos {
-                col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
+                col: unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr,
                 lnum: re_st().rex.lnum,
             });
         } else {
@@ -2235,10 +2236,10 @@ fn reg_save_equal(save: &Regsave) -> bool {
 }
 
 fn save_se_multi(savep: &mut SaveSe, posp: &mut Lpos) {
-    unsafe {
+    {
         savep.se_u = crate::regexp::RegPos::Pos(*posp);
         posp.lnum = re_st().rex.lnum;
-        posp.col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
+        posp.col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr;
     }
 }
 
@@ -2591,7 +2592,7 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
         assert!(size_of::<Regstar>().is_multiple_of(8));
         assert!(size_of::<Regbehind>().is_multiple_of(8));
     }
-    unsafe {
+    {
         if i64::from(((re_st().regstack.len() * 8) as u32) >> 10) >= opt_vars().p_mmp {
             emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
             return ptr::null_mut();
@@ -2601,11 +2602,13 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
             .regstack
             .resize(old_len + size_of::<Regitem>() / 8, 0);
 
-        let rp = &mut *re_st()
-            .regstack
-            .as_mut_ptr()
-            .wrapping_add(old_len)
-            .cast::<Regitem>();
+        let rp = unsafe {
+            &mut *re_st()
+                .regstack
+                .as_mut_ptr()
+                .wrapping_add(old_len)
+                .cast::<Regitem>()
+        };
         rp.rs_state = state;
         rp.rs_scan = scan;
         rp

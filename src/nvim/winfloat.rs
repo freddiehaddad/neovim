@@ -467,13 +467,13 @@ pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mu
 /// Abort `win_float_special()`: emit any error, tear down the half-built window, unblock autocmds.
 #[inline]
 fn win_float_special_fail(wp: *mut WinInfoInfo, err: &mut Error) -> *mut WinInfoInfo {
-    unsafe {
+    {
         if error_set(err) {
             emsg(err.msg_ptr());
             api_clear_error(err);
         }
         if !wp.is_null() {
-            win_remove(&mut *wp, ptr::null_mut());
+            win_remove(unsafe { &mut *wp }, ptr::null_mut());
             win_free(wp, ptr::null_mut());
         }
         unblock_autocmds();
@@ -491,7 +491,7 @@ pub fn win_float_anchor_preview(wp: &mut WinInfoInfo) {
 
 /// Creates a special floatwin: a 'previewpopup' preview or a pum-info popup (`win_float_special`).
 pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinInfoInfo {
-    unsafe {
+    {
         let mut config = WIN_CONFIG_INIT;
         config.col = curwin_mut().w_wcol as f64;
         config.row = curwin_mut().w_wrow as f64;
@@ -514,7 +514,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
         if wp.is_null() {
             return win_float_special_fail(wp, &mut err);
         }
-        let wp = { &mut *wp };
+        let wp = unsafe { &mut *wp };
 
         if new_buf {
             let b = nvim_create_buf(false, true, &mut err);
@@ -655,9 +655,10 @@ pub fn win_previewpopup_config(
     config: &mut WinConfig,
 ) -> bool {
     let value = value.into_c_char_ptr();
-    unsafe {
-        let v =
-            &mut *opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
+    {
+        let v = unsafe {
+            &mut *opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>()
+        };
 
         if (has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) && v.height < 1)
             || (has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) && v.width < 1)

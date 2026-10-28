@@ -1194,12 +1194,12 @@ fn func_clear_free(fp: *mut UserFunc, force: bool) {
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
 pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> &'static mut Funccall {
-    unsafe {
+    {
         let fc = Box::leak(Box::new(Funccall::new()));
         fc.fc_caller = uf_st().current_funccal;
         uf_st().current_funccal = fc;
         fc.fc_func = fp;
-        func_ptr_ref(fp.as_mut());
+        func_ptr_ref(unsafe { fp.as_mut() });
         fc.fc_rettv = rettv;
         &mut *fc
     }
@@ -3378,7 +3378,7 @@ pub fn function_exists(name: impl crate::strings::IntoCCharPtr, no_deref: bool) 
 /// Function given to `ExpandGeneric()` to obtain the list of user defined
 /// function names.
 pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    unsafe {
+    {
         if idx == 0 {
             uf_st().get_uf_done = 0;
             uf_st().get_uf_items = uf_st().func_hashtab.values().copied().collect();
@@ -3388,7 +3388,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
             && uf_st().get_uf_done < uf_st().get_uf_items.len()
         {
             let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done];
-            let fp = { &mut *fp };
+            let fp = unsafe { &mut *fp };
             uf_st().get_uf_done += 1;
 
             if (fp.uf_flags & FC_DICT) != 0
@@ -4016,7 +4016,7 @@ pub fn do_return(
 
 /// Generate a return command for producing the value of `rettv`.
 pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
-    unsafe {
+    {
         let mut tofree: Option<std::ffi::CString> = None;
         if let Some(mut tv) = rettv {
             tofree = Some(encode_tv2echo(&mut tv, None));
@@ -4036,10 +4036,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
             iobuff_len = IOSIZE - 1;
         }
         drop(tofree);
-        cstr_from_bytes(std::slice::from_raw_parts(
-            iobuff_ptr.cast::<u8>(),
-            iobuff_len,
-        ))
+        cstr_from_bytes(unsafe { std::slice::from_raw_parts(iobuff_ptr.cast::<u8>(), iobuff_len) })
     }
 }
 
@@ -4479,12 +4476,13 @@ pub fn set_ref_in_call_stack(copy_id: i32) -> bool {
 }
 
 pub fn set_ref_in_functions(copy_id: i32) -> bool {
-    unsafe {
+    {
         for &fp in uf_st().func_hashtab.values() {
             if g_st().got_int {
                 break;
             }
-            if !func_name_refcount(uf2hikey(&*fp)) && set_ref_in_func(ptr::null_mut(), fp, copy_id)
+            if !func_name_refcount(uf2hikey(unsafe { &*fp }))
+                && set_ref_in_func(ptr::null_mut(), fp, copy_id)
             {
                 return true;
             }
@@ -4494,9 +4492,14 @@ pub fn set_ref_in_functions(copy_id: i32) -> bool {
 }
 
 pub fn set_ref_in_func_args(copy_id: i32) -> bool {
-    unsafe {
+    {
         for &tv in &uf_st().funcargs {
-            if set_ref_in_item(&mut *tv, copy_id, ptr::null_mut(), ptr::null_mut()) {
+            if set_ref_in_item(
+                unsafe { &mut *tv },
+                copy_id,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            ) {
                 return true;
             }
         }

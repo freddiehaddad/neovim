@@ -6222,7 +6222,7 @@ fn execute_cmd0(
 }
 
 pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
-    unsafe {
+    {
         let mut retv: i32 = 0;
         if !do_cmdline_start() {
             let _ = emsg(gettext(E_COMMAND_TOO_RECURSIVE));
@@ -6230,7 +6230,8 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
         }
 
         let mut errormsg: *const c_char = ptr::null();
-        let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, std::mem::take(&mut *cmod));
+        let save_cmdmod =
+            unsafe { ptr::replace(&raw mut g_st().cmdmod, std::mem::take(&mut *cmod)) };
 
         apply_cmdmod(&mut g_st().cmdmod);
 
@@ -6300,7 +6301,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
 }
 
 fn profile_cmd(eap: &Exarg, cstack: &mut Cstack, fgetline: LineGetter) {
-    unsafe {
+    {
         if g_st().do_profiling == PROF_YES
             && (eap.skip == 0
                 || cstack.cs_idx == 0
@@ -6332,7 +6333,7 @@ fn profile_cmd(eap: &Exarg, cstack: &mut Cstack, fgetline: LineGetter) {
 
             if !skip {
                 if let Some(fcp) = fgetline.as_func() {
-                    func_line_exec(&mut *fcp);
+                    func_line_exec(unsafe { &mut *fcp });
                 } else if fgetline.is_source() {
                     script_line_exec();
                 }
@@ -9664,7 +9665,7 @@ fn ex_restart(eap: &mut Exarg) {
 }
 
 fn ex_close(eap: &mut Exarg) {
-    unsafe {
+    {
         if !text_locked() && !curbuf_locked() {
             let win = if eap.addr_count == 0 {
                 curwin_ptr()
@@ -9672,7 +9673,7 @@ fn ex_close(eap: &mut Exarg) {
                 let w = win_find_nr(eap.line2, g_st().curtab);
                 if w.is_null() { g_st().lastwin } else { w }
             };
-            ex_win_close(eap.forceit, &mut *win, ptr::null_mut());
+            ex_win_close(eap.forceit, unsafe { &mut *win }, ptr::null_mut());
         }
     }
 }
@@ -9735,7 +9736,7 @@ pub fn ex_win_close(forceit: i32, win: &mut WinInfoInfo, tp: *mut TabPageInfo) {
 }
 
 fn ex_tabclose(eap: &mut Exarg) {
-    unsafe {
+    {
         if crate::globals::first_tabpage_mut().tp_next.is_null() {
             let _ = emsg(gettext(c"E784: Cannot close last tab page"));
             return;
@@ -9756,7 +9757,7 @@ fn ex_tabclose(eap: &mut Exarg) {
             return;
         }
         if tp != g_st().curtab {
-            tabpage_close_other(&mut *tp, eap.forceit);
+            tabpage_close_other(unsafe { &mut *tp }, eap.forceit);
         } else if !text_locked() && !curbuf_locked() {
             tabpage_close(eap.forceit);
         }
@@ -10027,7 +10028,7 @@ fn ex_wrongmodifier(eap: &mut Exarg) {
 
 fn call_findfunc(pat: impl crate::strings::IntoCCharPtr, cmdcomplete: BoolVarValue) -> *mut TvList {
     let pat = pat.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let saved_sctx = g_st().current_sctx;
 
         let mut args = [
@@ -10063,7 +10064,12 @@ fn call_findfunc(pat: impl crate::strings::IntoCCharPtr, cmdcomplete: BoolVarVal
         let mut retlist: *mut TvList = ptr::null_mut();
         if retval {
             if rettv.v_type == VarType::VarList {
-                retlist = tv_list_copy(None, rettv.vval.v_list().as_mut(), false, get_copy_id());
+                retlist = tv_list_copy(
+                    None,
+                    unsafe { rettv.vval.v_list().as_mut() },
+                    false,
+                    get_copy_id(),
+                );
             } else {
                 let _ = emsg(gettext(E_INVALID_RETURN_TYPE_FROM_FINDFUNC));
             }
@@ -10866,7 +10872,7 @@ fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
 }
 
 fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
-    unsafe {
+    {
         if scope == K_CD_SCOPE_BUFFER {
             curbuf_mut().b_localdir = None;
         }
@@ -10878,7 +10884,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         }
 
         if scope < K_CD_SCOPE_GLOBAL {
-            let pdir = &*get_prevdir(scope);
+            let pdir = unsafe { &*get_prevdir(scope) };
             if g_st().globaldir.is_none() && pdir.is_some() {
                 g_st().globaldir = pdir.clone();
             }
@@ -11653,10 +11659,10 @@ fn close_redir() {
 
 pub fn vim_mkdir_emsg(name: impl crate::strings::IntoCCharPtr, prot: i32) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let ret = os_mkdir(name, prot);
         if ret != 0 {
-            let _ = semsg!(gettext(E_MKDIR), name, uv_strerror(ret));
+            let _ = semsg!(gettext(E_MKDIR), name, unsafe { uv_strerror(ret) });
             return false;
         }
         true
@@ -11722,7 +11728,7 @@ pub fn update_topline_cursor() {
 }
 
 pub fn save_current_state(sst: &mut SaveState) {
-    unsafe {
+    {
         sst.save_msg_scroll = g_st().msg_scroll;
         sst.save_restart_edit = g_st().restart_edit;
         sst.save_msg_didout = g_st().msg_didout;
@@ -11735,13 +11741,13 @@ pub fn save_current_state(sst: &mut SaveState) {
         g_st().msg_scroll = 0;
         g_st().restart_edit = 0;
 
-        save_typeahead(&mut *(&raw mut sst.tabuf).cast());
+        save_typeahead(unsafe { &mut *(&raw mut sst.tabuf).cast() });
     }
 }
 
 pub fn restore_current_state(sst: &mut SaveState) {
-    unsafe {
-        restore_typeahead(&mut *(&raw mut sst.tabuf).cast());
+    {
+        restore_typeahead(unsafe { &mut *(&raw mut sst.tabuf).cast() });
 
         g_st().msg_scroll = sst.save_msg_scroll;
         if g_st().force_restart_edit {
@@ -12773,7 +12779,7 @@ fn ex_checkhealth(eap: &mut Exarg) {
 }
 
 fn ex_terminal(eap: &mut Exarg) {
-    unsafe {
+    {
         let scroll_save = g_st().msg_scroll;
         g_st().msg_scroll = 0;
         autowrite_all();
@@ -12797,7 +12803,7 @@ fn ex_terminal(eap: &mut Exarg) {
             tv_list_alloc_ret(&mut shell_tv, 0);
             for arg in argv {
                 tv_list_append_string(
-                    &mut *shell_tv.vval.v_list(),
+                    unsafe { &mut *shell_tv.vval.v_list() },
                     arg.as_ptr(),
                     arg.as_bytes().len() as isize,
                 );

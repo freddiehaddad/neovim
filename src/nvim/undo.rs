@@ -590,13 +590,13 @@ fn u_entry_resized(buf: &mut FileBuf, uep: &UEntry) -> bool {
 
 /// Compute the hash for a buffer text into `hash[UNDO_HASH_SIZE]`.
 pub fn u_compute_hash(buf: &mut FileBuf, hash: *mut u8) {
-    unsafe {
+    {
         let mut ctx = ContextSha256::new();
         for lnum in 1..=buf.b_ml.ml_line_count {
             let p = ml_get_buf(buf, lnum);
             ctx.update(crate::memory::cstr_slice(p, crate::memory::cstr_len(p) + 1));
         }
-        ctx.finish_into(&mut *(hash as *mut [u8; UNDO_HASH_SIZE]));
+        ctx.finish_into(unsafe { &mut *(hash as *mut [u8; UNDO_HASH_SIZE]) });
     }
 }
 
@@ -1545,9 +1545,9 @@ fn undo_write_bytes(bi: &mut Bufinfo, nr: u64, len: usize) -> bool {
 }
 
 fn put_header_ptr(bi: &mut Bufinfo, uhp: Option<usize>) {
-    unsafe {
+    {
         let seq = if let Some(uh) = uhp {
-            let s = uhp_ref(&*bi.bi_buf, uh).uh_seq;
+            let s = uhp_ref(unsafe { &*bi.bi_buf }, uh).uh_seq;
             assert!(s >= 0);
             s as u64
         } else {
@@ -2026,7 +2026,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
 }
 
 fn u_undoredo(undo: bool, do_buf_event: bool) {
-    unsafe {
+    {
         let mut newlnum: Linenr = MAXLNUM;
         let mut new_curpos = curwin_mut().w_cursor;
         let curhead_idx = curbuf_mut().b_u_curhead.unwrap();
@@ -2046,7 +2046,9 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         }) | (old_flags & UH_RELOAD);
         setpcmark();
 
-        zero_fmark_additional_data(&mut *(&raw mut curbuf_mut().b_namedm).cast::<Fmark>());
+        zero_fmark_additional_data(unsafe {
+            &mut *(&raw mut curbuf_mut().b_namedm).cast::<Fmark>()
+        });
         let namedm = curbuf_mut().b_namedm.clone();
         let visualinfo = curbuf_mut().b_visual;
         curbuf_mut().b_op_start.lnum = curbuf_mut().b_ml.ml_line_count;
@@ -3144,7 +3146,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             crate::main_init::ensure_test_editor_init();
             g_st().emsg_skip += 1;
 
@@ -3170,7 +3172,7 @@ mod tests {
                 1,
                 BLN_LISTED,
             );
-            let buf = { &mut *buf };
+            let buf = unsafe { &mut *buf };
             buf.b_u_numhead = 1;
 
             let mut hash = [0u8; UNDO_HASH_SIZE];

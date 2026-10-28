@@ -661,7 +661,7 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
 }
 
 pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
-    unsafe {
+    {
         let wp = csarg.win;
         let use_tabstop = csarg.use_tabstop;
         let line: *const c_char = csarg.line;
@@ -674,7 +674,7 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 
             let cli = utf_cluster_info(ci);
             vcol += i64::from(
                 charsize_fast_impl(
-                    &mut *wp,
+                    unsafe { &mut *wp },
                     ci.ptr,
                     use_tabstop,
                     vcol_arg,

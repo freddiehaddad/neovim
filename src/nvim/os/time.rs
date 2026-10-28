@@ -71,12 +71,12 @@ pub fn os_hrtime() -> u64 {
 
 /// High-resolution real-time clock in nanoseconds since Unix epoch (`os_realtime`).
 pub fn os_realtime() -> i64 {
-    unsafe {
+    {
         let mut ts = UvTimespec64 {
             tv_sec: 0,
             tv_nsec: 0,
         };
-        if uv_clock_gettime(UV_CLOCK_REALTIME, &mut ts) != 0 {
+        if unsafe { uv_clock_gettime(UV_CLOCK_REALTIME, &mut ts) } != 0 {
             return 0;
         }
         ts.tv_sec * NS_PER_SEC + i64::from(ts.tv_nsec)
@@ -185,14 +185,16 @@ pub fn os_ctime_r(
     let mut clock_local = Tm { _fields: [0; 16] };
     let ptr = os_localtime_r(clock, &mut clock_local);
 
-    unsafe {
+    {
         if ptr.is_null()
-            || strftime(
-                result,
-                result_len.saturating_sub(1),
-                c"%a %b %d %H:%M:%S %Y".as_ptr(),
-                ptr,
-            ) == 0
+            || unsafe {
+                strftime(
+                    result,
+                    result_len.saturating_sub(1),
+                    c"%a %b %d %H:%M:%S %Y".as_ptr(),
+                    ptr,
+                )
+            } == 0
         {
             xstrlcpy(result, c"(Invalid)", result_len);
         }

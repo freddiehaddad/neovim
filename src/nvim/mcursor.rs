@@ -947,7 +947,7 @@ pub fn mc_ins_cascaded(root_frame: u64) -> bool {
 }
 
 pub fn mc_ins_cascade() {
-    unsafe {
+    {
         if !mc_st().mc_ins_span.active
             || mc_replaying()
             || (g_st().state_global & MODE_INSERT) == 0
@@ -978,10 +978,12 @@ pub fn mc_ins_cascade() {
                     keys.extend_from_slice(vsel.to_bytes());
                     skip = 2;
                 }
-                keys.extend_from_slice(std::slice::from_raw_parts(
-                    ins.data.wrapping_add(skip).cast::<u8>(),
-                    ins.size - skip,
-                ));
+                keys.extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(
+                        ins.data.wrapping_add(skip).cast::<u8>(),
+                        ins.size - skip,
+                    )
+                });
                 keys.push(ESC as u8);
                 mc_st().mc_ins_span.done_len = ins.size;
                 mc_ins_span_push(std::ffi::CString::new(keys).unwrap(), None);

@@ -258,9 +258,9 @@ pub fn ex_help(eap: &mut Exarg) {
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).
 pub fn ex_helpclose(eap: &mut Exarg) {
-    unsafe {
+    {
         for win in for_all_windows_ptr() {
-            if bt_help((win.w_buffer).as_ref()) {
+            if bt_help(unsafe { (win.w_buffer).as_ref() }) {
                 win_close(win, false, eap.forceit != 0);
                 return;
             }

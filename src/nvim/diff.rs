@@ -1238,7 +1238,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
     }
 }
 pub fn ex_diffpatch(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut buf_vec: Vec<c_char>;
         let old_curwin = curwin_ptr();
         let mut newname_vec: Vec<c_char>;
@@ -1371,7 +1371,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     do_exedit(eap, old_curwin);
                     if curwin_ptr() != old_curwin && win_valid(old_curwin) {
                         diff_win_options(curwin_mut(), true);
-                        diff_win_options(&mut *old_curwin, true);
+                        diff_win_options(unsafe { &mut *old_curwin }, true);
                         if !newname.is_null() {
                             eap.arg = newname;
                             ex_file(eap);
@@ -1736,7 +1736,7 @@ fn process_hunk(
     }
 }
 fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
-    unsafe {
+    {
         let mut fd: *mut FILE = ptr::null_mut();
         let mut line_hunk_idx: i32 = 0;
         let mut dp_idx: usize = 0;
@@ -1775,7 +1775,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
             notset = true;
         }
         if !fd.is_null() {
-            fclose(fd);
+            unsafe { fclose(fd) };
         }
     }
 }
@@ -1977,7 +1977,7 @@ fn apply_linematch_results(dp_idx: usize, decisions: &[i32]) {
     }
 }
 fn run_linematch_algorithm(dp_idx: usize) {
-    unsafe {
+    {
         let mut diffbufs_mm: [Mmfile; DB_COUNT] = [Mmfile {
             ptr: ptr::null_mut(),
             size: 0,
@@ -1991,7 +1991,7 @@ fn run_linematch_algorithm(dp_idx: usize) {
             if !curtab_mut().tp_diffbuf[i].is_null() {
                 if dp_count[i] > 0 {
                     diff_write_buffer(
-                        &mut *curtab_mut().tp_diffbuf[i],
+                        unsafe { &mut *curtab_mut().tp_diffbuf[i] },
                         &mut diffbufs_mm[ndiffs],
                         &mut diffbufs_vec[ndiffs],
                         dp_lnum[i],
@@ -2410,9 +2410,10 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     }
 }
 pub fn diffopt_changed() -> bool {
-    unsafe {
-        let v =
-            &*opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>();
+    {
+        let v = unsafe {
+            &*opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>()
+        };
         let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
             | (if v.anchor { DIFF_ANCHOR } else { 0 })
             | (if v.iblank { DIFF_IBLANK } else { 0 })
@@ -2562,7 +2563,7 @@ fn diff_find_change_simple(
     startp: &mut i32,
     endp: &mut i32,
 ) -> bool {
-    unsafe {
+    {
         let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
             None
         } else {
@@ -2585,7 +2586,10 @@ fn diff_find_change_simple(
                 if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
                     break;
                 }
-                let line_new = ml_get_buf(&mut *curtab_mut().tp_diffbuf[i], dp.df_lnum[i] + off);
+                let line_new = ml_get_buf(
+                    unsafe { &mut *curtab_mut().tp_diffbuf[i] },
+                    dp.df_lnum[i] + off,
+                );
                 let mut si_org: i32 = 0;
                 let mut si_new: i32 = 0;
                 while crate::memory::cstr_byte_at(line_org, si_org as usize) != 0 {

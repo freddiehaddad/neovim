@@ -414,9 +414,8 @@ pub fn search_regcomp(
 
 /// Get search pattern used by `search_regcomp()`.
 pub fn get_search_pat() -> *mut c_char {
-    unsafe {
-        (&raw const srch().mr_pattern)
-            .as_ref()
+    {
+        unsafe { (&raw const srch().mr_pattern).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -613,15 +612,17 @@ pub fn last_csearch_until() -> i32 {
 
 pub fn set_last_csearch(c: i32, s: impl crate::strings::IntoCCharPtr, len: i32) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         srch().lastc[0] = c as u8;
         srch().lastc_bytelen = len;
         if len != 0 {
-            ptr::copy_nonoverlapping(
-                s,
-                (&raw mut srch().lastc_bytes).cast::<c_char>(),
-                len as usize,
-            );
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    s,
+                    (&raw mut srch().lastc_bytes).cast::<c_char>(),
+                    len as usize,
+                )
+            };
         } else {
             srch().lastc_bytes = [0; MAX_SCHAR_SIZE + 1];
         }
@@ -1770,7 +1771,7 @@ pub fn search_for_exact_line(
 }
 
 pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
-    unsafe {
+    {
         let mut c = cap.nchar;
         let mut dir = cap.arg;
         let mut count = cap.count1;
@@ -1783,11 +1784,13 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 set_csearch_until(i32::from(t_cmd));
                 if cap.nchar_len != 0 {
                     srch().lastc_bytelen = cap.nchar_len;
-                    ptr::copy_nonoverlapping(
-                        cap.nchar_composing.as_ptr(),
-                        (&raw mut srch().lastc_bytes).cast::<c_char>(),
-                        cap.nchar_len as usize,
-                    );
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            cap.nchar_composing.as_ptr(),
+                            (&raw mut srch().lastc_bytes).cast::<c_char>(),
+                            cap.nchar_len as usize,
+                        )
+                    };
                 } else {
                     srch().lastc_bytelen =
                         utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast::<c_char>());
@@ -1891,7 +1894,7 @@ fn find_rawstring_end(
     endpos: &CursorPos,
 ) -> bool {
     let linep = linep.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = linep.wrapping_add((startpos.col + 1) as usize);
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'(' {
             p = p.wrapping_add(1);
@@ -1900,11 +1903,13 @@ fn find_rawstring_end(
         let delim_len =
             (crate::memory::ptr_offset_from(p, linep) as usize) - (startpos.col as usize) - 1;
         let mut delim_copy: Vec<c_char> = vec![0; delim_len + 1];
-        ptr::copy_nonoverlapping(
-            linep.wrapping_add((startpos.col + 1) as usize),
-            delim_copy.as_mut_ptr(),
-            delim_len,
-        );
+        unsafe {
+            ptr::copy_nonoverlapping(
+                linep.wrapping_add((startpos.col + 1) as usize),
+                delim_copy.as_mut_ptr(),
+                delim_len,
+            )
+        };
         let mut found = false;
         for lnum in startpos.lnum..=endpos.lnum {
             let line = ml_get(lnum);

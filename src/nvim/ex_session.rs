@@ -215,9 +215,9 @@ fn ses_skipframe(fr: *mut Frame) -> *mut Frame {
 }
 
 fn ses_do_frame(fr: &Frame) -> bool {
-    unsafe {
+    {
         if fr.fr_layout == FR_LEAF {
-            return ses_do_win(&mut *fr.fr_win) != 0;
+            return ses_do_win(unsafe { &mut *fr.fr_win }) != 0;
         }
         for frc in frame_iter_mut(fr.fr_child) {
             if ses_do_frame(frc) {
@@ -1221,8 +1221,8 @@ fn get_view_file(c: c_char) -> Option<CString> {
 }
 
 pub fn put_eol(fd: *mut FILE) -> bool {
-    unsafe {
-        if fputc(b'\n' as i32, fd) < 0 {
+    {
+        if unsafe { fputc(b'\n' as i32, fd) } < 0 {
             return false;
         }
         true
@@ -1230,8 +1230,8 @@ pub fn put_eol(fd: *mut FILE) -> bool {
 }
 
 pub fn put_line(fd: *mut FILE, s: &std::ffi::CStr) -> bool {
-    unsafe {
-        if fputs(s.as_ptr().cast_mut(), fd) < 0 || fputc(b'\n' as i32, fd) < 0 {
+    {
+        if fputs(s.as_ptr().cast_mut(), fd) < 0 || unsafe { fputc(b'\n' as i32, fd) } < 0 {
             return false;
         }
         true

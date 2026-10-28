@@ -132,9 +132,9 @@ fn set_vservername(srvs: &[*mut SocketWatcher]) {
 }
 
 pub fn server_teardown() {
-    unsafe {
+    {
         for &watcher in watchers_mut().iter() {
-            socket_watcher_close(&mut *watcher);
+            socket_watcher_close(unsafe { &mut *watcher });
         }
         srv_st().watchers = Vec::new();
     }

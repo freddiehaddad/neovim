@@ -2079,12 +2079,12 @@ pub fn utf_fold(a: i32) -> i32 {
 }
 
 pub fn mb_toupper(a: i32) -> i32 {
-    unsafe {
+    {
         if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
             return toupper_asc(a);
         }
         if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
-            return towupper(a as wint_t) as i32;
+            return unsafe { towupper(a as wint_t) } as i32;
         }
         if a < 128 {
             return toupper_asc(a);
@@ -2098,12 +2098,12 @@ pub fn mb_islower(a: i32) -> bool {
 }
 
 pub fn mb_tolower(a: i32) -> i32 {
-    unsafe {
+    {
         if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
             return tolower_asc(a);
         }
         if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
-            return towlower(a as wint_t) as i32;
+            return unsafe { towlower(a as wint_t) } as i32;
         }
         if a < 128 {
             return tolower_asc(a);

@@ -327,7 +327,7 @@ pub const fn profile_cmp(tm1: Proftime, tm2: Proftime) -> i32 {
 
 /// Reset all profiling information (`profile_reset`).
 pub fn profile_reset() {
-    unsafe {
+    {
         for id in 1..=crate::runtime::script_items_len() {
             let si = &mut *script_item(id);
             if si.sn_prof_on {
@@ -351,7 +351,7 @@ pub fn profile_reset() {
 
         let functbl = func_tbl_get();
         for &fp in functbl.values() {
-            let uf = &mut *fp;
+            let uf = unsafe { &mut *fp };
             if uf.uf_prof_initialized != 0 {
                 uf.uf_profiling = 0;
                 uf.uf_tm_count = 0;
@@ -595,8 +595,8 @@ pub fn prof_child_exit(tm: &mut Proftime) {
 
 /// Called when starting to read a function line (`func_line_start`).
 pub fn func_line_start(fcp: &mut Funccall) {
-    unsafe {
-        let fp = &mut *fcp.fc_func;
+    {
+        let fp = unsafe { &mut *fcp.fc_func };
         let slnum = sourcing_lnum();
 
         if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as i32 {
@@ -757,7 +757,7 @@ pub fn script_prof_restore(tm: &Proftime) {
 }
 
 fn script_dump_profile(fd: *mut FILE) {
-    unsafe {
+    {
         let mut iobuf = [0 as c_char; IOSIZE];
         for id in 1..=crate::runtime::script_items_len() {
             let si = script_item(id);
@@ -809,7 +809,7 @@ fn script_dump_profile(fd: *mut FILE) {
                         fprintf!(fd, c"%s", iobuf.as_ptr());
                         i += 1;
                     }
-                    fclose(sfd);
+                    unsafe { fclose(sfd) };
                 }
                 fprintf!(fd, c"\n");
             }
@@ -819,7 +819,7 @@ fn script_dump_profile(fd: *mut FILE) {
 
 /// Dump the profiling info (`profile_dump`).
 pub fn profile_dump() {
-    unsafe {
+    {
         let Some(ref profile_fname) = prof_st().profile_fname else {
             return;
         };
@@ -830,7 +830,7 @@ pub fn profile_dump() {
         } else {
             script_dump_profile(fd);
             func_dump_profile(fd);
-            fclose(fd);
+            unsafe { fclose(fd) };
         }
     }
 }

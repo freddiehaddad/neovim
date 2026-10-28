@@ -851,7 +851,7 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
 }
 
 pub fn insert_reg(regname: i32, mut reg: *mut Yankreg, literally_arg: bool) -> bool {
-    unsafe {
+    {
         let mut retval = true;
         let mut owned: Option<Vec<c_char>> = None;
         let literally = literally_arg || is_literal_register(regname);
@@ -877,7 +877,7 @@ pub fn insert_reg(regname: i32, mut reg: *mut Yankreg, literally_arg: bool) -> b
             if reg.is_null() {
                 reg = get_yank_register(regname, YREG_PASTE);
             }
-            let reg_ref = &*reg;
+            let reg_ref = unsafe { &*reg };
             if !reg_ref.y_allocated {
                 retval = false;
             } else {
@@ -2473,7 +2473,7 @@ fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) {
 }
 
 pub fn ex_display(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut arg = eap.arg;
         if !arg.is_null() && crate::memory::cstr_is_empty(arg) {
             arg = ptr::null_mut();
@@ -2518,7 +2518,7 @@ pub fn ex_display(eap: &mut Exarg) {
                 continue;
             }
 
-            let yb_ref = &*yb;
+            let yb_ref = unsafe { &*yb };
             if yb_ref.y_allocated {
                 let mut do_show = false;
                 for item in &yb_ref.y_array {

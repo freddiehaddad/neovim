@@ -375,20 +375,22 @@ pub fn error_set(e: &Error) -> bool {
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub fn try_enter(tstate: &mut TryState) {
-    unsafe {
+    {
         let saved_msg_list = g_st().msg_list.replace(Vec::new());
         let saved_excp = g_st().current_exception.take();
-        ptr::write(
-            tstate,
-            TryState {
-                current_exception: saved_excp,
-                msg_list: saved_msg_list,
-                got_int: i32::from(g_st().got_int),
-                did_throw: g_st().did_throw,
-                need_rethrow: i32::from(g_st().need_rethrow),
-                did_emsg: g_st().did_emsg,
-            },
-        );
+        unsafe {
+            ptr::write(
+                tstate,
+                TryState {
+                    current_exception: saved_excp,
+                    msg_list: saved_msg_list,
+                    got_int: i32::from(g_st().got_int),
+                    did_throw: g_st().did_throw,
+                    need_rethrow: i32::from(g_st().need_rethrow),
+                    did_emsg: g_st().did_emsg,
+                },
+            )
+        };
         g_st().got_int = false;
         g_st().did_throw = false;
         g_st().need_rethrow = false;
@@ -473,7 +475,7 @@ pub fn dict_get_value(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let di = tv_dict_find(dict, key.data, key.size as isize);
         if di.is_null() {
             api_set_error!(
@@ -484,7 +486,7 @@ pub fn dict_get_value(
             );
             return OBJECT_NIL;
         }
-        let di = { &mut *di };
+        let di = unsafe { &mut *di };
         vim_to_object(&raw mut di.di_tv, arena, true)
     }
 }
@@ -495,10 +497,10 @@ pub fn dict_check_writable(
     del: bool,
     err: &mut Error,
 ) -> *mut Dictitem {
-    unsafe {
+    {
         let di = tv_dict_find(Some(dict), key.data, key.size as isize);
         if !di.is_null() {
-            let di = { &mut *di };
+            let di = unsafe { &mut *di };
             let di = { &mut *di };
             if (di.di_flags & DI_FLAGS_RO) != 0 {
                 api_set_error!(
@@ -978,12 +980,12 @@ pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimStri
 }
 
 pub fn arena_take_arraybuilder(arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {
-    unsafe {
+    {
         let len = arr.len();
         let mut ret = arena_array(arena, len);
         ret.size = len;
         if len > 0 {
-            ptr::copy_nonoverlapping(arr.as_ptr(), ret.items, len);
+            unsafe { ptr::copy_nonoverlapping(arr.as_ptr(), ret.items, len) };
         }
         *arr = Vec::new();
         ret

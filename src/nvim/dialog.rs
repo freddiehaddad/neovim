@@ -56,13 +56,13 @@ pub(crate) fn dlg_st() -> &'static mut DialogModuleState {
 }
 
 fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
-    unsafe {
+    {
         if lowercase {
             let c = mb_tolower(utf_ptr2char(from));
             utf_char2bytes(c, to) as usize
         } else {
             let len = utfc_ptr2len(from) as usize;
-            std::ptr::copy(from.cast::<u8>(), to.cast::<u8>(), len);
+            unsafe { std::ptr::copy(from.cast::<u8>(), to.cast::<u8>(), len) };
             len
         }
     }

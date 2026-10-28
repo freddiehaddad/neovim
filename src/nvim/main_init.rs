@@ -323,13 +323,13 @@ pub fn event_init() {
 }
 
 fn event_teardown() -> bool {
-    unsafe {
+    {
         let queues = loop_queues(&mut g_st().main_loop);
         if queues.events.is_null() {
             return true;
         }
 
-        multiqueue_process_events(&mut *queues.events);
+        multiqueue_process_events(unsafe { &mut *queues.events });
         loop_poll_events(&mut g_st().main_loop, 0);
         server_teardown();
         channel_teardown();
@@ -1820,11 +1820,11 @@ fn command_line_scan(parmp: &mut Mparm) {
 }
 
 fn set_argf_var() {
-    unsafe {
+    {
         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         let count = gargcount();
         for i in 0..count {
-            let fname = alist_name(&*garglist().wrapping_add(i as usize));
+            let fname = alist_name(unsafe { &*garglist().wrapping_add(i as usize) });
             if !fname.is_null() {
                 let _ = vim_full_name(fname, g_st().name_buff.as_mut_ptr(), MAXPATHL, false);
                 tv_list_append_string(&mut *list, g_st().name_buff.as_ptr(), -1);
@@ -2442,18 +2442,16 @@ fn do_user_initialization() -> bool {
 }
 
 fn do_exrc_initialization() {
-    unsafe {
+    {
         let lstate = get_global_lstate();
         assert!(!lstate.is_null());
 
         lua_getfield(lstate, LUA_GLOBALSINDEX, c"require");
         lua_pushstring(lstate, c"vim._core.exrc");
         if nlua_pcall(lstate, 1, 0) != 0 {
-            fprintf!(
-                log_get_stderr(),
-                c"%s\n",
-                lua_tolstring(lstate, -1, ptr::null_mut()),
-            );
+            fprintf!(log_get_stderr(), c"%s\n", unsafe {
+                lua_tolstring(lstate, -1, ptr::null_mut())
+            },);
         }
     }
 }

@@ -477,25 +477,27 @@ pub fn os_conpty_spawn(
     cwd: *mut u16,
     env: *mut u16,
 ) -> bool {
-    unsafe {
+    {
         let mut pi = PROCESS_INFORMATION {
             hProcess: std::ptr::null_mut(),
             hThread: std::ptr::null_mut(),
             dwProcessId: 0,
             dwThreadId: 0,
         };
-        if CreateProcessW(
-            name,
-            cmd_line,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            0,
-            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
-            env.cast(),
-            cwd,
-            &mut conpty_object.si_ex.StartupInfo,
-            &mut pi,
-        ) == 0
+        if unsafe {
+            CreateProcessW(
+                name,
+                cmd_line,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                0,
+                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+                env.cast(),
+                cwd,
+                &mut conpty_object.si_ex.StartupInfo,
+                &mut pi,
+            )
+        } == 0
         {
             return false;
         }

@@ -179,11 +179,11 @@ pub struct DecorRange {
 impl Drop for DecorRange {
     fn drop(&mut self) {
         if self.owned {
-            unsafe {
+            {
                 if let DecorRangeData::Vt(vt) | DecorRangeData::VirtLines(vt) = self.data
                     && !vt.is_null()
                 {
-                    drop(Box::from_raw(vt));
+                    drop(unsafe { Box::from_raw(vt) });
                 }
             }
         }

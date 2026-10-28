@@ -677,8 +677,8 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
 }
 
 fn on_control(control: u8, state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         let oldpos = state.pos;
 
         match control {
@@ -2160,8 +2160,8 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
 }
 
 fn on_osc(command: i32, frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         match command {
             0 => {
                 let _ = settermprop_string(state, VTERM_PROP_ICONNAME, frag);
@@ -2301,8 +2301,8 @@ fn on_dcs(
     frag: VTermStringFragment,
     state: *mut VTermStateFull,
 ) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         if commandlen == 2
             && (crate::memory::cstr_first_byte(command)) == b'$'
             && (crate::memory::cstr_byte_at(command, 1)) == b'q'
@@ -2321,8 +2321,8 @@ fn on_dcs(
 }
 
 fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         if let Some(fallbacks) = state.fallbacks
             && let Some(cb) = fallbacks.apc
             && cb(frag, state.term_ptr()) != 0
@@ -2334,8 +2334,8 @@ fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
 }
 
 fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         if let Some(fallbacks) = state.fallbacks
             && let Some(cb) = fallbacks.pm
             && cb(frag, state.term_ptr()) != 0
@@ -2347,8 +2347,8 @@ fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
 }
 
 fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         if let Some(fallbacks) = state.fallbacks
             && let Some(cb) = fallbacks.sos
             && cb(frag, state.term_ptr()) != 0
@@ -2360,8 +2360,8 @@ fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
 }
 
 fn on_resize(rows: i32, cols: i32, state: *mut VTermStateFull) -> i32 {
-    unsafe {
-        let state = &mut *state;
+    {
+        let state = unsafe { &mut *state };
         let state_ref = &mut *state;
         let oldpos = state_ref.pos;
 
@@ -2460,12 +2460,12 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
 };
 
 pub fn vterm_obtain_state(vt: &mut VTerm) -> &'static mut VTermStateFull {
-    unsafe {
+    {
         if vt.state.is_none() {
             vt.state = Some(vterm_state_new(vt));
             vterm_parser_set_callbacks(vt, Some(&PARSER_CALLBACKS));
         }
-        &mut *vt.state_mut_ptr()
+        unsafe { &mut *vt.state_mut_ptr() }
     }
 }
 

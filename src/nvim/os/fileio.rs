@@ -260,12 +260,14 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
     let buffered = fp.write_pos.saturating_sub(fp.read_pos);
     let from_buffer = buffered.min(size);
     if from_buffer > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
-                ret_buf.cast::<u8>(),
-                from_buffer,
-            );
+        {
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
+                    ret_buf.cast::<u8>(),
+                    from_buffer,
+                )
+            };
         }
     }
 
@@ -349,12 +351,14 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
                 let r_usize = r_ret as usize;
                 fp.write_pos += r_usize;
                 let to_copy = r_usize.min(read_remaining);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
-                        buf.cast::<u8>(),
-                        to_copy,
-                    );
+                {
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
+                            buf.cast::<u8>(),
+                            to_copy,
+                        )
+                    };
                 }
                 fp.read_pos += to_copy;
                 read_remaining -= to_copy;
@@ -397,15 +401,17 @@ pub fn file_write(
     assert!(fp.wr);
     if size < file_space(fp) {
         if size > 0 {
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    buf.cast::<u8>(),
-                    fp.buffer
-                        .as_mut_ptr()
-                        .wrapping_add(fp.write_pos)
-                        .cast::<u8>(),
-                    size,
-                );
+            {
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        buf.cast::<u8>(),
+                        fp.buffer
+                            .as_mut_ptr()
+                            .wrapping_add(fp.write_pos)
+                            .cast::<u8>(),
+                        size,
+                    )
+                };
             }
             fp.write_pos += size;
         }
@@ -419,15 +425,17 @@ pub fn file_write(
 
     if size < ARENA_BLOCK_SIZE {
         if size > 0 {
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    buf.cast::<u8>(),
-                    fp.buffer
-                        .as_mut_ptr()
-                        .wrapping_add(fp.write_pos)
-                        .cast::<u8>(),
-                    size,
-                );
+            {
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        buf.cast::<u8>(),
+                        fp.buffer
+                            .as_mut_ptr()
+                            .wrapping_add(fp.write_pos)
+                            .cast::<u8>(),
+                        size,
+                    )
+                };
             }
             fp.write_pos += size;
         }

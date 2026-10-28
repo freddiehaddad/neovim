@@ -2214,7 +2214,7 @@ pub fn syn_check_group<S: crate::strings::IntoCCharPtr>(name: S, len: usize) -> 
 
 fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         for i in 0..len {
             let c = crate::memory::cstr_byte_at(name, i);
             if !vim_isprintc(i32::from(c)) {
@@ -2236,7 +2236,7 @@ fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
                 if _sz == 0 {
                     std::ptr::null_mut::<std::ffi::c_void>()
                 } else {
-                    std::slice::from_raw_parts(_s, _sz)
+                    unsafe { std::slice::from_raw_parts(_s, _sz) }
                         .iter()
                         .rposition(|&_b| _b == b'.')
                         .map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| {

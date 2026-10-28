@@ -2807,7 +2807,7 @@ pub fn f_foldlevel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "foldtext()" function
 pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
@@ -2844,7 +2844,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             let r = r_vec.as_mut_ptr();
             vim_snprintf!(r, len, txt, dashes, count);
             let r_len = crate::memory::cstr_len(r);
-            ptr::copy_nonoverlapping(s, r.wrapping_add(r_len), s_len + 1);
+            unsafe { ptr::copy_nonoverlapping(s, r.wrapping_add(r_len), s_len + 1) };
             foldtext_cleanup(r.wrapping_add(r_len));
             crate::eval::typval::tv_set_string_len(rettv, r, crate::memory::cstr_len(r));
         }

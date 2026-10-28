@@ -129,11 +129,13 @@ fn arglist_st() -> &'static mut ArglistModuleState {
 
 #[inline]
 pub fn win_alist(wp: &WinInfoInfo) -> &'static mut Alist {
-    unsafe {
-        &mut *wp
-            .w_alist
-            .as_ref()
-            .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr())
+    {
+        unsafe {
+            &mut *wp
+                .w_alist
+                .as_ref()
+                .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr())
+        }
     }
 }
 
@@ -375,7 +377,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
 
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
 fn arglist_del_files(alist_ga: &[*mut c_char]) {
-    unsafe {
+    {
         let mut regmatch: Regmatch = Regmatch::new();
         regmatch.rm_ic = opt_vars().p_fic != 0;
 
@@ -400,7 +402,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
                 let entries = arglist();
                 if vim_regexec(
                     &mut regmatch,
-                    alist_name(&*entries.wrapping_add(match_idx as usize)),
+                    alist_name(unsafe { &*entries.wrapping_add(match_idx as usize) }),
                     0,
                 ) {
                     didone = true;
@@ -873,11 +875,11 @@ pub fn ex_argdelete(eap: &mut Exarg) {
 
 /// Obtain the possible arguments of the `argedit` and `argdelete` commands (`get_arglist_name`).
 pub fn get_arglist_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    unsafe {
+    {
         if idx >= argcount() {
             return ptr::null_mut();
         }
-        alist_name(&*arglist().wrapping_add(idx as usize))
+        alist_name(unsafe { &*arglist().wrapping_add(idx as usize) })
     }
 }
 
@@ -1214,11 +1216,11 @@ pub fn ex_all(eap: &mut Exarg) {
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).
 pub fn arg_all() -> CString {
-    unsafe {
+    {
         let mut bytes: Vec<u8> = Vec::new();
         let count = argcount();
         for idx in 0..(count as usize) {
-            let p = alist_name(&*arglist().wrapping_add(idx));
+            let p = alist_name(unsafe { &*arglist().wrapping_add(idx) });
             if p.is_null() {
                 continue;
             }
@@ -1265,23 +1267,24 @@ pub fn f_argidx(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `arglistid()` function (`f_arglistid`).
 pub fn f_arglistid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         let wp = find_tabwin(&argvars[0], &argvars[1]);
         if !wp.is_null() {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(win_alist(&*wp).id as Varnumber);
+            rettv.vval =
+                crate::eval::typval::TypvalVval::Number(win_alist(unsafe { &*wp }).id as Varnumber);
         }
     }
 }
 
 fn get_arglist_as_rettv(arglist_ptr: *mut Aentry, count: i32, rettv: &mut TypVal) {
-    unsafe {
+    {
         tv_list_alloc_ret(&mut *rettv, count as isize);
         if !arglist_ptr.is_null() {
             for idx in 0..(count as usize) {
                 tv_list_append_string(
                     rettv.vval.v_list_ref(),
-                    alist_name(&*arglist_ptr.wrapping_add(idx)),
+                    alist_name(unsafe { &*arglist_ptr.wrapping_add(idx) }),
                     -1,
                 );
             }

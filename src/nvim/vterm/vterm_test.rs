@@ -799,17 +799,19 @@ pub fn vterm_screen_get_text(
         ($src:expr, $n:expr) => {{
             let n: usize = $n;
             if !buffer.is_null() && outpos + n <= len {
-                ptr::copy_nonoverlapping($src, buffer.wrapping_add(outpos), n);
+                unsafe {
+                    ptr::copy_nonoverlapping($src, buffer.wrapping_add(outpos), n);
+                }
             }
             outpos += n;
         }};
     }
 
-    unsafe {
+    {
         for row in rect.start_row..rect.end_row {
             for col in rect.start_col..rect.end_col {
                 let cell = getcell(screen, row, col);
-                let cell = { &mut *cell };
+                let cell = unsafe { &mut *cell };
                 if cell.schar == 0 {
                     padding += 1;
                 } else if cell.schar == u32::MAX {
@@ -991,7 +993,7 @@ mod tests {
     }
 
     fn init() -> &'static mut VTerm {
-        unsafe {
+        {
             crate::option_vars::opt_vars().p_emoji = 1;
             vtt_st().state_pos = VTermPos { row: 0, col: 0 };
             vtt_st().want_state_putglyph = false;
@@ -1003,7 +1005,7 @@ mod tests {
             vtt_st().want_state_scrollback = false;
             vtt_st().want_screen_scrollback = false;
             let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
-            let vt = &mut *cell.get();
+            let vt = unsafe { &mut *cell.get() };
             vtt_st().test_vt = Some(cell);
             vterm_output_set_callback(vt, Some(term_output), ptr::null_mut());
             vterm_set_utf8(vt, 1);

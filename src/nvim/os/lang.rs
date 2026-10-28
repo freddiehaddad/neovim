@@ -480,7 +480,7 @@ fn current_message_locale() -> Option<String> {
 }
 
 fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
-    unsafe {
+    {
         let catalogs = &mut lang_st().catalogs;
         if !lang_st().catalog_valid {
             lang_st().catalog_valid = true;
@@ -488,10 +488,12 @@ fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
             if lang_st().locale_dir_len == 0 {
                 return None;
             }
-            let dir_slice = std::slice::from_raw_parts(
-                (&raw const lang_st().locale_dir).cast::<u8>(),
-                lang_st().locale_dir_len,
-            );
+            let dir_slice = unsafe {
+                std::slice::from_raw_parts(
+                    (&raw const lang_st().locale_dir).cast::<u8>(),
+                    lang_st().locale_dir_len,
+                )
+            };
             let dir_str = std::str::from_utf8(dir_slice).ok()?;
             let base_dir = Path::new(dir_str);
             let locale = current_message_locale()?;

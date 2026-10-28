@@ -108,8 +108,8 @@ pub unsafe extern "C" fn luaopen_spell(lstate: *mut lua_State) -> i32 {
             func: None,
         },
     ];
-    unsafe {
-        lua_createtable(lstate, 0, 0);
+    {
+        unsafe { lua_createtable(lstate, 0, 0) };
         luaL_register(lstate, ptr::null(), SPELL_FUNCTIONS.as_ptr());
         1
     }

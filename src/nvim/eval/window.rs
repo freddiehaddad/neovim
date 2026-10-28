@@ -205,7 +205,7 @@ pub fn win_findbuf(argvars: &mut [TypVal], list: &mut TvList) {
 
 /// Find window specified by `vp` in tabpage `tp` (`find_win_by_nr`).
 pub fn find_win_by_nr(vp: &TypVal, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo {
-    unsafe {
+    {
         let nr = tv_get_number_chk(vp, None) as i32;
 
         if nr < 0 {
@@ -221,7 +221,7 @@ pub fn find_win_by_nr(vp: &TypVal, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo
         }
 
         if nr >= LOWEST_WIN_ID {
-            for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
+            for wp in win_iter_ptr(first_win_in_tab(unsafe { &mut *tp })) {
                 if wp.handle == nr {
                     return wp;
                 }
@@ -580,12 +580,12 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// `tabpagewinnr()` function (`f_tabpagewinnr`).
 pub fn f_tabpagewinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let tp = find_tabpage(tv_get_number(&argvars[0]) as i32);
         let nr = if tp.is_null() {
             0
         } else {
-            get_winnr(&mut *tp, &mut argvars[1])
+            get_winnr(unsafe { &mut *tp }, &mut argvars[1])
         };
         rettv.vval = crate::eval::typval::TypvalVval::Number(nr as Varnumber);
     }

@@ -695,10 +695,10 @@ pub fn evalvars_init() {
 }
 
 pub fn evalvars_clear() {
-    unsafe {
+    {
         let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
-            let p = &mut *vimvars_ptr.wrapping_add(i);
+            let p = unsafe { &mut *vimvars_ptr.wrapping_add(i) };
             if p.vv_di.di_tv.v_type == VarType::VarString
                 || p.vv_di.di_tv.v_type == VarType::VarList
             {
@@ -1516,11 +1516,11 @@ fn skip_var_one(arg: impl crate::strings::IntoCCharPtr) -> *const c_char {
 
 /// List variables for hashtab "ht" with prefix "prefix".
 pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32, first: &mut i32) {
-    unsafe {
+    {
         let mut todo = ht.ht_used as i32;
         let mut hi = ht.array_ptr();
         while todo > 0 && !g_st().got_int {
-            if !hashitem_empty(&*hi) {
+            if !hashitem_empty(unsafe { &*hi }) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
                 let mut buf = [0 as c_char; IOSIZE];
@@ -2373,7 +2373,7 @@ pub fn get_vim_var_partial(idx: VimVarIndex) -> *mut TvPartial {
 /// Function to concatenate a prefix and a variable name.
 pub fn cat_prefix_varname(prefix: i32, name: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let name_len = crate::memory::cstr_len(name);
         vars_st().varnamebuf.clear();
         vars_st().varnamebuf.reserve(name_len + 3);
@@ -2381,7 +2381,7 @@ pub fn cat_prefix_varname(prefix: i32, name: impl crate::strings::IntoCCharPtr) 
         vars_st().varnamebuf.push(b':' as c_char);
         vars_st()
             .varnamebuf
-            .extend_from_slice(std::slice::from_raw_parts(name, name_len + 1));
+            .extend_from_slice(unsafe { std::slice::from_raw_parts(name, name_len + 1) });
         vars_st().varnamebuf.as_mut_ptr()
     }
 }
@@ -2901,12 +2901,12 @@ pub fn find_var_ht(
 
 /// Return the string value of a (global/local) variable or NULL when it doesn't exist.
 pub fn get_var_value(name: &std::ffi::CStr) -> *mut c_char {
-    unsafe {
+    {
         let v = find_var(name.as_ptr(), name.to_bytes().len(), ptr::null_mut(), 0);
         if v.is_null() {
             return ptr::null_mut();
         }
-        tv_get_string(&(*v).di_tv).cast_mut()
+        tv_get_string(unsafe { &(*v).di_tv }).cast_mut()
     }
 }
 
@@ -3703,14 +3703,14 @@ pub fn reset_v_option_vars() {
 
 /// Add an assert error to v:errors.
 pub fn assert_error(buf: &[u8]) {
-    unsafe {
+    {
         let tv = get_vim_var_tv(VV_ERRORS);
 
         if tv.v_type != VarType::VarList || tv.vval.v_list().is_null() {
             set_vim_var_list(VV_ERRORS, tv_list_alloc(1));
         }
         tv_list_append_string(
-            &mut *get_vim_var_list(VV_ERRORS),
+            unsafe { &mut *get_vim_var_list(VV_ERRORS) },
             buf.as_ptr().cast::<c_char>(),
             buf.len() as isize,
         );
@@ -3835,7 +3835,7 @@ pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) ->
 /// Append "value[value_len]" to the variable set by var_redir_start().
 pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: i32) {
     let value = value.into_c_char_ptr();
-    unsafe {
+    {
         if vars_st().redir_lval.is_none() {
             return;
         }
@@ -3847,7 +3847,7 @@ pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: i32) {
         };
 
         if len > 0 {
-            let slice = std::slice::from_raw_parts(value, len);
+            let slice = unsafe { std::slice::from_raw_parts(value, len) };
             vars_st().redir_buf.extend_from_slice(slice);
         }
     }

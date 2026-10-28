@@ -386,8 +386,8 @@ fn tv_list_item_next(li: &Listitem) -> *mut Listitem {
 }
 
 pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
-    unsafe {
-        let v_event = &mut *get_vim_var_dict(VV_EVENT);
+    {
+        let v_event = unsafe { &mut *get_vim_var_dict(VV_EVENT) };
 
         if v_event.dv_hashtab.ht_used > 0 {
             sve.sve_did_save = true;
@@ -523,13 +523,13 @@ pub fn eval_expr_valid_arg(tv: &TypVal) -> bool {
 
 /// Evaluate a partial.
 fn eval_expr_partial(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut TypVal) -> bool {
-    unsafe {
+    {
         let partial = tv_partial(expr);
         if partial.is_null() {
             return false;
         }
 
-        let s = partial_name(partial.as_ref());
+        let s = partial_name(unsafe { partial.as_ref() });
         if crate::memory::cstr_is_empty(s) {
             return false;
         }
@@ -982,7 +982,7 @@ pub fn eval_expr_option_tv(cb: &mut Callback, use_sandbox: bool, ret_tv: &mut Ty
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
 pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
-    unsafe {
+    {
         let saved_sctx = g_st().current_sctx;
         let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDEXPR, OPT_LOCAL) != 0;
 
@@ -999,7 +999,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
         let mut argv = [tv_initial_value()];
         let retval: Varnumber;
         if !callback_call(
-            &mut *(&raw mut wp.w_onebuf_opt.wo_fde).cast(),
+            unsafe { &mut *(&raw mut wp.w_onebuf_opt.wo_fde).cast() },
             0,
             argv.as_mut_ptr(),
             &mut tv,
@@ -1039,12 +1039,12 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
 
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
 pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
-    unsafe {
+    {
         let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDTEXT, OPT_LOCAL) != 0;
         let mut tv = tv_initial_value();
         let retval: Object;
         if !eval_expr_option_tv(
-            &mut *(&raw mut wp.w_onebuf_opt.wo_fdt).cast(),
+            unsafe { &mut *(&raw mut wp.w_onebuf_opt.wo_fdt).cast() },
             use_sandbox,
             &mut tv,
         ) {
@@ -1211,8 +1211,8 @@ fn get_lval_blob(
     empty1: bool,
     quiet: bool,
 ) -> bool {
-    unsafe {
-        let bloblen = tv_blob_len((lp.tv_mut().vval.v_blob()).as_ref());
+    {
+        let bloblen = tv_blob_len(unsafe { (lp.tv_mut().vval.v_blob()).as_ref() });
 
         if empty1 {
             lp.ll_n1 = 0;
@@ -1922,11 +1922,11 @@ pub fn next_for_item(fi: &mut Forinfo, arg: *mut c_char) -> bool {
 
 impl Drop for Forinfo {
     fn drop(&mut self) {
-        unsafe {
+        {
             if let ForSource::List { list, ref lw } = self.fi_source
                 && !list.is_null()
             {
-                tv_list_watch_remove(&mut *list, lw);
+                tv_list_watch_remove(unsafe { &mut *list }, lw);
                 tv_list_unref(list);
             }
         }
@@ -5319,7 +5319,7 @@ pub fn callback_call(
     argvars_in: *mut TypVal,
     rettv: &mut TypVal,
 ) -> bool {
-    unsafe {
+    {
         if i64::from(eval_st().callback_depth) > opt_vars().p_mfd {
             emsg(gettext(E_COMMAND_TOO_RECURSIVE));
             return false;
@@ -5343,7 +5343,7 @@ pub fn callback_call(
             }
             K_CALLBACK_PARTIAL => {
                 partial = callback.data.as_partial();
-                name = partial_name(partial.as_ref());
+                name = partial_name(unsafe { partial.as_ref() });
             }
             K_CALLBACK_LUA => {
                 let mut arena = Arena {
@@ -5470,11 +5470,11 @@ pub fn find_timer_by_nr(xx: Varnumber) -> *mut VimTimer {
 }
 
 pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
-    unsafe {
+    {
         let list = rettv.vval.v_list();
         let dict = tv_dict_alloc();
 
-        tv_list_append_dict(&mut *list, dict);
+        tv_list_append_dict(unsafe { &mut *list }, dict);
         tv_dict_add_nr(&mut *dict, c"id", Varnumber::from(timer.timer_id));
         tv_dict_add_nr(&mut *dict, c"time", timer.timeout);
         tv_dict_add_nr(&mut *dict, c"paused", Varnumber::from(timer.paused));
@@ -5607,19 +5607,19 @@ pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
 }
 
 fn timer_decref(timer: &mut VimTimer) {
-    unsafe {
+    {
         timer.refcount -= 1;
         if timer.refcount == 0 {
-            drop(Box::from_raw(&raw mut *timer));
+            drop(unsafe { Box::from_raw(&raw mut *timer) });
         }
     }
 }
 
 pub fn timer_stop_all() {
-    unsafe {
+    {
         let all_timers: Vec<*mut VimTimer> = eval_st().timers.values().copied().collect();
         for timer in all_timers {
-            timer_stop(&mut *timer);
+            timer_stop(unsafe { &mut *timer });
         }
     }
 }
@@ -6363,7 +6363,7 @@ pub fn char_from_string(
     index: Varnumber,
 ) -> Option<std::ffi::CString> {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut nchar = index;
 
         if str_.is_null() {
@@ -6392,10 +6392,12 @@ pub fn char_from_string(
         if nbyte >= slen {
             return None;
         }
-        Some(cstr_from_bytes(std::slice::from_raw_parts(
-            str_.wrapping_add(nbyte).cast::<u8>(),
-            utfc_ptr2len(str_.wrapping_add(nbyte)) as usize,
-        )))
+        Some(cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts(
+                str_.wrapping_add(nbyte).cast::<u8>(),
+                utfc_ptr2len(str_.wrapping_add(nbyte)) as usize,
+            )
+        }))
     }
 }
 
@@ -6433,7 +6435,7 @@ pub fn string_slice(
     exclusive: bool,
 ) -> Option<std::ffi::CString> {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         if str_.is_null() {
             return None;
         }
@@ -6455,10 +6457,12 @@ pub fn string_slice(
         if start_byte >= (slen as isize) || end_byte <= start_byte {
             return None;
         }
-        Some(cstr_from_bytes(std::slice::from_raw_parts(
-            str_.wrapping_add(start_byte as usize).cast::<u8>(),
-            (end_byte - start_byte) as usize,
-        )))
+        Some(cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts(
+                str_.wrapping_add(start_byte as usize).cast::<u8>(),
+                (end_byte - start_byte) as usize,
+            )
+        }))
     }
 }
 
@@ -6766,7 +6770,7 @@ pub fn get_echo_hl_id() -> i32 {
 
 /// ":execute", ":echomsg", ":echoerr"
 pub fn ex_execute(eap: &mut Exarg) {
-    unsafe {
+    {
         let mut arg = eap.arg;
         let mut rettv = tv_initial_value();
         let mut ret = true;
@@ -6803,7 +6807,7 @@ pub fn ex_execute(eap: &mut Exarg) {
                 has_arg = true;
                 let len = crate::memory::cstr_len(argstr);
                 if len > 0 {
-                    buf.extend_from_slice(std::slice::from_raw_parts(argstr, len));
+                    buf.extend_from_slice(unsafe { std::slice::from_raw_parts(argstr, len) });
                 }
                 drop(argstr_owned);
             }
@@ -7192,7 +7196,7 @@ pub fn eval_call_provider(
 /// Checks if provider for feature `feat` is enabled.
 pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast: bool) -> bool {
     let feat = feat.into_c_char_ptr();
-    unsafe {
+    {
         if !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"clipboard"))
             && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3"))
             && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3_compiled"))
@@ -7214,7 +7218,7 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
         {
             let _p = name.as_mut_ptr();
             let _len = crate::memory::cstr_len(_p);
-            for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) {
+            for _b in unsafe { std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) } {
                 if *_b == (b'_' as c_char) as u8 {
                     *_b = (NUL) as u8;
                 }

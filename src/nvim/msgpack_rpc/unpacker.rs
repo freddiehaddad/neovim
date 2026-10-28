@@ -959,10 +959,10 @@ pub fn push_additional_data(
     let entry = ad.get_or_insert_with(AdditionalData::default);
     entry.nitems += 1;
     if !data.is_null() && size > 0 {
-        unsafe {
+        {
             entry
                 .bytes
-                .extend_from_slice(std::slice::from_raw_parts(data, size));
+                .extend_from_slice(unsafe { std::slice::from_raw_parts(data, size) });
         }
     }
 }

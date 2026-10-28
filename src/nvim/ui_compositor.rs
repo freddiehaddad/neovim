@@ -806,12 +806,12 @@ pub fn ui_comp_msg_set_pos(
 
 /// Check if `comp().curgrid` is covered by any other grid within the rectangle (`curgrid_covered_above`).
 fn curgrid_covered_above(top: i32, bot: i32, left: i32, right: i32) -> bool {
-    unsafe {
+    {
         for &g in layers_mut()
             .iter()
             .skip(comp().curgrid_mut().comp_index + 1)
         {
-            let g = &*g;
+            let g = unsafe { &*g };
             let grid_top = g.comp_row
                 - if ptr::eq(g, &raw const g_st().msg_grid) && comp().msg_was_scrolled {
                     1
@@ -839,7 +839,7 @@ pub fn ui_comp_grid_scroll(
     rows: Integer,
     cols: Integer,
 ) {
-    unsafe {
+    {
         if !ui_comp_should_draw() || !ui_comp_set_grid(grid as i32) {
             return;
         }
@@ -854,7 +854,7 @@ pub fn ui_comp_grid_scroll(
             let start_r = (top + (-rows).max(0)) as i32;
             let end_r = (bot - rows.max(0)) as i32;
             for r in start_r..end_r {
-                let cg = &*comp().curgrid;
+                let cg = unsafe { &*comp().curgrid };
                 let off = cg.line_offset[(r - cg.comp_row) as usize] + (left as usize)
                     - (cg.comp_col as usize);
                 if cg.attrs[off] >= 0 {

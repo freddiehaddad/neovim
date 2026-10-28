@@ -444,7 +444,7 @@ fn next_search_hl(
     mincol: Colnr,
     mut cur: Option<&mut Matchitem>,
 ) {
-    unsafe {
+    {
         let mut matchcol: Colnr;
         let mut nmatched: i32 = 0;
         let called_emsg_before = g_st().called_emsg;
@@ -476,7 +476,7 @@ fn next_search_hl(
                 || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
                 matchcol = shl.rm.startpos[0].col;
-                let ml = ml_get_buf(&mut *shl.buf, lnum).wrapping_add(matchcol as usize);
+                let ml = ml_get_buf(unsafe { &mut *shl.buf }, lnum).wrapping_add(matchcol as usize);
                 if crate::memory::cstr_is_empty(ml) {
                     shl.lnum = 0;
                     break;
@@ -935,17 +935,17 @@ fn matchadd_dict_arg(
 
 /// `clearmatches()` function (`f_clearmatches`).
 pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let win = get_optional_window(argvars, 0);
         if !win.is_null() {
-            clear_matches(&mut *win);
+            clear_matches(unsafe { &mut *win });
         }
     }
 }
 
 /// `getmatches()` function (`f_getmatches`).
 pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let win = get_optional_window(argvars, 0);
 
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
@@ -953,7 +953,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             return;
         }
 
-        for cur in &(*win).w_match_head {
+        for cur in unsafe { &(*win).w_match_head } {
             let dict = tv_dict_alloc();
             if cur.mit_match.regprog.is_null() {
                 for (i, llpos) in cur.mit_pos.iter().enumerate() {
@@ -1106,7 +1106,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `matchadd()` function (`f_matchadd`).
 pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut grpbuf = [0 as c_char; NUMBUFLEN];
         let mut patbuf = [0 as c_char; NUMBUFLEN];
         let grp = tv_get_string_buf_chk(&argvars[0], grpbuf.as_mut_ptr());
@@ -1142,7 +1142,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
-            &mut *win,
+            unsafe { &mut *win },
             grp,
             pat,
             prio,
@@ -1214,7 +1214,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `matcharg()` function (`f_matcharg`).
 pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let id = tv_get_number(&argvars[0]) as i32;
 
         tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
@@ -1222,7 +1222,7 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if (1..=3).contains(&id) {
             let m = get_match(curwin_mut(), id);
             if !m.is_null() {
-                let m = { &mut *m };
+                let m = unsafe { &mut *m };
                 tv_list_append_string(rettv.vval.v_list_ref(), syn_id2name(m.mit_hlg_id), -1);
                 tv_list_append_string(
                     rettv.vval.v_list_ref(),
@@ -1239,12 +1239,16 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let win = get_optional_window(argvars, 1);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
             -1
         } else {
-            match_delete(&mut *win, tv_get_number(&argvars[0]) as i32, true) as Varnumber
+            match_delete(
+                unsafe { &mut *win },
+                tv_get_number(&argvars[0]) as i32,
+                true,
+            ) as Varnumber
         });
     }
 }

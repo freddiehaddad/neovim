@@ -1986,7 +1986,7 @@ pub(super) fn getoctchrs() -> i64 {
 }
 
 pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
-    unsafe {
+    {
         let mut reverse = false;
         if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
             re_st().regparse = re_st().regparse.wrapping_add(1);
@@ -2022,7 +2022,7 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
             return false;
         }
         if (!reverse && *minval > *maxval) || (reverse && *minval < *maxval) {
-            ptr::swap(minval, maxval);
+            unsafe { ptr::swap(minval, maxval) };
         }
         skipchr();
         true
@@ -2279,7 +2279,7 @@ pub(super) fn match_with_backref(
     end_col: Colnr,
     bytelen: &mut i32,
 ) -> i32 {
-    unsafe {
+    {
         let mut clnum = start_lnum;
         let mut ccol = start_col;
 
@@ -2288,7 +2288,7 @@ pub(super) fn match_with_backref(
             if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr()
             {
                 let len = crate::memory::cstr_len(re_st().rex.line.cast()) + 51;
-                let off = re_st().rex.input.offset_from(re_st().rex.line) as usize;
+                let off = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as usize;
                 if re_st().reg_tofree.len() < len {
                     re_st().reg_tofree.resize(len, 0);
                 }
@@ -3469,12 +3469,12 @@ pub fn vim_regcomp_box(
     re_flags: i32,
 ) -> Option<Box<Regprog>> {
     let expr_arg = expr_arg.into_c_char_ptr();
-    unsafe {
+    {
         let p = vim_regcomp(expr_arg, re_flags);
         if p.is_null() {
             None
         } else {
-            Some(Box::from_raw(p))
+            Some(unsafe { Box::from_raw(p) })
         }
     }
 }
@@ -3487,9 +3487,9 @@ pub fn regprog_as_ptr(prog: &Option<Box<Regprog>>) -> *mut Regprog {
 
 /// Free a compiled regexp program, returned by `vim_regcomp()`.
 pub fn vim_regfree(prog: *mut Regprog) {
-    unsafe {
+    {
         if !prog.is_null() {
-            drop(Box::from_raw(prog));
+            drop(unsafe { Box::from_raw(prog) });
         }
     }
 }

@@ -542,7 +542,7 @@ pub fn emit_termrequest(mut req: Box<TermRequestEvent>) {
 }
 
 fn schedule_termrequest(term: &mut Terminal) {
-    unsafe {
+    {
         let pending_send = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         term.pending.send = Some(pending_send.clone());
 
@@ -558,7 +558,7 @@ fn schedule_termrequest(term: &mut Terminal) {
         });
 
         multiqueue_put_event(
-            &mut *loop_queues(&mut g_st().main_loop).events,
+            unsafe { &mut *loop_queues(&mut g_st().main_loop).events },
             Event::TermRequest(req),
         );
     }
@@ -753,7 +753,7 @@ fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut FileBuf) -> bool
 }
 
 pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static mut Terminal {
-    unsafe {
+    {
         if opts.width == 0 {
             opts.width = 80;
         }
@@ -794,7 +794,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
             refcount: 0,
         }));
         buf.terminal = term;
-        let term_ref = &mut *term;
+        let term_ref = unsafe { &mut *term };
         vterm_set_utf8(&mut term_ref.vt, 1);
 
         let state = vterm_obtain_state(&mut term_ref.vt);
@@ -1040,10 +1040,10 @@ pub fn terminal_state_change_event(buf_handle: ObjHandle) {
 }
 
 pub fn terminal_set_state(term: &mut Terminal, suspended: bool) {
-    unsafe {
+    {
         if term.suspended != suspended {
             multiqueue_put_event(
-                &mut *refresh_timer_ptr().events,
+                unsafe { &mut *refresh_timer_ptr().events },
                 Event::TermStateChange(term.buf_handle),
             );
         }
@@ -1052,7 +1052,7 @@ pub fn terminal_set_state(term: &mut Terminal, suspended: bool) {
 }
 
 pub fn terminal_check_size(term: &mut Terminal) {
-    unsafe {
+    {
         if term.closed {
             return;
         }
@@ -1081,7 +1081,7 @@ pub fn terminal_check_size(term: &mut Terminal) {
         }
 
         vterm_set_size(&mut term.vt, i32::from(height), i32::from(width));
-        vterm_screen_flush_damage(&mut *term.vt.screen_mut_ptr());
+        vterm_screen_flush_damage(unsafe { &mut *term.vt.screen_mut_ptr() });
         term.pending.resize = true;
         invalidate_terminal(term, -1, -1);
     }
@@ -1305,7 +1305,7 @@ fn terminal_check_cursor() {
 }
 
 fn terminal_check_focus(s: &mut TerminalState) -> bool {
-    unsafe {
+    {
         if curbuf_mut().terminal.is_null() {
             return false;
         }
@@ -1319,7 +1319,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
             terminal_focus(s.term_mut(), false);
             if s.close {
                 s.term_mut().destroy = true;
-                channel_term_close(&mut *s.term_mut().opts.data);
+                channel_term_close(unsafe { &mut *s.term_mut().opts.data });
                 s.close = false;
             }
 
@@ -1390,7 +1390,7 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
 }
 
 fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
-    unsafe {
+    {
         let mut tmp_mod_mask = g_st().mod_mask;
         let mod_key = merge_modifiers(key, &mut tmp_mod_mask);
 
@@ -1438,7 +1438,7 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
                     return 1;
                 }
                 if s.term_mut().suspended {
-                    channel_term_resume(&mut *s.term_mut().opts.data);
+                    channel_term_resume(unsafe { &mut *s.term_mut().opts.data });
                     terminal_set_state(s.term_mut(), false);
                     return 1;
                 }
@@ -1814,16 +1814,16 @@ fn terminal_focus(term: &mut Terminal, focus: bool) {
 }
 
 fn term_damage(rect: VTermRect, term: *mut Terminal) -> i32 {
-    unsafe {
-        let term = &mut *term;
+    {
+        let term = unsafe { &mut *term };
         invalidate_terminal(term, rect.start_row, rect.end_row);
         1
     }
 }
 
 fn term_moverect(dest: VTermRect, src: VTermRect, term: *mut Terminal) -> i32 {
-    unsafe {
-        let term = &mut *term;
+    {
+        let term = unsafe { &mut *term };
         invalidate_terminal(
             term,
             dest.start_row.min(src.start_row),
@@ -1839,8 +1839,8 @@ fn term_movecursor(
     _visible: i32,
     term: *mut Terminal,
 ) -> i32 {
-    unsafe {
-        let term = &mut *term;
+    {
+        let term = unsafe { &mut *term };
         term.cursor.row = new_pos.row;
         term.cursor.col = new_pos.col;
         invalidate_terminal(term, -1, -1);
@@ -1951,8 +1951,8 @@ fn term_theme(dark: &mut bool, _data: *mut Terminal) -> i32 {
 }
 
 fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> i32 {
-    unsafe {
-        let term = &mut *term;
+    {
+        let term = unsafe { &mut *term };
         if !term_may_alloc_scrollback(term, ptr::null_mut()) {
             return 0;
         }
@@ -1983,8 +1983,8 @@ fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> i32 {
 }
 
 fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> i32 {
-    unsafe {
-        let term = &mut *term;
+    {
+        let term = unsafe { &mut *term };
         if term.sb_buffer.is_empty() {
             return 0;
         }
@@ -2015,8 +2015,8 @@ fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> i32 {
 }
 
 fn term_sb_clear(term: *mut Terminal) -> i32 {
-    unsafe {
-        let term = &mut *term;
+    {
+        let term = unsafe { &mut *term };
         if term.in_altscreen || term.sb_size == 0 || term.sb_buffer.is_empty() {
             return 1;
         }
@@ -2340,7 +2340,7 @@ fn fetch_row(term: &mut Terminal, row: i32, end_col: i32) {
 }
 
 fn fetch_cell(term: &mut Terminal, row: i32, col: i32, cell: &mut VTermScreenCell) -> bool {
-    unsafe {
+    {
         if row < 0 {
             let sbrow = &term.sb_buffer.as_slice()[(-row - 1) as usize];
             if (col as usize) < sbrow.len() {
@@ -2354,7 +2354,11 @@ fn fetch_cell(term: &mut Terminal, row: i32, col: i32, cell: &mut VTermScreenCel
                 return false;
             }
         } else {
-            vterm_screen_get_cell(&*term.vt.screen_mut_ptr(), VTermPos { row, col }, cell);
+            vterm_screen_get_cell(
+                unsafe { &*term.vt.screen_mut_ptr() },
+                VTermPos { row, col },
+                cell,
+            );
         }
         true
     }
@@ -2466,7 +2470,7 @@ fn refresh_cursor(term: &mut Terminal, cursor_visible: &mut bool) {
 }
 
 pub(crate) fn refresh_timer_cb() {
-    unsafe {
+    {
         term_st().refresh_pending = false;
         if g_st().exiting {
             return;
@@ -2476,7 +2480,7 @@ pub(crate) fn refresh_timer_cb() {
         let to_refresh = std::mem::take(&mut term_st().invalidated_terminals);
 
         for term_ptr in to_refresh {
-            let term = &mut *term_ptr;
+            let term = unsafe { &mut *term_ptr };
             if !term.synchronized_output {
                 refresh_terminal(term);
             }
@@ -2487,7 +2491,7 @@ pub(crate) fn refresh_timer_cb() {
 }
 
 fn refresh_size(term: &mut Terminal) -> bool {
-    unsafe {
+    {
         if !term.pending.resize || term.closed {
             return false;
         }
@@ -2498,7 +2502,7 @@ fn refresh_size(term: &mut Terminal) -> bool {
         vterm_get_size(&term.vt, &mut height, &mut width);
         term.invalid_start = 0;
         term.invalid_end = height;
-        channel_term_resize(width as u16, height as u16, &mut *term.opts.data);
+        channel_term_resize(width as u16, height as u16, unsafe { &mut *term.opts.data });
         true
     }
 }

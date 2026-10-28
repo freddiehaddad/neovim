@@ -55,13 +55,15 @@ pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: Time
 }
 
 pub fn time_watcher_start(watcher: &mut TimeWatcher, timeout: u64, repeat: u64) {
-    unsafe {
-        uv_timer_start(
-            (&raw mut watcher.uv).cast(),
-            Some(time_watcher_cb),
-            timeout,
-            repeat,
-        );
+    {
+        unsafe {
+            uv_timer_start(
+                (&raw mut watcher.uv).cast(),
+                Some(time_watcher_cb),
+                timeout,
+                repeat,
+            )
+        };
     }
 }
 
@@ -78,10 +80,12 @@ pub fn time_watcher_close(watcher: &mut TimeWatcher) {
 }
 
 pub fn time_event(watcher: &mut TimeWatcher) {
-    unsafe {
+    {
         match watcher.data {
             TimeWatcherData::None => {}
-            TimeWatcherData::EvalTimer(timer) => crate::eval::timer_due_cb(watcher, &mut *timer),
+            TimeWatcherData::EvalTimer(timer) => {
+                crate::eval::timer_due_cb(watcher, unsafe { &mut *timer })
+            }
             TimeWatcherData::WaitDummy => crate::eval::funcs::dummy_timer_due_cb(watcher),
             TimeWatcherData::TerminalRefresh => crate::terminal::refresh_timer_cb(),
         }

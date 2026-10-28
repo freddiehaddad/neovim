@@ -645,10 +645,10 @@ fn ql_info_ptr() -> *mut QfInfo {
 #[inline]
 fn c_strcat(dst: *mut c_char, src: impl crate::strings::IntoCCharPtr) {
     let src = src.into_c_char_ptr();
-    unsafe {
+    {
         let dlen = crate::memory::cstr_len(dst);
         let slen = crate::memory::cstr_len(src);
-        ptr::copy_nonoverlapping(src, dst.wrapping_add(dlen), slen + 1);
+        unsafe { ptr::copy_nonoverlapping(src, dst.wrapping_add(dlen), slen + 1) };
     }
 }
 
@@ -722,11 +722,11 @@ fn qfga_clear() {
 #[inline]
 fn qfga_concat(gap: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if !s.is_null() {
             let len = crate::memory::cstr_len(s);
             if len > 0 {
-                gap.extend_from_slice(std::slice::from_raw_parts(s, len));
+                gap.extend_from_slice(unsafe { std::slice::from_raw_parts(s, len) });
             }
         }
     }
@@ -735,9 +735,9 @@ fn qfga_concat(gap: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) {
 #[inline]
 fn qfga_concat_len(gap: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr, len: usize) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if !s.is_null() && len > 0 {
-            gap.extend_from_slice(std::slice::from_raw_parts(s, len));
+            gap.extend_from_slice(unsafe { std::slice::from_raw_parts(s, len) });
         }
     }
 }
@@ -2137,13 +2137,13 @@ fn qf_parse_line_nomatch(
 }
 
 fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> i32 {
-    unsafe {
+    {
         if !qfl.qf_multiignore {
             let Some(qfprev) = qfl.qf_items.last_mut() else {
                 return QF_FAIL;
             };
             let qfprev: *mut Qfline = qfprev;
-            let qfprev = &mut *qfprev;
+            let qfprev = unsafe { &mut *qfprev };
             if !crate::memory::cstr_is_empty(fields.errmsg.as_ptr()) {
                 let mut bytes = qfprev.qf_text.as_bytes().to_vec();
                 bytes.push(b'\n');
@@ -2254,13 +2254,13 @@ fn ll_free_all(pqi: *mut *mut QfInfo) {
 }
 
 pub fn qf_free_all(wp: Option<&mut WinInfoInfo>) {
-    unsafe {
+    {
         let qi = ql_info_ptr();
         if let Some(wp) = wp {
             ll_free_all(&raw mut wp.w_llist);
             ll_free_all(&raw mut wp.w_llist_ref);
         } else if !qi.is_null() {
-            qf_free_list_stack_items(&mut *qi);
+            qf_free_list_stack_items(unsafe { &mut *qi });
         }
     }
 }
@@ -2894,9 +2894,12 @@ fn qf_get_entry(qfl: &mut QfList, errornr: i32, dir: i32, new_qfidx: &mut i32) -
 }
 
 fn qf_find_help_win() -> *mut WinInfoInfo {
-    unsafe {
+    {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-            if bt_help((wp.w_buffer).as_ref()) && !wp.w_config.hide && wp.w_config.focusable {
+            if bt_help(unsafe { (wp.w_buffer).as_ref() })
+                && !wp.w_config.hide
+                && wp.w_config.focusable
+            {
                 return wp;
             }
         }
@@ -2956,9 +2959,9 @@ fn jump_to_help_window(qi: &mut QfInfo, newwin: bool, opened_window: &mut bool) 
 }
 
 fn qf_find_win_with_loclist(ll: &QfInfo) -> *mut WinInfoInfo {
-    unsafe {
+    {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-            if wp.w_llist.cast_const() == ll && !bt_quickfix((wp.w_buffer).as_ref()) {
+            if wp.w_llist.cast_const() == ll && !bt_quickfix(unsafe { (wp.w_buffer).as_ref() }) {
                 return wp;
             }
         }
@@ -2967,9 +2970,9 @@ fn qf_find_win_with_loclist(ll: &QfInfo) -> *mut WinInfoInfo {
 }
 
 fn qf_find_win_with_normal_buf() -> *mut WinInfoInfo {
-    unsafe {
+    {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-            if bt_normal((wp.w_buffer).as_ref()) {
+            if bt_normal(unsafe { (wp.w_buffer).as_ref() }) {
                 return wp;
             }
         }
@@ -3144,7 +3147,7 @@ fn qf_jump_edit_buffer(
     prev_winid: i32,
     opened_window: &mut bool,
 ) -> i32 {
-    unsafe {
+    {
         let qfl = qf_get_curlist(qi);
         let old_changetick = qfl.qf_changedtick;
         let old_qf_curlist = qi.qf_curlist;
@@ -3188,7 +3191,7 @@ fn qf_jump_edit_buffer(
 
                 if win_valid(g_st().prevwin)
                     && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
-                    && !bt_quickfix((crate::globals::prevwin_mut().w_buffer).as_ref())
+                    && !bt_quickfix(unsafe { (crate::globals::prevwin_mut().w_buffer).as_ref() })
                 {
                     win_goto(g_st().prevwin);
                 }
@@ -3773,7 +3776,7 @@ fn qf_range_text(gap: &mut Vec<c_char>, qfp: &Qfline) {
 
 fn qf_msg(qi: &mut QfInfo, which: i32, lead: impl crate::strings::IntoCCharPtr) {
     let lead = lead.into_c_char_ptr();
-    unsafe {
+    {
         let qfl = &(&qi.qf_lists)[which as usize];
         let title = qfl.qf_title.as_ref();
         let count = qfl.count();
@@ -3792,7 +3795,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: impl crate::strings::IntoCCharPtr) 
         if let Some(title) = title {
             let len = crate::memory::cstr_len(buf.as_ptr());
             if len < 34 {
-                ptr::write_bytes(buf.as_mut_ptr().wrapping_add(len), b' ', 34 - len);
+                unsafe { ptr::write_bytes(buf.as_mut_ptr().wrapping_add(len), b' ', 34 - len) };
                 buf[34] = NUL;
             }
             {
@@ -3988,7 +3991,7 @@ fn qf_types(c: i32, nr: i32) -> *const c_char {
 }
 
 pub fn qf_view_result(split: bool) {
-    unsafe {
+    {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
@@ -3996,7 +3999,7 @@ pub fn qf_view_result(split: bool) {
             qi = get_loc_list(curwin_mut());
         }
 
-        if qf_list_empty(Some(&*(qf_get_curlist(&mut *qi)))) {
+        if qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi })))) {
             emsg(gettext(E_NO_ERRORS));
             return;
         }
@@ -4245,7 +4248,7 @@ pub fn ex_cbottom(eap: &mut Exarg) {
 }
 
 pub fn qf_current_entry(wp: &mut WinInfoInfo) -> Linenr {
-    unsafe {
+    {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
@@ -4253,7 +4256,7 @@ pub fn qf_current_entry(wp: &mut WinInfoInfo) -> Linenr {
             qi = wp.w_llist_ref;
         }
 
-        qf_get_curlist(&mut *qi).qf_index
+        qf_get_curlist(unsafe { &mut *qi }).qf_index
     }
 }
 
@@ -4931,17 +4934,17 @@ fn get_mef_name() -> Option<std::ffi::CString> {
 }
 
 pub fn qf_get_size(eap: &mut Exarg) -> usize {
-    unsafe {
+    {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
             return 0;
         }
-        qf_get_curlist(&mut *qi).qf_items.len()
+        qf_get_curlist(unsafe { &mut *qi }).qf_items.len()
     }
 }
 
 pub fn qf_get_valid_size(eap: &mut Exarg) -> usize {
-    unsafe {
+    {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
             return 0;
@@ -4949,7 +4952,7 @@ pub fn qf_get_valid_size(eap: &mut Exarg) -> usize {
 
         let mut prev_fnum: i32 = 0;
         let mut sz: usize = 0;
-        let qfl = qf_get_curlist(&mut *qi);
+        let qfl = qf_get_curlist(unsafe { &mut *qi });
         for qfp in &qfl.qf_items {
             if g_st().got_int {
                 break;
@@ -4981,13 +4984,13 @@ pub fn qf_get_cur_idx(eap: &mut Exarg) -> usize {
 }
 
 pub fn qf_get_cur_valid_idx(eap: &mut Exarg) -> i32 {
-    unsafe {
+    {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
             return 1;
         }
 
-        let qfl = qf_get_curlist(&mut *qi);
+        let qfl = qf_get_curlist(unsafe { &mut *qi });
         if !qf_list_has_valid_entries(qfl) {
             return 1;
         }
@@ -5044,7 +5047,7 @@ fn qf_get_nth_valid_entry(qfl: &mut QfList, n: usize, fdo: bool) -> usize {
 }
 
 pub fn ex_cc(eap: &mut Exarg) {
-    unsafe {
+    {
         let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
             return;
@@ -5072,7 +5075,7 @@ pub fn ex_cc(eap: &mut Exarg) {
                 1
             };
             let valid_entry = qf_get_nth_valid_entry(
-                qf_get_curlist(&mut *qi),
+                qf_get_curlist(unsafe { &mut *qi }),
                 n,
                 eap.cmdidx == CMD_CFDO || eap.cmdidx == CMD_LFDO,
             );
@@ -5320,7 +5323,7 @@ fn qf_find_nth_adj_entry(
 }
 
 pub fn ex_cbelow(eap: &mut Exarg) {
-    unsafe {
+    {
         if eap.addr_count > 0 && eap.line2 <= 0 {
             emsg(gettext(E_INVRANGE));
             return;
@@ -5346,7 +5349,7 @@ pub fn ex_cbelow(eap: &mut Exarg) {
             return;
         }
 
-        let qfl = qf_get_curlist(&mut *qi);
+        let qfl = qf_get_curlist(unsafe { &mut *qi });
         if !qf_list_has_valid_entries(qfl) {
             emsg(gettext(E_NO_ERRORS));
             return;

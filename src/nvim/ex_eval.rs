@@ -403,7 +403,7 @@ pub fn get_error_exception_string(
 ) -> CString {
     let cmdname = cmdname.into_c_char_ptr();
     let mesg = mesg.into_c_char_ptr();
-    unsafe {
+    {
         let mut out: Vec<u8> = Vec::new();
         if !crate::memory::cstr_is_empty(cmdname) {
             out.extend_from_slice(b"Vim(");
@@ -439,10 +439,9 @@ pub fn get_error_exception_string(
                     out.extend_from_slice(crate::memory::cstr_as_bytes(p));
                     let quoted_len = (p.wrapping_sub(2) as usize) - (mesg.wrapping_add(1) as usize);
                     out.extend_from_slice(b" (");
-                    out.extend_from_slice(std::slice::from_raw_parts(
-                        mesg.wrapping_add(1).cast::<u8>(),
-                        quoted_len,
-                    ));
+                    out.extend_from_slice(unsafe {
+                        std::slice::from_raw_parts(mesg.wrapping_add(1).cast::<u8>(), quoted_len)
+                    });
                     out.push(b')');
                 }
                 break;

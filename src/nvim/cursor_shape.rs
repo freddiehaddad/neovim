@@ -139,9 +139,9 @@ fn clear_shape_table() {
 
 /// Converts `(*shape_table_mut())` into an `Array` of `Dict`s (`mode_style_array`).
 pub fn mode_style_array(arena: &mut Arena) -> Array {
-    unsafe {
+    {
         let mut all = arena_array(arena, SHAPE_IDX_COUNT);
-        let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
+        let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
 
         for cur in tbl.iter() {
             let is_cursor = (cur.used_for as i32 & SHAPE_CURSOR) != 0;
@@ -490,11 +490,11 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
 
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
 pub fn cursor_mode_uses_syn_id(syn_id: i32) -> bool {
-    unsafe {
+    {
         if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
             return false;
         }
-        let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
+        let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
         for entry in tbl.iter() {
             if entry.id == syn_id || entry.id_lm == syn_id {
                 return true;

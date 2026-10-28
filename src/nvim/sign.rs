@@ -697,10 +697,10 @@ fn sign_list_defined(sp: &mut Sign) {
 
 fn sign_list_by_name(name: impl crate::strings::IntoCCharPtr) {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let sp = pmap_get_sign(name);
         if !sp.is_null() {
-            sign_list_defined(&mut *sp);
+            sign_list_defined(unsafe { &mut *sp });
         } else {
             semsg!(gettext(c"E155: Unknown sign: %s"), name);
         }
@@ -902,7 +902,7 @@ fn sign_place_cmd(
 ) {
     let name = name.into_c_char_ptr();
     let group = group.into_c_char_ptr();
-    unsafe {
+    {
         if id <= 0 {
             if lnum >= 0
                 || !name.is_null()
@@ -921,7 +921,7 @@ fn sign_place_cmd(
                 return;
             }
             let mut uid = id as u32;
-            sign_place(&mut uid, group, name, &mut *buf, lnum, prio);
+            sign_place(&mut uid, group, name, unsafe { &mut *buf }, lnum, prio);
         }
     }
 }
@@ -935,7 +935,7 @@ fn sign_unplace_cmd(
 ) {
     let group = group.into_c_char_ptr();
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group))
         {
             emsg(gettext(E_INVARG));
@@ -947,7 +947,7 @@ fn sign_unplace_cmd(
             buf = curwin_mut().w_buffer;
         }
 
-        if !sign_unplace(buf.as_mut(), id.max(0), group, lnum) && lnum > 0 {
+        if !sign_unplace(unsafe { buf.as_mut() }, id.max(0), group, lnum) && lnum > 0 {
             emsg(gettext(c"E159: Missing sign number"));
         }
     }
@@ -1535,7 +1535,7 @@ pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_list_alloc_ret(rettv, 0);
 
         if argvars[0].v_type == VarType::VarUnknown {
@@ -1545,7 +1545,10 @@ pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         } else {
             let sp = pmap_get_sign(tv_get_string(&argvars[0]));
             if !sp.is_null() {
-                tv_list_append_dict(rettv.vval.v_list_ref(), sign_get_info_dict(&mut *sp));
+                tv_list_append_dict(
+                    rettv.vval.v_list_ref(),
+                    sign_get_info_dict(unsafe { &mut *sp }),
+                );
             }
         }
     }
@@ -1604,7 +1607,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 }
 
 pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut notanum = false;
@@ -1631,7 +1634,9 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
 
         rettv.vval =
-            crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(id, group, &mut *buf)));
+            crate::eval::typval::TypvalVval::Number(i64::from(sign_jump(id, group, unsafe {
+                &mut *buf
+            })));
     }
 }
 

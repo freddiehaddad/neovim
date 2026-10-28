@@ -4972,8 +4972,8 @@ fn nv_dollar(cap: &mut Cmdarg) {
 }
 
 fn nv_search(cap: &mut Cmdarg) {
-    unsafe {
-        let oap = &mut *cap.oap;
+    {
+        let oap = unsafe { &mut *cap.oap };
         let save_cursor = curwin_mut().w_cursor;
 
         if cap.cmdchar == b'?' as i32 && cap.oap_mut().op_type == OP_ROT13 {
@@ -5807,7 +5807,7 @@ fn nv_replace(cap: &mut Cmdarg) {
 }
 
 fn v_swap_corners(cmdchar: i32) {
-    unsafe {
+    {
         if cmdchar == b'O' as i32 && g_st().visual_global.mode == CTRL_V_CONST {
             let mut left: Colnr = 0;
             let mut right: Colnr = 0;
@@ -5850,10 +5850,12 @@ fn v_swap_corners(cmdchar: i32) {
                 curwin_mut().w_curswant = left;
             }
         } else {
-            ptr::swap(
-                &raw mut curwin_mut().w_cursor,
-                &raw mut g_st().visual_global.start,
-            );
+            unsafe {
+                ptr::swap(
+                    &raw mut curwin_mut().w_cursor,
+                    &raw mut g_st().visual_global.start,
+                )
+            };
             curwin_mut().w_set_curswant = true;
         }
     }
@@ -6079,7 +6081,7 @@ fn nv_optrans(cap: &mut Cmdarg) {
 }
 
 fn nv_gomark(cap: &mut Cmdarg) {
-    unsafe {
+    {
         let mut flags: MarkMove = if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
             K_MARK_SET_VIEW
         } else {
@@ -6105,7 +6107,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
         }
 
         let fm = mark_get(curbuf_mut(), curwin_mut(), None, K_MARK_ALL, name);
-        let move_res = nv_mark_move_to(cap, flags, &mut *fm);
+        let move_res = nv_mark_move_to(cap, flags, unsafe { &mut *fm });
 
         if !virtual_active(curwin_mut()) {
             curwin_mut().w_cursor.coladd = 0;
@@ -6123,7 +6125,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
 }
 
 fn nv_pcmark(cap: &mut Cmdarg) {
-    unsafe {
+    {
         let mut flags: MarkMove = if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
             K_MARK_SET_VIEW
         } else {
@@ -6151,7 +6153,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
         };
 
         if !fm.is_null() {
-            move_res = nv_mark_move_to(cap, flags, &mut *fm);
+            move_res = nv_mark_move_to(cap, flags, unsafe { &mut *fm });
         } else if cap.cmdchar == b'g' as i32 {
             if curbuf_mut().b_changelistlen == 0 {
                 emsg(tr(E_CHANGELIST_IS_EMPTY));
@@ -6486,8 +6488,8 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
 }
 
 fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
-    unsafe {
-        let oap = &mut *cap.oap;
+    {
+        let oap = unsafe { &mut *cap.oap };
         let mut i: i32;
         let col_off = win_col_off(curwin_ptr());
         let flag = cap.nchar == K_END || cap.nchar == K_KEND;
@@ -6572,8 +6574,8 @@ fn nv_gi_cmd(cap: &mut Cmdarg) {
 }
 
 fn nv_g_cmd(cap: &mut Cmdarg) {
-    unsafe {
-        let oap = &mut *cap.oap;
+    {
+        let oap = unsafe { &mut *cap.oap };
 
         match cap.nchar {
             CTRL_A | CTRL_X_CONST => {
@@ -7744,7 +7746,7 @@ pub fn normal_cmd(oap: &mut Oparg, toplevel: bool) {
 }
 
 pub fn exec_stuffed(mut cap: Option<&mut Cmdarg>) {
-    unsafe {
+    {
         if let Some(ref cap) = cap {
             atom_stuff_start(cap);
         }
@@ -7753,7 +7755,7 @@ pub fn exec_stuffed(mut cap: Option<&mut Cmdarg>) {
         }
         let mut oa = Oparg::new();
         let oap = if let Some(ref cap) = cap {
-            &mut *cap.oap
+            unsafe { &mut *cap.oap }
         } else {
             &mut oa
         };

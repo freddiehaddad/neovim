@@ -1087,7 +1087,7 @@ pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
 /// @return Variable value
 // DLLEXPORT Object nvim_get_var(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    unsafe {
+    {
         let mut di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
         if di.is_null() {
             let found = script_autoload(name.data, name.size, false) && !aborting();
@@ -1111,7 +1111,7 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
             );
             return nil_obj();
         }
-        vim_to_object(&mut (*di).di_tv, Some(arena), true)
+        vim_to_object(unsafe { &mut (*di).di_tv }, Some(arena), true)
     }
 }
 
@@ -1461,7 +1461,7 @@ pub fn nvim_get_current_win() -> Window {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_win(Window win, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_win(win: Window, err: &mut Error) {
-    unsafe {
+    {
         let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return;
         };
@@ -1470,7 +1470,10 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
         if w.w_buffer != g_st().curbuf {
             reset_visual_and_resel();
         }
-        goto_tabpage_win(&mut *win_find_tabpage(&raw mut *w), (&raw mut *w));
+        goto_tabpage_win(
+            unsafe { &mut *win_find_tabpage(&raw mut *w) },
+            (&raw mut *w),
+        );
         try_leave(&tstate, err);
     }
 }
@@ -1693,9 +1696,9 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
     if data.size == 0 {
         return;
     }
-    unsafe {
+    {
         let mut error: *const c_char = ptr::null();
-        let buf = std::slice::from_raw_parts(data.data.cast_const(), data.size).to_vec();
+        let buf = unsafe { std::slice::from_raw_parts(data.data.cast_const(), data.size) }.to_vec();
         channel_send(chan as u64, buf, &mut error);
         if !error.is_null() {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", error);
@@ -1881,7 +1884,7 @@ pub fn nvim_put(
     _arena: &mut Arena,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         let mut reg = crate::register::EMPTY_YANKREG;
         if !validate_s(
             prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
@@ -1911,7 +1914,7 @@ pub fn nvim_put(
                 if _sz > 0 {
                     let _c = (NUL) as u8;
                     let _x = (NL) as u8;
-                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
+                    for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
                         if *_b == _c {
                             *_b = _x;
                         }
@@ -2228,7 +2231,7 @@ pub fn nvim_set_client_info(
     arena: &mut Arena,
     _err: &mut Error,
 ) {
-    unsafe {
+    {
         let mut info_items = [KeyValuePair::default(); 5];
         let mut info = Dict {
             items: info_items.as_mut_ptr(),
@@ -2247,7 +2250,7 @@ pub fn nvim_set_client_info(
         if !has_major {
             let mut v = arena_dict(arena, version.size + 1);
             if version.size != 0 {
-                ptr::copy_nonoverlapping(version.items, v.items, version.size);
+                unsafe { ptr::copy_nonoverlapping(version.items, v.items, version.size) };
                 v.size = version.size;
             }
             put_c(&mut v, c"major", integer_obj(0));

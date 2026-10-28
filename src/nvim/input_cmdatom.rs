@@ -410,11 +410,11 @@ pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
 #[inline]
 pub fn sb_concat(sb: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         if !s.is_null() {
             let len = crate::memory::cstr_len(s);
             if len > 0 {
-                sb.extend_from_slice(std::slice::from_raw_parts(s, len));
+                sb.extend_from_slice(unsafe { std::slice::from_raw_parts(s, len) });
             }
         }
     }
@@ -743,7 +743,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
 }
 
 fn atom_emit(atom: &CmdAtom) {
-    unsafe {
+    {
         if !has_event(EVENT_CMDATOM) {
             return;
         }
@@ -770,7 +770,7 @@ fn atom_emit(atom: &CmdAtom) {
             TYPE_NAMES[atom.r#type as usize].as_ptr().cast_mut(),
             ptr::null_mut(),
             AUGROUP_ALL,
-            &mut *buf,
+            unsafe { &mut *buf },
             Some(&mut obj),
         );
         api_free_dict(data);
@@ -886,14 +886,13 @@ fn atom_stage_flush(frame: &mut CmdFrame) {
 }
 
 fn atom_composite_lhs() -> std::ffi::CString {
-    unsafe {
+    {
         let mut keys: Vec<c_char> = Vec::new();
         sb_concat(&mut keys, ptr::addr_of!(atom_st().composite.lhs).cast());
         let tail = &atom_st().typed.keys.as_slice()[atom_st().typed.map_start..];
-        keys.extend_from_slice(std::slice::from_raw_parts(
-            tail.as_ptr().cast::<c_char>(),
-            tail.len(),
-        ));
+        keys.extend_from_slice(unsafe {
+            std::slice::from_raw_parts(tail.as_ptr().cast::<c_char>(), tail.len())
+        });
         let slice = crate::memory::cstr_slice(keys.as_ptr(), keys.len());
         std::ffi::CString::new(slice).unwrap()
     }
@@ -920,13 +919,15 @@ pub fn atom_composite_active() -> bool {
 
 fn atom_composite_label(lhs: impl crate::strings::IntoCCharPtr, len: usize) {
     let lhs = lhs.into_c_char_ptr();
-    unsafe {
+    {
         let copy_len = len.min(MAXMAPLEN + 3);
-        ptr::copy_nonoverlapping(
-            lhs,
-            ptr::addr_of_mut!(atom_st().composite.lhs).cast(),
-            copy_len,
-        );
+        unsafe {
+            ptr::copy_nonoverlapping(
+                lhs,
+                ptr::addr_of_mut!(atom_st().composite.lhs).cast(),
+                copy_len,
+            )
+        };
         atom_st().composite.lhs[copy_len] = 0;
     }
 }
