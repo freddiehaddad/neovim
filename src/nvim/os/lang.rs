@@ -7,13 +7,13 @@ use crate::charset::{
 use crate::eval::vars::{
     VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH, get_vim_var_str, set_vim_var_string,
 };
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 use crate::globals::*;
-use crate::mbyte::{convert_setup, mb_strnicmp, string_convert, vimconv_T};
+use crate::mbyte::{convert_setup, mb_strnicmp, string_convert, Vimconv};
 use crate::memory::xstrlcpy;
 use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
-use crate::os::env::{expand_T, os_getenv_buf, os_setenv};
+use crate::os::env::{ExpandCtx, os_getenv_buf, os_setenv};
 #[cfg(unix)]
 use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};
@@ -337,7 +337,7 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
         return out;
     }
     if let Ok(cs_cstr) = CString::new(cs) {
-        let mut vc = vimconv_T::new();
+        let mut vc = Vimconv::new();
         if convert_setup(
                 &mut vc,
                 cs_cstr.as_ptr().cast_mut(),
@@ -686,7 +686,7 @@ pub fn init_locale() {
 }
 
 /// `":language"`: Set the language (locale).
-pub fn ex_language(eap: &mut exarg_T) {
+pub fn ex_language(eap: &mut Exarg) {
     unsafe {
         let mut what = LC_ALL;
         let mut whatstr: *const c_char = c"".as_ptr();
@@ -810,7 +810,7 @@ pub fn free_locales() {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.
-pub fn get_lang_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_lang_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"messages".as_ptr().cast_mut(),
         1 => c"ctype".as_ptr().cast_mut(),
@@ -821,7 +821,7 @@ pub fn get_lang_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
-pub fn get_locales(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_locales(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -858,11 +858,11 @@ mod tests {
             assert!(is_valid_mess_lang(c"en_US.UTF-8"));
 
             assert_eq!(
-                crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::expand_T::new(), 0)),
+                crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::ExpandCtx::new(), 0)),
                 b"messages"
             );
             assert_eq!(
-                crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::expand_T::new(), 3)),
+                crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::ExpandCtx::new(), 3)),
                 b"collate"
             );
 

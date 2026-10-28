@@ -10,7 +10,7 @@ use crate::api::private::validate::{
     api_err_invalid, api_err_range,
 };
 use crate::api::tabpage::{Buffer, Window};
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::charset::transstr;
 use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
@@ -48,11 +48,11 @@ use crate::memory::{Arena};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{Colnr, Linenr};
 
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
 
@@ -169,7 +169,7 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-pub fn ns_in_win(ns_id: u32, wp: &mut win_T) -> bool {
+pub fn ns_in_win(ns_id: u32, wp: &mut WinInfoInfo) -> bool {
      {
         if !g_st().namespace_localscope.contains(&ns_id) {
             return true;
@@ -539,13 +539,13 @@ pub fn nvim_buf_get_extmarks(
         }
 
         let mut l_row: c_int = 0;
-        let mut l_col: colnr_T = 0;
+        let mut l_col: Colnr = 0;
         if !extmark_get_index_from_obj( b, ns_id, start, &mut l_row, &mut l_col, err) {
             return rv;
         }
 
         let mut u_row: c_int = 0;
-        let mut u_col: colnr_T = 0;
+        let mut u_col: Colnr = 0;
         if !extmark_get_index_from_obj( b, ns_id, end, &mut u_row, &mut u_col, err) {
             return rv;
         }
@@ -803,7 +803,7 @@ pub fn nvim_buf_set_extmark(
                 line2 = val as c_int;
             }
 
-            let mut col2: colnr_T = -1;
+            let mut col2: Colnr = -1;
             if has_key(mask, KEYSET_OPTIDX_set_extmark__end_col) {
                 let mut val = opts.end_col;
                 if !(-1..=MAXCOL).contains(&val) {
@@ -813,7 +813,7 @@ pub fn nvim_buf_set_extmark(
                 if val == -1 {
                     val = MAXCOL;
                 }
-                col2 = val as colnr_T;
+                col2 = val as Colnr;
             }
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_group) {
@@ -1075,7 +1075,7 @@ pub fn nvim_buf_set_extmark(
                 break 'error;
             }
 
-            let mut len: colnr_T = 0;
+            let mut len: Colnr = 0;
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__spell) {
                 hl.flags |= if opts.spell {
@@ -1112,9 +1112,9 @@ pub fn nvim_buf_set_extmark(
                 line = i64::from(b.b_ml.ml_line_count);
             } else if line < i64::from(b.b_ml.ml_line_count) {
                 len = if opts.ephemeral {
-                    MAXCOL as colnr_T
+                    MAXCOL as Colnr
                 } else {
-                    ml_get_buf_len(&mut *b, (line as linenr_T) + 1)
+                    ml_get_buf_len(&mut *b, (line as Linenr) + 1)
                 };
             }
 
@@ -1134,7 +1134,7 @@ pub fn nvim_buf_set_extmark(
             if col2 >= 0 {
                 if line2 >= 0 && line2 < b.b_ml.ml_line_count {
                     len = if opts.ephemeral {
-                        MAXCOL as colnr_T
+                        MAXCOL as Colnr
                     } else {
                         ml_get_buf_len(&mut *b, line2 + 1)
                     };
@@ -1305,7 +1305,7 @@ pub fn nvim_buf_set_extmark(
                     ns_id as u32,
                     Some(&mut id),
                     line as c_int,
-                    col as colnr_T,
+                    col as Colnr,
                     line2,
                     col2,
                     decor,
@@ -1395,7 +1395,7 @@ pub fn nvim_buf_clear_namespace(
             line_start as c_int,
             0,
             (line_end as c_int) - 1,
-            MAXCOL as colnr_T,
+            MAXCOL as Colnr,
         );
 }
 
@@ -1511,11 +1511,11 @@ pub fn nvim_set_decoration_provider(
 }
 
 fn extmark_get_index_from_obj(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     ns_id: Integer,
     obj: Object,
     row: &mut c_int,
-    col: &mut colnr_T,
+    col: &mut Colnr,
     err: &mut Error,
 ) -> bool {
      {
@@ -1527,7 +1527,7 @@ fn extmark_get_index_from_obj(
                 return true;
             } else if id == -1 {
                 *row = MAXLNUM as c_int;
-                *col = MAXCOL as colnr_T;
+                *col = MAXCOL as Colnr;
                 return true;
             } else if id < 0 {
                 api_err_invalid(err, c"mark id", ptr::null(), id, false);
@@ -1560,7 +1560,7 @@ fn extmark_get_index_from_obj(
             let pos_row = pos[0].data.integer();
             let pos_col = pos[1].data.integer();
             *row = (if pos_row >= 0 { pos_row } else { MAXLNUM }) as c_int;
-            *col = (if pos_col >= 0 { pos_col } else { MAXCOL }) as colnr_T;
+            *col = (if pos_col >= 0 { pos_col } else { MAXCOL }) as Colnr;
             true
         } else {
             api_err_exp(
@@ -1706,7 +1706,7 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
                 set_scoped = false;
             }
 
-            let mut windows: std::collections::HashSet<*mut win_T> =
+            let mut windows: std::collections::HashSet<*mut WinInfoInfo> =
                 std::collections::HashSet::new();
             for i in 0..opts.wins.size {
                 let win = (*opts.wins.items.add(i)).data.integer();

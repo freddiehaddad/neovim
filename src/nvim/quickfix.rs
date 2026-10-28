@@ -9,28 +9,28 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BCO_ENTER, BCO_NOHELP, BF_DUMMY, BF_NEW, BLN_DUMMY, BLN_NOOPT, DOBUF_UNLOAD, DOBUF_WIPE,
-    GETF_SETMARK, GETF_SWITCH, MAXLNUM, NOTDONE, VAR_FIXED, bt_help, bt_normal, bt_quickfix, buf_T,
-    buf_valid, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, bufref_T,
+    GETF_SETMARK, GETF_SWITCH, MAXLNUM, NOTDONE, VAR_FIXED, bt_help, bt_normal, bt_quickfix, FileBuf,
+    buf_valid, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, Bufref,
     bufref_valid, close_buffer, do_modelines, kExtmarkNoUndo, no_write_message, set_bufref,
     setfname, wipe_buffer,
 };
 use crate::change::{TAB, changed_lines};
 use crate::charset::{NL, NUL, ascii_iswhite, skipdigits, skipwhite, vim_isprintc};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
-use crate::cursor::{check_cursor, colnr_T, get_cursor_line_ptr, linenr_T, pos_T};
+use crate::cursor::{check_cursor, Colnr, get_cursor_line_ptr, Linenr, CursorPos};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_buf_later, redraw_curbuf_later, redraw_later, update_screen,
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    Callback, EvalFuncData, VarType, callback_copy, callback_free, callback_put, dict_T,
-    dictitem_T, kCallbackNone, list_T, listitem_T, tv_clear, tv_copy, tv_dict_add,
+    Callback, EvalFuncData, VarType, callback_copy, callback_free, callback_put, TvDict,
+    Dictitem, kCallbackNone, TvList, Listitem, tv_clear, tv_copy, tv_dict_add,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
     tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv, tv_dict_item_alloc_len,
     tv_dict_item_free, tv_dict_unref, tv_get_number_chk, tv_get_string_chk, tv_initial_value,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_first, tv_list_len, tv_list_ref,
-    tv_list_unref, typval_T, varnumber_T,
+    tv_list_unref, TypVal, Varnumber,
 };
 use crate::eval::vars::set_internal_string_var;
 use crate::eval::window::{find_win_by_nr_or_id, win_id2wp};
@@ -46,8 +46,8 @@ use crate::ex_cmds::{
 use crate::ex_cmds2::{CMD_cdo, CMD_cfdo, CMD_ldo, CMD_lfdo, autowrite_all, can_abandon};
 #[cfg(windows)]
 use crate::ex_docmd::CAR;
-use crate::ex_docmd::{CMOD_HIDE, do_cmdline_cmd, ex_cd, exarg_T, is_loclist_cmd};
-use crate::ex_eval::{aborting, cleanup_T, enter_cleanup, leave_cleanup};
+use crate::ex_docmd::{CMOD_HIDE, do_cmdline_cmd, ex_cd, Exarg, is_loclist_cmd};
+use crate::ex_eval::{aborting, ExCleanup, enter_cleanup, leave_cleanup};
 use crate::ex_getln::get_list_range;
 use crate::extmark::extmark_splice;
 use crate::fileio::{
@@ -71,18 +71,18 @@ use crate::os::fs::{
     os_open_stdin_fd, os_path_exists, os_remove, os_set_errno,
 };
 use crate::regexp::{
-    RE_MAGIC, RE_STRING, regmatch_T, regmmatch_T, regprog_T, vim_regcomp, vim_regexec,
+    RE_MAGIC, RE_STRING, Regmatch, Regmmatch, Regprog, vim_regcomp, vim_regexec,
     vim_regexec_multi, vim_regfree,
 };
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HELP, WSP_NEWLOC, WSP_QUICKFIX, WSP_TOP, WSP_VERT,
     check_can_set_curbuf_forceit, check_lnums, goto_tabpage_win, reset_binding, tabline_height,
-    tabpage_T, win_T, win_close, win_enter, win_goto, win_setheight, win_setwidth, win_split,
+    TabPageInfo, WinInfoInfo, win_close, win_enter, win_goto, win_setheight, win_setwidth, win_split,
     win_valid,
 };
 
 use crate::math::{FAIL, OK};
-use crate::mbyte::{convert_setup, ptr2cells, remove_bom, string_convert, utfc_ptr2len, vimconv_T};
+use crate::mbyte::{convert_setup, ptr2cells, remove_bom, string_convert, utfc_ptr2len, Vimconv};
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
@@ -93,7 +93,7 @@ use crate::message::{
     smsg, trunc_string,
 };
 use crate::r#move::update_topline;
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::reset_VIsual_and_resel;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
@@ -231,9 +231,9 @@ const E_CURRENT_LOCATION_LIST_WAS_CHANGED: &CStr = c"E926: Current location list
 const E_INVACT: &CStr = c"E927: Invalid action: '%s'";
 
 #[repr(C)]
-pub struct qfline_T {
-    pub qf_lnum: linenr_T,
-    pub qf_end_lnum: linenr_T,
+pub struct Qfline {
+    pub qf_lnum: Linenr,
+    pub qf_end_lnum: Linenr,
     pub qf_fnum: c_int,
     pub qf_col: c_int,
     pub qf_end_col: c_int,
@@ -245,11 +245,11 @@ pub struct qfline_T {
     pub qf_viscol: c_char,
     pub qf_cleared: c_char,
     pub qf_type: c_char,
-    pub qf_user_data: typval_T,
+    pub qf_user_data: TypVal,
     pub qf_valid: c_char,
 }
 
-impl qfline_T {
+impl Qfline {
     pub fn new() -> Self {
         Self {
             qf_lnum: 0,
@@ -271,27 +271,27 @@ impl qfline_T {
     }
 }
 
-impl Drop for qfline_T {
+impl Drop for Qfline {
     fn drop(&mut self) {
         tv_clear(&mut self.qf_user_data);
     }
 }
 
-pub type qfltype_T = c_int;
-pub const QFLT_QUICKFIX: qfltype_T = 0;
-pub const QFLT_LOCATION: qfltype_T = 1;
-pub const QFLT_INTERNAL: qfltype_T = 2;
+pub type Qfltype = c_int;
+pub const QFLT_QUICKFIX: Qfltype = 0;
+pub const QFLT_LOCATION: Qfltype = 1;
+pub const QFLT_INTERNAL: Qfltype = 2;
 
 #[repr(C)]
-pub struct qf_list_T {
+pub struct QfList {
     pub qf_id: c_uint,
-    pub qfl_type: qfltype_T,
-    pub qf_items: Vec<qfline_T>,
+    pub qfl_type: Qfltype,
+    pub qf_items: Vec<Qfline>,
     pub qf_index: c_int,
     pub qf_nonevalid: bool,
     pub qf_has_user_data: bool,
     pub qf_title: Option<std::ffi::CString>,
-    pub qf_ctx: Option<typval_T>,
+    pub qf_ctx: Option<TypVal>,
     pub qf_qftf_cb: Callback,
     pub qf_dir_stack: Vec<std::ffi::CString>,
     pub qf_file_stack: Vec<std::ffi::CString>,
@@ -301,7 +301,7 @@ pub struct qf_list_T {
     pub qf_changedtick: c_int,
 }
 
-impl qf_list_T {
+impl QfList {
     #[inline]
     pub fn directory_ptr(&self) -> *mut c_char {
         self.qf_dir_stack
@@ -331,7 +331,7 @@ impl qf_list_T {
     }
 
     #[inline]
-    pub fn cur_entry(&mut self) -> *mut qfline_T {
+    pub fn cur_entry(&mut self) -> *mut Qfline {
         let idx = self.cur_idx();
         if idx < self.qf_items.len() {
             &raw mut self.qf_items[idx]
@@ -341,7 +341,7 @@ impl qf_list_T {
     }
 }
 
-impl Default for qf_list_T {
+impl Default for QfList {
     fn default() -> Self {
         Self {
             qf_id: 0,
@@ -363,26 +363,26 @@ impl Default for qf_list_T {
     }
 }
 
-impl Drop for qf_list_T {
+impl Drop for QfList {
     fn drop(&mut self) {
         qf_free(self);
     }
 }
 
 #[repr(C)]
-pub struct qf_info_T {
+pub struct QfInfo {
     pub qf_refcount: c_int,
     pub qf_listcount: c_int,
     pub qf_curlist: c_int,
     pub qf_maxcount: c_int,
-    pub qf_lists: Vec<qf_list_T>,
-    pub qfl_type: qfltype_T,
+    pub qf_lists: Vec<QfList>,
+    pub qfl_type: Qfltype,
     pub qf_bufnr: c_int,
 }
 
 #[repr(C)]
-struct efm_T {
-    prog: Option<Box<regprog_T>>,
+struct Efm {
+    prog: Option<Box<Regprog>>,
     addr: [c_char; FMT_PATTERNS],
     prefix: c_char,
     flags: c_char,
@@ -393,23 +393,23 @@ enum QfInputSource {
     None,
     File(crate::os::fs::CFile),
     Str(*mut c_char),
-    List(*mut listitem_T),
+    List(*mut Listitem),
     Buf {
-        buf: *mut buf_T,
-        buflnum: linenr_T,
-        lnumlast: linenr_T,
+        buf: *mut FileBuf,
+        buflnum: Linenr,
+        lnumlast: Linenr,
     },
 }
 
-struct qfstate_T {
+struct Qfstate {
     use_growbuf: bool,
     linelen: usize,
     growbuf: Vec<c_char>,
     source: QfInputSource,
-    vc: vimconv_T,
+    vc: Vimconv,
 }
 
-impl qfstate_T {
+impl Qfstate {
     #[inline]
     fn linebuf_ptr(&mut self) -> *mut c_char {
         if self.use_growbuf {
@@ -420,26 +420,26 @@ impl qfstate_T {
     }
 }
 
-impl Default for qfstate_T {
+impl Default for Qfstate {
     fn default() -> Self {
         Self {
             use_growbuf: false,
             linelen: 0,
             growbuf: Vec::new(),
             source: QfInputSource::None,
-            vc: vimconv_T::new(),
+            vc: Vimconv::new(),
         }
     }
 }
 
 #[repr(C)]
-struct qffields_T {
+struct Qffields {
     namebuf: Vec<c_char>,
     bnr: c_int,
     module: Vec<c_char>,
     errmsg: Vec<c_char>,
-    lnum: linenr_T,
-    end_lnum: linenr_T,
+    lnum: Linenr,
+    end_lnum: Linenr,
     col: c_int,
     end_col: c_int,
     use_viscol: bool,
@@ -449,7 +449,7 @@ struct qffields_T {
     valid: bool,
 }
 
-impl Default for qffields_T {
+impl Default for Qffields {
     fn default() -> Self {
         Self {
             namebuf: vec![0; CMDBUFFSIZE + 1],
@@ -470,23 +470,23 @@ impl Default for qffields_T {
 }
 
 #[repr(C)]
-struct vgr_args_T {
+struct VgrArgs {
     tomatch: c_int,
     spat: Option<std::ffi::CString>,
     flags: c_int,
     fnames: Vec<std::ffi::CString>,
-    regmatch: regmmatch_T,
+    regmatch: Regmmatch,
     qf_title: Option<std::ffi::CString>,
 }
 
-impl vgr_args_T {
+impl VgrArgs {
     const fn new() -> Self {
         Self {
             tomatch: 0,
             spat: None,
             flags: 0,
             fnames: Vec::new(),
-            regmatch: regmmatch_T::new(),
+            regmatch: Regmmatch::new(),
             qf_title: None,
         }
     }
@@ -499,7 +499,7 @@ impl vgr_args_T {
     }
 }
 
-impl Default for vgr_args_T {
+impl Default for VgrArgs {
     fn default() -> Self {
         Self::new()
     }
@@ -570,15 +570,15 @@ const FMT_PAT: [FmtPattern; FMT_PATTERNS] = [
 ];
 
 struct QuickfixState {
-    ql_info_actual: qf_info_T,
+    ql_info_actual: QfInfo,
     last_qf_id: c_uint,
     qf_last_bufname: Option<std::ffi::CString>,
-    qf_last_bufref: bufref_T,
+    qf_last_bufref: Bufref,
     qfga: Vec<c_char>,
     quickfix_busy: c_int,
-    qf_delq: Vec<*mut qf_info_T>,
+    qf_delq: Vec<*mut QfInfo>,
     fmt_start_idx: Option<usize>,
-    fmt_cache: Vec<efm_T>,
+    fmt_cache: Vec<Efm>,
     last_efm_cache: Option<std::ffi::CString>,
     qftitle_str: [c_char; IOSIZE],
     qfFile_hl_id: c_int,
@@ -596,7 +596,7 @@ struct QuickfixState {
 impl QuickfixState {
     const fn new() -> Self {
         Self {
-            ql_info_actual: qf_info_T {
+            ql_info_actual: QfInfo {
                 qf_refcount: 0,
                 qf_listcount: 0,
                 qf_curlist: 0,
@@ -607,7 +607,7 @@ impl QuickfixState {
             },
             last_qf_id: 0,
             qf_last_bufname: None,
-            qf_last_bufref: bufref_T {
+            qf_last_bufref: Bufref {
                 br_buf: ptr::null_mut(),
                 br_fnum: 0,
                 br_buf_free_count: 0,
@@ -641,7 +641,7 @@ fn qf_st() -> &'static mut QuickfixState {
 }
 
 #[inline]
-fn ql_info_ptr() -> *mut qf_info_T {
+fn ql_info_ptr() -> *mut QfInfo {
     unsafe { &raw mut (*QF_STATE.as_ptr()).ql_info_actual }
 }
 
@@ -657,32 +657,32 @@ fn c_strcat(dst: *mut c_char, src: impl crate::strings::IntoCCharPtr) {
 }
 
 #[inline]
-fn is_qf_window(wp: &win_T) -> bool {
+fn is_qf_window(wp: &WinInfoInfo) -> bool {
     bt_quickfix(unsafe { wp.w_buffer.as_ref() }) && wp.w_llist_ref.is_null()
 }
 
 #[inline]
-fn is_ll_window(wp: &win_T) -> bool {
+fn is_ll_window(wp: &WinInfoInfo) -> bool {
     bt_quickfix(unsafe { wp.w_buffer.as_ref() }) && !wp.w_llist_ref.is_null()
 }
 
 #[inline]
-fn is_qf_stack(qi: &qf_info_T) -> bool {
+fn is_qf_stack(qi: &QfInfo) -> bool {
     qi.qfl_type == QFLT_QUICKFIX
 }
 
 #[inline]
-fn is_ll_stack(qi: &qf_info_T) -> bool {
+fn is_ll_stack(qi: &QfInfo) -> bool {
     qi.qfl_type == QFLT_LOCATION
 }
 
 #[inline]
-fn is_qf_list(qfl: &qf_list_T) -> bool {
+fn is_qf_list(qfl: &QfList) -> bool {
     qfl.qfl_type == QFLT_QUICKFIX
 }
 
 #[inline]
-fn get_loc_list(wp: &win_T) -> *mut qf_info_T {
+fn get_loc_list(wp: &WinInfoInfo) -> *mut QfInfo {
      {
         if is_ll_window(wp) {
             wp.w_llist_ref
@@ -693,7 +693,7 @@ fn get_loc_list(wp: &win_T) -> *mut qf_info_T {
 }
 
 #[inline]
-fn tab_firstwin(tp: &tabpage_T) -> *mut win_T {
+fn tab_firstwin(tp: &TabPageInfo) -> *mut WinInfoInfo {
     if ptr::eq(tp, g_st().curtab) {
             g_st().firstwin
         } else {
@@ -743,10 +743,10 @@ fn qfga_concat_len(gap: &mut Vec<c_char>, s: impl crate::strings::IntoCCharPtr, 
 }
 
 fn qf_init_process_nextline(
-    qfl: &mut qf_list_T,
-    fmt_first: &[efm_T],
-    state: &mut qfstate_T,
-    fields: &mut qffields_T,
+    qfl: &mut QfList,
+    fmt_first: &[Efm],
+    state: &mut Qfstate,
+    fields: &mut Qffields,
 ) -> c_int {
      {
         let mut status = qf_get_nextline(state);
@@ -795,7 +795,7 @@ fn qf_init_process_nextline(
 }
 
 pub fn qf_init(
-    wp: Option<&mut win_T>,
+    wp: Option<&mut WinInfoInfo>,
     efile: impl crate::strings::IntoCCharPtr,
     errorformat: impl crate::strings::IntoCCharPtr,
     newlist: c_int,
@@ -825,7 +825,7 @@ pub fn qf_init(
 fn efmpat_to_regpat(
     efmpat: impl crate::strings::IntoCCharPtr,
     mut regpat: *mut c_char,
-    efminfo: &mut efm_T,
+    efminfo: &mut Efm,
     idx: usize,
     mut round: c_int,
 ) -> *mut c_char { let efmpat = efmpat.into_c_char_ptr();
@@ -945,7 +945,7 @@ fn scanf_fmt_to_regpat(
     }
 }
 
-fn efm_analyze_prefix(efmp: impl crate::strings::IntoCCharPtr, efminfo: &mut efm_T) -> *const c_char { let mut efmp = efmp.into_c_char_ptr();
+fn efm_analyze_prefix(efmp: impl crate::strings::IntoCCharPtr, efminfo: &mut Efm) -> *const c_char { let mut efmp = efmp.into_c_char_ptr();
     unsafe {
         if !vim_strchr(c"+-", c_int::from(crate::memory::cstr_first_byte(efmp))).is_null() {
             efminfo.flags = *efmp;
@@ -967,7 +967,7 @@ fn efm_analyze_prefix(efmp: impl crate::strings::IntoCCharPtr, efminfo: &mut efm
 fn efm_to_regpat(
     efm: impl crate::strings::IntoCCharPtr,
     len: c_int,
-    fmt_ptr: &mut efm_T,
+    fmt_ptr: &mut Efm,
     regpat: *mut c_char,
 ) -> bool { let efm = efm.into_c_char_ptr();
     unsafe {
@@ -1073,16 +1073,16 @@ fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> c_int {
     }
 }
 
-fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<efm_T> { let mut efm = efm.into_c_char_ptr();
+fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<Efm> { let mut efm = efm.into_c_char_ptr();
     unsafe {
-        let mut fmt_list: Vec<efm_T> = Vec::new();
+        let mut fmt_list: Vec<Efm> = Vec::new();
 
         let sz = efm_regpat_bufsz(efm);
         let mut fmtstr = vec![0 as c_char; sz];
 
         let mut errored = false;
         while !crate::memory::cstr_is_empty(efm) {
-            let mut fmt_item = efm_T {
+            let mut fmt_item = Efm {
                 prog: None,
                 addr: [0; FMT_PATTERNS],
                 prefix: 0,
@@ -1116,7 +1116,7 @@ fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<efm_T> { let 
     }
 }
 
-fn qf_grow_linebuf(state: &mut qfstate_T, newsz: usize) -> *mut c_char {
+fn qf_grow_linebuf(state: &mut Qfstate, newsz: usize) -> *mut c_char {
     {
         state.linelen = if newsz > LINE_MAXLEN {
             LINE_MAXLEN - 1
@@ -1131,7 +1131,7 @@ fn qf_grow_linebuf(state: &mut qfstate_T, newsz: usize) -> *mut c_char {
     }
 }
 
-fn qf_get_next_str_line(state: &mut qfstate_T, mut p_str: *mut c_char) -> c_int {
+fn qf_get_next_str_line(state: &mut Qfstate, mut p_str: *mut c_char) -> c_int {
     unsafe {
         if crate::memory::cstr_is_empty(p_str) {
             return QF_END_OF_INPUT;
@@ -1161,7 +1161,7 @@ fn qf_get_next_str_line(state: &mut qfstate_T, mut p_str: *mut c_char) -> c_int 
     }
 }
 
-fn qf_get_next_list_line(state: &mut qfstate_T, mut p_li: *mut listitem_T) -> c_int {
+fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: *mut Listitem) -> c_int {
     unsafe {
         while !p_li.is_null()
             && ((*p_li).li_tv.v_type != VarType::VAR_STRING
@@ -1192,10 +1192,10 @@ fn qf_get_next_list_line(state: &mut qfstate_T, mut p_li: *mut listitem_T) -> c_
 }
 
 fn qf_get_next_buf_line(
-    state: &mut qfstate_T,
-    buf: *mut buf_T,
-    buflnum: linenr_T,
-    lnumlast: linenr_T,
+    state: &mut Qfstate,
+    buf: *mut FileBuf,
+    buflnum: Linenr,
+    lnumlast: Linenr,
 ) -> c_int {
     {
         if buflnum > lnumlast {
@@ -1221,7 +1221,7 @@ fn qf_get_next_buf_line(
     }
 }
 
-fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
+fn qf_get_next_file_line(state: &mut Qfstate, fd: *mut FILE) -> c_int {
     unsafe {
         let iobuff_ptr = g_st().IObuff.as_mut_ptr();
         loop {
@@ -1317,7 +1317,7 @@ fn qf_get_next_file_line(state: &mut qfstate_T, fd: *mut FILE) -> c_int {
     }
 }
 
-fn qf_get_nextline(state: &mut qfstate_T) -> c_int {
+fn qf_get_nextline(state: &mut Qfstate) -> c_int {
     unsafe {
         let status = match state.source {
             QfInputSource::None => QF_FAIL,
@@ -1351,31 +1351,31 @@ fn qf_get_nextline(state: &mut qfstate_T) -> c_int {
 }
 
 #[inline]
-fn qf_stack_empty(qi: Option<&qf_info_T>) -> bool {
+fn qf_stack_empty(qi: Option<&QfInfo>) -> bool {
     qi.is_none() ||  { qi.unwrap().qf_listcount <= 0 }
 }
 
 #[inline]
-fn qf_list_empty(qfl: Option<&qf_list_T>) -> bool {
+fn qf_list_empty(qfl: Option<&QfList>) -> bool {
     qfl.is_none() ||  { qfl.unwrap().qf_items.is_empty() }
 }
 
 #[inline]
-fn qf_list_has_valid_entries(qfl: &qf_list_T) -> bool {
+fn qf_list_has_valid_entries(qfl: &QfList) -> bool {
     !qf_list_empty(Some(qfl)) && !qfl.qf_nonevalid
 }
 
 #[inline]
-fn qf_get_list(qi: &mut qf_info_T, idx: c_int) -> &'static mut qf_list_T {
+fn qf_get_list(qi: &mut QfInfo, idx: c_int) -> &'static mut QfList {
     unsafe { &mut *qi.qf_lists.as_mut_ptr().add(idx as usize) }
 }
 
 fn qf_parse_line(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     linebuf: impl crate::strings::IntoCCharPtr,
     mut linelen: usize,
-    fmt_first: &[efm_T],
-    fields: &mut qffields_T,
+    fmt_first: &[Efm],
+    fields: &mut Qffields,
 ) -> c_int { let mut linebuf = linebuf.into_c_char_ptr();
      {
         let fmt_len = fmt_first.len();
@@ -1383,7 +1383,7 @@ fn qf_parse_line(
             let start_idx = qf_st().fmt_start_idx;
             qf_st().fmt_start_idx = None;
             let mut fmt_idx = start_idx.unwrap_or(0);
-            let mut fmt_opt: Option<&efm_T> = None;
+            let mut fmt_opt: Option<&Efm> = None;
 
             let mut idx: c_int = 0;
             let mut tail: *mut c_char = ptr::null_mut();
@@ -1469,12 +1469,12 @@ fn qf_parse_line(
 }
 
 fn qf_setup_state(
-    pstate: &mut qfstate_T,
+    pstate: &mut Qfstate,
     enc: impl crate::strings::IntoCCharPtr,
-    efile: impl crate::strings::IntoCCharPtr,tv: Option<&mut typval_T>,
-    buf: *mut buf_T,
-    lnumfirst: linenr_T,
-    lnumlast: linenr_T,
+    efile: impl crate::strings::IntoCCharPtr,tv: Option<&mut TypVal>,
+    buf: *mut FileBuf,
+    lnumfirst: Linenr,
+    lnumlast: Linenr,
 ) -> bool { let enc = enc.into_c_char_ptr(); let efile = efile.into_c_char_ptr();
     unsafe {
         pstate.vc.vc_type = CONV_NONE;
@@ -1512,20 +1512,20 @@ fn qf_setup_state(
 }
 
 fn qf_init_ext(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     mut qf_idx: c_int,
     efile: impl crate::strings::IntoCCharPtr,
-    buf: *mut buf_T,mut tv: Option<&mut typval_T>,
+    buf: *mut FileBuf,mut tv: Option<&mut TypVal>,
     errorformat: impl crate::strings::IntoCCharPtr,
     newlist: bool,
-    lnumfirst: linenr_T,
-    lnumlast: linenr_T,
+    lnumfirst: Linenr,
+    lnumlast: Linenr,
     qf_title: impl crate::strings::IntoCCharPtr,
     enc: impl crate::strings::IntoCCharPtr,
 ) -> c_int { let errorformat = errorformat.into_c_char_ptr(); let enc = enc.into_c_char_ptr(); let efile = efile.into_c_char_ptr(); let qf_title = qf_title.into_c_char_ptr();
     unsafe {
-        let mut state = qfstate_T::default();
-        let mut fields = qffields_T::default();
+        let mut state = Qfstate::default();
+        let mut fields = Qffields::default();
         let mut old_count: usize = 0;
         let mut retval: c_int = -1;
 
@@ -1538,7 +1538,7 @@ fn qf_init_ext(
             return retval;
         }
 
-        let qfl: &mut qf_list_T;
+        let qfl: &mut QfList;
         let mut adding = false;
         if newlist || qf_idx == qi.qf_listcount {
             qf_new_list(qi, qf_title);
@@ -1631,7 +1631,7 @@ fn qf_init_ext(
     }
 }
 
-fn qf_store_title(qfl: &mut qf_list_T, title: impl crate::strings::IntoCCharPtr) { let title = title.into_c_char_ptr();
+fn qf_store_title(qfl: &mut QfList, title: impl crate::strings::IntoCCharPtr) { let title = title.into_c_char_ptr();
      {
         qfl.qf_title = if title.is_null() {
             None
@@ -1648,15 +1648,15 @@ fn qf_cmdtitle(cmd: impl crate::strings::IntoCCharPtr) -> *mut c_char { let cmd 
 }
 
 #[inline]
-fn qf_get_curlist(qi: &mut qf_info_T) -> &'static mut qf_list_T {
+fn qf_get_curlist(qi: &mut QfInfo) -> &'static mut QfList {
     qf_get_list(qi, qi.qf_curlist)
 }
 
-fn qf_pop_stack(qi: &mut qf_info_T, adjust: bool) {
+fn qf_pop_stack(qi: &mut QfInfo, adjust: bool) {
     let cnt = qi.qf_listcount as usize;
         let lists = &mut qi.qf_lists.as_mut_slice()[..cnt];
         lists.rotate_left(1);
-        lists[cnt - 1] = qf_list_T::default();
+        lists[cnt - 1] = QfList::default();
 
         if adjust {
             qi.qf_listcount -= 1;
@@ -1668,7 +1668,7 @@ fn qf_pop_stack(qi: &mut qf_info_T, adjust: bool) {
         }
 }
 
-fn qf_new_list(qi: &mut qf_info_T, qf_title: impl crate::strings::IntoCCharPtr) { let qf_title = qf_title.into_c_char_ptr();
+fn qf_new_list(qi: &mut QfInfo, qf_title: impl crate::strings::IntoCCharPtr) { let qf_title = qf_title.into_c_char_ptr();
     while qi.qf_listcount > qi.qf_curlist + 1 {
             qi.qf_listcount -= 1;
             let lc = qi.qf_listcount;
@@ -1684,7 +1684,7 @@ fn qf_new_list(qi: &mut qf_info_T, qf_title: impl crate::strings::IntoCCharPtr) 
         }
 
         let qfl = qf_get_curlist(&mut *qi);
-        *qfl = qf_list_T::default();
+        *qfl = QfList::default();
         qf_store_title(qfl, qf_title);
         qfl.qfl_type = qi.qfl_type;
         qf_st().last_qf_id += 1;
@@ -1693,9 +1693,9 @@ fn qf_new_list(qi: &mut qf_info_T, qf_title: impl crate::strings::IntoCCharPtr) 
 }
 
 fn qf_parse_fmt_f(
-    rmp: &mut regmatch_T,
+    rmp: &mut Regmatch,
     midx: usize,
-    fields: &mut qffields_T,
+    fields: &mut Qffields,
     prefix: c_int,
 ) -> c_int {
     unsafe {
@@ -1722,7 +1722,7 @@ fn qf_parse_fmt_f(
     }
 }
 
-fn qf_parse_fmt_b(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
      {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
@@ -1736,7 +1736,7 @@ fn qf_parse_fmt_b(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_n(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_n(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
      {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
@@ -1746,27 +1746,27 @@ fn qf_parse_fmt_n(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_l(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_l(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
      {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as linenr_T;
+        fields.lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as Linenr;
         QF_OK
     }
 }
 
-fn qf_parse_fmt_e(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_e(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
      {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
         }
-        fields.end_lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as linenr_T;
+        fields.end_lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx])) as std::ffi::c_long as Linenr;
         QF_OK
     }
 }
 
-fn qf_parse_fmt_c(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_c(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
      {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
@@ -1776,7 +1776,7 @@ fn qf_parse_fmt_c(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_k(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
      {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
@@ -1786,7 +1786,7 @@ fn qf_parse_fmt_k(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_t(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_t(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
     unsafe {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
@@ -1799,7 +1799,7 @@ fn qf_parse_fmt_t(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
 fn copy_nonerror_line(
     linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
-    fields: &mut qffields_T,
+    fields: &mut Qffields,
 ) -> c_int { let linebuf = linebuf.into_c_char_ptr();
     if linelen >= fields.errmsg.len() {
             fields.errmsg.resize(linelen + 1, 0);
@@ -1808,7 +1808,7 @@ fn copy_nonerror_line(
         QF_OK
 }
 
-fn qf_parse_fmt_m(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
     unsafe {
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
@@ -1822,7 +1822,7 @@ fn qf_parse_fmt_m(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_r(rmp: &mut regmatch_T, midx: usize, tail: *mut *mut c_char) -> c_int {
+fn qf_parse_fmt_r(rmp: &mut Regmatch, midx: usize, tail: *mut *mut c_char) -> c_int {
     unsafe {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
@@ -1832,7 +1832,7 @@ fn qf_parse_fmt_r(rmp: &mut regmatch_T, midx: usize, tail: *mut *mut c_char) -> 
     }
 }
 
-fn qf_parse_fmt_p(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
     unsafe {
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
@@ -1853,7 +1853,7 @@ fn qf_parse_fmt_p(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_v(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_v(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
      {
         if rmp.startp[midx].is_null() {
             return QF_FAIL;
@@ -1864,7 +1864,7 @@ fn qf_parse_fmt_v(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_s(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
     unsafe {
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
@@ -1881,7 +1881,7 @@ fn qf_parse_fmt_s(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
     }
 }
 
-fn qf_parse_fmt_o(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) -> c_int {
+fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> c_int {
     unsafe {
         if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
             return QF_FAIL;
@@ -1897,9 +1897,9 @@ fn qf_parse_fmt_o(rmp: &mut regmatch_T, midx: usize, fields: &mut qffields_T) ->
 fn qf_parse_match(
     linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
-    fmt_ptr: &efm_T,
-    regmatch: &mut regmatch_T,
-    fields: &mut qffields_T,
+    fmt_ptr: &Efm,
+    regmatch: &mut Regmatch,
+    fields: &mut Qffields,
     qf_multiline: c_int,
     qf_multiscan: c_int,
     tail: *mut *mut c_char,
@@ -1958,8 +1958,8 @@ fn qf_parse_match(
 fn qf_parse_get_fields(
     linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
-    fmt_ptr: &efm_T,
-    fields: &mut qffields_T,
+    fmt_ptr: &Efm,
+    fields: &mut Qffields,
     qf_multiline: c_int,
     qf_multiscan: c_int,
     tail: *mut *mut c_char,
@@ -1987,7 +1987,7 @@ fn qf_parse_get_fields(
         fields.type_ = 0;
         *tail = ptr::null_mut();
 
-        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
         regmatch.rm_ic = true;
         regmatch.regprog = crate::regexp::regprog_as_ptr(&fmt_ptr.prog);
         let r = vim_regexec(&mut regmatch, linebuf, 0);
@@ -2009,7 +2009,7 @@ fn qf_parse_get_fields(
     }
 }
 
-fn qf_parse_dir_pfx(idx: c_int, fields: &mut qffields_T, qfl: &mut qf_list_T) -> c_int {
+fn qf_parse_dir_pfx(idx: c_int, fields: &mut Qffields, qfl: &mut QfList) -> c_int {
      {
         if idx == c_int::from(b'D') {
             if crate::memory::cstr_is_empty(fields.namebuf.as_ptr()) {
@@ -2031,8 +2031,8 @@ fn qf_parse_dir_pfx(idx: c_int, fields: &mut qffields_T, qfl: &mut qf_list_T) ->
 
 fn qf_parse_file_pfx(
     idx: c_int,
-    fields: &mut qffields_T,
-    qfl: &mut qf_list_T,
+    fields: &mut Qffields,
+    qfl: &mut QfList,
     tail: impl crate::strings::IntoCCharPtr,
 ) -> c_int { let tail = tail.into_c_char_ptr();
     unsafe {
@@ -2061,7 +2061,7 @@ fn qf_parse_file_pfx(
 fn qf_parse_line_nomatch(
     linebuf: impl crate::strings::IntoCCharPtr,
     linelen: usize,
-    fields: &mut qffields_T,
+    fields: &mut Qffields,
 ) -> c_int { let linebuf = linebuf.into_c_char_ptr();
     unsafe {
         *fields.namebuf.as_mut_ptr() = NUL;
@@ -2074,15 +2074,15 @@ fn qf_parse_line_nomatch(
 
 fn qf_parse_multiline_pfx(
     idx: c_int,
-    qfl: &mut qf_list_T,
-    fields: &mut qffields_T,
+    qfl: &mut QfList,
+    fields: &mut Qffields,
 ) -> c_int {
     unsafe {
         if !qfl.qf_multiignore {
             let Some(qfprev) = qfl.qf_items.last_mut() else {
                 return QF_FAIL;
             };
-            let qfprev: *mut qfline_T = qfprev;
+            let qfprev: *mut Qfline = qfprev;
             if !crate::memory::cstr_is_empty(fields.errmsg.as_ptr()) {
                 let mut bytes = (*qfprev).qf_text.as_bytes().to_vec();
                 bytes.push(b'\n');
@@ -2131,7 +2131,7 @@ fn qf_parse_multiline_pfx(
     }
 }
 
-fn locstack_queue_delreq(qi: &mut qf_info_T) {
+fn locstack_queue_delreq(qi: &mut QfInfo) {
      {
         qf_st().qf_delq.push(qi);
     }
@@ -2143,7 +2143,7 @@ pub fn qf_stack_get_bufnr() -> c_int {
     }
 }
 
-fn wipe_qf_buffer(qi: &mut qf_info_T) {
+fn wipe_qf_buffer(qi: &mut QfInfo) {
     unsafe {
         if qi.qf_bufnr == INVALID_QFBUFNR {
             return;
@@ -2166,13 +2166,13 @@ fn wipe_qf_buffer(qi: &mut qf_info_T) {
     }
 }
 
-fn qf_free_list_stack_items(qi: &mut qf_info_T) {
+fn qf_free_list_stack_items(qi: &mut QfInfo) {
     for i in 0..qi.qf_listcount {
             qf_free(qf_get_list(&mut *qi, i));
         }
 }
 
-fn ll_free_all(pqi: *mut *mut qf_info_T) {
+fn ll_free_all(pqi: *mut *mut QfInfo) {
     unsafe {
         let qi = *pqi;
         if qi.is_null() {
@@ -2193,7 +2193,7 @@ fn ll_free_all(pqi: *mut *mut qf_info_T) {
     }
 }
 
-pub fn qf_free_all(wp: Option<&mut win_T>) {
+pub fn qf_free_all(wp: Option<&mut WinInfoInfo>) {
     unsafe {
         let qi = ql_info_ptr();
         if let Some(wp) = wp {
@@ -2230,26 +2230,26 @@ pub fn check_quickfix_busy() {
 }
 
 fn qf_add_entry(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     dir: *mut c_char,
     fname: *mut c_char,
     module: impl crate::strings::IntoCCharPtr,
     bufnum: c_int,
     mesg: impl crate::strings::IntoCCharPtr,
-    lnum: linenr_T,
-    end_lnum: linenr_T,
+    lnum: Linenr,
+    end_lnum: Linenr,
     col: c_int,
     end_col: c_int,
     vis_col: c_char,
     pattern: impl crate::strings::IntoCCharPtr,
     nr: c_int,
     mut type_: c_char,
-    user_data: Option<&typval_T>,
+    user_data: Option<&TypVal>,
     valid: c_char,
 ) -> c_int { let module = module.into_c_char_ptr(); let mesg = mesg.into_c_char_ptr(); let pattern = pattern.into_c_char_ptr();
     unsafe {
-        let buf: *mut buf_T;
-        let mut qfp = qfline_T::new();
+        let buf: *mut FileBuf;
+        let mut qfp = Qfline::new();
 
         if bufnum != 0 {
             buf = buflist_findnr(bufnum);
@@ -2332,7 +2332,7 @@ pub fn qf_resize_stack(n: c_int) {
     }
 }
 
-pub fn ll_resize_stack(wp: &mut win_T, n: c_int) {
+pub fn ll_resize_stack(wp: &mut WinInfoInfo, n: c_int) {
     unsafe {
         if is_ll_window(wp) {
             qf_sync_llw_to_win(wp);
@@ -2345,7 +2345,7 @@ pub fn ll_resize_stack(wp: &mut win_T, n: c_int) {
     }
 }
 
-fn qf_resize_stack_base(qi: &mut qf_info_T, n: c_int) {
+fn qf_resize_stack_base(qi: &mut QfInfo, n: c_int) {
     if n == qi.qf_maxcount {
             return;
         } else if n < qi.qf_maxcount && n < qi.qf_listcount {
@@ -2355,7 +2355,7 @@ fn qf_resize_stack_base(qi: &mut qf_info_T, n: c_int) {
             }
         }
 
-        qi.qf_lists.resize_with(n as usize, qf_list_T::default);
+        qi.qf_lists.resize_with(n as usize, QfList::default);
         qi.qf_maxcount = n;
 
         qf_update_buffer(qi, 0);
@@ -2365,7 +2365,7 @@ pub fn qf_init_stack() {
     let _ = qf_alloc_stack(QFLT_QUICKFIX, opt_vars().p_chi as c_int);
 }
 
-fn qf_sync_llw_to_win(llw: &mut win_T) {
+fn qf_sync_llw_to_win(llw: &mut WinInfoInfo) {
     unsafe {
         let wp = qf_find_win_with_loclist(&*llw.w_llist_ref);
         if !wp.is_null() {
@@ -2374,7 +2374,7 @@ fn qf_sync_llw_to_win(llw: &mut win_T) {
     }
 }
 
-fn qf_sync_win_to_llw(pwp: &mut win_T) {
+fn qf_sync_win_to_llw(pwp: &mut WinInfoInfo) {
      {
         let llw = pwp.w_llist;
         if !llw.is_null() {
@@ -2388,12 +2388,12 @@ fn qf_sync_win_to_llw(pwp: &mut win_T) {
     }
 }
 
-fn qf_alloc_stack(qfltype: qfltype_T, n: c_int) -> *mut qf_info_T {
+fn qf_alloc_stack(qfltype: Qfltype, n: c_int) -> *mut QfInfo {
     unsafe {
         let qi = if qfltype == QFLT_QUICKFIX {
             &raw mut qf_st().ql_info_actual
         } else {
-            Box::into_raw(Box::new(qf_info_T {
+            Box::into_raw(Box::new(QfInfo {
                 qf_refcount: 1,
                 qf_listcount: 0,
                 qf_curlist: 0,
@@ -2406,14 +2406,14 @@ fn qf_alloc_stack(qfltype: qfltype_T, n: c_int) -> *mut qf_info_T {
         (*qi).qfl_type = qfltype;
         (*qi).qf_bufnr = INVALID_QFBUFNR;
         (*qi).qf_lists.clear();
-        (*qi).qf_lists.resize_with(n as usize, qf_list_T::default);
+        (*qi).qf_lists.resize_with(n as usize, QfList::default);
         (*qi).qf_maxcount = n;
 
         qi
     }
 }
 
-fn ll_get_or_alloc_list(wp: &mut win_T) -> *mut qf_info_T {
+fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> *mut QfInfo {
      {
         if is_ll_window(wp) {
             return wp.w_llist_ref;
@@ -2429,7 +2429,7 @@ fn ll_get_or_alloc_list(wp: &mut win_T) -> *mut qf_info_T {
     }
 }
 
-fn qf_cmd_get_stack(eap: &mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
+fn qf_cmd_get_stack(eap: &mut Exarg, print_emsg: bool) -> *mut QfInfo {
      {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
@@ -2448,7 +2448,7 @@ fn qf_cmd_get_stack(eap: &mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
     }
 }
 
-fn qf_cmd_get_or_alloc_stack(eap: &exarg_T, pwinp: *mut *mut win_T) -> *mut qf_info_T {
+fn qf_cmd_get_or_alloc_stack(eap: &Exarg, pwinp: *mut *mut WinInfoInfo) -> *mut QfInfo {
     unsafe {
         let mut qi = ql_info_ptr();
         if is_loclist_cmd(eap.cmdidx) {
@@ -2459,7 +2459,7 @@ fn qf_cmd_get_or_alloc_stack(eap: &exarg_T, pwinp: *mut *mut win_T) -> *mut qf_i
     }
 }
 
-fn copy_loclist_entries(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> bool {
+fn copy_loclist_entries(from_qfl: &QfList, to_qfl: &mut QfList) -> bool {
     for from_qfp in &from_qfl.qf_items {
             if g_st().got_int {
                 break;
@@ -2500,7 +2500,7 @@ fn copy_loclist_entries(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> bool {
         true
 }
 
-fn copy_loclist(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> bool {
+fn copy_loclist(from_qfl: &QfList, to_qfl: &mut QfList) -> bool {
     to_qfl.qfl_type = from_qfl.qfl_type;
         to_qfl.qf_nonevalid = from_qfl.qf_nonevalid;
         to_qfl.qf_has_user_data = from_qfl.qf_has_user_data;
@@ -2535,7 +2535,7 @@ fn copy_loclist(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> bool {
         true
 }
 
-pub fn copy_loclist_stack(from: &mut win_T, to: &mut win_T) {
+pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
     unsafe {
         let qi = get_loc_list( &*from);
         if qi.is_null() {
@@ -2560,7 +2560,7 @@ pub fn copy_loclist_stack(from: &mut win_T, to: &mut win_T) {
 }
 
 fn qf_get_fnum(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     mut directory: *mut c_char,
     fname: *mut c_char,
 ) -> c_int {
@@ -2659,7 +2659,7 @@ fn qf_pop_dir(stack: &mut Vec<std::ffi::CString>) {
     stack.pop();
 }
 
-fn qf_guess_filepath(qfl: &mut qf_list_T, filename: impl crate::strings::IntoCCharPtr) -> *mut c_char { let filename = filename.into_c_char_ptr();
+fn qf_guess_filepath(qfl: &mut QfList, filename: impl crate::strings::IntoCCharPtr) -> *mut c_char { let filename = filename.into_c_char_ptr();
     let stack = &mut qfl.qf_dir_stack;
         if stack.is_empty() {
             return ptr::null_mut();
@@ -2684,7 +2684,7 @@ fn qf_guess_filepath(qfl: &mut qf_list_T, filename: impl crate::strings::IntoCCh
         })
 }
 
-fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
+fn qflist_valid(wp: *mut WinInfoInfo, qf_id: c_uint) -> bool {
     unsafe {
         let mut qi = ql_info_ptr();
         if !wp.is_null() {
@@ -2706,15 +2706,15 @@ fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
     }
 }
 
-fn is_qf_entry_present(qfl: &qf_list_T, qf_index: c_int) -> bool {
+fn is_qf_entry_present(qfl: &QfList, qf_index: c_int) -> bool {
     !g_st().got_int && qf_index >= 1 && (qf_index as usize) <= qfl.qf_items.len()
 }
 
 fn get_next_valid_entry(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     qf_index: &mut c_int,
     dir: c_int,
-) -> *mut qfline_T {
+) -> *mut Qfline {
     let mut idx = *qf_index;
         if idx < 1 || (idx as usize) > qfl.qf_items.len() {
             return ptr::null_mut();
@@ -2739,10 +2739,10 @@ fn get_next_valid_entry(
 }
 
 fn get_prev_valid_entry(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     qf_index: &mut c_int,
     dir: c_int,
-) -> *mut qfline_T {
+) -> *mut Qfline {
     let mut idx = *qf_index;
         if idx < 1 || (idx as usize) > qfl.qf_items.len() {
             return ptr::null_mut();
@@ -2767,11 +2767,11 @@ fn get_prev_valid_entry(
 }
 
 fn get_nth_valid_entry(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     mut errornr: c_int,
     dir: c_int,
     new_qfidx: &mut c_int,
-) -> *mut qfline_T {
+) -> *mut Qfline {
     {
         let mut qf_ptr = qfl.cur_entry();
         let mut qf_idx = qfl.qf_index;
@@ -2807,10 +2807,10 @@ fn get_nth_valid_entry(
 }
 
 fn get_nth_entry(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     errornr: c_int,
     new_qfidx: &mut c_int,
-) -> *mut qfline_T {
+) -> *mut Qfline {
     if qfl.qf_items.is_empty() {
             *new_qfidx = qfl.qf_index;
             return ptr::null_mut();
@@ -2821,11 +2821,11 @@ fn get_nth_entry(
 }
 
 fn qf_get_entry(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     errornr: c_int,
     dir: c_int,
     new_qfidx: &mut c_int,
-) -> *mut qfline_T {
+) -> *mut Qfline {
     let mut qf_ptr = qfl.cur_entry();
         let mut qfidx = qfl.qf_index;
 
@@ -2839,7 +2839,7 @@ fn qf_get_entry(
         qf_ptr
 }
 
-fn qf_find_help_win() -> *mut win_T {
+fn qf_find_help_win() -> *mut WinInfoInfo {
     unsafe {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if bt_help(((*wp).w_buffer).as_ref()) && !(*wp).w_config.hide && (*wp).w_config.focusable {
@@ -2850,14 +2850,14 @@ fn qf_find_help_win() -> *mut win_T {
     }
 }
 
-fn win_set_loclist(wp: &mut win_T, qi: &mut qf_info_T) {
+fn win_set_loclist(wp: &mut WinInfoInfo, qi: &mut QfInfo) {
      {
         wp.w_llist = &raw mut *qi;
         qi.qf_refcount += 1;
     }
 }
 
-fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut bool) -> bool {
+fn jump_to_help_window(qi: &mut QfInfo, newwin: bool, opened_window: &mut bool) -> bool {
     unsafe {
         let wp = if g_st().cmdmod.cmod_tab != 0 || newwin {
             ptr::null_mut()
@@ -2898,7 +2898,7 @@ fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut boo
     }
 }
 
-fn qf_find_win_with_loclist(ll: &qf_info_T) -> *mut win_T {
+fn qf_find_win_with_loclist(ll: &QfInfo) -> *mut WinInfoInfo {
     unsafe {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if (*wp).w_llist.cast_const() == ll && !bt_quickfix(((*wp).w_buffer).as_ref())
@@ -2910,7 +2910,7 @@ fn qf_find_win_with_loclist(ll: &qf_info_T) -> *mut win_T {
     }
 }
 
-fn qf_find_win_with_normal_buf() -> *mut win_T {
+fn qf_find_win_with_normal_buf() -> *mut WinInfoInfo {
     unsafe {
         for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if bt_normal(((*wp).w_buffer).as_ref()) {
@@ -2935,7 +2935,7 @@ fn qf_goto_tabwin_with_file(fnum: c_int) -> bool {
     }
 }
 
-fn qf_open_new_file_win(ll_ref: Option<&mut qf_info_T>) -> bool {
+fn qf_open_new_file_win(ll_ref: Option<&mut QfInfo>) -> bool {
      {
         let mut flags = WSP_ABOVE;
         if ll_ref.is_some() {
@@ -2954,7 +2954,7 @@ fn qf_open_new_file_win(ll_ref: Option<&mut qf_info_T>) -> bool {
     }
 }
 
-fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: Option<&mut qf_info_T>) {
+fn qf_goto_win_with_ll_file(use_win: *mut WinInfoInfo, qf_fnum: c_int, ll_ref: Option<&mut QfInfo>) {
     unsafe {
         let mut win = use_win;
 
@@ -2995,7 +2995,7 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: Option<
 fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
     unsafe {
         let mut win = curwin_ptr();
-        let mut altwin: *mut win_T = ptr::null_mut();
+        let mut altwin: *mut WinInfoInfo = ptr::null_mut();
         loop {
             if (*win).buf_mut().b_fnum == qf_fnum {
                 break;
@@ -3041,7 +3041,7 @@ fn qf_jump_to_usable_window(
     opened_window: &mut bool,
 ) -> bool {
     unsafe {
-        let mut usable_wp: *mut win_T = ptr::null_mut();
+        let mut usable_wp: *mut WinInfoInfo = ptr::null_mut();
         let mut usable_win = false;
 
         let ll_ref = if newwin {
@@ -3083,7 +3083,7 @@ fn qf_jump_to_usable_window(
 }
 
 fn qf_jump_edit_buffer(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_index: c_int,
     forceit: c_int,
     prev_winid: c_int,
@@ -3186,11 +3186,11 @@ fn qf_jump_edit_buffer(
     }
 }
 
-fn qf_screen_col_to_idx(vcol: colnr_T) -> c_int {
+fn qf_screen_col_to_idx(vcol: Colnr) -> c_int {
     unsafe {
         let line = get_cursor_line_ptr().cast_const();
         let mut p = line;
-        let mut col: colnr_T = 0;
+        let mut col: Colnr = 0;
 
         while !crate::memory::cstr_is_empty(p) && col < vcol {
             if *p == TAB {
@@ -3208,7 +3208,7 @@ fn qf_screen_col_to_idx(vcol: colnr_T) -> c_int {
 }
 
 fn qf_jump_goto_line(
-    qf_lnum: linenr_T,
+    qf_lnum: Linenr,
     qf_col: c_int,
     qf_viscol: c_char,
     qf_pattern: *mut c_char,
@@ -3254,11 +3254,11 @@ fn qf_jump_goto_line(
 }
 
 fn qf_jump_print_msg(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_index: c_int,
-    qf_ptr: &mut qfline_T,
-    old_curbuf: &mut buf_T,
-    old_lnum: linenr_T,
+    qf_ptr: &mut Qfline,
+    old_curbuf: &mut FileBuf,
+    old_lnum: Linenr,
 ) {
      {
         let gap = qfga_get();
@@ -3304,7 +3304,7 @@ fn qf_jump_print_msg(
 }
 
 fn qf_jump_open_window(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_index: c_int,
     newwin: bool,
     opened_window: &mut bool,
@@ -3361,7 +3361,7 @@ fn qf_jump_open_window(
 }
 
 fn qf_jump_to_buffer(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_index: c_int,
     forceit: c_int,
     prev_winid: c_int,
@@ -3408,12 +3408,12 @@ fn qf_jump_to_buffer(
     }
 }
 
-pub fn qf_jump(qi: *mut qf_info_T, dir: c_int, errornr: c_int, forceit: c_int) {
+pub fn qf_jump(qi: *mut QfInfo, dir: c_int, errornr: c_int, forceit: c_int) {
     qf_jump_newwin(qi, dir, errornr, forceit, false);
 }
 
 fn qf_jump_newwin(
-    mut qi: *mut qf_info_T,
+    mut qi: *mut QfInfo,
     dir: c_int,
     errornr: c_int,
     forceit: c_int,
@@ -3488,7 +3488,7 @@ fn qf_jump_newwin(
     }
 }
 
-fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
+fn qf_list_entry(qfp: &mut Qfline, qf_idx: c_int, cursel: bool) {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
         let iobuff_ptr = g_st().IObuff.as_mut_ptr();
@@ -3584,7 +3584,7 @@ fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
     }
 }
 
-pub fn qf_list(eap: &mut exarg_T) {
+pub fn qf_list(eap: &mut Exarg) {
     unsafe {
         let mut arg = eap.arg;
         let mut all = eap.forceit != 0;
@@ -3680,7 +3680,7 @@ fn qf_fmt_text(gap: &mut Vec<c_char>, text: impl crate::strings::IntoCCharPtr) {
     }
 }
 
-fn qf_range_text(gap: &mut Vec<c_char>, qfp: &qfline_T) {
+fn qf_range_text(gap: &mut Vec<c_char>, qfp: &Qfline) {
     unsafe {
         let buf_data = g_st().IObuff.as_mut_ptr();
         let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d", qfp.qf_lnum);
@@ -3714,7 +3714,7 @@ fn qf_range_text(gap: &mut Vec<c_char>, qfp: &qfline_T) {
     }
 }
 
-fn qf_msg(qi: &mut qf_info_T, which: c_int, lead: impl crate::strings::IntoCCharPtr) {
+fn qf_msg(qi: &mut QfInfo, which: c_int, lead: impl crate::strings::IntoCCharPtr) {
     let lead = lead.into_c_char_ptr();
     unsafe {
         let qfl = &(&qi.qf_lists)[which as usize];
@@ -3745,7 +3745,7 @@ fn qf_msg(qi: &mut qf_info_T, which: c_int, lead: impl crate::strings::IntoCChar
     }
 }
 
-pub fn qf_age(eap: &mut exarg_T) {
+pub fn qf_age(eap: &mut Exarg) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
@@ -3778,7 +3778,7 @@ pub fn qf_age(eap: &mut exarg_T) {
     }
 }
 
-pub fn qf_history(eap: &mut exarg_T) {
+pub fn qf_history(eap: &mut Exarg) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
 
@@ -3813,7 +3813,7 @@ pub fn qf_history(eap: &mut exarg_T) {
     }
 }
 
-fn qf_free_items(qfl: &mut qf_list_T) {
+fn qf_free_items(qfl: &mut QfList) {
     qfl.qf_items.clear();
         qfl.qf_index = 0;
         qfl.qf_nonevalid = true;
@@ -3825,7 +3825,7 @@ fn qf_free_items(qfl: &mut qf_list_T) {
         qfl.qf_multiscan = false;
 }
 
-fn qf_free(qfl: &mut qf_list_T) {
+fn qf_free(qfl: &mut QfList) {
     qf_free_items(qfl);
 
         qfl.qf_title = None;
@@ -3839,12 +3839,12 @@ fn qf_free(qfl: &mut qf_list_T) {
 }
 
 pub fn qf_mark_adjust(
-    buf: &mut buf_T,
-    wp: Option<&win_T>,
-    line1: linenr_T,
-    line2: linenr_T,
-    amount: linenr_T,
-    amount_after: linenr_T,
+    buf: &mut FileBuf,
+    wp: Option<&WinInfoInfo>,
+    line1: Linenr,
+    line2: Linenr,
+    amount: Linenr,
+    amount_after: Linenr,
 ) -> bool {
     unsafe {
         let mut qi = ql_info_ptr();
@@ -3951,7 +3951,7 @@ pub fn qf_view_result(split: bool) {
     }
 }
 
-pub fn ex_cwindow(eap: &mut exarg_T) {
+pub fn ex_cwindow(eap: &mut Exarg) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
@@ -3971,7 +3971,7 @@ pub fn ex_cwindow(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_cclose(eap: &mut exarg_T) {
+pub fn ex_cclose(eap: &mut Exarg) {
     let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
             return;
@@ -3983,7 +3983,7 @@ pub fn ex_cclose(eap: &mut exarg_T) {
         }
 }
 
-fn qf_goto_cwindow(qi: &qf_info_T, resize: bool, sz: c_int, vertsplit: bool) -> bool {
+fn qf_goto_cwindow(qi: &QfInfo, resize: bool, sz: c_int, vertsplit: bool) -> bool {
     unsafe {
         let win = qf_find_win(qi);
         if win.is_null() {
@@ -4022,7 +4022,7 @@ fn qf_set_cwindow_options() {
     }
 }
 
-fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
+fn qf_open_new_cwindow(qi: &mut QfInfo, height: c_int) -> bool {
     unsafe {
         let mut oldwin = curwin_ptr();
         let prevtab = g_st().curtab;
@@ -4097,13 +4097,13 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> bool {
     }
 }
 
-fn qf_set_title_var(qfl: &mut qf_list_T) {
+fn qf_set_title_var(qfl: &mut QfList) {
     if let Some(ref title) = qfl.qf_title {
             set_internal_string_var(c"w:quickfix_title", title.as_ptr().cast_mut());
         }
 }
 
-pub fn ex_copen(eap: &mut exarg_T) {
+pub fn ex_copen(eap: &mut Exarg) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
@@ -4148,7 +4148,7 @@ pub fn ex_copen(eap: &mut exarg_T) {
     }
 }
 
-fn qf_win_goto(win: *mut win_T, lnum: linenr_T) {
+fn qf_win_goto(win: *mut WinInfoInfo, lnum: Linenr) {
     unsafe {
         let old_curwin = curwin_ptr();
 
@@ -4166,7 +4166,7 @@ fn qf_win_goto(win: *mut win_T, lnum: linenr_T) {
     }
 }
 
-pub fn ex_cbottom(eap: &mut exarg_T) {
+pub fn ex_cbottom(eap: &mut Exarg) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
@@ -4180,7 +4180,7 @@ pub fn ex_cbottom(eap: &mut exarg_T) {
     }
 }
 
-pub fn qf_current_entry(wp: &mut win_T) -> linenr_T {
+pub fn qf_current_entry(wp: &mut WinInfoInfo) -> Linenr {
     unsafe {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
@@ -4193,7 +4193,7 @@ pub fn qf_current_entry(wp: &mut win_T) -> linenr_T {
     }
 }
 
-fn qf_win_pos_update(qi: &mut qf_info_T, old_qf_index: c_int) -> bool {
+fn qf_win_pos_update(qi: &mut QfInfo, old_qf_index: c_int) -> bool {
     unsafe {
         let qf_index = qf_get_curlist(qi).qf_index;
 
@@ -4210,7 +4210,7 @@ fn qf_win_pos_update(qi: &mut qf_info_T, old_qf_index: c_int) -> bool {
     }
 }
 
-fn is_qf_win(win: &win_T, qi: &qf_info_T) -> bool {
+fn is_qf_win(win: &WinInfoInfo, qi: &QfInfo) -> bool {
     if buf_valid(win.w_buffer)
         && bt_quickfix(unsafe { win.w_buffer.as_ref() })
         && ((is_qf_stack(qi) && win.w_llist_ref.is_null())
@@ -4221,7 +4221,7 @@ fn is_qf_win(win: &win_T, qi: &qf_info_T) -> bool {
     false
 }
 
-fn qf_find_win(qi: &qf_info_T) -> *mut win_T {
+fn qf_find_win(qi: &QfInfo) -> *mut WinInfoInfo {
     unsafe {
         for win in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if is_qf_win(&*win, qi) {
@@ -4232,7 +4232,7 @@ fn qf_find_win(qi: &qf_info_T) -> *mut win_T {
     }
 }
 
-fn qf_find_buf(qi: &mut qf_info_T) -> *mut buf_T {
+fn qf_find_buf(qi: &mut QfInfo) -> *mut FileBuf {
      {
         if qi.qf_bufnr != INVALID_QFBUFNR {
             let qfbuf = buflist_findnr(qi.qf_bufnr);
@@ -4254,7 +4254,7 @@ fn qf_find_buf(qi: &mut qf_info_T) -> *mut buf_T {
     }
 }
 
-fn qf_update_win_titlevar(qi: &mut qf_info_T) {
+fn qf_update_win_titlevar(qi: &mut QfInfo) {
     unsafe {
         let qfl = qf_get_curlist(&mut *qi);
         let save_curwin = curwin_ptr();
@@ -4271,7 +4271,7 @@ fn qf_update_win_titlevar(qi: &mut qf_info_T) {
     }
 }
 
-fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
+fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
     unsafe {
         let buf = qf_find_buf(qi);
         if buf.is_null() {
@@ -4283,7 +4283,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
         let old_bytecount = get_region_bytecount(&mut *buf, 1, old_line_count, 0, old_endcol);
         let mut qf_winid: c_int = 0;
 
-        let mut win: *mut win_T;
+        let mut win: *mut WinInfoInfo;
         if is_ll_stack(&*qi) {
             if curwin_mut().w_llist == qi {
                 win = curwin_ptr();
@@ -4375,9 +4375,9 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
 }
 
 fn qf_buf_add_line(
-    _qfl: &qf_list_T,buf: &mut buf_T,
-    lnum: linenr_T,
-    qfp: &qfline_T,
+    _qfl: &QfList,buf: &mut FileBuf,
+    lnum: Linenr,
+    qfp: &Qfline,
     dirname: *mut c_char,
     qftf_str: impl crate::strings::IntoCCharPtr,
     first_bufline: bool,
@@ -4436,7 +4436,7 @@ fn qf_buf_add_line(
         }
 
         gap.push(NUL);
-        if !ml_append_buf( &mut *buf, lnum, gap.as_mut_ptr(), gap.len() as colnr_T, false) {
+        if !ml_append_buf( &mut *buf, lnum, gap.as_mut_ptr(), gap.len() as Colnr, false) {
             return false;
         }
 
@@ -4445,14 +4445,14 @@ fn qf_buf_add_line(
 }
 
 fn call_qftf_func(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     qf_winid: c_int,
     start_idx: c_int,
     end_idx: c_int,
-) -> *mut list_T {
+) -> *mut TvList {
     unsafe {
         let mut cb: *mut Callback = &raw mut opt_vars().p_qftf;
-        let mut qftf_list: *mut list_T = ptr::null_mut();
+        let mut qftf_list: *mut TvList = ptr::null_mut();
 
         if qf_st().qftf_recursive {
             return ptr::null_mut();
@@ -4463,19 +4463,19 @@ fn call_qftf_func(
             cb = &raw mut qfl.qf_qftf_cb;
         }
         if (*cb).cb_type() != kCallbackNone {
-            let mut args: [typval_T; 1] = [typval_T::new(); 1];
-            let mut rettv: typval_T = typval_T::new();
+            let mut args: [TypVal; 1] = [TypVal::new(); 1];
+            let mut rettv: TypVal = TypVal::new();
 
             let dict = tv_dict_alloc_lock(VAR_FIXED);
             tv_dict_add_nr(
                 &mut *dict,
                 c"quickfix",
-                varnumber_T::from(is_qf_list(qfl)),
+                Varnumber::from(is_qf_list(qfl)),
             );
-            tv_dict_add_nr(&mut *dict, c"winid", varnumber_T::from(qf_winid));
-            tv_dict_add_nr(&mut *dict, c"id", varnumber_T::from(qfl.qf_id));
-            tv_dict_add_nr(&mut *dict, c"start_idx", varnumber_T::from(start_idx));
-            tv_dict_add_nr(&mut *dict, c"end_idx", varnumber_T::from(end_idx));
+            tv_dict_add_nr(&mut *dict, c"winid", Varnumber::from(qf_winid));
+            tv_dict_add_nr(&mut *dict, c"id", Varnumber::from(qfl.qf_id));
+            tv_dict_add_nr(&mut *dict, c"start_idx", Varnumber::from(start_idx));
+            tv_dict_add_nr(&mut *dict, c"end_idx", Varnumber::from(end_idx));
             (*dict).dv_refcount += 1;
             args[0].v_type = VarType::VAR_DICT;
             args[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
@@ -4497,7 +4497,7 @@ fn call_qftf_func(
     }
 }
 
-fn qf_fill_buffer(qfl: Option<&mut qf_list_T>, buf: &mut buf_T, old_count: usize, qf_winid: c_int) {
+fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize, qf_winid: c_int) {
     unsafe {
         let old_KeyTyped = g_st().KeyTyped;
 
@@ -4527,7 +4527,7 @@ fn qf_fill_buffer(qfl: Option<&mut qf_list_T>, buf: &mut buf_T, old_count: usize
 
         if let Some(qfl) = qfl && !qfl.qf_items.is_empty() {
             let mut dirname = [0 as c_char; MAXPATHL];
-            let mut lnum: linenr_T = if old_count == 0 {
+            let mut lnum: Linenr = if old_count == 0 {
                 0
             } else {
                 buf.b_ml.ml_line_count
@@ -4612,11 +4612,11 @@ fn qf_fill_buffer(qfl: Option<&mut qf_list_T>, buf: &mut buf_T, old_count: usize
 }
 
 #[inline]
-fn qf_list_changed(qfl: &mut qf_list_T) {
+fn qf_list_changed(qfl: &mut QfList) {
     qfl.qf_changedtick += 1;
 }
 
-fn qf_id2nr(qi: &qf_info_T, qfid: c_uint) -> c_int {
+fn qf_id2nr(qi: &QfInfo, qfid: c_uint) -> c_int {
     for qf_idx in 0..qi.qf_listcount {
             if (&qi.qf_lists)[qf_idx as usize].qf_id == qfid {
                 return qf_idx;
@@ -4625,7 +4625,7 @@ fn qf_id2nr(qi: &qf_info_T, qfid: c_uint) -> c_int {
         INVALID_QFIDX
 }
 
-fn qf_restore_list(qi: &mut qf_info_T, save_qfid: c_uint) -> bool {
+fn qf_restore_list(qi: &mut QfInfo, save_qfid: c_uint) -> bool {
     if qf_get_curlist(&mut *qi).qf_id == save_qfid {
             return true;
         }
@@ -4638,7 +4638,7 @@ fn qf_restore_list(qi: &mut qf_info_T, save_qfid: c_uint) -> bool {
         true
 }
 
-fn qf_jump_first(qi: &mut qf_info_T, save_qfid: c_uint, forceit: c_int) {
+fn qf_jump_first(qi: &mut QfInfo, save_qfid: c_uint, forceit: c_int) {
     if !qf_restore_list(qi, save_qfid) {
             return;
         }
@@ -4706,7 +4706,7 @@ fn make_get_fullcmd(makecmd: impl crate::strings::IntoCCharPtr, fname: impl crat
     }
 }
 
-pub fn ex_make(eap: &mut exarg_T) {
+pub fn ex_make(eap: &mut Exarg) {
     unsafe {
         let enc = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_menc) {
             curbuf_mut().b_p_menc
@@ -4733,7 +4733,7 @@ pub fn ex_make(eap: &mut exarg_T) {
             return;
         }
 
-        let mut wp: *mut win_T = ptr::null_mut();
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
         if is_loclist_cmd(eap.cmdidx) {
             wp = curwin_ptr();
         }
@@ -4851,7 +4851,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
     }
 }
 
-pub fn qf_get_size(eap: &mut exarg_T) -> usize {
+pub fn qf_get_size(eap: &mut Exarg) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4861,7 +4861,7 @@ pub fn qf_get_size(eap: &mut exarg_T) -> usize {
     }
 }
 
-pub fn qf_get_valid_size(eap: &mut exarg_T) -> usize {
+pub fn qf_get_valid_size(eap: &mut Exarg) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4889,7 +4889,7 @@ pub fn qf_get_valid_size(eap: &mut exarg_T) -> usize {
     }
 }
 
-pub fn qf_get_cur_idx(eap: &mut exarg_T) -> usize {
+pub fn qf_get_cur_idx(eap: &mut Exarg) -> usize {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4901,7 +4901,7 @@ pub fn qf_get_cur_idx(eap: &mut exarg_T) -> usize {
     }
 }
 
-pub fn qf_get_cur_valid_idx(eap: &mut exarg_T) -> c_int {
+pub fn qf_get_cur_valid_idx(eap: &mut Exarg) -> c_int {
     unsafe {
         let qi = qf_cmd_get_stack(eap, false);
         if qi.is_null() {
@@ -4934,7 +4934,7 @@ pub fn qf_get_cur_valid_idx(eap: &mut exarg_T) -> c_int {
     }
 }
 
-fn qf_get_nth_valid_entry(qfl: &mut qf_list_T, n: usize, fdo: bool) -> usize {
+fn qf_get_nth_valid_entry(qfl: &mut QfList, n: usize, fdo: bool) -> usize {
     if !qf_list_has_valid_entries(qfl) {
             return 1;
         }
@@ -4964,7 +4964,7 @@ fn qf_get_nth_valid_entry(qfl: &mut qf_list_T, n: usize, fdo: bool) -> usize {
         1
 }
 
-pub fn ex_cc(eap: &mut exarg_T) {
+pub fn ex_cc(eap: &mut Exarg) {
     unsafe {
         let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
@@ -5005,7 +5005,7 @@ pub fn ex_cc(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_cnext(eap: &mut exarg_T) {
+pub fn ex_cnext(eap: &mut Exarg) {
     let qi = qf_cmd_get_stack(eap, true);
         if qi.is_null() {
             return;
@@ -5032,7 +5032,7 @@ pub fn ex_cnext(eap: &mut exarg_T) {
         qf_jump(qi, dir, errornr, eap.forceit);
 }
 
-fn qf_find_first_entry_in_buf(items: &[qfline_T], bnr: c_int) -> Option<usize> {
+fn qf_find_first_entry_in_buf(items: &[Qfline], bnr: c_int) -> Option<usize> {
     for (idx, qfp) in items.iter().enumerate() {
             if g_st().got_int {
                 break;
@@ -5044,7 +5044,7 @@ fn qf_find_first_entry_in_buf(items: &[qfline_T], bnr: c_int) -> Option<usize> {
         None
 }
 
-fn qf_find_first_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
+fn qf_find_first_entry_on_line(items: &[Qfline], mut idx: usize) -> usize {
     while !g_st().got_int
             && idx > 0
             && items[idx].qf_fnum == items[idx - 1].qf_fnum
@@ -5055,7 +5055,7 @@ fn qf_find_first_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
         idx
 }
 
-fn qf_find_last_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
+fn qf_find_last_entry_on_line(items: &[Qfline], mut idx: usize) -> usize {
     while !g_st().got_int
             && idx + 1 < items.len()
             && items[idx].qf_fnum == items[idx + 1].qf_fnum
@@ -5067,7 +5067,7 @@ fn qf_find_last_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
 }
 
 #[inline]
-fn qf_entry_after_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
+fn qf_entry_after_pos(qfp: &Qfline, pos: &CursorPos, linewise: bool) -> bool {
     if linewise {
             qfp.qf_lnum > pos.lnum
         } else {
@@ -5077,7 +5077,7 @@ fn qf_entry_after_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
 }
 
 #[inline]
-fn qf_entry_before_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
+fn qf_entry_before_pos(qfp: &Qfline, pos: &CursorPos, linewise: bool) -> bool {
     if linewise {
             qfp.qf_lnum < pos.lnum
         } else {
@@ -5088,8 +5088,8 @@ fn qf_entry_before_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
 
 #[inline]
 fn qf_entry_on_or_after_pos(
-    qfp: &qfline_T,
-    pos: &pos_T,
+    qfp: &Qfline,
+    pos: &CursorPos,
     linewise: bool,
 ) -> bool {
     if linewise {
@@ -5102,8 +5102,8 @@ fn qf_entry_on_or_after_pos(
 
 #[inline]
 fn qf_entry_on_or_before_pos(
-    qfp: &qfline_T,
-    pos: &pos_T,
+    qfp: &Qfline,
+    pos: &CursorPos,
     linewise: bool,
 ) -> bool {
     if linewise {
@@ -5115,9 +5115,9 @@ fn qf_entry_on_or_before_pos(
 }
 
 fn qf_find_entry_after_pos(
-    items: &[qfline_T],
+    items: &[Qfline],
     bnr: c_int,
-    pos: &pos_T,
+    pos: &CursorPos,
     linewise: bool,
     mut idx: usize,
 ) -> Option<usize> {
@@ -5140,9 +5140,9 @@ fn qf_find_entry_after_pos(
 }
 
 fn qf_find_entry_before_pos(
-    items: &[qfline_T],
+    items: &[Qfline],
     bnr: c_int,
-    pos: &pos_T,
+    pos: &CursorPos,
     linewise: bool,
     mut idx: usize,
 ) -> Option<usize> {
@@ -5165,9 +5165,9 @@ fn qf_find_entry_before_pos(
 }
 
 fn qf_find_closest_entry(
-    items: &[qfline_T],
+    items: &[Qfline],
     bnr: c_int,
-    pos: &pos_T,
+    pos: &CursorPos,
     dir: Direction,
     linewise: bool,
 ) -> Option<usize> {
@@ -5181,9 +5181,9 @@ fn qf_find_closest_entry(
 }
 
 fn qf_get_nth_below_entry(
-    items: &[qfline_T],
+    items: &[Qfline],
     mut idx: usize,
-    mut n: linenr_T,
+    mut n: Linenr,
     linewise: bool,
 ) -> usize {
     while n > 0 && !g_st().got_int {
@@ -5207,9 +5207,9 @@ fn qf_get_nth_below_entry(
 }
 
 fn qf_get_nth_above_entry(
-    items: &[qfline_T],
+    items: &[Qfline],
     mut idx: usize,
-    mut n: linenr_T,
+    mut n: Linenr,
     linewise: bool,
 ) -> usize {
     while n > 0 && !g_st().got_int {
@@ -5228,10 +5228,10 @@ fn qf_get_nth_above_entry(
 }
 
 fn qf_find_nth_adj_entry(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     bnr: c_int,
-    pos: &mut pos_T,
-    mut n: linenr_T,
+    pos: &mut CursorPos,
+    mut n: Linenr,
     dir: Direction,
     linewise: bool,
 ) -> c_int {
@@ -5252,7 +5252,7 @@ fn qf_find_nth_adj_entry(
         (idx + 1) as c_int
 }
 
-pub fn ex_cbelow(eap: &mut exarg_T) {
+pub fn ex_cbelow(eap: &mut Exarg) {
     unsafe {
         if eap.addr_count > 0 && eap.line2 <= 0 {
             emsg(gettext(e_invrange));
@@ -5333,9 +5333,9 @@ fn cfile_get_auname(cmdidx: c_int) -> *const c_char {
     }
 }
 
-pub fn ex_cfile(eap: &mut exarg_T) {
+pub fn ex_cfile(eap: &mut Exarg) {
     unsafe {
-        let mut wp: *mut win_T = ptr::null_mut();
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
@@ -5421,7 +5421,7 @@ fn vgr_get_auname(cmdidx: c_int) -> *const c_char {
     }
 }
 
-fn vgr_init_regmatch(regmatch: &mut regmmatch_T, s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
+fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: impl crate::strings::IntoCCharPtr) { let s = s.into_c_char_ptr();
      {
         regmatch.regprog = ptr::null_mut();
 
@@ -5457,7 +5457,7 @@ fn vgr_load_dummy_buf(
     fname: *mut c_char,
     dirname_start: *mut c_char,
     dirname_now: *mut c_char,
-) -> *mut buf_T {
+) -> *mut FileBuf {
     let save_ei = au_event_disable(c",Filetype");
 
         let save_mls = opt_vars().p_mls;
@@ -5472,8 +5472,8 @@ fn vgr_load_dummy_buf(
 }
 
 fn vgr_qflist_valid(
-    wp: *mut win_T,
-    qi: &mut qf_info_T,
+    wp: *mut WinInfoInfo,
+    qi: &mut QfInfo,
     qfid: c_uint,
     title: impl crate::strings::IntoCCharPtr,
 ) -> bool { let title = title.into_c_char_ptr();
@@ -5493,11 +5493,11 @@ fn vgr_qflist_valid(
 }
 
 fn vgr_match_buflines(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     fname: *mut c_char,
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     spat: impl crate::strings::IntoCCharPtr,
-    regmatch: &mut regmmatch_T,
+    regmatch: &mut Regmmatch,
     tomatch: &mut c_int,
     duplicate_name: c_int,
     flags: c_int,
@@ -5506,9 +5506,9 @@ fn vgr_match_buflines(
         let mut found_match = false;
         let pat_len = crate::memory::cstr_len(spat).min(FUZZY_MATCH_MAX_LEN);
 
-        let mut lnum: linenr_T = 1;
+        let mut lnum: Linenr = 1;
         while lnum <= buf.b_ml.ml_line_count && *tomatch > 0 {
-            let mut col: colnr_T = 0;
+            let mut col: Colnr = 0;
             if (flags & VGR_FUZZY) == 0 {
                 while vim_regexec_multi(
                     regmatch,
@@ -5555,7 +5555,7 @@ fn vgr_match_buflines(
                         break;
                     }
                     col =
-                        regmatch.endpos[0].col + colnr_T::from(col == regmatch.endpos[0].col);
+                        regmatch.endpos[0].col + Colnr::from(col == regmatch.endpos[0].col);
                     if col > ml_get_buf_len(buf, lnum) {
                         break;
                     }
@@ -5587,7 +5587,7 @@ fn vgr_match_buflines(
                         str_,
                         lnum,
                         0,
-                        matches[0] as colnr_T + col + 1,
+                        matches[0] as Colnr + col + 1,
                         0,
                         0,
                         ptr::null_mut(),
@@ -5608,7 +5608,7 @@ fn vgr_match_buflines(
                     if (flags & VGR_GLOBAL) == 0 {
                         break;
                     }
-                    col = matches[pat_len - 1] as colnr_T + col + 1;
+                    col = matches[pat_len - 1] as Colnr + col + 1;
                     if col > linelen {
                         break;
                     }
@@ -5626,10 +5626,10 @@ fn vgr_match_buflines(
 }
 
 fn vgr_jump_to_match(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     forceit: c_int,
     redraw_for_dummy: &mut bool,
-    first_match_buf: &mut buf_T,
+    first_match_buf: &mut FileBuf,
     target_dir: *mut c_char,
 ) {
     let buf = g_st().curbuf;
@@ -5639,14 +5639,14 @@ fn vgr_jump_to_match(
         }
 
         if std::ptr::eq(g_st().curbuf, first_match_buf) && !target_dir.is_null() {
-            let mut ea: exarg_T = exarg_T::new();
+            let mut ea: Exarg = Exarg::new();
             ea.arg = target_dir;
             ea.cmdidx = CMD_lcd;
             ex_cd(&mut ea);
         }
 }
 
-fn existing_swapfile(buf: &buf_T) -> bool {
+fn existing_swapfile(buf: &FileBuf) -> bool {
     if let Some(ref mfp) = buf.b_ml.ml_mfp
             && let Some(ref mf_fname) = mfp.mf_fname
         {
@@ -5659,9 +5659,9 @@ fn existing_swapfile(buf: &buf_T) -> bool {
         false
 }
 
-fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
+fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
     unsafe {
-        *args = vgr_args_T::new();
+        *args = VgrArgs::new();
 
         args.regmatch.regprog = ptr::null_mut();
         args.qf_title = Some(crate::memory::cstr_to_cstring(qf_cmdtitle(*eap.cmdlinep)));
@@ -5703,11 +5703,11 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
 }
 
 fn vgr_process_files(
-    wp: *mut win_T,
-    qi: &mut qf_info_T,
-    cmd_args: &mut vgr_args_T,
+    wp: *mut WinInfoInfo,
+    qi: &mut QfInfo,
+    cmd_args: &mut VgrArgs,
     redraw_for_dummy: &mut bool,
-    first_match_buf: *mut *mut buf_T,
+    first_match_buf: *mut *mut FileBuf,
     target_dir: &mut Option<std::ffi::CString>,
 ) -> bool {
     unsafe {
@@ -5829,7 +5829,7 @@ fn vgr_process_files(
     }
 }
 
-pub fn ex_vimgrep(eap: &mut exarg_T) {
+pub fn ex_vimgrep(eap: &mut Exarg) {
     unsafe {
         if !check_can_set_curbuf_forceit(eap.forceit) {
             return;
@@ -5849,10 +5849,10 @@ pub fn ex_vimgrep(eap: &mut exarg_T) {
             return;
         }
 
-        let mut wp: *mut win_T = ptr::null_mut();
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
         let mut target_dir: Option<std::ffi::CString> = None;
-        let mut args = vgr_args_T::new();
+        let mut args = VgrArgs::new();
         if vgr_process_args(eap, &mut args) {
             if (eap.cmdidx != CMD_grepadd
                 && eap.cmdidx != CMD_lgrepadd
@@ -5869,7 +5869,7 @@ pub fn ex_vimgrep(eap: &mut exarg_T) {
             incr_quickfix_busy();
 
             let mut redraw_for_dummy = false;
-            let mut first_match_buf: *mut buf_T = ptr::null_mut();
+            let mut first_match_buf: *mut FileBuf = ptr::null_mut();
             let status = vgr_process_files(
                 wp,
                 &mut *qi,
@@ -5940,7 +5940,7 @@ fn restore_start_dir(dirname_start: *mut c_char) {
 
         os_dirname(dirname_now.as_mut_ptr(), MAXPATHL);
         if crate::memory::cstr_as_bytes(dirname_start) != crate::memory::cstr_as_bytes(dirname_now.as_ptr()) {
-            let mut ea: exarg_T = exarg_T::new();
+            let mut ea: Exarg = Exarg::new();
             ea.arg = dirname_start;
             ea.cmdidx = if curwin_mut().w_localdir.is_none() {
                 CMD_cd
@@ -5956,7 +5956,7 @@ fn load_dummy_buffer(
     fname: *mut c_char,
     dirname_start: *mut c_char,
     resulting_dir: *mut c_char,
-) -> *mut buf_T {
+) -> *mut FileBuf {
     unsafe {
         let mut newbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
         if newbuf.is_null() {
@@ -5964,7 +5964,7 @@ fn load_dummy_buffer(
         }
 
         let mut failed = true;
-        let mut newbufref: bufref_T = bufref_T::new();
+        let mut newbufref: Bufref = Bufref::new();
         set_bufref(&mut newbufref, newbuf);
 
         buf_copy_options( &mut *newbuf, BCO_ENTER | BCO_NOHELP);
@@ -5978,7 +5978,7 @@ fn load_dummy_buffer(
             check_need_swap(true);
             curbuf_mut().b_flags &= !BF_DUMMY;
 
-            let mut newbuf_to_wipe: bufref_T = bufref_T::new();
+            let mut newbuf_to_wipe: Bufref = Bufref::new();
             let readfile_result = readfile(
                 fname,
                 ptr::null_mut(),
@@ -6023,7 +6023,7 @@ fn load_dummy_buffer(
     }
 }
 
-fn wipe_dummy_buffer(buf: &mut buf_T, dirname_start: *mut c_char) {
+fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: *mut c_char) {
     unsafe {
         let mut give_up = false;
         loop {
@@ -6049,7 +6049,7 @@ fn wipe_dummy_buffer(buf: &mut buf_T, dirname_start: *mut c_char) {
         }
 
         if !give_up && g_st().curbuf != buf && buf.b_nwindows == 0 {
-            let mut cs: cleanup_T = cleanup_T::new();
+            let mut cs: ExCleanup = ExCleanup::new();
             enter_cleanup(&mut cs);
             wipe_buffer(&raw mut *buf, true);
             leave_cleanup(&mut cs);
@@ -6064,7 +6064,7 @@ fn wipe_dummy_buffer(buf: &mut buf_T, dirname_start: *mut c_char) {
     }
 }
 
-fn unload_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
+fn unload_dummy_buffer(buf: *mut FileBuf, dirname_start: *mut c_char) {
     if g_st().curbuf == buf {
             return;
         }
@@ -6073,7 +6073,7 @@ fn unload_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
         restore_start_dir(dirname_start);
 }
 
-fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
+fn get_qfline_items(qfp: &mut Qfline, list: &mut TvList) -> bool {
     let mut bufnum = qfp.qf_fnum;
         if bufnum != 0 && buflist_findnr(bufnum).is_null() {
             bufnum = 0;
@@ -6085,25 +6085,25 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
         let buf = [qfp.qf_type, NUL];
         let buflen: usize = if buf[0] == NUL { 0 } else { 1 };
         let empty = c"".as_ptr();
-        if !tv_dict_add_nr(unsafe { &mut *dict }, c"bufnr", varnumber_T::from(bufnum))
-            || !tv_dict_add_nr(unsafe { &mut *dict }, c"lnum", varnumber_T::from(qfp.qf_lnum))
+        if !tv_dict_add_nr(unsafe { &mut *dict }, c"bufnr", Varnumber::from(bufnum))
+            || !tv_dict_add_nr(unsafe { &mut *dict }, c"lnum", Varnumber::from(qfp.qf_lnum))
             || !tv_dict_add_nr(
                 unsafe { &mut *dict },
                 c"end_lnum",
-                varnumber_T::from(qfp.qf_end_lnum),
+                Varnumber::from(qfp.qf_end_lnum),
             )
-            || !tv_dict_add_nr(unsafe { &mut *dict }, c"col", varnumber_T::from(qfp.qf_col))
+            || !tv_dict_add_nr(unsafe { &mut *dict }, c"col", Varnumber::from(qfp.qf_col))
             || !tv_dict_add_nr(
                 unsafe { &mut *dict },
                 c"end_col",
-                varnumber_T::from(qfp.qf_end_col),
+                Varnumber::from(qfp.qf_end_col),
             )
             || !tv_dict_add_nr(
                 unsafe { &mut *dict },
                 c"vcol",
-                varnumber_T::from(qfp.qf_viscol),
+                Varnumber::from(qfp.qf_viscol),
             )
-            || !tv_dict_add_nr(unsafe { &mut *dict }, c"nr", varnumber_T::from(qfp.qf_nr))
+            || !tv_dict_add_nr(unsafe { &mut *dict }, c"nr", Varnumber::from(qfp.qf_nr))
             || !tv_dict_add_str(
                 unsafe { &mut *dict },
                 c"module",
@@ -6121,7 +6121,7 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
             || !tv_dict_add_nr(
                 unsafe { &mut *dict },
                 c"valid",
-                varnumber_T::from(qfp.qf_valid),
+                Varnumber::from(qfp.qf_valid),
             )
         {
             std::process::abort();
@@ -6130,11 +6130,11 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> bool {
         true
 }
 
-fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
-    wp: Option<&win_T>,
+fn get_errorlist(qi_arg: Option<&mut QfInfo>,
+    wp: Option<&WinInfoInfo>,
     mut qf_idx: c_int,
     eidx: c_int,
-    list: &mut list_T,
+    list: &mut TvList,
 ) -> bool {
     unsafe {
         let mut qi = qi_arg.map_or(ptr::null_mut(), |p| &raw mut *p);
@@ -6184,9 +6184,9 @@ fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
 }
 
 fn qf_get_list_from_lines(
-    what: &mut dict_T,
-    di: &mut dictitem_T,
-    retdict: &mut dict_T,
+    what: &mut TvDict,
+    di: &mut Dictitem,
+    retdict: &mut TvDict,
 ) -> bool {
     unsafe {
         if di.di_tv.v_type != VarType::VAR_LIST || di.di_tv.vval.v_list().is_null() {
@@ -6205,12 +6205,12 @@ fn qf_get_list_from_lines(
         }
 
         let l = tv_list_alloc(kListLenMayKnow);
-        let mut qi = qf_info_T {
+        let mut qi = QfInfo {
             qf_refcount: 1,
             qf_listcount: 0,
             qf_curlist: 0,
             qf_maxcount: 1,
-            qf_lists: vec![qf_list_T::default()],
+            qf_lists: vec![QfList::default()],
             qfl_type: QFLT_INTERNAL,
             qf_bufnr: INVALID_QFBUFNR,
         };
@@ -6237,7 +6237,7 @@ fn qf_get_list_from_lines(
     }
 }
 
-fn qf_winid(qi: Option<&qf_info_T>) -> c_int {
+fn qf_winid(qi: Option<&QfInfo>) -> c_int {
     unsafe {
         if qi.is_none() {
             return 0;
@@ -6250,17 +6250,17 @@ fn qf_winid(qi: Option<&qf_info_T>) -> c_int {
     }
 }
 
-fn qf_getprop_qfbufnr(qi: Option<&qf_info_T>, retdict: &mut dict_T) -> bool {
+fn qf_getprop_qfbufnr(qi: Option<&QfInfo>, retdict: &mut TvDict) -> bool {
      {
         let mut bufnum: c_int = 0;
         if let Some(qi) = qi && !buflist_findnr(qi.qf_bufnr).is_null() {
             bufnum = qi.qf_bufnr;
         }
-        tv_dict_add_nr(retdict, c"qfbufnr", varnumber_T::from(bufnum))
+        tv_dict_add_nr(retdict, c"qfbufnr", Varnumber::from(bufnum))
     }
 }
 
-fn qf_getprop_keys2flags(what: &dict_T, loclist: bool) -> c_int {
+fn qf_getprop_keys2flags(what: &TvDict, loclist: bool) -> c_int {
     let mut flags = QF_GETLIST_NONE;
 
         if !tv_dict_find(Some(what), c"all", 3).is_null() {
@@ -6309,7 +6309,7 @@ fn qf_getprop_keys2flags(what: &dict_T, loclist: bool) -> c_int {
         flags
 }
 
-fn qf_getprop_qfidx(qi: &mut qf_info_T, what: &mut dict_T) -> c_int {
+fn qf_getprop_qfidx(qi: &mut QfInfo, what: &mut TvDict) -> c_int {
     unsafe {
         let mut qf_idx = qi.qf_curlist;
         let mut di = tv_dict_find(Some(what), c"nr", 2);
@@ -6346,10 +6346,10 @@ fn qf_getprop_qfidx(qi: &mut qf_info_T, what: &mut dict_T) -> c_int {
 }
 
 fn qf_getprop_defaults(
-    qi: *mut qf_info_T,
+    qi: *mut QfInfo,
     flags: c_int,
     locstack: bool,
-    retdict: &mut dict_T,
+    retdict: &mut TvDict,
 ) -> bool {
     unsafe {
         let mut status = true;
@@ -6369,7 +6369,7 @@ fn qf_getprop_defaults(
             status = tv_dict_add_nr(
                 retdict,
                 c"winid",
-                varnumber_T::from(qf_winid((qi).as_ref())),
+                Varnumber::from(qf_winid((qi).as_ref())),
             );
         }
         if status && (flags & QF_GETLIST_CONTEXT) != 0 {
@@ -6401,7 +6401,7 @@ fn qf_getprop_defaults(
     }
 }
 
-fn qf_getprop_title(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
+fn qf_getprop_title(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     tv_dict_add_str(
             retdict,
             c"title",
@@ -6410,12 +6410,12 @@ fn qf_getprop_title(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
 }
 
 fn qf_getprop_filewinid(
-    wp: Option<&win_T>,
-    qi: &qf_info_T,
-    retdict: &mut dict_T,
+    wp: Option<&WinInfoInfo>,
+    qi: &QfInfo,
+    retdict: &mut TvDict,
 ) -> bool {
     unsafe {
-        let mut winid: handle_T = 0;
+        let mut winid: ObjHandle = 0;
 
         if let Some(wp) = wp && is_ll_window(wp) {
             let ll_wp = qf_find_win_with_loclist(qi);
@@ -6424,15 +6424,15 @@ fn qf_getprop_filewinid(
             }
         }
 
-        tv_dict_add_nr(retdict, c"filewinid", varnumber_T::from(winid))
+        tv_dict_add_nr(retdict, c"filewinid", Varnumber::from(winid))
     }
 }
 
 fn qf_getprop_items(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_idx: c_int,
     eidx: c_int,
-    retdict: &mut dict_T,
+    retdict: &mut TvDict,
 ) -> bool {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
@@ -6442,7 +6442,7 @@ fn qf_getprop_items(
     }
 }
 
-fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
+fn qf_getprop_ctx(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     unsafe {
         if let Some(ref ctx) = qfl.qf_ctx {
             let di = tv_dict_item_alloc_len(c"context", 7);
@@ -6458,19 +6458,19 @@ fn qf_getprop_ctx(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
     }
 }
 
-fn qf_getprop_idx(qfl: &mut qf_list_T, mut eidx: c_int, retdict: &mut dict_T) -> bool {
+fn qf_getprop_idx(qfl: &mut QfList, mut eidx: c_int, retdict: &mut TvDict) -> bool {
     if eidx == 0 {
             eidx = qfl.qf_index;
             if qf_list_empty(Some(&*qfl)) {
                 eidx = 0;
             }
         }
-        tv_dict_add_nr(retdict, c"idx", varnumber_T::from(eidx))
+        tv_dict_add_nr(retdict, c"idx", Varnumber::from(eidx))
 }
 
-fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
+fn qf_getprop_qftf(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
-            let mut tv: typval_T = typval_T::new();
+            let mut tv: TypVal = TypVal::new();
             callback_put(&mut qfl.qf_qftf_cb, &mut tv);
             let status = tv_dict_add_tv(retdict, c"quickfixtextfunc", 16, &mut tv);
             tv_clear(&mut tv);
@@ -6480,7 +6480,7 @@ fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: &mut dict_T) -> bool {
         }
 }
 
-fn qf_get_properties(wp: Option<&win_T>, what: &mut dict_T, retdict: &mut dict_T) -> bool {
+fn qf_get_properties(wp: Option<&WinInfoInfo>, what: &mut TvDict, retdict: &mut TvDict) -> bool {
     unsafe {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
@@ -6521,13 +6521,13 @@ fn qf_get_properties(wp: Option<&win_T>, what: &mut dict_T, retdict: &mut dict_T
             status = qf_getprop_title(qfl, retdict);
         }
         if status && (flags & QF_GETLIST_NR) != 0 {
-            status = tv_dict_add_nr(retdict, c"nr", varnumber_T::from(qf_idx + 1));
+            status = tv_dict_add_nr(retdict, c"nr", Varnumber::from(qf_idx + 1));
         }
         if status && (flags & QF_GETLIST_WINID) != 0 {
             status = tv_dict_add_nr(
                 retdict,
                 c"winid",
-                varnumber_T::from(qf_winid(qi.as_ref())),
+                Varnumber::from(qf_winid(qi.as_ref())),
             );
         }
         if status && (flags & QF_GETLIST_ITEMS) != 0 {
@@ -6537,7 +6537,7 @@ fn qf_get_properties(wp: Option<&win_T>, what: &mut dict_T, retdict: &mut dict_T
             status = qf_getprop_ctx(qfl, retdict);
         }
         if status && (flags & QF_GETLIST_ID) != 0 {
-            status = tv_dict_add_nr(retdict, c"id", varnumber_T::from(qfl.qf_id));
+            status = tv_dict_add_nr(retdict, c"id", Varnumber::from(qfl.qf_id));
         }
         if status && (flags & QF_GETLIST_IDX) != 0 {
             status = qf_getprop_idx(qfl, eidx, retdict);
@@ -6546,14 +6546,14 @@ fn qf_get_properties(wp: Option<&win_T>, what: &mut dict_T, retdict: &mut dict_T
             status = tv_dict_add_nr(
                 retdict,
                 c"size",
-                varnumber_T::from(qfl.count()),
+                Varnumber::from(qfl.count()),
             );
         }
         if status && (flags & QF_GETLIST_TICK) != 0 {
             status = tv_dict_add_nr(
                 retdict,
                 c"changedtick",
-                varnumber_T::from(qfl.qf_changedtick),
+                Varnumber::from(qfl.qf_changedtick),
             );
         }
         if status && wp.is_some() && (flags & QF_GETLIST_FILEWINID) != 0 {
@@ -6570,7 +6570,7 @@ fn qf_get_properties(wp: Option<&win_T>, what: &mut dict_T, retdict: &mut dict_T
     }
 }
 
-fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> bool {
+fn qf_setprop_qftf(qfl: &mut QfList, di: &mut Dictitem) -> bool {
     if check_secure() {
             return false;
         }
@@ -6584,8 +6584,8 @@ fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> bool {
 }
 
 fn qf_add_entry_from_dict(
-    qfl: &mut qf_list_T,
-    d: &mut dict_T,
+    qfl: &mut QfList,
+    d: &mut TvDict,
     first_entry: bool,
     valid_entry: &mut bool,
 ) -> c_int {
@@ -6597,8 +6597,8 @@ fn qf_add_entry_from_dict(
         let filename = crate::eval::typval::tv_dict_get_cstring(Some(d), c"filename");
         let module = crate::eval::typval::tv_dict_get_cstring(Some(d), c"module");
         let mut bufnum = tv_dict_get_number(Some(d), c"bufnr") as c_int;
-        let lnum = tv_dict_get_number(Some(d), c"lnum") as linenr_T;
-        let end_lnum = tv_dict_get_number(Some(d), c"end_lnum") as linenr_T;
+        let lnum = tv_dict_get_number(Some(d), c"lnum") as Linenr;
+        let end_lnum = tv_dict_get_number(Some(d), c"end_lnum") as Linenr;
         let col = tv_dict_get_number(Some(d), c"col") as c_int;
         let end_col = tv_dict_get_number(Some(d), c"end_col") as c_int;
         let vcol = tv_dict_get_number(Some(d), c"vcol") as c_char;
@@ -6606,7 +6606,7 @@ fn qf_add_entry_from_dict(
         let type_ = tv_dict_get_string(Some(d), c"type");
         let pattern = crate::eval::typval::tv_dict_get_cstring(Some(d), c"pattern");
         let text = crate::eval::typval::tv_dict_get_cstring(Some(d), c"text").unwrap_or_default();
-        let mut user_data: typval_T = typval_T::new();
+        let mut user_data: TypVal = TypVal::new();
         user_data.v_type = VarType::VAR_UNKNOWN;
         tv_dict_get_tv(Some(d), c"user_data", &mut user_data);
 
@@ -6668,8 +6668,8 @@ fn qf_add_entry_from_dict(
 }
 
 fn entry_is_closer_to_target(
-    entry: &qfline_T,
-    other_entry: &qfline_T,
+    entry: &Qfline,
+    other_entry: &Qfline,
     target_fnum: c_int,
     target_lnum: c_int,
     target_col: c_int,
@@ -6731,9 +6731,9 @@ fn entry_is_closer_to_target(
 }
 
 fn qf_add_entries(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     mut qf_idx: c_int,
-    list: Option<&list_T>,
+    list: Option<&TvList>,
     title: impl crate::strings::IntoCCharPtr,
     action: c_int,
 ) -> c_int { let title = title.into_c_char_ptr();
@@ -6790,7 +6790,7 @@ fn qf_add_entries(
                         break;
                     }
 
-                    let entry: *const qfline_T = qfl.qf_items.last().unwrap();
+                    let entry: *const Qfline = qfl.qf_items.last().unwrap();
                     if (select_first_entry && entry_to_select_index == 0)
                         || (select_nearest_entry
                             && (entry_to_select_index == 0
@@ -6826,8 +6826,8 @@ fn qf_add_entries(
 }
 
 fn qf_setprop_get_qfidx(
-    qi: &qf_info_T,
-    what: &dict_T,
+    qi: &QfInfo,
+    what: &TvDict,
     action: c_int,
     newlist: &mut bool,
 ) -> c_int {
@@ -6885,10 +6885,10 @@ fn qf_setprop_get_qfidx(
 }
 
 fn qf_setprop_title(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_idx: c_int,
-    what: &dict_T,
-    di: &dictitem_T,
+    what: &TvDict,
+    di: &Dictitem,
 ) -> bool {
      {
         let qfl = qf_get_list(&mut *qi, qf_idx);
@@ -6906,9 +6906,9 @@ fn qf_setprop_title(
 }
 
 fn qf_setprop_items(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_idx: c_int,
-    di: &mut dictitem_T,
+    di: &mut Dictitem,
     action: c_int,
 ) -> bool {
     if di.di_tv.v_type != VarType::VAR_LIST {
@@ -6932,10 +6932,10 @@ fn qf_setprop_items(
 }
 
 fn qf_setprop_items_from_lines(
-    qi: &mut qf_info_T,
+    qi: &mut QfInfo,
     qf_idx: c_int,
-    what: &dict_T,
-    di: &mut dictitem_T,
+    what: &TvDict,
+    di: &mut Dictitem,
     action: c_int,
 ) -> bool {
     unsafe {
@@ -6980,7 +6980,7 @@ fn qf_setprop_items_from_lines(
     }
 }
 
-fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> bool {
+fn qf_setprop_context(qfl: &mut QfList, di: &mut Dictitem) -> bool {
     if let Some(ref mut ctx) = qfl.qf_ctx {
             tv_clear(ctx);
         }
@@ -6992,9 +6992,9 @@ fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> bool {
 }
 
 fn qf_setprop_curidx(
-    qi: &mut qf_info_T,
-    qfl: &mut qf_list_T,
-    di: &dictitem_T,
+    qi: &mut QfInfo,
+    qfl: &mut QfList,
+    di: &Dictitem,
 ) -> bool {
      {
         let mut newidx: c_int;
@@ -7031,8 +7031,8 @@ fn qf_setprop_curidx(
 }
 
 fn qf_set_properties(
-    qi: &mut qf_info_T,
-    what: &dict_T,
+    qi: &mut QfInfo,
+    what: &TvDict,
     action: c_int,
     title: impl crate::strings::IntoCCharPtr,
 ) -> bool { let title = title.into_c_char_ptr();
@@ -7087,7 +7087,7 @@ fn qf_set_properties(
     }
 }
 
-fn qf_free_stack(mut wp: *mut win_T, qi: &mut qf_info_T) {
+fn qf_free_stack(mut wp: *mut WinInfoInfo, qi: &mut QfInfo) {
     unsafe {
         let qfwin = qf_find_win(&*qi);
 
@@ -7124,11 +7124,11 @@ fn qf_free_stack(mut wp: *mut win_T, qi: &mut qf_info_T) {
 }
 
 pub fn set_errorlist(
-    wp: *mut win_T,
-    list: Option<&list_T>,
+    wp: *mut WinInfoInfo,
+    list: Option<&TvList>,
     action: c_int,
     title: impl crate::strings::IntoCCharPtr,
-    what: Option<&dict_T>,
+    what: Option<&TvDict>,
 ) -> bool { let title = title.into_c_char_ptr();
     unsafe {
         let qi = if !wp.is_null() {
@@ -7169,7 +7169,7 @@ pub fn set_errorlist(
     }
 }
 
-fn mark_quickfix_user_data(qi: &mut qf_info_T, copyID: c_int) -> bool {
+fn mark_quickfix_user_data(qi: &mut QfInfo, copyID: c_int) -> bool {
      {
         let mut abort = false;
         let mut i: c_int = 0;
@@ -7196,7 +7196,7 @@ fn mark_quickfix_user_data(qi: &mut qf_info_T, copyID: c_int) -> bool {
     }
 }
 
-fn mark_quickfix_ctx(qi: &mut qf_info_T, copyID: c_int) -> bool {
+fn mark_quickfix_ctx(qi: &mut QfInfo, copyID: c_int) -> bool {
      {
         let mut abort = false;
         let mut i: c_int = 0;
@@ -7265,13 +7265,13 @@ fn cbuffer_get_auname(cmdidx: c_int) -> *const c_char {
 }
 
 fn cbuffer_process_args(
-    eap: &mut exarg_T,
-    bufp: *mut *mut buf_T,
-    line1: &mut linenr_T,
-    line2: &mut linenr_T,
+    eap: &mut Exarg,
+    bufp: *mut *mut FileBuf,
+    line1: &mut Linenr,
+    line2: &mut Linenr,
 ) -> bool {
     unsafe {
-        let mut buf: *mut buf_T = ptr::null_mut();
+        let mut buf: *mut FileBuf = ptr::null_mut();
 
         if crate::memory::cstr_is_empty(eap.arg) {
             buf = g_st().curbuf;
@@ -7311,7 +7311,7 @@ fn cbuffer_process_args(
     }
 }
 
-pub fn ex_cbuffer(eap: &mut exarg_T) {
+pub fn ex_cbuffer(eap: &mut Exarg) {
     unsafe {
         let au_name = cbuffer_get_auname(eap.cmdidx);
         if !au_name.is_null()
@@ -7327,12 +7327,12 @@ pub fn ex_cbuffer(eap: &mut exarg_T) {
             return;
         }
 
-        let mut wp: *mut win_T = ptr::null_mut();
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
 
-        let mut buf: *mut buf_T = ptr::null_mut();
-        let mut line1: linenr_T = 0;
-        let mut line2: linenr_T = 0;
+        let mut buf: *mut FileBuf = ptr::null_mut();
+        let mut line1: Linenr = 0;
+        let mut line2: Linenr = 0;
         if !cbuffer_process_args(eap, &raw mut buf, &mut line1, &mut line2) {
             return;
         }
@@ -7428,9 +7428,9 @@ fn trigger_cexpr_autocmd(cmdidx: c_int) -> bool {
     }
 }
 
-pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> bool {
+pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
     unsafe {
-        let mut wp: *mut win_T = ptr::null_mut();
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
 
         if (tv.v_type == VarType::VAR_STRING && !tv.vval.v_string().is_null())
@@ -7483,7 +7483,7 @@ pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> bool {
     }
 }
 
-pub fn ex_cexpr(eap: &mut exarg_T) {
+pub fn ex_cexpr(eap: &mut Exarg) {
     if !trigger_cexpr_autocmd(eap.cmdidx) {
             return;
         }
@@ -7496,7 +7496,7 @@ pub fn ex_cexpr(eap: &mut exarg_T) {
         tv_clear(&mut tv);
 }
 
-fn hgr_get_ll(new_ll: &mut bool) -> *mut qf_info_T {
+fn hgr_get_ll(new_ll: &mut bool) -> *mut QfInfo {
     unsafe {
         let wp = if bt_help(curwin_mut().w_buffer.as_ref()) {
             curwin_ptr()
@@ -7518,7 +7518,7 @@ fn hgr_get_ll(new_ll: &mut bool) -> *mut qf_info_T {
     }
 }
 
-fn hgr_search_file(qfl: &mut qf_list_T, fname: *mut c_char, p_regmatch: &mut regmatch_T) {
+fn hgr_search_file(qfl: &mut QfList, fname: *mut c_char, p_regmatch: &mut Regmatch) {
     unsafe {
         let fd = os_fopen(fname, c"r").cast::<FILE>();
         if fd.is_null() {
@@ -7526,7 +7526,7 @@ fn hgr_search_file(qfl: &mut qf_list_T, fname: *mut c_char, p_regmatch: &mut reg
         }
 
         let iobuff_ptr = g_st().IObuff.as_mut_ptr();
-        let mut lnum: linenr_T = 1;
+        let mut lnum: Linenr = 1;
         while !vim_fgets(iobuff_ptr, IOSIZE as c_int, fd.cast()) && !g_st().got_int {
             let line = iobuff_ptr;
 
@@ -7568,9 +7568,9 @@ fn hgr_search_file(qfl: &mut qf_list_T, fname: *mut c_char, p_regmatch: &mut reg
 }
 
 fn hgr_search_files_in_dir(
-    qfl: &mut qf_list_T,
+    qfl: &mut QfList,
     mut dirname: *mut c_char,
-    p_regmatch: &mut regmatch_T,
+    p_regmatch: &mut Regmatch,
     lang: impl crate::strings::IntoCCharPtr,
 ) { let lang = lang.into_c_char_ptr();
     unsafe {
@@ -7602,7 +7602,7 @@ fn hgr_search_files_in_dir(
     }
 }
 
-fn hgr_search_in_rtp(qfl: &mut qf_list_T, p_regmatch: &mut regmatch_T, lang: impl crate::strings::IntoCCharPtr) { let lang = lang.into_c_char_ptr();
+fn hgr_search_in_rtp(qfl: &mut QfList, p_regmatch: &mut Regmatch, lang: impl crate::strings::IntoCCharPtr) { let lang = lang.into_c_char_ptr();
      {
         let mut p = opt_vars().p_rtp;
         let name_buff_ptr = g_st().NameBuff.as_mut_ptr();
@@ -7613,7 +7613,7 @@ fn hgr_search_in_rtp(qfl: &mut qf_list_T, p_regmatch: &mut regmatch_T, lang: imp
     }
 }
 
-pub fn ex_helpgrep(eap: &mut exarg_T) {
+pub fn ex_helpgrep(eap: &mut Exarg) {
     unsafe {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
@@ -7647,7 +7647,7 @@ pub fn ex_helpgrep(eap: &mut exarg_T) {
         incr_quickfix_busy();
 
         let lang = check_help_lang(eap.arg);
-        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
         regmatch.regprog = vim_regcomp(eap.arg, RE_MAGIC + RE_STRING);
         regmatch.rm_ic = false;
         if !regmatch.regprog.is_null() {
@@ -7727,9 +7727,9 @@ pub fn free_quickfix() {
 
 fn get_qf_loc_list(
     is_qf: bool,
-    wp: Option<&win_T>,
-    what_arg: &mut typval_T,
-    rettv: &mut typval_T,
+    wp: Option<&WinInfoInfo>,
+    what_arg: &mut TypVal,
+    rettv: &mut TypVal,
 ) {
     if what_arg.v_type == VarType::VAR_UNKNOWN {
             tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
@@ -7753,22 +7753,22 @@ fn get_qf_loc_list(
         }
 }
 
-pub fn f_getloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getloclist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
     get_qf_loc_list(false, unsafe { wp.as_ref() }, &mut argvars[1], rettv);
 }
 
-pub fn f_getqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getqflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     get_qf_loc_list(true, None, &mut argvars[0], rettv);
 }
 
-fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
-    let args: *mut typval_T = args.as_mut_ptr();
+fn set_qf_ll_list(wp: *mut WinInfoInfo,args: &mut [TypVal], rettv: &mut TypVal) {
+    let args: *mut TypVal = args.as_mut_ptr();
     unsafe {
         let mut title: *const c_char = ptr::null();
         let mut action: c_char = b' ' as c_char;
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-        let mut what: *mut dict_T = ptr::null_mut();
+        let mut what: *mut TvDict = ptr::null_mut();
 
         let list_arg = args;
         if (*list_arg).v_type != VarType::VAR_LIST {
@@ -7834,7 +7834,7 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
     }
 }
 
-pub fn f_setloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_setloclist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
     let win = find_win_by_nr_or_id(&argvars[0]);
@@ -7843,7 +7843,7 @@ pub fn f_setloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     }
 }
 
-pub fn f_setqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_setqflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     set_qf_ll_list(ptr::null_mut(), argvars, rettv);
 }
 
@@ -7859,10 +7859,10 @@ mod tests {
 
     #[test]
     fn qf_entry_pos_comparisons_respect_linewise_mode() {
-        let mut qfp = qfline_T::new();
+        let mut qfp = Qfline::new();
             qfp.qf_lnum = 10;
             qfp.qf_col = 5;
-            let pos = pos_T {
+            let pos = CursorPos {
                 lnum: 10,
                 col: 5,
                 coladd: 0,
@@ -7893,8 +7893,8 @@ mod tests {
 
     #[test]
     fn entry_is_closer_to_target_compares_file_line_and_column() {
-        let mut e1 = qfline_T::new();
-            let mut e2 = qfline_T::new();
+        let mut e1 = Qfline::new();
+            let mut e2 = Qfline::new();
             e1.qf_fnum = 1;
             e1.qf_lnum = 12;
             e1.qf_col = 4;

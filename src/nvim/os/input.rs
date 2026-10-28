@@ -27,7 +27,7 @@ use crate::state::{MODE_INSERT, MODE_MAX_LENGTH, get_mode, get_real_state};
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::eval::typval::varnumber_T;
+use crate::eval::typval::Varnumber;
 
 const READ_BUFFER_SIZE: usize = 0xfff;
 const MAX_KEY_CODE_LEN: usize = 6;
@@ -377,7 +377,7 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
         }
 
         if keys.size > 0 {
-            set_vim_var_nr(VV_USERACTIVE, os_realtime() as varnumber_T);
+            set_vim_var_nr(VV_USERACTIVE, os_realtime() as Varnumber);
         }
 
         let mut ptr_cur: *const c_char = keys.data.cast_const();

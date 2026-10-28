@@ -3,12 +3,12 @@
 use crate::api::extmark::{describe_ns, nvim_create_namespace};
 use crate::api::private::helpers::cstr_as_string;
 
-use crate::buffer::{buf_T, buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
+use crate::buffer::{FileBuf, buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
 use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, skiptowhite,
     skiptowhite_esc, skipwhite, vim_isprintc,
 };
-use crate::cursor::{check_cursor_lnum, linenr_T};
+use crate::cursor::{check_cursor_lnum, Linenr};
 use crate::decoration::{
     DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorSignHighlight, NS, SIGN_WIDTH,
     SignItem, decor_find_sign, decor_put_sh, kSHIsSign, sign_item_cmp,
@@ -17,19 +17,19 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
 use crate::eval::funcs::get_buf_arg;
 use crate::eval::typval::{
-    EvalFuncData, VarType, dict_T, list_T, tv_check_for_nonnull_dict_arg,
+    EvalFuncData, VarType, TvDict, TvList, tv_check_for_nonnull_dict_arg,
     tv_check_for_opt_dict_arg, tv_check_for_string_arg, tv_dict_add_list, tv_dict_add_nr,
     tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find, tv_dict_get_number,
     tv_dict_get_number_def, tv_dict_get_string, tv_get_lnum, tv_get_number_chk, tv_get_string,
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_number, typval_T,
+    tv_list_append_number, TypVal,
 };
 use crate::ex_cmds::{BL_WHITE, ECMD_HIDE, do_ecmd};
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
-use crate::grid::{schar_T, schar_from_ascii, schar_from_cluster, schar_get};
+use crate::grid::{Schar, schar_from_ascii, schar_from_cluster, schar_get};
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
 use crate::mark::setpcmark;
@@ -69,10 +69,10 @@ const EXP_SIGN_NAMES: c_int = 5;
 const EXP_SIGN_GROUPS: c_int = 6;
 
 #[repr(C)]
-pub struct sign_T {
+pub struct Sign {
     pub sn_name: std::ffi::CString,
     pub sn_icon: Option<std::ffi::CString>,
-    pub sn_text: [schar_T; SIGN_WIDTH],
+    pub sn_text: [Schar; SIGN_WIDTH],
     pub sn_line_hl: c_int,
     pub sn_text_hl: c_int,
     pub sn_cul_hl: c_int,
@@ -86,10 +86,10 @@ use crate::cmdexpand::{
 };
 use crate::eval::kListLenMayKnow;
 use crate::eval::userfunc::MSG_BUF_LEN;
-use crate::os::env::expand_T;
+use crate::os::env::ExpandCtx;
 
 struct SignModuleState {
-    sign_map: Vec<sign_T>,
+    sign_map: Vec<Sign>,
     sign_ns: Vec<Integer>,
     expand_what: c_int,
 }
@@ -122,7 +122,7 @@ const CMDS: [*const c_char; 7] = [
 ];
 
 #[inline]
-fn pmap_get_sign(name: impl crate::strings::IntoCCharPtr) -> *mut sign_T { let name = name.into_c_char_ptr();
+fn pmap_get_sign(name: impl crate::strings::IntoCCharPtr) -> *mut Sign { let name = name.into_c_char_ptr();
     if name.is_null() {
         return ptr::null_mut();
     }
@@ -174,12 +174,12 @@ fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
 }
 
 fn buf_set_sign(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     id: &mut u32,
     group: impl crate::strings::IntoCCharPtr,
     prio: c_int,
-    lnum: linenr_T,
-    sp: &mut sign_T,
+    lnum: Linenr,
+    sp: &mut Sign,
 ) { let group = group.into_c_char_ptr();
      {
         if !group.is_null() && find_ns_by_name(group) == 0 {
@@ -235,12 +235,12 @@ fn buf_set_sign(
 }
 
 fn buf_mod_sign(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     id: &mut u32,
     group: impl crate::strings::IntoCCharPtr,
     prio: c_int,
-    sp: &mut sign_T,
-) -> linenr_T { let group = group.into_c_char_ptr();
+    sp: &mut Sign,
+) -> Linenr { let group = group.into_c_char_ptr();
      {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
@@ -255,7 +255,7 @@ fn buf_mod_sign(
     }
 }
 
-fn buf_findsign(buf: &mut buf_T, id: c_int, group: impl crate::strings::IntoCCharPtr) -> c_int { let group = group.into_c_char_ptr();
+fn buf_findsign(buf: &mut FileBuf, id: c_int, group: impl crate::strings::IntoCCharPtr) -> c_int { let group = group.into_c_char_ptr();
      {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
@@ -286,10 +286,10 @@ fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
 }
 
 fn buf_delete_signs(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     group: impl crate::strings::IntoCCharPtr,
     id: c_int,
-    atlnum: linenr_T,
+    atlnum: Linenr,
 ) -> bool { let group = group.into_c_char_ptr();
      {
         let ns = group_get_ns(group);
@@ -351,11 +351,11 @@ fn buf_delete_signs(
     }
 }
 
-pub fn buf_has_signs(buf: &buf_T) -> bool {
+pub fn buf_has_signs(buf: &FileBuf) -> bool {
      buf_meta_total(buf, kMTMetaSignHL) + buf_meta_total(buf, kMTMetaSignText) != 0
 }
 
-fn sign_list_placed(rbuf: *mut buf_T, group: impl crate::strings::IntoCCharPtr) { let group = group.into_c_char_ptr();
+fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr) { let group = group.into_c_char_ptr();
     unsafe {
         let mut lbuf = [0 as c_char; MSG_BUF_LEN];
         let mut namebuf = [0 as c_char; MSG_BUF_LEN];
@@ -467,7 +467,7 @@ fn sign_cmd_idx(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut c_ch
     }
 }
 
-pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
+pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut Schar) -> usize {
     unsafe {
         let mut p: usize = 0;
         for i in 0..SIGN_WIDTH {
@@ -482,7 +482,7 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
     }
 }
 
-pub fn init_sign_text(sp: Option<&sign_T>, sign_text: *mut schar_T, text: *mut c_char) -> bool {
+pub fn init_sign_text(sp: Option<&Sign>, sign_text: *mut Schar, text: *mut c_char) -> bool {
     unsafe {
         let mut endp = text.add(crate::memory::cstr_len(text));
         let mut s = if sp.is_some() { text } else { endp };
@@ -538,7 +538,7 @@ fn sign_define_by_name(
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
         let sp = if new_sign {
-            sign_st().sign_map.push(sign_T {
+            sign_st().sign_map.push(Sign {
                 sn_name: crate::memory::cstr_to_cstring(name),
                 sn_icon: None,
                 sn_text: [0; SIGN_WIDTH],
@@ -548,7 +548,7 @@ fn sign_define_by_name(
                 sn_num_hl: 0,
                 sn_priority: 0,
             });
-            sign_st().sign_map.last_mut().unwrap() as *mut sign_T
+            sign_st().sign_map.last_mut().unwrap() as *mut Sign
         } else {
             existing
         };
@@ -629,7 +629,7 @@ fn sign_undefine_by_name(name: impl crate::strings::IntoCCharPtr) -> bool { let 
     }
 }
 
-fn sign_list_defined(sp: &mut sign_T) {
+fn sign_list_defined(sp: &mut Sign) {
     smsg!(0, c"sign %s", sp.sn_name.as_ptr());
         if let Some(ref icon) = sp.sn_icon {
             msg_puts(c" icon=");
@@ -667,7 +667,7 @@ fn sign_list_defined(sp: &mut sign_T) {
         for i in 0..4 {
             if hls[i] > 0 {
                 msg_puts(args[i]);
-                let p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), hls[i] - 1, false);
+                let p = get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hls[i] - 1, false);
                 msg_puts(if !p.is_null() { p } else { c"NONE".as_ptr() });
             }
         }
@@ -688,8 +688,8 @@ fn sign_place(
     id: &mut u32,
     group: impl crate::strings::IntoCCharPtr,
     name: impl crate::strings::IntoCCharPtr,
-    buf: &mut buf_T,
-    mut lnum: linenr_T,
+    buf: &mut FileBuf,
+    mut lnum: Linenr,
     mut prio: c_int,
 ) -> bool { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
     unsafe {
@@ -729,10 +729,10 @@ fn sign_place(
 }
 
 fn sign_unplace_inner(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
-    atlnum: linenr_T,
+    atlnum: Linenr,
 ) -> bool { let group = group.into_c_char_ptr();
      {
         if !buf_has_signs( buf) {
@@ -754,7 +754,7 @@ fn sign_unplace_inner(
     }
 }
 
-fn sign_unplace(buf: Option<&mut buf_T>, id: c_int, group: impl crate::strings::IntoCCharPtr, atlnum: linenr_T) -> bool { let group = group.into_c_char_ptr();
+fn sign_unplace(buf: Option<&mut FileBuf>, id: c_int, group: impl crate::strings::IntoCCharPtr, atlnum: Linenr) -> bool { let group = group.into_c_char_ptr();
      {
         if let Some(buf) = buf {
             sign_unplace_inner( buf, id, group, atlnum)
@@ -770,7 +770,7 @@ fn sign_unplace(buf: Option<&mut buf_T>, id: c_int, group: impl crate::strings::
     }
 }
 
-fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut buf_T) -> linenr_T { let group = group.into_c_char_ptr();
+fn sign_jump(id: c_int, group: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> Linenr { let group = group.into_c_char_ptr();
      {
         let lnum = buf_findsign( buf, id, group);
         if lnum <= 0 {
@@ -855,8 +855,8 @@ fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_
 }
 
 fn sign_place_cmd(
-    buf: *mut buf_T,
-    lnum: linenr_T,
+    buf: *mut FileBuf,
+    lnum: Linenr,
     name: impl crate::strings::IntoCCharPtr,
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
@@ -881,8 +881,8 @@ fn sign_place_cmd(
 }
 
 fn sign_unplace_cmd(
-    mut buf: *mut buf_T,
-    mut lnum: linenr_T,
+    mut buf: *mut FileBuf,
+    mut lnum: Linenr,
     name: impl crate::strings::IntoCCharPtr,
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
@@ -905,8 +905,8 @@ fn sign_unplace_cmd(
 }
 
 fn sign_jump_cmd(
-    buf: Option<&mut buf_T>,
-    lnum: linenr_T,
+    buf: Option<&mut FileBuf>,
+    lnum: Linenr,
     name: impl crate::strings::IntoCCharPtr,
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
@@ -933,8 +933,8 @@ fn parse_sign_cmd_args(
     id: &mut c_int,
     group: *mut *mut c_char,
     prio: &mut c_int,
-    buf: *mut *mut buf_T,
-    lnum: &mut linenr_T,
+    buf: *mut *mut FileBuf,
+    lnum: &mut Linenr,
 ) -> bool {
     unsafe {
         let arg1 = arg;
@@ -1020,7 +1020,7 @@ fn parse_sign_cmd_args(
     }
 }
 
-pub fn ex_sign(eap: &mut exarg_T) {
+pub fn ex_sign(eap: &mut Exarg) {
     unsafe {
         let mut arg = eap.arg;
 
@@ -1059,11 +1059,11 @@ pub fn ex_sign(eap: &mut exarg_T) {
             }
         } else {
             let mut id: c_int = -1;
-            let mut lnum: linenr_T = -1;
+            let mut lnum: Linenr = -1;
             let mut name: *mut c_char = ptr::null_mut();
             let mut group: *mut c_char = ptr::null_mut();
             let mut prio: c_int = -1;
-            let mut buf: *mut buf_T = ptr::null_mut();
+            let mut buf: *mut FileBuf = ptr::null_mut();
 
             if !parse_sign_cmd_args(
                 idx,
@@ -1090,7 +1090,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
     }
 }
 
-fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
+fn sign_get_info_dict(sp: &mut Sign) -> *mut TvDict {
     let d = tv_dict_alloc();
 
         tv_dict_add_str(unsafe { &mut *d }, c"name", sp.sn_name.as_ptr());
@@ -1114,7 +1114,7 @@ fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
         ];
         for (name, hl) in args {
             if hl > 0 {
-                let p = get_highlight_name_ext(&mut crate::os::env::expand_T::new(), hl - 1, false);
+                let p = get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hl - 1, false);
                 if p.is_null() {
                     tv_dict_add_str_len(unsafe { &mut *d }, name, c"NONE", 4);
                 } else {
@@ -1125,7 +1125,7 @@ fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
         d
 }
 
-fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
+fn sign_get_placed_info_dict(mark: MTKey) -> *mut TvDict {
     let d = tv_dict_alloc();
         let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
@@ -1141,7 +1141,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
         d
 }
 
-pub fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
+pub fn get_buffer_signs(buf: &mut FileBuf) -> *mut TvList {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         let mut itr = MarkTreeIter::new();
@@ -1161,11 +1161,11 @@ pub fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
 }
 
 fn sign_get_placed_in_buf(
-    buf: &mut buf_T,
-    lnum: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
     sign_id: c_int,
     group: impl crate::strings::IntoCCharPtr,
-    retlist: &mut list_T,
+    retlist: &mut TvList,
 ) { let group = group.into_c_char_ptr();
     unsafe {
         let d = tv_dict_alloc();
@@ -1214,11 +1214,11 @@ fn sign_get_placed_in_buf(
 }
 
 fn sign_get_placed(
-    buf: Option<&mut buf_T>,
-    lnum: linenr_T,
+    buf: Option<&mut FileBuf>,
+    lnum: Linenr,
     id: c_int,
     group: impl crate::strings::IntoCCharPtr,
-    retlist: &mut list_T,
+    retlist: &mut TvList,
 ) { let group = group.into_c_char_ptr();
     unsafe {
         if let Some(buf) = buf {
@@ -1260,7 +1260,7 @@ fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
     }
 }
 
-pub fn get_sign_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_sign_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     match sign_st().expand_what {
             EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
             EXP_DEFINE => {
@@ -1303,7 +1303,7 @@ pub fn get_sign_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
         }
 }
 
-pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
+pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: *mut c_char) {
     unsafe {
         xp.xp_context = EXPAND_SIGN;
         sign_st().expand_what = EXP_SUBCMD;
@@ -1386,7 +1386,7 @@ pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
     }
 }
 
-fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&dict_T>) -> c_int { let mut name = name.into_c_char_ptr();
+fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&TvDict>) -> c_int { let mut name = name.into_c_char_ptr();
      {
         if name.is_null() {
             name = tv_dict_get_string(dict, c"name");
@@ -1417,7 +1417,7 @@ fn sign_define_from_dict(name: impl crate::strings::IntoCCharPtr, dict: Option<&
     }
 }
 
-fn sign_define_multiple(l: Option<&list_T>, retlist: &mut list_T) {
+fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
      {
         if l.is_none() {
             return;
@@ -1437,7 +1437,7 @@ fn sign_define_multiple(l: Option<&list_T>, retlist: &mut list_T) {
     }
 }
 
-pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         if argvars[0].v_type == VarType::VAR_LIST
@@ -1468,7 +1468,7 @@ pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-pub fn f_sign_getdefined(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         tv_list_alloc_ret(rettv, 0);
@@ -1486,11 +1486,11 @@ pub fn f_sign_getdefined(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
     }
 }
 
-pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        let mut buf: *mut buf_T = ptr::null_mut();
-        let mut lnum: linenr_T = 0;
+        let mut buf: *mut FileBuf = ptr::null_mut();
+        let mut lnum: Linenr = 0;
         let mut sign_id: c_int = 0;
         let mut group: *const c_char = ptr::null();
         let mut notanum = false;
@@ -1540,7 +1540,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
     }
 }
 
-pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1573,11 +1573,11 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 }
 
 fn sign_place_from_dict(
-    mut id_tv: Option<&typval_T>,
-    mut group_tv: Option<&typval_T>,
-    mut name_tv: Option<&typval_T>,
-    mut buf_tv: Option<&mut typval_T>,
-    dict: Option<&dict_T>,
+    mut id_tv: Option<&TypVal>,
+    mut group_tv: Option<&TypVal>,
+    mut name_tv: Option<&TypVal>,
+    mut buf_tv: Option<&mut TypVal>,
+    dict: Option<&TvDict>,
 ) -> c_int {
     unsafe {
         let mut id: c_int = 0;
@@ -1644,7 +1644,7 @@ fn sign_place_from_dict(
             return -1;
         }
 
-        let mut lnum: linenr_T = 0;
+        let mut lnum: Linenr = 0;
         let di_lnum = tv_dict_find(dict, c"lnum", -1);
         if !di_lnum.is_null() {
             lnum = tv_get_lnum(&(*di_lnum).di_tv);
@@ -1672,8 +1672,8 @@ fn sign_place_from_dict(
     }
 }
 
-pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
-    let mut dict: *mut dict_T = ptr::null_mut();
+pub fn f_sign_place(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    let mut dict: *mut TvDict = ptr::null_mut();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1696,7 +1696,7 @@ pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     )));
 }
 
-pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
@@ -1726,7 +1726,7 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
     }
 }
 
-fn sign_undefine_multiple(l: Option<&list_T>, retlist: &mut list_T) {
+fn sign_undefine_multiple(l: Option<&TvList>, retlist: &mut TvList) {
      {
         if l.is_none() {
             return;
@@ -1742,7 +1742,7 @@ fn sign_undefine_multiple(l: Option<&list_T>, retlist: &mut list_T) {
     }
 }
 
-pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         if argvars[0].v_type == VarType::VAR_LIST
@@ -1770,10 +1770,10 @@ pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     }
 }
 
-fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: Option<&dict_T>) -> c_int {
+fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> c_int {
     unsafe {
         let mut id: c_int = 0;
-        let mut buf: *mut buf_T = ptr::null_mut();
+        let mut buf: *mut FileBuf = ptr::null_mut();
         let mut group = if let Some(group_tv) = group_tv {
             tv_get_string(group_tv).cast_mut()
         } else {
@@ -1804,8 +1804,8 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: Option<&dict_T>) ->
     }
 }
 
-pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
-    let mut dict: *mut dict_T = ptr::null_mut();
+pub fn f_sign_unplace(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    let mut dict: *mut TvDict = ptr::null_mut();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1825,7 +1825,7 @@ pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
     )));
 }
 
-pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
+pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal,
     _fptr: EvalFuncData,){
 
     unsafe {

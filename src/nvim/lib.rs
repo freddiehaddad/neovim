@@ -124,5 +124,5 @@ pub(crate) mod winfloat;
 #[path = "../xdiff/mod.rs"]
 pub(crate) mod xdiff;
 
-pub use cmdexpand::cmdidx_T;
+pub use cmdexpand::Cmdidx;
 pub use tui::terminfo::{unibi_boolean, unibi_numeric, unibi_string};

@@ -1,4 +1,4 @@
-//! Encoding Vimscript `typval_T` values to strings, `:echo`, JSON, and MessagePack
+//! Encoding Vimscript `TypVal` values to strings, `:echo`, JSON, and MessagePack
 //! (`src/nvim/eval/encode.c`).
 
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
@@ -9,13 +9,13 @@ use crate::eval::decode::{
     SURROGATE_LO_END, SURROGATE_LO_START,
 };
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T, tv_blob_get,
+    TypvalVval, VAR_UNLOCKED, VarType, TvBlob, TvDict, TvList, Listitem, TvPartial, tv_blob_get,
     tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first, tv_list_idx_of_item,
-    tv_list_last, tv_list_len, typval_T,
+    tv_list_last, tv_list_len, TypVal,
 };
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists_mut};
 use crate::eval::{get_copyID, partial_name};
-use crate::hashtab::{hashitem_T, hashitem_empty};
+use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
@@ -64,16 +64,16 @@ fn encode_st() -> &'static mut EvalEncodeState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ListReaderState {
-    pub li: *const listitem_T,
+    pub li: *const Listitem,
     pub offset: usize,
     pub li_length: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MPContainerRef {
-    Dict(*mut dict_T),
-    List(*mut list_T),
-    Pairs(*mut list_T),
+    Dict(*mut TvDict),
+    List(*mut TvList),
+    Pairs(*mut TvList),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -86,39 +86,39 @@ pub(crate) enum MPConvPartialStage {
 #[derive(Clone, Copy)]
 pub(crate) enum MPConvStackData {
     Dict {
-        dict: *mut dict_T,
-        dictp: *mut *mut dict_T,
-        hi: *mut hashitem_T,
+        dict: *mut TvDict,
+        dictp: *mut *mut TvDict,
+        hi: *mut Hashitem,
         todo: usize,
     },
     List {
-        list: *mut list_T,
-        li: *mut listitem_T,
+        list: *mut TvList,
+        li: *mut Listitem,
     },
     Pairs {
-        list: *mut list_T,
-        li: *mut listitem_T,
+        list: *mut TvList,
+        li: *mut Listitem,
     },
     Partial {
         stage: MPConvPartialStage,
-        pt: *mut partial_T,
+        pt: *mut TvPartial,
     },
     PartialList {
-        arg: *mut typval_T,
-        argv: *mut typval_T,
+        arg: *mut TypVal,
+        argv: *mut TypVal,
         todo: usize,
     },
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct MPConvStackVal {
-    pub(crate) tv: *mut typval_T,
+    pub(crate) tv: *mut TypVal,
     pub(crate) saved_copy_id: c_int,
     pub(crate) data: MPConvStackData,
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-pub fn encode_list_write(mut list: Option<&mut list_T>, buf: impl crate::strings::IntoCCharPtr, len: usize) { let buf = buf.into_c_char_ptr();
+pub fn encode_list_write(mut list: Option<&mut TvList>, buf: impl crate::strings::IntoCCharPtr, len: usize) { let buf = buf.into_c_char_ptr();
     unsafe {
         if len == 0 {
             return;
@@ -186,7 +186,7 @@ pub fn encode_list_write(mut list: Option<&mut list_T>, buf: impl crate::strings
 }
 
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
-pub fn encode_init_lrstate(list: Option<&list_T>) -> ListReaderState {
+pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
     let first = tv_list_first(list);
     let li_length = if first.is_null() {
         0
@@ -257,7 +257,7 @@ pub fn encode_read_from_list(
 }
 
 /// Convert `readfile()`-style list to a `Vec<c_char>` buffer (`encode_vim_list_to_buf`).
-pub fn encode_vim_list_to_buf(list: Option<&list_T>) -> Option<Vec<c_char>> {
+pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<c_char>> {
     let mut len = 0usize;
     for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
         let tv =  { &li.li_tv };
@@ -286,7 +286,7 @@ pub fn encode_vim_list_to_buf(list: Option<&list_T>) -> Option<Vec<c_char>> {
 }
 
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
-pub fn encode_check_json_key(tv: &typval_T) -> bool {
+pub fn encode_check_json_key(tv: &TypVal) -> bool {
     unsafe {
         if tv.v_type == VarType::VAR_STRING {
             return true;
@@ -360,7 +360,7 @@ fn conv_error(
                     } else {
                         hi.sub(1)
                     };
-                    let mut key_tv = typval_T {
+                    let mut key_tv = TypVal {
                         v_type: VarType::VAR_STRING,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::String((&*hi_ptr).key_ptr()),
@@ -384,7 +384,7 @@ fn conv_error(
                     } else {
                         tv_list_idx_of_item(list.as_ref(), (*li).li_prev)
                     };
-                    let prev_li: *const listitem_T = if li.is_null() {
+                    let prev_li: *const Listitem = if li.is_null() {
                         tv_list_last(list.as_ref())
                     } else {
                         (*li).li_prev
@@ -839,7 +839,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_blob(&mut self, blob: Option<&blob_T>, len: c_int) {
+    fn conv_blob(&mut self, blob: Option<&TvBlob>, len: c_int) {
         unsafe {
             match self {
                 Self::Text {
@@ -1060,7 +1060,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn special_dict_key_check(&mut self, key: &typval_T) -> bool {
+    fn special_dict_key_check(&mut self, key: &TypVal) -> bool {
         if matches!(
             *self,
             Self::Text {
@@ -1159,7 +1159,7 @@ impl EncodeBackend<'_> {
 fn convert_one_value(
     backend: &mut EncodeBackend,
     mpstack: &mut Vec<MPConvStackVal>,
-    tv: *mut typval_T,
+    tv: *mut TypVal,
     copy_id: c_int,
     objname: *const c_char,
 ) -> c_int {
@@ -1490,7 +1490,7 @@ fn convert_one_value(
 }
 
 fn encode_vim_with_backend(
-    backend: &mut EncodeBackend,top_tv: &mut typval_T,
+    backend: &mut EncodeBackend,top_tv: &mut TypVal,
     objname: impl crate::strings::IntoCCharPtr,
 ) -> bool {
     let objname = objname.into_c_char_ptr();
@@ -1505,7 +1505,7 @@ fn encode_vim_with_backend(
         while !mpstack.is_empty() {
             let cur_idx = mpstack.len() - 1;
             let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-            let next_tv: *mut typval_T = match mpstack[cur_idx].data {
+            let next_tv: *mut TypVal = match mpstack[cur_idx].data {
                 MPConvStackData::Dict {
                     dict,
                     mut hi,
@@ -1702,7 +1702,7 @@ fn encode_vim_with_backend(
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
 pub fn encode_vim_to_echo(
-    gap: &mut Vec<u8>,tv: &mut typval_T,
+    gap: &mut Vec<u8>,tv: &mut TypVal,
     objname: &std::ffi::CStr,
 ) -> bool {
     let mut backend = EncodeBackend::Text {
@@ -1714,7 +1714,7 @@ pub fn encode_vim_to_echo(
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
 pub fn encode_vim_to_msgpack(
-    packer: &mut PackerBuffer,tv: &mut typval_T,
+    packer: &mut PackerBuffer,tv: &mut TypVal,
     objname: impl crate::strings::IntoCCharPtr,
 ) -> bool { let objname = objname.into_c_char_ptr();
     let mut backend = EncodeBackend::Msgpack { packer };
@@ -1722,7 +1722,7 @@ pub fn encode_vim_to_msgpack(
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-pub fn encode_tv2string(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::ffi::CString {
+pub fn encode_tv2string(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi::CString {
      {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
@@ -1741,7 +1741,7 @@ pub fn encode_tv2string(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::f
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
-pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::CString {
+pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CString {
      {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         if tv.v_type == VarType::VAR_STRING || tv.v_type == VarType::VAR_FUNC {
@@ -1760,7 +1760,7 @@ pub fn encode_tv2echo(tv: &mut typval_T, len: Option<&mut usize>) -> std::ffi::C
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-pub fn encode_tv2json(tv: &mut typval_T,mut len: Option<&mut usize>) -> std::ffi::CString {
+pub fn encode_tv2json(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi::CString {
      {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
@@ -1788,26 +1788,26 @@ mod tests {
     fn read_from_list_substitutes_nl_with_nul_and_joins_with_nl() {
         let mut s1 = *b"a\nb\0";
         let mut s2 = *b"c\0";
-        let mut li2 = listitem_T {
+        let mut li2 = Listitem {
             li_next: std::ptr::null_mut(),
             li_prev: std::ptr::null_mut(),
-            li_tv: typval_T {
+            li_tv: TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(s2.as_mut_ptr().cast::<c_char>()),
             },
         };
-        let mut li1 = listitem_T {
+        let mut li1 = Listitem {
             li_next: &mut li2,
             li_prev: std::ptr::null_mut(),
-            li_tv: typval_T {
+            li_tv: TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(s1.as_mut_ptr().cast::<c_char>()),
             },
         };
         li2.li_prev = &mut li1;
-        let list = list_T {
+        let list = TvList {
             lv_first: &mut li1,
             lv_last: &mut li2,
             lv_watch: Vec::new(),

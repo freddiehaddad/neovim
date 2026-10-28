@@ -3,7 +3,7 @@
 use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
 use crate::charset::{NUL, ascii_iswhite, vim_iswordc};
 use crate::cursor::{
-    coladvance, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T, lt, ltoreq, pos_T, set_leftcol,
+    coladvance, Colnr, equalpos, get_cursor_pos_ptr, Linenr, lt, ltoreq, CursorPos, set_leftcol,
 };
 use crate::decoration::{decor_conceal_line, decor_virt_lines};
 use crate::diff::diff_check_fill;
@@ -12,8 +12,8 @@ use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
 };
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VarType, tv_clear, tv_dict_add_nr, tv_dict_alloc_ret, typval_T,
-    varnumber_T,
+    EvalFuncData, TypvalVval, VarType, tv_clear, tv_dict_add_nr, tv_dict_alloc_ret, TypVal,
+    Varnumber,
 };
 use crate::eval::vars::{VV_LNUM, VV_VIRTNUM, get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
@@ -25,7 +25,7 @@ use crate::input::{
     prep_redo, redo_append_char, safe_vgetc, stuffReadbuff, stuffcharReadbuff, stuffnumReadbuff,
     vpeekc, vungetc,
 };
-use crate::input_cmdatom::{CmdSpec, cmdarg_T};
+use crate::input_cmdatom::{CmdSpec, Cmdarg};
 use crate::insert::{
     MOD_MASK_CTRL, MOD_MASK_SHIFT, set_can_cindent, start_arrow, undisplay_dollar,
 };
@@ -55,18 +55,18 @@ use crate::plines::{
 };
 use crate::popupmenu::pum_visible;
 use crate::register::{
-    PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline, yankreg_T,
+    PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline, Yankreg,
 };
 use crate::search::{BACKWARD, FORWARD, findmatch};
 use crate::state::{MODE_INSERT, MODE_NORMAL, REPLACE_FLAG, virtual_active};
 use crate::statusline::stl_connected;
 use crate::strings::vim_strchr;
-use crate::textformat::oparg_T;
+use crate::textformat::Oparg;
 use crate::ui::{ui_check_mouse, ui_cursor_shape, ui_flush, ui_mouse_has};
 use crate::ui_compositor::ui_comp_mouse_focus;
 use crate::window::{
     VALID_BOTLINE_AP, find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move,
-    win_T, win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
+    WinInfoInfo, win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
 };
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
@@ -117,7 +117,7 @@ const MOD_MASK_4CLICK: c_int = 0x60;
 const MOD_MASK_MULTI_CLICK: c_int = MOD_MASK_2CLICK | MOD_MASK_3CLICK | MOD_MASK_4CLICK;
 
 pub(crate) const kMouseVisual: c_int = b'v' as c_int;
-const ZERO_POS: pos_T = pos_T {
+const ZERO_POS: CursorPos = CursorPos {
     lnum: 0,
     col: 0,
     coladd: 0,
@@ -153,12 +153,12 @@ impl Default for StlClickDefinition {
 }
 
 struct MouseModuleState {
-    orig_topline: linenr_T,
+    orig_topline: Linenr,
     orig_topfill: c_int,
     got_click: bool,
-    dragwin: *mut win_T,
+    dragwin: *mut WinInfoInfo,
     in_tab_line: bool,
-    orig_cursor: pos_T,
+    orig_cursor: CursorPos,
     status_line_offset: c_int,
     sep_line_offset: c_int,
     on_status_line: bool,
@@ -178,7 +178,7 @@ impl MouseModuleState {
             got_click: false,
             dragwin: ptr::null_mut(),
             in_tab_line: false,
-            orig_cursor: pos_T {
+            orig_cursor: CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
@@ -230,7 +230,7 @@ fn get_mouse_class(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.in
 }
 
 /// Move "pos" back to the start of the word it's in.
-fn find_start_of_word(pos: &mut pos_T) {
+fn find_start_of_word(pos: &mut CursorPos) {
     unsafe {
         let line = ml_get(pos.lnum);
         let cclass = get_mouse_class(line.add(pos.col as usize));
@@ -248,7 +248,7 @@ fn find_start_of_word(pos: &mut pos_T) {
 
 /// Move "pos" forward to the end of the word it's in.
 /// When 'selection' is "exclusive", the position is just after the word.
-fn find_end_of_word(pos: &mut pos_T) {
+fn find_end_of_word(pos: &mut CursorPos) {
     unsafe {
         let line = ml_get(pos.lnum);
         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && pos.col > 0 {
@@ -354,30 +354,30 @@ fn call_click_def_func(
             NUL,
         ];
 
-        let mut argv: [typval_T; 4] = [
-            typval_T {
+        let mut argv: [TypVal; 4] = [
+            TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval::Number(varnumber_T::from((*click_defs.add(col as usize)).tabnr)),
+                vval: TypvalVval::Number(Varnumber::from((*click_defs.add(col as usize)).tabnr)),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::Number(clicks),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::String(btn_str.cast_mut()),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::String(mod_str.as_mut_ptr()),
             },
         ];
 
-        let mut rettv: typval_T = typval_T::new();
+        let mut rettv: TypVal = TypVal::new();
         call_vim_function(
             (*click_defs.add(col as usize))
                 .func
@@ -394,7 +394,7 @@ fn call_click_def_func(
 
 /// Translate window coordinates to buffer position without any side effects.
 /// Returns IN_BUFFER and sets `mpos` (0-based column) when in buffer text.
-fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
+fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> c_int {
     unsafe {
         let mut grid = g_st().mouse_grid;
         let mut row = g_st().mouse_row;
@@ -456,7 +456,7 @@ fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
     }
 }
 
-fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
+fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: CursorPos) -> c_int {
      {
         let mut jump_flags = 0;
         if crate::memory::cstr_as_bytes(opt_vars().p_mousem) == b"popup_setpos" {
@@ -479,8 +479,8 @@ fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
                 {
                     jump_flags = MOUSE_MAY_STOP_VIS;
                 } else if g_st().Visual.mode == Ctrl_V {
-                    let mut leftcol: colnr_T = 0;
-                    let mut rightcol: colnr_T = 0;
+                    let mut leftcol: Colnr = 0;
+                    let mut rightcol: Colnr = 0;
                     getvcols(
                         curwin_ptr(),
                         &mut curwin_mut().w_cursor,
@@ -526,7 +526,7 @@ fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
 
 /// Do the appropriate action for the current mouse click in the current mode.
 pub fn do_mouse(
-    mut oap: Option<&mut oparg_T>,
+    mut oap: Option<&mut Oparg>,
     c: c_int,
     mut dir: c_int,
     count: c_int,
@@ -645,7 +645,7 @@ pub fn do_mouse(
                     if regname == 0 && eval_has_provider(c"clipboard", false) {
                         regname = b'*' as c_int;
                     }
-                    let mut reg: *mut yankreg_T = ptr::null_mut();
+                    let mut reg: *mut Yankreg = ptr::null_mut();
                     if (g_st().State & REPLACE_FLAG) != 0 && !yank_register_mline(regname, &raw mut reg) {
                         insert_reg(regname, reg, true);
                     } else {
@@ -722,7 +722,7 @@ pub fn do_mouse(
 
         if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
             let mut pos = ZERO_POS;
-            let mut wp: *mut win_T = ptr::null_mut();
+            let mut wp: *mut WinInfoInfo = ptr::null_mut();
             if get_fpos_of_mouse(&mut pos, &raw mut wp) == IN_BUFFER
                 && !bt_quickfix(((*wp).w_buffer).as_ref())
             {
@@ -946,8 +946,8 @@ pub fn do_mouse(
             }
 
             if g_st().Visual.mode == Ctrl_V {
-                let mut leftcol: colnr_T = 0;
-                let mut rightcol: colnr_T = 0;
+                let mut leftcol: Colnr = 0;
+                let mut rightcol: Colnr = 0;
                 getvcols(
                     curwin_ptr(),
                     &mut start_visual,
@@ -1004,7 +1004,7 @@ pub fn do_mouse(
             if regname == 0 && eval_has_provider(c"clipboard", false) {
                 regname = b'*' as c_int;
             }
-            let mut reg: *mut yankreg_T = ptr::null_mut();
+            let mut reg: *mut Yankreg = ptr::null_mut();
             if yank_register_mline(regname, &raw mut reg) {
                 if g_st().mouse_past_bottom {
                     dir = FORWARD;
@@ -1115,7 +1115,7 @@ pub fn do_mouse(
                 }
             }
             if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-                let mut pos: *mut pos_T = ptr::null_mut();
+                let mut pos: *mut CursorPos = ptr::null_mut();
 
                 if is_click {
                     end_visual = curwin_mut().w_cursor;
@@ -1221,7 +1221,7 @@ pub fn ins_mouse(c: c_int) {
 }
 
 /// Common mouse wheel scrolling, shared between Insert mode and NV modes.
-pub fn do_mousescroll(cap: &mut cmdarg_T) {
+pub fn do_mousescroll(cap: &mut Cmdarg) {
      {
         let shift_or_ctrl = (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
 
@@ -1261,8 +1261,8 @@ pub fn do_mousescroll(cap: &mut cmdarg_T) {
 /// of the MSCR_ values.
 pub fn ins_mousescroll(dir: c_int) {
      {
-        let mut cap = cmdarg_T::new();
-        let mut oa = oparg_T::new();
+        let mut cap = Cmdarg::new();
+        let mut oa = Oparg::new();
         cap.oap = &raw mut oa;
         cap.arg = dir;
 
@@ -1316,8 +1316,8 @@ pub fn ins_mousescroll(dir: c_int) {
 /// Returns true when the info popup was scrolled.
 pub fn cmdline_mousescroll(dir: c_int) -> bool {
     unsafe {
-        let mut cap = cmdarg_T::new();
-        let mut oa = oparg_T::new();
+        let mut cap = Cmdarg::new();
+        let mut oa = Oparg::new();
         cap.oap = &raw mut oa;
         cap.arg = dir;
 
@@ -1684,7 +1684,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
             }
         }
 
-        let mut col_from_screen: colnr_T = -1;
+        let mut col_from_screen: Colnr = -1;
         let mut mouse_fold_flags: c_int = 0;
         mouse_check_grid(&mut col_from_screen, &mut mouse_fold_flags);
 
@@ -1744,7 +1744,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
 
 /// Make a horizontal scroll to "leftcol".
 /// Return true if the cursor moved, false otherwise.
-fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
+fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
      {
         if curwin_mut().w_onebuf_opt.wo_wrap != 0 {
             return false;
@@ -1764,7 +1764,7 @@ fn do_mousescroll_horiz(leftcol: colnr_T) -> bool {
 
 /// Normal and Visual modes implementation for scrolling in direction
 /// "cap->arg", which is one of the MSCR_ values.
-pub fn nv_mousescroll(cap: &mut cmdarg_T) {
+pub fn nv_mousescroll(cap: &mut Cmdarg) {
      {
         let old_curwin = curwin_ptr();
 
@@ -1789,7 +1789,7 @@ pub fn nv_mousescroll(cap: &mut cmdarg_T) {
 }
 
 /// Mouse clicks and drags.
-pub fn nv_mouse(cap: &mut cmdarg_T) {
+pub fn nv_mouse(cap: &mut Cmdarg) {
     do_mouse(Some(cap.oap_mut()), cap.cmdchar, BACKWARD, cap.count1, false);
 }
 
@@ -1797,10 +1797,10 @@ pub fn nv_mouse(cap: &mut cmdarg_T) {
 /// window "win".
 /// Returns true if the position is below the last line.
 pub fn mouse_comp_pos(
-    win: &mut win_T,
+    win: &mut WinInfoInfo,
     rowp: &mut c_int,
     colp: &mut c_int,
-    lnump: &mut linenr_T,
+    lnump: &mut Linenr,
 ) -> bool {
     unsafe {
         let mut col = *colp;
@@ -1884,8 +1884,8 @@ pub fn mouse_comp_pos(
         } else if row < virt_lines + diff_fill - skip_fill {
             virtnum = -row;
         }
-        set_vim_var_nr(VV_LNUM, varnumber_T::from(lnum));
-        set_vim_var_nr(VV_VIRTNUM, varnumber_T::from(virtnum));
+        set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
+        set_vim_var_nr(VV_VIRTNUM, Varnumber::from(virtnum));
 
         row -= virt_lines + diff_fill - skip_fill;
 
@@ -1926,7 +1926,7 @@ pub fn mouse_find_win_inner(
     gridp: &mut c_int,
     rowp: &mut c_int,
     colp: &mut c_int,
-) -> *mut win_T {
+) -> *mut WinInfoInfo {
     unsafe {
         let wp_grid = mouse_find_grid_win(&mut *gridp, &mut *rowp, &mut *colp);
         if !wp_grid.is_null() {
@@ -1978,7 +1978,7 @@ pub fn mouse_find_win_outer(
     gridp: &mut c_int,
     rowp: &mut c_int,
     colp: &mut c_int,
-) -> *mut win_T {
+) -> *mut WinInfoInfo {
     unsafe {
         let wp = mouse_find_win_inner(gridp, rowp, colp);
         if !wp.is_null() {
@@ -1989,7 +1989,7 @@ pub fn mouse_find_win_outer(
     }
 }
 
-fn mouse_find_grid_win(gridp: &mut c_int, rowp: &mut c_int, colp: &mut c_int) -> *mut win_T {
+fn mouse_find_grid_win(gridp: &mut c_int, rowp: &mut c_int, colp: &mut c_int) -> *mut WinInfoInfo {
     unsafe {
         if *gridp == g_st().msg_grid.handle {
             *rowp += g_st().msg_grid_pos;
@@ -2034,11 +2034,11 @@ fn mouse_find_grid_win(gridp: &mut c_int, rowp: &mut c_int, colp: &mut c_int) ->
 /// Convert a virtual (screen) column to a character column.
 /// The first column is zero.
 pub fn vcol2col(
-    wp: &mut win_T,
-    lnum: linenr_T,
-    vcol: colnr_T,
-    coladdp: Option<&mut colnr_T>,
-) -> colnr_T {
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
+    vcol: Colnr,
+    coladdp: Option<&mut Colnr>,
+) -> Colnr {
     unsafe {
         let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
@@ -2067,7 +2067,7 @@ pub fn vcol2col(
         if let Some(coladdp) = coladdp {
             *coladdp = vcol - cur_vcol;
         }
-        ci.ptr.offset_from(line.cast_const()) as colnr_T
+        ci.ptr.offset_from(line.cast_const()) as Colnr
     }
 }
 
@@ -2077,15 +2077,15 @@ pub fn setmouse() {
         ui_check_mouse();
 }
 
-fn set_mouse_topline(wp: &mut win_T) {
+fn set_mouse_topline(wp: &mut WinInfoInfo) {
     mouse_st().orig_topline = wp.w_topline;
         mouse_st().orig_topfill = wp.w_topfill;
 }
 
 /// Return length of line "lnum" for horizontal scrolling.
-fn scroll_line_len(lnum: linenr_T) -> colnr_T {
+fn scroll_line_len(lnum: Linenr) -> Colnr {
     unsafe {
-        let mut col: colnr_T = 0;
+        let mut col: Colnr = 0;
         let mut line = ml_get(lnum);
         if !crate::memory::cstr_is_empty(line) {
             loop {
@@ -2102,15 +2102,15 @@ fn scroll_line_len(lnum: linenr_T) -> colnr_T {
 }
 
 /// Find longest visible line number.
-fn find_longest_lnum() -> linenr_T {
+fn find_longest_lnum() -> Linenr {
      {
-        let mut ret: linenr_T = 0;
+        let mut ret: Linenr = 0;
 
         if curwin_mut().w_topline <= curwin_mut().w_cursor.lnum
             && curwin_mut().w_botline > curwin_mut().w_cursor.lnum
             && curwin_mut().w_botline <= curbuf_mut().b_ml.ml_line_count + 1
         {
-            let mut max: colnr_T = 0;
+            let mut max: Colnr = 0;
 
             for lnum in curwin_mut().w_topline..curwin_mut().w_botline {
                 let len = scroll_line_len(lnum);
@@ -2133,7 +2133,7 @@ fn find_longest_lnum() -> linenr_T {
 }
 
 /// Check clicked cell on its grid
-fn mouse_check_grid(vcolp: &mut colnr_T, flagsp: &mut c_int) {
+fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut c_int) {
     unsafe {
         let mut click_grid = g_st().mouse_grid;
         let mut click_row = g_st().mouse_row;
@@ -2177,54 +2177,54 @@ fn mouse_check_grid(vcolp: &mut colnr_T, flagsp: &mut c_int) {
 }
 
 /// "getmousepos()" function
-pub fn f_getmousepos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
         let mut grid = g_st().mouse_grid;
-        let mut winid: varnumber_T = 0;
-        let mut winrow: varnumber_T = 0;
-        let mut wincol: varnumber_T = 0;
-        let mut lnum: linenr_T = 0;
-        let mut column: varnumber_T = 0;
-        let mut coladd: colnr_T = 0;
+        let mut winid: Varnumber = 0;
+        let mut winrow: Varnumber = 0;
+        let mut wincol: Varnumber = 0;
+        let mut lnum: Linenr = 0;
+        let mut column: Varnumber = 0;
+        let mut coladd: Colnr = 0;
 
         let d = tv_dict_alloc_ret(rettv);
 
         tv_dict_add_nr(
             d,
             c"screenrow",
-            varnumber_T::from(g_st().mouse_row) + 1,
+            Varnumber::from(g_st().mouse_row) + 1,
         );
         tv_dict_add_nr(
             d,
             c"screencol",
-            varnumber_T::from(g_st().mouse_col) + 1,
+            Varnumber::from(g_st().mouse_col) + 1,
         );
 
         let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if !wp.is_null() {
             let height = (*wp).w_height + (*wp).w_hsep_height + (*wp).w_status_height;
             if row < height + (*wp).w_border_adj[2] {
-                winid = varnumber_T::from((*wp).handle);
-                winrow = varnumber_T::from(row + 1 + (*wp).w_winrow_off);
-                wincol = varnumber_T::from(col + 1 + (*wp).w_wincol_off);
+                winid = Varnumber::from((*wp).handle);
+                winrow = Varnumber::from(row + 1 + (*wp).w_winrow_off);
+                wincol = Varnumber::from(col + 1 + (*wp).w_wincol_off);
                 if row >= 0 && row < (*wp).w_height && col >= 0 && col < (*wp).w_width {
                     mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut lnum);
                     col = vcol2col(&mut *wp, lnum, col, Some(&mut coladd));
-                    column = varnumber_T::from(col) + 1;
+                    column = Varnumber::from(col) + 1;
                 }
             }
         }
         tv_dict_add_nr(d, c"winid", winid);
         tv_dict_add_nr(d, c"winrow", winrow);
         tv_dict_add_nr(d, c"wincol", wincol);
-        tv_dict_add_nr(d, c"line", varnumber_T::from(lnum));
+        tv_dict_add_nr(d, c"line", Varnumber::from(lnum));
         tv_dict_add_nr(d, c"column", column);
         tv_dict_add_nr(
             d,
             c"coladd",
-            varnumber_T::from(coladd),
+            Varnumber::from(coladd),
         );
     }
 }
@@ -2254,17 +2254,17 @@ mod tests {
 
     #[test]
     fn pos_comparisons_respect_lnum_col_coladd() {
-        let p1 = pos_T {
+        let p1 = CursorPos {
             lnum: 1,
             col: 2,
             coladd: 0,
         };
-        let p2 = pos_T {
+        let p2 = CursorPos {
             lnum: 1,
             col: 2,
             coladd: 1,
         };
-        let p3 = pos_T {
+        let p3 = CursorPos {
             lnum: 2,
             col: 0,
             coladd: 0,

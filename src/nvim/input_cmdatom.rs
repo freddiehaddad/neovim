@@ -5,10 +5,10 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
 use crate::autocmd::{AUGROUP_ALL, EVENT_CMDATOM, aucmd_defer, has_event};
-use crate::buffer::{buf_T, buf_get_changedtick, bufref_T, bufref_valid, set_bufref};
+use crate::buffer::{FileBuf, buf_get_changedtick, Bufref, bufref_valid, set_bufref};
 use crate::charset::is_special;
-use crate::cursor::{equalpos, pos_T};
-use crate::eval::typval::varnumber_T;
+use crate::cursor::{equalpos, CursorPos};
+use crate::eval::typval::Varnumber;
 use crate::eval::vars::{VV_OP, get_vim_var_str};
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
@@ -41,9 +41,9 @@ use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
 use crate::strings::{vim_snprintf, vim_strchr};
-use crate::textformat::oparg_T;
+use crate::textformat::Oparg;
 use crate::viml::parser::expressions::ESC;
-use crate::window::{win_T, win_valid};
+use crate::window::{WinInfoInfo, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
@@ -60,8 +60,8 @@ use crate::mapping::MAXMAPLEN;
 use crate::regexp::{Ctrl_H, Ctrl_V, NUMBUFLEN};
 
 #[derive(Clone)]
-pub struct cmdarg_T {
-    pub oap: *mut oparg_T,
+pub struct Cmdarg {
+    pub oap: *mut Oparg,
     pub cmdchar: c_int,
     pub nchar: c_int,
     pub nchar_composing: [c_char; MAX_SCHAR_SIZE],
@@ -75,7 +75,7 @@ pub struct cmdarg_T {
     pub searchbuf: Option<std::ffi::CString>,
 }
 
-impl cmdarg_T {
+impl Cmdarg {
     pub const fn new() -> Self {
         Self {
             oap: ptr::null_mut(),
@@ -101,12 +101,12 @@ impl cmdarg_T {
     }
 
     #[inline]
-    pub fn oap_mut(&self) -> &'static mut oparg_T {
+    pub fn oap_mut(&self) -> &'static mut Oparg {
         unsafe { &mut *self.oap }
     }
 }
 
-impl Default for cmdarg_T {
+impl Default for Cmdarg {
     fn default() -> Self {
         Self::new()
     }
@@ -217,24 +217,24 @@ impl Default for CmdSpec {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CmdOrigin {
-    pub buf: bufref_T,
-    pub win: *const win_T,
-    pub pos: pos_T,
+    pub buf: Bufref,
+    pub win: *const WinInfoInfo,
+    pub pos: CursorPos,
     pub mcursor: u32,
-    pub tick: varnumber_T,
+    pub tick: Varnumber,
     pub maptick: c_int,
 }
 
 impl CmdOrigin {
     pub const fn new() -> Self {
         Self {
-            buf: bufref_T {
+            buf: Bufref {
                 br_buf: ptr::null_mut(),
                 br_fnum: 0,
                 br_buf_free_count: 0,
             },
             win: ptr::null(),
-            pos: pos_T {
+            pos: CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
@@ -451,7 +451,7 @@ pub fn atom_free_all() {
     }
 }
 
-pub fn atom_cmd_spec(cap: &cmdarg_T) -> CmdSpec {
+pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
      {
         let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
         CmdSpec {
@@ -513,7 +513,7 @@ fn atom_origin_undoseq(origin: CmdOrigin) -> c_int {
     }
 }
 
-pub fn atom_origin_pos(buf: &mut buf_T) -> pos_T {
+pub fn atom_origin_pos(buf: &mut FileBuf) -> CursorPos {
      {
         let o = atom_st().composite.origin;
         if atom_st().composite.open
@@ -552,7 +552,7 @@ fn atom_from_spec(r#type: CmdAtomType, spec: CmdSpec) -> CmdAtom {
 
 fn atom_from_cmdline(
     r#type: CmdAtomType,
-    ca: &mut cmdarg_T,
+    ca: &mut Cmdarg,
     cmdline: impl crate::strings::IntoCCharPtr,
     vis: bool,
 ) -> CmdAtom { let cmdline = cmdline.into_c_char_ptr();
@@ -594,7 +594,7 @@ fn atom_from_cmdline(
     }
 }
 
-fn atom_from_frame(ca: &mut cmdarg_T, frame: &mut CmdFrame) -> CmdAtom {
+fn atom_from_frame(ca: &mut Cmdarg, frame: &mut CmdFrame) -> CmdAtom {
     unsafe {
         let root = root_frame();
         let mut atom = CmdAtom::default();
@@ -1251,7 +1251,7 @@ pub fn atom_macro_start(regname: c_int) {
         }
 }
 
-pub fn atom_stuff_start(cap: &cmdarg_T) {
+pub fn atom_stuff_start(cap: &Cmdarg) {
     if mc_replaying() || atom_composite_active() || !atom_is_user_input() {
             return;
         }
@@ -1488,7 +1488,7 @@ pub fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
         atom_visual_end_suffix(Some(suffix), Some(&spec), redoable)
 }
 
-pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
+pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
     unsafe {
         let redoable = op_redoable(oap.op_type, redo_yank);
         let ins_op = oap.op_type == OP_CHANGE
@@ -1789,7 +1789,7 @@ pub fn atom_cmd_start(cmdchar: c_int) {
     }
 }
 
-fn atom_capture_cmd(ca: &mut cmdarg_T, old: &mut CmdFrame, is_root: bool) -> bool {
+fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool {
     unsafe {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;
@@ -1978,7 +1978,7 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: &mut CmdFrame, is_root: bool) -> boo
     }
 }
 
-pub fn atom_cmd_end(ca: &mut cmdarg_T) {
+pub fn atom_cmd_end(ca: &mut Cmdarg) {
     unsafe {
         let is_root = atom_st().cmd_frames.len() == 1;
         let old = cur_frame_ptr();

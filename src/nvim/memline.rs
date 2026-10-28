@@ -6,21 +6,21 @@ use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
 use crate::buffer::{
-    MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER, buf_T,
+    MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER, FileBuf,
     buf_inc_changedtick, buf_spname, kUIMessages, open_buffer, setfname,
 };
 use crate::change::{ML_DEL_MESSAGE, changed_internal, unchanged};
 use crate::charset::ascii_isalpha;
-use crate::cursor::{check_cursor, coladvance, colnr_T, linenr_T, pos_T};
+use crate::cursor::{check_cursor, coladvance, Colnr, Linenr, CursorPos};
 use crate::dialog::do_dialog;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
 use crate::eval::typval::{
-    dict_T, list_T, tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
-    tv_list_first, tv_list_len, typval_T,
+    TvDict, TvList, tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
+    tv_list_first, tv_list_len, TypVal,
 };
 use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME, get_vim_var_str, set_vim_var_string};
 use crate::fileio::{
-    EOL_DOS, O_RDONLY, READ_NEW, SEEK_END, buf_store_file_info, kOptFileencoding, modname, off_T,
+    EOL_DOS, O_RDONLY, READ_NEW, SEEK_END, buf_store_file_info, kOptFileencoding, modname, Off,
     read_eintr, readfile, vim_deltempdir, vim_rename, vim_tempname,
 };
 use crate::globals::*;
@@ -30,7 +30,7 @@ use crate::main_init::getout;
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_adjust_cursor, mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memfile::{
-    BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO, bhdr_T, blocknr_T, memfile_T, mf_close, mf_close_file,
+    BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO, Bhdr, Blocknr, Memfile, mf_close, mf_close_file,
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
@@ -67,10 +67,10 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 #[repr(C)]
-pub struct memline_T {
+pub struct Memline {
     pub ml_line_count: i32,
-    pub ml_mfp: Option<Box<crate::memfile::memfile_T>>,
-    pub ml_stack: Vec<infoptr_T>,
+    pub ml_mfp: Option<Box<crate::memfile::Memfile>>,
+    pub ml_stack: Vec<Infoptr>,
     pub ml_stack_top: c_int,
     pub ml_flags: c_int,
     pub ml_line_textlen: c_int,
@@ -79,15 +79,15 @@ pub struct memline_T {
     pub ml_line_buf: Vec<c_char>,
     pub ml_line_offset: usize,
     pub ml_line_offset_ff: c_int,
-    pub ml_locked: *mut crate::memfile::bhdr_T,
+    pub ml_locked: *mut crate::memfile::Bhdr,
     pub ml_locked_low: i32,
     pub ml_locked_high: i32,
     pub ml_locked_lineadd: c_int,
-    pub ml_chunksize: Vec<chunksize_T>,
+    pub ml_chunksize: Vec<Chunksize>,
     pub ml_usedchunks: c_int,
 }
 
-impl memline_T {
+impl Memline {
     pub const fn new() -> Self {
         Self {
             ml_line_count: 0,
@@ -111,7 +111,7 @@ impl memline_T {
     }
 
     #[inline]
-    pub fn mfp_ptr(&mut self) -> *mut crate::memfile::memfile_T {
+    pub fn mfp_ptr(&mut self) -> *mut crate::memfile::Memfile {
         self.ml_mfp
             .as_deref_mut()
             .map_or(ptr::null_mut(), |m| &raw mut *m)
@@ -186,16 +186,16 @@ const ENOENT: c_int = 2;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct infoptr_T {
-    pub ip_bnum: blocknr_T,
-    pub ip_low: linenr_T,
-    pub ip_high: linenr_T,
+pub struct Infoptr {
+    pub ip_bnum: Blocknr,
+    pub ip_low: Linenr,
+    pub ip_high: Linenr,
     pub ip_index: c_int,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct chunksize_T {
+pub struct Chunksize {
     pub mlcs_numlines: c_int,
     pub mlcs_totalsize: c_int,
 }
@@ -203,9 +203,9 @@ pub struct chunksize_T {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct PointerEntry {
-    pe_bnum: blocknr_T,
-    pe_line_count: linenr_T,
-    pe_old_lnum: linenr_T,
+    pe_bnum: Blocknr,
+    pe_line_count: Linenr,
+    pe_old_lnum: Linenr,
     pe_page_count: c_int,
 }
 
@@ -286,28 +286,28 @@ impl ZeroBlock {
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum upd_block0_T {
+enum UpdBlock0 {
     UB_FNAME = 0,
     UB_SAME_DIR = 1,
 }
 
-pub type sea_choice_T = c_int;
-const SEA_CHOICE_NONE: sea_choice_T = 0;
-const SEA_CHOICE_READONLY: sea_choice_T = 1;
-const SEA_CHOICE_EDIT: sea_choice_T = 2;
-const SEA_CHOICE_RECOVER: sea_choice_T = 3;
-const SEA_CHOICE_DELETE: sea_choice_T = 4;
-const SEA_CHOICE_QUIT: sea_choice_T = 5;
-const SEA_CHOICE_ABORT: sea_choice_T = 6;
+pub type SeaChoice = c_int;
+const SEA_CHOICE_NONE: SeaChoice = 0;
+const SEA_CHOICE_READONLY: SeaChoice = 1;
+const SEA_CHOICE_EDIT: SeaChoice = 2;
+const SEA_CHOICE_RECOVER: SeaChoice = 3;
+const SEA_CHOICE_DELETE: SeaChoice = 4;
+const SEA_CHOICE_QUIT: SeaChoice = 5;
+const SEA_CHOICE_ABORT: SeaChoice = 6;
 
 struct MemlineModuleState {
-    lowest_marked: linenr_T,
+    lowest_marked: Linenr,
     proc_running: c_int,
     ml_get_recursive: c_int,
     ml_get_questions: [c_char; 4],
     ml_flush_entered: bool,
-    ml_upd_lastbuf: *mut buf_T,
-    ml_upd_lastcurline: linenr_T,
+    ml_upd_lastbuf: *mut FileBuf,
+    ml_upd_lastcurline: Linenr,
     ml_upd_lastcurix: c_int,
 }
 
@@ -372,7 +372,7 @@ const fn ml_simple(x: c_int) -> bool {
 }
 
 #[inline]
-fn pb_count_max(mfp: &memfile_T) -> u16 {
+fn pb_count_max(mfp: &Memfile) -> u16 {
     ((mfp.mf_page_size as usize - std::mem::offset_of!(PointerBlock, pb_pointer))
             / size_of::<PointerEntry>()) as u16
 }
@@ -398,7 +398,7 @@ fn sb_push_cstr(sb: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) { let s 
 }
 
 /// Open a new memline for `buf`.
-pub fn ml_open(buf: &mut buf_T) -> bool {
+pub fn ml_open(buf: &mut FileBuf) -> bool {
     unsafe {
         buf.b_ml.ml_stack.clear();
         buf.b_ml.ml_stack_top = 0;
@@ -418,7 +418,7 @@ pub fn ml_open(buf: &mut buf_T) -> bool {
         let Some(mfp_box) = buf.b_ml.ml_mfp.as_deref_mut() else {
             return false;
         };
-        let mfp: *mut memfile_T = &raw mut *mfp_box;
+        let mfp: *mut Memfile = &raw mut *mfp_box;
         buf.b_ml.ml_flags = ML_EMPTY;
         buf.b_ml.ml_line_count = 1;
 
@@ -492,7 +492,7 @@ pub fn ml_open(buf: &mut buf_T) -> bool {
     }
 }
 
-fn ml_open_error(buf: &mut buf_T, mfp: Option<&mut memfile_T>, hp: *mut bhdr_T) -> bool {
+fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: *mut Bhdr) -> bool {
     if let Some(mfp) = mfp {
             if !hp.is_null() {
                 mf_put( mfp, hp, false, false);
@@ -503,7 +503,7 @@ fn ml_open_error(buf: &mut buf_T, mfp: Option<&mut memfile_T>, hp: *mut bhdr_T) 
 }
 
 /// Called when the file name of `buf` has been changed.
-pub fn ml_setname(buf: &mut buf_T) {
+pub fn ml_setname(buf: &mut FileBuf) {
     unsafe {
         let mut success = false;
         let mfp = buf.b_ml.mfp_ptr();
@@ -553,7 +553,7 @@ pub fn ml_setname(buf: &mut buf_T) {
                 success = true;
                 mf_free_fnames(&mut *mfp);
                 mf_set_fnames(&mut *mfp, fname);
-                ml_upd_block0(buf, upd_block0_T::UB_SAME_DIR);
+                ml_upd_block0(buf, UpdBlock0::UB_SAME_DIR);
                 break;
             }
         }
@@ -584,7 +584,7 @@ pub fn ml_open_files() {
 }
 
 /// Open a swapfile for an existing memfile, if there is no swapfile yet.
-pub fn ml_open_file(buf: &mut buf_T) {
+pub fn ml_open_file(buf: &mut FileBuf) {
     unsafe {
         let mfp = buf.b_ml.mfp_ptr();
         if mfp.is_null()
@@ -627,7 +627,7 @@ pub fn ml_open_file(buf: &mut buf_T) {
             };
             if mf_open_file(&mut *mfp, fname) {
                 (*mfp).mf_dirty = MF_DIRTY_YES_NOSYNC;
-                ml_upd_block0(buf, upd_block0_T::UB_SAME_DIR);
+                ml_upd_block0(buf, UpdBlock0::UB_SAME_DIR);
 
                 if mf_sync(&mut *mfp, MFS_ZERO) {
                     mf_set_dirty(&mut *mfp);
@@ -667,7 +667,7 @@ pub fn check_need_swap(newfile: bool) {
 }
 
 /// Close memline for buffer `buf`.
-pub fn ml_close(buf: &mut buf_T, del_file: c_int) {
+pub fn ml_close(buf: &mut FileBuf, del_file: c_int) {
      {
         if buf.b_ml.ml_mfp.is_none() {
             return;
@@ -704,9 +704,9 @@ pub fn ml_close_notmod() {
 }
 
 /// Update the timestamp in the `.swp` file.
-pub fn ml_timestamp(buf: &mut buf_T) {
+pub fn ml_timestamp(buf: &mut FileBuf) {
      {
-        ml_upd_block0(buf, upd_block0_T::UB_FNAME);
+        ml_upd_block0(buf, UpdBlock0::UB_FNAME);
     }
 }
 
@@ -726,7 +726,7 @@ fn ml_check_b0_strings(b0p: &ZeroBlock) -> bool {
     }
 }
 
-fn ml_upd_block0(buf: &mut buf_T, what: upd_block0_T) {
+fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
     unsafe {
         let mfp = buf.b_ml.mfp_ptr();
         if mfp.is_null() {
@@ -739,7 +739,7 @@ fn ml_upd_block0(buf: &mut buf_T, what: upd_block0_T) {
         let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
         if !ml_check_b0_id(&*b0p) {
             iemsg(tr(c"E304: ml_upd_block0(): Didn't get block 0??"));
-        } else if what == upd_block0_T::UB_FNAME {
+        } else if what == UpdBlock0::UB_FNAME {
             set_b0_fname(&mut *b0p, &mut *buf);
         } else {
             set_b0_dir_flag(&mut *b0p, buf);
@@ -748,7 +748,7 @@ fn ml_upd_block0(buf: &mut buf_T, what: upd_block0_T) {
     }
 }
 
-fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
+fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut FileBuf) {
     unsafe {
         if buf.b_ffname.is_null() {
             b0p.b0_fname[0] = NUL;
@@ -801,7 +801,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
     }
 }
 
-fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut buf_T) {
+fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     unsafe {
         let mfp = buf.b_ml.mfp_ptr();
         let mf_fname_ptr = (*mfp)
@@ -816,7 +816,7 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut buf_T) {
     }
 }
 
-fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut buf_T) {
+fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     unsafe {
         let size = B0_FNAME_SIZE_NOCRYPT;
         let n = crate::memory::cstr_len(buf.b_p_fenc);
@@ -849,10 +849,10 @@ fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: impl crate::strings::IntoC
 /// Try to recover `curbuf` from the `.swp` file.
 pub fn ml_recover(checkext: bool) {
     unsafe {
-        let mut buf_box: Option<Box<buf_T>> = None;
-        let mut mfp: *mut memfile_T = ptr::null_mut();
+        let mut buf_box: Option<Box<FileBuf>> = None;
+        let mut mfp: *mut Memfile = ptr::null_mut();
         let fname_used: Option<std::ffi::CString>;
-        let mut hp: *mut bhdr_T = ptr::null_mut();
+        let mut hp: *mut Bhdr = ptr::null_mut();
         let mut b0_fenc: Option<std::ffi::CString> = None;
         let directly: bool;
         let mut serious_error = true;
@@ -880,7 +880,7 @@ pub fn ml_recover(checkext: bool) {
             fname_used = Some(crate::memory::cstr_to_cstring(fname));
         } else {
             directly = false;
-            let mut items_tv = typval_T::new();
+            let mut items_tv = TypVal::new();
             tv_list_alloc_ret(&mut items_tv, 0);
             recover_names(fname, true,  &mut *items_tv.vval.v_list());
             let n_swaps = tv_list_len(items_tv.vval.v_list().as_ref());
@@ -892,7 +892,7 @@ pub fn ml_recover(checkext: bool) {
                 return;
             }
             if n_swaps > 1 {
-                let mut lua_args = [items_tv, typval_T::new()];
+                let mut lua_args = [items_tv, TypVal::new()];
                 nlua_call_typval(
                     c"vim._core.swapfile",
                     c"select_swap",
@@ -915,8 +915,8 @@ pub fn ml_recover(checkext: bool) {
             getout(1);
         }
 
-        let mut allocated_buf = Box::new(buf_T::new());
-        let buf: *mut buf_T = &raw mut *allocated_buf;
+        let mut allocated_buf = Box::new(FileBuf::new());
+        let buf: *mut FileBuf = &raw mut *allocated_buf;
         buf_box = Some(allocated_buf);
 
         (*buf).b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
@@ -1032,7 +1032,7 @@ pub fn ml_recover(checkext: bool) {
                 ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
                 return;
             }
-            let size: off_T = vim_lseek((*mfp).mf_fd, 0, SEEK_END);
+            let size: Off = vim_lseek((*mfp).mf_fd, 0, SEEK_END);
             (*mfp).mf_blocknr_max = if size <= 0 {
                 0
             } else {
@@ -1147,10 +1147,10 @@ pub fn ml_recover(checkext: bool) {
         }
         unchanged(curbuf_mut(), true, true);
 
-        let mut bnum: blocknr_T = 1;
+        let mut bnum: Blocknr = 1;
         let mut page_count: c_uint = 1;
-        let mut lnum: linenr_T = 0;
-        let mut line_count: linenr_T = 0;
+        let mut lnum: Linenr = 0;
+        let mut line_count: Linenr = 0;
         let mut idx: c_int = 0;
         let mut error: c_int = 0;
         (*buf).b_ml.ml_stack_top = 0;
@@ -1461,9 +1461,9 @@ pub fn ml_recover(checkext: bool) {
 }
 
 fn ml_recover_theend(
-    mfp: Option<&mut memfile_T>,
-    hp: *mut bhdr_T,
-    mut buf: Option<Box<buf_T>>,
+    mfp: Option<&mut Memfile>,
+    hp: *mut Bhdr,
+    mut buf: Option<Box<FileBuf>>,
     serious_error: bool,
     called_from_main: bool,
 ) {
@@ -1499,7 +1499,7 @@ fn ml_recover_theend(
 }
 
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
-pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut list_T) {
+pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut TvList) {
     unsafe {
         #[cfg(unix)]
         let mut fname_buf = [0 as c_char; MAXPATHL];
@@ -1655,7 +1655,7 @@ pub fn make_percent_swname(
 }
 
 /// For Vimscript `swapinfo()`.
-pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut dict_T) { let fname = fname.into_c_char_ptr();
+pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut b0 = ZeroBlock::new();
         let fd = os_open(fname, O_RDONLY, 0);
@@ -1971,7 +1971,7 @@ pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
 }
 
 /// Sync one buffer, including negative blocks.
-pub fn ml_preserve(buf: &mut buf_T, message: bool, do_fsync: bool) {
+pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
     unsafe {
         let mfp = buf.b_ml.mfp_ptr();
         let got_int_save = g_st().got_int;
@@ -1992,7 +1992,7 @@ pub fn ml_preserve(buf: &mut buf_T, message: bool, do_fsync: bool) {
         buf.b_ml.ml_stack_top = 0;
 
         if mf_need_trans(&mut *mfp) && !g_st().got_int {
-            let mut lnum: linenr_T = 1;
+            let mut lnum: Linenr = 1;
             while mf_need_trans(&mut *mfp) && lnum <= buf.b_ml.ml_line_count {
                 let hp = ml_find_line(buf, lnum, ML_FIND);
                 if hp.is_null() {
@@ -2023,37 +2023,37 @@ pub fn ml_preserve(buf: &mut buf_T, message: bool, do_fsync: bool) {
 }
 
 /// Return a pointer to a (read-only copy of a) line in `curbuf`.
-pub fn ml_get(lnum: linenr_T) -> *mut c_char {
+pub fn ml_get(lnum: Linenr) -> *mut c_char {
     ml_get_buf_impl(curbuf_mut(), lnum, false)
 }
 
 /// Return a pointer to a (read-only copy of a) line in `buf`.
-pub fn ml_get_buf(buf: &mut buf_T, lnum: linenr_T) -> *mut c_char {
+pub fn ml_get_buf(buf: &mut FileBuf, lnum: Linenr) -> *mut c_char {
     ml_get_buf_impl( buf, lnum, false)
 }
 
 /// Like `ml_get_buf`, but allow the line to be mutated in place.
-pub fn ml_get_buf_mut(buf: &mut buf_T, lnum: linenr_T) -> *mut c_char {
+pub fn ml_get_buf_mut(buf: &mut FileBuf, lnum: Linenr) -> *mut c_char {
     ml_get_buf_impl( buf, lnum, true)
 }
 
 /// Return pointer to position `pos`.
-pub fn ml_get_pos(pos: &pos_T) -> *mut c_char {
+pub fn ml_get_pos(pos: &CursorPos) -> *mut c_char {
     unsafe { ml_get_buf(crate::globals::curbuf_mut(), pos.lnum).offset(pos.col as isize) }
 }
 
 /// Return length (excluding NUL) of the given line.
-pub fn ml_get_len(lnum: linenr_T) -> colnr_T {
+pub fn ml_get_len(lnum: Linenr) -> Colnr {
     ml_get_buf_len(crate::globals::curbuf_mut(), lnum)
 }
 
 /// Return length (excluding NUL) of the text after position `pos`.
-pub fn ml_get_pos_len(pos: &mut pos_T) -> colnr_T {
+pub fn ml_get_pos_len(pos: &mut CursorPos) -> Colnr {
     ml_get_buf_len(crate::globals::curbuf_mut(), pos.lnum) - pos.col
 }
 
 /// Return length (excluding NUL) of the given line in `buf`.
-pub fn ml_get_buf_len(buf: &mut buf_T, lnum: linenr_T) -> colnr_T {
+pub fn ml_get_buf_len(buf: &mut FileBuf, lnum: Linenr) -> Colnr {
      {
         let line = ml_get_buf(buf, lnum);
         if crate::memory::cstr_is_empty(line) {
@@ -2065,7 +2065,7 @@ pub fn ml_get_buf_len(buf: &mut buf_T, lnum: linenr_T) -> colnr_T {
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
-pub fn ml_region_text(buf: &mut buf_T, start: pos_T, end: pos_T) -> Vec<u8> {
+pub fn ml_region_text(buf: &mut FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8> {
     unsafe {
         let mut sb = Vec::<u8>::new();
         for lnum in start.lnum..=end.lnum {
@@ -2095,14 +2095,14 @@ pub fn ml_region_text(buf: &mut buf_T, start: pos_T, end: pos_T) -> Vec<u8> {
 }
 
 /// Return codepoint at `pos`.
-pub fn gchar_pos(pos: &mut pos_T) -> c_int {
+pub fn gchar_pos(pos: &mut CursorPos) -> c_int {
     if pos.col == MAXCOL || pos.col > ml_get_len(pos.lnum) {
             return c_int::from(NUL);
         }
         utf_ptr2char(ml_get_pos(pos))
 }
 
-fn ml_get_buf_impl(buf: &mut buf_T, mut lnum: linenr_T, will_change: bool) -> *mut c_char {
+fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *mut c_char {
     unsafe {
         if buf.b_ml.ml_mfp.is_none() {
             buf.b_ml.ml_line_textlen = 1;
@@ -2151,7 +2151,7 @@ fn ml_get_buf_impl(buf: &mut buf_T, mut lnum: linenr_T, will_change: bool) -> *m
             };
 
             buf.b_ml.ml_line_ptr = dp.cast::<c_char>().add(start as usize);
-            buf.b_ml.ml_line_textlen = (end - start) as colnr_T;
+            buf.b_ml.ml_line_textlen = (end - start) as Colnr;
             buf.b_ml.ml_line_lnum = lnum;
             buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
         }
@@ -2164,7 +2164,7 @@ fn ml_get_buf_impl(buf: &mut buf_T, mut lnum: linenr_T, will_change: bool) -> *m
     }
 }
 
-fn ml_get_errorret(buf: &mut buf_T, lnum: linenr_T) -> *mut c_char {
+fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> *mut c_char {
     unsafe {
         let q = (&raw mut ml_st().ml_get_questions).cast::<c_char>();
         *q.add(0) = b'?' as c_char;
@@ -2183,10 +2183,10 @@ pub fn ml_line_alloced() -> c_int {
 }
 
 fn ml_append_int(
-    buf: &mut buf_T,
-    lnum: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
     line_arg: impl crate::strings::IntoCCharPtr,
-    len_arg: colnr_T,
+    len_arg: Colnr,
     flags: c_int,
 ) -> bool { let line_arg = line_arg.into_c_char_ptr();
     unsafe {
@@ -2202,7 +2202,7 @@ fn ml_append_int(
         }
 
         if len == 0 {
-            len = crate::memory::cstr_len(line) as colnr_T + 1;
+            len = crate::memory::cstr_len(line) as Colnr + 1;
         }
         let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
 
@@ -2312,8 +2312,8 @@ fn ml_append_int(
 
             let new_page_count = ((space_needed + HEADER_SIZE as i64) + page_size - 1) / page_size;
             let mut hp_new = ml_new_data(&mut *mfp, (flags & ML_APPEND_NEW) != 0, new_page_count);
-            let hp_left: *mut bhdr_T;
-            let hp_right: *mut bhdr_T;
+            let hp_left: *mut Bhdr;
+            let hp_right: *mut Bhdr;
             let mut line_count_left: c_int;
             let mut line_count_right: c_int;
             if db_idx < 0 {
@@ -2397,8 +2397,8 @@ fn ml_append_int(
                 line_count_left += 1;
             }
 
-            let mut lnum_left: linenr_T;
-            let mut lnum_right: linenr_T;
+            let mut lnum_left: Linenr;
+            let mut lnum_right: Linenr;
             if db_idx < 0 {
                 lnum_left = lnum + 1;
                 lnum_right = 0;
@@ -2573,10 +2573,10 @@ fn ml_append_int(
 }
 
 fn ml_append_flush(
-    buf: &mut buf_T,
-    lnum: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
     line: impl crate::strings::IntoCCharPtr,
-    len: colnr_T,
+    len: Colnr,
     flags: c_int,
 ) -> bool { let line = line.into_c_char_ptr();
      {
@@ -2591,16 +2591,16 @@ fn ml_append_flush(
 }
 
 /// Append a line after `lnum` (may be 0 to insert in front of the file).
-pub fn ml_append(lnum: linenr_T, line: impl crate::strings::IntoCCharPtr, len: colnr_T, newfile: bool) -> bool {
+pub fn ml_append(lnum: Linenr, line: impl crate::strings::IntoCCharPtr, len: Colnr, newfile: bool) -> bool {
     let line = line.into_c_char_ptr().cast_mut();
     ml_append_flags(lnum, line, len, if newfile { ML_APPEND_NEW } else { 0 })
 }
 
 /// Append a line after `lnum` using `ML_APPEND_` flags.
 pub fn ml_append_flags(
-    lnum: linenr_T,
+    lnum: Linenr,
     line: impl crate::strings::IntoCCharPtr,
-    len: colnr_T,
+    len: Colnr,
     flags: c_int,
 ) -> bool { let line = line.into_c_char_ptr();
      {
@@ -2613,10 +2613,10 @@ pub fn ml_append_flags(
 
 /// Like `ml_append()` but for an arbitrary buffer.
 pub fn ml_append_buf(
-    buf: &mut buf_T,
-    lnum: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
     line: impl crate::strings::IntoCCharPtr,
-    len: colnr_T,
+    len: Colnr,
     newfile: bool,
 ) -> bool { let line = line.into_c_char_ptr();
      {
@@ -2637,7 +2637,7 @@ pub fn ml_add_deleted_len(ptr: impl crate::strings::IntoCCharPtr, len: isize) { 
     ml_add_deleted_len_buf(curbuf_mut(), ptr, len);
 }
 
-pub fn ml_add_deleted_len_buf(buf: &mut buf_T, ptr: impl crate::strings::IntoCCharPtr, mut len: isize) { let ptr = ptr.into_c_char_ptr();
+pub fn ml_add_deleted_len_buf(buf: &mut FileBuf, ptr: impl crate::strings::IntoCCharPtr, mut len: isize) { let ptr = ptr.into_c_char_ptr();
      {
         if g_st().inhibit_delete_count != 0 {
             return;
@@ -2662,18 +2662,18 @@ pub fn ml_add_deleted_len_buf(buf: &mut buf_T, ptr: impl crate::strings::IntoCCh
 }
 
 /// Replace line `lnum`, with buffering, in current buffer.
-pub fn ml_replace(lnum: linenr_T, line: impl crate::strings::IntoCCharPtr, copy: bool) -> bool { let line = line.into_c_char_ptr();
+pub fn ml_replace(lnum: Linenr, line: impl crate::strings::IntoCCharPtr, copy: bool) -> bool { let line = line.into_c_char_ptr();
     ml_replace_buf(curbuf_mut(), lnum, line, copy, false)
 }
 
 /// Replace a line for the current buffer with explicit `len` (excluding NUL).
-pub fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool) -> bool {
+pub fn ml_replace_len(lnum: Linenr, line: *mut c_char, len: usize, copy: bool) -> bool {
     ml_replace_buf_len(curbuf_mut(), lnum, line, len, copy, false)
 }
 
 pub fn ml_replace_buf(
-    buf: &mut buf_T,
-    lnum: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
     line: impl crate::strings::IntoCCharPtr,
     copy: bool,
     noalloc: bool,
@@ -2691,8 +2691,8 @@ pub fn ml_replace_buf(
 
 /// Replace line `lnum`, with buffering.
 pub fn ml_replace_buf_len(
-    buf: &mut buf_T,
-    lnum: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
     line_arg: *mut c_char,
     len_arg: usize,
     copy: bool,
@@ -2738,7 +2738,7 @@ pub fn ml_replace_buf_len(
         }
 
         buf.b_ml.ml_line_ptr = line;
-        buf.b_ml.ml_line_textlen = (len_arg as colnr_T) + 1;
+        buf.b_ml.ml_line_textlen = (len_arg as Colnr) + 1;
         buf.b_ml.ml_line_lnum = lnum;
         buf.b_ml.ml_flags = (buf.b_ml.ml_flags | ML_LINE_DIRTY) & !ML_EMPTY;
         if noalloc {
@@ -2750,13 +2750,13 @@ pub fn ml_replace_buf_len(
 }
 
 /// Replace the in-memory dirty line buffer in `buf` with `bytes` (without trailing NUL).
-pub fn ml_replace_dirty_line(buf: &mut buf_T, bytes: &[c_char], clear_empty: bool) {
+pub fn ml_replace_dirty_line(buf: &mut FileBuf, bytes: &[c_char], clear_empty: bool) {
     let mut new_buf = Vec::with_capacity(bytes.len() + 1);
         new_buf.extend_from_slice(bytes);
         new_buf.push(NUL);
         buf.b_ml.ml_line_ptr = new_buf.as_mut_ptr();
         buf.b_ml.ml_line_buf = new_buf;
-        buf.b_ml.ml_line_textlen = (bytes.len() as colnr_T) + 1;
+        buf.b_ml.ml_line_textlen = (bytes.len() as Colnr) + 1;
         buf.b_ml.ml_flags |= ML_LINE_DIRTY;
         if clear_empty {
             buf.b_ml.ml_flags &= !ML_EMPTY;
@@ -2764,12 +2764,12 @@ pub fn ml_replace_dirty_line(buf: &mut buf_T, bytes: &[c_char], clear_empty: boo
 }
 
 /// Delete line `lnum` in `buf`.
-pub fn ml_delete_buf(buf: &mut buf_T, lnum: linenr_T, message: bool) -> bool {
+pub fn ml_delete_buf(buf: &mut FileBuf, lnum: Linenr, message: bool) -> bool {
     ml_flush_line( buf, false);
         ml_delete_int( buf, lnum, if message { ML_DEL_MESSAGE } else { 0 })
 }
 
-fn ml_delete_int(buf: &mut buf_T, lnum: linenr_T, flags: c_int) -> bool {
+fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
     unsafe {
         if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
             ml_st().lowest_marked -= 1;
@@ -2891,12 +2891,12 @@ fn ml_delete_int(buf: &mut buf_T, lnum: linenr_T, flags: c_int) -> bool {
 }
 
 /// Delete line `lnum` in the current buffer.
-pub fn ml_delete(lnum: linenr_T) -> bool {
+pub fn ml_delete(lnum: Linenr) -> bool {
     ml_delete_flags(lnum, 0)
 }
 
 /// Like `ml_delete()` but using flags.
-pub fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> bool {
+pub fn ml_delete_flags(lnum: Linenr, flags: c_int) -> bool {
      {
         ml_flush_line(curbuf_mut(), false);
         if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
@@ -2907,7 +2907,7 @@ pub fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> bool {
 }
 
 /// Set the `DB_MARKED` flag for line `lnum`.
-pub fn ml_setmarked(lnum: linenr_T) {
+pub fn ml_setmarked(lnum: Linenr) {
     unsafe {
         if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count || curbuf_mut().b_ml.ml_mfp.is_none() {
             return;
@@ -2927,7 +2927,7 @@ pub fn ml_setmarked(lnum: linenr_T) {
 }
 
 /// Find the first line with its `DB_MARKED` flag set.
-pub fn ml_firstmarked() -> linenr_T {
+pub fn ml_firstmarked() -> Linenr {
     unsafe {
         if curbuf_mut().b_ml.ml_mfp.is_none() {
             return 0;
@@ -2989,7 +2989,7 @@ pub fn ml_clearmarked() {
 }
 
 pub fn ml_flush_deleted_bytes(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     codepoints: &mut usize,
     codeunits: &mut usize,
 ) -> usize {
@@ -3002,7 +3002,7 @@ pub fn ml_flush_deleted_bytes(
         ret
 }
 
-fn ml_flush_line(buf: &mut buf_T, noalloc: bool) {
+fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
     unsafe {
         if buf.b_ml.ml_line_lnum == 0 || buf.b_ml.ml_mfp.is_none() {
             return;
@@ -3092,7 +3092,7 @@ fn ml_flush_line(buf: &mut buf_T, noalloc: bool) {
     }
 }
 
-fn ml_new_data(mfp: &mut memfile_T, negative: bool, page_count: i64) -> *mut bhdr_T {
+fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> *mut Bhdr {
     unsafe {
         assert!(page_count >= 0);
         let hp = mf_new(mfp, negative, page_count as c_uint);
@@ -3106,7 +3106,7 @@ fn ml_new_data(mfp: &mut memfile_T, negative: bool, page_count: i64) -> *mut bhd
     }
 }
 
-fn ml_new_ptr(mfp: &mut memfile_T) -> *mut bhdr_T {
+fn ml_new_ptr(mfp: &mut Memfile) -> *mut Bhdr {
     unsafe {
         let hp = mf_new(mfp, false, 1);
         let pp = (*hp).data_ptr().cast::<PointerBlock>();
@@ -3117,7 +3117,7 @@ fn ml_new_ptr(mfp: &mut memfile_T) -> *mut bhdr_T {
     }
 }
 
-fn ml_find_line(buf: &mut buf_T, lnum: linenr_T, action: c_int) -> *mut bhdr_T {
+fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
     unsafe {
         let mfp = buf.b_ml.mfp_ptr();
 
@@ -3153,10 +3153,10 @@ fn ml_find_line(buf: &mut buf_T, lnum: linenr_T, action: c_int) -> *mut bhdr_T {
             return ptr::null_mut();
         }
 
-        let mut bnum: blocknr_T = 1;
+        let mut bnum: Blocknr = 1;
         let mut page_count: c_int = 1;
-        let mut low: linenr_T = 1;
-        let mut high: linenr_T = buf.b_ml.ml_line_count;
+        let mut low: Linenr = 1;
+        let mut high: Linenr = buf.b_ml.ml_line_count;
 
         if action == ML_FIND {
             let mut top = buf.b_ml.ml_stack_top - 1;
@@ -3263,7 +3263,7 @@ fn ml_find_line(buf: &mut buf_T, lnum: linenr_T, action: c_int) -> *mut bhdr_T {
     }
 }
 
-fn ml_find_line_error_noblock(buf: &mut buf_T, action: c_int) -> *mut bhdr_T {
+fn ml_find_line_error_noblock(buf: &mut FileBuf, action: c_int) -> *mut Bhdr {
     {
         if action == ML_DELETE {
             ml_lineadd(&mut *buf, 1);
@@ -3275,19 +3275,19 @@ fn ml_find_line_error_noblock(buf: &mut buf_T, action: c_int) -> *mut bhdr_T {
     }
 }
 
-fn ml_add_stack(buf: &mut buf_T) -> c_int {
+fn ml_add_stack(buf: &mut FileBuf) -> c_int {
     let top = buf.b_ml.ml_stack_top;
         if (top as usize) == buf.b_ml.ml_stack.len() {
             buf.b_ml.ml_stack.resize(
                 buf.b_ml.ml_stack.len() + (STACK_INCR as usize),
-                infoptr_T::default(),
+                Infoptr::default(),
             );
         }
         buf.b_ml.ml_stack_top += 1;
         top
 }
 
-fn ml_lineadd(buf: &mut buf_T, count: c_int) {
+fn ml_lineadd(buf: &mut FileBuf, count: c_int) {
     unsafe {
         let mfp = buf.b_ml.mfp_ptr();
         let mut idx = buf.b_ml.ml_stack_top - 1;
@@ -3455,7 +3455,7 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
 }
 
 fn attention_message(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     fname: impl crate::strings::IntoCCharPtr,
     fhname: impl crate::strings::IntoCCharPtr,
     msg: &mut Vec<u8>,
@@ -3512,7 +3512,7 @@ fn attention_message(
         sb_push_cstr(msg, tr(c"\"\n    to avoid this message.\n"));
 }
 
-fn do_swapexists(buf: &mut buf_T, fname: impl crate::strings::IntoCCharPtr) -> sea_choice_T { let fname = fname.into_c_char_ptr();
+fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) -> SeaChoice { let fname = fname.into_c_char_ptr();
     unsafe {
         set_vim_var_string(VV_SWAPNAME, fname, -1);
         set_vim_var_string(VV_SWAPCHOICE, ptr::null(), -1);
@@ -3542,7 +3542,7 @@ fn do_swapexists(buf: &mut buf_T, fname: impl crate::strings::IntoCCharPtr) -> s
 }
 
 fn findswapname(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     dirp: *mut *mut c_char,
     old_fname: impl crate::strings::IntoCCharPtr,
     found_existing_dir: &mut bool,
@@ -3636,7 +3636,7 @@ fn findswapname(
                     && (curbuf_mut().b_flags & BF_RECOVERED) == 0
                     && vim_strchr(opt_vars().p_shm, kShmAttention).is_null()
                 {
-                    let mut choice: sea_choice_T = SEA_CHOICE_NONE;
+                    let mut choice: SeaChoice = SEA_CHOICE_NONE;
 
                     if os_path_exists(buf.b_fname) && swapfile_unchanged(fname) {
                         choice = SEA_CHOICE_DELETE;
@@ -3848,7 +3848,7 @@ fn char_to_long(s_in: impl crate::strings::IntoCCharPtr) -> c_long { let s_in = 
 }
 
 /// Set the flags in the first block of the swapfile.
-pub fn ml_setflags(buf: &mut buf_T) {
+pub fn ml_setflags(buf: &mut FileBuf) {
     unsafe {
         if buf.b_ml.ml_mfp.is_none() {
             return;
@@ -3867,7 +3867,7 @@ pub fn ml_setflags(buf: &mut buf_T) {
     }
 }
 
-fn ml_updatechunk(buf: &mut buf_T, line: linenr_T, mut len: c_int, updtype: c_int) {
+fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: c_int, updtype: c_int) {
     unsafe {
         let mut curline = ml_st().ml_upd_lastcurline;
         let mut curix = ml_st().ml_upd_lastcurix;
@@ -3876,7 +3876,7 @@ fn ml_updatechunk(buf: &mut buf_T, line: linenr_T, mut len: c_int, updtype: c_in
             return;
         }
         if buf.b_ml.ml_chunksize.is_empty() {
-            buf.b_ml.ml_chunksize.resize(100, chunksize_T::default());
+            buf.b_ml.ml_chunksize.resize(100, Chunksize::default());
             buf.b_ml.ml_usedchunks = 1;
             let cs0 = buf.b_ml.ml_chunksize.as_mut_ptr();
             (*cs0).mlcs_numlines = 1;
@@ -3918,7 +3918,7 @@ fn ml_updatechunk(buf: &mut buf_T, line: linenr_T, mut len: c_int, updtype: c_in
                 buf
                     .b_ml
                     .ml_chunksize
-                    .resize(new_len, chunksize_T::default());
+                    .resize(new_len, Chunksize::default());
             }
             let chunks = buf.b_ml.ml_chunksize.as_mut_ptr();
 
@@ -4037,8 +4037,8 @@ fn ml_updatechunk(buf: &mut buf_T, line: linenr_T, mut len: c_int, updtype: c_in
 
 /// Find offset for line or line with offset.
 pub fn ml_find_line_or_offset(
-    buf: &mut buf_T,
-    lnum: linenr_T,mut offp: Option<&mut c_int>,
+    buf: &mut FileBuf,
+    lnum: Linenr,mut offp: Option<&mut c_int>,
     no_ff: bool,
 ) -> c_int {
     unsafe {
@@ -4064,7 +4064,7 @@ pub fn ml_find_line_or_offset(
             return 1;
         }
 
-        let mut curline: linenr_T = 1;
+        let mut curline: Linenr = 1;
         let mut curix: c_int = 0;
         let mut size: c_int = 0;
         let chunks = buf.b_ml.ml_chunksize.as_mut_ptr();
@@ -4179,14 +4179,14 @@ pub fn goto_byte(cnt: c_int) {
         if boff != 0 {
             boff -= 1;
         }
-        let lnum = ml_find_line_or_offset(curbuf_mut(), 0, Some(&mut boff), false) as linenr_T;
+        let lnum = ml_find_line_or_offset(curbuf_mut(), 0, Some(&mut boff), false) as Linenr;
         if lnum < 1 {
             curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
             curwin_mut().w_curswant = MAXCOL;
             coladvance(curwin_mut(), MAXCOL);
         } else {
             curwin_mut().w_cursor.lnum = lnum;
-            curwin_mut().w_cursor.col = boff as colnr_T;
+            curwin_mut().w_cursor.col = boff as Colnr;
             curwin_mut().w_cursor.coladd = 0;
             curwin_mut().w_set_curswant = true;
         }
@@ -4196,7 +4196,7 @@ pub fn goto_byte(cnt: c_int) {
 }
 
 /// Increment the line pointer `lp` crossing line boundaries as necessary.
-pub fn inc(lp: &mut pos_T) -> c_int {
+pub fn inc(lp: &mut CursorPos) -> c_int {
      {
         if lp.col != MAXCOL {
             let p = ml_get_pos(lp);
@@ -4217,7 +4217,7 @@ pub fn inc(lp: &mut pos_T) -> c_int {
 }
 
 /// Same as `inc()`, but skip NUL at the end of non-empty lines.
-pub fn incl(lp: &mut pos_T) -> c_int {
+pub fn incl(lp: &mut CursorPos) -> c_int {
     let mut r = inc(lp);
         if r >= 1 && lp.col != 0 {
             r = inc(lp);
@@ -4226,7 +4226,7 @@ pub fn incl(lp: &mut pos_T) -> c_int {
 }
 
 /// Decrements position `lp` by one character (multibyte-aware), crossing line boundaries.
-pub fn dec(lp: &mut pos_T) -> c_int {
+pub fn dec(lp: &mut CursorPos) -> c_int {
     unsafe {
         lp.coladd = 0;
         if lp.col == MAXCOL {
@@ -4255,7 +4255,7 @@ pub fn dec(lp: &mut pos_T) -> c_int {
 }
 
 /// Same as `dec()`, but skip NUL at the end of non-empty lines.
-pub fn decl(lp: &mut pos_T) -> c_int {
+pub fn decl(lp: &mut CursorPos) -> c_int {
     let mut r = dec(lp);
         if r == 1 && lp.col != 0 {
             r = dec(lp);

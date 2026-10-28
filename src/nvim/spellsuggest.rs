@@ -1,13 +1,13 @@
 //! Functions for spelling suggestions (`src/nvim/spellsuggest.c`).
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::change::inserted_bytes;
 use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
-use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
+use crate::cursor::{check_cursor, Colnr, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
 use crate::eval::typval::{
     TypvalVval, VarType, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv, tv_list_unref,
-    tv_set_string, typval_T,
+    tv_set_string, TypVal,
 };
 use crate::eval::vars::{eval_spell_expr, get_spellword};
 use crate::fileio::{fclose, vim_fgets};
@@ -28,7 +28,7 @@ use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
 use crate::option_vars::*;
 use crate::os::fs::{MAXPATHL, os_fopen};
 use crate::os::input::{line_breakcheck, os_breakcheck};
-use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
+use crate::profile::{profile_passed_limit, profile_setlimit, Proftime};
 use crate::spell::{
     MAXWLEN, WF_ALLCAP, WF_BANNED, WF_CAPMASK, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
     WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
@@ -47,11 +47,11 @@ use crate::undo::u_save_cursor;
 use crate::viml::parser::expressions::TAB;
 use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
-pub type idx_T = c_int;
-pub type salfirst_T = c_int;
+pub type Idx = c_int;
+pub type Salfirst = c_int;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::drawline::{HLF_COUNT, SMT_ALL};
-use crate::ex_getln::hlf_T;
+use crate::ex_getln::Hlf;
 use crate::globals::IOSIZE;
 use crate::keycodes::ESC;
 use crate::search::FORWARD;
@@ -101,12 +101,12 @@ const SPS_BEST: c_int = 1;
 const SPS_FAST: c_int = 2;
 const SPS_DOUBLE: c_int = 4;
 const kOptBoFlagSpell: c_uint = 0x20000;
-pub struct fromto_T {
+pub struct Fromto {
     pub ft_from: std::ffi::CString,
     pub ft_to: std::ffi::CString,
 }
 #[repr(C)]
-pub struct salitem_T {
+pub struct Salitem {
     pub sm_leadlen: c_int,
     pub sm_rules: std::ffi::CString,
     pub sm_lead_w: Vec<c_int>,
@@ -114,22 +114,22 @@ pub struct salitem_T {
     pub sm_to_w: Vec<c_int>,
 }
 
-impl Drop for slang_T {
+impl Drop for Slang {
     fn drop(&mut self) {
         crate::spell::slang_clear(self);
     }
 }
 #[repr(C)]
-pub struct slang_T {
+pub struct Slang {
     pub sl_name: Option<std::ffi::CString>,
     pub sl_fname: Option<std::ffi::CString>,
     pub sl_add: bool,
     pub sl_fbyts: Vec<u8>,
-    pub sl_fidxs: Vec<idx_T>,
+    pub sl_fidxs: Vec<Idx>,
     pub sl_kbyts: Vec<u8>,
-    pub sl_kidxs: Vec<idx_T>,
+    pub sl_kidxs: Vec<Idx>,
     pub sl_pbyts: Vec<u8>,
-    pub sl_pidxs: Vec<idx_T>,
+    pub sl_pidxs: Vec<Idx>,
     pub sl_info: Option<std::ffi::CString>,
     pub sl_regions: [c_char; MAXREGIONS * 2 + 1],
     pub sl_midword: Option<std::ffi::CString>,
@@ -139,31 +139,31 @@ pub struct slang_T {
     pub sl_compsylmax: c_int,
     pub sl_compoptions: c_int,
     pub sl_comppat: Vec<std::ffi::CString>,
-    pub sl_compprog: Option<Box<crate::regexp::regprog_T>>,
+    pub sl_compprog: Option<Box<crate::regexp::Regprog>>,
     pub sl_comprules: Option<std::ffi::CString>,
     pub sl_compstartflags: Option<std::ffi::CString>,
     pub sl_compallflags: Option<std::ffi::CString>,
     pub sl_nobreak: bool,
     pub sl_syllable: Option<std::ffi::CString>,
-    pub sl_syl_items: Vec<crate::spell::syl_item_T>,
-    pub sl_prefprog: Vec<Option<Box<crate::regexp::regprog_T>>>,
-    pub sl_rep: Vec<fromto_T>,
+    pub sl_syl_items: Vec<crate::spell::SylItem>,
+    pub sl_prefprog: Vec<Option<Box<crate::regexp::Regprog>>>,
+    pub sl_rep: Vec<Fromto>,
     pub sl_rep_first: [i16; 256],
-    pub sl_sal: Vec<salitem_T>,
+    pub sl_sal: Vec<Salitem>,
     pub sl_sofo_sal: Vec<Vec<(c_int, c_int)>>,
-    pub sl_sal_first: [salfirst_T; 256],
+    pub sl_sal_first: [Salfirst; 256],
     pub sl_followup: bool,
     pub sl_collapse: bool,
     pub sl_rem_accents: bool,
     pub sl_sofo: bool,
-    pub sl_repsal: Vec<fromto_T>,
+    pub sl_repsal: Vec<Fromto>,
     pub sl_repsal_first: [i16; 256],
     pub sl_nosplitsugs: bool,
     pub sl_nocompoundsugs: bool,
     pub sl_sugtime: i64,
     pub sl_sbyts: Vec<u8>,
-    pub sl_sidxs: Vec<idx_T>,
-    pub sl_sugbuf: Option<Box<buf_T>>,
+    pub sl_sidxs: Vec<Idx>,
+    pub sl_sugbuf: Option<Box<FileBuf>>,
     pub sl_sugloaded: bool,
     pub sl_has_map: bool,
     pub sl_map_hash: std::collections::BTreeMap<c_int, c_int>,
@@ -171,7 +171,7 @@ pub struct slang_T {
     pub sl_sounddone: std::collections::BTreeMap<Vec<u8>, i16>,
 }
 
-impl slang_T {
+impl Slang {
     #[inline]
     pub fn has_sal(&self) -> bool {
         !self.sl_sal.is_empty() || !self.sl_sofo_sal.is_empty()
@@ -180,14 +180,14 @@ impl slang_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct langp_T {
-    pub lp_slang: *mut slang_T,
-    pub lp_sallang: *mut slang_T,
-    pub lp_replang: *mut slang_T,
+pub struct Langp {
+    pub lp_slang: *mut Slang,
+    pub lp_sallang: *mut Slang,
+    pub lp_replang: *mut Slang,
     pub lp_region: c_int,
 }
 
-impl langp_T {
+impl Langp {
     pub const fn new() -> Self {
         Self {
             lp_slang: ptr::null_mut(),
@@ -198,21 +198,21 @@ impl langp_T {
     }
 }
 
-impl Default for langp_T {
+impl Default for Langp {
     fn default() -> Self {
         Self::new()
     }
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct spelltab_T {
+pub struct Spelltab {
     pub st_isw: [bool; 256],
     pub st_isu: [bool; 256],
     pub st_fold: [u8; 256],
     pub st_upper: [u8; 256],
 }
 
-impl spelltab_T {
+impl Spelltab {
     pub const fn new() -> Self {
         Self {
             st_isw: [false; 256],
@@ -223,18 +223,18 @@ impl spelltab_T {
     }
 }
 
-impl Default for spelltab_T {
+impl Default for Spelltab {
     fn default() -> Self {
         Self::new()
     }
 }
 #[repr(C)]
-struct suginfo_T {
-    su_ga: Vec<suggest_T>,
+struct Suginfo {
+    su_ga: Vec<Suggest>,
     su_maxcount: c_int,
     su_maxscore: c_int,
     su_sfmaxscore: c_int,
-    su_sga: Vec<suggest_T>,
+    su_sga: Vec<Suggest>,
     su_badptr: *mut c_char,
     su_badlen: c_int,
     su_badflags: c_int,
@@ -242,10 +242,10 @@ struct suginfo_T {
     su_fbadword: [c_char; MAXWLEN],
     su_sal_badword: [c_char; MAXWLEN],
     su_banned: std::collections::HashSet<Vec<u8>>,
-    su_sallang: *mut slang_T,
+    su_sallang: *mut Slang,
 }
 
-impl Default for suginfo_T {
+impl Default for Suginfo {
     fn default() -> Self {
         Self {
             su_ga: Vec::new(),
@@ -265,7 +265,7 @@ impl Default for suginfo_T {
     }
 }
 #[repr(C)]
-struct suggest_T {
+struct Suggest {
     st_word: std::ffi::CString,
     st_wordlen: c_int,
     st_orglen: c_int,
@@ -273,11 +273,11 @@ struct suggest_T {
     st_altscore: c_int,
     st_salscore: bool,
     st_had_bonus: bool,
-    st_slang: *mut slang_T,
+    st_slang: *mut Slang,
 }
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum state_T {
+enum SugState {
     STATE_START = 0,
     STATE_NOPREFIX,
     STATE_SPLITUNDO,
@@ -299,10 +299,10 @@ enum state_T {
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct trystate_T {
-    ts_state: state_T,
+struct Trystate {
+    ts_state: SugState,
     ts_score: c_int,
-    ts_arridx: idx_T,
+    ts_arridx: Idx,
     ts_curi: i16,
     ts_fidx: u8,
     ts_fidxtry: u8,
@@ -321,10 +321,10 @@ struct trystate_T {
     ts_save_badflags: u8,
     ts_delidx: u8,
 }
-impl Default for trystate_T {
+impl Default for Trystate {
     fn default() -> Self {
         Self {
-            ts_state: state_T::STATE_START,
+            ts_state: SugState::STATE_START,
             ts_score: 0,
             ts_arridx: 0,
             ts_curi: 0,
@@ -349,7 +349,7 @@ impl Default for trystate_T {
 }
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-struct limitscore_T {
+struct Limitscore {
     badi: c_int,
     goodi: c_int,
     score: c_int,
@@ -387,7 +387,7 @@ const fn maxscore(word_score: c_int, sound_score: c_int) -> c_int {
     (4 * word_score - sound_score) / 3
 }
 #[inline]
-fn sug_clean_count(su: &suginfo_T) -> c_int {
+fn sug_clean_count(su: &Suginfo) -> c_int {
     if su.su_maxcount < 130 {
             150
         } else {
@@ -395,7 +395,7 @@ fn sug_clean_count(su: &suginfo_T) -> c_int {
         }
 }
 #[inline]
-fn sug_max_count(su: &suginfo_T) -> c_int {
+fn sug_max_count(su: &Suginfo) -> c_int {
     sug_clean_count(su) + 50
 }
 
@@ -408,7 +408,7 @@ fn mb_cptr_back(s: impl crate::strings::IntoCCharPtr, p: &mut *const c_char) { l
 }
 
 #[inline]
-fn was_banned(su: &mut suginfo_T, word: impl crate::strings::IntoCCharPtr) -> bool { let word = word.into_c_char_ptr();
+fn was_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) -> bool { let word = word.into_c_char_ptr();
      {
         su
             .su_banned
@@ -417,8 +417,8 @@ fn was_banned(su: &mut suginfo_T, word: impl crate::strings::IntoCCharPtr) -> bo
 }
 
 fn can_be_compound(
-    sp: &trystate_T,
-    slang: &mut slang_T,
+    sp: &Trystate,
+    slang: &mut Slang,
     compflags: *mut u8,
     flag: c_int,
 ) -> bool {
@@ -448,7 +448,7 @@ fn can_be_compound(
     }
 }
 fn score_wordcount_adj(
-    slang: &mut slang_T,
+    slang: &mut Slang,
     score: c_int,
     word: impl crate::strings::IntoCCharPtr,
     split: bool,
@@ -614,9 +614,9 @@ pub fn spell_apply_sps(flags: c_int, limit: c_int) {
     sps_st().sps_flags = flags;
         sps_st().sps_limit = limit;
 }
-fn select_spell_suggestion(sug: &mut suginfo_T) {
+fn select_spell_suggestion(sug: &mut Suginfo) {
     unsafe {
-        let mut items_tv = typval_T {
+        let mut items_tv = TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -654,7 +654,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
                     },
                 );
             }
-            let mut item = typval_T {
+            let mut item = TypVal {
                 v_type: VarType::VAR_DICT,
                 v_lock: 0,
                 vval: TypvalVval::Dict(d),
@@ -666,7 +666,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
             sug.su_badlen as usize,
         ))
         .unwrap_or_default();
-        let mut bad_tv = typval_T {
+        let mut bad_tv = TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -675,7 +675,7 @@ fn select_spell_suggestion(sug: &mut suginfo_T) {
         let mut lua_args = [
             items_tv,
             bad_tv,
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
@@ -739,7 +739,7 @@ pub fn spell_suggest(count: c_int) {
                     beep_flush();
                     break 'skip;
                 }
-                curwin_mut().w_cursor.col = p.offset_from(curline) as colnr_T;
+                curwin_mut().w_cursor.col = p.offset_from(curline) as Colnr;
             }
             let need_cap = check_need_cap(curwin_mut(), curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.col);
             let mut line_vec: Vec<c_char> = std::slice::from_raw_parts(
@@ -750,7 +750,7 @@ pub fn spell_suggest(count: c_int) {
             line_vec[get_cursor_line_len() as usize] = NUL;
             let line = line_vec.as_mut_ptr();
             sps_st().spell_suggest_timeout = 5000;
-            let mut sug = suginfo_T::default();
+            let mut sug = Suginfo::default();
             let limit = sps_st().sps_limit.min(g_st().Rows - 2);
             spell_find_suggest(
                 line.add(curwin_mut().w_cursor.col as usize),
@@ -851,7 +851,7 @@ pub fn spell_suggest_list(
     interactive: bool,
 ) -> Vec<CString> {
     unsafe {
-        let mut sug = suginfo_T::default();
+        let mut sug = Suginfo::default();
         spell_find_suggest(
             word,
             0,
@@ -879,18 +879,18 @@ pub fn spell_suggest_list(
 fn spell_find_suggest(
     badptr: *mut c_char,
     badlen: c_int,
-    su: &mut suginfo_T,
+    su: &mut Suginfo,
     maxcount: c_int,
     banbadword: bool,
     need_cap: bool,
     interactive: bool,
 ) {
     unsafe {
-        let mut attr: hlf_T = HLF_COUNT;
+        let mut attr: Hlf = HLF_COUNT;
         let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut do_combine = false;
         let mut did_intern = false;
-        *su = suginfo_T::default();
+        *su = Suginfo::default();
         if crate::memory::cstr_is_empty(badptr) {
             return;
         }
@@ -990,7 +990,7 @@ fn spell_find_suggest(
         }
     }
 }
-fn spell_suggest_expr(su: &mut suginfo_T, expr: impl crate::strings::IntoCCharPtr) { let expr = expr.into_c_char_ptr();
+fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr) { let expr = expr.into_c_char_ptr();
     unsafe {
         let mut p: *const c_char = ptr::null();
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
@@ -1019,7 +1019,7 @@ fn spell_suggest_expr(su: &mut suginfo_T, expr: impl crate::strings::IntoCCharPt
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
     }
 }
-fn spell_suggest_file(su: &mut suginfo_T, fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
+fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut line: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -1068,7 +1068,7 @@ fn spell_suggest_file(su: &mut suginfo_T, fname: impl crate::strings::IntoCCharP
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
     }
 }
-fn spell_suggest_intern(su: &mut suginfo_T, interactive: bool) {
+fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
     suggest_load_files();
         suggest_try_special(su);
         suggest_try_change(su);
@@ -1107,7 +1107,7 @@ fn spell_suggest_intern(su: &mut suginfo_T, interactive: bool) {
             cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
         }
 }
-fn suggest_try_special(su: &mut suginfo_T) {
+fn suggest_try_special(su: &mut Suginfo) {
     unsafe {
         let mut word: [c_char; MAXWLEN] = [0; MAXWLEN];
         let fbadword_ptr = (&raw mut su.su_fbadword).cast::<c_char>();
@@ -1133,7 +1133,7 @@ fn suggest_try_special(su: &mut suginfo_T) {
         }
     }
 }
-fn suggest_try_change(su: &mut suginfo_T) {
+fn suggest_try_change(su: &mut Suginfo) {
     unsafe {
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
         crate::memory::cstr_cpy((&raw mut fword).cast(), (&raw const su.su_fbadword).cast());
@@ -1161,30 +1161,30 @@ fn suggest_try_change(su: &mut suginfo_T) {
 }
 #[inline]
 fn try_deeper(
-    su: &suginfo_T,
-    stack: &[trystate_T; MAXWLEN],
+    su: &Suginfo,
+    stack: &[Trystate; MAXWLEN],
     depth: usize,
     add: c_int,
 ) -> bool {
     depth < MAXWLEN - 1 && stack[depth].ts_score + add < su.su_maxscore
 }
-fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, soundfold: bool) {
+fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold: bool) {
     unsafe {
         let mut tword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let mut stack: [trystate_T; MAXWLEN] = [trystate_T::default(); MAXWLEN];
+        let mut stack: [Trystate; MAXWLEN] = [Trystate::default(); MAXWLEN];
         let mut preword: [c_char; MAXWLEN * 3] = [0; MAXWLEN * 3];
         let mut compflags: [u8; MAXWLEN] = [0; MAXWLEN];
         let mut byts: *mut u8;
         let fbyts: *mut u8;
         let pbyts: *mut u8;
-        let mut idxs: *mut idx_T;
-        let fidxs: *mut idx_T;
-        let pidxs: *mut idx_T;
+        let mut idxs: *mut Idx;
+        let fidxs: *mut Idx;
+        let pidxs: *mut Idx;
         let mut c: c_int;
         let mut c2: c_int;
         let mut c3: c_int;
         let mut n: c_int;
-        let mut arridx: idx_T;
+        let mut arridx: Idx;
         let mut fl: c_int;
         let mut tl: c_int;
         let mut repextra: c_int = 0;
@@ -1192,7 +1192,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
         let mut goodword_ends: bool;
         let mut breakcheckcount: c_int = 1000;
         let mut depth: isize = 0;
-        stack[0] = trystate_T::default();
+        stack[0] = Trystate::default();
         stack[0].ts_curi = 1;
         if soundfold {
             fbyts = slang.sl_sbyts.as_mut_ptr();
@@ -1202,7 +1202,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
             pbyts = ptr::null_mut();
             pidxs = ptr::null_mut();
             stack[0].ts_prefixdepth = PFD_NOPREFIX;
-            stack[0].ts_state = state_T::STATE_START;
+            stack[0].ts_state = SugState::STATE_START;
         } else {
             fbyts = slang.sl_fbyts.as_mut_ptr();
             fidxs = slang.sl_fidxs.as_mut_ptr();
@@ -1212,17 +1212,17 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                 byts = pbyts;
                 idxs = pidxs;
                 stack[0].ts_prefixdepth = PFD_PREFIXTREE;
-                stack[0].ts_state = state_T::STATE_NOPREFIX;
+                stack[0].ts_state = SugState::STATE_NOPREFIX;
             } else {
                 pbyts = ptr::null_mut();
                 pidxs = ptr::null_mut();
                 byts = fbyts;
                 idxs = fidxs;
                 stack[0].ts_prefixdepth = PFD_NOPREFIX;
-                stack[0].ts_state = state_T::STATE_START;
+                stack[0].ts_state = SugState::STATE_START;
             }
         }
-        let mut time_limit: proftime_T = 0;
+        let mut time_limit: Proftime = 0;
         if sps_st().spell_suggest_timeout > 0 {
             time_limit = profile_setlimit(sps_st().spell_suggest_timeout);
         }
@@ -1230,18 +1230,18 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
             let mut udepth = depth as usize;
             let state = stack[udepth].ts_state;
             match state {
-                state_T::STATE_START | state_T::STATE_NOPREFIX => {
+                SugState::STATE_START | SugState::STATE_NOPREFIX => {
                     arridx = stack[udepth].ts_arridx;
                     let mut len = *byts.add(arridx as usize) as c_int;
-                    arridx += stack[udepth].ts_curi as idx_T;
+                    arridx += stack[udepth].ts_curi as Idx;
                     if stack[udepth].ts_prefixdepth == PFD_PREFIXTREE {
                         n = 0;
                         while n < len && *byts.add((arridx + n) as usize) == 0 {
                             n += 1;
                         }
                         stack[udepth].ts_curi += n as i16;
-                        let was_noprefix = stack[udepth].ts_state == state_T::STATE_NOPREFIX;
-                        stack[udepth].ts_state = state_T::STATE_ENDNUL;
+                        let was_noprefix = stack[udepth].ts_state == SugState::STATE_NOPREFIX;
+                        stack[udepth].ts_state = SugState::STATE_ENDNUL;
                         stack[udepth].ts_save_badflags = su.su_badflags as u8;
                         if udepth < MAXWLEN - 1 && (*byts.add(arridx as usize) == 0 || was_noprefix)
                         {
@@ -1275,7 +1275,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         continue;
                     }
                     if stack[udepth].ts_curi as c_int > len || *byts.add(arridx as usize) != 0 {
-                        stack[udepth].ts_state = state_T::STATE_ENDNUL;
+                        stack[udepth].ts_state = SugState::STATE_ENDNUL;
                         stack[udepth].ts_save_badflags = su.su_badflags as u8;
                         continue;
                     }
@@ -1656,7 +1656,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             if try_deeper(su, &stack, udepth, newscore) {
                                 go_deeper(&mut stack, udepth, newscore);
                                 stack[udepth].ts_save_badflags = su.su_badflags as u8;
-                                stack[udepth].ts_state = state_T::STATE_SPLITUNDO;
+                                stack[udepth].ts_state = SugState::STATE_SPLITUNDO;
                                 depth += 1;
                                 udepth = depth as usize;
                                 if !try_compound && !fword_ends {
@@ -1711,29 +1711,29 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                     byts = pbyts;
                                     idxs = pidxs;
                                     stack[udepth].ts_prefixdepth = PFD_PREFIXTREE;
-                                    stack[udepth].ts_state = state_T::STATE_NOPREFIX;
+                                    stack[udepth].ts_state = SugState::STATE_NOPREFIX;
                                 }
                             }
                         }
                     }
                 }
-                state_T::STATE_SPLITUNDO => {
+                SugState::STATE_SPLITUNDO => {
                     su.su_badflags = stack[udepth].ts_save_badflags as c_int;
-                    stack[udepth].ts_state = state_T::STATE_START;
+                    stack[udepth].ts_state = SugState::STATE_START;
                     byts = fbyts;
                     idxs = fidxs;
                 }
-                state_T::STATE_ENDNUL | state_T::STATE_PLAIN => {
+                SugState::STATE_ENDNUL | SugState::STATE_PLAIN => {
                     let mut goto_del = false;
-                    if state == state_T::STATE_ENDNUL {
+                    if state == SugState::STATE_ENDNUL {
                         su.su_badflags = stack[udepth].ts_save_badflags as c_int;
                         if crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) == 0
                             && stack[udepth].ts_tcharlen == 0
                         {
-                            stack[udepth].ts_state = state_T::STATE_DEL;
+                            stack[udepth].ts_state = SugState::STATE_DEL;
                             goto_del = true;
                         } else {
-                            stack[udepth].ts_state = state_T::STATE_PLAIN;
+                            stack[udepth].ts_state = SugState::STATE_PLAIN;
                         }
                     }
                     if !goto_del {
@@ -1741,12 +1741,12 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         if stack[udepth].ts_curi as c_int > *byts.add(arridx as usize) as c_int {
                             stack[udepth].ts_state =
                                 if stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry {
-                                    state_T::STATE_DEL
+                                    SugState::STATE_DEL
                                 } else {
-                                    state_T::STATE_FINAL
+                                    SugState::STATE_FINAL
                                 };
                         } else {
-                            arridx += stack[udepth].ts_curi as idx_T;
+                            arridx += stack[udepth].ts_curi as Idx;
                             stack[udepth].ts_curi += 1;
                             c = *byts.add(arridx as usize) as c_int;
                             let newscore = if c
@@ -1839,14 +1839,14 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         }
                     }
                 }
-                state_T::STATE_DEL | state_T::STATE_INS_PREP => {
+                SugState::STATE_DEL | SugState::STATE_INS_PREP => {
                     let mut do_ins_prep = true;
-                    if state == state_T::STATE_DEL {
+                    if state == SugState::STATE_DEL {
                         if stack[udepth].ts_tcharlen > 0 {
-                            stack[udepth].ts_state = state_T::STATE_FINAL;
+                            stack[udepth].ts_state = SugState::STATE_FINAL;
                             do_ins_prep = false;
                         } else {
-                            stack[udepth].ts_state = state_T::STATE_INS_PREP;
+                            stack[udepth].ts_state = SugState::STATE_INS_PREP;
                             stack[udepth].ts_curi = 1;
                             let newscore = if soundfold
                                 && stack[udepth].ts_fidx == 0
@@ -1881,16 +1881,16 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                     }
                     if do_ins_prep {
                         if (stack[udepth].ts_flags & TSF_DIDDEL) != 0 {
-                            stack[udepth].ts_state = state_T::STATE_SWAP;
+                            stack[udepth].ts_state = SugState::STATE_SWAP;
                         } else {
                             n = stack[udepth].ts_arridx;
                             loop {
                                 if stack[udepth].ts_curi as c_int > *byts.add(n as usize) as c_int {
-                                    stack[udepth].ts_state = state_T::STATE_SWAP;
+                                    stack[udepth].ts_state = SugState::STATE_SWAP;
                                     break;
                                 }
                                 if *byts.add((n + stack[udepth].ts_curi as c_int) as usize) != 0 {
-                                    stack[udepth].ts_state = state_T::STATE_INS;
+                                    stack[udepth].ts_state = SugState::STATE_INS;
                                     break;
                                 }
                                 stack[udepth].ts_curi += 1;
@@ -1898,10 +1898,10 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         }
                     }
                 }
-                state_T::STATE_INS => {
+                SugState::STATE_INS => {
                     n = stack[udepth].ts_arridx;
                     if stack[udepth].ts_curi as c_int > *byts.add(n as usize) as c_int {
-                        stack[udepth].ts_state = state_T::STATE_SWAP;
+                        stack[udepth].ts_state = SugState::STATE_SWAP;
                         continue;
                     }
                     n += stack[udepth].ts_curi as c_int;
@@ -1943,15 +1943,15 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         }
                     }
                 }
-                state_T::STATE_SWAP => {
+                SugState::STATE_SWAP => {
                     let p = fword.add(stack[udepth].ts_fidx as usize);
                     c = crate::memory::cstr_first_byte(p) as c_int;
                     if c == NUL as c_int {
-                        stack[udepth].ts_state = state_T::STATE_FINAL;
+                        stack[udepth].ts_state = SugState::STATE_FINAL;
                         continue;
                     }
                     if !soundfold && !spell_iswordp(p, curwin_mut()) {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                         continue;
                     }
                     n = utf_ptr2len(p);
@@ -1964,16 +1964,16 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         c2 = utf_ptr2char(p.add(n as usize));
                     }
                     if c2 == NUL as c_int {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                         continue;
                     }
                     if c == c2 {
-                        stack[udepth].ts_state = state_T::STATE_SWAP3;
+                        stack[udepth].ts_state = SugState::STATE_SWAP3;
                         continue;
                     }
                     if try_deeper(su, &stack, udepth, SCORE_SWAP) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP);
-                        stack[udepth].ts_state = state_T::STATE_UNSWAP;
+                        stack[udepth].ts_state = SugState::STATE_UNSWAP;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -1982,11 +1982,11 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         utf_char2bytes(c, p.add(fl as usize));
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
                     } else {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                     }
                 }
-                state_T::STATE_UNSWAP | state_T::STATE_SWAP3 => {
-                    if state == state_T::STATE_UNSWAP {
+                SugState::STATE_UNSWAP | SugState::STATE_SWAP3 => {
+                    if state == SugState::STATE_UNSWAP {
                         let p = fword.add(stack[udepth].ts_fidx as usize);
                         n = utfc_ptr2len(p);
                         c = utf_ptr2char(p.add(n as usize));
@@ -2008,12 +2008,12 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         c3 = utf_ptr2char(p.add((n + fl) as usize));
                     }
                     if c == c3 || c3 == NUL as c_int {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                         continue;
                     }
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = state_T::STATE_UNSWAP3;
+                        stack[udepth].ts_state = SugState::STATE_UNSWAP3;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -2023,10 +2023,10 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         utf_char2bytes(c, p.add((fl + tl) as usize));
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl + tl) as u8;
                     } else {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                     }
                 }
-                state_T::STATE_UNSWAP3 => {
+                SugState::STATE_UNSWAP3 => {
                     let mut p = fword.add(stack[udepth].ts_fidx as usize);
                     n = utfc_ptr2len(p);
                     c2 = utf_ptr2char(p.add(n as usize));
@@ -2038,12 +2038,12 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                     utf_char2bytes(c2, p.add(tl as usize));
                     p = p.add(tl as usize);
                     if !soundfold && !spell_iswordp(p, curwin_mut()) {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                         continue;
                     }
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = state_T::STATE_UNROT3L;
+                        stack[udepth].ts_state = SugState::STATE_UNROT3L;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -2056,10 +2056,10 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         utf_char2bytes(c, p.add(fl as usize));
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
                     } else {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                     }
                 }
-                state_T::STATE_UNROT3L => {
+                SugState::STATE_UNROT3L => {
                     let mut p = fword.add(stack[udepth].ts_fidx as usize);
                     n = utfc_ptr2len(p);
                     n += utfc_ptr2len(p.add(n as usize));
@@ -2069,7 +2069,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                     utf_char2bytes(c, p);
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = state_T::STATE_UNROT3R;
+                        stack[udepth].ts_state = SugState::STATE_UNROT3R;
                         let old_fidx = stack[udepth].ts_fidx;
                         depth += 1;
                         udepth = depth as usize;
@@ -2082,13 +2082,13 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         utf_char2bytes(c, p);
                         stack[udepth].ts_fidxtry = old_fidx + (n + tl) as u8;
                     } else {
-                        stack[udepth].ts_state = state_T::STATE_REP_INI;
+                        stack[udepth].ts_state = SugState::STATE_REP_INI;
                     }
                 }
-                state_T::STATE_UNROT3R | state_T::STATE_REP_INI | state_T::STATE_REP => {
+                SugState::STATE_UNROT3R | SugState::STATE_REP_INI | SugState::STATE_REP => {
                     let mut do_rep = true;
-                    if state != state_T::STATE_REP {
-                        if state == state_T::STATE_UNROT3R {
+                    if state != SugState::STATE_REP {
+                        if state == SugState::STATE_UNROT3R {
                             let p = fword.add(stack[udepth].ts_fidx as usize);
                             c = utf_ptr2char(p);
                             tl = utfc_ptr2len(p);
@@ -2101,7 +2101,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             || stack[udepth].ts_score + SCORE_REP >= su.su_maxscore
                             || stack[udepth].ts_fidx < stack[udepth].ts_fidxtry
                         {
-                            stack[udepth].ts_state = state_T::STATE_FINAL;
+                            stack[udepth].ts_state = SugState::STATE_FINAL;
                             do_rep = false;
                         } else {
                             let first_byte =
@@ -2112,10 +2112,10 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                 (*lp.lp_replang).sl_rep_first[first_byte]
                             };
                             if stack[udepth].ts_curi < 0 {
-                                stack[udepth].ts_state = state_T::STATE_FINAL;
+                                stack[udepth].ts_state = SugState::STATE_FINAL;
                                 do_rep = false;
                             } else {
-                                stack[udepth].ts_state = state_T::STATE_REP;
+                                stack[udepth].ts_state = SugState::STATE_REP;
                             }
                         }
                     }
@@ -2138,7 +2138,7 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                                 && try_deeper(su, &stack, udepth, SCORE_REP)
                             {
                                 go_deeper(&mut stack, udepth, SCORE_REP);
-                                stack[udepth].ts_state = state_T::STATE_REP_UNDO;
+                                stack[udepth].ts_state = SugState::STATE_REP_UNDO;
                                 let old_fidx = stack[udepth].ts_fidx;
                                 depth += 1;
                                 udepth = depth as usize;
@@ -2155,13 +2155,13 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                             }
                         }
                         if (stack[udepth].ts_curi as usize) >= gap.len()
-                            && stack[udepth].ts_state == state_T::STATE_REP
+                            && stack[udepth].ts_state == SugState::STATE_REP
                         {
-                            stack[udepth].ts_state = state_T::STATE_FINAL;
+                            stack[udepth].ts_state = SugState::STATE_FINAL;
                         }
                     }
                 }
-                state_T::STATE_REP_UNDO => {
+                SugState::STATE_REP_UNDO => {
                     let gap = if soundfold {
                         &slang.sl_repsal
                     } else {
@@ -2176,9 +2176,9 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
                         repextra -= tl - fl;
                     }
                     ptr::copy(ftp.ft_from.as_ptr(), p, fl as usize);
-                    stack[udepth].ts_state = state_T::STATE_REP;
+                    stack[udepth].ts_state = SugState::STATE_REP;
                 }
-                state_T::STATE_FINAL => {
+                SugState::STATE_FINAL => {
                     depth -= 1;
                     if depth >= 0 && stack[depth as usize].ts_prefixdepth == PFD_PREFIXTREE {
                         byts = pbyts;
@@ -2198,17 +2198,17 @@ fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, sound
     }
 }
 #[inline]
-fn go_deeper(stack: &mut [trystate_T; MAXWLEN], depth: usize, score_add: c_int) {
+fn go_deeper(stack: &mut [Trystate; MAXWLEN], depth: usize, score_add: c_int) {
     stack[depth + 1] = stack[depth];
-    stack[depth + 1].ts_state = state_T::STATE_START;
+    stack[depth + 1].ts_state = SugState::STATE_START;
     stack[depth + 1].ts_score = stack[depth].ts_score + score_add;
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;
 }
-fn find_keepcap_word(slang: &mut slang_T, fword: impl crate::strings::IntoCCharPtr, kword: *mut c_char) { let fword = fword.into_c_char_ptr();
+fn find_keepcap_word(slang: &mut Slang, fword: impl crate::strings::IntoCCharPtr, kword: *mut c_char) { let fword = fword.into_c_char_ptr();
     unsafe {
         let mut uword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
+        let mut arridx: [Idx; MAXWLEN] = [0; MAXWLEN];
         let mut round: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut fwordidx: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut uwordidx: [c_int; MAXWLEN] = [0; MAXWLEN];
@@ -2306,7 +2306,7 @@ fn find_keepcap_word(slang: &mut slang_T, fword: impl crate::strings::IntoCCharP
         *kword = NUL;
     }
 }
-fn score_comp_sal(su: &mut suginfo_T) {
+fn score_comp_sal(su: &mut Suginfo) {
     unsafe {
         let mut badsound: [c_char; MAXWLEN] = [0; MAXWLEN];
         let sga = &mut su.su_sga;
@@ -2324,7 +2324,7 @@ fn score_comp_sal(su: &mut suginfo_T) {
                     let score = stp_sal_score(stp, su, &mut *lp.lp_slang, (&raw mut badsound).cast());
                     if score < SCORE_MAXMAX {
                         let sga = &mut su.su_sga;
-                        sga.push(suggest_T {
+                        sga.push(Suggest {
                             st_word: stp.st_word.clone(),
                             st_wordlen: stp.st_wordlen,
                             st_orglen: stp.st_orglen,
@@ -2341,10 +2341,10 @@ fn score_comp_sal(su: &mut suginfo_T) {
         }
     }
 }
-fn score_combine(su: &mut suginfo_T) {
+fn score_combine(su: &mut Suginfo) {
     unsafe {
         let mut badsound: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let mut slang: *mut slang_T = ptr::null_mut();
+        let mut slang: *mut Slang = ptr::null_mut();
         let w_s = curwin_mut().w_s_ptr();
         for lp in &(*w_s).b_langp {
             if (*lp.lp_slang).has_sal() {
@@ -2390,7 +2390,7 @@ fn score_combine(su: &mut suginfo_T) {
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
         check_suggestions(su, true);
         cleanup_suggestions(&mut su.su_sga, su.su_maxscore, su.su_maxcount);
-        let mut ga: Vec<suggest_T> = Vec::with_capacity(su.su_ga.len() + su.su_sga.len());
+        let mut ga: Vec<Suggest> = Vec::with_capacity(su.su_ga.len() + su.su_sga.len());
         let mut old_ga = std::mem::take(&mut su.su_ga).into_iter();
         let mut old_sga = std::mem::take(&mut su.su_sga).into_iter();
         loop {
@@ -2417,9 +2417,9 @@ fn score_combine(su: &mut suginfo_T) {
     }
 }
 fn stp_sal_score(
-    stp: &suggest_T,
-    su: &suginfo_T,
-    slang: &mut slang_T,
+    stp: &Suggest,
+    su: &Suginfo,
+    slang: &mut Slang,
     badsound: impl crate::strings::IntoCCharPtr,
 ) -> c_int { let badsound = badsound.into_c_char_ptr();
     unsafe {
@@ -2484,7 +2484,7 @@ fn suggest_try_soundalike_prep() {
         }
     }
 }
-fn suggest_try_soundalike(su: &mut suginfo_T) {
+fn suggest_try_soundalike(su: &mut Suginfo) {
     unsafe {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let w_s = curwin_mut().w_s_ptr();
@@ -2513,7 +2513,7 @@ fn suggest_try_soundalike_finish() {
         }
     }
 }
-fn add_sound_suggest(su: &mut suginfo_T, goodword: impl crate::strings::IntoCCharPtr, score: c_int, lp: &langp_T) { let goodword = goodword.into_c_char_ptr();
+fn add_sound_suggest(su: &mut Suginfo, goodword: impl crate::strings::IntoCCharPtr, score: c_int, lp: &Langp) { let goodword = goodword.into_c_char_ptr();
     unsafe {
         let slang = &mut *lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2543,7 +2543,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: impl crate::strings::IntoCCha
             orgnr += bytes2offset(&raw mut nrline);
             let byts = slang.sl_fbyts.as_mut_ptr();
             let idxs = slang.sl_fidxs.as_mut_ptr();
-            let mut n: idx_T = 0;
+            let mut n: Idx = 0;
             let mut wordcount: c_int = 0;
             let mut wlen: usize = 0;
             let mut i: c_int = 1;
@@ -2661,9 +2661,9 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: impl crate::strings::IntoCCha
         }
     }
 }
-fn soundfold_find(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr) -> c_int { let word = word.into_c_char_ptr();
+fn soundfold_find(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) -> c_int { let word = word.into_c_char_ptr();
     unsafe {
-        let mut arridx: idx_T = 0;
+        let mut arridx: Idx = 0;
         let mut wlen: usize = 0;
         let ptr = word.cast::<u8>();
         let mut wordnr: c_int = 0;
@@ -2714,7 +2714,7 @@ fn soundfold_find(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr) 
         wordnr
     }
 }
-fn similar_chars(slang: &mut slang_T, c1: c_int, c2: c_int) -> bool {
+fn similar_chars(slang: &mut Slang, c1: c_int, c2: c_int) -> bool {
     let m1 = if c1 >= 256 {
             slang.sl_map_hash.get(&c1).copied().unwrap_or(0)
         } else if c1 >= 0 {
@@ -2735,14 +2735,14 @@ fn similar_chars(slang: &mut slang_T, c1: c_int, c2: c_int) -> bool {
         m1 == m2
 }
 fn add_suggestion(
-    su: &mut suginfo_T,
+    su: &mut Suginfo,
     use_sga: bool,
     goodword: impl crate::strings::IntoCCharPtr,
     badlenarg: c_int,
     score: c_int,
     altscore: c_int,
     had_bonus: bool,
-    slang: *mut slang_T,
+    slang: *mut Slang,
     maxsf: bool,
 ) { let goodword = goodword.into_c_char_ptr();
     unsafe {
@@ -2776,7 +2776,7 @@ fn add_suggestion(
                 if stp.st_slang.is_null() {
                     stp.st_slang = slang;
                 }
-                let mut new_sug = suggest_T {
+                let mut new_sug = Suggest {
                     st_word: std::ffi::CString::default(),
                     st_wordlen: 0,
                     st_orglen: 0,
@@ -2809,7 +2809,7 @@ fn add_suggestion(
         if !found {
             let bytes = crate::memory::cstr_slice(goodword, goodlen as usize);
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-            gap.push(suggest_T {
+            gap.push(Suggest {
                 st_word: std::ffi::CString::new(&bytes[..end]).unwrap(),
                 st_wordlen: goodlen,
                 st_score: score,
@@ -2832,7 +2832,7 @@ fn add_suggestion(
         if use_sga { su.su_sga = gap_vec; } else { su.su_ga = gap_vec; }
     }
 }
-fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
+fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
     unsafe {
         let badptr = su.su_badptr;
         let gap = if use_sga { &mut su.su_sga } else { &mut su.su_ga };
@@ -2851,7 +2851,7 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
                 badptr.add(st.st_orglen as usize),
                 MAXWLEN + 1 - len,
             );
-            let mut attr: hlf_T = HLF_COUNT;
+            let mut attr: Hlf = HLF_COUNT;
             let _ = spell_check(
                 curwin_mut(),
                 (&raw mut longword).cast(),
@@ -2866,7 +2866,7 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
         }
     }
 }
-fn add_banned(su: &mut suginfo_T, word: impl crate::strings::IntoCCharPtr) { let word = word.into_c_char_ptr();
+fn add_banned(su: &mut Suginfo, word: impl crate::strings::IntoCCharPtr) { let word = word.into_c_char_ptr();
      {
         let word_bytes = crate::memory::cstr_as_bytes(word);
         if !su.su_banned.contains(word_bytes) {
@@ -2874,7 +2874,7 @@ fn add_banned(su: &mut suginfo_T, word: impl crate::strings::IntoCCharPtr) { let
         }
     }
 }
-fn rescore_suggestions(su: &mut suginfo_T) {
+fn rescore_suggestions(su: &mut Suginfo) {
     if !su.su_sallang.is_null() {
             let mut su_ga = std::mem::take(&mut su.su_ga);
             for stp in &mut su_ga {
@@ -2883,7 +2883,7 @@ fn rescore_suggestions(su: &mut suginfo_T) {
             su.su_ga = su_ga;
         }
 }
-fn rescore_one(su: &mut suginfo_T, stp: &mut suggest_T) {
+fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
     unsafe {
         let slang = stp.st_slang;
         let mut sal_badword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2908,13 +2908,13 @@ fn rescore_one(su: &mut suginfo_T, stp: &mut suggest_T) {
         }
     }
 }
-fn sug_compare(p1: &suggest_T, p2: &suggest_T) -> std::cmp::Ordering {
+fn sug_compare(p1: &Suggest, p2: &Suggest) -> std::cmp::Ordering {
     p1.st_score
             .cmp(&p2.st_score)
             .then_with(|| p1.st_altscore.cmp(&p2.st_altscore))
             .then_with(|| mb_stricmp(p1.st_word.as_ptr(), p2.st_word.as_ptr()).cmp(&0))
 }
-fn cleanup_suggestions(gap: &mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -> c_int {
+fn cleanup_suggestions(gap: &mut Vec<Suggest>, maxscore: c_int, keep: c_int) -> c_int {
     if gap.is_empty() {
             return maxscore;
         }
@@ -3084,7 +3084,7 @@ fn soundalike_score(goodstart: impl crate::strings::IntoCCharPtr, badstart: impl
     }
 }
 fn spell_edit_score(
-    mut slang: Option<&mut slang_T>,
+    mut slang: Option<&mut Slang>,
     badword: impl crate::strings::IntoCCharPtr,
     goodword: impl crate::strings::IntoCCharPtr,
 ) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
@@ -3152,7 +3152,7 @@ fn spell_edit_score(
     }
 }
 fn spell_edit_score_limit(
-    slang: Option<&mut slang_T>,
+    slang: Option<&mut Slang>,
     badword: impl crate::strings::IntoCCharPtr,
     goodword: impl crate::strings::IntoCCharPtr,
     limit: c_int,
@@ -3160,13 +3160,13 @@ fn spell_edit_score_limit(
     spell_edit_score_limit_w(slang, badword, goodword, limit)
 }
 fn spell_edit_score_limit_w(
-    mut slang: Option<&mut slang_T>,
+    mut slang: Option<&mut Slang>,
     badword: impl crate::strings::IntoCCharPtr,
     goodword: impl crate::strings::IntoCCharPtr,
     limit: c_int,
 ) -> c_int { let badword = badword.into_c_char_ptr(); let goodword = goodword.into_c_char_ptr();
      {
-        let mut stack: [limitscore_T; 10] = [limitscore_T::default(); 10];
+        let mut stack: [Limitscore; 10] = [Limitscore::default(); 10];
         let mut wbadword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut bi: usize = 0;

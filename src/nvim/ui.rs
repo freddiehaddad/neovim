@@ -23,13 +23,13 @@ use crate::api::ui::{
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
-use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array, shape_table_mut};
+use crate::cursor_shape::{cursor_get_mode_idx, Cursorentry, mode_style_array, shape_table_mut};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_put_event};
 use crate::ex_getln::cmdline_ui_flush;
 use crate::globals::*;
-use crate::grid::{ScreenGrid, get_win_by_grid_handle, sattr_T, schar_T};
+use crate::grid::{ScreenGrid, get_win_by_grid_handle, Sattr, Schar};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
@@ -39,7 +39,7 @@ use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
     msg_source, msg_ui_refresh,
 };
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::option::{kOptCmdheight, set_option_value, ui_refresh_options};
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_sleep};
@@ -108,7 +108,7 @@ struct UiState {
     busy: c_int,
     pending_mode_info_update: bool,
     pending_mode_update: bool,
-    cursor_grid_handle: handle_T,
+    cursor_grid_handle: ObjHandle,
     ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback>,
     ui_cb_ext: [bool; kUIExtCount],
     has_mouse: bool,
@@ -568,7 +568,7 @@ pub fn ui_cursor_goto(new_row: c_int, new_col: c_int) {
     ui_grid_cursor_goto(DEFAULT_GRID_HANDLE, new_row, new_col);
 }
 
-pub fn ui_grid_cursor_goto(grid_handle: handle_T, new_row: c_int, new_col: c_int) {
+pub fn ui_grid_cursor_goto(grid_handle: ObjHandle, new_row: c_int, new_col: c_int) {
     if new_row == ui_state().cursor_row && new_col == ui_state().cursor_col && grid_handle == ui_state().cursor_grid_handle {
             return;
         }
@@ -578,7 +578,7 @@ pub fn ui_grid_cursor_goto(grid_handle: handle_T, new_row: c_int, new_col: c_int
         ui_state().pending_cursor_update = true;
 }
 
-pub fn ui_check_cursor_grid(grid_handle: handle_T) {
+pub fn ui_check_cursor_grid(grid_handle: ObjHandle) {
     if ui_state().cursor_grid_handle == grid_handle {
             ui_state().pending_cursor_update = true;
         }
@@ -651,7 +651,7 @@ pub fn ui_flush() {
                 ui_state().ui_mode_idx
             };
             let full_name = (*(&raw const (*shape_table_mut()))
-                .cast::<cursorentry_T>()
+                .cast::<Cursorentry>()
                 .add(idx as usize))
             .full_name;
             ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
@@ -827,7 +827,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
     }
 }
 
-pub fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: &mut Error) {
+pub fn ui_grid_resize(grid_handle: ObjHandle, width: c_int, height: c_int, err: &mut Error) {
     unsafe {
         if grid_handle == DEFAULT_GRID_HANDLE {
             screen_resize(width, height);
@@ -1039,7 +1039,7 @@ const NOARGS_ARRAY: Array = Array {
 };
 
 #[inline]
-const fn buf_obj(b: handle_T) -> Object {
+const fn buf_obj(b: ObjHandle) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeBuffer,
         data: ObjectData::Integer(b as Integer),
@@ -1047,7 +1047,7 @@ const fn buf_obj(b: handle_T) -> Object {
 }
 
 #[inline]
-const fn tab_obj(t: handle_T) -> Object {
+const fn tab_obj(t: ObjHandle) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeTabpage,
         data: ObjectData::Integer(t as Integer),
@@ -1273,8 +1273,8 @@ pub fn ui_call_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: c_int,
-    chunk: *const schar_T,
-    attrs: *const sattr_T,
+    chunk: *const Schar,
+    attrs: *const Sattr,
 ) {
     ui_comp_raw_line(
             grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
@@ -1294,8 +1294,8 @@ pub fn ui_composed_call_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: c_int,
-    chunk: *const schar_T,
-    attrs: *const sattr_T,
+    chunk: *const Schar,
+    attrs: *const Sattr,
 ) {
     ui_call_loop!(ui.composed, c"raw_line", |ui| {
         remote_ui_raw_line(
@@ -1306,7 +1306,7 @@ pub fn ui_composed_call_raw_line(
 
 pub fn ui_call_win_pos(
     grid: Integer,
-    win: handle_T,
+    win: ObjHandle,
     startrow: Integer,
     startcol: Integer,
     width: Integer,
@@ -1327,7 +1327,7 @@ pub fn ui_call_win_pos(
 
 pub fn ui_call_win_float_pos(
     grid: Integer,
-    win: handle_T,
+    win: ObjHandle,
     anchor: NvimString,
     anchor_grid: Integer,
     anchor_row: f64,
@@ -1356,7 +1356,7 @@ pub fn ui_call_win_float_pos(
     );
 }
 
-pub fn ui_call_win_external_pos(grid: Integer, win: handle_T) {
+pub fn ui_call_win_external_pos(grid: Integer, win: ObjHandle) {
     ui_call_event_guarded!(c"win_external_pos", [integer_obj(grid), window_obj(win)]);
 }
 
@@ -1384,7 +1384,7 @@ pub fn ui_call_msg_set_pos(
 
 pub fn ui_call_win_viewport(
     grid: Integer,
-    win: handle_T,
+    win: ObjHandle,
     topline: Integer,
     botline: Integer,
     curline: Integer,
@@ -1409,7 +1409,7 @@ pub fn ui_call_win_viewport(
 
 pub fn ui_call_win_viewport_margins(
     grid: Integer,
-    win: handle_T,
+    win: ObjHandle,
     top: Integer,
     bottom: Integer,
     left: Integer,
@@ -1422,7 +1422,7 @@ pub fn ui_call_win_viewport_margins(
 
 pub fn ui_call_win_extmark(
     grid: Integer,
-    win: handle_T,
+    win: ObjHandle,
     ns_id: Integer,
     mark_id: Integer,
     row: Integer,
@@ -1469,9 +1469,9 @@ pub fn ui_call_popupmenu_select(selected: Integer) {
 }
 
 pub fn ui_call_tabline_update(
-    current: handle_T,
+    current: ObjHandle,
     tabs: Array,
-    current_buffer: handle_T,
+    current_buffer: ObjHandle,
     buffers: Array,
 ) {
     ui_call_event_guarded!(

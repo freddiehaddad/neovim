@@ -6,17 +6,17 @@ use crate::api::private::validate::{
     api_err_exp,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
-use crate::buffer::buf_T;
-use crate::cursor::{colnr_T, linenr_T, pos_T};
+use crate::buffer::FileBuf;
+use crate::cursor::{Colnr, Linenr, CursorPos};
 use crate::eval::typval::{
-    dict_T, dictitem_T, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_watcher_notify, typval_T,
+    TvDict, Dictitem, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_watcher_notify, TypVal,
 };
 use crate::eval::vars::MAXCOL;
-use crate::eval::vars::{before_set_vvar, get_vimvar_dict, scid_T};
+use crate::eval::vars::{before_set_vvar, get_vimvar_dict, Scid};
 use crate::ex_docmd::CAR;
 use crate::ex_eval::{
-    discard_current_exception, except_T, free_global_msglist, get_error_exception_string, msglist_T,
+    discard_current_exception, Except, free_global_msglist, get_error_exception_string, Msglist,
 };
 use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
@@ -29,10 +29,10 @@ use crate::memory::{
     Arena, ArenaMem, alloc_cstring, alloc_cstring_len, arena_alloc, arena_alloc_opt, arena_finish,
     arena_memdupz, arena_memdupz_opt, free_cstring, free_items, xstrnlen,
 };
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
-use crate::runtime::{script_is_lua, sctx_T};
-use crate::window::{tabpage_T, win_T};
+use crate::runtime::{script_is_lua, Sctx};
+use crate::window::{TabPageInfo, WinInfoInfo};
 use std::ffi::{CStr, c_char, c_int};
 use std::mem::size_of;
 use std::ptr;
@@ -45,8 +45,8 @@ pub(crate) const DI_FLAGS_LOCK: u8 = 8;
 
 pub(crate) const HLF_E: c_int = 6;
 
-pub(crate) const SID_API_CLIENT: scid_T = -9;
-pub(crate) const SID_LUA: scid_T = -8;
+pub(crate) const SID_API_CLIENT: Scid = -9;
+pub(crate) const SID_LUA: Scid = -8;
 
 pub const OBJECT_NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
@@ -172,8 +172,8 @@ pub fn array_add(a: &mut Array, item: Object) {
 
 #[repr(C)]
 pub struct TryState {
-    pub current_exception: Option<std::rc::Rc<except_T>>,
-    pub msg_list: Option<Vec<msglist_T>>,
+    pub current_exception: Option<std::rc::Rc<Except>>,
+    pub msg_list: Option<Vec<Msglist>>,
     pub got_int: c_int,
     pub did_throw: bool,
     pub need_rethrow: c_int,
@@ -298,7 +298,7 @@ pub fn api_clear_string(s: &mut NvimString) {
 }
 
 #[inline]
-pub fn tv_dict_is_watched(d: Option<&dict_T>) -> bool {
+pub fn tv_dict_is_watched(d: Option<&TvDict>) -> bool {
      d.is_some() && !d.unwrap().watchers.is_empty()
 }
 
@@ -467,7 +467,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).
 pub fn dict_get_value(
-    dict: Option<&dict_T>,
+    dict: Option<&TvDict>,
     key: NvimString,
     arena: Option<&mut Arena>,
     err: &mut Error,
@@ -488,11 +488,11 @@ pub fn dict_get_value(
 }
 
 pub fn dict_check_writable(
-    dict: &mut dict_T,
+    dict: &mut TvDict,
     key: NvimString,
     del: bool,
     err: &mut Error,
-) -> *mut dictitem_T {
+) -> *mut Dictitem {
     unsafe {
         let di = tv_dict_find(Some(dict), key.data, key.size as isize);
         if !di.is_null() {
@@ -543,7 +543,7 @@ pub fn dict_check_writable(
 
 /// Set a value in a scope dict (`dict_set_var`).
 pub fn dict_set_var(
-    dict: &mut dict_T,
+    dict: &mut TvDict,
     key: NvimString,
     value: Object,
     del: bool,
@@ -577,9 +577,9 @@ pub fn dict_set_var(
                 tv_dict_item_remove(&mut *dict,  &mut *di);
             }
         } else {
-            let mut tv: typval_T = typval_T::new();
+            let mut tv: TypVal = TypVal::new();
             object_to_vim(value, &mut tv, err);
-            let mut oldtv: typval_T = typval_T::new();
+            let mut oldtv: TypVal = TypVal::new();
 
             if di.is_null() {
                 di = tv_dict_item_alloc_len(key.data, key.size);
@@ -628,7 +628,7 @@ pub fn dict_set_var(
     }
 }
 
-pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
+pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
     unsafe {
         if buffer == 0 {
             return g_st().curbuf;
@@ -648,7 +648,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut win_T {
+pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut WinInfoInfo {
     unsafe {
         if window == 0 {
             return curwin_ptr();
@@ -668,7 +668,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
     }
 }
 
-pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
+pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo {
     unsafe {
         if tabpage == 0 {
             return g_st().curtab;
@@ -688,13 +688,13 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
 }
 
 #[inline]
-pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static mut buf_T> {
+pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
     let b = find_buffer_by_handle(buffer, err);
     (!b.is_null()).then(|| unsafe { &mut *b })
 }
 
 #[inline]
-pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<&'static mut win_T> {
+pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<&'static mut WinInfoInfo> {
     let w = find_window_by_handle(window, err);
     (!w.is_null()).then(|| unsafe { &mut *w })
 }
@@ -703,7 +703,7 @@ pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<&'st
 pub fn find_tab_by_handle_mut(
     tabpage: Tabpage,
     err: &mut Error,
-) -> Option<&'static mut tabpage_T> {
+) -> Option<&'static mut TabPageInfo> {
     let t = find_tab_by_handle(tabpage, err);
     (!t.is_null()).then(|| unsafe { &mut *t })
 }
@@ -825,7 +825,7 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
 }
 
 pub fn normalize_index(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     mut index: i64,
     end_exclusive: bool,
     oob: &mut bool,
@@ -846,7 +846,7 @@ pub fn normalize_index(
 }
 
 pub fn buf_get_text(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     lnum: i64,
     mut start_col: i64,
     mut end_col: i64,
@@ -866,8 +866,8 @@ pub fn buf_get_text(
             return rv;
         }
 
-        let bufstr = ml_get_buf(buf, lnum as linenr_T);
-        let line_length = i64::from(ml_get_buf_len(buf, lnum as linenr_T));
+        let bufstr = ml_get_buf(buf, lnum as Linenr);
+        let line_length = i64::from(ml_get_buf_len(buf, lnum as Linenr));
 
         if start_col < 0 {
             start_col = line_length + start_col + 1;
@@ -1335,7 +1335,7 @@ pub fn api_dict_to_keydict(
                     if (*value).obj_type == ObjectType::kObjectTypeInteger
                         || (*value).obj_type == field_type
                     {
-                        *mem.cast::<handle_T>() = (*value).data.integer() as handle_T;
+                        *mem.cast::<ObjHandle>() = (*value).data.integer() as ObjHandle;
                     } else {
                         api_err_exp(
                             err,
@@ -1416,7 +1416,7 @@ pub fn api_keydict_to_dict(
                 | ObjectType::kObjectTypeWindow
                 | ObjectType::kObjectTypeTabpage => Object {
                     obj_type: field_type,
-                    data: ObjectData::Integer(Integer::from(*mem.cast::<handle_T>())),
+                    data: ObjectData::Integer(Integer::from(*mem.cast::<ObjHandle>())),
                 },
                 ObjectType::kObjectTypeLuaRef => OBJECT_NIL,
                 ObjectType::kObjectTypeUnset => std::process::abort(),
@@ -1474,7 +1474,7 @@ pub fn api_luarefs_free_dict(value: Dict) {
 }
 
 pub fn set_mark(
-    mut buf: *mut buf_T,
+    mut buf: *mut FileBuf,
     name: NvimString,
     line: Integer,
     mut col: Integer,
@@ -1506,9 +1506,9 @@ pub fn set_mark(
                 return false;
             }
         }
-        let mut pos = pos_T {
-            lnum: line as linenr_T,
-            col: col as colnr_T,
+        let mut pos = CursorPos {
+            lnum: line as Linenr,
+            col: col as Colnr,
             coladd: 0,
         };
         let res = setmark_pos(
@@ -1539,7 +1539,7 @@ pub fn set_mark(
 }
 
 pub fn get_default_stl_hl(
-    wp: *mut win_T,
+    wp: *mut WinInfoInfo,
     use_winbar: bool,
     stc_hl_id: c_int,
 ) -> *const c_char {
@@ -1562,7 +1562,7 @@ pub fn get_default_stl_hl(
     }
 }
 
-pub fn api_set_sctx(channel_id: u64) -> sctx_T {
+pub fn api_set_sctx(channel_id: u64) -> Sctx {
     let old_current_sctx = g_st().current_sctx;
         if channel_id != VIML_INTERNAL_CALL {
             g_st().current_sctx.sc_lnum = 0;

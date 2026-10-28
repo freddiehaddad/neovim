@@ -1,7 +1,7 @@
 //! Implementation of various operators: `op_shift`, `op_delete`, `op_tilde`,
 //! `op_change`, `op_yank`, `do_join` (`src/nvim/ops.c`).
 
-use crate::buffer::{buf_T, buf_get_changedtick, col_print, modifiable};
+use crate::buffer::{FileBuf, buf_get_changedtick, col_print, modifiable};
 use crate::change::{
     COM_END, appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
     get_last_leader_offset, get_leader_len, ins_char, ins_str, kCpoDollar, kOptVeFlagOnemore,
@@ -10,20 +10,20 @@ use crate::change::{
 use crate::charset::{
     NUL, STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, ascii_isalpha, ascii_isbdigit, ascii_isdigit,
     ascii_isspace, ascii_isupper, ascii_iswhite, ascii_isxdigit, getwhitecols,
-    getwhitecols_curline, skipwhite, uvarnumber_T, vim_str2nr,
+    getwhitecols_curline, skipwhite, Uvarnumber, vim_str2nr,
 };
 use crate::clipboard::set_clipboard;
 use crate::cursor::{
     VALID_VIRTCOL, check_cursor, check_cursor_col, check_pos, coladvance, coladvance_force,
-    colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_ptr, getviscol, getviscol2, getvpos, inc_cursor, kOptVeFlagAll, linenr_T, lt,
-    ltoreq, pos_T,
+    Colnr, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
+    get_cursor_pos_ptr, getviscol, getviscol2, getvpos, inc_cursor, kOptVeFlagAll, Linenr, lt,
+    ltoreq, CursorPos,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, callback_free, dict_T, kCallbackNone, tv_clear, tv_dict_add_nr, typval_T,
-    varnumber_T,
+    TypvalVval, VarType, callback_free, TvDict, kCallbackNone, tv_clear, tv_dict_add_nr, TypVal,
+    Varnumber,
 };
 use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::{CMOD_LOCKMARKS, do_cmdline};
@@ -45,7 +45,7 @@ use crate::input::{
 };
 use crate::input_cmdatom::{
     InsSession, VisualIns, atom_capture_op, atom_ins_end, atom_ins_start, atom_suppress,
-    atom_visual_redoable, cmdarg_T, kVInsKeys, kVInsMotion, kVInsNone, kVInsOther,
+    atom_visual_redoable, Cmdarg, kVInsKeys, kVInsMotion, kVInsNone, kVInsOther,
 };
 use crate::insert::{Ctrl_X, beginline, display_dollar, edit, kFoAuto, linetabsize_str};
 use crate::keycodes::{CAR, K_COMMAND, NL, TAB};
@@ -77,11 +77,11 @@ use crate::plines::{
 };
 use crate::register::{
     YREG_YANK, block_def, do_autocmd_textyankpost, get_y_register, get_yank_register,
-    is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, yankreg_T,
+    is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, Yankreg,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
 use crate::strings::{ngettext, tr, vim_snprintf, vim_strchr};
-use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, oparg_T};
+use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, Oparg};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
 use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong};
@@ -270,7 +270,7 @@ pub fn get_extra_op_char(optype: c_int) -> c_int {
 }
 
 /// Handle a shift operation.
-pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
+pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: c_int) {
      {
         let mut block_col: c_int = 0;
 
@@ -470,7 +470,7 @@ pub fn shift_line(left: bool, round: bool, amount: c_int, call_changed_bytes: c_
     }
 }
 
-fn shift_block(oap: &mut oparg_T, amount: c_int) {
+fn shift_block(oap: &mut Oparg, amount: c_int) {
     unsafe {
         let left = oap.op_type == OP_LSHIFT;
         let oldstate = g_st().State;
@@ -675,7 +675,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
 }
 
 fn block_insert(
-    oap: &mut oparg_T,
+    oap: &mut Oparg,
     s: impl crate::strings::IntoCCharPtr,
     slen: usize,
     b_insert: bool,
@@ -685,7 +685,7 @@ fn block_insert(
         let mut ts_val: c_int;
         let mut count: c_int = 0;
         let mut spaces: c_int;
-        let mut offset: colnr_T;
+        let mut offset: Colnr;
         let oldstate = g_st().State;
         g_st().State = MODE_INSERT;
 
@@ -813,7 +813,7 @@ fn block_insert(
 }
 
 /// Handle a delete operation.
-pub fn op_delete(oap: &mut oparg_T) -> bool {
+pub fn op_delete(oap: &mut Oparg) -> bool {
     unsafe {
         let mut bd = block_def::new();
         let old_lcount = curbuf_mut().b_ml.ml_line_count;
@@ -871,7 +871,7 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
 
         if !only_setmarks {
             if oap.regname != b'_' as c_int {
-                let mut reg: *mut yankreg_T = ptr::null_mut();
+                let mut reg: *mut Yankreg = ptr::null_mut();
                 let mut did_yank = false;
                 if oap.regname != 0 {
                     if !valid_yank_reg(oap.regname, true) {
@@ -1130,7 +1130,7 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
     }
 }
 
-fn mb_adjust_opend(oap: &mut oparg_T) {
+fn mb_adjust_opend(oap: &mut Oparg) {
     unsafe {
         if !oap.inclusive {
             return;
@@ -1141,12 +1141,12 @@ fn mb_adjust_opend(oap: &mut oparg_T) {
         if !crate::memory::cstr_is_empty(ptr_line) {
             ptr_line = ptr_line.sub(utf_head_off(line, ptr_line) as usize);
             ptr_line = ptr_line.add((utfc_ptr2len(ptr_line) - 1) as usize);
-            oap.end.col = ptr_line.offset_from(line) as colnr_T;
+            oap.end.col = ptr_line.offset_from(line) as Colnr;
         }
     }
 }
 
-fn pbyte(mut lp: pos_T, c: c_int) {
+fn pbyte(mut lp: CursorPos, c: c_int) {
     unsafe {
         debug_assert!(c <= u8::MAX as c_int);
         let p = ml_get_buf_mut(curbuf_mut(), lp.lnum);
@@ -1171,7 +1171,7 @@ fn replace_character(c: c_int) {
         dec_cursor();
 }
 
-fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
+fn op_replace(oap: &mut Oparg, mut c: c_int) -> bool {
     unsafe {
         let mut n: c_int;
         let mut bd = block_def::new();
@@ -1206,7 +1206,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
                 }
 
                 if g_st().virtual_op != 0 && bd.is_short != 0 && crate::memory::cstr_is_empty(bd.textstart) {
-                    let mut vpos = pos_T {
+                    let mut vpos = CursorPos {
                         lnum: curwin_mut().w_cursor.lnum,
                         col: 0,
                         coladd: 0,
@@ -1408,7 +1408,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
 }
 
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
-pub fn op_tilde(oap: &mut oparg_T) {
+pub fn op_tilde(oap: &mut Oparg) {
      {
         let mut bd = block_def::new();
         let mut did_change = false;
@@ -1492,7 +1492,7 @@ pub fn op_tilde(oap: &mut oparg_T) {
     }
 }
 
-fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
+fn swapchars(op_type: c_int, pos: &mut CursorPos, length: c_int) -> c_int {
     let mut did_change: c_int = 0;
         let mut todo = length;
         while todo > 0 {
@@ -1510,7 +1510,7 @@ fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
         did_change
 }
 
-pub fn swapchar(op_type: c_int, pos: &mut pos_T) -> bool {
+pub fn swapchar(op_type: c_int, pos: &mut CursorPos) -> bool {
      {
         let c = gchar_pos(pos);
 
@@ -1550,10 +1550,10 @@ pub fn swapchar(op_type: c_int, pos: &mut pos_T) -> bool {
 }
 
 /// Insert and append operators for Visual mode.
-pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
+pub fn op_insert(oap: &mut Oparg, count1: c_int) {
     unsafe {
         let mut pre_textlen: c_int = 0;
-        let mut ind_pre_col: colnr_T = 0;
+        let mut ind_pre_col: Colnr = 0;
         let mut ind_pre_vcol: c_int = 0;
         let mut bd = block_def::new();
 
@@ -1582,7 +1582,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
                 curwin_mut().w_onebuf_opt.wo_ve_flags = old_ve_flags;
             }
             block_prep(oap, &mut bd, oap.start.lnum, true);
-            ind_pre_col = getwhitecols_curline() as colnr_T;
+            ind_pre_col = getwhitecols_curline() as Colnr;
             ind_pre_vcol = get_indent();
             pre_textlen = ml_get_len(oap.start.lnum) - bd.textcol;
             if oap.op_type == OP_APPEND {
@@ -1634,7 +1634,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
             let mut bd2 = block_def::new();
             let mut did_indent = false;
 
-            let ind_post_col = getwhitecols_curline() as colnr_T;
+            let ind_post_col = getwhitecols_curline() as Colnr;
             if curbuf_mut().b_op_start.col > ind_pre_col && ind_post_col > ind_pre_col {
                 bd.textcol += ind_post_col - ind_pre_col;
                 ind_post_vcol = get_indent();
@@ -1695,7 +1695,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
             let mut firstline = ml_get(oap.start.lnum);
             let mut len = ml_get_len(oap.start.lnum);
             let mut add = bd.textcol;
-            let mut offset: colnr_T = 0;
+            let mut offset: Colnr = 0;
             if oap.op_type == OP_APPEND {
                 add += bd.textlen;
                 if bd.is_MAX != 0
@@ -1737,7 +1737,7 @@ pub fn op_insert(oap: &mut oparg_T, count1: c_int) {
 }
 
 /// Handle a change operation.
-pub fn op_change(oap: &mut oparg_T) -> c_int {
+pub fn op_change(oap: &mut Oparg) -> c_int {
     unsafe {
         let mut pre_textlen: c_int = 0;
         let mut pre_indent: c_int = 0;
@@ -1800,7 +1800,7 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
                 for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
                     block_prep(oap, &mut bd, linenr, true);
                     if bd.is_short == 0 || g_st().virtual_op != 0 {
-                        let mut vpos = pos_T {
+                        let mut vpos = CursorPos {
                             lnum: linenr,
                             col: 0,
                             coladd: 0,
@@ -1877,8 +1877,8 @@ pub fn adjust_cursor_eol() {
         dec_cursor();
 
         if cur_ve_flags == kOptVeFlagAll {
-            let mut scol: colnr_T = 0;
-            let mut ecol: colnr_T = 0;
+            let mut scol: Colnr = 0;
+            let mut ecol: Colnr = 0;
 
             getvcol(
                 curwin_mut(),
@@ -1964,7 +1964,7 @@ pub fn do_join(
         if save_undo
             && !u_save(
                 curwin_mut().w_cursor.lnum - 1,
-                curwin_mut().w_cursor.lnum + (count as linenr_T),
+                curwin_mut().w_cursor.lnum + (count as Linenr),
             )
         {
             return false;
@@ -1979,13 +1979,13 @@ pub fn do_join(
         let comments: *mut c_int = comments_vec.as_mut_ptr();
 
         let mut aborted = false;
-        for t in 0..(count as linenr_T) {
+        for t in 0..(count as Linenr) {
             curr_start = ml_get(curwin_mut().w_cursor.lnum + t);
             curr = curr_start;
             if t == 0 && setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 curwin_mut().buf_mut().b_op_start.lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().buf_mut().b_op_start.col =
-                    crate::memory::cstr_len(curr) as colnr_T;
+                    crate::memory::cstr_len(curr) as Colnr;
             }
             if remove_comments {
                 if t > 0 && prev_was_comment {
@@ -2027,7 +2027,7 @@ pub fn do_join(
 
             let space_t = crate::memory::cstr_char_at(spaces, t as usize);
             if t > 0 && g_st().curbuf_splice_pending == 0 {
-                let removed = curr.offset_from(curr_start) as colnr_T;
+                let removed = curr.offset_from(curr_start) as Colnr;
                 extmark_splice(
                     curbuf_mut(),
                     curwin_mut().w_cursor.lnum - 1,
@@ -2072,7 +2072,7 @@ pub fn do_join(
 
             g_st().curbuf_splice_pending += 1;
 
-            let mut t = (count as linenr_T) - 1;
+            let mut t = (count as Linenr) - 1;
             loop {
                 cend = cend.sub(currsize as usize);
                 ptr::copy(curr, cend, currsize as usize);
@@ -2085,9 +2085,9 @@ pub fn do_join(
 
                 let spaces_removed = (curr.offset_from(curr_start) as c_int) - space_t;
                 let lnum = curwin_mut().w_cursor.lnum + t;
-                let mincol: colnr_T = 0;
+                let mincol: Colnr = 0;
                 let lnum_amount = -t;
-                let col_amount = (cend.offset_from(newp) as colnr_T) - spaces_removed;
+                let col_amount = (cend.offset_from(newp) as Colnr) - spaces_removed;
 
                 mark_col_adjust(lnum, mincol, lnum_amount, col_amount, spaces_removed);
 
@@ -2171,7 +2171,7 @@ pub fn restore_lbr(lbr_saved: bool) {
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
-pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del: bool) {
+pub fn block_prep(oap: &mut Oparg, bdp: &mut block_def, lnum: Linenr, is_del: bool) {
     unsafe {
         let mut incr: c_int = 0;
         let lbr_saved = reset_lbr();
@@ -2296,19 +2296,19 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
             }
             bdp.textlen = pend.offset_from(pstart) as c_int;
         }
-        bdp.textcol = pstart.offset_from(line) as colnr_T;
+        bdp.textcol = pstart.offset_from(line) as Colnr;
         bdp.textstart = pstart;
         restore_lbr(lbr_saved);
     }
 }
 
 pub fn getregionpos_prep(
-    p1: &mut pos_T,
-    p2: &mut pos_T,
+    p1: &mut CursorPos,
+    p2: &mut CursorPos,
     region_type: c_int,
     exclusive: bool,
     block_width: c_int,inclusive: &mut bool,
-    oap: &mut oparg_T,
+    oap: &mut Oparg,
 ) {
     unsafe {
         *inclusive = true;
@@ -2324,10 +2324,10 @@ pub fn getregionpos_prep(
                 *inclusive = false;
             }
         } else if region_type == kMTBlockWise {
-            let mut sc1: colnr_T = 0;
-            let mut ec1: colnr_T = 0;
-            let mut sc2: colnr_T = 0;
-            let mut ec2: colnr_T = 0;
+            let mut sc1: Colnr = 0;
+            let mut ec1: Colnr = 0;
+            let mut sc2: Colnr = 0;
+            let mut ec2: Colnr = 0;
             let lbr_saved = reset_lbr();
             getvvcol(curwin_ptr(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
             getvvcol(curwin_ptr(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
@@ -2355,15 +2355,15 @@ pub fn getregionpos_prep(
 }
 
 pub fn getregionpos_line(
-    lnum: linenr_T,
-    p1: pos_T,
-    p2: pos_T,
+    lnum: Linenr,
+    p1: CursorPos,
+    p2: CursorPos,
     inclusive: bool,
     region_type: c_int,
-    oap: &mut oparg_T,
+    oap: &mut Oparg,
     allow_eol: bool,
-    ret_p1: &mut pos_T,
-    ret_p2: &mut pos_T,
+    ret_p1: &mut CursorPos,
+    ret_p2: &mut CursorPos,
 ) {
     unsafe {
         let line = ml_get(lnum);
@@ -2386,7 +2386,7 @@ pub fn getregionpos_line(
             if bd.is_oneChar != 0 {
                 if region_type == kMTBlockWise {
                     ret_p1.col =
-                        (mb_prevptr(line, bd.textstart).offset_from(line) as colnr_T) + 1;
+                        (mb_prevptr(line, bd.textstart).offset_from(line) as Colnr) + 1;
                     ret_p1.coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
                 } else {
                     ret_p1.col = p1.col + 1;
@@ -2397,7 +2397,7 @@ pub fn getregionpos_line(
                 ret_p1.coladd = oap.start_vcol - bd.start_vcol;
                 bd.is_oneChar = 1;
             } else if bd.startspaces > 0 {
-                ret_p1.col = (mb_prevptr(line, bd.textstart).offset_from(line) as colnr_T) + 1;
+                ret_p1.col = (mb_prevptr(line, bd.textstart).offset_from(line) as Colnr) + 1;
                 ret_p1.coladd = bd.start_char_vcols - bd.startspaces;
             } else {
                 ret_p1.col = bd.textcol + 1;
@@ -2436,17 +2436,17 @@ pub fn getregionpos_line(
 }
 
 pub fn charwise_block_prep(
-    mut start: pos_T,
-    mut end: pos_T,
+    mut start: CursorPos,
+    mut end: CursorPos,
     bdp: &mut block_def,
-    lnum: linenr_T,
+    lnum: Linenr,
     inclusive: bool,
 ) {
     unsafe {
-        let mut startcol: colnr_T = 0;
-        let mut endcol: colnr_T = MAXCOL;
-        let mut cs: colnr_T = 0;
-        let mut ce: colnr_T = 0;
+        let mut startcol: Colnr = 0;
+        let mut endcol: Colnr = MAXCOL;
+        let mut cs: Colnr = 0;
+        let mut ce: Colnr = 0;
         let p = ml_get(lnum);
         let plen = ml_get_len(lnum);
 
@@ -2516,7 +2516,7 @@ pub fn charwise_block_prep(
     }
 }
 
-pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
+pub fn op_addsub(oap: &mut Oparg, Prenum1: Linenr, g_cmd: bool) {
      {
         let mut bd = block_def::new();
         let mut change_cnt: isize = 0;
@@ -2537,7 +2537,7 @@ pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
             }
         } else {
             let mut length: c_int;
-            let mut startpos = pos_T {
+            let mut startpos = CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
@@ -2618,13 +2618,13 @@ pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
 
 pub fn do_addsub(
     op_type: c_int,
-    pos: &mut pos_T,
+    pos: &mut CursorPos,
     mut length: c_int,
-    Prenum1: linenr_T,
+    Prenum1: Linenr,
 ) -> bool {
     unsafe {
         let mut pre: c_int = 0;
-        let mut n: uvarnumber_T = 0;
+        let mut n: Uvarnumber = 0;
         let mut blank_unsigned = false;
         let mut negative = false;
         let mut was_positive = true;
@@ -2632,9 +2632,9 @@ pub fn do_addsub(
         let did_change: bool;
         let save_cursor = curwin_mut().w_cursor;
         let mut maxlen: c_int = 0;
-        let startpos: pos_T;
-        let endpos: pos_T;
-        let mut save_coladd: colnr_T = 0;
+        let startpos: CursorPos;
+        let endpos: CursorPos;
+        let mut save_coladd: Colnr = 0;
 
         let do_hex = !vim_strchr(curbuf_mut().b_p_nf, b'x' as c_int).is_null();
         let do_oct = !vim_strchr(curbuf_mut().b_p_nf, b'o' as c_int).is_null();
@@ -2859,9 +2859,9 @@ pub fn do_addsub(
 
             if !overflow {
                 n = if subtract {
-                    n.wrapping_sub(Prenum1 as uvarnumber_T)
+                    n.wrapping_sub(Prenum1 as Uvarnumber)
                 } else {
-                    n.wrapping_add(Prenum1 as uvarnumber_T)
+                    n.wrapping_add(Prenum1 as Uvarnumber)
                 };
             }
 
@@ -2938,7 +2938,7 @@ pub fn do_addsub(
             let buf2_ptr = (&raw mut buf2).cast::<c_char>();
             let mut buf2len: c_int = 0;
             if pre == b'b' as c_int || pre == b'B' as c_int {
-                let mut bits = uvarnumber_T::BITS as usize;
+                let mut bits = Uvarnumber::BITS as usize;
                 while bits > 0 {
                     if ((n >> (bits - 1)) & 0x1) != 0 {
                         break;
@@ -3032,15 +3032,15 @@ pub fn do_addsub(
 
 fn line_count_info(
     line: impl crate::strings::IntoCCharPtr,
-    wc: &mut varnumber_T,
-    cc: &mut varnumber_T,
-    limit: varnumber_T,
+    wc: &mut Varnumber,
+    cc: &mut Varnumber,
+    limit: Varnumber,
     eol_size: c_int,
-) -> varnumber_T { let line = line.into_c_char_ptr();
+) -> Varnumber { let line = line.into_c_char_ptr();
     unsafe {
-        let mut i: varnumber_T = 0;
-        let mut words: varnumber_T = 0;
-        let mut chars: varnumber_T = 0;
+        let mut i: Varnumber = 0;
+        let mut words: Varnumber = 0;
+        let mut chars: Varnumber = 0;
         let mut is_word = false;
 
         while i < limit && crate::memory::cstr_byte_at(line, i as usize) != 0 {
@@ -3054,7 +3054,7 @@ fn line_count_info(
                 is_word = true;
             }
             chars += 1;
-            i += varnumber_T::from(utfc_ptr2len(line.add(i as usize)));
+            i += Varnumber::from(utfc_ptr2len(line.add(i as usize)));
         }
 
         if is_word {
@@ -3063,38 +3063,38 @@ fn line_count_info(
         *wc += words;
 
         if i < limit && crate::memory::cstr_byte_at(line, i as usize) == 0 {
-            i += varnumber_T::from(eol_size);
-            chars += varnumber_T::from(eol_size);
+            i += Varnumber::from(eol_size);
+            chars += Varnumber::from(eol_size);
         }
         *cc += chars;
         i
     }
 }
 
-pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
+pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
     unsafe {
         let mut buf1 = [0 as c_char; 50];
         let buf1_ptr = (&raw mut buf1).cast::<c_char>();
         let mut buf2 = [0 as c_char; 40];
         let buf2_ptr = (&raw mut buf2).cast::<c_char>();
-        let mut byte_count: varnumber_T = 0;
-        let mut bom_count: varnumber_T = 0;
-        let mut byte_count_cursor: varnumber_T = 0;
-        let mut char_count: varnumber_T = 0;
-        let mut char_count_cursor: varnumber_T = 0;
-        let mut word_count: varnumber_T = 0;
-        let mut word_count_cursor: varnumber_T = 0;
-        let mut min_pos = pos_T {
+        let mut byte_count: Varnumber = 0;
+        let mut bom_count: Varnumber = 0;
+        let mut byte_count_cursor: Varnumber = 0;
+        let mut char_count: Varnumber = 0;
+        let mut char_count_cursor: Varnumber = 0;
+        let mut word_count: Varnumber = 0;
+        let mut word_count_cursor: Varnumber = 0;
+        let mut min_pos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
         };
-        let mut max_pos = pos_T {
+        let mut max_pos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
         };
-        let mut oparg = oparg_T::new();
+        let mut oparg = Oparg::new();
         let mut bd = block_def::new();
         let l_VIsual_active = g_st().Visual.active;
         let l_VIsual_mode = g_st().Visual.mode;
@@ -3105,7 +3105,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
                 return;
             }
         } else {
-            let mut last_check: varnumber_T = 100000;
+            let mut last_check: Varnumber = 100000;
             let mut line_count_selected: c_int = 0;
             let eol_size = if get_fileformat(curbuf_mut()) == EOL_DOS {
                 2
@@ -3192,7 +3192,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
                             s,
                             &mut word_count_cursor,
                             &mut char_count_cursor,
-                            varnumber_T::from(len),
+                            Varnumber::from(len),
                             eol_size,
                         );
                         if lnum == curbuf_mut().b_ml.ml_line_count
@@ -3200,7 +3200,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
                             && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
                             && (crate::memory::cstr_len(s) as c_int) < len
                         {
-                            byte_count_cursor -= varnumber_T::from(eol_size);
+                            byte_count_cursor -= Varnumber::from(eol_size);
                         }
                     }
                 } else if lnum == curwin_mut().w_cursor.lnum {
@@ -3211,7 +3211,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
                             ml_get(lnum),
                             &mut word_count_cursor,
                             &mut char_count_cursor,
-                            varnumber_T::from(curwin_mut().w_cursor.col) + 1,
+                            Varnumber::from(curwin_mut().w_cursor.col) + 1,
                             eol_size,
                         );
                 }
@@ -3219,13 +3219,13 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
                     ml_get(lnum),
                     &mut word_count,
                     &mut char_count,
-                    varnumber_T::from(MAXCOL),
+                    Varnumber::from(MAXCOL),
                     eol_size,
                 );
             }
 
             if curbuf_mut().b_p_eol == 0 && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0) {
-                byte_count -= varnumber_T::from(eol_size);
+                byte_count -= Varnumber::from(eol_size);
             }
 
             let iobuff_ptr = g_st().IObuff.as_mut_ptr();
@@ -3342,7 +3342,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
                 }
             }
 
-            bom_count = varnumber_T::from(bomb_size());
+            bom_count = Varnumber::from(bomb_size());
             if dict.is_none() && bom_count > 0 {
                 let len = crate::memory::cstr_len(iobuff_ptr);
                 vim_snprintf!(
@@ -3400,7 +3400,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
     }
 }
 
-fn op_colon(oap: &mut oparg_T) {
+fn op_colon(oap: &mut Oparg) {
      {
         if oap.is_VIsual {
             stuffReadbuff(c"'<,'>");
@@ -3466,7 +3466,7 @@ pub fn set_ref_in_opfunc(copyID: c_int) -> bool {
     set_ref_in_callback(&mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut())
 }
 
-fn op_function(oap: &oparg_T) {
+fn op_function(oap: &Oparg) {
      {
         let orig_start = curbuf_mut().b_op_start;
         let orig_end = curbuf_mut().b_op_end;
@@ -3486,12 +3486,12 @@ fn op_function(oap: &oparg_T) {
                 _ => c"char".as_ptr(),
             };
             let mut argv = [
-                typval_T {
+                TypVal {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
                     vval: TypvalVval::String(mode_str.cast_mut()),
                 },
-                typval_T {
+                TypVal {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: 0,
                     vval: TypvalVval::String(ptr::null_mut()),
@@ -3507,11 +3507,11 @@ fn op_function(oap: &oparg_T) {
             let mut save_redo = RedoState::new();
             save_redobuff(&mut save_redo);
 
-            let mut rettv: typval_T = typval_T::new();
+            let mut rettv: TypVal = TypVal::new();
             if callback_call(
                 &mut opt_vars().p_opfunc,
                 1,
-                (&raw mut argv).cast::<typval_T>(),
+                (&raw mut argv).cast::<TypVal>(),
                 &mut rettv,
             ) {
                 tv_clear(&mut rettv);
@@ -3528,10 +3528,10 @@ fn op_function(oap: &oparg_T) {
     }
 }
 
-fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
+fn get_op_vcol(oap: &mut Oparg, initial: bool) {
      {
-        let mut start: colnr_T = 0;
-        let mut end: colnr_T = 0;
+        let mut start: Colnr = 0;
+        let mut end: Colnr = 0;
 
         if g_st().Visual.mode != Ctrl_V || (!initial && oap.end.col < curwin_mut().w_view_width) {
             return;
@@ -3593,18 +3593,18 @@ fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
     }
 }
 
-fn is_ex_cmdchar(cap: &cmdarg_T) -> bool {
+fn is_ex_cmdchar(cap: &Cmdarg) -> bool {
     cap.cmdchar == b':' as c_int || cap.cmdchar == K_COMMAND
 }
 
-pub fn op_self_select(cap: &cmdarg_T) -> bool {
+pub fn op_self_select(cap: &Cmdarg) -> bool {
     cap.cmdchar == b'g' as c_int
         && (cap.nchar == b'n' as c_int
             || cap.nchar == b'N' as c_int
             || cap.nchar == b'v' as c_int)
 }
 
-fn op_ins_visual(oap: &mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
+fn op_ins_visual(oap: &mut Oparg, cap: &mut Cmdarg) -> VisualIns {
     if !oap.is_VIsual {
             return kVInsNone;
         }
@@ -3627,7 +3627,7 @@ fn op_ins_visual(oap: &mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
         }
 }
 
-pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
+pub fn do_pending_operator(cap: &mut Cmdarg, old_col: c_int, gui_yank: bool) {
     unsafe {
         let oap = cap.oap_mut();
         let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr != 0;
@@ -4124,11 +4124,11 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
 
 /// Get the byte count of buffer region. End-exclusive.
 pub fn get_region_bytecount(
-    buf: &mut buf_T,
-    start_lnum: linenr_T,
-    end_lnum: linenr_T,
-    start_col: colnr_T,
-    end_col: colnr_T,
+    buf: &mut FileBuf,
+    start_lnum: Linenr,
+    end_lnum: Linenr,
+    start_col: Colnr,
+    end_col: Colnr,
 ) -> bcount_t {
     let max_lnum = buf.b_ml.ml_line_count;
         if start_lnum > max_lnum {

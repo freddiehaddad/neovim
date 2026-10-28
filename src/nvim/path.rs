@@ -25,7 +25,7 @@ use crate::os::shell::get_cmd_output;
 #[cfg(unix)]
 use crate::os::shell::os_expand_wildcards;
 use crate::regexp::{
-    RE_MAGIC, RE_NOBREAK, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
+    RE_MAGIC, RE_NOBREAK, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
 };
 use crate::strings::{sort_strings, vim_snprintf, vim_strchr};
 use std::cmp::Ordering;
@@ -724,7 +724,7 @@ fn do_path_expand(
             return 0;
         };
 
-        let mut regmatch = regmatch_T {
+        let mut regmatch = Regmatch {
             regprog: ptr::null_mut(),
             startp: [ptr::null_mut(); 10],
             endp: [ptr::null_mut(); 10],
@@ -1006,7 +1006,7 @@ fn uniquefy_paths(
         };
         drop(file_pattern);
 
-        let mut regmatch = regmatch_T {
+        let mut regmatch = Regmatch {
             regprog: vim_regcomp(pat.as_ptr().cast_mut(), RE_MAGIC + RE_STRING),
             startp: [ptr::null_mut(); 10],
             endp: [ptr::null_mut(); 10],

@@ -15,7 +15,7 @@ use crate::autocmd::{
     EVENT_FILETYPE, block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds,
 };
 use crate::buffer::{
-    BF_DUMMY, BLN_DUMMY, buf_T, buflist_new, bufref_T, bufref_valid, set_bufref, wipe_buffer,
+    BF_DUMMY, BLN_DUMMY, FileBuf, buflist_new, Bufref, bufref_valid, set_bufref, wipe_buffer,
 };
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
@@ -29,7 +29,7 @@ use crate::option::{
     get_option_varp_scope_from, get_varp_from, kOptBufhidden, kOptBuftype, kOptFiletype,
     kOptFlagColon, kOptFlagComma, kOptFlagFlagList, kOptInvalid, kOptModeline, kOptScopeBuf,
     kOptScopeGlobal, kOptScopeTab, kOptScopeWin, kOptSwapfile, opt_from_varp, option_has_scope,
-    option_has_type, optval_free, optval_from_obj, optval_own, set_op_T, set_option_direct,
+    option_has_type, optval_free, optval_from_obj, optval_own, SetOp, set_option_direct,
     set_option_value_for, validate_and_prepare_option_value,
 };
 use crate::window::close_windows;
@@ -37,7 +37,7 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::highlight::OptionalKeys;
-use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, optset_T};
+use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, Optset};
 use crate::runtime::SID_NONE;
 
 const KEYSET_OPTIDX_option__buf: u64 = 1;
@@ -72,7 +72,7 @@ fn validate_option_value_args(
     scope: &mut OptScope,
     from: &mut OptTarget,
     filetype: *mut *mut c_char,
-    operation: Option<&mut set_op_T>,
+    operation: Option<&mut SetOp>,
     dry_run: Option<&mut bool>,
     err: &mut Error,
 ) -> bool { let name = name.into_c_char_ptr();
@@ -256,7 +256,7 @@ fn validate_option_value_args(
     }
 }
 
-fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, err: &mut Error) -> *mut buf_T { let filetype = filetype.into_c_char_ptr();
+fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, err: &mut Error) -> *mut FileBuf { let filetype = filetype.into_c_char_ptr();
     unsafe {
         if filetype.is_null() {
             return ptr::null_mut();
@@ -281,7 +281,7 @@ fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, e
             return ftbuf;
         }
 
-        let mut bufref = bufref_T {
+        let mut bufref = Bufref {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
@@ -341,11 +341,11 @@ fn do_ft_buf(filetype: impl crate::strings::IntoCCharPtr, aco: &mut CtxSwitch, e
     }
 }
 
-fn wipe_ft_buf(buf: &mut buf_T) {
+fn wipe_ft_buf(buf: &mut FileBuf) {
     unsafe {
         block_autocmds();
 
-        let mut bufref = bufref_T {
+        let mut bufref = Bufref {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
@@ -591,7 +591,7 @@ pub fn nvim_set_option_value(
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: c_int = 0;
         let mut scope: OptScope = kOptScopeGlobal;
-        let mut operation: set_op_T = OP_NONE;
+        let mut operation: SetOp = OP_NONE;
         let mut to = OptTarget::Global;
         let mut dry_run = false;
 
@@ -743,7 +743,7 @@ pub fn nvim_set_option_value(
                 data: raw_buf.as_mut_ptr(),
                 size: IOSIZE,
             };
-            let mut args = optset_T {
+            let mut args = Optset {
                 os_varp: ptr::null_mut(),
                 os_idx: opt_idx,
                 os_flags: opt_flags,

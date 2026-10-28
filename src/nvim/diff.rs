@@ -2,26 +2,26 @@
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{
-    MAXLNUM, bt_prompt, buf_T, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr,
-    buflist_findpat, bufref_T, bufref_valid, modifiable, set_bufref,
+    MAXLNUM, bt_prompt, FileBuf, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr,
+    buflist_findpat, Bufref, bufref_valid, modifiable, set_bufref,
 };
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, getdigits_int32, skipwhite};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
-use crate::cursor::{check_cursor, colnr_T, linenr_T};
+use crate::cursor::{check_cursor, Colnr, Linenr};
 use crate::decoration::decor_conceal_line;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, kCallbackNone, tv_get_lnum, tv_get_number, typval_T, varnumber_T,
+    EvalFuncData, kCallbackNone, tv_get_lnum, tv_get_number, TypVal, Varnumber,
 };
 use crate::eval::vars::{eval_diff, eval_patch};
 use crate::ex_cmds::{append_redir, ex_file};
 use crate::ex_docmd::{
-    ADDR_LINES, CMOD_LOCKMARKS, do_cmdline_cmd, do_exedit, exarg_T, get_address,
+    ADDR_LINES, CMOD_LOCKMARKS, do_cmdline_cmd, do_exedit, Exarg, get_address,
 };
-use crate::ex_getln::hlf_T;
+use crate::ex_getln::Hlf;
 use crate::extmark::{TriState, extmark_adjust};
 use crate::fileio::{FILE, buf_check_timestamp, fclose, fwrite, vim_fgets, vim_tempname};
 #[cfg(unix)]
@@ -58,7 +58,7 @@ use crate::strings::{
 use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
 use crate::window::{
-    WSP_VERT, frames_locked, scroll_to_fraction, set_fraction, tabpage_T, win_T, win_split,
+    WSP_VERT, frames_locked, scroll_to_fraction, set_fraction, TabPageInfo, WinInfoInfo, win_split,
     win_valid, window_layout_lock, window_layout_unlock,
 };
 use crate::xdiff::xdiffi::xdl_diff;
@@ -109,77 +109,77 @@ pub(crate) const kShellOptFilter: c_int = 1;
 pub(crate) const kShellOptDoOut: c_int = 4;
 pub(crate) const kShellOptSilent: c_int = 8;
 pub(crate) const kOptBoFlagOperator: c_uint = 0x4000;
-pub(crate) const HLF_ADD: hlf_T = 30;
-pub(crate) const HLF_CHD: hlf_T = 31;
-pub(crate) const HLF_TXD: hlf_T = 33;
-pub(crate) const HLF_TXA: hlf_T = 34;
+pub(crate) const HLF_ADD: Hlf = 30;
+pub(crate) const HLF_CHD: Hlf = 31;
+pub(crate) const HLF_TXD: Hlf = 33;
+pub(crate) const HLF_TXA: Hlf = 34;
 const KEYSET_OPTIDX_dip__inline_: u64 = 5;
 const KEYSET_OPTIDX_dip__context: u64 = 7;
 const KEYSET_OPTIDX_dip__linematch: u64 = 11;
 const KEYSET_OPTIDX_dip__algorithm: u64 = 13;
 const KEYSET_OPTIDX_dip__foldcolumn: u64 = 16;
 #[repr(C)]
-pub struct diff_T {
+pub struct DiffBlock {
     pub df_id: u64,
-    pub df_lnum: [linenr_T; DB_COUNT],
-    pub df_count: [linenr_T; DB_COUNT],
+    pub df_lnum: [Linenr; DB_COUNT],
+    pub df_count: [Linenr; DB_COUNT],
     pub is_linematched: bool,
     pub has_changes: bool,
-    pub df_changes: Vec<diffline_change_T>,
+    pub df_changes: Vec<DifflineChange>,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct diffline_change_T {
-    pub dc_start: [colnr_T; DB_COUNT],
-    pub dc_end: [colnr_T; DB_COUNT],
+pub struct DifflineChange {
+    pub dc_start: [Colnr; DB_COUNT],
+    pub dc_end: [Colnr; DB_COUNT],
     pub dc_start_lnum_off: [c_int; DB_COUNT],
     pub dc_end_lnum_off: [c_int; DB_COUNT],
 }
 #[repr(C)]
 #[derive(Clone, Default)]
-pub struct diffline_T {
-    pub changes: Vec<diffline_change_T>,
+pub struct Diffline {
+    pub changes: Vec<DifflineChange>,
     pub is_simple: bool,
     pub bufidx: c_int,
     pub lineoff: c_int,
 }
 #[repr(C)]
-struct diffin_T {
+struct Diffin {
     din_fname: Option<CString>,
     din_mmfile: mmfile_t,
     din_buf: Vec<c_char>,
 }
 #[repr(C)]
-pub(crate) struct diffout_T {
+pub(crate) struct Diffout {
     dout_fname: Option<CString>,
-    dout_ga: Vec<diffhunk_T>,
+    dout_ga: Vec<Diffhunk>,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct diffhunk_T {
-    lnum_orig: linenr_T,
+struct Diffhunk {
+    lnum_orig: Linenr,
     count_orig: c_int,
-    lnum_new: linenr_T,
+    lnum_new: Linenr,
     count_new: c_int,
 }
 #[repr(C)]
-struct diffio_T {
-    dio_orig: diffin_T,
-    dio_new: diffin_T,
-    dio_diff: diffout_T,
+struct Diffio {
+    dio_orig: Diffin,
+    dio_new: Diffin,
+    dio_diff: Diffout,
     dio_internal: c_int,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum diffstyle_T {
+enum Diffstyle {
     DIFF_ED,
     DIFF_UNIFIED,
     DIFF_NONE,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct linemap_entry_T {
-    byte_start: colnr_T,
-    num_bytes: colnr_T,
+struct LinemapEntry {
+    byte_start: Colnr,
+    num_bytes: Colnr,
     lineoff: c_int,
 }
 use crate::arglist::ML_EMPTY;
@@ -203,16 +203,16 @@ struct DiffState {
     diff_a_works: TriState,
     next_diff_id: u64,
     diff_finger_dp_idx: Option<usize>,
-    diff_finger_tp: *mut tabpage_T,
+    diff_finger_tp: *mut TabPageInfo,
     diff_finger_idx: c_int,
-    diff_finger_lnum: linenr_T,
-    f_diff_hlid_prev_lnum: linenr_T,
-    f_diff_hlid_changedtick: varnumber_T,
+    diff_finger_lnum: Linenr,
+    f_diff_hlid_prev_lnum: Linenr,
+    f_diff_hlid_changedtick: Varnumber,
     f_diff_hlid_fnum: c_int,
     f_diff_hlid_prev_diff_flags: c_int,
     f_diff_hlid_change_start: c_int,
     f_diff_hlid_change_end: c_int,
-    f_diff_hlid_hlID: hlf_T,
+    f_diff_hlid_hlID: Hlf,
 }
 
 impl DiffState {
@@ -254,7 +254,7 @@ fn diff_st() -> &'static mut DiffState {
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
     (v.is_set__dip_ & (1u64 << idx)) != 0
 }
-fn diff_scan_start(tp: &mut tabpage_T, idx: c_int, lnum: linenr_T) -> usize {
+fn diff_scan_start(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr) -> usize {
     if let Some(dp_idx) = diff_st().diff_finger_dp_idx
             && diff_st().diff_finger_tp == tp
             && diff_st().diff_finger_idx == idx
@@ -266,9 +266,9 @@ fn diff_scan_start(tp: &mut tabpage_T, idx: c_int, lnum: linenr_T) -> usize {
         0
 }
 fn diff_scan_remember(
-    tp: &mut tabpage_T,
+    tp: &mut TabPageInfo,
     idx: c_int,
-    lnum: linenr_T,
+    lnum: Linenr,
     dp_idx: Option<usize>,
 ) {
     diff_st().diff_finger_tp = tp;
@@ -276,7 +276,7 @@ fn diff_scan_remember(
         diff_st().diff_finger_lnum = lnum;
         diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
 }
-pub fn diff_buf_delete(buf: *mut buf_T) {
+pub fn diff_buf_delete(buf: *mut FileBuf) {
     unsafe {
         for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
@@ -291,7 +291,7 @@ pub fn diff_buf_delete(buf: *mut buf_T) {
         }
     }
 }
-pub fn diff_buf_adjust(win: &mut win_T) {
+pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
      {
         if win.w_onebuf_opt.wo_diff == 0 {
             let mut found_win = false;
@@ -313,7 +313,7 @@ pub fn diff_buf_adjust(win: &mut win_T) {
         }
     }
 }
-pub fn diff_buf_add(buf: *mut buf_T) {
+pub fn diff_buf_add(buf: *mut FileBuf) {
      {
         if diff_buf_idx(buf, curtab_mut()) != DB_COUNT as c_int {
             return;
@@ -343,7 +343,7 @@ fn diff_buf_clear() {
         }
     }
 }
-fn diff_buf_idx(buf: *mut buf_T, tp: &mut tabpage_T) -> c_int {
+fn diff_buf_idx(buf: *mut FileBuf, tp: &mut TabPageInfo) -> c_int {
     let mut idx: usize = 0;
         while idx < DB_COUNT {
             if tp.tp_diffbuf[idx] == buf {
@@ -353,7 +353,7 @@ fn diff_buf_idx(buf: *mut buf_T, tp: &mut tabpage_T) -> c_int {
         }
         idx as c_int
 }
-pub fn diff_invalidate(buf: *mut buf_T) {
+pub fn diff_invalidate(buf: *mut FileBuf) {
     unsafe {
         for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
@@ -367,11 +367,11 @@ pub fn diff_invalidate(buf: *mut buf_T) {
     }
 }
 pub fn diff_mark_adjust(
-    buf: &mut buf_T,
-    line1: linenr_T,
-    line2: linenr_T,
-    amount: linenr_T,
-    amount_after: linenr_T,
+    buf: &mut FileBuf,
+    line1: Linenr,
+    line2: Linenr,
+    amount: Linenr,
+    amount_after: Linenr,
 ) {
      {
         for tp in for_all_tabpages_mut() {
@@ -383,20 +383,20 @@ pub fn diff_mark_adjust(
     }
 }
 fn diff_mark_adjust_tp(
-    tp: &mut tabpage_T,
+    tp: &mut TabPageInfo,
     idx: usize,
-    line1: linenr_T,
-    line2: linenr_T,
-    amount: linenr_T,
-    amount_after: linenr_T,
+    line1: Linenr,
+    line2: Linenr,
+    amount: Linenr,
+    amount_after: Linenr,
 ) {
     diff_st().diff_finger_dp_idx = None;
         if diff_internal() != 0 {
             tp.tp_diff_invalid = 1;
             tp.tp_diff_update = 1;
         }
-        let inserted: linenr_T;
-        let mut deleted: linenr_T;
+        let inserted: Linenr;
+        let mut deleted: Linenr;
         if line2 == MAXLNUM {
             inserted = amount;
             deleted = 0;
@@ -459,7 +459,7 @@ fn diff_mark_adjust_tp(
                     dp_idx += 1;
                     continue;
                 }
-                if (&tp.tp_diffs)[dp_idx].df_lnum[idx] - linenr_T::from(deleted + inserted != 0)
+                if (&tp.tp_diffs)[dp_idx].df_lnum[idx] - Linenr::from(deleted + inserted != 0)
                     > line2
                 {
                     if amount_after == 0 {
@@ -469,8 +469,8 @@ fn diff_mark_adjust_tp(
                 } else {
                     let mut check_unchanged = false;
                     if deleted > 0 {
-                        let mut n: linenr_T;
-                        let mut off: linenr_T = 0;
+                        let mut n: Linenr;
+                        let mut off: Linenr = 0;
                         let next_lnum = tp
                             .tp_diffs
                             .as_slice()
@@ -572,13 +572,13 @@ fn diff_mark_adjust_tp(
             g_st().diff_need_scrollbind = true;
         }
 }
-fn diff_alloc_new(tp: &mut tabpage_T, idx: usize) -> usize {
+fn diff_alloc_new(tp: &mut TabPageInfo, idx: usize) -> usize {
     let df_id = diff_st().next_diff_id;
         diff_st().next_diff_id += 1;
         diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.insert(
             idx,
-            diff_T {
+            DiffBlock {
                 df_id,
                 df_lnum: [0; DB_COUNT],
                 df_count: [0; DB_COUNT],
@@ -589,11 +589,11 @@ fn diff_alloc_new(tp: &mut tabpage_T, idx: usize) -> usize {
         );
         idx
 }
-fn diff_free(tp: &mut tabpage_T, idx: usize) {
+fn diff_free(tp: &mut TabPageInfo, idx: usize) {
     diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.remove(idx);
 }
-fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
+fn diff_check_unchanged(tp: &mut TabPageInfo, dp_idx: usize) {
      {
         let mut i_org = 0;
         while i_org < DB_COUNT {
@@ -608,8 +608,8 @@ fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
         if !diff_check_sanity(tp, &(&tp.tp_diffs)[dp_idx]) {
             return;
         }
-        let mut off_org: linenr_T = 0;
-        let mut off_new: linenr_T = 0;
+        let mut off_org: Linenr = 0;
+        let mut off_new: Linenr = 0;
         let mut dir = FORWARD;
         loop {
             while (&tp.tp_diffs)[dp_idx].df_count[i_org] > 0 {
@@ -663,7 +663,7 @@ fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
         }
     }
 }
-fn diff_check_sanity(tp: &tabpage_T, dp: &diff_T) -> bool {
+fn diff_check_sanity(tp: &TabPageInfo, dp: &DiffBlock) -> bool {
     unsafe {
         for i in 0..DB_COUNT {
             let buf = tp.tp_diffbuf[i];
@@ -678,7 +678,7 @@ fn diff_check_sanity(tp: &tabpage_T, dp: &diff_T) -> bool {
 }
 pub fn diff_redraw(dofold: bool) {
     unsafe {
-        let mut wp_other: *mut win_T = ptr::null_mut();
+        let mut wp_other: *mut WinInfoInfo = ptr::null_mut();
         let mut used_max_fill_other = false;
         let mut used_max_fill_curwin = false;
         g_st().need_diff_redraw = false;
@@ -717,7 +717,7 @@ pub fn diff_redraw(dofold: bool) {
         }
     }
 }
-fn clear_diffin(din: &mut diffin_T) {
+fn clear_diffin(din: &mut Diffin) {
     if let Some(ref fname) = din.din_fname {
             let _ = os_remove(fname.as_ptr());
         } else {
@@ -726,7 +726,7 @@ fn clear_diffin(din: &mut diffin_T) {
             din.din_mmfile.size = 0;
         }
 }
-fn clear_diffout(dout: &mut diffout_T) {
+fn clear_diffout(dout: &mut Diffout) {
     if let Some(ref fname) = dout.dout_fname {
             let _ = os_remove(fname.as_ptr());
         } else {
@@ -734,11 +734,11 @@ fn clear_diffout(dout: &mut diffout_T) {
         }
 }
 fn diff_write_buffer(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     m: &mut mmfile_t,
     backing: &mut Vec<c_char>,
-    start: linenr_T,
-    mut end: linenr_T,
+    start: Linenr,
+    mut end: Linenr,
 ) -> bool {
     unsafe {
         if end < 0 {
@@ -802,10 +802,10 @@ fn diff_write_buffer(
     }
 }
 fn diff_write(
-    buf: &mut buf_T,
-    din: &mut diffin_T,
-    start: linenr_T,
-    mut end: linenr_T,
+    buf: &mut FileBuf,
+    din: &mut Diffin,
+    start: Linenr,
+    mut end: Linenr,
 ) -> bool {
     let Some(ref din_fname) = din.din_fname else {
             return diff_write_buffer(buf, &mut din.din_mmfile, &mut din.din_buf, start, end);
@@ -843,7 +843,7 @@ fn diff_write(
         buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
         r == OK
 }
-fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
+fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
     unsafe {
         let take_tempname = || vim_tempname();
         'theend: {
@@ -872,7 +872,7 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                 }
             }
             let mut num_anchors: usize = usize::MAX;
-            let mut anchors: [[linenr_T; MAX_DIFF_ANCHORS]; DB_COUNT] =
+            let mut anchors: [[Linenr; MAX_DIFF_ANCHORS]; DB_COUNT] =
                 [[0; MAX_DIFF_ANCHORS]; DB_COUNT];
             if (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
                 for idx in 0..DB_COUNT {
@@ -906,7 +906,7 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                 num_anchors = 0;
             }
             for anchor_i in 0..=num_anchors {
-                let mut orig_diff: Vec<diff_T> = Vec::new();
+                let mut orig_diff: Vec<DiffBlock> = Vec::new();
                 if anchor_i != 0 {
                     orig_diff = std::mem::take(&mut curtab_mut().tp_diffs);
                 }
@@ -976,7 +976,7 @@ pub fn diff_internal() -> c_int {
             (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) == kCallbackNone,
         )
 }
-pub fn ex_diffupdate(eap: &mut exarg_T) {
+pub fn ex_diffupdate(eap: &mut Exarg) {
      {
         if diff_st().diff_busy {
             diff_st().diff_need_update = true;
@@ -1006,8 +1006,8 @@ pub fn ex_diffupdate(eap: &mut exarg_T) {
             if idx_new == DB_COUNT {
                 break 'theend;
             }
-            let mut diffio = diffio_T {
-                dio_orig: diffin_T {
+            let mut diffio = Diffio {
+                dio_orig: Diffin {
                     din_fname: None,
                     din_mmfile: mmfile_t {
                         ptr: ptr::null_mut(),
@@ -1015,7 +1015,7 @@ pub fn ex_diffupdate(eap: &mut exarg_T) {
                     },
                     din_buf: Vec::new(),
                 },
-                dio_new: diffin_T {
+                dio_new: Diffin {
                     din_fname: None,
                     din_mmfile: mmfile_t {
                         ptr: ptr::null_mut(),
@@ -1023,7 +1023,7 @@ pub fn ex_diffupdate(eap: &mut exarg_T) {
                     },
                     din_buf: Vec::new(),
                 },
-                dio_diff: diffout_T {
+                dio_diff: Diffout {
                     dout_fname: None,
                     dout_ga: Vec::new(),
                 },
@@ -1046,7 +1046,7 @@ pub fn ex_diffupdate(eap: &mut exarg_T) {
         }
     }
 }
-fn check_external_diff(diffio: &mut diffio_T) -> bool {
+fn check_external_diff(diffio: &mut Diffio) -> bool {
     unsafe {
         let mut io_error = false;
         let mut ok: TriState;
@@ -1119,7 +1119,7 @@ fn check_external_diff(diffio: &mut diffio_T) -> bool {
         true
     }
 }
-fn diff_file_internal(diffio: &mut diffio_T) -> bool {
+fn diff_file_internal(diffio: &mut Diffio) -> bool {
     let mut param = xpparam_t {
             flags: diff_st().diff_algorithm as c_ulong,
         };
@@ -1164,7 +1164,7 @@ fn diff_file_internal(diffio: &mut diffio_T) -> bool {
         }
         true
 }
-fn diff_file(dio: &mut diffio_T) -> bool {
+fn diff_file(dio: &mut Diffio) -> bool {
     unsafe {
         let tmp_orig = dio
             .dio_orig
@@ -1243,7 +1243,7 @@ fn diff_file(dio: &mut diffio_T) -> bool {
         true
     }
 }
-pub fn ex_diffpatch(eap: &mut exarg_T) {
+pub fn ex_diffpatch(eap: &mut Exarg) {
     unsafe {
         let mut buf_vec: Vec<c_char>;
         let old_curwin = curwin_ptr();
@@ -1399,10 +1399,10 @@ pub fn ex_diffpatch(eap: &mut exarg_T) {
         }
     }
 }
-pub fn ex_diffsplit(eap: &mut exarg_T) {
+pub fn ex_diffsplit(eap: &mut Exarg) {
     unsafe {
         let old_curwin = curwin_ptr();
-        let mut old_curbuf = bufref_T {
+        let mut old_curbuf = Bufref {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
@@ -1441,12 +1441,12 @@ pub fn ex_diffsplit(eap: &mut exarg_T) {
         scroll_to_fraction(curwin_mut(), curwin_mut().w_height);
     }
 }
-pub fn ex_diffthis(_eap: &mut exarg_T) {
+pub fn ex_diffthis(_eap: &mut Exarg) {
      {
         diff_win_options(curwin_mut(), true);
     }
 }
-fn set_diff_option(wp: *mut win_T, value: bool) {
+fn set_diff_option(wp: *mut WinInfoInfo, value: bool) {
      {
         let old_curwin = curwin_ptr();
         set_curwin(wp);
@@ -1458,7 +1458,7 @@ fn set_diff_option(wp: *mut win_T, value: bool) {
         g_st().curbuf = curwin_mut().w_buffer;
     }
 }
-pub fn diff_win_options(wp: &mut win_T, addbuf: bool) {
+pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
      {
         let old_curwin = curwin_ptr();
         set_curwin(&raw mut *wp);
@@ -1519,7 +1519,7 @@ pub fn diff_win_options(wp: &mut win_T, addbuf: bool) {
         redraw_later(Some(&mut *wp), UPD_NOT_VALID);
     }
 }
-pub fn ex_diffoff(eap: &mut exarg_T) {
+pub fn ex_diffoff(eap: &mut Exarg) {
     unsafe {
         let mut diffwin = false;
         for wp in for_all_windows_ptr() {
@@ -1591,8 +1591,8 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
     }
 }
 fn extract_hunk_internal(
-    dout: &mut diffout_T,
-    hunk: &mut diffhunk_T,
+    dout: &mut Diffout,
+    hunk: &mut Diffhunk,
     line_idx: &mut c_int,
 ) -> bool {
      {
@@ -1604,16 +1604,16 @@ fn extract_hunk_internal(
         eof
     }
 }
-fn extract_hunk(fd: *mut FILE, hunk: &mut diffhunk_T, diffstyle: &mut diffstyle_T) -> bool {
+fn extract_hunk(fd: *mut FILE, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> bool {
     {
         loop {
             let mut line: [c_char; LBUFLEN] = [0; LBUFLEN];
             if vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd) {
                 return true;
             }
-            if *diffstyle == diffstyle_T::DIFF_NONE {
+            if *diffstyle == Diffstyle::DIFF_NONE {
                 if ascii_isdigit(line[0]) {
-                    *diffstyle = diffstyle_T::DIFF_ED;
+                    *diffstyle = Diffstyle::DIFF_ED;
                 } else if (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3])
                     || ((crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4) == &b"--- "[..4])
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
@@ -1621,12 +1621,12 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut diffhunk_T, diffstyle: &mut diffstyle_
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
                         && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]))
                 {
-                    *diffstyle = diffstyle_T::DIFF_UNIFIED;
+                    *diffstyle = Diffstyle::DIFF_UNIFIED;
                 } else {
                     continue;
                 }
             }
-            if *diffstyle == diffstyle_T::DIFF_ED {
+            if *diffstyle == Diffstyle::DIFF_ED {
                 if !ascii_isdigit(line[0]) {
                     continue;
                 }
@@ -1634,7 +1634,7 @@ fn extract_hunk(fd: *mut FILE, hunk: &mut diffhunk_T, diffstyle: &mut diffstyle_
                     continue;
                 }
             } else {
-                debug_assert!(*diffstyle == diffstyle_T::DIFF_UNIFIED);
+                debug_assert!(*diffstyle == Diffstyle::DIFF_UNIFIED);
                 if !(crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]) {
                     continue;
                 }
@@ -1650,7 +1650,7 @@ fn process_hunk(
     dp_idx_p: &mut usize,
     idx_orig: usize,
     idx_new: usize,
-    hunk: &diffhunk_T,
+    hunk: &Diffhunk,
     notsetp: &mut bool,
 ) {
      {
@@ -1743,14 +1743,14 @@ fn process_hunk(
         *dp_idx_p = dp_idx;
     }
 }
-fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
+fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
     unsafe {
         let mut fd: *mut FILE = ptr::null_mut();
         let mut line_hunk_idx: c_int = 0;
         let mut dp_idx: usize = 0;
         let dout = &mut dio.dio_diff;
         let mut notset = true;
-        let mut diffstyle = diffstyle_T::DIFF_NONE;
+        let mut diffstyle = Diffstyle::DIFF_NONE;
         if dio.dio_internal == 0 {
             fd = os_fopen(dout.dout_fname.as_ref().unwrap().as_ptr(), c"r");
             if fd.is_null() {
@@ -1759,7 +1759,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut diffio_T) {
             }
         }
         loop {
-            let mut hunk = diffhunk_T {
+            let mut hunk = Diffhunk {
                 lnum_orig: 0,
                 count_orig: 0,
                 lnum_new: 0,
@@ -1807,11 +1807,11 @@ fn diff_copy_entry(dp_idx: usize, idx_orig: usize, idx_new: usize) {
         dp.df_count[idx_new] = dp.df_count[idx_orig];
     }
 }
-pub fn diff_clear(tp: &mut tabpage_T) {
+pub fn diff_clear(tp: &mut TabPageInfo) {
     diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.clear();
 }
-pub fn diff_linematch(dp: &diff_T) -> bool {
+pub fn diff_linematch(dp: &DiffBlock) -> bool {
      {
         if (diff_st().diff_flags & DIFF_LINEMATCH) == 0 {
             return false;
@@ -1828,7 +1828,7 @@ pub fn diff_linematch(dp: &diff_T) -> bool {
         tsize <= diff_st().linematch_lines
     }
 }
-fn get_max_diff_length(dp: &diff_T) -> c_int {
+fn get_max_diff_length(dp: &DiffBlock) -> c_int {
      {
         let mut maxlength: c_int = 0;
         for k in 0..DB_COUNT {
@@ -1883,7 +1883,7 @@ fn calculate_topfill_and_topline(
     from_topline: c_int,
     from_topfill: c_int,
     topfill: &mut c_int,
-    topline: &mut linenr_T,
+    topline: &mut Linenr,
 ) {
      {
         let mut thistopdiff: Option<usize> = None;
@@ -1957,7 +1957,7 @@ fn calculate_topfill_and_topline(
 }
 fn apply_linematch_results(dp_idx: usize, decisions: &[c_int]) {
      {
-        let mut line_numbers: [linenr_T; DB_COUNT] = [0; DB_COUNT];
+        let mut line_numbers: [Linenr; DB_COUNT] = [0; DB_COUNT];
         let mut outputmap: [usize; DB_COUNT] = [0; DB_COUNT];
         let mut ndiffs: usize = 0;
         for (i, line_num) in line_numbers.iter_mut().enumerate().take(DB_COUNT) {
@@ -2027,8 +2027,8 @@ fn run_linematch_algorithm(dp_idx: usize) {
     }
 }
 pub fn diff_check_with_linestatus(
-    wp: &mut win_T,
-    lnum: linenr_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
     mut linestatus: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
@@ -2037,7 +2037,7 @@ pub fn diff_check_with_linestatus(
             *linestatus = 0;
         }
         if curtab_mut().tp_diff_invalid != 0 {
-            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
+            ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
         }
         if curtab_mut().tp_diffs.is_empty() || wp.w_onebuf_opt.wo_diff == 0 {
             return 0;
@@ -2146,7 +2146,7 @@ pub fn diff_check_with_linestatus(
         num_fill
     }
 }
-pub fn diff_check_fill(wp: &mut win_T, lnum: linenr_T) -> c_int {
+pub fn diff_check_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
      {
         if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
@@ -2155,7 +2155,7 @@ pub fn diff_check_fill(wp: &mut win_T, lnum: linenr_T) -> c_int {
         n.max(0)
     }
 }
-fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
+fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
      {
         if dp.df_count[idx1] != dp.df_count[idx2] {
             return false;
@@ -2242,7 +2242,7 @@ fn diff_cmp(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::Into
         0
     }
 }
-pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
+pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
     unsafe {
         let frombuf = fromwin.w_buffer;
         let fromidx = diff_buf_idx(frombuf, curtab_mut());
@@ -2251,7 +2251,7 @@ pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
         }
         let u_fromidx = fromidx as usize;
         if curtab_mut().tp_diff_invalid != 0 {
-            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
+            ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
         }
         let lnum = fromwin.w_topline;
         towin.w_topfill = 0;
@@ -2302,8 +2302,8 @@ pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
 }
 fn parse_diffanchors(
     check_only: bool,
-    buf: *mut buf_T,
-    anchors: *mut linenr_T,
+    buf: *mut FileBuf,
+    anchors: *mut Linenr,
     num_anchors: Option<&mut c_int>,
 ) -> bool {
     unsafe {
@@ -2314,7 +2314,7 @@ fn parse_diffanchors(
         };
         let orig_curbuf = g_st().curbuf;
         let orig_curwin = curwin_ptr();
-        let bufwin: *mut win_T = if check_only {
+        let bufwin: *mut WinInfoInfo = if check_only {
             curwin_ptr()
         } else {
             let mut bw = g_st().firstwin;
@@ -2499,7 +2499,7 @@ pub fn diffopt_closeoff() -> bool {
 pub fn diffopt_filler() -> bool {
     (diff_st().diff_flags & DIFF_FILLER) != 0
 }
-pub fn diff_update_line(lnum: linenr_T) {
+pub fn diff_update_line(lnum: Linenr) {
      {
         if (diff_st().diff_flags & ALL_INLINE_DIFF) == 0 {
             return;
@@ -2520,8 +2520,8 @@ pub fn diff_update_line(lnum: linenr_T) {
     }
 }
 pub fn diff_change_parse(
-    diffline: &diffline_T,
-    change: &diffline_change_T,
+    diffline: &Diffline,
+    change: &DifflineChange,
     change_start: &mut c_int,
     change_end: &mut c_int,
 ) -> bool {
@@ -2552,9 +2552,9 @@ pub fn diff_change_parse(
         true
 }
 fn diff_find_change_simple(
-    wp: &mut win_T,
-    lnum: linenr_T,
-    dp: &diff_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
+    dp: &DiffBlock,
     idx: usize,
     startp: &mut c_int,
     endp: &mut c_int,
@@ -2651,7 +2651,7 @@ fn diff_find_change_simple(
     }
 }
 fn diff_refine_inline_char_highlight(
-    linemap: &[Vec<linemap_entry_T>; DB_COUNT],
+    linemap: &[Vec<LinemapEntry>; DB_COUNT],
     idx1: usize,
 ) {
      {
@@ -2683,7 +2683,7 @@ fn diff_refine_inline_char_highlight(
                     - ((&curtab_mut().tp_diffs)[di].df_lnum[idx1]
                         + (&curtab_mut().tp_diffs)[di].df_count[idx1]);
                 if gap <= 3 {
-                    let mut max_df_count: linenr_T = 0;
+                    let mut max_df_count: Linenr = 0;
                     for i in 0..DB_COUNT {
                         max_df_count = max_df_count.max(
                             (&curtab_mut().tp_diffs)[di].df_count[i]
@@ -2718,9 +2718,9 @@ fn diff_refine_inline_char_highlight(
     }
 }
 fn diff_refine_inline_word_highlight(
-    linemap: &[Vec<linemap_entry_T>; DB_COUNT],
+    linemap: &[Vec<LinemapEntry>; DB_COUNT],
     idx1: usize,
-    start_lnum: linenr_T,
+    start_lnum: Linenr,
 ) {
     unsafe {
         let mut pass: c_int = 1;
@@ -2816,8 +2816,8 @@ fn diff_refine_inline_word_highlight(
 fn diff_find_change_inline_diff(dp_idx: usize) {
     unsafe {
         let save_diff_algorithm = diff_st().diff_algorithm;
-        let mut dio = diffio_T {
-            dio_orig: diffin_T {
+        let mut dio = Diffio {
+            dio_orig: Diffin {
                 din_fname: None,
                 din_mmfile: mmfile_t {
                     ptr: ptr::null_mut(),
@@ -2825,7 +2825,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 },
                 din_buf: Vec::new(),
             },
-            dio_new: diffin_T {
+            dio_new: Diffin {
                 din_fname: None,
                 din_mmfile: mmfile_t {
                     ptr: ptr::null_mut(),
@@ -2833,7 +2833,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 },
                 din_buf: Vec::new(),
             },
-            dio_diff: diffout_T {
+            dio_diff: Diffout {
                 dout_fname: None,
                 dout_ga: Vec::new(),
             },
@@ -2844,10 +2844,10 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         let dp_count = (&curtab_mut().tp_diffs)[dp_idx].df_count;
         let orig_diff = std::mem::take(&mut curtab_mut().tp_diffs);
         let orig_diffbuf = curtab_mut().tp_diffbuf;
-        let mut linemap: [Vec<linemap_entry_T>; DB_COUNT] = std::array::from_fn(|_| Vec::new());
+        let mut linemap: [Vec<LinemapEntry>; DB_COUNT] = std::array::from_fn(|_| Vec::new());
         let mut file1_str: Vec<u8> = Vec::new();
         let mut file2_str: Vec<u8> = Vec::new();
-        let mut changes: Vec<diffline_change_T> = Vec::new();
+        let mut changes: Vec<DifflineChange> = Vec::new();
         'done: {
             let mut file1_idx: isize = -1;
             for (i, lm) in linemap.iter_mut().enumerate().take(DB_COUNT) {
@@ -2868,7 +2868,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 } else {
                     &mut file1_str
                 };
-                let mut numlines: linenr_T = 0;
+                let mut numlines: Linenr = 0;
                 curstr.clear();
                 for off in 0..dp_count[i] {
                     let curline = ml_get_buf(&mut *curtab_mut().tp_diffbuf[i], dp_lnum[i] + off);
@@ -2876,7 +2876,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     let mut last_white = false;
                     let mut eol_ga_len: c_int = -1;
                     let mut eol_linemap_len: c_int = -1;
-                    let mut eol_numlines: linenr_T = -1;
+                    let mut eol_numlines: Linenr = -1;
                     let mut s = curline;
                     while !crate::memory::cstr_is_empty(s) {
                         let mut new_in_keyword = false;
@@ -2949,8 +2949,8 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             numlines += 1;
                         }
                         if !new_in_keyword || (new_in_keyword && !in_keyword) {
-                            lm.push(linemap_entry_T {
-                                byte_start: s.offset_from(curline) as colnr_T,
+                            lm.push(LinemapEntry {
+                                byte_start: s.offset_from(curline) as Colnr,
                                 num_bytes: char_len,
                                 lineoff: off,
                             });
@@ -2974,9 +2974,9 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     if (diff_st().diff_flags & DIFF_IWHITEALL) == 0 {
                         curstr.push(NL as u8);
                         let _ = numlines;
-                        lm.push(linemap_entry_T {
-                            byte_start: s.offset_from(curline) as colnr_T,
-                            num_bytes: size_of::<c_int>() as colnr_T,
+                        lm.push(LinemapEntry {
+                            byte_start: s.offset_from(curline) as Colnr,
+                            num_bytes: size_of::<c_int>() as Colnr,
                             lineoff: off,
                         });
                     }
@@ -3012,7 +3012,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 diff_refine_inline_char_highlight(&linemap, file1_idx as usize);
             }
             for new_diff in &curtab_mut().tp_diffs {
-                let mut change = diffline_change_T {
+                let mut change = DifflineChange {
                     dc_start: [0; DB_COUNT],
                     dc_end: [0; DB_COUNT],
                     dc_start_lnum_off: [0; DB_COUNT],
@@ -3057,7 +3057,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         clear_diffout(&mut dio.dio_diff);
     }
 }
-pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: &mut diffline_T) -> bool {
+pub fn diff_find_change(wp: &mut WinInfoInfo, lnum: Linenr, diffline: &mut Diffline) -> bool {
      {
         let idx = diff_buf_idx(wp.w_buffer, curtab_mut());
         if idx == DB_COUNT as c_int {
@@ -3087,7 +3087,7 @@ pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: &mut diffline_
                 &mut change_end,
             );
             change_end += 1;
-            let mut simple_change = diffline_change_T {
+            let mut simple_change = DifflineChange {
                 dc_start: [0; DB_COUNT],
                 dc_end: [0; DB_COUNT],
                 dc_start_lnum_off: [0; DB_COUNT],
@@ -3147,7 +3147,7 @@ pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: &mut diffline_
         added
     }
 }
-pub fn diff_infold(wp: &mut win_T, lnum: linenr_T) -> bool {
+pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
      {
         if wp.w_onebuf_opt.wo_diff == 0 {
             return false;
@@ -3166,7 +3166,7 @@ pub fn diff_infold(wp: &mut win_T, lnum: linenr_T) -> bool {
         }
         let u_idx = idx as usize;
         if curtab_mut().tp_diff_invalid != 0 {
-            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
+            ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
         }
         if curtab_mut().tp_diffs.is_empty() {
             return true;
@@ -3198,7 +3198,7 @@ pub fn nv_diffgetput(put: bool, count: usize) {
             vim_beep(kOptBoFlagOperator);
             return;
         }
-        let mut ea = exarg_T::new();
+        let mut ea = Exarg::new();
         let mut buf: [c_char; 30] = [0; 30];
         if count == 0 {
             ea.arg = c"".as_ptr().cast_mut();
@@ -3219,7 +3219,7 @@ fn valid_diff(df_id: Option<u64>) -> Option<usize> {
         curtab_mut().tp_diffs.iter().position(|dp| dp.df_id == id)
     }
 }
-pub fn ex_diffgetput(eap: &mut exarg_T) {
+pub fn ex_diffgetput(eap: &mut Exarg) {
     unsafe {
         let idx_other: usize;
         let idx_cur_i = diff_buf_idx(g_st().curbuf, curtab_mut());
@@ -3363,7 +3363,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         }
         diff_st().diff_busy = false;
         if diff_st().diff_need_update {
-            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
+            ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
         }
         check_cursor(curwin_mut());
         changed_line_abv_curs();
@@ -3398,11 +3398,11 @@ fn diffgetput(
     idx_cur: usize,
     idx_from: usize,
     idx_to: usize,
-    line1: linenr_T,
-    line2: linenr_T,
+    line1: Linenr,
+    line2: Linenr,
 ) {
     unsafe {
-        let mut off: linenr_T = 0;
+        let mut off: Linenr = 0;
         let mut dp_idx: usize = 0;
         while dp_idx < curtab_mut().tp_diffs.len() {
             if addr_count == 0 {
@@ -3423,14 +3423,14 @@ fn diffgetput(
             let mut did_free = false;
             let mut lnum = (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_to];
             let mut count = (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_to];
-            let undo_bot = lnum + count + linenr_T::from(count == 0 && buf_is_empty(curbuf_mut()));
+            let undo_bot = lnum + count + Linenr::from(count == 0 && buf_is_empty(curbuf_mut()));
             if (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_cur]
                 + (&curtab_mut().tp_diffs)[dp_idx].df_count[idx_cur]
                 > line1 + off
                 && u_save(lnum - 1, undo_bot)
             {
-                let mut start_skip: linenr_T = 0;
-                let mut end_skip: linenr_T = 0;
+                let mut start_skip: Linenr = 0;
+                let mut end_skip: Linenr = 0;
                 if addr_count > 0 {
                     start_skip = line1 + off - (&curtab_mut().tp_diffs)[dp_idx].df_lnum[idx_cur];
                     if start_skip > 0 {
@@ -3555,8 +3555,8 @@ fn diffgetput(
     }
 }
 fn diff_fold_update(
-    df_lnum: &[linenr_T; DB_COUNT],
-    df_count: &[linenr_T; DB_COUNT],
+    df_lnum: &[Linenr; DB_COUNT],
+    df_count: &[Linenr; DB_COUNT],
     skip_idx: usize,
 ) {
     unsafe {
@@ -3569,7 +3569,7 @@ fn diff_fold_update(
         }
     }
 }
-pub fn diff_mode_buf(buf: *mut buf_T) -> bool {
+pub fn diff_mode_buf(buf: *mut FileBuf) -> bool {
      {
         for tp in for_all_tabpages_mut() {
             if diff_buf_idx(buf, tp) != DB_COUNT as c_int {
@@ -3588,7 +3588,7 @@ pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
         }
         let u_idx = idx as usize;
         if curtab_mut().tp_diff_invalid != 0 {
-            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
+            ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
         }
         if curtab_mut().tp_diffs.is_empty() {
             return false;
@@ -3621,16 +3621,16 @@ pub fn diff_move_to(dir: c_int, mut count: c_int) -> bool {
         true
     }
 }
-fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {
+fn diff_get_corresponding_line_int(buf1: *mut FileBuf, lnum1: Linenr) -> Linenr {
      {
-        let mut baseline: linenr_T = 0;
+        let mut baseline: Linenr = 0;
         let idx1 = diff_buf_idx(buf1, curtab_mut());
         let idx2 = diff_buf_idx(g_st().curbuf, curtab_mut());
         if idx1 == DB_COUNT as c_int || idx2 == DB_COUNT as c_int || curtab_mut().tp_diffs.is_empty() {
             return lnum1;
         }
         if curtab_mut().tp_diff_invalid != 0 {
-            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
+            ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
         }
         if curtab_mut().tp_diffs.is_empty() {
             return lnum1;
@@ -3659,13 +3659,13 @@ fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_
         lnum1 - baseline
     }
 }
-pub fn diff_get_corresponding_line(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {
+pub fn diff_get_corresponding_line(buf1: *mut FileBuf, lnum1: Linenr) -> Linenr {
      {
         let lnum = diff_get_corresponding_line_int(buf1, lnum1);
         lnum.min(curbuf_mut().b_ml.ml_line_count)
     }
 }
-pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
+pub fn diff_lnum_win(lnum: Linenr, wp: &mut WinInfoInfo) -> Linenr {
      {
         let idx = diff_buf_idx(g_st().curbuf, curtab_mut());
         if idx == DB_COUNT as c_int {
@@ -3673,7 +3673,7 @@ pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
         }
         let u_idx = idx as usize;
         if curtab_mut().tp_diff_invalid != 0 {
-            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
+            ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
         }
         let Some(dp) = curtab_mut()
             .tp_diffs
@@ -3691,7 +3691,7 @@ pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
         n.min(dp.df_lnum[u_i] + dp.df_count[u_i])
     }
 }
-fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
+fn parse_diff_ed(line: *mut c_char, hunk: &mut Diffhunk) -> bool {
     unsafe {
         let mut p = line;
         let f1 = getdigits_int32(&raw mut p, true, 0);
@@ -3733,7 +3733,7 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
         true
     }
 }
-fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
+fn parse_diff_unified(line: *mut c_char, hunk: &mut Diffhunk) -> bool {
     unsafe {
         let mut p = line;
         if crate::memory::cstr_first_byte(p) == b'@'
@@ -3783,9 +3783,9 @@ pub(crate) fn xdiff_out(
     count_a: c_int,
     start_b: c_int,
     count_b: c_int,
-    dout: &mut diffout_T,
+    dout: &mut Diffout,
 ) -> c_int {
-    dout.dout_ga.push(diffhunk_T {
+    dout.dout_ga.push(Diffhunk {
             lnum_orig: start_a + 1,
             count_orig: count_a,
             lnum_new: start_b + 1,
@@ -3793,16 +3793,16 @@ pub(crate) fn xdiff_out(
         });
         0
 }
-pub fn f_diff_filler(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_diff_filler(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin_mut(), tv_get_lnum(&argvars[0])).max(0) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_check_fill(curwin_mut(), tv_get_lnum(&argvars[0])).max(0) as Varnumber);
     }
 }
-pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_diff_hlID(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        let mut diffline = diffline_T::default();
+        let mut diffline = Diffline::default();
         let cache_results = (diff_st().diff_flags & ALL_INLINE_DIFF) == 0;
         let mut lnum = tv_get_lnum(&argvars[0]);
         if lnum < 0 {
@@ -3871,7 +3871,7 @@ pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 }
             }
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hlID as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hlID as Varnumber);
     }
 }
 #[cfg(test)]
@@ -3879,7 +3879,7 @@ mod tests {
     use super::*;
     #[test]
     fn parse_diff_ed_and_unified_work() {
-        let mut hunk = diffhunk_T {
+        let mut hunk = Diffhunk {
                 lnum_orig: 0,
                 count_orig: 0,
                 lnum_new: 0,

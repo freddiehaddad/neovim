@@ -7,11 +7,11 @@ use crate::api::private::validate::NvimString;
 use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE, apply_autocmds, has_event};
 use crate::charset::{NUL, getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
 use crate::context::{CdCause, kCdCauseWindow};
-use crate::cursor::{get_cursor_line_ptr, linenr_T};
+use crate::cursor::{get_cursor_line_ptr, Linenr};
 use crate::errors::*;
 use crate::eval::typval::{
     kCallbackNone, tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly,
-    tv_get_string, typval_T,
+    tv_get_string, TypVal,
 };
 use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
@@ -35,7 +35,7 @@ use crate::path::{
 };
 #[cfg(windows)]
 use crate::path::{path_to_slash, vim_FullName};
-use crate::state::save_v_event_T;
+use crate::state::SaveVEvent;
 use crate::strings::{tr, vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
@@ -77,7 +77,7 @@ use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
 use crate::ex_session::kCdCauseOther;
 
 #[repr(C)]
-pub struct ff_stack_T {
+pub struct FfStack {
     pub ffs_fix_path: NvimString,
     pub ffs_wc_path: NvimString,
     pub ffs_filearray: Vec<std::ffi::CString>,
@@ -87,7 +87,7 @@ pub struct ff_stack_T {
     pub ffs_star_star_empty: c_int,
 }
 
-impl Drop for ff_stack_T {
+impl Drop for FfStack {
     fn drop(&mut self) {
         api_clear_string(&mut self.ffs_fix_path);
             api_clear_string(&mut self.ffs_wc_path);
@@ -95,7 +95,7 @@ impl Drop for ff_stack_T {
 }
 
 #[repr(C)]
-pub struct ff_visited_T {
+pub struct FfVisited {
     pub ffv_wc_path: Option<std::ffi::CString>,
     pub file_id_valid: bool,
     pub file_id: FileID,
@@ -103,18 +103,18 @@ pub struct ff_visited_T {
 }
 
 #[repr(C)]
-pub struct ff_visited_list_hdr_T {
+pub struct FfVisitedListHdr {
     pub ffvl_filename: std::ffi::CString,
-    pub ffvl_visited_list: Vec<ff_visited_T>,
+    pub ffvl_visited_list: Vec<FfVisited>,
 }
 
 #[repr(C)]
-pub struct ff_search_ctx_T {
-    pub ffsc_stack: Vec<ff_stack_T>,
+pub struct FfSearchCtx {
+    pub ffsc_stack: Vec<FfStack>,
     pub ffsc_visited_list: Option<usize>,
     pub ffsc_dir_visited_list: Option<usize>,
-    pub ffsc_visited_lists_list: Vec<ff_visited_list_hdr_T>,
-    pub ffsc_dir_visited_lists_list: Vec<ff_visited_list_hdr_T>,
+    pub ffsc_visited_lists_list: Vec<FfVisitedListHdr>,
+    pub ffsc_dir_visited_lists_list: Vec<FfVisitedListHdr>,
     pub ffsc_file_to_search: NvimString,
     pub ffsc_start_dir: NvimString,
     pub ffsc_fix_path: NvimString,
@@ -125,7 +125,7 @@ pub struct ff_search_ctx_T {
     pub ffsc_tagfile: c_int,
 }
 
-impl ff_search_ctx_T {
+impl FfSearchCtx {
     pub const fn new() -> Self {
         Self {
             ffsc_stack: Vec::new(),
@@ -145,13 +145,13 @@ impl ff_search_ctx_T {
     }
 }
 
-impl Default for ff_search_ctx_T {
+impl Default for FfSearchCtx {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for ff_search_ctx_T {
+impl Drop for FfSearchCtx {
     fn drop(&mut self) {
         ff_clear(self);
     }
@@ -166,10 +166,10 @@ pub fn vim_findfile_init(
     level: c_int,
     free_visited: c_int,
     find_what: c_int,
-    search_ctx_arg: Option<ff_search_ctx_T>,
+    search_ctx_arg: Option<FfSearchCtx>,
     tagfile: c_int,
     rel_fname: impl crate::strings::IntoCCharPtr,
-) -> Option<ff_search_ctx_T> { let mut path = path.into_c_char_ptr(); let filename = filename.into_c_char_ptr(); let stopdirs = stopdirs.into_c_char_ptr(); let rel_fname = rel_fname.into_c_char_ptr();
+) -> Option<FfSearchCtx> { let mut path = path.into_c_char_ptr(); let filename = filename.into_c_char_ptr(); let stopdirs = stopdirs.into_c_char_ptr(); let rel_fname = rel_fname.into_c_char_ptr();
     unsafe {
         let mut search_ctx = search_ctx_arg.unwrap_or_default();
         search_ctx.ffsc_find_what = find_what;
@@ -506,7 +506,7 @@ pub fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
 }
 
 /// Find a file in a search context.
-pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi::CString> {
+pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CString> {
     unsafe {
         let search_ctx = search_ctx?;
 
@@ -903,7 +903,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
 }
 
 /// Free the list of lists of visited files and directories.
-fn vim_findfile_free_visited(search_ctx: Option<&mut ff_search_ctx_T>) {
+fn vim_findfile_free_visited(search_ctx: Option<&mut FfSearchCtx>) {
     let Some(search_ctx) = search_ctx else {
         return;
     };
@@ -915,7 +915,7 @@ fn vim_findfile_free_visited(search_ctx: Option<&mut ff_search_ctx_T>) {
 fn ff_get_visited_list(
     filename: impl crate::strings::IntoCCharPtr,
     filenamelen: usize,
-    list_headp: &mut Vec<ff_visited_list_hdr_T>,
+    list_headp: &mut Vec<FfVisitedListHdr>,
 ) -> usize { let filename = filename.into_c_char_ptr();
      {
         if let Some(pos) = list_headp.iter().position(|item| {
@@ -930,7 +930,7 @@ fn ff_get_visited_list(
 
         let bytes = crate::memory::cstr_slice(filename, filenamelen);
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-        list_headp.push(ff_visited_list_hdr_T {
+        list_headp.push(FfVisitedListHdr {
             ffvl_filename: std::ffi::CString::new(&bytes[..end]).unwrap(),
             ffvl_visited_list: Vec::new(),
         });
@@ -977,7 +977,7 @@ fn ff_wc_equal(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings::I
 
 /// Maintain the list of already visited files and dirs.
 fn ff_check_visited(
-    visited_list: &mut Vec<ff_visited_T>,
+    visited_list: &mut Vec<FfVisited>,
     fname: impl crate::strings::IntoCCharPtr,
     fnamelen: usize,
     wc_path: impl crate::strings::IntoCCharPtr,
@@ -1034,7 +1034,7 @@ fn ff_check_visited(
             std::ffi::CString::new(&bytes[..end]).unwrap()
         });
 
-        visited_list.push(ff_visited_T {
+        visited_list.push(FfVisited {
             ffv_wc_path,
             file_id_valid: !url,
             file_id,
@@ -1052,7 +1052,7 @@ fn ff_create_stack_element(
     mut wc_partlen: usize,
     level: c_int,
     star_star_empty: c_int,
-) -> ff_stack_T { let mut fix_part = fix_part.into_c_char_ptr(); let mut wc_part = wc_part.into_c_char_ptr();
+) -> FfStack { let mut fix_part = fix_part.into_c_char_ptr(); let mut wc_part = wc_part.into_c_char_ptr();
     if fix_part.is_null() {
             fix_part = EMPTY_C.as_ptr();
             fix_partlen = 0;
@@ -1065,7 +1065,7 @@ fn ff_create_stack_element(
         }
         let ffs_wc_path = cbuf_to_string(wc_part, wc_partlen);
 
-        ff_stack_T {
+        FfStack {
             ffs_fix_path,
             ffs_wc_path,
             ffs_filearray: Vec::new(),
@@ -1076,15 +1076,15 @@ fn ff_create_stack_element(
         }
 }
 
-fn ff_push(search_ctx: &mut ff_search_ctx_T, stack_elem: ff_stack_T) {
+fn ff_push(search_ctx: &mut FfSearchCtx, stack_elem: FfStack) {
     search_ctx.ffsc_stack.push(stack_elem);
 }
 
-fn ff_pop(search_ctx: &mut ff_search_ctx_T) -> Option<ff_stack_T> {
+fn ff_pop(search_ctx: &mut FfSearchCtx) -> Option<FfStack> {
     search_ctx.ffsc_stack.pop()
 }
 
-fn ff_clear(search_ctx: &mut ff_search_ctx_T) {
+fn ff_clear(search_ctx: &mut FfSearchCtx) {
     search_ctx.ffsc_stack.clear();
         search_ctx.ffsc_stopdirs_v.clear();
 
@@ -1130,7 +1130,7 @@ pub fn find_file_in_path(
     first: c_int,
     rel_fname: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
-    search_ctx: &mut Option<ff_search_ctx_T>,
+    search_ctx: &mut Option<FfSearchCtx>,
 ) -> Option<std::ffi::CString> { let rel_fname = rel_fname.into_c_char_ptr();
      {
         find_file_in_path_option(
@@ -1161,7 +1161,7 @@ pub fn find_directory_in_path(
     options: c_int,
     rel_fname: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
-    search_ctx: &mut Option<ff_search_ctx_T>,
+    search_ctx: &mut Option<FfSearchCtx>,
 ) -> Option<std::ffi::CString> { let rel_fname = rel_fname.into_c_char_ptr();
     find_file_in_path_option(
             ptr,
@@ -1187,7 +1187,7 @@ pub fn find_file_in_path_option(
     rel_fname: impl crate::strings::IntoCCharPtr,
     suffixes: impl crate::strings::IntoCCharPtr,
     file_to_find: &mut Option<std::ffi::CString>,
-    search_ctx: &mut Option<ff_search_ctx_T>,
+    search_ctx: &mut Option<FfSearchCtx>,
 ) -> Option<std::ffi::CString> { let mut rel_fname = rel_fname.into_c_char_ptr();
     let suffixes = suffixes.into_c_char_ptr().cast_mut();
     unsafe {
@@ -1383,7 +1383,7 @@ pub fn find_file_in_path_option(
 }
 
 /// Get the file name at the cursor.
-pub fn grab_file_name(count: c_int, file_lnum: &mut linenr_T) -> Option<std::ffi::CString> {
+pub fn grab_file_name(count: c_int, file_lnum: &mut Linenr) -> Option<std::ffi::CString> {
     unsafe {
         let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
         let fname = if g_st().Visual.active {
@@ -1419,7 +1419,7 @@ pub fn grab_file_name(count: c_int, file_lnum: &mut linenr_T) -> Option<std::ffi
 /// Return the file name under or after the cursor.
 pub fn file_name_at_cursor(
     options: c_int,
-    count: c_int,file_lnum: Option<&mut linenr_T>,
+    count: c_int,file_lnum: Option<&mut Linenr>,
 ) -> Option<std::ffi::CString> {
      {
         file_name_in_line(
@@ -1439,7 +1439,7 @@ pub fn file_name_in_line(
     col: c_int,
     options: c_int,
     count: c_int,
-    rel_fname: impl crate::strings::IntoCCharPtr,file_lnum: Option<&mut linenr_T>,
+    rel_fname: impl crate::strings::IntoCCharPtr,file_lnum: Option<&mut Linenr>,
 ) -> Option<std::ffi::CString> { let rel_fname = rel_fname.into_c_char_ptr();
     unsafe {
         let mut ptr = line.add(col as usize);
@@ -1521,7 +1521,7 @@ pub fn file_name_in_line(
                 }
                 p = skipwhite(p);
                 if (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                    *file_lnum = getdigits_long(&raw mut p, false, 0) as linenr_T;
+                    *file_lnum = getdigits_long(&raw mut p, false, 0) as Linenr;
                 }
             }
         }
@@ -1537,7 +1537,7 @@ fn eval_includeexpr(ptr: impl crate::strings::IntoCCharPtr, len: usize) -> Optio
         g_st().current_sctx = curbuf_mut().b_p_script_ctx[kBufOptIncludeexpr];
 
         let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), kOptIncludeexpr, OPT_LOCAL) != 0;
-        let mut tv: typval_T = typval_T::new();
+        let mut tv: TypVal = TypVal::new();
         let mut res = None;
         if eval_expr_option_tv(&mut curbuf_mut().b_p_inex, use_sandbox, &mut tv) {
             let s = tv_get_string(&tv);
@@ -1591,7 +1591,7 @@ pub fn find_file_name_in_path(
         let mut file_name: Option<std::ffi::CString>;
         if (options & FNAME_EXP) != 0 {
             let mut file_to_find: Option<std::ffi::CString> = None;
-            let mut search_ctx: Option<ff_search_ctx_T> = None;
+            let mut search_ctx: Option<FfSearchCtx> = None;
 
             file_name = find_file_in_path(
                 ptr,
@@ -1676,7 +1676,7 @@ pub fn do_autocmd_dirchanged(
 
         RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let mut save_v_event: save_v_event_T = save_v_event_T::new();
+        let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
         let mut buf: [c_char; 8] = [0; 8];
 
@@ -1755,7 +1755,7 @@ pub fn vim_chdirfile(fname: impl crate::strings::IntoCCharPtr, cause: CdCause) -
 pub fn vim_chdir(new_dir: *mut c_char) -> c_int {
      {
         let mut file_to_find: Option<std::ffi::CString> = None;
-        let mut search_ctx: Option<ff_search_ctx_T> = None;
+        let mut search_ctx: Option<FfSearchCtx> = None;
         let Some(dir_name) = find_directory_in_path(
             new_dir,
             crate::memory::cstr_len(new_dir),

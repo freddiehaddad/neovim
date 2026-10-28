@@ -9,7 +9,7 @@ use std::ptr;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TimeWatcherData {
     None,
-    EvalTimer(*mut crate::eval::timer_T),
+    EvalTimer(*mut crate::eval::VimTimer),
     WaitDummy,
     TerminalRefresh,
 }

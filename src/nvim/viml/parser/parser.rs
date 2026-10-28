@@ -1,6 +1,6 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
-use crate::mbyte::{string_convert, vimconv_T};
+use crate::mbyte::{string_convert, Vimconv};
 use std::ffi::{c_char, c_int};
 
 pub const CONV_NONE: c_int = 0;
@@ -29,7 +29,7 @@ pub struct ParserInputReader<'a> {
     pub cursor: &'a [ParserLine],
     pub lines: Vec<ParserLine>,
     pub owned_lines: Vec<Vec<u8>>,
-    pub conv: vimconv_T,
+    pub conv: Vimconv,
 }
 
 impl<'a> ParserInputReader<'a> {
@@ -38,7 +38,7 @@ impl<'a> ParserInputReader<'a> {
             cursor,
             lines: Vec::new(),
             owned_lines: Vec::new(),
-            conv: vimconv_T {
+            conv: Vimconv {
                 vc_type: CONV_NONE,
                 vc_factor: 1,
                 vc_fd: None,

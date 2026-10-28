@@ -7,11 +7,11 @@ use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    EvalFuncData, VarType, list_T, tv_check_for_opt_bool_arg, tv_get_bool, tv_get_string_buf_chk,
+    EvalFuncData, VarType, TvList, tv_check_for_opt_bool_arg, tv_get_bool, tv_get_string_buf_chk,
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
-    tv_list_append_string, tv_list_first, tv_list_len, typval_T,
+    tv_list_append_string, tv_list_first, tv_list_len, TypVal,
 };
-use crate::ex_docmd::{do_cmdline_cmd, exarg_T};
+use crate::ex_docmd::{do_cmdline_cmd, Exarg};
 use crate::ex_getln::putcmdline;
 use crate::globals::*;
 use crate::input::plain_vgetc;
@@ -24,11 +24,11 @@ use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::runtime::source_runtime;
 use crate::strings::{gettext, vim_snprintf};
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
-pub type result_T = c_int;
+pub type DigrResult = c_int;
 use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
 use crate::change::MB_MAXCHAR;
@@ -38,13 +38,13 @@ use crate::state::MODE_LANGMAP;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct digr_T {
+pub struct DigraphEntry {
     pub char1: u8,
     pub char2: u8,
-    pub result: result_T,
+    pub result: DigrResult,
 }
 
-pub struct kmap_T {
+pub struct Kmap {
     pub from: std::ffi::CString,
     pub to: std::ffi::CString,
 }
@@ -59,32 +59,32 @@ const KEYMAP_LOADED: i16 = 2;
 const KMAP_MAXLEN: usize = 20;
 const KMAP_LLEN: usize = 200;
 
-const DG_START_LATIN: result_T = 0xa1;
-const DG_START_GREEK: result_T = 0x0386;
-const DG_START_CYRILLIC: result_T = 0x0401;
-const DG_START_HEBREW: result_T = 0x05d0;
-const DG_START_ARABIC: result_T = 0x060c;
-const DG_START_LATIN_EXTENDED: result_T = 0x1e02;
-const DG_START_GREEK_EXTENDED: result_T = 0x1f00;
-const DG_START_PUNCTUATION: result_T = 0x2002;
-const DG_START_SUB_SUPER: result_T = 0x2070;
-const DG_START_CURRENCY: result_T = 0x20a4;
-const DG_START_OTHER1: result_T = 0x2103;
-const DG_START_ROMAN: result_T = 0x2160;
-const DG_START_ARROWS: result_T = 0x2190;
-const DG_START_MATH: result_T = 0x2200;
-const DG_START_TECHNICAL: result_T = 0x2302;
-const DG_START_OTHER2: result_T = 0x2423;
-const DG_START_DRAWING: result_T = 0x2500;
-const DG_START_BLOCK: result_T = 0x2580;
-const DG_START_SHAPES: result_T = 0x25a0;
-const DG_START_SYMBOLS: result_T = 0x2605;
-const DG_START_DINGBATS: result_T = 0x2713;
-const DG_START_CJK_SYMBOLS: result_T = 0x3000;
-const DG_START_HIRAGANA: result_T = 0x3041;
-const DG_START_KATAKANA: result_T = 0x30a1;
-const DG_START_BOPOMOFO: result_T = 0x3105;
-const DG_START_OTHER3: result_T = 0x3220;
+const DG_START_LATIN: DigrResult = 0xa1;
+const DG_START_GREEK: DigrResult = 0x0386;
+const DG_START_CYRILLIC: DigrResult = 0x0401;
+const DG_START_HEBREW: DigrResult = 0x05d0;
+const DG_START_ARABIC: DigrResult = 0x060c;
+const DG_START_LATIN_EXTENDED: DigrResult = 0x1e02;
+const DG_START_GREEK_EXTENDED: DigrResult = 0x1f00;
+const DG_START_PUNCTUATION: DigrResult = 0x2002;
+const DG_START_SUB_SUPER: DigrResult = 0x2070;
+const DG_START_CURRENCY: DigrResult = 0x20a4;
+const DG_START_OTHER1: DigrResult = 0x2103;
+const DG_START_ROMAN: DigrResult = 0x2160;
+const DG_START_ARROWS: DigrResult = 0x2190;
+const DG_START_MATH: DigrResult = 0x2200;
+const DG_START_TECHNICAL: DigrResult = 0x2302;
+const DG_START_OTHER2: DigrResult = 0x2423;
+const DG_START_DRAWING: DigrResult = 0x2500;
+const DG_START_BLOCK: DigrResult = 0x2580;
+const DG_START_SHAPES: DigrResult = 0x25a0;
+const DG_START_SYMBOLS: DigrResult = 0x2605;
+const DG_START_DINGBATS: DigrResult = 0x2713;
+const DG_START_CJK_SYMBOLS: DigrResult = 0x3000;
+const DG_START_HIRAGANA: DigrResult = 0x3041;
+const DG_START_KATAKANA: DigrResult = 0x30a1;
+const DG_START_BOPOMOFO: DigrResult = 0x3105;
+const DG_START_OTHER3: DigrResult = 0x3220;
 
 const E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR: &CStr =
     c"E1214: Digraph must be just two characters: %s";
@@ -94,7 +94,7 @@ const E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS: &CStr =
     c"E1216: digraph_setlist() argument must be a list of lists with two items";
 
 struct DigraphModuleState {
-    USER_DIGRAPHS: Vec<digr_T>,
+    USER_DIGRAPHS: Vec<DigraphEntry>,
     BACKSPACED: c_int,
     LASTCHAR: c_int,
     DIGRAPH_FOR_CHAR_BUF: [c_char; 3],
@@ -118,15 +118,15 @@ fn digr_st() -> &'static mut DigraphModuleState {
     unsafe { &mut *DIGR_STATE.as_ptr() }
 }
 
-const fn dg(c1: u8, c2: u8, res: result_T) -> digr_T {
-    digr_T {
+const fn dg(c1: u8, c2: u8, res: DigrResult) -> DigraphEntry {
+    DigraphEntry {
         char1: c1,
         char2: c2,
         result: res,
     }
 }
 
-static DIGRAPHDEFAULT: &[digr_T] = &[
+static DIGRAPHDEFAULT: &[DigraphEntry] = &[
     dg(b'N', b'U', 0x0a),
     dg(b'S', b'H', 0x01),
     dg(b'S', b'X', 0x02),
@@ -1496,7 +1496,7 @@ static DIGRAPHDEFAULT: &[digr_T] = &[
 ];
 
 struct DgHeaderEntry {
-    dg_start: result_T,
+    dg_start: DigrResult,
     dg_header: Option<&'static CStr>,
 }
 
@@ -1725,7 +1725,7 @@ fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
             }
         }
 
-        user_vec.push(digr_T {
+        user_vec.push(DigraphEntry {
             char1: char1 as u8,
             char2: char2 as u8,
             result: n,
@@ -1792,7 +1792,7 @@ fn digraph_header(msg: impl crate::strings::IntoCCharPtr) { let msg = msg.into_c
 
 pub fn listdigraphs(use_headers: bool) {
      {
-        let mut previous: result_T = 0;
+        let mut previous: DigrResult = 0;
 
         msg_ext_set_kind(c"list_cmd");
         msg_putchar(b'\n' as c_int);
@@ -1801,7 +1801,7 @@ pub fn listdigraphs(use_headers: bool) {
             if g_st().got_int {
                 break;
             }
-            let tmp = digr_T {
+            let tmp = DigraphEntry {
                 char1: dp.char1,
                 char2: dp.char2,
                 result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
@@ -1834,7 +1834,7 @@ pub fn listdigraphs(use_headers: bool) {
     }
 }
 
-fn digraph_getlist_appendpair(dp: &digr_T, l: &mut list_T) {
+fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
     unsafe {
         let l2 = tv_list_alloc(2);
         tv_list_append_list( &mut *l, l2);
@@ -1851,7 +1851,7 @@ fn digraph_getlist_appendpair(dp: &digr_T, l: &mut list_T) {
     }
 }
 
-pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
+pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
     unsafe {
         let user_slice = digr_st().USER_DIGRAPHS.as_slice();
         let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
@@ -1862,7 +1862,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
                 if g_st().got_int {
                     break;
                 }
-                let tmp = digr_T {
+                let tmp = DigraphEntry {
                     char1: dp.char1,
                     char2: dp.char2,
                     result: getexactdigraph(c_int::from(dp.char1), c_int::from(dp.char2), false),
@@ -1882,7 +1882,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
     }
 }
 
-fn printdigraph(dp: &digr_T, previous: *mut result_T) {
+fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
     unsafe {
         let mut buf = [0 as c_char; 30];
         let list_width: c_int = 13;
@@ -1941,7 +1941,7 @@ fn printdigraph(dp: &digr_T, previous: *mut result_T) {
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
-fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> bool {
+fn get_digraph_chars(arg: &TypVal, char1: &mut c_int, char2: &mut c_int) -> bool {
      {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
@@ -1967,7 +1967,7 @@ fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> bo
     }
 }
 
-fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
+fn digraph_set_common(argchars: &TypVal,argdigraph: &TypVal) -> bool {
      {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
@@ -1996,7 +1996,7 @@ fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
 }
 
 /// `digraph_get()` function (`f_digraph_get`).
-pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         rettv.v_type = VarType::VAR_STRING;
@@ -2023,7 +2023,7 @@ pub fn f_digraph_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 }
 
 /// `digraph_getlist()` function (`f_digraph_getlist`).
-pub fn f_digraph_getlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         if !tv_check_for_opt_bool_arg(argvars, 0) {
@@ -2041,7 +2041,7 @@ pub fn f_digraph_getlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 }
 
 /// `digraph_set()` function (`f_digraph_set`).
-pub fn f_digraph_set(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_digraph_set(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VAR_BOOL;
     rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
 
@@ -2053,7 +2053,7 @@ pub fn f_digraph_set(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 }
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
-pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.v_type = VarType::VAR_BOOL;
@@ -2135,7 +2135,7 @@ pub fn keymap_init() -> *mut c_char {
 }
 
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
-pub fn ex_loadkeymap(eap: &mut exarg_T) {
+pub fn ex_loadkeymap(eap: &mut Exarg) {
     unsafe {
         let mut buf = [0 as c_char; KMAP_LLEN + 11];
         let save_cpo = opt_vars().p_cpo;
@@ -2180,7 +2180,7 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
                     std::ffi::CString::new(from_slice),
                     std::ffi::CString::new(to_slice),
                 ) {
-                    curbuf_mut().b_kmap_ga.push(kmap_T { from, to });
+                    curbuf_mut().b_kmap_ga.push(Kmap { from, to });
                 }
             }
         }
@@ -2235,7 +2235,7 @@ fn keymap_unload() {
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
 pub fn get_keymap_str(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     fmt: &std::ffi::CStr,
     buf: *mut c_char,
     len: c_int,

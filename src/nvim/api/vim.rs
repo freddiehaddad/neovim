@@ -25,8 +25,8 @@ use crate::autocmd::{
     may_trigger_vim_suspend_resume, unblock_autocmds,
 };
 use crate::buffer::{
-    BCO_ENTER, BCO_NOHELP, BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO, buf_T,
-    buf_close_terminal, buf_get_changedtick, buflist_new, buflist_nr2name, bufref_T, bufref_valid,
+    BCO_ENTER, BCO_NOHELP, BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO, FileBuf,
+    buf_close_terminal, buf_get_changedtick, buflist_new, buflist_nr2name, Bufref, bufref_valid,
     do_buffer, read_buffer_into, set_bufref,
 };
 use crate::channel::{
@@ -38,7 +38,7 @@ use crate::context::{
     CONTEXT_INIT, CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict,
     kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxRegs, kCtxSFuncs,
 };
-use crate::cursor::{get_cursor_rel_lnum, linenr_T};
+use crate::cursor::{get_cursor_rel_lnum, Linenr};
 use crate::decoration::{NS, decor_redraw_signs};
 use crate::drawline::use_cursor_line_highlight;
 use crate::drawscreen::{
@@ -51,11 +51,11 @@ use crate::eval::vars::{
 };
 use crate::ex_docmd::{do_chdir, exec_normal};
 use crate::ex_eval::aborting;
-use crate::ex_getln::hlf_T;
+use crate::ex_getln::Hlf;
 use crate::fold::fold_info;
 use crate::globals::*;
 use crate::grid::{
-    ScreenGrid, get_win_by_grid_handle, schar_T, schar_cache_clear, schar_get, win_grid_alloc,
+    ScreenGrid, get_win_by_grid_handle, Schar, schar_cache_clear, schar_get, win_grid_alloc,
 };
 use crate::highlight::HlAttrs;
 use crate::highlight::{
@@ -89,7 +89,7 @@ use crate::message::{
 };
 use crate::r#move::{changed_window_setting, update_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::channel::{ChannelStreamType, find_channel, rpc_set_client_info};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::normal::reset_VIsual_and_resel;
 use crate::option::{
@@ -110,7 +110,7 @@ use crate::runtime::{
 use crate::search::{BACKWARD, FORWARD};
 use crate::state::{MODE_MAX_LENGTH, get_mode};
 use crate::statusline::{
-    build_stl_str_hl, draw_tabline, fillchar_status, foldinfo_T, statuscol_T, stl_hlrec_t,
+    build_stl_str_hl, draw_tabline, fillchar_status, Foldinfo, Statuscol, stl_hlrec_t,
     win_redr_status, win_redr_winbar,
 };
 use crate::terminal::{
@@ -119,7 +119,7 @@ use crate::terminal::{
 };
 use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
 use crate::window::{
-    global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_T, win_find_tabpage,
+    global_stl_height, goto_tabpage_tp, goto_tabpage_win, WinInfoInfo, win_find_tabpage,
 };
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
@@ -1559,7 +1559,7 @@ pub fn nvim_create_buf(
 
             unblock_autocmds();
 
-            let mut bufref = bufref_T::new();
+            let mut bufref = Bufref::new();
             set_bufref(&mut bufref, buf);
             if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
                 && !bufref_valid(Some(&bufref))
@@ -2659,7 +2659,7 @@ pub fn nvim__inspect_cell(
         if grid == Integer::from(g_st().pum_grid.handle) {
             g = &raw mut g_st().pum_grid;
         } else if grid > 1 {
-            let wp = get_win_by_grid_handle(grid as handle_T);
+            let wp = get_win_by_grid_handle(grid as ObjHandle);
             if !validate_int(
                 !wp.is_null() && !(*wp).w_grid_alloc.chars.is_empty(),
                 c"grid handle",
@@ -2869,7 +2869,7 @@ pub fn nvim_eval_statusline(
 ) -> Dict {
     unsafe {
         let mut result = Dict::new();
-        let mut fillchar: schar_T = 0;
+        let mut fillchar: Schar = 0;
         let mut statuscol_lnum: c_int = 0;
 
         if str_.size < 2 || *str_.data != (b'%' as c_char) || *str_.data.add(1) != (b'!' as c_char)
@@ -2942,14 +2942,14 @@ pub fn nvim_eval_statusline(
 
         let mut stc_hl_id: c_int = 0;
         let mut scl_hl_id: c_int = 0;
-        let mut statuscol = statuscol_T::new();
+        let mut statuscol = Statuscol::new();
 
         if statuscol_lnum != 0 {
             let mut line_id: c_int = 0;
             let mut cul_id: c_int = 0;
             let mut num_id: c_int = 0;
-            let lnum = statuscol_lnum as linenr_T;
-            let mut cursorline_fi = foldinfo_T::new();
+            let lnum = statuscol_lnum as Linenr;
+            let mut cursorline_fi = Foldinfo::new();
             decor_redraw_signs(
                 wp,
                 (*wp).w_buffer,
@@ -2988,7 +2988,7 @@ pub fn nvim_eval_statusline(
             if opts.use_winbar {
                 fillchar = (*wp).w_p_fcs_chars.wbr;
             } else {
-                let mut group: hlf_T = 0;
+                let mut group: Hlf = 0;
                 fillchar = fillchar_status(&mut group,  &mut *wp);
             }
         }
@@ -3164,7 +3164,7 @@ pub fn nvim__complete_set(
     }
 }
 
-fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw) {
+fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
      {
         if opts.statuscolumn && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
             wp.w_nrwidth_line_count = 0;
@@ -3219,8 +3219,8 @@ fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw) {
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     unsafe {
-        let mut win: *mut win_T = ptr::null_mut();
-        let mut buf: *mut buf_T = ptr::null_mut();
+        let mut win: *mut WinInfoInfo = ptr::null_mut();
+        let mut buf: *mut FileBuf = ptr::null_mut();
 
         if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__win)) != 0 {
             win = find_window_by_handle(opts.win, err);

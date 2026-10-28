@@ -10,13 +10,13 @@ use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::change::inserted_bytes;
-use crate::cursor::{check_cursor, colnr_T};
+use crate::cursor::{check_cursor, Colnr};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
 use crate::errors::*;
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
-use crate::eval::typval::{TypvalVval, VarType, tv_clear, typval_T};
+use crate::eval::typval::{TypvalVval, VarType, tv_clear, TypVal};
 use crate::eval::userfunc::{
-    EvalFuncDef, FCERR_NONE, FCERR_OTHER, call_func, funcexe_T, register_luafunc,
+    EvalFuncDef, FCERR_NONE, FCERR_OTHER, call_func, Funcexe, register_luafunc,
 };
 use crate::event::r#loop::{
     loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_t,
@@ -25,7 +25,7 @@ use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{cmdmod_T, do_cmdline, exarg_T, get_command_name};
+use crate::ex_docmd::{Cmdmod, do_cmdline, Exarg, get_command_name};
 use crate::ex_getln::{
     cmdpreview_get_bufnr, cmdpreview_get_ns, get_user_input, script_get,
     ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave,
@@ -62,23 +62,23 @@ use crate::message::{
     emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
 };
 use crate::msgpack_rpc::channel::{rpc_send_call, rpc_send_event};
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
 #[cfg(windows)]
 use crate::os::env::os_getenv_cstr;
-use crate::os::env::{expand_T, home_replace_save};
+use crate::os::env::{ExpandCtx, home_replace_save};
 use crate::os::fileio::{FileDescriptor, file_close, file_open_stdin, file_read};
 use crate::path::fix_fname;
-use crate::profile::{proftime_T, scriptitem_T, time_msg, time_pop, time_push};
+use crate::profile::{Proftime, Scriptitem, time_msg, time_pop, time_push};
 use crate::runtime::{
     cmd_source_buffer, find_script_by_name, new_script_item, runtime_get_named_thread,
-    runtime_search_path_validate, script_is_lua, sctx_T,
+    runtime_search_path_validate, script_is_lua, Sctx,
 };
 use crate::strings::{gettext, vim_snprintf};
 use crate::ui::kUIGlobalCount;
 use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
-use crate::usercmd::{uc_mods, uc_split_args_iter, ucmd_T};
+use crate::usercmd::{uc_mods, uc_split_args_iter, Ucmd};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::mem::size_of;
@@ -386,7 +386,7 @@ fn put_event(mq: *mut MultiQueue, ev: Event) {
 
 fn push_all_typvals(
     lstate: *mut lua_State,
-    args: *mut typval_T,
+    args: *mut TypVal,
     argcount: c_int,
     special: bool,
 ) {
@@ -403,7 +403,7 @@ fn push_all_typvals(
     }
 }
 
-fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &cmdmod_T) {
+fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &Cmdmod) {
     unsafe {
         lua_newtable(lstate);
 
@@ -508,10 +508,10 @@ fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &cmdmod_T) {
     }
 }
 
-fn nlua_push_eap(lstate: *mut lua_State, eap: &exarg_T, cmod: &cmdmod_T) {
+fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     unsafe {
         if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < CMD_SIZE {
-            lua_pushstring(lstate, get_command_name(&mut crate::os::env::expand_T::new(), eap.cmdidx));
+            lua_pushstring(lstate, get_command_name(&mut crate::os::env::ExpandCtx::new(), eap.cmdidx));
             lua_setfield(lstate, -2, c"name");
         }
 
@@ -1522,8 +1522,8 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
             return 1;
         }
 
-        let mut rel_time: proftime_T = 0;
-        let mut start_time: proftime_T = 0;
+        let mut rel_time: Proftime = 0;
+        let mut start_time: Proftime = 0;
         time_push(&mut rel_time, &mut start_time);
         let status = lua_pcall(lstate, 1, 1, 0);
         if status == 0 {
@@ -1543,13 +1543,13 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
     unsafe {
-        let input_args: [typval_T; 2] = [
-            typval_T {
+        let input_args: [TypVal; 2] = [
+            TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::String(c"lua_debug> ".as_ptr().cast_mut()),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
@@ -1557,7 +1557,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
         ];
         loop {
             lua_settop(lstate, 0);
-            let mut input: typval_T = typval_T::new();
+            let mut input: TypVal = TypVal::new();
             get_user_input(&input_args, &mut input, false, false);
 
             if ui_has(kUICmdline) {
@@ -1664,8 +1664,8 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             return 1;
         }
 
-        let mut vim_args: [typval_T; (MAX_FUNC_ARGS + 1) as usize] =
-            [typval_T::new(); (MAX_FUNC_ARGS + 1) as usize];
+        let mut vim_args: [TypVal; (MAX_FUNC_ARGS + 1) as usize] =
+            [TypVal::new(); (MAX_FUNC_ARGS + 1) as usize];
         let mut i: usize = 0;
         let mut conv_failed = false;
         while (i as c_int) < nargs {
@@ -1689,8 +1689,8 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             g_st().did_throw = false;
             g_st().did_emsg = 0;
 
-            let mut rettv: typval_T = typval_T::new();
-            let mut funcexe: funcexe_T = funcexe_T::new();
+            let mut rettv: TypVal = TypVal::new();
+            let mut funcexe: Funcexe = Funcexe::new();
             funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
             funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
             funcexe.fe_evaluate = true;
@@ -1889,9 +1889,9 @@ fn nlua_exec_typval_fmt(
     body: impl crate::strings::IntoCCharPtr,
     bodylen: usize,
     name: &std::ffi::CStr,
-    args: *mut typval_T,
+    args: *mut TypVal,
     argcount: c_int,
-    special: bool,ret_tv: &mut typval_T,
+    special: bool,ret_tv: &mut TypVal,
 ) { let body = body.into_c_char_ptr();
     let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
         let buf_ptr = lcmd_buf.as_mut_ptr();
@@ -1915,7 +1915,7 @@ fn nlua_exec_typval_fmt(
         );
 }
 
-pub fn nlua_call_luaeval(str_: NvimString,arg: &mut typval_T, ret_tv: &mut typval_T) {
+pub fn nlua_call_luaeval(str_: NvimString,arg: &mut TypVal, ret_tv: &mut TypVal) {
     nlua_exec_typval_fmt(
             c"local _A=select(1,...) return (%.*s)",
             str_.data,
@@ -1931,8 +1931,8 @@ pub fn nlua_call_luaeval(str_: NvimString,arg: &mut typval_T, ret_tv: &mut typva
 pub fn nlua_call_vlua(
     str_: impl crate::strings::IntoCCharPtr,
     len: usize,
-    args: *mut typval_T,
-    argcount: c_int,ret_tv: &mut typval_T,
+    args: *mut TypVal,
+    argcount: c_int,ret_tv: &mut TypVal,
 ) { let str_ = str_.into_c_char_ptr();
     nlua_exec_typval_fmt(
             c"return %.*s(...)",
@@ -1946,7 +1946,7 @@ pub fn nlua_call_vlua(
         );
 }
 
-pub fn nlua_call_user_expand_func(xp: &mut expand_T, ret_tv: &mut typval_T) {
+pub fn nlua_call_user_expand_func(xp: &mut ExpandCtx, ret_tv: &mut TypVal) {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
 
@@ -1968,9 +1968,9 @@ fn nlua_exec_typval(
     lcmd: impl crate::strings::IntoCCharPtr,
     lcmd_len: usize,
     name: impl crate::strings::IntoCCharPtr,
-    args: *mut typval_T,
+    args: *mut TypVal,
     argcount: c_int,
-    special: bool,mut ret_tv: Option<&mut typval_T>,
+    special: bool,mut ret_tv: Option<&mut TypVal>,
 ) { let lcmd = lcmd.into_c_char_ptr();
     let name = name.into_c_char_ptr();
     unsafe {
@@ -2025,7 +2025,7 @@ pub fn nlua_exec_lines(lines: &[std::ffi::CString], name: impl crate::strings::I
 pub fn nlua_exec_typval_callable(
     lua_cb: LuaRef,
     argcount: c_int,
-    argvars: *mut typval_T,rettv: &mut typval_T,
+    argvars: *mut TypVal,rettv: &mut TypVal,
 ) -> c_int {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
@@ -2095,7 +2095,7 @@ pub fn nlua_exec(
 pub fn nlua_call_typval<S: crate::strings::IntoCCharPtr>(
     module: &std::ffi::CStr,
     func: S,
-    argvars: *mut typval_T,rettv: Option<&mut typval_T>,
+    argvars: *mut TypVal,rettv: Option<&mut TypVal>,
 ) {
     let func = func.into_c_char_ptr();
     unsafe {
@@ -2121,9 +2121,9 @@ pub fn nlua_call_typval<S: crate::strings::IntoCCharPtr>(
 pub fn nlua_call_excmd(
     module: &std::ffi::CStr,
     func: &std::ffi::CStr,
-    eap: &exarg_T,
-    cmod: &cmdmod_T,
-    extra: Option<&mut typval_T>,
+    eap: &Exarg,
+    cmod: &Cmdmod,
+    extra: Option<&mut TypVal>,
 ) -> bool {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
@@ -2301,7 +2301,7 @@ pub fn nlua_is_deferred_safe() -> bool {
     nlua_st().IN_FAST_CALLBACK == 0
 }
 
-pub fn ex_lua(eap: &mut exarg_T) {
+pub fn ex_lua(eap: &mut Exarg) {
     unsafe {
         if crate::memory::cstr_is_empty(eap.arg) {
             if eap.addr_count > 0 {
@@ -2347,7 +2347,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_luado(eap: &mut exarg_T) {
+pub fn ex_luado(eap: &mut Exarg) {
     unsafe {
         if !u_save(eap.line1 - 1, eap.line2 + 1) {
             emsg(gettext(c"cannot save undo information"));
@@ -2399,7 +2399,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
 
             lua_pushvalue(lstate, -1);
             let old_line = ml_get_buf(crate::globals::curbuf_mut(), l);
-            let old_line_len: colnr_T = ml_get_buf_len(crate::globals::curbuf_mut(), l);
+            let old_line_len: Colnr = ml_get_buf_len(crate::globals::curbuf_mut(), l);
             lua_pushstring(lstate, old_line);
             lua_pushnumber(lstate, f64::from(l));
             if nlua_pcall(lstate, 2, 1) != 0 {
@@ -2440,7 +2440,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_luafile(eap: &mut exarg_T) {
+pub fn ex_luafile(eap: &mut Exarg) {
     let _ = nlua_exec_file(eap.arg);
 }
 
@@ -2509,7 +2509,7 @@ pub fn nlua_exec_file(path: impl crate::strings::IntoCCharPtr) -> bool { let pat
     }
 }
 
-pub fn nlua_expand_pat(xp: &mut expand_T) {
+pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         let mut status = FAIL;
@@ -2580,7 +2580,7 @@ unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> c_int {
     }
 }
 
-pub fn nlua_is_table_from_lua(arg: &typval_T) -> bool {
+pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
     unsafe {
         if arg.v_type == VarType::VAR_DICT {
             (*arg.vval.v_dict()).lua_table_ref != LUA_NOREF
@@ -2592,7 +2592,7 @@ pub fn nlua_is_table_from_lua(arg: &typval_T) -> bool {
     }
 }
 
-pub fn nlua_register_table_as_callable(arg: &typval_T) -> *mut c_char {
+pub fn nlua_register_table_as_callable(arg: &TypVal) -> *mut c_char {
     unsafe {
         let table_ref = if arg.v_type == VarType::VAR_DICT {
             (*arg.vval.v_dict()).lua_table_ref
@@ -2676,7 +2676,7 @@ pub fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
     }
 }
 
-pub fn nlua_set_sctx(current: &mut sctx_T) {
+pub fn nlua_set_sctx(current: &mut Sctx) {
     unsafe {
         if !script_is_lua(current.sc_sid) {
             return;
@@ -2709,7 +2709,7 @@ pub fn nlua_set_sctx(current: &mut sctx_T) {
         if found && let Some(source_path) = fix_fname(info.source.add(1)) {
             let mut sid = find_script_by_name(source_path.as_ptr().cast_mut());
             if sid <= 0 {
-                let si: *mut scriptitem_T = new_script_item(Some(source_path), &mut sid);
+                let si: *mut Scriptitem = new_script_item(Some(source_path), &mut sid);
                 (*si).sn_lua = true;
             }
             current.sc_sid = sid;
@@ -2719,7 +2719,7 @@ pub fn nlua_set_sctx(current: &mut sctx_T) {
     }
 }
 
-pub fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int {
+pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> c_int {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         nlua_pushref(
@@ -2774,7 +2774,7 @@ pub fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int
 
         if preview {
             lua_pushinteger(lstate, cmdpreview_get_ns() as lua_Integer);
-            let cmdpreview_bufnr: handle_T = cmdpreview_get_bufnr();
+            let cmdpreview_bufnr: ObjHandle = cmdpreview_get_bufnr();
             if cmdpreview_bufnr != 0 {
                 lua_pushinteger(lstate, cmdpreview_bufnr as lua_Integer);
             } else {

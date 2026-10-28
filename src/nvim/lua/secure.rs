@@ -10,7 +10,7 @@ use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
 use std::ffi::CString;
 
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 
 fn nlua_trust(action: impl crate::strings::IntoCCharPtr, path: impl crate::strings::IntoCCharPtr) -> bool { let action = action.into_c_char_ptr(); let path = path.into_c_char_ptr();
     unsafe {
@@ -64,7 +64,7 @@ fn nlua_trust(action: impl crate::strings::IntoCCharPtr, path: impl crate::strin
 }
 
 /// `:trust` command implementation (`ex_trust`).
-pub fn ex_trust(eap: &mut exarg_T) {
+pub fn ex_trust(eap: &mut Exarg) {
     unsafe {
         let arg = eap.arg;
         let p = skiptowhite(arg);

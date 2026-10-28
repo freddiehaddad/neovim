@@ -1,11 +1,11 @@
 //! Environment variable inspection and path expansion (`src/nvim/os/env.c`).
 
 use crate::api::private::validate::NvimString;
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::charset::skipwhite;
 #[cfg(unix)]
 use crate::charset::vim_isfilec;
-use crate::cursor::pos_T;
+use crate::cursor::CursorPos;
 use crate::eval::fs::modify_fname;
 use crate::eval::skip_expr;
 use crate::eval::vars::{VV_PROGPATH, get_vim_var_str};
@@ -33,7 +33,7 @@ use crate::path::{
     after_pathsep, append_path, concat_fnames, path_cmp, path_tail, path_tail_with_sep, to_slash,
     to_slash_save, vim_ispathsep,
 };
-use crate::runtime::sctx_T;
+use crate::runtime::Sctx;
 use crate::strings::{vim_strchr, vim_strsave_escaped};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -53,14 +53,14 @@ const MAX_ENVPATHLEN: usize = if cfg!(windows) {
     c_int::MAX as usize
 };
 #[repr(C)]
-pub struct expand_T {
+pub struct ExpandCtx {
     pub xp_pattern: *mut c_char,
     pub xp_context: c_int,
     pub xp_pattern_len: usize,
     pub xp_prefix: c_int,
     pub xp_arg: *mut c_char,
     pub xp_luaref: LuaRef,
-    pub xp_script_ctx: sctx_T,
+    pub xp_script_ctx: Sctx,
     pub xp_backslash: c_int,
     #[cfg(not(windows))]
     pub xp_shell: bool,
@@ -76,10 +76,10 @@ pub struct expand_T {
     pub xp_line: *mut c_char,
     pub xp_buf: [c_char; EXPAND_BUF_LEN],
     pub xp_search_dir: c_int,
-    pub xp_pre_incsearch_pos: pos_T,
+    pub xp_pre_incsearch_pos: CursorPos,
 }
 
-impl expand_T {
+impl ExpandCtx {
     pub const fn new() -> Self {
         Self {
             xp_pattern: ptr::null_mut(),
@@ -88,7 +88,7 @@ impl expand_T {
             xp_prefix: crate::cmdexpand::XP_PREFIX_NONE,
             xp_arg: ptr::null_mut(),
             xp_luaref: 0,
-            xp_script_ctx: sctx_T {
+            xp_script_ctx: Sctx {
                 sc_sid: 0,
                 sc_seq: 0,
                 sc_lnum: 0,
@@ -109,7 +109,7 @@ impl expand_T {
             xp_line: ptr::null_mut(),
             xp_buf: [0; EXPAND_BUF_LEN],
             xp_search_dir: 0,
-            xp_pre_incsearch_pos: pos_T {
+            xp_pre_incsearch_pos: CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
@@ -118,14 +118,14 @@ impl expand_T {
     }
 }
 
-impl Default for expand_T {
+impl Default for ExpandCtx {
     #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for expand_T {
+impl Drop for ExpandCtx {
     fn drop(&mut self) {
         crate::cmdexpand::ExpandCleanup(self);
     }
@@ -1035,7 +1035,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 
 /// Replace home directory by `"~"` in each space or comma separated file name in `src`.
 pub fn home_replace(
-    buf: Option<&buf_T>,
+    buf: Option<&FileBuf>,
     src: impl crate::strings::IntoCCharPtr,
     dst: *mut c_char,
     mut dstlen: usize,
@@ -1174,7 +1174,7 @@ pub fn home_replace(
 }
 
 /// Like `home_replace`, store the replaced string in an owned `CString`.
-pub fn home_replace_save(buf: Option<&buf_T>, src: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let src = src.into_c_char_ptr();
+pub fn home_replace_save(buf: Option<&FileBuf>, src: impl crate::strings::IntoCCharPtr) -> std::ffi::CString { let src = src.into_c_char_ptr();
      {
         let mut len: usize = 3;
         if !src.is_null() {
@@ -1187,7 +1187,7 @@ pub fn home_replace_save(buf: Option<&buf_T>, src: impl crate::strings::IntoCCha
 }
 
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
-pub fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_env_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     assert!(idx >= 0);
     if let Some(envname) = os_getenvname_at_index(idx as usize) {
             xstrlcpy(xp.xp_buf.as_mut_ptr(), envname.as_ptr(), EXPAND_BUF_LEN);

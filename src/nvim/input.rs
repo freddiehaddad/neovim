@@ -4,13 +4,13 @@ use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
 use crate::api::vim::{is_internal_call, nvim_paste};
 use crate::charset::{ascii_iswhite, is_special, skipwhite, to_special};
-use crate::cursor::{colnr_T, get_cursor_line_ptr, linenr_T};
+use crate::cursor::{Colnr, get_cursor_line_ptr, Linenr};
 use crate::drawscreen::{SHOWCMD_COLS, setcursor, showmode, unshowmode, update_screen};
 use crate::errors::*;
 use crate::eval::garbage_collect;
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string,
-    tv_dict_has_key, tv_get_bool_chk, typval_T, varnumber_T,
+    tv_dict_has_key, tv_get_bool_chk, TypVal, Varnumber,
 };
 use crate::eval::vars::{
     VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID, set_vim_var_nr,
@@ -46,7 +46,7 @@ use crate::keycodes::{
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
 use crate::mapping::{
     MAXMAPLEN, REMAP_NONE, REMAP_YES, eval_map_expr, get_buf_maphash_list, get_maphash_list,
-    langmap_adjust_mb, map_luaid_get, mapblock_T, typebuf_T,
+    langmap_adjust_mb, map_luaid_get, Mapblock, Typebuf,
 };
 use crate::mbyte::{
     mb_cptr2char_adv, mb_unescape, utf_ClusterInfo, utf_byte2len, utf_char2bytes, utf_head_off,
@@ -76,19 +76,19 @@ use crate::state::{
     state_no_longer_safe,
 };
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
-use crate::textformat::oparg_T;
+use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::option::OptInt;
-pub type flush_buffers_T = c_int;
+pub type FlushBuffers = c_int;
 
 pub(crate) const NUL: c_int = 0;
 
-pub(crate) const FLUSH_MINIMAL: flush_buffers_T = 0;
-const FLUSH_INPUT: flush_buffers_T = 2;
+pub(crate) const FLUSH_MINIMAL: FlushBuffers = 0;
+const FLUSH_INPUT: FlushBuffers = 2;
 
 const NSCRIPT: usize = 15;
 const TYPELEN_INIT: usize = 5 * (MAXMAPLEN + 3);
@@ -183,17 +183,17 @@ pub struct UngotKey {
 /// Struct to hold the saved typeahead for `save_typeahead()`.
 #[repr(C)]
 #[derive(Clone)]
-pub struct tasave_T {
-    pub save_typebuf: typebuf_T,
+pub struct Tasave {
+    pub save_typebuf: Typebuf,
     pub ungot: UngotKey,
     pub save_readbuf1: StuffBuf,
     pub save_readbuf2: StuffBuf,
 }
 
-impl tasave_T {
+impl Tasave {
     pub const fn new() -> Self {
         Self {
-            save_typebuf: typebuf_T::ZERO,
+            save_typebuf: Typebuf::ZERO,
             ungot: UngotKey {
                 c: 0,
                 mod_mask: 0,
@@ -209,7 +209,7 @@ impl tasave_T {
 }
 
 #[derive(Clone, Copy)]
-struct gotchars_state_T {
+struct GotcharsState {
     buf: [u8; MB_MAXBYTES * 3 + 4],
     prev_c: c_int,
     buflen: usize,
@@ -217,7 +217,7 @@ struct gotchars_state_T {
     pending_mbyte: c_uint,
 }
 
-impl gotchars_state_T {
+impl GotcharsState {
     const fn new() -> Self {
         Self {
             buf: [0; MB_MAXBYTES * 3 + 4],
@@ -231,7 +231,7 @@ impl gotchars_state_T {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
-enum map_result_T {
+enum MapResult {
     map_result_fail = 0,
     map_result_get = 1,
     map_result_retry = 2,
@@ -253,11 +253,11 @@ struct InputModuleState {
     block_redo: bool,
     KeyNoremap: c_int,
     last_recorded_len: usize,
-    saved_typebuf: [typebuf_T; NSCRIPT],
+    saved_typebuf: [Typebuf; NSCRIPT],
     no_reduce_keys: c_int,
-    GOTCHARS_STATE: gotchars_state_T,
+    GOTCHARS_STATE: GotcharsState,
     UPDATESCRIPT_COUNT: c_int,
-    SHOWCMD_STATE: gotchars_state_T,
+    SHOWCMD_STATE: GotcharsState,
     LAST_VGETC_RECORDED_LEN: usize,
     VGETORPEEK_TC: c_int,
 }
@@ -286,11 +286,11 @@ impl InputModuleState {
             block_redo: false,
             KeyNoremap: 0,
             last_recorded_len: 0,
-            saved_typebuf: [const { typebuf_T::ZERO }; NSCRIPT],
+            saved_typebuf: [const { Typebuf::ZERO }; NSCRIPT],
             no_reduce_keys: 0,
-            GOTCHARS_STATE: gotchars_state_T::new(),
+            GOTCHARS_STATE: GotcharsState::new(),
             UPDATESCRIPT_COUNT: 0,
-            SHOWCMD_STATE: gotchars_state_T::new(),
+            SHOWCMD_STATE: GotcharsState::new(),
             LAST_VGETC_RECORDED_LEN: 0,
             VGETORPEEK_TC: 0,
         }
@@ -585,7 +585,7 @@ pub fn typeahead_noflush(c: c_int) {
 }
 
 /// Remove the contents of the stuff buffer and the mapped characters in the typeahead buffer.
-pub fn flush_buffers(flush_typeahead: flush_buffers_T) {
+pub fn flush_buffers(flush_typeahead: FlushBuffers) {
      {
         init_typebuf();
 
@@ -1213,7 +1213,7 @@ pub fn del_typebuf(len: c_int, offset: c_int) {
     }
 }
 
-fn gotchars_add_byte(state: &mut gotchars_state_T, byte: u8) -> bool {
+fn gotchars_add_byte(state: &mut GotcharsState, byte: u8) -> bool {
     state.buf[state.buflen] = byte;
         state.buflen += 1;
         let mut c = byte as c_int;
@@ -1364,7 +1364,7 @@ fn save_typebuf() {
         init_typebuf();
         let prev_cnt = g_st().typebuf.tb_change_cnt;
         inp_st().saved_typebuf[inp_st().curscript as usize] =
-            std::mem::replace(&mut g_st().typebuf, typebuf_T::ZERO);
+            std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
         g_st().typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
 }
@@ -1374,11 +1374,11 @@ fn can_get_ungot() -> bool {
 }
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
-pub fn save_typeahead(tp: &mut tasave_T) {
+pub fn save_typeahead(tp: &mut Tasave) {
      {
         let prev_cnt = g_st().typebuf.tb_change_cnt;
         tp.save_typebuf =
-            std::mem::replace(&mut g_st().typebuf, typebuf_T::ZERO);
+            std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
         g_st().typebuf.tb_change_cnt = prev_cnt;
         alloc_typebuf();
         tp.ungot = inp_st().ungot;
@@ -1390,10 +1390,10 @@ pub fn save_typeahead(tp: &mut tasave_T) {
 }
 
 /// Restore the typeahead to what it was before calling `save_typeahead()`.
-pub fn restore_typeahead(tp: &mut tasave_T) {
+pub fn restore_typeahead(tp: &mut Tasave) {
      {
         free_typebuf();
-        g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, typebuf_T::ZERO);
+        g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, Typebuf::ZERO);
         inp_st().ungot = tp.ungot;
 
         inp_st().readbuf1 = std::mem::replace(&mut tp.save_readbuf1, StuffBuf::new());
@@ -1436,7 +1436,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
         save_typebuf();
 
         if directly {
-            let mut oa = oparg_T::new();
+            let mut oa = Oparg::new();
             let save_State = g_st().State;
             let save_restart_edit = g_st().restart_edit;
             let save_finish_op = g_st().finish_op;
@@ -1471,7 +1471,7 @@ fn closescript() {
         free_typebuf();
         g_st().typebuf = std::mem::replace(
             &mut inp_st().saved_typebuf[inp_st().curscript as usize],
-            typebuf_T::ZERO,
+            Typebuf::ZERO,
         );
 
         let scriptin_ptr = (&raw mut inp_st().scriptin)
@@ -1854,9 +1854,9 @@ pub fn char_avail() -> bool {
     }
 }
 
-fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_number: bool) {
+fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: bool) {
     unsafe {
-        let mut n: varnumber_T;
+        let mut n: Varnumber;
         let called_emsg_start = g_st().called_emsg;
         let mut error = false;
         let mut simplify = true;
@@ -1929,13 +1929,13 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                         continue;
                     }
                 }
-                n = varnumber_T::from(safe_vgetc());
+                n = Varnumber::from(safe_vgetc());
             } else if tv_get_bool_chk(&argvars[0], Some(&mut error)) != 0 {
-                n = varnumber_T::from(vpeekc_any());
+                n = Varnumber::from(vpeekc_any());
             } else if error || vpeekc_any() == NUL {
                 n = 0;
             } else {
-                n = varnumber_T::from(safe_vgetc());
+                n = Varnumber::from(safe_vgetc());
             }
 
             let ni = n as c_int;
@@ -1989,7 +1989,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                 let mut row = g_st().mouse_row;
                 let mut col = g_st().mouse_col;
                 let mut grid = g_st().mouse_grid;
-                let mut lnum: linenr_T = 0;
+                let mut lnum: Linenr = 0;
 
                 if row >= 0 && col >= 0 {
                     let mut winnr: c_int = 1;
@@ -2003,10 +2003,10 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
                         winnr += 1;
                         wp = (*wp).w_next;
                     }
-                    set_vim_var_nr(VV_MOUSE_WIN, varnumber_T::from(winnr));
-                    set_vim_var_nr(VV_MOUSE_WINID, varnumber_T::from((*wp).handle));
-                    set_vim_var_nr(VV_MOUSE_LNUM, varnumber_T::from(lnum));
-                    set_vim_var_nr(VV_MOUSE_COL, varnumber_T::from(col + 1));
+                    set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
+                    set_vim_var_nr(VV_MOUSE_WINID, Varnumber::from((*wp).handle));
+                    set_vim_var_nr(VV_MOUSE_LNUM, Varnumber::from(lnum));
+                    set_vim_var_nr(VV_MOUSE_COL, Varnumber::from(col + 1));
                 }
             }
         } else if !allow_number {
@@ -2018,18 +2018,18 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
 }
 
 /// `"getchar()"` function.
-pub fn f_getchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     getchar_common(argvars, rettv, true);
 }
 
 /// `"getcharstr()"` function.
-pub fn f_getcharstr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getcharstr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     getchar_common(argvars, rettv, false);
 }
 
 /// `"getcharmod()"` function.
-pub fn f_getcharmod(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().mod_mask));
+pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(g_st().mod_mask));
 }
 
 fn put_string_in_typebuf(
@@ -2192,8 +2192,8 @@ fn handle_mapping(
     advance: bool,
 ) -> c_int {
     unsafe {
-        let mut mp: Option<&mapblock_T> = None;
-        let mut mp_match: Option<&mapblock_T> = None;
+        let mut mp: Option<&Mapblock> = None;
+        let mut mp_match: Option<&Mapblock> = None;
         let mut mp_match_len: c_int = 0;
         let mut tb_match_len: c_int = 0;
         let mut max_mlen: c_int = 0;
@@ -2233,10 +2233,10 @@ fn handle_mapping(
                 if tb_c1 == 0 {
                     if *timedout {
                         *keylenp = 0;
-                        return map_result_T::map_result_get as c_int;
+                        return MapResult::map_result_get as c_int;
                     }
                     *keylenp = KEYLEN_PART_KEY;
-                    return map_result_T::map_result_nomatch as c_int;
+                    return MapResult::map_result_nomatch as c_int;
                 }
 
                 let orig_tb_c1 = tb_c1;
@@ -2367,7 +2367,7 @@ fn handle_mapping(
                 } else {
                     keylen = check_simplify_modifier(max_mlen + 1);
                     if keylen < 0 {
-                        return map_result_T::map_result_fail as c_int;
+                        return MapResult::map_result_fail as c_int;
                     }
                 }
             } else {
@@ -2375,11 +2375,11 @@ fn handle_mapping(
             }
             if keylen == 0 && mp.is_none() {
                 *keylenp = keylen;
-                return map_result_T::map_result_get as c_int;
+                return MapResult::map_result_get as c_int;
             }
             if keylen > 0 {
                 *keylenp = keylen;
-                return map_result_T::map_result_retry as c_int;
+                return MapResult::map_result_retry as c_int;
             }
             if keylen < 0 {
                 assert_eq!(keylen, KEYLEN_PART_KEY);
@@ -2413,7 +2413,7 @@ fn handle_mapping(
                 flush_buffers(FLUSH_MINIMAL);
                 *mapdepth = 0;
                 *keylenp = keylen;
-                return map_result_T::map_result_fail as c_int;
+                return MapResult::map_result_fail as c_int;
             }
 
             if g_st().Visual.active && g_st().Visual.select && (mp.m_mode & MODE_VISUAL) != 0 {
@@ -2498,13 +2498,13 @@ fn handle_mapping(
             drop(save_alt_m_keys);
             *keylenp = keylen;
             if !i {
-                return map_result_T::map_result_fail as c_int;
+                return MapResult::map_result_fail as c_int;
             }
-            return map_result_T::map_result_retry as c_int;
+            return MapResult::map_result_retry as c_int;
         }
 
         *keylenp = keylen;
-        map_result_T::map_result_nomatch as c_int
+        MapResult::map_result_nomatch as c_int
     }
 }
 
@@ -2608,17 +2608,17 @@ fn vgetorpeek(advance: bool) -> c_int {
                             advance,
                         );
 
-                        if result == map_result_T::map_result_retry as c_int {
+                        if result == MapResult::map_result_retry as c_int {
                             continue;
                         }
 
-                        if result == map_result_T::map_result_fail as c_int {
+                        if result == MapResult::map_result_fail as c_int {
                             atom_composite_abort();
                             c = -1;
                             break;
                         }
 
-                        if result == map_result_T::map_result_get as c_int {
+                        if result == MapResult::map_result_get as c_int {
                             c = *tb_buf_ptr().add(g_st().typebuf.tb_off as usize) as c_int;
                             if advance {
                                 g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
@@ -2665,7 +2665,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         let old_wrow = curwin_mut().w_wrow;
 
                         if curwin_mut().w_cursor.col != 0 {
-                            let mut col: colnr_T = 0;
+                            let mut col: Colnr = 0;
                             if curwin_mut().w_wcol > 0 {
                                 if g_st().Ins.did_ai
                                     && *skipwhite(

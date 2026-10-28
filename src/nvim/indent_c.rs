@@ -1,5 +1,5 @@
 //! C-indentation functions (`src/nvim/indent_c.c`).
-use crate::buffer::{MAXLNUM, buf_T};
+use crate::buffer::{MAXLNUM, FileBuf};
 use crate::change::{
     COM_END, COM_LEFT, COM_MAX_LEN, COM_MIDDLE, COM_RIGHT, COM_START, KEY_OPEN_BACK, KEY_OPEN_FORW,
 };
@@ -8,9 +8,9 @@ use crate::charset::{
     vim_isIDc, vim_iswordc, vim_iswordp, vim_strsize,
 };
 use crate::cursor::{
-    colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T, lpos_T, lt, pos_T,
+    Colnr, get_cursor_line_ptr, get_cursor_pos_ptr, Linenr, Lpos, lt, CursorPos,
 };
-use crate::eval::typval::{EvalFuncData, kCallbackNone, tv_get_lnum, typval_T};
+use crate::eval::typval::{EvalFuncData, kCallbackNone, tv_get_lnum, TypVal};
 use crate::globals::*;
 use crate::indent::{fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value};
 use crate::keycodes::get_special_key_code;
@@ -30,7 +30,7 @@ pub(crate) const FM_BACKWARD: c_int = 0x01;
 pub(crate) const FM_BLOCKSTOP: c_int = 0x04;
 pub(crate) const FM_SKIPCOMM: c_int = 0x08;
 pub(crate) const KEY_COMPLETE: c_int = 0x103;
-const FIND_NAMESPACE_LIM: linenr_T = 20;
+const FIND_NAMESPACE_LIM: Linenr = 20;
 const BRACE_IN_COL0: c_int = 1;
 const BRACE_AT_START: c_int = 2;
 const BRACE_AT_END: c_int = 3;
@@ -49,24 +49,24 @@ const LOOKFOR_JS_KEY: c_int = 11;
 const LOOKFOR_COMMA: c_int = 12;
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct cpp_baseclass_cache_T {
+struct CppBaseclassCache {
     found: c_int,
-    lpos: lpos_T,
+    lpos: Lpos,
 }
 struct IndentCState {
-    comment_pos_copy: pos_T,
-    find_line_comment_pos: pos_T,
-    start_brace_pos_copy: pos_T,
-    match_char_pos_copy: pos_T,
+    comment_pos_copy: CursorPos,
+    find_line_comment_pos: CursorPos,
+    start_brace_pos_copy: CursorPos,
+    match_char_pos_copy: CursorPos,
 }
 
 impl IndentCState {
     const fn new() -> Self {
         Self {
-            comment_pos_copy: pos_T { lnum: 0, col: 0, coladd: 0 },
-            find_line_comment_pos: pos_T { lnum: 0, col: 0, coladd: 0 },
-            start_brace_pos_copy: pos_T { lnum: 0, col: 0, coladd: 0 },
-            match_char_pos_copy: pos_T { lnum: 0, col: 0, coladd: 0 },
+            comment_pos_copy: CursorPos { lnum: 0, col: 0, coladd: 0 },
+            find_line_comment_pos: CursorPos { lnum: 0, col: 0, coladd: 0 },
+            start_brace_pos_copy: CursorPos { lnum: 0, col: 0, coladd: 0 },
+            match_char_pos_copy: CursorPos { lnum: 0, col: 0, coladd: 0 },
         }
     }
 }
@@ -105,7 +105,7 @@ pub fn check_linecomment(line: impl crate::strings::IntoCCharPtr) -> c_int { let
                     } else if !in_str
                         && (p.offset_from(line) < 2
                             || (*p.sub(1) != b'\\' as c_char && *p.sub(2) != b'#' as c_char))
-                        && is_pos_in_string(line, p.offset_from(line) as colnr_T) == 0
+                        && is_pos_in_string(line, p.offset_from(line) as Colnr) == 0
                     {
                         break;
                     }
@@ -138,12 +138,12 @@ pub fn check_linecomment(line: impl crate::strings::IntoCCharPtr) -> c_int { let
         p.offset_from(line) as c_int
     }
 }
-fn ind_find_start_comment() -> *mut pos_T {
+fn ind_find_start_comment() -> *mut CursorPos {
      find_start_comment(curbuf_mut().b_ind_maxcomment)
 }
-pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
+pub fn find_start_comment(ind_maxcomment: c_int) -> *mut CursorPos {
     unsafe {
-        let mut pos: *mut pos_T;
+        let mut pos: *mut CursorPos;
         let mut cur_maxcomment = ind_maxcomment as i64;
         loop {
             pos = findmatchlimit(None, b'*' as c_int, FM_BACKWARD, cur_maxcomment);
@@ -162,7 +162,7 @@ pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
         pos
     }
 }
-fn ind_find_start_CORS(is_raw: Option<&mut linenr_T>) -> *mut pos_T {
+fn ind_find_start_CORS(is_raw: Option<&mut Linenr>) -> *mut CursorPos {
     unsafe {
         let mut comment_pos = find_start_comment(curbuf_mut().b_ind_maxcomment);
         if !comment_pos.is_null() {
@@ -181,9 +181,9 @@ fn ind_find_start_CORS(is_raw: Option<&mut linenr_T>) -> *mut pos_T {
         comment_pos
     }
 }
-fn find_start_rawstring(ind_maxcomment: c_int) -> *mut pos_T {
+fn find_start_rawstring(ind_maxcomment: c_int) -> *mut CursorPos {
     unsafe {
-        let mut pos: *mut pos_T;
+        let mut pos: *mut CursorPos;
         let mut cur_maxcomment = ind_maxcomment;
         loop {
             pos = findmatchlimit(
@@ -269,14 +269,14 @@ fn skip_string(p: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut 
         p
     }
 }
-pub fn is_pos_in_string(line: impl crate::strings::IntoCCharPtr, col: colnr_T) -> c_int { let line = line.into_c_char_ptr();
+pub fn is_pos_in_string(line: impl crate::strings::IntoCCharPtr, col: Colnr) -> c_int { let line = line.into_c_char_ptr();
     unsafe {
         let mut p = line;
-        while !crate::memory::cstr_is_empty(p) && (p.offset_from(line) as colnr_T) < col {
+        while !crate::memory::cstr_is_empty(p) && (p.offset_from(line) as Colnr) < col {
             p = skip_string(p);
             p = p.add(1);
         }
-        c_int::from(!((p.offset_from(line) as colnr_T) <= col))
+        c_int::from(!((p.offset_from(line) as Colnr) <= col))
     }
 }
 pub fn cin_is_cinword(line: impl crate::strings::IntoCCharPtr) -> bool { let mut line = line.into_c_char_ptr();
@@ -344,7 +344,7 @@ fn cin_skipcomment(s: impl crate::strings::IntoCCharPtr) -> *const c_char { let 
 fn cin_nocode(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_char_ptr();
     unsafe { *cin_skipcomment(s) == NUL }
 }
-fn find_line_comment() -> *mut pos_T {
+fn find_line_comment() -> *mut CursorPos {
     unsafe {
         indc_st().find_line_comment_pos = curwin_mut().w_cursor;
         loop {
@@ -355,7 +355,7 @@ fn find_line_comment() -> *mut pos_T {
             let line = ml_get(indc_st().find_line_comment_pos.lnum);
             let p = skipwhite(line);
             if cin_islinecomment(p) {
-                indc_st().find_line_comment_pos.col = p.offset_from(line) as colnr_T;
+                indc_st().find_line_comment_pos.col = p.offset_from(line) as Colnr;
                 return &raw mut indc_st().find_line_comment_pos;
             }
             if !crate::memory::cstr_is_empty(p) {
@@ -687,19 +687,19 @@ fn after_label(l: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut 
         l
     }
 }
-fn get_indent_nolabel(lnum: linenr_T) -> c_int {
+fn get_indent_nolabel(lnum: Linenr) -> c_int {
     unsafe {
         let l = ml_get(lnum);
         let p = after_label(l);
         if p.is_null() {
             return 0;
         }
-        let mut fp = pos_T {
+        let mut fp = CursorPos {
             lnum,
-            col: p.offset_from(l) as colnr_T,
+            col: p.offset_from(l) as Colnr,
             coladd: 0,
         };
-        let mut col: colnr_T = 0;
+        let mut col: Colnr = 0;
         getvcol(
             curwin_mut(),
             &mut fp,
@@ -711,7 +711,7 @@ fn get_indent_nolabel(lnum: linenr_T) -> c_int {
         col
     }
 }
-fn skip_label(lnum: linenr_T, pp: *mut *const c_char) -> c_int {
+fn skip_label(lnum: Linenr, pp: *mut *const c_char) -> c_int {
     unsafe {
         let cursor_save = curwin_mut().w_cursor;
         curwin_mut().w_cursor.lnum = lnum;
@@ -766,12 +766,12 @@ fn cin_first_id_amount() -> c_int {
             return 0;
         }
         p = skipwhite(p.add(len as usize));
-        let mut fp = pos_T {
+        let mut fp = CursorPos {
             lnum: curwin_mut().w_cursor.lnum,
-            col: p.offset_from(line) as colnr_T,
+            col: p.offset_from(line) as Colnr,
             coladd: 0,
         };
-        let mut col: colnr_T = 0;
+        let mut col: Colnr = 0;
         getvcol(
             curwin_mut(),
             &mut fp,
@@ -783,7 +783,7 @@ fn cin_first_id_amount() -> c_int {
         col
     }
 }
-fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
+fn cin_get_equal_amount(lnum: Linenr) -> c_int {
     unsafe {
         if lnum > 1 {
             let line = ml_get(lnum - 1);
@@ -810,12 +810,12 @@ fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
         if crate::memory::cstr_first_byte(s) == b'"' {
             s = s.add(1);
         }
-        let mut fp = pos_T {
+        let mut fp = CursorPos {
             lnum,
-            col: s.offset_from(line) as colnr_T,
+            col: s.offset_from(line) as Colnr,
             coladd: 0,
         };
-        let mut col: colnr_T = 0;
+        let mut col: Colnr = 0;
         getvcol(
             curwin_mut(),
             &mut fp,
@@ -832,7 +832,7 @@ fn cin_ispreproc(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_
 }
 fn cin_ispreproc_cont(
     pp: *mut *const c_char,
-    lnump: &mut linenr_T,
+    lnump: &mut Linenr,
     amount: &mut c_int,
 ) -> bool {
     unsafe {
@@ -913,7 +913,7 @@ fn cin_isterminated(s: impl crate::strings::IntoCCharPtr, incl_open: bool, incl_
         found_start
     }
 }
-fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum: linenr_T) -> bool {
+fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: Linenr, min_lnum: Linenr) -> bool {
     unsafe {
         let mut s: *const c_char = if sp.is_null() {
             ml_get(first_lnum)
@@ -1023,7 +1023,7 @@ fn cin_iselse(p: impl crate::strings::IntoCCharPtr) -> bool { let mut p = p.into
 fn cin_isdo(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
     cin_starts_with(p, c"do")
 }
-fn cin_iswhileofdo(p: impl crate::strings::IntoCCharPtr, lnum: linenr_T) -> bool { let mut p = p.into_c_char_ptr();
+fn cin_iswhileofdo(p: impl crate::strings::IntoCCharPtr, lnum: Linenr) -> bool { let mut p = p.into_c_char_ptr();
     unsafe {
         let mut retval = false;
         p = cin_skipcomment(p);
@@ -1053,7 +1053,7 @@ fn cin_iswhileofdo(p: impl crate::strings::IntoCCharPtr, lnum: linenr_T) -> bool
         retval
     }
 }
-fn cin_is_if_for_while_before_offset(line: impl crate::strings::IntoCCharPtr, poffset: &mut colnr_T) -> c_int { let line = line.into_c_char_ptr();
+fn cin_is_if_for_while_before_offset(line: impl crate::strings::IntoCCharPtr, poffset: &mut Colnr) -> c_int { let line = line.into_c_char_ptr();
     unsafe {
         let mut offset = *poffset;
         let prev_offset = offset;
@@ -1101,7 +1101,7 @@ fn cin_iswhileofdo_end(terminated: c_int) -> bool {
             if crate::memory::cstr_first_byte(p) == b')' {
                 let s = skipwhite(p.add(1));
                 if crate::memory::cstr_first_byte(s) == b';' && cin_nocode(s.add(1)) {
-                    let i = p.offset_from(line) as colnr_T;
+                    let i = p.offset_from(line) as Colnr;
                     curwin_mut().w_cursor.col = i;
                     let trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                     if !trypos.is_null() {
@@ -1128,7 +1128,7 @@ fn cin_iswhileofdo_end(terminated: c_int) -> bool {
 fn cin_isbreak(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.into_c_char_ptr();
     cin_starts_with(p, c"break")
 }
-fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
+fn cin_is_cpp_baseclass(cached: &mut CppBaseclassCache) -> bool {
     unsafe {
         let pos = &mut cached.lpos;
         let mut lnum = curwin_mut().w_cursor.lnum;
@@ -1234,7 +1234,7 @@ fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
                 } else if pos.col == 0 {
                     lookfor_ctor_init = false;
                     if cpp_base_class {
-                        pos.col = s.offset_from(line) as colnr_T;
+                        pos.col = s.offset_from(line) as Colnr;
                     }
                 }
                 if lnum == curwin_mut().w_cursor.lnum && crate::memory::cstr_first_byte(s) == b',' && cin_nocode(s.add(1)) {
@@ -1250,10 +1250,10 @@ fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
         cpp_base_class
     }
 }
-fn get_baseclass_amount(col: colnr_T) -> c_int {
+fn get_baseclass_amount(col: Colnr) -> c_int {
     unsafe {
         let mut amount: c_int;
-        let mut vcol: colnr_T = 0;
+        let mut vcol: Colnr = 0;
         if col == 0 {
             amount = get_indent();
             if find_last_paren(get_cursor_line_ptr(), b'(' as c_char, b')' as c_char) {
@@ -1353,11 +1353,11 @@ fn cin_is_cpp_extern_c(s: impl crate::strings::IntoCCharPtr) -> bool { let mut s
         false
     }
 }
-fn cin_skip2pos(trypos: &mut pos_T) -> c_int {
+fn cin_skip2pos(trypos: &mut CursorPos) -> c_int {
     unsafe {
         let line: *const c_char = ml_get(trypos.lnum);
         let mut p = line;
-        while !crate::memory::cstr_is_empty(p) && (p.offset_from(line) as colnr_T) < trypos.col {
+        while !crate::memory::cstr_is_empty(p) && (p.offset_from(line) as Colnr) < trypos.col {
             if cin_iscomment(p) {
                 p = cin_skipcomment(p);
             } else {
@@ -1372,10 +1372,10 @@ fn cin_skip2pos(trypos: &mut pos_T) -> c_int {
         p.offset_from(line) as c_int
     }
 }
-fn find_start_brace() -> *mut pos_T {
+fn find_start_brace() -> *mut CursorPos {
     unsafe {
         let cursor_save = curwin_mut().w_cursor;
-        let mut trypos: *mut pos_T;
+        let mut trypos: *mut CursorPos;
         loop {
             trypos = findmatchlimit(
                 None,
@@ -1389,8 +1389,8 @@ fn find_start_brace() -> *mut pos_T {
             indc_st().start_brace_pos_copy = *trypos;
             trypos = &raw mut indc_st().start_brace_pos_copy;
             curwin_mut().w_cursor = *trypos;
-            let mut pos: *mut pos_T = ptr::null_mut();
-            if cin_skip2pos(&mut *trypos) as colnr_T == (*trypos).col && {
+            let mut pos: *mut CursorPos = ptr::null_mut();
+            if cin_skip2pos(&mut *trypos) as Colnr == (*trypos).col && {
                 pos = ind_find_start_CORS(None);
                 pos.is_null()
             } {
@@ -1404,14 +1404,14 @@ fn find_start_brace() -> *mut pos_T {
         trypos
     }
 }
-fn find_match_paren(ind_maxparen: c_int) -> *mut pos_T {
+fn find_match_paren(ind_maxparen: c_int) -> *mut CursorPos {
     find_match_char(b'(' as c_char, ind_maxparen)
 }
-fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
+fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut CursorPos {
     unsafe {
         let cursor_save = curwin_mut().w_cursor;
         let mut ind_maxp_wk = ind_maxparen;
-        let mut trypos: *mut pos_T;
+        let mut trypos: *mut CursorPos;
         loop {
             trypos = findmatchlimit(
                 None,
@@ -1420,7 +1420,7 @@ fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
                 ind_maxp_wk as i64,
             );
             if !trypos.is_null() {
-                if (cin_skip2pos(&mut *trypos) as colnr_T) > (*trypos).col {
+                if (cin_skip2pos(&mut *trypos) as Colnr) > (*trypos).col {
                     ind_maxp_wk = ind_maxparen - (cursor_save.lnum - (*trypos).lnum);
                     if ind_maxp_wk > 0 {
                         curwin_mut().w_cursor = *trypos;
@@ -1449,7 +1449,7 @@ fn find_match_char(c: c_char, ind_maxparen: c_int) -> *mut pos_T {
         trypos
     }
 }
-fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut pos_T {
+fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut CursorPos {
     unsafe {
         let mut trypos = find_match_paren(ind_maxparen);
         if trypos.is_null() {
@@ -1468,7 +1468,7 @@ fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut pos_T {
         trypos
     }
 }
-fn corr_ind_maxparen(startpos: &pos_T) -> c_int {
+fn corr_ind_maxparen(startpos: &CursorPos) -> c_int {
      {
         let n = startpos.lnum - curwin_mut().w_cursor.lnum;
         if n > 0 && n < curbuf_mut().b_ind_maxparen / 2 {
@@ -1495,7 +1495,7 @@ fn find_last_paren(l: impl crate::strings::IntoCCharPtr, start: c_char, end: c_c
                 if open_count > 0 {
                     open_count -= 1;
                 } else {
-                    curwin_mut().w_cursor.col = i as colnr_T;
+                    curwin_mut().w_cursor.col = i as Colnr;
                     retval = true;
                 }
             }
@@ -1505,7 +1505,7 @@ fn find_last_paren(l: impl crate::strings::IntoCCharPtr, start: c_char, end: c_c
     }
 }
 /// Parse 'cinoptions' and set the values in "buf".
-pub fn parse_cino(buf: &mut buf_T) {
+pub fn parse_cino(buf: &mut FileBuf) {
     unsafe {
         let mut fraction: c_int = 0;
         let sw = get_sw_value( &mut *buf);
@@ -1636,30 +1636,30 @@ pub fn get_c_indent() -> c_int {
         let mut amount: c_int;
         let mut scope_amount: c_int;
         let mut cur_amount: c_int = MAXCOL;
-        let mut col: colnr_T = 0;
-        let mut trypos: *mut pos_T;
-        let mut comment_pos: *mut pos_T;
-        let mut tryposBrace: *mut pos_T = ptr::null_mut();
-        let mut tryposCopy: pos_T;
-        let mut our_paren_pos: pos_T;
+        let mut col: Colnr = 0;
+        let mut trypos: *mut CursorPos;
+        let mut comment_pos: *mut CursorPos;
+        let mut tryposBrace: *mut CursorPos = ptr::null_mut();
+        let mut tryposCopy: CursorPos;
+        let mut our_paren_pos: CursorPos;
         let start: *mut c_char;
         let start_brace: c_int;
-        let mut ourscope: linenr_T;
+        let mut ourscope: Linenr;
         let mut l: *const c_char = std::ptr::null();
         let mut look: *const c_char = std::ptr::null();
         let mut terminated: c_char;
         let mut lookfor: c_int;
         let mut whilelevel: c_int;
-        let mut lnum: linenr_T;
+        let mut lnum: Linenr;
         let mut n: c_int;
         let mut lookfor_break: bool;
         let mut lookfor_cpp_namespace = false;
         let mut cont_amount: c_int = 0;
         let mut added_to_amount: c_int = 0;
-        let mut raw_string_start: linenr_T = 0;
-        let mut cache_cpp_baseclass = cpp_baseclass_cache_T {
+        let mut raw_string_start: Linenr = 0;
+        let mut cache_cpp_baseclass = CppBaseclassCache {
             found: 0,
-            lpos: lpos_T {
+            lpos: Lpos {
                 lnum: MAXLNUM,
                 col: 0,
             },
@@ -1712,7 +1712,7 @@ pub fn get_c_indent() -> c_int {
                     break 'theend;
                 }
                 if cin_islinecomment(theline) {
-                    let mut linecomment_pos = pos_T {
+                    let mut linecomment_pos = CursorPos {
                         lnum: 0,
                         col: 0,
                         coladd: 0,
@@ -1859,7 +1859,7 @@ pub fn get_c_indent() -> c_int {
                                 look = start.add((*comment_pos).col as usize + 2);
                                 if !crate::memory::cstr_is_empty(look) {
                                     (*comment_pos).col =
-                                        skipwhite(look).offset_from(start) as colnr_T;
+                                        skipwhite(look).offset_from(start) as Colnr;
                                 }
                             }
                             getvcol(
@@ -1949,7 +1949,7 @@ pub fn get_c_indent() -> c_int {
                             let mut is_if_for_while: c_int = 0;
                             if curbuf_mut().b_ind_if_for_while != 0 {
                                 let cursor_save = curwin_mut().w_cursor;
-                                let mut outermost: pos_T;
+                                let mut outermost: CursorPos;
                                 trypos = &raw mut our_paren_pos;
                                 loop {
                                     outermost = *trypos;
@@ -1971,7 +1971,7 @@ pub fn get_c_indent() -> c_int {
                                 let save_lnum = curwin_mut().w_cursor.lnum;
                                 curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
                                 let line: *const c_char = get_cursor_line_ptr();
-                                let look_col = look.offset_from(line) as colnr_T;
+                                let look_col = look.offset_from(line) as Colnr;
                                 curwin_mut().w_cursor.col = look_col + 1;
                                 trypos = findmatchlimit(
                                     None,
@@ -2570,7 +2570,7 @@ pub fn get_c_indent() -> c_int {
                                         if cin_iselse(l) && whilelevel == 0 {
                                             if crate::memory::cstr_first_byte(l) == b'}' {
                                                 curwin_mut().w_cursor.col =
-                                                    l.offset_from(get_cursor_line_ptr()) as colnr_T
+                                                    l.offset_from(get_cursor_line_ptr()) as Colnr
                                                         + 1;
                                             }
                                             trypos = find_start_brace();
@@ -2918,7 +2918,7 @@ pub fn get_c_indent() -> c_int {
         amount
     }
 }
-fn find_match(lookfor: c_int, ourscope: linenr_T) -> bool {
+fn find_match(lookfor: c_int, ourscope: Linenr) -> bool {
     unsafe {
         let mut elselevel: c_int;
         let mut whilelevel: c_int;
@@ -3168,7 +3168,7 @@ pub fn do_c_expr_indent() {
     }
 }
 /// "cindent(lnum)" function
-pub fn f_cindent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_cindent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let pos = curwin_mut().w_cursor;
@@ -3190,12 +3190,12 @@ mod tests {
         assert_eq!(ctrl_chr(c_int::from(b'?')), 0x7f);
         assert_eq!(ctrl_chr(c_int::from(b'a')), 1);
         assert_eq!(ctrl_chr(c_int::from(b'A')), 1);
-        let a = pos_T {
+        let a = CursorPos {
             lnum: 1,
             col: 2,
             coladd: 0,
         };
-        let b = pos_T {
+        let b = CursorPos {
             lnum: 1,
             col: 5,
             coladd: 0,

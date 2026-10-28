@@ -1,6 +1,6 @@
 //! VTerm terminal state machine (`src/nvim/vterm/state.c`).
 
-use crate::grid::{schar_T, schar_from_ascii, schar_from_buf};
+use crate::grid::{Schar, schar_from_ascii, schar_from_buf};
 use crate::mbyte::{utf_ClusterInfo_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
 use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::terminal::Terminal;
@@ -268,7 +268,7 @@ fn set_tmp_selection_recvpartial(state: &mut VTermStateFull, val: u32) {
     state.tmp.words[1] = val;
 }
 
-fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
+fn putglyph(state: &mut VTermStateFull, schar: Schar, width: c_int, pos: VTermPos) {
     let li = state.lineinfo()[pos.row as usize];
         let flags = (state.protected_cell & 0x01)
             | ((li.doublewidth() & 0x01) << 1)

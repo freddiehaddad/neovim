@@ -19,7 +19,7 @@ use crate::vterm::state::{
 };
 use crate::vterm::vterm::{vterm_get_size, vterm_scroll_rect};
 
-use crate::grid::schar_T;
+use crate::grid::Schar;
 pub type VTermDamageSize = c_int;
 
 const VTERM_DAMAGE_CELL: VTermDamageSize = 0;
@@ -146,7 +146,7 @@ impl VTermScreenCellAttrs {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermScreenCell {
-    pub schar: schar_T,
+    pub schar: Schar,
     pub width: c_char,
     pub attrs: VTermScreenCellAttrs,
     pub fg: VTermColor,
@@ -289,14 +289,14 @@ impl ScreenPen {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct ScreenCell {
-    pub schar: schar_T,
+    pub schar: Schar,
     pub pen: ScreenPen,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct VTermGlyphInfo {
-    pub schar: schar_T,
+    pub schar: Schar,
     pub width: c_int,
     pub flags: u32,
 }

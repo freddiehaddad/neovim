@@ -2,21 +2,21 @@
 
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
 use crate::charset::{Ctrl_V, ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
-use crate::cursor::{check_cursor, gchar_cursor, pos_T};
+use crate::cursor::{check_cursor, gchar_cursor, CursorPos};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, VarType, dict_T, list_T, tv_dict_add_bool,
+    EvalFuncData, VarType, TvDict, TvList, tv_dict_add_bool,
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_alloc, tv_dict_alloc_ret, tv_get_string_chk, tv_list_alloc, tv_list_append_dict,
-    tv_list_append_string, typval_T,
+    tv_list_append_string, TypVal,
 };
 use crate::eval::vars::del_menutrans_vars;
 use crate::ex_docmd::{
-    Ctrl_C, Ctrl_G, Ctrl_O, ends_excmd, exarg_T, exec_normal_cmd, restore_current_state,
+    Ctrl_C, Ctrl_G, Ctrl_O, ends_excmd, Exarg, exec_normal_cmd, restore_current_state,
     save_current_state,
 };
 use crate::globals::*;
-use crate::input::{REMAP_SCRIPT, ins_typebuf, tasave_T};
+use crate::input::{REMAP_SCRIPT, ins_typebuf, Tasave};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
 use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
 use crate::memory::xstrlcpy;
@@ -25,7 +25,7 @@ use crate::message::{
     msg_puts_title, semsg, str2special_save,
 };
 use crate::option_vars::*;
-use crate::os::env::expand_T;
+use crate::os::env::ExpandCtx;
 use crate::popupmenu::pum_show_popupmenu;
 use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
@@ -69,7 +69,7 @@ const E_NOTSUBMENU: &CStr = c"E327: Part of menu-item path is not sub-menu";
 const E_NOMENU: &CStr = c"E329: No menu \"%s\"";
 
 #[repr(C)]
-pub struct vimmenu_T {
+pub struct Vimmenu {
     pub modes: c_int,
     pub enabled: c_int,
     pub name: std::ffi::CString,
@@ -82,10 +82,10 @@ pub struct vimmenu_T {
     pub strings: [Option<std::ffi::CString>; MENU_MODES],
     pub noremap: [c_int; MENU_MODES],
     pub silent: [bool; MENU_MODES],
-    pub children: Vec<vimmenu_T>,
+    pub children: Vec<Vimmenu>,
 }
 
-impl vimmenu_T {
+impl Vimmenu {
     pub fn new() -> Self {
         Self {
             modes: 0,
@@ -105,14 +105,14 @@ impl vimmenu_T {
     }
 }
 
-impl Default for vimmenu_T {
+impl Default for Vimmenu {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[repr(C)]
-struct menutrans_T {
+struct Menutrans {
     from: std::ffi::CString,
     from_noamp: std::ffi::CString,
     to: std::ffi::CString,
@@ -132,7 +132,7 @@ use crate::regexp::{MAXCOL, NUMBUFLEN};
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct save_state_T {
+pub struct SaveState {
     pub save_msg_scroll: c_int,
     pub save_restart_edit: c_int,
     pub save_msg_didout: bool,
@@ -141,10 +141,10 @@ pub struct save_state_T {
     pub save_opcount: c_int,
     pub save_reg_executing: c_int,
     pub save_pending_end_reg_executing: bool,
-    pub tabuf: tasave_T,
+    pub tabuf: Tasave,
 }
 
-impl save_state_T {
+impl SaveState {
     pub const fn new() -> Self {
         Self {
             save_msg_scroll: 0,
@@ -155,14 +155,14 @@ impl save_state_T {
             save_opcount: 0,
             save_reg_executing: 0,
             save_pending_end_reg_executing: false,
-            tabuf: tasave_T::new(),
+            tabuf: Tasave::new(),
         }
     }
 }
 
 struct MenuModuleState {
     MENUS_LOCKED: c_int,
-    EXPAND_MENU: *const Vec<vimmenu_T>,
+    EXPAND_MENU: *const Vec<Vimmenu>,
     EXPAND_MODES: c_int,
     EXPAND_EMENU: bool,
     GET_MENU_NAME_IDX: usize,
@@ -170,7 +170,7 @@ struct MenuModuleState {
     GET_MENU_NAMES_IDX: usize,
     GET_MENU_NAMES_ADVANCE: bool,
     GET_MENU_NAMES_TBUFFER: [c_char; TBUFFER_LEN],
-    MENUTRANS_GA: Vec<menutrans_T>,
+    MENUTRANS_GA: Vec<Menutrans>,
 }
 
 impl MenuModuleState {
@@ -204,7 +204,7 @@ fn menu_is_winbar(name: impl crate::strings::IntoCCharPtr) -> bool { let name = 
     crate::memory::cstr_prefix_bytes(name, 6) == &b"WinBar"[..6]
 }
 
-fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
+fn get_root_menu(_name: *const c_char) -> *mut Vec<Vimmenu> {
     &raw mut g_st().root_menu
 }
 
@@ -218,7 +218,7 @@ fn is_menus_locked() -> bool {
 }
 
 /// Do the `:menu` command and relatives (`ex_menu`).
-pub fn ex_menu(eap: &mut exarg_T) {
+pub fn ex_menu(eap: &mut Exarg) {
     unsafe {
         let mut noremap: c_int = 0;
         let mut silent = false;
@@ -393,7 +393,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
                 map_to = mb.as_ptr().cast_mut();
             }
 
-            let mut menuarg = vimmenu_T::new();
+            let mut menuarg = Vimmenu::new();
             menuarg.modes = modes;
             menuarg.noremap[0] = noremap;
             menuarg.silent[0] = silent;
@@ -419,24 +419,24 @@ pub fn ex_menu(eap: &mut exarg_T) {
 /// Add the menu with the given name to the menu hierarchy (`add_menu_path`).
 fn add_menu_path(
     menu_path: impl crate::strings::IntoCCharPtr,
-    menuarg: &mut vimmenu_T,
+    menuarg: &mut Vimmenu,
     pri_tab: *const c_int,
     call_data: impl crate::strings::IntoCCharPtr,
 ) -> bool { let menu_path = menu_path.into_c_char_ptr(); let call_data = call_data.into_c_char_ptr();
     unsafe {
         let mut modes = menuarg.modes;
-        let mut menu: *mut vimmenu_T = ptr::null_mut();
+        let mut menu: *mut Vimmenu = ptr::null_mut();
         let mut pri_idx: usize = 0;
         let mut old_modes: c_int = 0;
 
         let mut path_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(menu_path);
         let path_name = path_name_vec.as_mut_ptr();
         let root_menu_ptr = get_root_menu(menu_path);
-        let mut menup: *mut Vec<vimmenu_T> = root_menu_ptr;
-        let mut ancestor_stack: Vec<(*mut Vec<vimmenu_T>, usize)> = Vec::new();
+        let mut menup: *mut Vec<Vimmenu> = root_menu_ptr;
+        let mut ancestor_stack: Vec<(*mut Vec<Vimmenu>, usize)> = Vec::new();
         let mut name = path_name;
 
-        let cleanup_erret = |ancestor_stack: &[(*mut Vec<vimmenu_T>, usize)]| -> bool {
+        let cleanup_erret = |ancestor_stack: &[(*mut Vec<Vimmenu>, usize)]| -> bool {
             for &(mp, idx) in ancestor_stack.iter().rev() {
                 if (&(*mp))[idx].children.is_empty() {
                     (*mp).remove(idx);
@@ -509,7 +509,7 @@ fn add_menu_path(
                     return cleanup_erret(&ancestor_stack);
                 }
 
-                let mut new_menu = vimmenu_T::new();
+                let mut new_menu = Vimmenu::new();
                 new_menu.modes = modes;
                 new_menu.enabled = MENU_ALL_MODES;
                 new_menu.name = crate::memory::cstr_to_cstring(name);
@@ -599,7 +599,7 @@ fn add_menu_path(
 
 /// Set the (sub)menu with the given name to enabled or disabled (`menu_enable_recurse`).
 fn menu_enable_recurse(
-    menus: &mut [vimmenu_T],
+    menus: &mut [Vimmenu],
     name: *mut c_char,
     modes: c_int,
     enable: bool,
@@ -644,7 +644,7 @@ fn menu_enable_recurse(
 
 /// Remove the (sub)menu with the given name from the menu hierarchy (`remove_menu`).
 fn remove_menu(
-    menup: &mut Vec<vimmenu_T>,
+    menup: &mut Vec<Vimmenu>,
     name: *mut c_char,
     modes: c_int,
     silent: bool,
@@ -721,7 +721,7 @@ fn remove_menu(
 }
 
 /// Export menus recursively (`menu_get_recursive`).
-fn menu_get_recursive(menu: Option<&vimmenu_T>, modes: c_int) -> *mut dict_T {
+fn menu_get_recursive(menu: Option<&Vimmenu>, modes: c_int) -> *mut TvDict {
     unsafe {
         if menu.is_none() || (menu.unwrap().modes & modes) == 0 {
             return ptr::null_mut();
@@ -821,7 +821,7 @@ fn menu_get_recursive(menu: Option<&vimmenu_T>, modes: c_int) -> *mut dict_T {
 }
 
 /// Export menus matching path `path_name` (`menu_get`).
-pub fn menu_get(path_name: impl crate::strings::IntoCCharPtr, modes: c_int, list: &mut list_T) -> bool { let path_name = path_name.into_c_char_ptr();
+pub fn menu_get(path_name: impl crate::strings::IntoCCharPtr, modes: c_int, list: &mut TvList) -> bool { let path_name = path_name.into_c_char_ptr();
     unsafe {
         let root = get_root_menu(path_name);
         if !crate::memory::cstr_is_empty(path_name) {
@@ -847,15 +847,15 @@ pub fn menu_get(path_name: impl crate::strings::IntoCCharPtr, modes: c_int, list
 
 /// Find menu matching `path_name` and `modes` (`find_menu`).
 fn find_menu(
-    mut menus: &mut [vimmenu_T],
+    mut menus: &mut [Vimmenu],
     path_name: impl crate::strings::IntoCCharPtr,
     modes: c_int,
-) -> *mut vimmenu_T { let path_name = path_name.into_c_char_ptr();
+) -> *mut Vimmenu { let path_name = path_name.into_c_char_ptr();
     unsafe {
         debug_assert!(!crate::memory::cstr_is_empty(path_name));
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(path_name);
         let mut name = saved_name_vec.as_mut_ptr();
-        let mut found: *mut vimmenu_T = ptr::null_mut();
+        let mut found: *mut Vimmenu = ptr::null_mut();
 
         while !crate::memory::cstr_is_empty(name) {
             let p = menu_name_skip(name);
@@ -892,7 +892,7 @@ fn find_menu(
 /// Show the mapping associated with a menu item or hierarchy in a sub-menu (`show_menus`).
 fn show_menus(path_name: impl crate::strings::IntoCCharPtr, modes: c_int) -> bool { let path_name = path_name.into_c_char_ptr();
     unsafe {
-        let mut menu: *mut vimmenu_T = ptr::null_mut();
+        let mut menu: *mut Vimmenu = ptr::null_mut();
         if !crate::memory::cstr_is_empty(path_name) {
             menu = find_menu(&mut *get_root_menu(path_name), path_name, modes);
             if menu.is_null() {
@@ -909,7 +909,7 @@ fn show_menus(path_name: impl crate::strings::IntoCCharPtr, modes: c_int) -> boo
 }
 
 /// Recursively show the mappings associated with the menus under the given one (`show_menus_recursive`).
-fn show_menus_recursive(mut menu: Option<&mut vimmenu_T>, modes: c_int, mut depth: c_int) {
+fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: c_int, mut depth: c_int) {
      {
         if menu.is_some() && (menu.as_deref_mut().unwrap().modes & modes) == 0 {
             return;
@@ -995,7 +995,7 @@ fn show_menus_recursive(mut menu: Option<&mut vimmenu_T>, modes: c_int, mut dept
 
 /// Work out what to complete when doing command line completion of menu names (`set_context_in_menu_cmd`).
 pub fn set_context_in_menu_cmd(
-    xp: &mut expand_T,
+    xp: &mut ExpandCtx,
     cmd: impl crate::strings::IntoCCharPtr,
     mut arg: *mut c_char,
     forceit: bool,
@@ -1057,7 +1057,7 @@ pub fn set_context_in_menu_cmd(
                 menu_st().EXPAND_MODES = MENU_ALL_MODES;
             }
 
-            let mut menu_list: *const Vec<vimmenu_T> = &raw const g_st().root_menu;
+            let mut menu_list: *const Vec<Vimmenu> = &raw const g_st().root_menu;
             let mut path_name_vec: Vec<c_char>;
             if after_dot > arg {
                 let path_len = after_dot.offset_from(arg) as usize;
@@ -1068,7 +1068,7 @@ pub fn set_context_in_menu_cmd(
             let mut name = path_name;
             while !crate::memory::cstr_is_empty(name) {
                 p = menu_name_skip(name);
-                let mut found: *const vimmenu_T = ptr::null();
+                let mut found: *const Vimmenu = ptr::null();
                 for menu in &*menu_list {
                     if menu_name_equal(name, menu) {
                         if (!crate::memory::cstr_is_empty(p) && menu.children.is_empty())
@@ -1102,7 +1102,7 @@ pub fn set_context_in_menu_cmd(
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of (sub)menus (not entries) (`get_menu_name`).
-pub fn get_menu_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_menu_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             menu_st().GET_MENU_NAME_IDX = 0;
@@ -1156,7 +1156,7 @@ pub fn get_menu_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of menus and menu entries (`get_menu_names`).
-pub fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_menu_names(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
             menu_st().GET_MENU_NAMES_IDX = 0;
@@ -1249,7 +1249,7 @@ fn menu_name_skip(name: *mut c_char) -> *mut c_char {
 }
 
 /// Return true when `name` matches with menu `menu` (`menu_name_equal`).
-fn menu_name_equal(name: impl crate::strings::IntoCCharPtr, menu: &vimmenu_T) -> bool { let name = name.into_c_char_ptr();
+fn menu_name_equal(name: impl crate::strings::IntoCCharPtr, menu: &Vimmenu) -> bool { let name = name.into_c_char_ptr();
     if let Some(ref en_name) = menu.en_name
             && (menu_namecmp(name, en_name.as_ptr())
                 || menu
@@ -1517,7 +1517,7 @@ pub fn show_popupmenu() {
 
         apply_autocmds(EVENT_MENUPOPUP, mode, ptr::null_mut(), false, g_st().curbuf);
 
-        let mut menu: *mut vimmenu_T = ptr::null_mut();
+        let mut menu: *mut Vimmenu = ptr::null_mut();
         for m in &mut g_st().root_menu {
             if (b"PopUp" == crate::memory::cstr_prefix_bytes(m.name.as_ptr(), 5))
                 && (crate::memory::cstr_prefix_bytes(m.name.as_ptr().add(5), mode_len) == crate::memory::cstr_prefix_bytes(mode, mode_len))
@@ -1536,7 +1536,7 @@ pub fn show_popupmenu() {
 }
 
 /// Execute `menu` (`execute_menu`).
-pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
+pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: c_int) {
      {
         let mut idx = mode_idx;
 
@@ -1553,7 +1553,7 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
             } else if eap.addr_count != 0 {
                 idx = MENU_INDEX_VISUAL;
 
-                let tpos: pos_T;
+                let tpos: CursorPos;
                 if curbuf_mut().b_visual.vi_start.lnum == eap.line1
                     && curbuf_mut().b_visual.vi_end.lnum == eap.line2
                 {
@@ -1565,7 +1565,7 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
                     g_st().Visual.mode = b'V' as c_int;
                     curwin_mut().w_cursor.lnum = eap.line1;
                     curwin_mut().w_cursor.col = 1;
-                    tpos = pos_T {
+                    tpos = CursorPos {
                         lnum: eap.line2,
                         col: MAXCOL,
                         coladd: 0,
@@ -1596,7 +1596,7 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
         {
             let cmd_ptr = cmd_str.as_ptr().cast_mut();
             if g_st().current_sctx.sc_sid != 0 {
-                let mut save_state = save_state_T::new();
+                let mut save_state = SaveState::new();
                 g_st().ex_normal_busy += 1;
                 save_current_state(&mut save_state);
                 exec_normal_cmd(cmd_ptr, menu.noremap[u_idx], menu.silent[u_idx]);
@@ -1630,14 +1630,14 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
 }
 
 /// Lookup a menu by the descriptor name e.g. `"File.New"` (`menu_getbyname`).
-fn menu_getbyname(name_arg: impl crate::strings::IntoCCharPtr) -> *mut vimmenu_T { let name_arg = name_arg.into_c_char_ptr();
+fn menu_getbyname(name_arg: impl crate::strings::IntoCCharPtr) -> *mut Vimmenu { let name_arg = name_arg.into_c_char_ptr();
     unsafe {
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(name_arg);
         let saved_name = saved_name_vec.as_mut_ptr();
         let mut menus = (&mut *get_root_menu(saved_name)).as_mut_slice();
         let mut name = saved_name;
         let mut gave_emsg = false;
-        let mut found: *mut vimmenu_T = ptr::null_mut();
+        let mut found: *mut Vimmenu = ptr::null_mut();
         while !crate::memory::cstr_is_empty(name) {
             let p = menu_name_skip(name);
             found = ptr::null_mut();
@@ -1676,7 +1676,7 @@ fn menu_getbyname(name_arg: impl crate::strings::IntoCCharPtr) -> *mut vimmenu_T
 }
 
 /// `:emenu` (`ex_emenu`).
-pub fn ex_emenu(eap: &mut exarg_T) {
+pub fn ex_emenu(eap: &mut Exarg) {
     unsafe {
         let mut arg = eap.arg;
         let mut mode_idx = MENU_INDEX_INVALID;
@@ -1708,12 +1708,12 @@ pub fn ex_emenu(eap: &mut exarg_T) {
 }
 
 /// Given a menu descriptor, e.g. `"File.New"`, find it in the menu hierarchy (`menu_find`).
-pub fn menu_find(path_name: impl crate::strings::IntoCCharPtr) -> *mut vimmenu_T { let path_name = path_name.into_c_char_ptr();
+pub fn menu_find(path_name: impl crate::strings::IntoCCharPtr) -> *mut Vimmenu { let path_name = path_name.into_c_char_ptr();
     unsafe {
         let mut menus = (&mut *get_root_menu(path_name)).as_mut_slice();
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(path_name);
         let mut name = saved_name_vec.as_mut_ptr();
-        let mut found: *mut vimmenu_T = ptr::null_mut();
+        let mut found: *mut Vimmenu = ptr::null_mut();
         while !crate::memory::cstr_is_empty(name) {
             let p = menu_name_skip(name);
             found = ptr::null_mut();
@@ -1751,7 +1751,7 @@ pub fn menu_find(path_name: impl crate::strings::IntoCCharPtr) -> *mut vimmenu_T
 }
 
 /// `:menutrans` (`ex_menutranslate`).
-pub fn ex_menutranslate(eap: &mut exarg_T) {
+pub fn ex_menutranslate(eap: &mut Exarg) {
     unsafe {
         let mut arg = eap.arg;
         let menutrans = &mut menu_st().MENUTRANS_GA;
@@ -1784,7 +1784,7 @@ pub fn ex_menutranslate(eap: &mut exarg_T) {
                 menu_unescape_name(to);
                 let from_cstr = crate::memory::cstr_to_cstring(from);
                 let to_cstr = crate::memory::cstr_to_cstring(to);
-                menutrans.push(menutrans_T {
+                menutrans.push(Menutrans {
                     from: from_cstr,
                     from_noamp: from_noamp_cstr,
                     to: to_cstr,
@@ -1870,7 +1870,7 @@ fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
 }
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
-fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: &mut dict_T) {
+fn menuitem_getinfo(menu: &Vimmenu, modes: c_int, dict: &mut TvDict) {
     unsafe {
         tv_dict_add_str(dict, c"name", menu.name.as_ptr());
         tv_dict_add_str(dict, c"display", menu.dname.as_ptr());
@@ -1951,7 +1951,7 @@ fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: &mut dict_T) {
 }
 
 /// `menu_info()` function (`f_menu_info`).
-pub fn f_menu_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         let retdict = tv_dict_alloc_ret(rettv);
@@ -2000,7 +2000,7 @@ pub fn f_menu_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
 
         let mut saved_name_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(menu_name);
-        let mut found: *const vimmenu_T = ptr::null();
+        let mut found: *const Vimmenu = ptr::null();
         let mut name = saved_name_vec.as_mut_ptr();
         while !crate::memory::cstr_is_empty(name) {
             let p = menu_name_skip(name);

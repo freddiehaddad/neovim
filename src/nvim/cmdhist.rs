@@ -4,10 +4,10 @@ use crate::charset::vim_strsize;
 use crate::errors::{e_trailing_arg, e_val_too_large};
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,
-    tv_set_string, typval_T,
+    tv_set_string, TypVal,
 };
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{CMOD_KEEPPATTERNS, exarg_T};
+use crate::ex_docmd::{CMOD_KEEPPATTERNS, Exarg};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
 use crate::memory::xstrlcpy;
@@ -16,10 +16,10 @@ use crate::message::{
     trunc_string,
 };
 use crate::option_vars::*;
-use crate::os::env::expand_T;
+use crate::os::env::ExpandCtx;
 use crate::os::time::os_time;
 use crate::regexp::{
-    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
+    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
 };
 use std::ffi::{CStr, c_char, c_int};
 
@@ -33,7 +33,7 @@ pub const HIST_DEBUG: c_int = 4;
 pub const HIST_COUNT: usize = 5;
 
 struct CmdhistState {
-    HISTORY: [Vec<histentry_T>; HIST_COUNT],
+    HISTORY: [Vec<Histentry>; HIST_COUNT],
     HISIDX: [c_int; HIST_COUNT],
     HISNUM: [c_int; HIST_COUNT],
     HISLEN: c_int,
@@ -65,7 +65,7 @@ const HISTORY_EXPAND_ARGS: [&CStr; 12] = [
 ];
 
 #[derive(Clone)]
-pub struct histentry_T {
+pub struct Histentry {
     pub hisnum: c_int,
     pub hisstr: Option<std::ffi::CString>,
     pub sep: c_char,
@@ -73,7 +73,7 @@ pub struct histentry_T {
     pub additional_data: Option<crate::search::AdditionalData>,
 }
 
-impl histentry_T {
+impl Histentry {
     pub const fn new() -> Self {
         Self {
             hisnum: 0,
@@ -97,7 +97,7 @@ impl histentry_T {
     }
 }
 
-impl Default for histentry_T {
+impl Default for Histentry {
     fn default() -> Self {
         Self::new()
     }
@@ -106,14 +106,14 @@ impl Default for histentry_T {
 use crate::globals::IOSIZE;
 
 #[inline]
-fn clear_hist_entry(hisptr: *mut histentry_T) {
+fn clear_hist_entry(hisptr: *mut Histentry) {
     unsafe {
-        *hisptr = histentry_T::new();
+        *hisptr = Histentry::new();
     }
 }
 
 #[inline]
-fn hist_free_entry(hisptr: *mut histentry_T) {
+fn hist_free_entry(hisptr: *mut Histentry) {
     clear_hist_entry(hisptr);
 }
 
@@ -123,7 +123,7 @@ pub fn get_hislen() -> c_int {
 }
 
 /// Return a slice of a specified history table (`get_histentry`).
-pub fn get_histentry(hist_type: c_int) -> &'static [histentry_T] {
+pub fn get_histentry(hist_type: c_int) -> &'static [Histentry] {
     unsafe {
         (&raw const hist_st().HISTORY[hist_type as usize])
             .as_ref()
@@ -150,7 +150,7 @@ pub const fn hist_char2type(c: c_int) -> c_int {
 }
 
 /// Obtain possible first arguments of `:history` for completion (`get_history_arg`).
-pub fn get_history_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_history_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     if idx >= 0 && (idx as usize) < HISTORY_EXPAND_ARGS.len() {
         HISTORY_EXPAND_ARGS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -169,7 +169,7 @@ pub fn init_history() {
         }
 
         for hist_type in 0..HIST_COUNT {
-            let mut temp = vec![histentry_T::new(); newlen.max(0) as usize];
+            let mut temp = vec![Histentry::new(); newlen.max(0) as usize];
 
             let j = hist_st().HISIDX[hist_type];
             if j >= 0 {
@@ -431,7 +431,7 @@ fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr)
 
         let htype = histype as usize;
         let idx = hist_st().HISIDX[htype];
-        let mut regmatch = regmatch_T {
+        let mut regmatch = Regmatch {
             regprog: vim_regcomp(str_ptr, RE_MAGIC + RE_STRING),
             startp: [std::ptr::null_mut(); NSUBEXP],
             endp: [std::ptr::null_mut(); NSUBEXP],
@@ -510,7 +510,7 @@ fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
 }
 
 /// `"histadd()"` function (`f_histadd`).
-pub fn f_histadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -546,7 +546,7 @@ pub fn f_histadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 }
 
 /// `"histdel()"` function (`f_histdel`).
-pub fn f_histdel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let str_ptr = tv_get_string_chk(&argvars[0]);
@@ -570,7 +570,7 @@ pub fn f_histdel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 }
 
 /// `"histget()"` function (`f_histget`).
-pub fn f_histget(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let str_ptr = tv_get_string_chk(&argvars[0]);
@@ -596,7 +596,7 @@ pub fn f_histget(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 }
 
 /// `"histnr()"` function (`f_histnr`).
-pub fn f_histnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_histnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let histname = tv_get_string_chk(&argvars[0]);
@@ -614,7 +614,7 @@ pub fn f_histnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 }
 
 /// `:history` command (`ex_history`).
-pub fn ex_history(eap: &mut exarg_T) {
+pub fn ex_history(eap: &mut Exarg) {
     unsafe {
         let mut histype1 = HIST_CMD;
         let mut histype2 = HIST_CMD;
@@ -736,9 +736,9 @@ pub fn hist_iter(
     iter: Option<usize>,
     history_type: u8,
     zero: bool,
-    hist: &mut histentry_T,
+    hist: &mut Histentry,
 ) -> Option<usize> {
-    *hist = histentry_T::new();
+    *hist = Histentry::new();
         let htype = history_type as usize;
         let last = hist_st().HISIDX[htype];
         if last == -1 {
@@ -779,7 +779,7 @@ pub fn hist_iter(
 pub fn hist_get_array(
     history_type: u8,
 ) -> (
-    &'static mut [histentry_T],
+    &'static mut [Histentry],
     &'static mut c_int,
     &'static mut c_int,
 ) {

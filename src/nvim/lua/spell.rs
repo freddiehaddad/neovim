@@ -15,7 +15,7 @@ use std::ptr;
 
 use crate::drawline::HLF_COUNT;
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
-use crate::ex_getln::hlf_T;
+use crate::ex_getln::Hlf;
 
 /// Check spelling in `str` (`nlua_spell_check`).
 pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_int {
@@ -51,7 +51,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
         lua_createtable(lstate, 0, 0);
 
         while !crate::memory::cstr_is_empty(str_) {
-            let mut attr: hlf_T = HLF_COUNT;
+            let mut attr: Hlf = HLF_COUNT;
             let len = spell_check(
                 curwin_mut(),
                 str_.cast_mut(),

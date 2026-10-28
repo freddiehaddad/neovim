@@ -3,15 +3,15 @@
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string, put_c};
 use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
-use crate::autocmd::{apply_autocmds, event_T, has_event};
-use crate::buffer::buf_T;
+use crate::autocmd::{apply_autocmds, AuEvent, has_event};
+use crate::buffer::FileBuf;
 use crate::errors::*;
 use crate::eval::encode::encode_list_write;
 use crate::eval::typval::{
-    Callback, TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, kCallbackNone, list_T,
+    Callback, TypvalVval, VAR_UNLOCKED, VarType, callback_free, TvDict, kCallbackNone, TvList,
     tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref, tv_list_unref,
-    typval_T, varnumber_T,
+    TypVal, Varnumber,
 };
 use crate::eval::{callback_call, get_v_event, kListLenMayKnow, restore_v_event};
 use crate::event::r#loop::{loop_queues, uv_strerror};
@@ -48,7 +48,7 @@ use crate::os::pty_conpty_win::os_has_conpty_working;
 use crate::os::pty_proc::{
     pty_proc_close_master, pty_proc_resize, pty_proc_resume, pty_proc_tty_name,
 };
-use crate::state::save_v_event_T;
+use crate::state::SaveVEvent;
 use crate::strings::gettext;
 use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
@@ -64,7 +64,7 @@ pub type ChannelStdinMode = c_int;
 #[repr(C)]
 pub struct CallbackReader {
     pub cb: Callback,
-    pub self_dict: *mut dict_T,
+    pub self_dict: *mut TvDict,
     pub buffer: Vec<c_char>,
     pub eof: bool,
     pub buffered: bool,
@@ -461,8 +461,8 @@ pub fn channel_job_start(
     cwd: impl crate::strings::IntoCCharPtr,
     pty_width: u16,
     pty_height: u16,
-    env: *mut dict_T,
-    status_out: *mut varnumber_T,
+    env: *mut TvDict,
+    status_out: *mut Varnumber,
 ) -> *mut Channel { let exepath = exepath.into_c_char_ptr(); let cwd = cwd.into_c_char_ptr();
     unsafe {
         let chan = channel_alloc(kChannelStreamProc);
@@ -571,7 +571,7 @@ pub fn channel_job_start(
                 }
             }
             channel_destroy_early(&mut *chan);
-            *status_out = varnumber_T::from((*ph).status);
+            *status_out = Varnumber::from((*ph).status);
             return ptr::null_mut();
         }
 
@@ -600,7 +600,7 @@ pub fn channel_job_start(
             rstream_start(&mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
         }
 
-        *status_out = (*chan).id as varnumber_T;
+        *status_out = (*chan).id as Varnumber;
         chan
     }
 }
@@ -785,7 +785,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 }
 
 #[inline]
-fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut list_T { let buf = buf.into_c_char_ptr();
+fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut TvList { let buf = buf.into_c_char_ptr();
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         tv_list_append_string( &mut *l, c"", 0);
@@ -976,10 +976,10 @@ pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mu
 }
 
 fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
-    let mut argv: [typval_T; 4] = [typval_T::new(); 4];
+    let mut argv: [TypVal; 4] = [TypVal::new(); 4];
     argv[0].v_type = VarType::VAR_NUMBER;
     argv[0].v_lock = VAR_UNLOCKED;
-    argv[0].vval = TypvalVval::Number(chan.id as varnumber_T);
+    argv[0].vval = TypvalVval::Number(chan.id as Varnumber);
 
     let cb: *mut Callback = if let Some(is_stderr) = is_stderr {
         let reader = if is_stderr {
@@ -1002,7 +1002,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     } else {
         argv[1].v_type = VarType::VAR_NUMBER;
         argv[1].v_lock = VAR_UNLOCKED;
-        argv[1].vval = TypvalVval::Number(varnumber_T::from(chan.exit_status));
+        argv[1].vval = TypvalVval::Number(Varnumber::from(chan.exit_status));
         argv[2].vval = TypvalVval::String(c"exit".as_ptr().cast_mut());
         &raw mut chan.on_exit
     };
@@ -1010,7 +1010,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     argv[2].v_type = VarType::VAR_STRING;
     argv[2].v_lock = VAR_UNLOCKED;
 
-    let mut rettv: typval_T = typval_T::new();
+    let mut rettv: TypVal = TypVal::new();
     let _ = callback_call(unsafe { &mut *cb }, 3, argv.as_mut_ptr(), &mut rettv);
     tv_clear(&mut rettv);
 
@@ -1020,7 +1020,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
 }
 
 /// Allocate terminal for channel.
-pub fn channel_terminal_alloc(buf: &mut buf_T, chan: &mut Channel) {
+pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
      {
         let topts = TerminalOptions {
             data: chan,
@@ -1146,7 +1146,7 @@ pub fn channel_term_close(chan: &mut Channel) {
     }
 }
 
-pub fn channel_event(chan: &mut Channel, event: event_T) {
+pub fn channel_event(chan: &mut Channel, event: AuEvent) {
     unsafe {
         if has_event(event) {
             channel_incref(chan);
@@ -1156,9 +1156,9 @@ pub fn channel_event(chan: &mut Channel, event: event_T) {
     }
 }
 
-pub fn set_info_event(chan: &mut Channel, event: event_T) {
+pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
     unsafe {
-        let mut save_v_event: save_v_event_T = save_v_event_T::new();
+        let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -1166,7 +1166,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
             size: 0,
         };
         let info = channel_info(chan.id, &mut arena);
-        let mut retval: typval_T = typval_T::new();
+        let mut retval: TypVal = TypVal::new();
         object_to_vim(
             Object {
                 obj_type: ObjectType::kObjectTypeDict,

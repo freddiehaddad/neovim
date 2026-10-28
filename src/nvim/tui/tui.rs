@@ -9,7 +9,7 @@ use crate::api::private::validate::{
 };
 use crate::buffer_updates::ARENA_EMPTY;
 use crate::charset::getdigits_int;
-use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, cursorentry_T, shape_table_mut};
+use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, Cursorentry, shape_table_mut};
 use crate::event::r#loop::uv_sleep;
 #[cfg(unix)]
 use crate::event::r#loop::uv_tty_set_mode;
@@ -33,7 +33,7 @@ use crate::file_search::NULL_STRING;
 use crate::fileio::{fopen, fwrite};
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
 use crate::grid::{
-    sattr_T, schar_T, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
+    Sattr, Schar, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
 };
 use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, log_st, logmsg};
@@ -189,7 +189,7 @@ pub struct TUIData {
     pub modes_theme_updates: bool,
     pub modes_resize_events: bool,
     pub screenshot: Option<crate::os::fs::CFile>,
-    pub cursor_shapes: [cursorentry_T; SHAPE_IDX_COUNT],
+    pub cursor_shapes: [Cursorentry; SHAPE_IDX_COUNT],
     pub clear_attrs: HlAttrs,
     pub attrs: Vec<HlAttrs>,
     pub print_attr_id: c_int,
@@ -256,7 +256,7 @@ impl TUIData {
             modes_theme_updates: false,
             modes_resize_events: false,
             screenshot: None,
-            cursor_shapes: [cursorentry_T {
+            cursor_shapes: [Cursorentry {
                 full_name: c"",
                 shape: CursorShape::SHAPE_BLOCK,
                 mshape: 0,
@@ -1496,7 +1496,7 @@ fn final_column_wrap(tui: &mut TUIData) {
     }
 }
 
-fn print_cell(tui: &mut TUIData, buf: impl crate::strings::IntoCCharPtr, attr: sattr_T) { let buf = buf.into_c_char_ptr();
+fn print_cell(tui: &mut TUIData, buf: impl crate::strings::IntoCCharPtr, attr: Sattr) { let buf = buf.into_c_char_ptr();
      {
         if !tui.immediate_wrap_after_last_column {
             final_column_wrap(tui);
@@ -1795,7 +1795,7 @@ fn tui_cursor_reset_style(tui: &mut TUIData) {
     terminfo_out(tui, kTerm_reset_cursor_style);
 }
 
-fn decode_cursor_entry(args: Dict) -> cursorentry_T {
+fn decode_cursor_entry(args: Dict) -> Cursorentry {
     let mut r = (*shape_table_mut())[0];
         for i in 0..args.size {
             let item = args[i];
@@ -2413,8 +2413,8 @@ pub fn tui_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: LineFlags,
-    chunk: *const schar_T,
-    attrs: *const sattr_T,
+    chunk: *const Schar,
+    attrs: *const Sattr,
 ) {
     unsafe {
         {
@@ -2447,7 +2447,7 @@ pub fn tui_raw_line(
                 linerow as c_int,
                 endcol as c_int,
                 clearcol as c_int,
-                clearattr as sattr_T,
+                clearattr as Sattr,
             );
             clear_region(
                 tui,

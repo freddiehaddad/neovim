@@ -9,7 +9,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::tabpage::Buffer;
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::charset::{
     NUL, ascii_isspace, ascii_iswhite, is_special, skipwhite, to_special, transchar, vim_iswordp,
 };
@@ -19,17 +19,17 @@ use crate::eval::typval::{
     EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, nlua_clear_ref, tv_check_for_dict_arg,
     tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string,
     tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_list_alloc_ret,
-    tv_list_append_dict, typval_T,
+    tv_list_append_dict, TypVal,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func};
-use crate::eval::vars::{scid_T, set_vim_var_char};
+use crate::eval::vars::{Scid, set_vim_var_char};
 use crate::eval::{eval_to_string, kListLenUnknown, last_set_msg};
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{Ctrl_C, exarg_T};
+use crate::ex_docmd::{Ctrl_C, Exarg};
 use crate::ex_session::put_eol;
 use crate::fileio::{FILE, fputc, fputs};
 use crate::fuzzy::{
-    FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
+    FUZZY_SCORE_NONE, FuzmatchStr, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
 };
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
@@ -53,16 +53,16 @@ use crate::message::{
 };
 use crate::option::opt_error;
 use crate::option_vars::*;
-use crate::optionstr::optset_T;
-use crate::os::env::expand_T;
-use crate::regexp::{Ctrl_V, NUMBUFLEN, regmatch_T, vim_regexec};
-use crate::runtime::{sctx_T, sourcing_lnum};
+use crate::optionstr::Optset;
+use crate::os::env::ExpandCtx;
+use crate::regexp::{Ctrl_V, NUMBUFLEN, Regmatch, vim_regexec};
+use crate::runtime::{Sctx, sourcing_lnum};
 use crate::strings::{gettext, sort_strings, vim_snprintf, vim_strchr};
 use crate::viml::parser::expressions::Ctrl_H;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 
 pub const MAXMAPLEN: usize = 50;
 pub const MAX_MAPHASH: usize = 256;
@@ -87,7 +87,7 @@ pub struct MapAltLink {
 }
 
 #[repr(C)]
-pub struct mapblock_T {
+pub struct Mapblock {
     pub m_alt: Option<std::rc::Rc<MapAltLink>>,
     pub m_keys: CString,
     pub m_str: CString,
@@ -100,12 +100,12 @@ pub struct mapblock_T {
     pub m_silent: c_char,
     pub m_nowait: c_char,
     pub m_expr: c_char,
-    pub m_script_ctx: sctx_T,
+    pub m_script_ctx: Sctx,
     pub m_desc: Option<CString>,
     pub m_replace_keycodes: bool,
 }
 
-impl mapblock_T {
+impl Mapblock {
     #[inline]
     pub fn alt_keys(&self) -> Option<CString> {
         let rc = self.m_alt.as_ref()?;
@@ -129,14 +129,14 @@ impl mapblock_T {
     }
 }
 
-impl Drop for mapblock_T {
+impl Drop for Mapblock {
     fn drop(&mut self) {
         self.clear_alt_or_luaref();
     }
 }
 
 #[derive(Clone)]
-pub struct typebuf_T {
+pub struct Typebuf {
     pub tb_buf: Vec<u8>,
     pub tb_noremap: Vec<u8>,
     pub tb_buflen: c_int,
@@ -148,7 +148,7 @@ pub struct typebuf_T {
     pub tb_change_cnt: c_int,
 }
 
-impl typebuf_T {
+impl Typebuf {
     pub const ZERO: Self = Self {
         tb_buf: Vec::new(),
         tb_noremap: Vec::new(),
@@ -173,7 +173,7 @@ use crate::state::{
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct langmap_entry_T {
+struct LangmapEntry {
     from: c_int,
     to: c_int,
 }
@@ -227,13 +227,13 @@ impl MapArguments {
 }
 
 struct MappingModuleState {
-    first_abbr: Vec<mapblock_T>,
-    maphash: [Vec<mapblock_T>; MAX_MAPHASH],
+    first_abbr: Vec<Mapblock>,
+    maphash: [Vec<Mapblock>; MAX_MAPHASH],
     map_luaid: c_int,
     expand_mapmodes: c_int,
     expand_isabbrev: bool,
     expand_buffer: bool,
-    langmap_mapga: Vec<langmap_entry_T>,
+    langmap_mapga: Vec<LangmapEntry>,
 }
 
 impl MappingModuleState {
@@ -279,7 +279,7 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
-pub fn get_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
+pub fn get_maphash_list(state: c_int, c: c_int) -> &'static [Mapblock] {
     unsafe {
         (&raw const map_st().maphash[map_hash(state, c as u8)])
             .as_ref()
@@ -289,12 +289,12 @@ pub fn get_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
 }
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
-pub fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
+pub fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [Mapblock] {
      curbuf_mut().b_maphash[map_hash(state, c as u8)].as_slice()
 }
 
 #[inline]
-fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<mapblock_T>] {
+fn get_map_buckets(buf: *const FileBuf, is_abbrev: bool) -> &'static [Vec<Mapblock>] {
     unsafe {
         if is_abbrev {
             if !buf.is_null() {
@@ -311,7 +311,7 @@ fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<mapblock
 }
 
 /// Finds the Lua mapping whose `m_str` embeds `id`.
-fn map_luaid_scan(mappings: &[Vec<mapblock_T>], id: c_int) -> Option<&mapblock_T> {
+fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: c_int) -> Option<&Mapblock> {
     unsafe {
         for bucket in mappings {
             for mp in bucket {
@@ -397,7 +397,7 @@ pub fn map_mode_to_chars(mode: c_int, buf: *mut c_char) {
     }
 }
 
-fn showmap(mp: &mapblock_T, local: bool) {
+fn showmap(mp: &Mapblock, local: bool) {
      {
         if message_filtered(mp.m_keys.as_ptr())
             && message_filtered(mp.m_str.as_ptr())
@@ -533,7 +533,7 @@ fn set_maparg_rhs(
     orig_rhs: impl crate::strings::IntoCCharPtr,
     orig_rhs_len: usize,
     rhs_lua: LuaRef,
-    sid: scid_T,
+    sid: Scid,
     cpo_val: impl crate::strings::IntoCCharPtr,
     mapargs: &mut MapArguments,
 ) { let orig_rhs = orig_rhs.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
@@ -674,15 +674,15 @@ fn str_to_mapargs(
 }
 
 fn map_add(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     local: bool,
     keys: impl crate::strings::IntoCCharPtr,
     args: &MapArguments,
     noremap: c_int,
     mode: c_int,
     is_abbr: bool,
-    sid: scid_T,
-    lnum: linenr_T,
+    sid: Scid,
+    lnum: Linenr,
     simplified: bool,
     alt: Option<std::rc::Rc<MapAltLink>>,
 ) { let keys = keys.into_c_char_ptr();
@@ -701,7 +701,7 @@ fn map_add(
         }
         let m_keylen = m_keys.as_bytes().len() as c_int;
         let m_script_ctx = if sid != 0 {
-            sctx_T {
+            Sctx {
                 sc_sid: sid,
                 sc_seq: 0,
                 sc_lnum: lnum,
@@ -713,7 +713,7 @@ fn map_add(
             nlua_set_sctx(&mut ctx);
             ctx
         };
-        let mp = mapblock_T {
+        let mp = Mapblock {
             m_alt: alt,
             m_keys,
             m_str: args.rhs.clone().unwrap_or_default(),
@@ -753,7 +753,7 @@ fn buf_do_map(
     args: &mut MapArguments,
     mode: c_int,
     is_abbrev: bool,
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
 ) -> c_int {
     unsafe {
         let mut retval: c_int = 0;
@@ -932,7 +932,7 @@ fn buf_do_map(
                         if g_st().got_int {
                             break;
                         }
-                        let mpp: &mut Vec<mapblock_T> = if is_abbrev {
+                        let mpp: &mut Vec<Mapblock> = if is_abbrev {
                             if local {
                                 &mut buf.b_first_abbr
                             } else {
@@ -946,7 +946,7 @@ fn buf_do_map(
                         };
                         let mut idx: usize = 0;
                         while idx < mpp.len() && !g_st().got_int {
-                            let mp: &mut mapblock_T = &mut mpp[idx];
+                            let mp: &mut Mapblock = &mut mpp[idx];
                             if (mp.m_mode & mode) == 0 {
                                 idx += 1;
                                 continue;
@@ -1179,10 +1179,10 @@ fn do_mapclear(mut cmdp: *mut c_char, arg: impl crate::strings::IntoCCharPtr, fo
 }
 
 /// Clear all mappings in "mode".
-pub fn map_clear_mode(buf: &mut buf_T, mode: c_int, local: bool, abbr: bool) {
+pub fn map_clear_mode(buf: &mut FileBuf, mode: c_int, local: bool, abbr: bool) {
     unsafe {
         for hash in 0..256 {
-            let mpp: &mut Vec<mapblock_T> = if abbr {
+            let mpp: &mut Vec<Mapblock> = if abbr {
                 if hash > 0 {
                     break;
                 }
@@ -1199,7 +1199,7 @@ pub fn map_clear_mode(buf: &mut buf_T, mode: c_int, local: bool, abbr: bool) {
             };
             let mut idx: usize = 0;
             while idx < mpp.len() {
-                let mp: &mut mapblock_T = &mut mpp[idx];
+                let mp: &mut Mapblock = &mut mpp[idx];
                 if (mp.m_mode & mode) != 0 {
                     mp.m_mode &= !mode;
                     if mp.m_mode == 0 {
@@ -1346,19 +1346,19 @@ fn translate_mapping(str_in: impl crate::strings::IntoCCharPtr, cpo_val: impl cr
 /// Work out what to complete when doing command line completion of mapping
 /// or abbreviation names.
 pub fn set_context_in_map_cmd(
-    xp: &mut expand_T,
+    xp: &mut ExpandCtx,
     cmd: impl crate::strings::IntoCCharPtr,
     mut arg: *mut c_char,
     forceit: bool,
     isabbrev: bool,
     isunmap: bool,
-    cmdidx: crate::cmdexpand::cmdidx_T,
+    cmdidx: crate::cmdexpand::Cmdidx,
 ) -> *mut c_char {
     let mut cmd = cmd.into_c_char_ptr().cast_mut();
     unsafe {
         if forceit
-            && cmdidx != crate::cmdexpand::cmdidx_T::CMD_map
-            && cmdidx != crate::cmdexpand::cmdidx_T::CMD_unmap
+            && cmdidx != crate::cmdexpand::Cmdidx::CMD_map
+            && cmdidx != crate::cmdexpand::Cmdidx::CMD_unmap
         {
             xp.xp_context = EXPAND_NOTHING;
         } else {
@@ -1416,7 +1416,7 @@ pub fn set_context_in_map_cmd(
 /// Find all mapping/abbreviation names that match regexp "regmatch".
 pub fn ExpandMappings(
     pat: impl crate::strings::IntoCCharPtr,
-    regmatch: &mut regmatch_T,
+    regmatch: &mut Regmatch,
     matches: &mut Vec<CString>,
 ) -> bool { let pat = pat.into_c_char_ptr();
     let fuzzy = cmdline_fuzzy_complete(pat);
@@ -1424,7 +1424,7 @@ pub fn ExpandMappings(
         matches.clear();
 
         let mut str_matches: Vec<CString> = Vec::new();
-        let mut fuz_matches: Vec<fuzmatch_str_T> = Vec::new();
+        let mut fuz_matches: Vec<FuzmatchStr> = Vec::new();
 
         for i in 0..7 {
             let p_cstr: &CStr = match i {
@@ -1453,7 +1453,7 @@ pub fn ExpandMappings(
 
             if fuzzy {
                 let idx = fuz_matches.len() as c_int;
-                fuz_matches.push(fuzmatch_str_T {
+                fuz_matches.push(FuzmatchStr {
                     idx,
                     str_cstr: p_cstr.to_owned(),
                     score,
@@ -1491,7 +1491,7 @@ pub fn ExpandMappings(
 
                 if fuzzy {
                     let idx = fuz_matches.len() as c_int;
-                    fuz_matches.push(fuzmatch_str_T {
+                    fuz_matches.push(FuzmatchStr {
                         idx,
                         str_cstr: p_cstr,
                         score,
@@ -1580,7 +1580,7 @@ pub fn check_abbr(
         if scol < col {
             ptr_arg = ptr_arg.add(scol as usize);
             let mut len = col - scol;
-            let mut mp_opt: Option<&mapblock_T> = None;
+            let mut mp_opt: Option<&Mapblock> = None;
             let first_abbr_slice = map_st().first_abbr.as_slice();
             for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
                 let mut qlen = cand.m_keylen;
@@ -1672,7 +1672,7 @@ pub fn check_abbr(
 
 /// Evaluate the RHS of a mapping or abbreviations and take care of escaping
 /// special characters.
-pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
+pub fn eval_map_expr(mp: &Mapblock, c: c_int) -> Option<CString> {
     unsafe {
         let mut p: Option<CString> = None;
         let mut expr_bytes: Vec<c_char> = Vec::new();
@@ -1742,7 +1742,7 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
 }
 
 /// Write map commands for the current mappings to an .exrc file.
-pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
+pub fn makemap(fd: *mut FILE, buf: *mut FileBuf) -> bool {
     unsafe {
         let mut did_cpo = false;
 
@@ -2024,7 +2024,7 @@ pub fn check_map(
     exact: c_int,
     ign_mod: c_int,
     abbr: c_int,
-    mut mp_out: Option<&mut Option<&'static mapblock_T>>,
+    mut mp_out: Option<&mut Option<&'static Mapblock>>,
     local_ptr: &mut c_int,
     rhs_lua: &mut c_int,
 ) -> *mut c_char { let keys = keys.into_c_char_ptr();
@@ -2074,7 +2074,7 @@ pub fn check_map(
 }
 
 /// "hasmapto()" function
-pub fn f_hasmapto(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let name = tv_get_string(&argvars[0]);
@@ -2095,7 +2095,7 @@ pub fn f_hasmapto(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 }
 
 fn mapblock_fill_dict(
-    mp: &mapblock_T,
+    mp: &Mapblock,
     lhsrawalt: impl crate::strings::IntoCCharPtr,
     buffer_value: c_int,
     abbr: bool,
@@ -2193,7 +2193,7 @@ fn mapblock_fill_dict(
         dict
 }
 
-fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
+fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: c_int) {
      {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -2239,7 +2239,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
             opt_vars().p_cpo,
         )
         .unwrap_or_default();
-        let mut mp_opt: Option<&'static mapblock_T> = None;
+        let mut mp_opt: Option<&'static Mapblock> = None;
         let mut buffer_local: c_int = 0;
         let mut rhs_lua: LuaRef = LUA_NOREF;
         let mut rhs = check_map(
@@ -2365,7 +2365,7 @@ fn get_map_mode_string(mode_string: impl crate::strings::IntoCCharPtr, abbr: boo
 }
 
 /// "mapset()" function
-pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         if check_secure() {
@@ -2436,8 +2436,8 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         args.replace_keycodes = tv_dict_get_number(d.as_ref(), c"replace_keycodes") != 0;
         args.desc = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"desc");
 
-        let sid = tv_dict_get_number(d.as_ref(), c"sid") as scid_T;
-        let lnum = tv_dict_get_number(d.as_ref(), c"lnum") as linenr_T;
+        let sid = tv_dict_get_number(d.as_ref(), c"sid") as Scid;
+        let lnum = tv_dict_get_number(d.as_ref(), c"lnum") as Linenr;
         let buffer = tv_dict_get_number(d.as_ref(), c"buffer") != 0;
 
         set_maparg_rhs(
@@ -2505,7 +2505,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
 }
 
 /// "maplist()" function
-pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
@@ -2556,7 +2556,7 @@ pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                         true,
                         &mut arena,
                     );
-                    let mut d = typval_T {
+                    let mut d = TypVal {
                         v_type: VarType::VAR_UNKNOWN,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(0),
@@ -2573,12 +2573,12 @@ pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 }
 
 /// "maparg()" function
-pub fn f_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     get_maparg(argvars, rettv, 1);
 }
 
 /// "mapcheck()" function
-pub fn f_mapcheck(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_mapcheck(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     get_maparg(argvars, rettv, 0);
 }
 
@@ -2606,7 +2606,7 @@ fn langmap_set_entry(from: c_int, to: c_int) {
         let entries = &mut map_st().langmap_mapga;
         match entries.binary_search_by_key(&from, |e| e.from) {
             Ok(idx) => entries[idx].to = to,
-            Err(idx) => entries.insert(idx, langmap_entry_T { from, to }),
+            Err(idx) => entries.insert(idx, LangmapEntry { from, to }),
         }
     }
 }
@@ -2630,7 +2630,7 @@ pub fn langmap_init() {
 
 /// Called when langmap option is set; the language map can be
 /// changed at any time!
-pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
+pub fn did_set_langmap(args: &mut Optset) -> *const c_char {
     unsafe {
         langmap_init();
 
@@ -2725,7 +2725,7 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
     }
 }
 
-fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
+fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
      {
         let mut cmdp = eap.cmd;
         let mode = get_map_mode(&mut cmdp, eap.forceit != 0 || isabbrev);
@@ -2784,12 +2784,12 @@ fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
 }
 
 /// ":abbreviate" and friends.
-pub fn ex_abbreviate(eap: &mut exarg_T) {
+pub fn ex_abbreviate(eap: &mut Exarg) {
     do_exmap(eap, true);
 }
 
 /// ":map" and friends.
-pub fn ex_map(eap: &mut exarg_T) {
+pub fn ex_map(eap: &mut Exarg) {
     if g_st().secure != 0 {
             g_st().secure = 2;
             msg_outtrans(eap.cmd, 0, false);
@@ -2799,17 +2799,17 @@ pub fn ex_map(eap: &mut exarg_T) {
 }
 
 /// ":unmap" and friends.
-pub fn ex_unmap(eap: &mut exarg_T) {
+pub fn ex_unmap(eap: &mut Exarg) {
     do_exmap(eap, false);
 }
 
 /// ":mapclear" and friends.
-pub fn ex_mapclear(eap: &mut exarg_T) {
+pub fn ex_mapclear(eap: &mut Exarg) {
     do_mapclear(eap.cmd, eap.arg, eap.forceit, 0);
 }
 
 /// ":abclear" and friends.
-pub fn ex_abclear(eap: &mut exarg_T) {
+pub fn ex_abclear(eap: &mut Exarg) {
     do_mapclear(eap.cmd, eap.arg, 1, 1);
 }
 
@@ -3011,7 +3011,7 @@ pub fn modify_keymap(
 
 /// Get an array containing dictionaries describing mappings
 /// based on mode and buffer id.
-pub fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: &mut Arena) -> Array {
+pub fn keymap_array(mode: NvimString, buf: *mut FileBuf, arena: &mut Arena) -> Array {
     unsafe {
         let mut mappings = ArrayBuilder::new();
 

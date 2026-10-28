@@ -9,8 +9,8 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
 };
-use crate::eval::typval::{VarType, dict_T, tv_clear, tv_dict_find, typval_T};
-use crate::eval::userfunc::{call_func, funcexe_T};
+use crate::eval::typval::{VarType, TvDict, tv_clear, tv_dict_find, TypVal};
+use crate::eval::userfunc::{call_func, Funcexe};
 use crate::eval::{eval0};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
@@ -204,7 +204,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
         }
         api_vims_st().EVAL_RECURSIVE += 1;
 
-        let mut rettv: typval_T = typval_T::new();
+        let mut rettv: TypVal = TypVal::new();
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let ok = eval0(
@@ -240,7 +240,7 @@ fn call_function_impl(
     channel_id: u64,
     fn_name: NvimString,
     args: Array,
-    self_dict: *mut dict_T,
+    self_dict: *mut TvDict,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
@@ -256,7 +256,7 @@ fn call_function_impl(
             return rv;
         }
 
-        let mut vim_args: [typval_T; MAX_FUNC_ARGS + 1] = [typval_T::new(); MAX_FUNC_ARGS + 1];
+        let mut vim_args: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
         let mut i = 0usize;
         while i < args.size {
             object_to_vim(args[i], &mut vim_args[i], err);
@@ -271,9 +271,9 @@ fn call_function_impl(
         }
         api_vims_st().CALL_FUNC_RECURSIVE += 1;
 
-        let mut rettv: typval_T = typval_T::new();
+        let mut rettv: TypVal = TypVal::new();
         let lnum = curwin_mut().w_cursor.lnum;
-        let mut funcexe = funcexe_T {
+        let mut funcexe = Funcexe {
             fe_fill_submatch: false,
             fe_firstline: lnum,
             fe_lastline: lnum,
@@ -356,7 +356,7 @@ pub fn nvim_call_dict_function(
 ) -> Object {
     unsafe {
         let mut rv = nil_obj();
-        let mut rettv: typval_T = typval_T::new();
+        let mut rettv: TypVal = TypVal::new();
         let mut mustfree = false;
 
         match dict.obj_type {

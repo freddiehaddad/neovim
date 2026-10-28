@@ -7,26 +7,26 @@ use crate::api::private::validate::{
     Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::buffer::{
-    BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buf_T, buflist_findnr, buflist_new,
+    BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, FileBuf, buflist_findnr, buflist_new,
     buflist_setfpos,
 };
 use crate::cmdhist::{
     HIST_CMD, HIST_COUNT, HIST_DEBUG, HIST_EXPR, HIST_INPUT, HIST_SEARCH, clr_history,
-    hist_get_array, hist_iter, histentry_T,
+    hist_get_array, hist_iter, Histentry,
 };
 use crate::context::INIT_FMARKV;
-use crate::cursor::{colnr_T, linenr_T, pos_T};
+use crate::cursor::{Colnr, Linenr, CursorPos};
 use crate::eval::decode::{decode_string, unpack_typval};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::typval::{
-    TypvalVval, VarType, tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc, tv_list_len, typval_T,
+    TypvalVval, VarType, tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc, tv_list_len, TypVal,
 };
 use crate::eval::vars::{
     VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list,
 };
 use crate::eval::{
     VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copyID, kListLenUnknown,
-    set_ref_in_ht, set_ref_in_list_items, var_flavour, var_flavour_T, var_set_global,
+    set_ref_in_ht, set_ref_in_list_items, var_flavour, VarFlavour, var_set_global,
 };
 use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
 use crate::ex_docmd::set_no_hlsearch;
@@ -38,9 +38,9 @@ use crate::hashtab::hashitem_empty;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
 use crate::mark::{
-    EXTRA_MARKS, cleanup_jumplist, fmark_T, free_xfmark, mark_buffer_iter, mark_get,
+    EXTRA_MARKS, cleanup_jumplist, Fmark, free_xfmark, mark_buffer_iter, mark_get,
     mark_global_index, mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local,
-    set_last_cursor, setpcmark, xfmark_T,
+    set_last_cursor, setpcmark, Xfmark,
 };
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{ARENA_BLOCK_SIZE};
@@ -78,7 +78,7 @@ use crate::path::{
 use crate::regexp::{kMarkBufLocal, regtilde};
 use crate::register::{
     MotionType, NUM_SAVED_REGISTERS, op_global_reg_iter, op_reg_get, op_reg_index, op_reg_set,
-    reg_empty, yankreg_T,
+    reg_empty, Yankreg,
 };
 use crate::search::{
     AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_ptr,
@@ -118,7 +118,7 @@ const UV_ELOOP: c_int = -40;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_ELOOP: c_int = -62;
 
-const DEFAULT_POS: pos_T = pos_T {
+const DEFAULT_POS: CursorPos = CursorPos {
     lnum: 1,
     col: 0,
     coladd: 0,
@@ -261,7 +261,7 @@ const kSDReadChanges: c_uint = 1 << (ShadaEntryType::kSDItemChange as u32);
 #[derive(Clone)]
 struct ShadaFilemark {
     name: c_char,
-    mark: pos_T,
+    mark: CursorPos,
     fname: Option<std::ffi::CString>,
 }
 
@@ -285,7 +285,7 @@ struct ShadaReg {
 #[derive(Clone)]
 struct ShadaGlobalVar {
     name: Option<std::ffi::CString>,
-    value: typval_T,
+    value: TypVal,
 }
 
 #[derive(Clone)]
@@ -301,7 +301,7 @@ struct ShadaSubString {
 
 #[derive(Clone)]
 struct BufferListBuffer {
-    pos: pos_T,
+    pos: CursorPos,
     fname: Option<std::ffi::CString>,
     additional_data: Option<AdditionalData>,
 }
@@ -665,7 +665,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             timestamp: 0,
             data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
                 name: None,
-                value: typval_T {
+                value: TypVal {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: 0,
                     vval: TypvalVval::String(ptr::null_mut()),
@@ -1059,7 +1059,7 @@ fn shada_hist_iter(
     zero: bool,
     hist: &mut ShadaEntry,
 ) -> Option<usize> {
-    let mut hist_he = histentry_T::new();
+    let mut hist_he = Histentry::new();
         let ret = hist_iter(iter, history_type, zero, &mut hist_he);
         if hist_he.hisstr.is_none() {
             *hist = MISSING_ENTRY;
@@ -1172,7 +1172,7 @@ fn hms_insert_whole_neovim_history(hms_p: &mut HistoryMergerState) {
 #[inline]
 fn hms_to_he_array(
     hms_p: &HistoryMergerState,
-    hist_array: &mut [histentry_T],
+    hist_array: &mut [Histentry],
     new_hisidx: &mut c_int,
     new_hisnum: &mut c_int,
 ) {
@@ -1182,7 +1182,7 @@ fn hms_to_he_array(
     while let Some(idx) = cur_idx {
         let cur_entry = &hmll.entries[idx];
         let hi = cur_entry.data.data.history_item();
-        hist_array[count] = histentry_T {
+        hist_array[count] = Histentry {
             timestamp: cur_entry.data.timestamp,
             hisnum: (count as c_int) + 1,
             hisstr: hi.string.clone(),
@@ -1204,8 +1204,8 @@ fn hms_dealloc(hms_p: &mut HistoryMergerState) {
 fn var_shada_iter(
     iter: Option<usize>,
     name: &mut *const c_char,
-    rettv: &mut typval_T,
-    flavour: var_flavour_T,
+    rettv: &mut TypVal,
+    flavour: VarFlavour,
 ) -> Option<usize> {
     unsafe {
         let globvarht = get_globvar_ht();
@@ -1244,9 +1244,9 @@ fn var_shada_iter(
 }
 
 fn find_buffer(
-    fname_bufs: &mut std::collections::HashMap<Vec<u8>, *mut buf_T>,
+    fname_bufs: &mut std::collections::HashMap<Vec<u8>, *mut FileBuf>,
     fname: *const c_char,
-) -> *mut buf_T {
+) -> *mut FileBuf {
     unsafe {
         let key = crate::memory::cstr_as_bytes(fname);
         if let Some(&buf) = fname_bufs.get(key) {
@@ -1265,7 +1265,7 @@ fn find_buffer(
 }
 
 #[inline]
-const fn marks_equal(a: pos_T, b: pos_T) -> bool {
+const fn marks_equal(a: CursorPos, b: CursorPos) -> bool {
     a.lnum == b.lnum && a.col == b.col
 }
 
@@ -1352,8 +1352,8 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
             }
         }
         let mut cur_entry = MISSING_ENTRY;
-        let mut cl_bufs: std::collections::HashSet<*mut buf_T> = std::collections::HashSet::new();
-        let mut fname_bufs: std::collections::HashMap<Vec<u8>, *mut buf_T> =
+        let mut cl_bufs: std::collections::HashSet<*mut FileBuf> = std::collections::HashSet::new();
+        let mut fname_bufs: std::collections::HashMap<Vec<u8>, *mut FileBuf> =
             std::collections::HashMap::new();
         let mut oldfiles_set: std::collections::HashSet<PathKey> = std::collections::HashSet::new();
         if get_old_files && (oldfiles_list.is_null() || force) {
@@ -1488,11 +1488,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                     let y_array = std::mem::take(&mut cur_entry.data.reg_mut().contents);
                     if !op_reg_set(
                         r_name,
-                        yankreg_T {
+                        Yankreg {
                             y_array,
                             y_allocated: true,
                             y_type,
-                            y_width: r_width as colnr_T,
+                            y_width: r_width as Colnr,
                             timestamp: reg_ts,
                             additional_data: cur_entry.additional_data.take(),
                         },
@@ -1523,13 +1523,13 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                     if !buf.is_null() {
                         cur_entry.data.filemark_mut().fname = None;
                     }
-                    let fm = xfmark_T {
+                    let fm = Xfmark {
                         fname: if buf.is_null() {
                             cur_entry.data.filemark_mut().fname.take()
                         } else {
                             None
                         },
-                        fmark: fmark_T {
+                        fmark: Fmark {
                             mark: fm_mark,
                             fnum: if buf.is_null() { 0 } else { (*buf).b_fnum },
                             timestamp: cur_entry.timestamp,
@@ -1587,7 +1587,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         let sfname = path_try_shorten_fname(fname_ptr);
                         let buf = buflist_new(fname_ptr, sfname, 0, BLN_LISTED);
                         if !buf.is_null() {
-                            (*buf).b_last_cursor = fmark_T {
+                            (*buf).b_last_cursor = Fmark {
                                 mark: item.pos,
                                 fnum: 0,
                                 timestamp: os_time(),
@@ -1628,7 +1628,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
                     }
-                    let fm = fmark_T {
+                    let fm = Fmark {
                         mark: fm_mark,
                         fnum: (*buf).b_fnum,
                         timestamp: cur_entry.timestamp,
@@ -2307,7 +2307,7 @@ fn shada_read_when_writing(
                                     if !buf.b_ffname.is_null()
                                         && path_equal(fname_ptr, buf.b_ffname, kPathCmpLiteral)
                                     {
-                                        let mut fm = fmark_T::new();
+                                        let mut fm = Fmark::new();
                                         mark_get(
                                             buf,
                                             curwin_mut(),
@@ -2394,8 +2394,8 @@ fn shada_read_when_writing(
 
 #[inline]
 fn ignore_buf(
-    buf: *const buf_T,
-    removable_bufs: &std::collections::HashSet<*mut buf_T>,
+    buf: *const FileBuf,
+    removable_bufs: &std::collections::HashSet<*mut FileBuf>,
 ) -> bool {
     unsafe {
         buf.is_null()
@@ -2408,7 +2408,7 @@ fn ignore_buf(
 }
 
 #[inline]
-fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> ShadaEntry {
+fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut FileBuf>) -> ShadaEntry {
     unsafe {
         let max_bufs = get_shada_parameter(b'%' as c_int);
         let mut buffers = Vec::new();
@@ -2492,7 +2492,7 @@ fn shada_initialize_registers(
         let mut reg_iter: Option<usize> = None;
         let limit_reg_lines = max_reg_lines >= 0;
         loop {
-            let mut reg: *const yankreg_T = ptr::null();
+            let mut reg: *const Yankreg = ptr::null();
             let mut name: c_char = NUL;
             let mut is_unnamed = false;
             reg_iter = op_global_reg_iter(reg_iter, &mut name, &mut reg, &mut is_unnamed);
@@ -2553,7 +2553,7 @@ fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEnt
 }
 
 #[inline]
-fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut buf_T>) {
+fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut FileBuf>) {
     unsafe {
         for buf in for_all_buffers_ptr() {
             if !(*buf).b_ffname.is_null() && shada_removable((*buf).b_ffname) {
@@ -2624,7 +2624,7 @@ fn shada_write(
             max_reg_lines = get_shada_parameter(b'"' as c_int);
         }
         let dump_registers = max_reg_lines != 0;
-        let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+        let mut removable_bufs: std::collections::HashSet<*mut FileBuf> =
             std::collections::HashSet::new();
         let max_kbyte = max_kbyte_i as usize;
         let num_marked_files = get_shada_parameter(b'\'' as c_int) as usize;
@@ -2751,7 +2751,7 @@ fn shada_write(
                 let mut var_iter: Option<usize> = None;
                 let cur_timestamp = os_time();
                 loop {
-                    let mut vartv = typval_T::new();
+                    let mut vartv = TypVal::new();
                     let mut name: *const c_char = ptr::null();
                     var_iter = var_shada_iter(var_iter, &mut name, &mut vartv, VAR_FLAVOUR_SHADA);
                     if name.is_null() {
@@ -2786,7 +2786,7 @@ fn shada_write(
                         _ => {}
                     }
                     if !skip {
-                        let mut tgttv = typval_T::new();
+                        let mut tgttv = TypVal::new();
                         tv_copy(&vartv, &mut tgttv);
                         let spe_ret = shada_pack_entry(
                             &mut packer,
@@ -2863,7 +2863,7 @@ fn shada_write(
                 let mut digit_mark_idx = 0usize;
                 loop {
                     let mut name: c_char = NUL;
-                    let mut fm = xfmark_T::new();
+                    let mut fm = Xfmark::new();
                     global_mark_iter = mark_global_iter(global_mark_iter, &mut name, &mut fm);
                     if name == NUL {
                         break;
@@ -2934,7 +2934,7 @@ fn shada_write(
                             .entry(fname_bytes)
                             .or_insert_with(FileMarks::new);
                         loop {
-                            let mut fm = fmark_T::new();
+                            let mut fm = Fmark::new();
                             let mut name: c_char = NUL;
                             local_marks_iter =
                                 mark_buffer_iter(local_marks_iter, &*buf, &mut name, &mut fm);
@@ -3763,10 +3763,10 @@ fn shada_read_next_item(
                             fm.name = it.n as c_char;
                         }
                         if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__l)) != 0 {
-                            fm.mark.lnum = it.l as linenr_T;
+                            fm.mark.lnum = it.l as Linenr;
                         }
                         if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__c)) != 0 {
-                            fm.mark.col = it.c as colnr_T;
+                            fm.mark.col = it.c as Colnr;
                         }
                         if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__f)) != 0 {
                             let mut bytes =
@@ -4089,13 +4089,13 @@ fn shada_read_next_item(
                                     & (1u64 << KEYSET_OPTIDX__shada_buflist_item__l))
                                     != 0
                                 {
-                                    e.pos.lnum = it.l as linenr_T;
+                                    e.pos.lnum = it.l as Linenr;
                                 }
                                 if (it.is_set___shada_buflist_item_
                                     & (1u64 << KEYSET_OPTIDX__shada_buflist_item__c))
                                     != 0
                                 {
-                                    e.pos.col = it.c as colnr_T;
+                                    e.pos.col = it.c as Colnr;
                                 }
                                 if (it.is_set___shada_buflist_item_
                                     & (1u64 << KEYSET_OPTIDX__shada_buflist_item__f))
@@ -4225,7 +4225,7 @@ fn shada_removable(name: impl crate::strings::IntoCCharPtr) -> bool { let name =
 #[inline]
 fn shada_init_jumps(
     jumps: &mut [ShadaEntry; JUMPLISTSIZE],
-    removable_bufs: &std::collections::HashSet<*mut buf_T>,
+    removable_bufs: &std::collections::HashSet<*mut FileBuf>,
 ) -> usize {
     unsafe {
         let mut jumps_size = 0usize;
@@ -4233,7 +4233,7 @@ fn shada_init_jumps(
         setpcmark();
         cleanup_jumplist(curwin_mut(), false);
         loop {
-            let mut fm = xfmark_T::new();
+            let mut fm = Xfmark::new();
             jump_iter = mark_jumplist_iter(jump_iter, curwin_mut(), &mut fm);
             if fm.fmark.mark.lnum == 0 {
                 siemsg!(
@@ -4315,7 +4315,7 @@ pub fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> Vec<u8> {
 
 /// Gets the jumplist as a msgpack-encoded byte buffer, in shada format (`shada_encode_jumps`).
 pub fn shada_encode_jumps() -> Vec<u8> {
-    let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+    let mut removable_bufs: std::collections::HashSet<*mut FileBuf> =
             std::collections::HashSet::new();
         find_removable_bufs(&mut removable_bufs);
         let mut jumps = [const { MISSING_ENTRY }; JUMPLISTSIZE];
@@ -4332,7 +4332,7 @@ pub fn shada_encode_jumps() -> Vec<u8> {
 
 /// Gets the buffer-list as a msgpack-encoded byte buffer, in shada format (`shada_encode_buflist`).
 pub fn shada_encode_buflist() -> Vec<u8> {
-    let mut removable_bufs: std::collections::HashSet<*mut buf_T> =
+    let mut removable_bufs: std::collections::HashSet<*mut FileBuf> =
             std::collections::HashSet::new();
         find_removable_bufs(&mut removable_bufs);
         let buflist_entry = shada_get_buflist(&removable_bufs);
@@ -4351,7 +4351,7 @@ pub fn shada_encode_gvars() -> Vec<u8> {
         let mut var_iter: Option<usize> = None;
         let cur_timestamp = os_time();
         loop {
-            let mut vartv = typval_T::new();
+            let mut vartv = TypVal::new();
             let mut name: *const c_char = ptr::null();
             var_iter = var_shada_iter(
                 var_iter,
@@ -4363,7 +4363,7 @@ pub fn shada_encode_gvars() -> Vec<u8> {
                 break;
             }
             if vartv.v_type != VarType::VAR_FUNC && vartv.v_type != VarType::VAR_PARTIAL {
-                let mut tgttv = typval_T::new();
+                let mut tgttv = TypVal::new();
                 tv_copy(&vartv, &mut tgttv);
                 let r = shada_pack_entry(
                     &mut packer,

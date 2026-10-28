@@ -8,7 +8,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Error, ErrorType, NvimString};
 use crate::api::vim::nvim_feedkeys;
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::buffer::{MAXLNUM, buf_T, buf_get_changedtick, bufref_valid};
+use crate::buffer::{MAXLNUM, FileBuf, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::set_clipboard;
 use crate::context::{
@@ -16,15 +16,15 @@ use crate::context::{
     kCtxMarks, kCtxMergeReg, kCtxRegs, kCtxVisual,
 };
 use crate::cursor::{
-    check_cursor, check_cursor_col, check_pos, colnr_T, equalpos, getvpos, linenr_T, lt, ltoreq,
-    pos_T,
+    check_cursor, check_cursor_col, check_pos, Colnr, equalpos, getvpos, Linenr, lt, ltoreq,
+    CursorPos,
 };
 use crate::decoration::DecorInline;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::eval::ESC;
-use crate::eval::typval::{TypvalVval, VarType, typval_T, varnumber_T};
+use crate::eval::typval::{TypvalVval, VarType, TypVal, Varnumber};
 use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
-use crate::eval::window::viewstate_T;
+use crate::eval::window::Viewstate;
 use crate::ex_docmd::{
     CMOD_KEEPJUMPS, exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
 };
@@ -41,7 +41,7 @@ use crate::input::{
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, atom_cmd_spec, atom_composite_active, atom_composite_queued,
     atom_did_global_op, atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress,
-    atom_visual_reset, atom_visual_span, cmdarg_T, atom_st, kAInsertSpan, kAMotion, kAVisualSpan,
+    atom_visual_reset, atom_visual_span, Cmdarg, atom_st, kAInsertSpan, kAMotion, kAVisualSpan,
     kKeyInsFlush,
 };
 use crate::insexpand::ins_compl_active;
@@ -56,12 +56,12 @@ use crate::marktree::{
 };
 use crate::memline::{dec, inc, ml_get_len, ml_region_text};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
-use crate::menu::save_state_T;
+use crate::menu::SaveState;
 use crate::r#move::{
     restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
 };
-use crate::msgpack_rpc::packer::handle_T;
-use crate::normal::{VisualState, end_visual_mode, visualinfo, visualinfo_T};
+use crate::msgpack_rpc::packer::ObjHandle;
+use crate::normal::{VisualState, end_visual_mode, visualinfo, Visualinfo};
 use crate::ops::{getregionpos_line, getregionpos_prep};
 use crate::option::{OPT_LOCAL, set_option_value_give_err};
 use crate::option_vars::*;
@@ -77,7 +77,7 @@ use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::{vim_snprintf};
-use crate::textformat::{InsState, oparg_T};
+use crate::textformat::{InsState, Oparg};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
@@ -100,8 +100,8 @@ struct McSandbox {
     primary: Context,
     cursor_mark: u32,
     topline_mark: u32,
-    view: viewstate_T,
-    sst: save_state_T,
+    view: Viewstate,
+    sst: SaveState,
     redo: RedoState,
     visual: VisualState,
 }
@@ -112,8 +112,8 @@ impl McSandbox {
             primary: CONTEXT_INIT,
             cursor_mark: 0,
             topline_mark: 0,
-            view: viewstate_T::new(),
-            sst: save_state_T::new(),
+            view: Viewstate::new(),
+            sst: SaveState::new(),
             redo: RedoState::new(),
             visual: VisualState::new(),
         }
@@ -123,8 +123,8 @@ impl McSandbox {
 #[repr(C)]
 struct McInsSaved {
     ins: InsState,
-    last_changedtick: varnumber_T,
-    last_changedtick_i: varnumber_T,
+    last_changedtick: Varnumber,
+    last_changedtick_i: Varnumber,
 }
 
 struct McInsSpan {
@@ -146,7 +146,7 @@ struct McStart {
 struct McursorState {
     mc_ins_span: McInsSpan,
     mc_start: McStart,
-    mc_vsel_buf: handle_T,
+    mc_vsel_buf: ObjHandle,
     mc_ins_joined: bool,
     mc_cursors: Vec<Context>,
     ns_mc: u32,
@@ -159,7 +159,7 @@ struct McursorState {
 impl McursorState {
     const fn new() -> Self {
         Self {
-            mc_ins_span: McInsSpan { origin: CmdOrigin { buf: crate::buffer::bufref_T { br_buf: ptr::null_mut(), br_fnum: 0, br_buf_free_count: 0 }, win: ptr::null(), pos: INIT_POS, mcursor: 0, tick: 0, maptick: 0 }, regions: Vec::new(), active: false, first: false, frame: 0, done_len: 0, region: 0, vsel: None },
+            mc_ins_span: McInsSpan { origin: CmdOrigin { buf: crate::buffer::Bufref { br_buf: ptr::null_mut(), br_fnum: 0, br_buf_free_count: 0 }, win: ptr::null(), pos: INIT_POS, mcursor: 0, tick: 0, maptick: 0 }, regions: Vec::new(), active: false, first: false, frame: 0, done_len: 0, region: 0, vsel: None },
             mc_start: McStart { time: 0, ctx: CONTEXT_INIT },
             mc_vsel_buf: 0,
             mc_ins_joined: false,
@@ -278,11 +278,11 @@ pub fn mc_replaying() -> bool {
      get_vim_var_tv(VV_CASCADING).vval.v_bool() == kBoolVarTrue
 }
 
-fn mc_mark_upd(buf: &mut buf_T, mark: &mut u32, pos: pos_T) {
+fn mc_mark_upd(buf: &mut FileBuf, mark: &mut u32, pos: CursorPos) {
     extmark_set_pos( buf, mc_ns(), mark, pos, true, false, true);
 }
 
-fn mc_track_upd(buf: &mut buf_T, mark: &mut u32, pos: pos_T) {
+fn mc_track_upd(buf: &mut FileBuf, mark: &mut u32, pos: CursorPos) {
     extmark_set_pos( buf, mc_session_ns(), mark, pos, true, true, false);
 }
 
@@ -302,7 +302,7 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
         mc_track_upd(
             curbuf_mut(),
             &mut sb.topline_mark,
-            pos_T {
+            CursorPos {
                 lnum: sb.view.vs_topline,
                 col: 0,
                 coladd: 0,
@@ -575,7 +575,7 @@ pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     }
 }
 
-fn mc_cleanup(dedupe: bool, primary: Option<&pos_T>, keep_mark: u32) {
+fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
     unsafe {
         let had_cursors = !cursors().is_empty();
         let mut n = 0;
@@ -712,13 +712,13 @@ fn mc_ins_regions_clear() {
 }
 
 #[inline]
-fn mc_ctx_resolve(ctx: &Context, pos: &mut pos_T) -> bool {
+fn mc_ctx_resolve(ctx: &Context, pos: &mut CursorPos) -> bool {
     handle_get_buffer(ctx.buf) == g_st().curbuf
             && ctx.mark != 0
             && extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, pos)
 }
 
-fn mc_region_mark_set(mark: &mut u32, pos: pos_T) {
+fn mc_region_mark_set(mark: &mut u32, pos: CursorPos) {
      {
         extmark_set(
             curbuf_mut(),
@@ -767,14 +767,14 @@ fn mc_ins_region_first() -> MTPair {
 }
 
 #[inline]
-fn mc_region_range(p: MTPair,start: &mut pos_T,end: &mut pos_T) {
+fn mc_region_range(p: MTPair,start: &mut CursorPos,end: &mut CursorPos) {
      {
-        *start = pos_T {
+        *start = CursorPos {
             lnum: p.start.pos.row + 1,
             col: p.start.pos.col,
             coladd: 0,
         };
-        *end = pos_T {
+        *end = CursorPos {
             lnum: p.end_pos.row + 1,
             col: p.end_pos.col,
             coladd: 0,
@@ -782,7 +782,7 @@ fn mc_region_range(p: MTPair,start: &mut pos_T,end: &mut pos_T) {
     }
 }
 
-fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
+fn mc_region_mark_range(mark: u32, start: &mut CursorPos, end: &mut CursorPos) -> bool {
      {
         let p = extmark_from_id(curbuf_mut(), mc_session_ns(), mark);
         if p.start.id == 0 {
@@ -793,7 +793,7 @@ fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
     }
 }
 
-fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: &NvimString) {
+fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
     {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -1162,10 +1162,10 @@ pub fn mc_vsel_clear() {
 }
 
 fn mc_vsel_mark(
-    start_lnum: linenr_T,
-    start_col: colnr_T,
-    end_lnum: linenr_T,
-    end_col: colnr_T,
+    start_lnum: Linenr,
+    start_col: Colnr,
+    end_lnum: Linenr,
+    end_col: Colnr,
 ) {
      {
         let mut decor = DECOR_INLINE_INIT;
@@ -1235,7 +1235,7 @@ pub fn mc_vsel_refresh() {
                 kMTCharWise
             };
             let mut inclusive = true;
-            let mut oa = oparg_T::new();
+            let mut oa = Oparg::new();
             g_st().virtual_op = c_int::from(virtual_active(curwin_mut()));
             getregionpos_prep(
                 &mut s,
@@ -1344,7 +1344,7 @@ pub fn mc_ins_commit() -> bool {
     }
 }
 
-pub fn mc_buf_has_cursors(buf: &mut buf_T) -> bool {
+pub fn mc_buf_has_cursors(buf: &mut FileBuf) -> bool {
     cursors().iter().any(|ctx| ctx.buf == buf.b_fnum)
 }
 
@@ -1357,12 +1357,12 @@ fn mc_lua_enable(enable: bool) {
             return;
         }
         let mut tv_args = [
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_BOOL,
                 v_lock: 0,
                 vval: TypvalVval::Bool(if enable { kBoolVarTrue } else { kBoolVarFalse }),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
@@ -1376,7 +1376,7 @@ fn mc_lua_enable(enable: bool) {
         );
 }
 
-pub fn mc_mark_at(buf: &mut buf_T, pos: pos_T, skip: u32) -> u32 {
+pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
      {
         if cursors().is_empty() {
             return 0;
@@ -1399,7 +1399,7 @@ pub fn mc_mark_at(buf: &mut buf_T, pos: pos_T, skip: u32) -> u32 {
     }
 }
 
-fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: pos_T) -> pos_T {
+fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: CursorPos) -> CursorPos {
     let keys = keys.into_c_char_ptr();
     unsafe {
         curwin_mut().w_cursor = pos;
@@ -1411,7 +1411,7 @@ fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: pos_T) -> pos_T {
         atom_suppress(true);
         block_autocmds();
         block_on_key();
-        let mut sst = save_state_T::new();
+        let mut sst = SaveState::new();
         save_current_state(&mut sst);
         let beeps = g_st().did_beep_silent;
         exec_normal_cmd(keys.cast_mut(), REMAP_NONE, true);
@@ -1428,16 +1428,16 @@ fn mc_zq_step(keys: impl crate::strings::IntoCCharPtr, pos: pos_T) -> pos_T {
 }
 
 fn mc_zq_target(
-    step: pos_T,
+    step: CursorPos,
     search: bool,
     motion_type: c_int,
     ctx: Option<&mut Context>,
-) -> visualinfo_T {
+) -> Visualinfo {
      {
         let save = curbuf_mut().b_visual;
         let save_mode_eval = curbuf_mut().b_visual_mode_eval;
         if !search {
-            curbuf_mut().b_visual = visualinfo_T {
+            curbuf_mut().b_visual = Visualinfo {
                 vi_start: step,
                 vi_end: step,
                 vi_curswant: step.col,
@@ -1448,7 +1448,7 @@ fn mc_zq_target(
                 },
             };
         } else if mc_zq_step(c"gn\x1b", step).lnum == 0 {
-            curbuf_mut().b_visual = visualinfo_T {
+            curbuf_mut().b_visual = Visualinfo {
                 vi_start: INIT_POS,
                 vi_end: INIT_POS,
                 vi_mode: 0,
@@ -1471,8 +1471,8 @@ fn mc_zq_first(
     keys: impl crate::strings::IntoCCharPtr,
     search: bool,
     motion_type: c_int,
-    bounds: *const pos_T,
-    step: &mut pos_T,
+    bounds: *const CursorPos,
+    step: &mut CursorPos,
 ) -> bool { let keys = keys.into_c_char_ptr();
     unsafe {
         let start = *bounds;
@@ -1533,8 +1533,8 @@ fn mc_zq_run(
     keys: impl crate::strings::IntoCCharPtr,
     search: bool,
     motion_type: c_int,
-    end: pos_T,
-    first: pos_T,
+    end: CursorPos,
+    first: CursorPos,
 ) -> c_int { let keys = keys.into_c_char_ptr();
      {
         let wrap = end.lnum == MAXLNUM;
@@ -1573,7 +1573,7 @@ fn mc_zq_run(
     }
 }
 
-pub fn mc_zq_start(cap: &mut cmdarg_T) {
+pub fn mc_zq_start(cap: &mut Cmdarg) {
      {
         cap.oap_mut().from_visual = g_st().Visual.active;
         cap.oap_mut().motion_type = kMTUnknown;
@@ -1585,7 +1585,7 @@ pub fn mc_zq_start(cap: &mut cmdarg_T) {
     }
 }
 
-pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
+pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
     unsafe {
         atom_did_global_op();
         if mc_replaying()
@@ -1605,7 +1605,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
         let mut v = curbuf_mut().b_visual;
         let mut bounds = [
             primary,
-            pos_T {
+            CursorPos {
                 lnum: MAXLNUM,
                 col: 0,
                 coladd: 0,
@@ -1621,7 +1621,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
             bounds[0].col = 0;
             bounds[1].col = MAXCOL;
         }
-        let mut vcols: [colnr_T; 2] = [0, MAXCOL];
+        let mut vcols: [Colnr; 2] = [0, MAXCOL];
         let blockwise = oap.from_visual && v.vi_mode == Ctrl_V && !lines;
         if blockwise {
             let [vcol0, vcol1] = &mut vcols;
@@ -1641,7 +1641,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
         }
         curwin_mut().w_cursor = primary;
         update_curswant();
-        let mut view = viewstate_T::new();
+        let mut view = Viewstate::new();
         save_viewstate(curwin_mut(), &mut view);
         save_search_patterns();
 
@@ -1678,12 +1678,12 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
         } else {
             for lnum in bounds[0].lnum..=bounds[1].lnum {
                 let mut line = [
-                    pos_T {
+                    CursorPos {
                         lnum,
                         col: 0,
                         coladd: 0,
                     },
-                    pos_T {
+                    CursorPos {
                         lnum,
                         col: MAXCOL,
                         coladd: 0,
@@ -1731,12 +1731,12 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
 pub fn mc_counter(count1: c_long) {
     atom_did_global_op();
         let mut tv_args = [
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
-                vval: TypvalVval::Number(count1 as varnumber_T),
+                vval: TypvalVval::Number(count1 as Varnumber),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
@@ -1766,7 +1766,7 @@ pub fn mc_follow_set(on: TriState) {
     }
 }
 
-pub fn mc_toggle(buf: &mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
+pub fn mc_toggle(buf: &mut FileBuf, pos: CursorPos, end_follow: bool, on: TriState) {
      {
         if mc_replaying() {
             return;
@@ -1784,7 +1784,7 @@ pub fn mc_toggle(buf: &mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
     }
 }
 
-pub fn mc_add(buf: &mut buf_T, pos: pos_T) -> *mut Context {
+pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> *mut Context {
      {
         let existing = mc_mark_at( buf, pos, 0);
         if existing != 0 {
@@ -1807,7 +1807,7 @@ pub fn mc_add(buf: &mut buf_T, pos: pos_T) -> *mut Context {
     }
 }
 
-pub fn mc_on_extmark_set(buf: &mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
+pub fn mc_on_extmark_set(buf: &mut FileBuf, ns_id: u32, mut id: u32, pos: CursorPos) {
     {
         if ns_id != mc_ns() {
             return;
@@ -1835,7 +1835,7 @@ pub fn mc_on_extmark_set(buf: &mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
     }
 }
 
-pub fn mc_buf_clear(buf: &mut buf_T) {
+pub fn mc_buf_clear(buf: &mut FileBuf) {
     if mc_replaying() {
             return;
         }
@@ -1843,7 +1843,7 @@ pub fn mc_buf_clear(buf: &mut buf_T) {
         extmark_clear( buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
 }
 
-pub fn mc_buf_free(buf: &mut buf_T) {
+pub fn mc_buf_free(buf: &mut FileBuf) {
      {
         if mc_replaying() {
             return;
@@ -1855,7 +1855,7 @@ pub fn mc_buf_free(buf: &mut buf_T) {
     }
 }
 
-pub fn mc_ns_clearing(buf: &mut buf_T, ns_id: u32) {
+pub fn mc_ns_clearing(buf: &mut FileBuf, ns_id: u32) {
      {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
             return;
@@ -1873,7 +1873,7 @@ pub fn mc_ns_clearing(buf: &mut buf_T, ns_id: u32) {
     }
 }
 
-pub fn mc_ns_cleared(buf: &mut buf_T, ns_id: u32) {
+pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
      {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() || !mc_buf_has_cursors(buf) {
             return;

@@ -1,4 +1,4 @@
-//! Conversions between Lua stack values, Vimscript `typval_T`, and API `Object`
+//! Conversions between Lua stack values, Vimscript `TypVal`, and API `Object`
 //! (`src/nvim/lua/converter.c`).
 
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
@@ -20,7 +20,7 @@ use crate::eval::encode::{
 use crate::eval::typval::{
     TypvalVval, VAR_UNLOCKED, VarType, tv_blob_len, tv_clear, tv_copy, tv_dict_add, tv_dict_alloc,
     tv_dict_find, tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list,
-    tv_list_append_owned_tv, tv_list_first, tv_list_last, tv_list_len, tv_list_ref, typval_T,
+    tv_list_append_owned_tv, tv_list_first, tv_list_last, tv_list_len, tv_list_ref, TypVal,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists_mut};
@@ -33,7 +33,7 @@ use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::math::{FAIL, OK};
 use crate::memory::{Arena, arena_memdupz_opt};
 use crate::message::{emsg, internal_error, semsg};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 pub type Boolean = bool;
@@ -202,7 +202,7 @@ struct LuaTableProps {
 
 #[derive(Clone, Copy)]
 struct TVPopStackItem {
-    tv: *mut typval_T,
+    tv: *mut TypVal,
     list_len: usize,
     container: bool,
     special: bool,
@@ -688,10 +688,10 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
     }
 }
 
-/// Convert Lua object to Vimscript `typval_T` (`nlua_pop_typval`).
+/// Convert Lua object to Vimscript `TypVal` (`nlua_pop_typval`).
 pub unsafe extern "C-unwind" fn nlua_pop_typval(
     lstate: *mut lua_State,
-    ret_tv: *mut typval_T,
+    ret_tv: *mut TypVal,
 ) -> bool {
     unsafe {
         let mut ret = true;
@@ -734,7 +734,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             tv_list_append_owned_tv( &mut *kv_pair, s_tv);
                             tv_list_append_owned_tv(
                                  &mut *kv_pair,
-                                typval_T {
+                                TypVal {
                                     v_type: VarType::VAR_UNKNOWN,
                                     v_lock: VAR_UNLOCKED,
                                     vval: TypvalVval::Number(0),
@@ -777,7 +777,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     lua_rawgeti(lstate, -1, tv_list_len(list.as_ref()) + 1);
                     tv_list_append_owned_tv(
                          &mut *list,
-                        typval_T {
+                        TypVal {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(0),
@@ -795,7 +795,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                 }
             }
 
-            *cur.tv = typval_T {
+            *cur.tv = TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
@@ -946,7 +946,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
 
         if !ret {
             tv_clear(&mut *ret_tv);
-            *ret_tv = typval_T {
+            *ret_tv = TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
@@ -1047,10 +1047,10 @@ fn lua_check_self_reference(
 
 fn lua_convert_one_value(
     lstate: *mut lua_State,
-    mpstack: &mut Vec<MPConvStackVal>,tv: &mut typval_T,
+    mpstack: &mut Vec<MPConvStackVal>,tv: &mut TypVal,
     copy_id: c_int,
 ) -> c_int {
-    let tv_ptr: *mut typval_T = &raw mut *tv;
+    let tv_ptr: *mut TypVal = &raw mut *tv;
     unsafe {
         let tv_ref = tv;
         match tv_ref.v_type {
@@ -1381,7 +1381,7 @@ fn lua_convert_one_value(
     }
 }
 
-fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> bool {
+fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut TypVal) -> bool {
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
@@ -1393,7 +1393,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> bool {
         while !mpstack.is_empty() {
             let cur_idx = mpstack.len() - 1;
             let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-            let next_tv: *mut typval_T = match mpstack[cur_idx].data {
+            let next_tv: *mut TypVal = match mpstack[cur_idx].data {
                 MPConvStackData::Dict {
                     dict,
                     ref mut hi,
@@ -1477,10 +1477,10 @@ fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> bool {
     }
 }
 
-/// Convert Vimscript `typval_T` to Lua value (`nlua_push_typval`).
+/// Convert Vimscript `TypVal` to Lua value (`nlua_push_typval`).
 pub unsafe extern "C-unwind" fn nlua_push_typval(
     lstate: *mut lua_State,
-    tv: *mut typval_T,
+    tv: *mut TypVal,
     flags: c_int,
 ) -> bool {
     unsafe {
@@ -1585,10 +1585,10 @@ pub unsafe extern "C-unwind" fn nlua_push_Array(
     }
 }
 
-/// Convert given `handle_T` to Lua number (`nlua_push_handle`).
+/// Convert given `ObjHandle` to Lua number (`nlua_push_handle`).
 pub unsafe extern "C-unwind" fn nlua_push_handle(
     lstate: *mut lua_State,
-    item: handle_T,
+    item: ObjHandle,
     _flags: c_int,
 ) {
     unsafe {
@@ -1628,7 +1628,7 @@ pub unsafe extern "C-unwind" fn nlua_push_Object(
             ObjectType::kObjectTypeBuffer
             | ObjectType::kObjectTypeWindow
             | ObjectType::kObjectTypeTabpage => {
-                nlua_push_handle(lstate, obj.data.integer() as handle_T, flags);
+                nlua_push_handle(lstate, obj.data.integer() as ObjHandle, flags);
             }
         }
     }
@@ -2184,12 +2184,12 @@ pub fn nlua_pop_LuaRef(
     rv
 }
 
-/// Convert Lua value to `handle_T` (`nlua_pop_handle`).
+/// Convert Lua value to `ObjHandle` (`nlua_pop_handle`).
 pub fn nlua_pop_handle(
     lstate: *mut lua_State,
     _arena: &mut Arena,
     err: &mut Error,
-) -> handle_T {
+) -> ObjHandle {
     unsafe {
         let ret = if lua_type(lstate, -1) != LUA_TNUMBER {
             api_set_error!(
@@ -2199,7 +2199,7 @@ pub fn nlua_pop_handle(
             );
             -1
         } else {
-            lua_tonumber(lstate, -1) as handle_T
+            lua_tonumber(lstate, -1) as ObjHandle
         };
         lua_pop(lstate, 1);
         ret
@@ -2336,7 +2336,7 @@ pub fn nlua_pop_keydict_opt(
                 || field.key_type == (ObjectType::kObjectTypeWindow as c_int)
                 || field.key_type == (ObjectType::kObjectTypeTabpage as c_int)
             {
-                *mem.cast::<handle_T>() = nlua_pop_handle(L, &mut dummy_arena, err);
+                *mem.cast::<ObjHandle>() = nlua_pop_handle(L, &mut dummy_arena, err);
             } else if field.key_type == (ObjectType::kObjectTypeArray as c_int) {
                 *mem.cast::<Array>() = nlua_pop_Array_opt(L, arena.as_deref_mut(), err);
             } else if field.key_type == (ObjectType::kObjectTypeDict as c_int) {
@@ -2386,7 +2386,7 @@ pub unsafe extern "C-unwind" fn nlua_push_keydict(
                 || field.key_type == (ObjectType::kObjectTypeWindow as c_int)
                 || field.key_type == (ObjectType::kObjectTypeTabpage as c_int)
             {
-                lua_pushinteger(L, *mem.cast::<handle_T>() as lua_Integer);
+                lua_pushinteger(L, *mem.cast::<ObjHandle>() as lua_Integer);
             } else if field.key_type == (ObjectType::kObjectTypeFloat as c_int) {
                 lua_pushnumber(L, *mem.cast::<Float>());
             } else if field.key_type == (ObjectType::kObjectTypeBoolean as c_int) {

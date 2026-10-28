@@ -8,7 +8,7 @@ use std::ffi::{c_char, c_int};
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
 
-pub type handle_T = c_int;
+pub type ObjHandle = c_int;
 pub type Integer = i64;
 
 #[derive(Clone, Copy, Debug)]
@@ -340,7 +340,7 @@ pub fn mpack_ext(buf: impl crate::strings::IntoCCharPtr, len: usize, ext_type: i
 ///
 /// # Safety
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
-pub fn mpack_handle(obj_type: ObjectType, handle: handle_T, packer: &mut PackerBuffer) {
+pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut PackerBuffer) {
     let exttype = ((obj_type as c_int) - EXT_OBJECT_TYPE_SHIFT) as u8;
     unsafe {
         if (-0x1f..=0x7f).contains(&handle) {
@@ -432,7 +432,7 @@ pub fn mpack_object_inner(
                 ObjectType::kObjectTypeBuffer
                 | ObjectType::kObjectTypeWindow
                 | ObjectType::kObjectTypeTabpage => {
-                    mpack_handle(cur.obj_type, cur.data.integer() as handle_T, packer);
+                    mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
                 }
                 ObjectType::kObjectTypeDict | ObjectType::kObjectTypeArray => {
                     let current_size = if cur.obj_type == ObjectType::kObjectTypeArray {

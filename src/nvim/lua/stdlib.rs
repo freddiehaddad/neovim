@@ -7,14 +7,14 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Error, ErrorType, NvimString};
 use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::charset::NUL;
 use crate::context::kCtxKeepDirs;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 use crate::eval::typval::{
-    dict_T, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_watcher_notify, typval_T,
+    TvDict, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_watcher_notify, TypVal,
 };
 use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
 use crate::ex_docmd::{
@@ -43,18 +43,18 @@ use crate::lua::spell::luaopen_spell;
 use crate::lua::xdiff::nlua_xdl_diff;
 use crate::mbyte::{
     convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes, mb_utflen,
-    string_convert, utf_cp_bounds_len, utf_ptr2len_len, vimconv_T,
+    string_convert, utf_cp_bounds_len, utf_ptr2len_len, Vimconv,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::str2special;
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::regexp::{
-    RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, regmatch_T, regprog_T, vim_regcomp, vim_regexec,
+    RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, Regmatch, Regprog, vim_regcomp, vim_regexec,
     vim_regfree,
 };
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
-use crate::window::{win_T, win_find_tabpage};
+use crate::window::{WinInfoInfo, win_find_tabpage};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -86,17 +86,17 @@ use crate::lpeg::lptree::luaopen_lpeg;
 use crate::lua::converter::lua_isstring;
 use crate::mpack::lmpack::luaopen_mpack;
 
-fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
-    unsafe { luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut regprog_T>() }
+fn regex_check(lstate: *mut lua_State) -> *mut *mut Regprog {
+    unsafe { luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut Regprog>() }
 }
 
 fn regex_match(
     lstate: *mut lua_State,
-    prog: *mut *mut regprog_T,
+    prog: *mut *mut Regprog,
     str_: impl crate::strings::IntoCCharPtr,
 ) -> c_int { let str_ = str_.into_c_char_ptr();
     unsafe {
-        let mut rm: regmatch_T = regmatch_T::new();
+        let mut rm: Regmatch = Regmatch::new();
         rm.regprog = *prog;
         rm.rm_ic = false;
         let matched = vim_regexec(&mut rm, str_, 0);
@@ -140,8 +140,8 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> c_int {
             return luaL_error(lstate, c"not enough args".as_ptr());
         }
 
-        let bufnr = luaL_checkinteger(lstate, 2) as handle_T;
-        let rownr = luaL_checkinteger(lstate, 3) as linenr_T;
+        let bufnr = luaL_checkinteger(lstate, 2) as ObjHandle;
+        let rownr = luaL_checkinteger(lstate, 3) as Linenr;
         let mut start: c_int = 0;
         let mut end: c_int = -1;
         if narg >= 4 {
@@ -342,7 +342,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
             return lua_error(lstate);
         }
 
-        let p = lua_newuserdata(lstate, size_of::<*mut regprog_T>()).cast::<*mut regprog_T>();
+        let p = lua_newuserdata(lstate, size_of::<*mut Regprog>()).cast::<*mut Regprog>();
         *p = prog;
 
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim_regex");
@@ -351,11 +351,11 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
     }
 }
 
-fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
+fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut TvDict {
     unsafe {
         let scope = luaL_checkstring(lstate, 1);
-        let handle = luaL_checkinteger(lstate, 2) as handle_T;
-        let mut dict: *mut dict_T = ptr::null_mut();
+        let handle = luaL_checkinteger(lstate, 2) as ObjHandle;
+        let mut dict: *mut TvDict = ptr::null_mut();
         let mut err = Error::new();
 
         match crate::memory::cstr_as_bytes(scope) {
@@ -432,14 +432,14 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             }
             tv_dict_item_remove(&mut *dict,  &mut *di);
         } else {
-            let mut tv: typval_T = typval_T::new();
+            let mut tv: TypVal = TypVal::new();
 
             lua_pushvalue(lstate, 4);
             if !nlua_pop_typval(lstate, &raw mut tv) {
                 return luaL_error(lstate, c"Couldn't convert lua value".as_ptr());
             }
 
-            let mut oldtv: typval_T = typval_T::new();
+            let mut oldtv: TypVal = TypVal::new();
 
             if di.is_null() {
                 di = tv_dict_item_alloc_len(key.data, key.size);
@@ -572,7 +572,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
             lua_tolstring(lstate, 3, ptr::null_mut()).cast_mut(),
         ));
 
-        let mut vimconv = vimconv_T {
+        let mut vimconv = Vimconv {
             vc_type: CONV_NONE,
             vc_factor: 0,
             vc_fd: None,
@@ -599,16 +599,16 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
     unsafe {
-        let window = luaL_checkinteger(lstate, 1) as handle_T;
+        let window = luaL_checkinteger(lstate, 1) as ObjHandle;
         let win = handle_get_window(window);
         if win.is_null() {
             return luaL_error(lstate, c"invalid window".as_ptr());
         }
-        let top = (luaL_checkinteger(lstate, 2) as linenr_T) + 1;
+        let top = (luaL_checkinteger(lstate, 2) as Linenr) + 1;
         if top < 1 {
             return luaL_error(lstate, c"invalid top".as_ptr());
         }
-        let bot = luaL_checkinteger(lstate, 3) as linenr_T;
+        let bot = luaL_checkinteger(lstate, 3) as Linenr;
         if top > bot {
             return luaL_error(lstate, c"invalid bot".as_ptr());
         }
@@ -621,8 +621,8 @@ unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
     unsafe {
         let mut flags: c_int = 0;
-        let mut buf: *mut buf_T = ptr::null_mut();
-        let mut win: *mut win_T = ptr::null_mut();
+        let mut buf: *mut FileBuf = ptr::null_mut();
+        let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut keepcwd = false;
         let mut log_level: c_int = -1;
 
@@ -667,7 +667,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         if log_level >= 0 {
             log_st().g_min_log_level = log_level;
         }
-        let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, crate::ex_docmd::cmdmod_T::new());
+        let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, crate::ex_docmd::Cmdmod::new());
         g_st().cmdmod.cmod_flags = flags;
         apply_cmdmod(&mut g_st().cmdmod);
 

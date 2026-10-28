@@ -1,18 +1,18 @@
 //! Regular expression compilation, execution, and substitution (`src/nvim/regexp.c`).
 
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 pub(super) use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 use crate::charset::{
     getdigits_int, hex2nr, vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc_buf, vim_iswordp_buf,
 };
-use crate::cursor::{colnr_T, linenr_T, lpos_T, lt};
+use crate::cursor::{Colnr, Linenr, Lpos, lt};
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    VarType, list_T, staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
-    tv_list_init_static10, tv_set_string, typval_T,
+    VarType, TvList, StaticList10, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
+    tv_list_init_static10, tv_set_string, TypVal,
 };
-use crate::eval::userfunc::{funcexe_T, ufunc_T};
+use crate::eval::userfunc::{Funcexe, UserFunc};
 use crate::globals::*;
 use crate::keycodes::{BS, CAR, ESC, K_SPECIAL, NL, NUL, TAB};
 use crate::mark::mark_get;
@@ -26,9 +26,9 @@ use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
-use crate::profile::{profile_passed_limit, proftime_T};
+use crate::profile::{profile_passed_limit, Proftime};
 pub(super) use crate::strings::tr;
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -42,8 +42,8 @@ use self::nfa::*;
 
 use crate::math::{FAIL, OK};
 use crate::option::OptInt;
-pub type magic_T = c_int;
-pub type reg_getline_flags_T = c_uint;
+pub type RegMagic = c_int;
+pub type RegGetlineFlags = c_uint;
 
 pub const NSUBEXP: usize = 10;
 
@@ -57,10 +57,10 @@ pub const REX_SET: c_int = 1;
 pub const REX_USE: c_int = 2;
 pub const REX_ALL: c_int = REX_SET | REX_USE;
 
-pub const MAGIC_NONE: magic_T = 1;
-pub const MAGIC_OFF: magic_T = 2;
-pub const MAGIC_ON: magic_T = 3;
-pub const MAGIC_ALL: magic_T = 4;
+pub const MAGIC_NONE: RegMagic = 1;
+pub const MAGIC_OFF: RegMagic = 2;
+pub const MAGIC_ON: RegMagic = 3;
+pub const MAGIC_ALL: RegMagic = 4;
 
 pub const REGSUB_COPY: c_int = 1;
 pub const REGSUB_MAGIC: c_int = 2;
@@ -69,7 +69,7 @@ pub const REGSUB_BACKSLASH: c_int = 4;
 pub(super) const Ctrl_H: c_int = 0x08;
 pub(super) const Ctrl_V: c_int = 0x16;
 
-pub(super) const MAXCOL: colnr_T = 0x7fffffff;
+pub(super) const MAXCOL: Colnr = 0x7fffffff;
 pub(super) const NUMBUFLEN: usize = 65;
 pub(super) const MB_MAXBYTES: c_int = 30;
 pub(super) const MAX_MCO: usize = 6;
@@ -77,9 +77,9 @@ pub(super) const GRAPHEME_STATE_INIT: GraphemeState = 0;
 pub(super) const kMarkBufLocal: c_int = 0;
 pub(super) const kCpoLiteral: c_int = b'l' as c_int;
 
-pub(super) const RGLF_LINE: reg_getline_flags_T = 0x01;
-pub(super) const RGLF_LENGTH: reg_getline_flags_T = 0x02;
-pub(super) const RGLF_SUBMATCH: reg_getline_flags_T = 0x04;
+pub(super) const RGLF_LINE: RegGetlineFlags = 0x01;
+pub(super) const RGLF_LENGTH: RegGetlineFlags = 0x02;
+pub(super) const RGLF_SUBMATCH: RegGetlineFlags = 0x04;
 
 pub(super) const NFA_MAX_STATES: c_int = 100000;
 pub(super) const NFA_TOO_EXPENSIVE: c_int = -1;
@@ -207,11 +207,11 @@ pub(super) static META_flags: [u8; 127] = [
 ];
 
 pub(super) enum RegProgEngine {
-    Bt(bt_regprog_T),
-    Nfa(nfa_regprog_T),
+    Bt(BtRegprog),
+    Nfa(NfaRegprog),
 }
 
-pub struct regprog_T {
+pub struct Regprog {
     pub regflags: c_uint,
     pub re_engine: c_uint,
     pub re_flags: c_uint,
@@ -219,9 +219,9 @@ pub struct regprog_T {
     pub(super) engine: RegProgEngine,
 }
 
-impl regprog_T {
+impl Regprog {
     #[inline]
-    pub(super) fn bt_mut(&mut self) -> &mut bt_regprog_T {
+    pub(super) fn bt_mut(&mut self) -> &mut BtRegprog {
         match &mut self.engine {
             RegProgEngine::Bt(bt) => bt,
             RegProgEngine::Nfa(_) => unreachable!(),
@@ -229,7 +229,7 @@ impl regprog_T {
     }
 
     #[inline]
-    pub(super) fn nfa_mut(&mut self) -> &mut nfa_regprog_T {
+    pub(super) fn nfa_mut(&mut self) -> &mut NfaRegprog {
         match &mut self.engine {
             RegProgEngine::Nfa(nfa) => nfa,
             RegProgEngine::Bt(_) => unreachable!(),
@@ -239,21 +239,21 @@ impl regprog_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct regmmatch_T {
-    pub regprog: *mut regprog_T,
-    pub startpos: [lpos_T; NSUBEXP],
-    pub endpos: [lpos_T; NSUBEXP],
-    pub rmm_matchcol: colnr_T,
+pub struct Regmmatch {
+    pub regprog: *mut Regprog,
+    pub startpos: [Lpos; NSUBEXP],
+    pub endpos: [Lpos; NSUBEXP],
+    pub rmm_matchcol: Colnr,
     pub rmm_ic: c_int,
-    pub rmm_maxcol: colnr_T,
+    pub rmm_maxcol: Colnr,
 }
 
-impl regmmatch_T {
+impl Regmmatch {
     pub const fn new() -> Self {
         Self {
             regprog: ptr::null_mut(),
-            startpos: [lpos_T::new(); NSUBEXP],
-            endpos: [lpos_T::new(); NSUBEXP],
+            startpos: [Lpos::new(); NSUBEXP],
+            endpos: [Lpos::new(); NSUBEXP],
             rmm_matchcol: 0,
             rmm_ic: 0,
             rmm_maxcol: 0,
@@ -261,7 +261,7 @@ impl regmmatch_T {
     }
 }
 
-impl Default for regmmatch_T {
+impl Default for Regmmatch {
     #[inline]
     fn default() -> Self {
         Self::new()
@@ -270,15 +270,15 @@ impl Default for regmmatch_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct regmatch_T {
-    pub regprog: *mut regprog_T,
+pub struct Regmatch {
+    pub regprog: *mut Regprog,
     pub startp: [*mut c_char; NSUBEXP],
     pub endp: [*mut c_char; NSUBEXP],
-    pub rm_matchcol: colnr_T,
+    pub rm_matchcol: Colnr,
     pub rm_ic: bool,
 }
 
-impl regmatch_T {
+impl Regmatch {
     pub const fn new() -> Self {
         Self {
             regprog: ptr::null_mut(),
@@ -290,7 +290,7 @@ impl regmatch_T {
     }
 }
 
-impl Default for regmatch_T {
+impl Default for Regmatch {
     #[inline]
     fn default() -> Self {
         Self::new()
@@ -299,7 +299,7 @@ impl Default for regmatch_T {
 
 #[repr(C)]
 #[derive(Default)]
-pub struct reg_extmatch_T {
+pub struct RegExtmatch {
     pub matches: [Option<std::ffi::CString>; NSUBEXP],
 }
 
@@ -313,7 +313,7 @@ pub(super) fn cstring_from_bytes(
     std::ffi::CString::new(&bytes[..end]).ok()
 }
 
-pub(super) struct bt_regprog_T {
+pub(super) struct BtRegprog {
     pub regflags: c_uint,
     pub regstart: c_int,
     pub reganch: u8,
@@ -331,7 +331,7 @@ pub(super) enum NfaOutSlot {
 
 impl NfaOutSlot {
     #[inline]
-    pub(super) fn set(self, states: &mut [nfa_state_T], target: Option<usize>) {
+    pub(super) fn set(self, states: &mut [NfaState], target: Option<usize>) {
         match self {
             Self::Out(idx) => states[idx].out = target,
             Self::Out1(idx) => states[idx].out1 = target,
@@ -340,7 +340,7 @@ impl NfaOutSlot {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct nfa_state_T {
+pub(super) struct NfaState {
     pub c: c_int,
     pub out: Option<usize>,
     pub out1: Option<usize>,
@@ -348,7 +348,7 @@ pub(super) struct nfa_state_T {
     pub val: c_int,
 }
 
-impl nfa_state_T {
+impl NfaState {
     pub(super) const fn new() -> Self {
         Self {
             c: 0,
@@ -360,13 +360,13 @@ impl nfa_state_T {
     }
 }
 
-impl Default for nfa_state_T {
+impl Default for NfaState {
     fn default() -> Self {
         Self::new()
     }
 }
 
-pub(super) struct nfa_regprog_T {
+pub(super) struct NfaRegprog {
     pub regflags: c_uint,
     pub re_engine: c_uint,
     pub start: Option<usize>,
@@ -379,14 +379,14 @@ pub(super) struct nfa_regprog_T {
     pub pattern: std::ffi::CString,
     pub nsubexp: c_int,
     pub nstate: c_int,
-    pub listbuf: [Vec<nfa_thread_T>; 2],
-    pub state: Vec<nfa_state_T>,
+    pub listbuf: [Vec<NfaThread>; 2],
+    pub state: Vec<NfaState>,
 }
 
 #[derive(Clone, Copy)]
 pub(super) enum RegPos {
     Ptr(*mut u8),
-    Pos(lpos_T),
+    Pos(Lpos),
 }
 
 impl RegPos {
@@ -414,17 +414,17 @@ impl RegPos {
     }
 
     #[inline]
-    pub(super) const fn pos(self) -> lpos_T {
+    pub(super) const fn pos(self) -> Lpos {
         match self {
             Self::Pos(pos) => pos,
-            Self::Ptr(_) => lpos_T::new(),
+            Self::Ptr(_) => Lpos::new(),
         }
     }
 
     #[inline]
-    pub(super) fn pos_mut(&mut self) -> &mut lpos_T {
+    pub(super) fn pos_mut(&mut self) -> &mut Lpos {
         if !matches!(*self, Self::Pos(_)) {
-            *self = Self::Pos(lpos_T::new());
+            *self = Self::Pos(Lpos::new());
         }
         match self {
             Self::Pos(pos) => pos,
@@ -441,12 +441,12 @@ impl Default for RegPos {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub(super) struct regsave_T {
+pub(super) struct Regsave {
     pub rs_u: RegPos,
     pub rs_len: c_int,
 }
 
-impl regsave_T {
+impl Regsave {
     pub(super) const fn new() -> Self {
         Self {
             rs_u: RegPos::new(),
@@ -457,11 +457,11 @@ impl regsave_T {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub(super) struct save_se_T {
+pub(super) struct SaveSe {
     pub se_u: RegPos,
 }
 
-impl save_se_T {
+impl SaveSe {
     pub(super) const fn new() -> Self {
         Self {
             se_u: RegPos::new(),
@@ -469,35 +469,35 @@ impl save_se_T {
     }
 }
 
-pub(super) type regstate_T = c_int;
-pub(super) const RS_NOPEN: regstate_T = 0;
-pub(super) const RS_MOPEN: regstate_T = 1;
-pub(super) const RS_MCLOSE: regstate_T = 2;
-pub(super) const RS_ZOPEN: regstate_T = 3;
-pub(super) const RS_ZCLOSE: regstate_T = 4;
-pub(super) const RS_BRANCH: regstate_T = 5;
-pub(super) const RS_BRCPLX_MORE: regstate_T = 6;
-pub(super) const RS_BRCPLX_LONG: regstate_T = 7;
-pub(super) const RS_BRCPLX_SHORT: regstate_T = 8;
-pub(super) const RS_NOMATCH: regstate_T = 9;
-pub(super) const RS_BEHIND1: regstate_T = 10;
-pub(super) const RS_BEHIND2: regstate_T = 11;
-pub(super) const RS_STAR_LONG: regstate_T = 12;
-pub(super) const RS_STAR_SHORT: regstate_T = 13;
+pub(super) type Regstate = c_int;
+pub(super) const RS_NOPEN: Regstate = 0;
+pub(super) const RS_MOPEN: Regstate = 1;
+pub(super) const RS_MCLOSE: Regstate = 2;
+pub(super) const RS_ZOPEN: Regstate = 3;
+pub(super) const RS_ZCLOSE: Regstate = 4;
+pub(super) const RS_BRANCH: Regstate = 5;
+pub(super) const RS_BRCPLX_MORE: Regstate = 6;
+pub(super) const RS_BRCPLX_LONG: Regstate = 7;
+pub(super) const RS_BRCPLX_SHORT: Regstate = 8;
+pub(super) const RS_NOMATCH: Regstate = 9;
+pub(super) const RS_BEHIND1: Regstate = 10;
+pub(super) const RS_BEHIND2: Regstate = 11;
+pub(super) const RS_STAR_LONG: Regstate = 12;
+pub(super) const RS_STAR_SHORT: Regstate = 13;
 
 #[derive(Clone, Copy)]
 pub(super) enum RegItemSave {
-    Se(save_se_T),
-    Reg(regsave_T),
+    Se(SaveSe),
+    Reg(Regsave),
 }
 
 impl RegItemSave {
     pub(super) const fn new() -> Self {
-        Self::Se(save_se_T::new())
+        Self::Se(SaveSe::new())
     }
 
     #[inline]
-    pub(super) fn sesave(&self) -> &save_se_T {
+    pub(super) fn sesave(&self) -> &SaveSe {
         match self {
             Self::Se(s) => s,
             Self::Reg(_) => unreachable!(),
@@ -505,9 +505,9 @@ impl RegItemSave {
     }
 
     #[inline]
-    pub(super) fn sesave_mut(&mut self) -> &mut save_se_T {
+    pub(super) fn sesave_mut(&mut self) -> &mut SaveSe {
         if !matches!(*self, Self::Se(_)) {
-            *self = Self::Se(save_se_T::new());
+            *self = Self::Se(SaveSe::new());
         }
         match self {
             Self::Se(s) => s,
@@ -516,7 +516,7 @@ impl RegItemSave {
     }
 
     #[inline]
-    pub(super) fn regsave(&self) -> &regsave_T {
+    pub(super) fn regsave(&self) -> &Regsave {
         match self {
             Self::Reg(r) => r,
             Self::Se(_) => unreachable!(),
@@ -524,9 +524,9 @@ impl RegItemSave {
     }
 
     #[inline]
-    pub(super) fn regsave_mut(&mut self) -> &mut regsave_T {
+    pub(super) fn regsave_mut(&mut self) -> &mut Regsave {
         if !matches!(*self, Self::Reg(_)) {
-            *self = Self::Reg(regsave_T::new());
+            *self = Self::Reg(Regsave::new());
         }
         match self {
             Self::Reg(r) => r,
@@ -543,14 +543,14 @@ impl Default for RegItemSave {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct regitem_T {
-    pub rs_state: regstate_T,
+pub(super) struct Regitem {
+    pub rs_state: Regstate,
     pub rs_no: i16,
     pub rs_scan: *mut u8,
     pub rs_un: RegItemSave,
 }
 
-impl regitem_T {
+impl Regitem {
     pub(super) const fn new() -> Self {
         Self {
             rs_state: 0,
@@ -561,7 +561,7 @@ impl regitem_T {
     }
 }
 
-impl Default for regitem_T {
+impl Default for Regitem {
     fn default() -> Self {
         Self::new()
     }
@@ -569,20 +569,20 @@ impl Default for regitem_T {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub(super) struct regbehind_T {
-    pub save_after: regsave_T,
-    pub save_behind: regsave_T,
+pub(super) struct Regbehind {
+    pub save_after: Regsave,
+    pub save_behind: Regsave,
     pub save_need_clear_subexpr: c_int,
-    pub save_start: [save_se_T; NSUBEXP],
-    pub save_end: [save_se_T; NSUBEXP],
+    pub save_start: [SaveSe; NSUBEXP],
+    pub save_end: [SaveSe; NSUBEXP],
 }
 
-pub(super) struct Frag_T {
+pub(super) struct Frag {
     pub start: Option<usize>,
     pub out: Vec<NfaOutSlot>,
 }
 
-impl Frag_T {
+impl Frag {
     pub(super) const fn new() -> Self {
         Self {
             start: None,
@@ -591,7 +591,7 @@ impl Frag_T {
     }
 }
 
-impl Default for Frag_T {
+impl Default for Frag {
     fn default() -> Self {
         Self::new()
     }
@@ -600,10 +600,10 @@ impl Default for Frag_T {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct multipos {
-    pub start_lnum: linenr_T,
-    pub end_lnum: linenr_T,
-    pub start_col: colnr_T,
-    pub end_col: colnr_T,
+    pub start_lnum: Linenr,
+    pub end_lnum: Linenr,
+    pub start_col: Colnr,
+    pub end_col: Colnr,
 }
 
 impl multipos {
@@ -698,13 +698,13 @@ impl Default for RegSubList {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub(super) struct regsub_T {
+pub(super) struct Regsub {
     pub in_use: c_int,
     pub list: RegSubList,
-    pub orig_start_col: colnr_T,
+    pub orig_start_col: Colnr,
 }
 
-impl regsub_T {
+impl Regsub {
     pub(super) const fn new() -> Self {
         Self {
             in_use: 0,
@@ -716,73 +716,73 @@ impl regsub_T {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub(super) struct regsubs_T {
-    pub norm: regsub_T,
-    pub synt: regsub_T,
+pub(super) struct Regsubs {
+    pub norm: Regsub,
+    pub synt: Regsub,
 }
 
-impl regsubs_T {
+impl Regsubs {
     pub(super) const fn new() -> Self {
         Self {
-            norm: regsub_T::new(),
-            synt: regsub_T::new(),
+            norm: Regsub::new(),
+            synt: Regsub::new(),
         }
     }
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct nfa_pim_T {
+pub(super) struct NfaPim {
     pub result: c_int,
     pub state: Option<usize>,
-    pub subs: regsubs_T,
+    pub subs: Regsubs,
     pub end: RegPos,
 }
 
-impl nfa_pim_T {
+impl NfaPim {
     pub(super) const fn new() -> Self {
         Self {
             result: 0,
             state: None,
-            subs: regsubs_T::new(),
+            subs: Regsubs::new(),
             end: RegPos::new(),
         }
     }
 }
 
-impl Default for nfa_pim_T {
+impl Default for NfaPim {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct nfa_thread_T {
+pub(super) struct NfaThread {
     pub state: Option<usize>,
     pub count: c_int,
-    pub pim: nfa_pim_T,
-    pub subs: regsubs_T,
+    pub pim: NfaPim,
+    pub subs: Regsubs,
 }
 
-impl nfa_thread_T {
+impl NfaThread {
     pub(super) const fn new() -> Self {
         Self {
             state: None,
             count: 0,
-            pim: nfa_pim_T::new(),
-            subs: regsubs_T::new(),
+            pim: NfaPim::new(),
+            subs: Regsubs::new(),
         }
     }
 }
 
-impl Default for nfa_thread_T {
+impl Default for NfaThread {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[repr(C)]
-pub(super) struct nfa_list_T {
-    pub t: Vec<nfa_thread_T>,
+pub(super) struct NfaList {
+    pub t: Vec<NfaThread>,
     pub n: c_int,
     pub id: c_int,
     pub has_pim: c_int,
@@ -806,7 +806,7 @@ impl CaseConv {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct parse_state_T {
+pub(super) struct ParseState {
     pub regparse: *mut c_char,
     pub prevchr_len: c_int,
     pub curchr: c_int,
@@ -818,7 +818,7 @@ pub(super) struct parse_state_T {
     pub regnpar: c_int,
 }
 
-impl parse_state_T {
+impl ParseState {
     pub(super) const fn new() -> Self {
         Self {
             regparse: ptr::null_mut(),
@@ -834,7 +834,7 @@ impl parse_state_T {
     }
 }
 
-impl Default for parse_state_T {
+impl Default for ParseState {
     fn default() -> Self {
         Self::new()
     }
@@ -842,19 +842,19 @@ impl Default for parse_state_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct regexec_T {
-    pub reg_match: *mut regmatch_T,
-    pub reg_mmatch: *mut regmmatch_T,
+pub(super) struct Regexec {
+    pub reg_match: *mut Regmatch,
+    pub reg_mmatch: *mut Regmmatch,
     pub reg_startp: *mut *mut u8,
     pub reg_endp: *mut *mut u8,
-    pub reg_startpos: *mut lpos_T,
-    pub reg_endpos: *mut lpos_T,
-    pub reg_win: *mut win_T,
-    pub reg_buf: *mut buf_T,
-    pub reg_firstlnum: linenr_T,
-    pub reg_maxline: linenr_T,
+    pub reg_startpos: *mut Lpos,
+    pub reg_endpos: *mut Lpos,
+    pub reg_win: *mut WinInfoInfo,
+    pub reg_buf: *mut FileBuf,
+    pub reg_firstlnum: Linenr,
+    pub reg_maxline: Linenr,
     pub reg_line_lbr: bool,
-    pub lnum: linenr_T,
+    pub lnum: Linenr,
     pub line: *mut u8,
     pub input: *mut u8,
     pub need_clear_subexpr: c_int,
@@ -862,7 +862,7 @@ pub(super) struct regexec_T {
     pub reg_ic: bool,
     pub reg_icombine: bool,
     pub reg_nobreak: bool,
-    pub reg_maxcol: colnr_T,
+    pub reg_maxcol: Colnr,
     pub nfa_has_zend: c_int,
     pub nfa_has_backref: c_int,
     pub nfa_nsubexpr: c_int,
@@ -871,7 +871,7 @@ pub(super) struct regexec_T {
     pub nfa_has_zsubexpr: c_int,
 }
 
-impl regexec_T {
+impl Regexec {
     pub(super) const fn new() -> Self {
         Self {
             reg_match: ptr::null_mut(),
@@ -904,7 +904,7 @@ impl regexec_T {
     }
 }
 
-impl Default for regexec_T {
+impl Default for Regexec {
     fn default() -> Self {
         Self::new()
     }
@@ -912,15 +912,15 @@ impl Default for regexec_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub(super) struct regsubmatch_T {
-    pub sm_match: *mut regmatch_T,
-    pub sm_mmatch: *mut regmmatch_T,
-    pub sm_firstlnum: linenr_T,
-    pub sm_maxline: linenr_T,
+pub(super) struct Regsubmatch {
+    pub sm_match: *mut Regmatch,
+    pub sm_mmatch: *mut Regmmatch,
+    pub sm_firstlnum: Linenr,
+    pub sm_maxline: Linenr,
     pub sm_line_lbr: c_int,
 }
 
-impl regsubmatch_T {
+impl Regsubmatch {
     pub(super) const fn new() -> Self {
         Self {
             sm_match: ptr::null_mut(),
@@ -932,256 +932,256 @@ impl regsubmatch_T {
     }
 }
 
-impl Default for regsubmatch_T {
+impl Default for Regsubmatch {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[derive(Clone, Copy)]
-struct decomp_T {
+struct Decomp {
     a: c_int,
     b: c_int,
     c: c_int,
 }
 
-static DECOMP_TABLE: [decomp_T; 0xfb4f - 0xfb20 + 1] = [
-    decomp_T {
+static DECOMP_TABLE: [Decomp; 0xfb4f - 0xfb20 + 1] = [
+    Decomp {
         a: 0x5e2,
         b: 0,
         c: 0,
     }, // 0xfb20       alt ayin
-    decomp_T {
+    Decomp {
         a: 0x5d0,
         b: 0,
         c: 0,
     }, // 0xfb21       alt alef
-    decomp_T {
+    Decomp {
         a: 0x5d3,
         b: 0,
         c: 0,
     }, // 0xfb22       alt dalet
-    decomp_T {
+    Decomp {
         a: 0x5d4,
         b: 0,
         c: 0,
     }, // 0xfb23       alt he
-    decomp_T {
+    Decomp {
         a: 0x5db,
         b: 0,
         c: 0,
     }, // 0xfb24       alt kaf
-    decomp_T {
+    Decomp {
         a: 0x5dc,
         b: 0,
         c: 0,
     }, // 0xfb25       alt lamed
-    decomp_T {
+    Decomp {
         a: 0x5dd,
         b: 0,
         c: 0,
     }, // 0xfb26       alt mem-sofit
-    decomp_T {
+    Decomp {
         a: 0x5e8,
         b: 0,
         c: 0,
     }, // 0xfb27       alt resh
-    decomp_T {
+    Decomp {
         a: 0x5ea,
         b: 0,
         c: 0,
     }, // 0xfb28       alt tav
-    decomp_T {
+    Decomp {
         a: b'+' as c_int,
         b: 0,
         c: 0,
     }, // 0xfb29       alt plus
-    decomp_T {
+    Decomp {
         a: 0x5e9,
         b: 0x5c1,
         c: 0,
     }, // 0xfb2a       shin+shin-dot
-    decomp_T {
+    Decomp {
         a: 0x5e9,
         b: 0x5c2,
         c: 0,
     }, // 0xfb2b       shin+sin-dot
-    decomp_T {
+    Decomp {
         a: 0x5e9,
         b: 0x5c1,
         c: 0x5bc,
     }, // 0xfb2c       shin+shin-dot+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5e9,
         b: 0x5c2,
         c: 0x5bc,
     }, // 0xfb2d       shin+sin-dot+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d0,
         b: 0x5b7,
         c: 0,
     }, // 0xfb2e       alef+patah
-    decomp_T {
+    Decomp {
         a: 0x5d0,
         b: 0x5b8,
         c: 0,
     }, // 0xfb2f       alef+qamats
-    decomp_T {
+    Decomp {
         a: 0x5d0,
         b: 0x5b4,
         c: 0,
     }, // 0xfb30       alef+hiriq
-    decomp_T {
+    Decomp {
         a: 0x5d1,
         b: 0x5bc,
         c: 0,
     }, // 0xfb31       bet+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d2,
         b: 0x5bc,
         c: 0,
     }, // 0xfb32       gimel+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d3,
         b: 0x5bc,
         c: 0,
     }, // 0xfb33       dalet+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d4,
         b: 0x5bc,
         c: 0,
     }, // 0xfb34       he+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d5,
         b: 0x5bc,
         c: 0,
     }, // 0xfb35       vav+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d6,
         b: 0x5bc,
         c: 0,
     }, // 0xfb36       zayin+dagesh
-    decomp_T {
+    Decomp {
         a: 0xfb37,
         b: 0,
         c: 0,
     }, // 0xfb37 -- UNUSED
-    decomp_T {
+    Decomp {
         a: 0x5d8,
         b: 0x5bc,
         c: 0,
     }, // 0xfb38       tet+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d9,
         b: 0x5bc,
         c: 0,
     }, // 0xfb39       yud+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5da,
         b: 0x5bc,
         c: 0,
     }, // 0xfb3a       kaf sofit+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5db,
         b: 0x5bc,
         c: 0,
     }, // 0xfb3b       kaf+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5dc,
         b: 0x5bc,
         c: 0,
     }, // 0xfb3c       lamed+dagesh
-    decomp_T {
+    Decomp {
         a: 0xfb3d,
         b: 0,
         c: 0,
     }, // 0xfb3d -- UNUSED
-    decomp_T {
+    Decomp {
         a: 0x5de,
         b: 0x5bc,
         c: 0,
     }, // 0xfb3e       mem+dagesh
-    decomp_T {
+    Decomp {
         a: 0xfb3f,
         b: 0,
         c: 0,
     }, // 0xfb3f -- UNUSED
-    decomp_T {
+    Decomp {
         a: 0x5e0,
         b: 0x5bc,
         c: 0,
     }, // 0xfb40       nun+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5e1,
         b: 0x5bc,
         c: 0,
     }, // 0xfb41       samech+dagesh
-    decomp_T {
+    Decomp {
         a: 0xfb42,
         b: 0,
         c: 0,
     }, // 0xfb42 -- UNUSED
-    decomp_T {
+    Decomp {
         a: 0x5e3,
         b: 0x5bc,
         c: 0,
     }, // 0xfb43       pe sofit+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5e4,
         b: 0x5bc,
         c: 0,
     }, // 0xfb44       pe+dagesh
-    decomp_T {
+    Decomp {
         a: 0xfb45,
         b: 0,
         c: 0,
     }, // 0xfb45 -- UNUSED
-    decomp_T {
+    Decomp {
         a: 0x5e6,
         b: 0x5bc,
         c: 0,
     }, // 0xfb46       tsadi+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5e7,
         b: 0x5bc,
         c: 0,
     }, // 0xfb47       qof+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5e8,
         b: 0x5bc,
         c: 0,
     }, // 0xfb48       resh+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5e9,
         b: 0x5bc,
         c: 0,
     }, // 0xfb49       shin+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5ea,
         b: 0x5bc,
         c: 0,
     }, // 0xfb4a       tav+dagesh
-    decomp_T {
+    Decomp {
         a: 0x5d5,
         b: 0x5b9,
         c: 0,
     }, // 0xfb4b       vav+holam
-    decomp_T {
+    Decomp {
         a: 0x5d1,
         b: 0x5bf,
         c: 0,
     }, // 0xfb4c       bet+rafe
-    decomp_T {
+    Decomp {
         a: 0x5db,
         b: 0x5bf,
         c: 0,
     }, // 0xfb4d       kaf+rafe
-    decomp_T {
+    Decomp {
         a: 0x5e4,
         b: 0x5bf,
         c: 0,
     }, // 0xfb4e       pe+rafe
-    decomp_T {
+    Decomp {
         a: 0x5d0,
         b: 0x5dc,
         c: 0,
@@ -1200,7 +1200,7 @@ pub(super) struct RegexpState {
     pub(super) re_has_z: c_int,
     pub(super) regflags: c_uint,
     pub(super) had_eol: c_int,
-    pub(super) reg_magic: magic_T,
+    pub(super) reg_magic: RegMagic,
     pub(super) reg_string: c_int,
     pub(super) reg_strict: c_int,
     pub(super) curchr: c_int,
@@ -1213,14 +1213,14 @@ pub(super) struct RegexpState {
     pub(super) peekchr_after_slash: c_int,
     pub(super) reg_cpo_lit: c_int,
     pub(super) reg_tofree: Vec<u8>,
-    pub(super) rex: regexec_T,
+    pub(super) rex: Regexec,
     pub(super) rex_in_use: bool,
     pub(super) can_f_submatch: bool,
-    pub(super) rsm: regsubmatch_T,
+    pub(super) rsm: Regsubmatch,
     pub(super) reg_startzp: [*mut u8; NSUBEXP],
     pub(super) reg_endzp: [*mut u8; NSUBEXP],
-    pub(super) reg_startzpos: [lpos_T; NSUBEXP],
-    pub(super) reg_endzpos: [lpos_T; NSUBEXP],
+    pub(super) reg_startzpos: [Lpos; NSUBEXP],
+    pub(super) reg_endzpos: [Lpos; NSUBEXP],
     pub(super) eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING],
     pub(super) regsub_nesting: usize,
     pub(super) had_endbrace: [u8; NSUBEXP],
@@ -1234,14 +1234,14 @@ pub(super) struct RegexpState {
     pub(super) brace_count: [c_int; 10],
     pub(super) one_exactly: bool,
     pub(super) regstack: Vec<u64>,
-    backpos: Vec<backpos_T>,
-    pub(super) behind_pos: regsave_T,
+    backpos: Vec<Backpos>,
+    pub(super) behind_pos: Regsave,
     pub(super) nfa_re_flags: c_int,
     pub(super) post_vec: Vec<c_int>,
     pub(super) nfa_reg_parse_depth: c_int,
     pub(super) nstate: c_int,
     pub(super) istate: c_int,
-    pub(super) nfa_endp: *mut save_se_T,
+    pub(super) nfa_endp: *mut SaveSe,
     pub(super) nfa_ll_index: usize,
     pub(super) regexp_engine: c_int,
 }
@@ -1272,7 +1272,7 @@ impl RegexpState {
             peekchr_after_slash: 0,
             reg_cpo_lit: 0,
             reg_tofree: Vec::new(),
-            rex: regexec_T {
+            rex: Regexec {
                 reg_match: ptr::null_mut(),
                 reg_mmatch: ptr::null_mut(),
                 reg_startp: ptr::null_mut(),
@@ -1302,7 +1302,7 @@ impl RegexpState {
             },
             rex_in_use: false,
             can_f_submatch: false,
-            rsm: regsubmatch_T {
+            rsm: Regsubmatch {
                 sm_match: ptr::null_mut(),
                 sm_mmatch: ptr::null_mut(),
                 sm_firstlnum: 0,
@@ -1311,8 +1311,8 @@ impl RegexpState {
             },
             reg_startzp: [ptr::null_mut(); NSUBEXP],
             reg_endzp: [ptr::null_mut(); NSUBEXP],
-            reg_startzpos: [lpos_T { lnum: 0, col: 0 }; NSUBEXP],
-            reg_endzpos: [lpos_T { lnum: 0, col: 0 }; NSUBEXP],
+            reg_startzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
+            reg_endzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
             eval_result: [const { None }; MAX_REGSUB_NESTING],
             regsub_nesting: 0,
             had_endbrace: [0; NSUBEXP],
@@ -1327,7 +1327,7 @@ impl RegexpState {
             one_exactly: false,
             regstack: Vec::new(),
             backpos: Vec::new(),
-            behind_pos: regsave_T::new(),
+            behind_pos: Regsave::new(),
             nfa_re_flags: 0,
             post_vec: Vec::new(),
             nfa_reg_parse_depth: 0,
@@ -1358,7 +1358,7 @@ use crate::eval::userfunc::call_func;
 use crate::strings::{vim_strchr, vim_strsave_escaped};
 
 #[inline]
-pub(super) fn tv_list_ref(l: Option<&mut list_T>) {
+pub(super) fn tv_list_ref(l: Option<&mut TvList>) {
     if let Some(l) = l {
         l.lv_refcount += 1;
     }
@@ -1552,7 +1552,7 @@ pub(super) fn ri_upper(c: c_int) -> bool {
 }
 
 /// Return true if compiled regular expression `prog` can match a line break.
-pub fn re_multiline(prog: &regprog_T) -> c_int {
+pub fn re_multiline(prog: &Regprog) -> c_int {
     (prog.regflags & RF_HASNL) as c_int
 }
 
@@ -1666,7 +1666,7 @@ pub fn skip_regexp_ex(
     dirc: c_int,
     magic: c_int,
     in_place: bool,
-    mut copy_buf: Option<&mut Vec<c_char>>,mut dropped: Option<&mut c_int>,mut magic_val: Option<&mut magic_T>,
+    mut copy_buf: Option<&mut Vec<c_char>>,mut dropped: Option<&mut c_int>,mut magic_val: Option<&mut RegMagic>,
 ) -> *mut c_char {
     unsafe {
         let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
@@ -1736,7 +1736,7 @@ pub(super) fn initchr(str_: *mut c_char) {
         re_st().prev_at_start = 0;
 }
 
-pub(super) fn save_parse_state(ps: &mut parse_state_T) {
+pub(super) fn save_parse_state(ps: &mut ParseState) {
     ps.regparse = re_st().regparse;
         ps.prevchr_len = re_st().prevchr_len;
         ps.curchr = re_st().curchr;
@@ -1748,7 +1748,7 @@ pub(super) fn save_parse_state(ps: &mut parse_state_T) {
         ps.regnpar = re_st().regnpar;
 }
 
-pub(super) fn restore_parse_state(ps: &mut parse_state_T) {
+pub(super) fn restore_parse_state(ps: &mut ParseState) {
     re_st().regparse = ps.regparse;
         re_st().prevchr_len = ps.prevchr_len;
         re_st().curchr = ps.curchr;
@@ -2030,10 +2030,10 @@ pub(super) fn reg_iswordc(c: c_int) -> bool {
 }
 
 fn reg_getline_common(
-    lnum: linenr_T,
-    flags: reg_getline_flags_T,
+    lnum: Linenr,
+    flags: RegGetlineFlags,
     line: *mut *mut c_char,
-    length: Option<&mut colnr_T>,
+    length: Option<&mut Colnr>,
 ) {
     unsafe {
         let get_line = (flags & RGLF_LINE) != 0;
@@ -2073,14 +2073,14 @@ fn reg_getline_common(
     }
 }
 
-pub(super) fn reg_getline(lnum: linenr_T) -> *mut c_char {
+pub(super) fn reg_getline(lnum: Linenr) -> *mut c_char {
     let mut line: *mut c_char = ptr::null_mut();
     reg_getline_common(lnum, RGLF_LINE, &raw mut line, None);
     line
 }
 
-pub(super) fn reg_getline_len(lnum: linenr_T) -> colnr_T {
-    let mut length: colnr_T = 0;
+pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
+    let mut length: Colnr = 0;
         reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), Some(&mut length));
         length
 }
@@ -2136,18 +2136,18 @@ pub(super) fn reg_match_visual() -> bool {
             return false;
         }
 
-        let col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
+        let col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
         if mode == b'v' as c_int {
             if (lnum == top.lnum && col < top.col)
-                || (lnum == bot.lnum && col >= bot.col + colnr_T::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
+                || (lnum == bot.lnum && col >= bot.col + Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
             {
                 return false;
             }
         } else if mode == Ctrl_V {
-            let mut start: colnr_T = 0;
-            let mut end: colnr_T = 0;
-            let mut start2: colnr_T = 0;
-            let mut end2: colnr_T = 0;
+            let mut start: Colnr = 0;
+            let mut end: Colnr = 0;
+            let mut start2: Colnr = 0;
+            let mut end2: Colnr = 0;
             let mut top_copy = top;
             let mut bot_copy = bot;
             getvvcol(
@@ -2180,7 +2180,7 @@ pub(super) fn reg_match_visual() -> bool {
             re_st().rex.input = re_st().rex.line.add(col as usize);
 
             let cols = win_linetabsize(&mut *wp, re_st().rex.reg_firstlnum + re_st().rex.lnum, re_st().rex.line.cast(), col);
-            if cols < start || cols > end - colnr_T::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e') {
+            if cols < start || cols > end - Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e') {
                 return false;
             }
         }
@@ -2212,7 +2212,7 @@ pub(super) fn cleanup_subexpr() {
             return;
         }
         if REG_MULTI() {
-            let uninit_pos = lpos_T { lnum: -1, col: -1 };
+            let uninit_pos = Lpos { lnum: -1, col: -1 };
             std::slice::from_raw_parts_mut(re_st().rex.reg_startpos, NSUBEXP).fill(uninit_pos);
             std::slice::from_raw_parts_mut(re_st().rex.reg_endpos, NSUBEXP).fill(uninit_pos);
         } else {
@@ -2228,7 +2228,7 @@ pub(super) fn cleanup_zsubexpr() {
             return;
         }
         if REG_MULTI() {
-            let uninit_pos = lpos_T { lnum: -1, col: -1 };
+            let uninit_pos = Lpos { lnum: -1, col: -1 };
             re_st().reg_startzpos = [uninit_pos; NSUBEXP];
             re_st().reg_endzpos = [uninit_pos; NSUBEXP];
         } else {
@@ -2246,10 +2246,10 @@ pub(super) fn reg_nextline() {
 }
 
 pub(super) fn match_with_backref(
-    start_lnum: linenr_T,
-    start_col: colnr_T,
-    end_lnum: linenr_T,
-    end_col: colnr_T,bytelen: &mut c_int,
+    start_lnum: Linenr,
+    start_col: Colnr,
+    end_lnum: Linenr,
+    end_col: Colnr,bytelen: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut clnum = start_lnum;
@@ -2511,9 +2511,9 @@ pub fn regtilde(
 
 pub(crate) fn fill_submatch_list(
     _argc: c_int,
-    argv: *mut typval_T,
+    argv: *mut TypVal,
     argskip: c_int,
-    fp: &mut ufunc_T,
+    fp: &mut UserFunc,
 ) -> c_int {
     unsafe {
         let listarg = argv.add(argskip as usize);
@@ -2521,7 +2521,7 @@ pub(crate) fn fill_submatch_list(
             return argskip;
         }
 
-        tv_list_init_static10(&mut *(*listarg).vval.v_list().cast::<staticList10_T>());
+        tv_list_init_static10(&mut *(*listarg).vval.v_list().cast::<StaticList10>());
 
         let mut li = tv_list_first(((*listarg).vval.v_list()).as_ref());
         for i in 0..10 {
@@ -2540,14 +2540,14 @@ pub(crate) fn fill_submatch_list(
 }
 
 pub fn vim_regsub(
-    rmp: &mut regmatch_T,
+    rmp: &mut Regmatch,
     source: *mut c_char,
-    expr: Option<&typval_T>,
+    expr: Option<&TypVal>,
     dest: *mut c_char,
     destlen: c_int,
     flags: c_int,
 ) -> c_int {
-    let mut rex_save = regexec_T::new();
+    let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
         if re_st().rex_in_use {
@@ -2571,15 +2571,15 @@ pub fn vim_regsub(
 }
 
 pub fn vim_regsub_multi(
-    rmp: &mut regmmatch_T,
-    lnum: linenr_T,
+    rmp: &mut Regmmatch,
+    lnum: Linenr,
     source: *mut c_char,
     dest: *mut c_char,
     destlen: c_int,
     flags: c_int,
 ) -> c_int {
      {
-        let mut rex_save = regexec_T::new();
+        let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
         if re_st().rex_in_use {
@@ -2606,7 +2606,7 @@ pub fn vim_regsub_multi(
 
 fn vim_regsub_both(
     source: impl crate::strings::IntoCCharPtr,
-    expr: Option<&typval_T>,
+    expr: Option<&TypVal>,
     dest: *mut c_char,
     destlen: c_int,
     flags: c_int,
@@ -2615,7 +2615,7 @@ fn vim_regsub_both(
         let mut no: c_int = -1;
         let mut func_all: Option<CaseConv> = None;
         let mut func_one: Option<CaseConv> = None;
-        let mut clnum: linenr_T = 0;
+        let mut clnum: Linenr = 0;
         let mut len: c_int = 0;
         let copy = (flags & REGSUB_COPY) != 0;
 
@@ -2647,7 +2647,7 @@ fn vim_regsub_both(
                 }
             } else {
                 let prev_can_f_submatch = re_st().can_f_submatch;
-                let mut rsm_save = regsubmatch_T::new();
+                let mut rsm_save = Regsubmatch::new();
 
                 *eval_slot = None;
 
@@ -2664,14 +2664,14 @@ fn vim_regsub_both(
                 re_st().regsub_nesting += 1;
 
                 if let Some(expr) = expr {
-                    let mut argv: [typval_T; 2] = [typval_T::new(); 2];
-                    let mut rettv: typval_T = typval_T::new();
-                    let mut matchList = staticList10_T::new();
+                    let mut argv: [TypVal; 2] = [TypVal::new(); 2];
+                    let mut rettv: TypVal = TypVal::new();
+                    let mut matchList = StaticList10::new();
                     rettv.v_type = VarType::VAR_STRING;
                     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     argv[0].v_type = VarType::VAR_LIST;
                     argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut matchList.sl_list);
-                    let mut funcexe = funcexe_T {
+                    let mut funcexe = Funcexe {
                         fe_fill_submatch: true,
                         fe_firstline: 0,
                         fe_lastline: 0,
@@ -3000,7 +3000,7 @@ fn vim_regsub_both(
     }
 }
 
-fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
+fn reg_getline_submatch(lnum: Linenr) -> *mut c_char {
     let mut line: *mut c_char = ptr::null_mut();
         reg_getline_common(
             lnum,
@@ -3011,8 +3011,8 @@ fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
         line
 }
 
-fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
-    let mut length: colnr_T = 0;
+fn reg_getline_submatch_len(lnum: Linenr) -> Colnr {
+    let mut length: Colnr = 0;
         reg_getline_common(
             lnum,
             RGLF_LENGTH | RGLF_SUBMATCH,
@@ -3106,13 +3106,13 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
     }
 }
 
-pub fn reg_submatch_list(no: c_int) -> *mut list_T {
+pub fn reg_submatch_list(no: c_int) -> *mut TvList {
     unsafe {
         if !re_st().can_f_submatch || no < 0 {
             return ptr::null_mut();
         }
         let no = no as usize;
-        let list: *mut list_T;
+        let list: *mut TvList;
 
         if re_st().rsm.sm_match.is_null() {
             let slnum = (*re_st().rsm.sm_mmatch).startpos[no].lnum;
@@ -3154,10 +3154,10 @@ pub fn reg_submatch_list(no: c_int) -> *mut list_T {
 }
 
 pub(super) fn init_regexec_multi(
-    rmp: &mut regmmatch_T,
-    win: *mut win_T,
-    buf: *mut buf_T,
-    lnum: linenr_T,
+    rmp: &mut Regmmatch,
+    win: *mut WinInfoInfo,
+    buf: *mut FileBuf,
+    lnum: Linenr,
 ) {
     unsafe {
         re_st().rex.reg_match = ptr::null_mut();
@@ -3320,7 +3320,7 @@ pub fn vim_regcomp_had_eol() -> c_int {
 }
 
 /// Compile a regular expression into internal code.
-pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> *mut regprog_T { let expr_arg = expr_arg.into_c_char_ptr();
+pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> *mut Regprog { let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
         let mut expr = expr_arg;
 
@@ -3357,7 +3357,7 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
             )
             .map(|mut nfa| {
                 nfa.re_engine = re_st().regexp_engine as c_uint;
-                regprog_T {
+                Regprog {
                     regflags: nfa.regflags,
                     re_engine: re_st().regexp_engine as c_uint,
                     re_flags: re_flags as c_uint,
@@ -3366,7 +3366,7 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
                 }
             })
         } else {
-            bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| regprog_T {
+            bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| Regprog {
                 regflags: bt.regflags,
                 re_engine: re_st().regexp_engine as c_uint,
                 re_flags: re_flags as c_uint,
@@ -3381,7 +3381,7 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
         {
             re_st().regexp_engine = BACKTRACKING_ENGINE;
             report_re_switch(expr);
-            prog_opt = bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| regprog_T {
+            prog_opt = bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| Regprog {
                 regflags: bt.regflags,
                 re_engine: re_st().regexp_engine as c_uint,
                 re_flags: re_flags as c_uint,
@@ -3399,7 +3399,7 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int)
 }
 
 #[inline]
-pub fn vim_regcomp_box(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> Option<Box<regprog_T>> { let expr_arg = expr_arg.into_c_char_ptr();
+pub fn vim_regcomp_box(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_int) -> Option<Box<Regprog>> { let expr_arg = expr_arg.into_c_char_ptr();
     unsafe {
         let p = vim_regcomp(expr_arg, re_flags);
         if p.is_null() {
@@ -3411,13 +3411,13 @@ pub fn vim_regcomp_box(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: c_
 }
 
 #[inline]
-pub fn regprog_as_ptr(prog: &Option<Box<regprog_T>>) -> *mut regprog_T {
+pub fn regprog_as_ptr(prog: &Option<Box<Regprog>>) -> *mut Regprog {
     prog.as_deref()
         .map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut())
 }
 
 /// Free a compiled regexp program, returned by `vim_regcomp()`.
-pub fn vim_regfree(prog: *mut regprog_T) {
+pub fn vim_regfree(prog: *mut Regprog) {
     unsafe {
         if !prog.is_null() {
             drop(Box::from_raw(prog));
@@ -3446,13 +3446,13 @@ fn report_re_switch(pat: impl crate::strings::IntoCCharPtr) { let pat = pat.into
 }
 
 fn vim_regexec_string(
-    rmp: &mut regmatch_T,
+    rmp: &mut Regmatch,
     line: impl crate::strings::IntoCCharPtr,
-    col: colnr_T,
+    col: Colnr,
     nl: bool,
 ) -> bool { let line = line.into_c_char_ptr();
     unsafe {
-        let mut rex_save = regexec_T::new();
+        let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
         if (*rmp.regprog).re_in_use {
@@ -3510,12 +3510,12 @@ fn vim_regexec_string(
 }
 
 pub fn vim_regexec_prog(
-    prog: Option<&regprog_T>,
+    prog: Option<&Regprog>,
     ignore_case: bool,
     line: impl crate::strings::IntoCCharPtr,
-    col: colnr_T,
+    col: Colnr,
 ) -> bool { let line = line.into_c_char_ptr();
-    let mut regmatch = regmatch_T {
+    let mut regmatch = Regmatch {
             regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
             startp: [ptr::null_mut(); NSUBEXP],
             endp: [ptr::null_mut(); NSUBEXP],
@@ -3525,24 +3525,24 @@ pub fn vim_regexec_prog(
         vim_regexec_string(&mut regmatch, line, col, false)
 }
 
-pub fn vim_regexec(rmp: &mut regmatch_T, line: impl crate::strings::IntoCCharPtr, col: colnr_T) -> bool { let line = line.into_c_char_ptr();
+pub fn vim_regexec(rmp: &mut Regmatch, line: impl crate::strings::IntoCCharPtr, col: Colnr) -> bool { let line = line.into_c_char_ptr();
     vim_regexec_string(rmp, line, col, false)
 }
 
-pub fn vim_regexec_nl(rmp: &mut regmatch_T, line: impl crate::strings::IntoCCharPtr, col: colnr_T) -> bool { let line = line.into_c_char_ptr();
+pub fn vim_regexec_nl(rmp: &mut Regmatch, line: impl crate::strings::IntoCCharPtr, col: Colnr) -> bool { let line = line.into_c_char_ptr();
     vim_regexec_string(rmp, line, col, true)
 }
 
 pub fn vim_regexec_multi(
-    rmp: &mut regmmatch_T,
-    win: *mut win_T,
-    buf: *mut buf_T,
-    lnum: linenr_T,
-    col: colnr_T,
-    tm: Option<proftime_T>,mut timed_out: Option<&mut c_int>,
+    rmp: &mut Regmmatch,
+    win: *mut WinInfoInfo,
+    buf: *mut FileBuf,
+    lnum: Linenr,
+    col: Colnr,
+    tm: Option<Proftime>,mut timed_out: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
-        let mut rex_save = regexec_T::new();
+        let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
         if (*rmp.regprog).re_in_use {

@@ -1,4 +1,4 @@
-//! Conversions between Vimscript `typval_T` and API `Object` (`src/nvim/api/private/converter.c`).
+//! Conversions between Vimscript `TypVal` and API `Object` (`src/nvim/api/private/converter.c`).
 
 use crate::api::private::helpers::{arena_array_opt, arena_dict_opt, nil_obj};
 use crate::api::private::validate::{
@@ -6,12 +6,12 @@ use crate::api::private::validate::{
 };
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, dict_T, list_T, listitem_T, tv_dict_add, tv_dict_alloc,
-    tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv, typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, TvDict, TvList, Listitem, tv_dict_add, tv_dict_alloc,
+    tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv, TypVal,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::{get_copyID, partial_name};
-use crate::hashtab::{hashitem_T, hashitem_empty};
+use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
 use crate::memory::{Arena, arena_memdupz_opt};
@@ -53,14 +53,14 @@ fn cbuf_to_string_obj(
 
 enum ConvStackEntry {
     List {
-        list: *mut list_T,
-        li: *mut listitem_T,
+        list: *mut TvList,
+        li: *mut Listitem,
         saved_copy_id: c_int,
         first: bool,
     },
     Dict {
-        dict: *mut dict_T,
-        hi: *mut hashitem_T,
+        dict: *mut TvDict,
+        hi: *mut Hashitem,
         todo: usize,
         saved_copy_id: c_int,
         first: bool,
@@ -72,7 +72,7 @@ fn convert_one_value(
     mpstack: &mut Vec<ConvStackEntry>,
     arena: Option<&mut Arena>,
     reuse_strdata: bool,
-    tv: *mut typval_T,
+    tv: *mut TypVal,
     copy_id: c_int,
 ) {
     let tv = unsafe { &mut *tv };
@@ -262,9 +262,9 @@ fn pop_into_parent_dict(stack: &mut Vec<Object>) {
     }
 }
 
-/// Recursively convert a Vimscript `typval_T` into an API `Object` (`vim_to_object`).
+/// Recursively convert a Vimscript `TypVal` into an API `Object` (`vim_to_object`).
 pub fn vim_to_object(
-    obj: *mut typval_T,
+    obj: *mut TypVal,
     mut arena: Option<&mut Arena>,
     reuse_strdata: bool,
 ) -> Object {
@@ -283,7 +283,7 @@ pub fn vim_to_object(
         );
 
         while let Some(top) = mpstack.last_mut() {
-            let next_tv: *mut typval_T = match top {
+            let next_tv: *mut TypVal = match top {
                 ConvStackEntry::List {
                     list,
                     li,
@@ -362,15 +362,15 @@ pub fn vim_to_object(
     }
 }
 
-/// Convert an API `Object` into a Vimscript `typval_T` (`object_to_vim`).
-pub fn object_to_vim(mut obj: Object,tv: &mut typval_T, err: &mut Error) {
+/// Convert an API `Object` into a Vimscript `TypVal` (`object_to_vim`).
+pub fn object_to_vim(mut obj: Object,tv: &mut TypVal, err: &mut Error) {
     object_to_vim_take_luaref(&mut obj, tv, false, err);
 }
 
-/// Convert an API `Object` into a Vimscript `typval_T`, optionally consuming nested `LuaRef`s
+/// Convert an API `Object` into a Vimscript `TypVal`, optionally consuming nested `LuaRef`s
 /// (`object_to_vim_take_luaref`).
 pub fn object_to_vim_take_luaref(
-    obj: &mut Object,tv: &mut typval_T,
+    obj: &mut Object,tv: &mut TypVal,
     take_luaref: bool,
     _err: &mut Error,
 ) {
@@ -409,7 +409,7 @@ pub fn object_to_vim_take_luaref(
             let arr = obj.data.array();
             let list = tv_list_alloc(arr.size as isize);
             for i in 0..arr.size {
-                let mut li_tv = typval_T {
+                let mut li_tv = TypVal {
                     v_type: VarType::VAR_UNKNOWN,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Number(0),
@@ -458,7 +458,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let mut tv = typval_T {
+        let mut tv = TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -480,7 +480,7 @@ mod tests {
             assert_eq!(obj.data.integer(), 99);
 
             // NULL list -> empty Array, NULL dict -> empty Dict
-            let mut null_list = typval_T {
+            let mut null_list = TypVal {
                 v_type: VarType::VAR_LIST,
                 v_lock: 0,
                 vval: TypvalVval::List(std::ptr::null_mut()),
@@ -489,7 +489,7 @@ mod tests {
             assert_eq!(arr_obj.obj_type, ObjectType::kObjectTypeArray);
             assert_eq!(arr_obj.data.array().size, 0);
 
-            let mut null_dict = typval_T {
+            let mut null_dict = TypVal {
                 v_type: VarType::VAR_DICT,
                 v_lock: 0,
                 vval: TypvalVval::Dict(std::ptr::null_mut()),
@@ -501,7 +501,7 @@ mod tests {
             // Self-referencing list converts nested cycle to Nil
             let list = tv_list_alloc(1);
             (*list).lv_refcount += 1;
-            let mut list_tv = typval_T {
+            let mut list_tv = TypVal {
                 v_type: VarType::VAR_LIST,
                 v_lock: 0,
                 vval: TypvalVval::List(list),

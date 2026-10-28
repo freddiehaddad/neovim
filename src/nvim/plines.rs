@@ -1,9 +1,9 @@
 //! Vertical and horizontal text display size calculations (`src/nvim/plines.c`).
 
 use crate::api::extmark::ns_in_win;
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::charset::{NUL, vim_isprintc, vim_strsize};
-use crate::cursor::{colnr_T, linenr_T, lt, ltoreq, pos_T};
+use crate::cursor::{Colnr, Linenr, lt, ltoreq, CursorPos};
 use crate::decoration::{
     decor_conceal_line, decor_virt_lines, kMTFilterSelect, kVPosInline, kVTIsLines,
 };
@@ -22,7 +22,7 @@ use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::state::{MODE_NORMAL, virtual_active};
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
@@ -39,7 +39,7 @@ static INLINE_FILTER: [u32; kMTMetaCount] = [kMTFilterSelect, 0, 0, 0, 0];
 
 #[repr(C)]
 pub struct CharsizeArg {
-    pub win: *mut win_T,
+    pub win: *mut WinInfoInfo,
     pub line: *mut c_char,
     pub use_tabstop: bool,
     pub indent_width: c_int,
@@ -112,7 +112,7 @@ pub fn vim_isbreak(c: c_int) -> bool {
 #[inline]
 pub(crate) fn win_charsize(
     cstype: CSType,
-    vcol: colnr_T,
+    vcol: Colnr,
     ptr_val: impl crate::strings::IntoCCharPtr,
     chr: i32,
     csarg: &mut CharsizeArg,
@@ -127,10 +127,10 @@ pub(crate) fn win_charsize(
 
 #[inline]
 pub fn win_linetabsize(
-    wp: &mut win_T,
-    lnum: linenr_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
     line: *mut c_char,
-    len: colnr_T,
+    len: Colnr,
 ) -> c_int {
     let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg,  wp, lnum, line);
@@ -141,7 +141,7 @@ pub fn win_linetabsize(
         }
 }
 
-pub fn win_chartabsize(wp: &mut win_T, p: impl crate::strings::IntoCCharPtr, col: colnr_T) -> c_int { let p = p.into_c_char_ptr();
+pub fn win_chartabsize(wp: &mut WinInfoInfo, p: impl crate::strings::IntoCCharPtr, col: Colnr) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let buf = wp.w_buffer;
         if crate::memory::cstr_first_char(p) == TAB
@@ -165,11 +165,11 @@ pub fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
     }
 }
 
-pub fn linetabsize(wp: &mut win_T, lnum: linenr_T) -> c_int {
+pub fn linetabsize(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
     win_linetabsize(wp, lnum, ml_get_buf(wp.buf_mut(), lnum), MAXCOL)
 }
 
-pub fn linetabsize_eol(wp: &mut win_T, lnum: linenr_T) -> c_int {
+pub fn linetabsize_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
      {
         linetabsize(wp, lnum)
             + if wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 {
@@ -182,8 +182,8 @@ pub fn linetabsize_eol(wp: &mut win_T, lnum: linenr_T) -> c_int {
 
 pub fn init_charsize_arg(
     csarg: &mut CharsizeArg,
-    wp: &mut win_T,
-    lnum: linenr_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
     line: *mut c_char,
 ) -> CSType {
     unsafe {
@@ -226,8 +226,8 @@ pub fn init_charsize_arg(
 
 pub fn init_charsize_arg_skip_cur_text(
     csarg: &mut CharsizeArg,
-    wp: &mut win_T,
-    lnum: linenr_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
     line: *mut c_char,
 ) -> CSType {
      {
@@ -242,7 +242,7 @@ pub fn init_charsize_arg_skip_cur_text(
 }
 
 fn inline_virt_text_width(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     iter: &mut MarkTreeIter,
     row: c_int,
     col: c_int,
@@ -274,7 +274,7 @@ fn inline_virt_text_width(
 
 pub fn charsize_regular(csarg: &mut CharsizeArg,
     cur: impl crate::strings::IntoCCharPtr,
-    vcol: colnr_T,
+    vcol: Colnr,
     cur_char: i32,
     mb_width: c_int,
 ) -> CharSize { let cur = cur.into_c_char_ptr();
@@ -456,7 +456,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
             let mut s = cur;
             let numberextra = win_col_off(wp);
             let col_adj = size - 1;
-            let mut colmax: colnr_T = (*wp).w_view_width - numberextra - col_adj;
+            let mut colmax: Colnr = (*wp).w_view_width - numberextra - col_adj;
             if vcol >= colmax {
                 colmax += col_adj;
                 let n = colmax + win_col_off2( &mut *wp);
@@ -516,10 +516,10 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
 
 #[inline]
 fn charsize_fast_impl(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     _cur: *const c_char,
     use_tabstop: bool,
-    vcol: colnr_T,
+    vcol: Colnr,
     cur_char: i32,
     mb_width: c_int,
 ) -> CharSize {
@@ -565,7 +565,7 @@ fn charsize_fast_impl(
 pub fn charsize_fast(
     csarg: &mut CharsizeArg,
     cur: impl crate::strings::IntoCCharPtr,
-    vcol: colnr_T,
+    vcol: Colnr,
     cur_char: i32,
     mb_width: c_int,
 ) -> CharSize { let cur = cur.into_c_char_ptr();
@@ -582,10 +582,10 @@ pub fn charsize_fast(
 }
 
 pub fn charsize_nowrap(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     _cur: *const c_char,
     use_tabstop: bool,
-    vcol: colnr_T,
+    vcol: Colnr,
     cur_char: i32,
     mb_width: c_int,
 ) -> c_int {
@@ -598,7 +598,7 @@ pub fn charsize_nowrap(
         }
 }
 
-fn in_win_border(wp: &mut win_T, vcol: colnr_T) -> bool {
+fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
     unsafe {
         if wp.w_view_width == 0 {
             return false;
@@ -621,14 +621,14 @@ fn in_win_border(wp: &mut win_T, vcol: colnr_T) -> bool {
 pub fn linesize_regular(
     csarg: &mut CharsizeArg,
     mut vcol_arg: c_int,
-    len: colnr_T,
+    len: Colnr,
 ) -> c_int {
     unsafe {
         let line: *const c_char = csarg.line;
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2StrCharInfo(line);
-        while (ci.ptr.offset_from(line) as colnr_T) < len && !crate::memory::cstr_is_empty(ci.ptr) {
+        while (ci.ptr.offset_from(line) as Colnr) < len && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             vcol +=
                 i64::from(charsize_regular(&mut *csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width);
@@ -655,7 +655,7 @@ pub fn linesize_regular(
     }
 }
 
-pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> c_int {
+pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: Colnr) -> c_int {
     unsafe {
         let wp = csarg.win;
         let use_tabstop = csarg.use_tabstop;
@@ -663,7 +663,7 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> 
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2StrCharInfo(line);
-        while (ci.ptr.offset_from(line) as colnr_T) < len && !crate::memory::cstr_is_empty(ci.ptr) {
+        while (ci.ptr.offset_from(line) as Colnr) < len && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             vcol += i64::from(
                 charsize_fast_impl( &mut *wp, ci.ptr, use_tabstop, vcol_arg, ci.chr.value, cli.cells)
@@ -696,8 +696,8 @@ fn virt_text_cursor_off(csarg: &CharsizeArg, on_nul: bool) -> c_int {
 }
 
 pub fn getvcol(
-    wp: &mut win_T,
-    pos: &mut pos_T,mut start: Option<&mut colnr_T>,mut cursor: Option<&mut colnr_T>,end: Option<&mut colnr_T>,
+    wp: &mut WinInfoInfo,
+    pos: &mut CursorPos,mut start: Option<&mut Colnr>,mut cursor: Option<&mut Colnr>,end: Option<&mut Colnr>,
     flags: c_int,
 ) {
     unsafe {
@@ -709,7 +709,7 @@ pub fn getvcol(
         let cstype = init_charsize_arg(&mut csarg,  &mut *wp, pos.lnum, line);
         csarg.max_head_vcol = -1;
 
-        let mut vcol: colnr_T = 0;
+        let mut vcol: Colnr = 0;
         let mut char_size: CharSize;
         let mut ci = utf_ptr2StrCharInfo(line);
         if cstype == kCharsizeFast {
@@ -727,7 +727,7 @@ pub fn getvcol(
                 char_size =
                     charsize_fast_impl( &mut *wp, ci.ptr, use_tabstop, vcol, ci.chr.value, cli.cells);
                 let next = cli.next;
-                if (next.ptr.offset_from(line) as colnr_T) > end_col {
+                if (next.ptr.offset_from(line) as Colnr) > end_col {
                     break;
                 }
                 ci = next;
@@ -743,7 +743,7 @@ pub fn getvcol(
                     break;
                 }
                 let next = cli.next;
-                if (next.ptr.offset_from(line) as colnr_T) > end_col {
+                if (next.ptr.offset_from(line) as Colnr) > end_col {
                     break;
                 }
                 ci = next;
@@ -751,8 +751,8 @@ pub fn getvcol(
             }
         }
 
-        if crate::memory::cstr_is_empty(ci.ptr) && end_col < MAXCOL && end_col > (ci.ptr.offset_from(line) as colnr_T) {
-            pos.col = ci.ptr.offset_from(line) as colnr_T;
+        if crate::memory::cstr_is_empty(ci.ptr) && end_col < MAXCOL && end_col > (ci.ptr.offset_from(line) as Colnr) {
+            pos.col = ci.ptr.offset_from(line) as Colnr;
         }
 
         let incr = char_size.width;
@@ -787,10 +787,10 @@ pub fn getvcol(
     }
 }
 
-pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
+pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
      {
         let list_save = curwin_mut().w_onebuf_opt.wo_list;
-        let mut vcol: colnr_T = 0;
+        let mut vcol: Colnr = 0;
 
         curwin_mut().w_onebuf_opt.wo_list = 0;
         if posp.coladd != 0 {
@@ -804,17 +804,17 @@ pub fn getvcol_nolist(posp: &mut pos_T) -> colnr_T {
 }
 
 pub fn getvvcol(
-    wp: *mut win_T,
-    pos: &mut pos_T,mut start: Option<&mut colnr_T>,mut cursor: Option<&mut colnr_T>,mut end: Option<&mut colnr_T>,
+    wp: *mut WinInfoInfo,
+    pos: &mut CursorPos,mut start: Option<&mut Colnr>,mut cursor: Option<&mut Colnr>,mut end: Option<&mut Colnr>,
     flags: c_int,
 ) {
     unsafe {
-        let mut col: colnr_T = 0;
+        let mut col: Colnr = 0;
 
         if virtual_active( &mut *wp) {
             getvcol(&mut *wp, pos, Some(&mut col), None, None, flags);
             let mut coladd = pos.coladd;
-            let mut endadd: colnr_T = 0;
+            let mut endadd: Colnr = 0;
 
             let ptr_val = ml_get_buf((*wp).buf_mut(), pos.lnum);
             if pos.col < ml_get_buf_len((*wp).buf_mut(), pos.lnum) {
@@ -846,18 +846,18 @@ pub fn getvvcol(
 }
 
 pub fn getvcols(
-    wp: *mut win_T,
-    pos1: &mut pos_T,
-    pos2: &mut pos_T,
-    left: &mut colnr_T,
-    right: &mut colnr_T,
+    wp: *mut WinInfoInfo,
+    pos1: &mut CursorPos,
+    pos2: &mut CursorPos,
+    left: &mut Colnr,
+    right: &mut Colnr,
     flags: c_int,
 ) {
      {
-        let mut from1: colnr_T = 0;
-        let mut from2: colnr_T = 0;
-        let mut to1: colnr_T = 0;
-        let mut to2: colnr_T = 0;
+        let mut from1: Colnr = 0;
+        let mut from2: Colnr = 0;
+        let mut to1: Colnr = 0;
+        let mut to2: Colnr = 0;
 
         if lt(*pos1, *pos2) {
             getvvcol(wp, pos1, Some(&mut from1), None, Some(&mut to1), flags);
@@ -881,25 +881,25 @@ pub fn getvcols(
     }
 }
 
-pub fn win_may_fill(wp: &mut win_T) -> bool {
+pub fn win_may_fill(wp: &mut WinInfoInfo) -> bool {
      {
         (wp.w_onebuf_opt.wo_diff != 0 && diffopt_filler())
             || wp.buf_mut().b_marktree.meta_root[kMTMetaLines] != 0
     }
 }
 
-pub fn win_get_fill(wp: &mut win_T, lnum: linenr_T) -> c_int {
+pub fn win_get_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
      {
         decor_virt_lines(wp, lnum - 1, lnum, None, None, true)
             + diff_check_fill( wp, lnum)
     }
 }
 
-pub fn plines_win(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) -> c_int {
+pub fn plines_win(wp: *mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> c_int {
     plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(unsafe { &mut *wp }, lnum)
 }
 
-pub fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) -> c_int {
+pub fn plines_win_nofill(wp: *mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> c_int {
     unsafe {
         if decor_conceal_line(wp, lnum - 1, false) {
             return 0;
@@ -916,7 +916,7 @@ pub fn plines_win_nofill(wp: *mut win_T, lnum: linenr_T, limit_winheight: bool) 
     }
 }
 
-pub fn plines_win_nofold(wp: &mut win_T, lnum: linenr_T) -> c_int {
+pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
     unsafe {
         let s = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
@@ -953,7 +953,7 @@ pub fn plines_win_nofold(wp: &mut win_T, lnum: linenr_T) -> c_int {
     }
 }
 
-pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
+pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: c_long) -> c_int {
     unsafe {
         let mut lines = win_get_fill(wp, lnum);
         if wp.w_onebuf_opt.wo_wrap == 0 || wp.w_view_width == 0 {
@@ -964,7 +964,7 @@ pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg,  &mut *wp, lnum, line);
 
-        let mut vcol: colnr_T = 0;
+        let mut vcol: Colnr = 0;
         let mut ci = utf_ptr2StrCharInfo(line);
         let limit_ptr = (line as *const c_char).add(column as usize);
         if cstype == kCharsizeFast {
@@ -1002,8 +1002,8 @@ pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
 }
 
 pub fn plines_win_full(
-    wp: *mut win_T,
-    mut lnum: linenr_T,nextp: Option<&mut linenr_T>,mut foldedp: Option<&mut bool>,
+    wp: *mut WinInfoInfo,
+    mut lnum: Linenr,nextp: Option<&mut Linenr>,mut foldedp: Option<&mut bool>,
     cache: bool,
     limit_winheight: bool,
 ) -> c_int {
@@ -1039,9 +1039,9 @@ pub fn plines_win_full(
 }
 
 pub fn plines_m_win(
-    wp: &mut win_T,
-    mut first: linenr_T,
-    last: linenr_T,
+    wp: &mut WinInfoInfo,
+    mut first: Linenr,
+    last: Linenr,
     max: c_int,
 ) -> c_int {
      {
@@ -1058,7 +1058,7 @@ pub fn plines_m_win(
     }
 }
 
-pub fn plines_m_win_fill(wp: &mut win_T, first: linenr_T, last: linenr_T) -> c_int {
+pub fn plines_m_win_fill(wp: &mut WinInfoInfo, first: Linenr, last: Linenr) -> c_int {
      {
         let mut count = last - first
             + 1
@@ -1076,10 +1076,10 @@ pub fn plines_m_win_fill(wp: &mut win_T, first: linenr_T, last: linenr_T) -> c_i
 }
 
 pub fn win_text_height(
-    wp: &mut win_T,
-    start_lnum: linenr_T,
+    wp: &mut WinInfoInfo,
+    start_lnum: Linenr,
     start_vcol: i64,
-    end_lnum: &mut linenr_T,
+    end_lnum: &mut Linenr,
     end_vcol: &mut i64,
     fill: Option<&mut i64>,
     max: i64,
@@ -1156,9 +1156,9 @@ pub fn win_text_height(
     }
 }
 
-pub fn win_max_displaywidth(wp: &mut win_T,
-    first: linenr_T,
-    last: linenr_T,
+pub fn win_max_displaywidth(wp: &mut WinInfoInfo,
+    first: Linenr,
+    last: Linenr,
     max: c_int,
 ) -> c_int {
      {
@@ -1178,17 +1178,17 @@ mod tests {
 
     #[test]
     fn pos_comparisons_respect_lnum_col_coladd() {
-        let p1 = pos_T {
+        let p1 = CursorPos {
             lnum: 1,
             col: 2,
             coladd: 0,
         };
-        let p2 = pos_T {
+        let p2 = CursorPos {
             lnum: 1,
             col: 2,
             coladd: 1,
         };
-        let p3 = pos_T {
+        let p3 = CursorPos {
             lnum: 2,
             col: 0,
             coladd: 0,

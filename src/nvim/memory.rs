@@ -681,7 +681,7 @@ pub fn free_all_mem() {
     use crate::arglist::alist_clear;
     use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};
     use crate::buffer::{
-        DOBUF_WIPE, bufref_T, bufref_valid, close_buffer, free_titles, set_bufref,
+        DOBUF_WIPE, Bufref, bufref_valid, close_buffer, free_titles, set_bufref,
     };
     use crate::channel::channel_free_all_mem;
     use crate::cmdhist::init_history;
@@ -690,7 +690,7 @@ pub fn free_all_mem() {
     use crate::drawline::drawline_free_all_mem;
     use crate::eval::eval_clear;
     use crate::ex_cmds::free_old_sub;
-    use crate::ex_docmd::exarg_T;
+    use crate::ex_docmd::Exarg;
     use crate::file_search::free_findfile;
     use crate::grid::grid_free_all_mem;
     use crate::highlight::clear_hl_tables;
@@ -733,7 +733,7 @@ pub fn free_all_mem() {
         }
 
         spell_free_all();
-        ex_comclear(&mut exarg_T::new());
+        ex_comclear(&mut Exarg::new());
 
         if !g_st().curbuf.is_null() {
             do_cmdline_cmd(c"aunmenu *");
@@ -789,7 +789,7 @@ pub fn free_all_mem() {
         opt_vars().p_acd = 0;
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
-            let mut bufref = bufref_T {
+            let mut bufref = Bufref {
                 br_buf: std::ptr::null_mut(),
                 br_fnum: 0,
                 br_buf_free_count: 0,

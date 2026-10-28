@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
     OBJECT_NIL, arena_array, array_obj, boolean_obj, buffer_obj, integer_obj,
 };
 use crate::api::private::validate::{Array, Object, ObjectType};
-use crate::buffer::{BufUpdateCallbacks, buf_T, buf_get_changedtick};
+use crate::buffer::{BufUpdateCallbacks, FileBuf, buf_get_changedtick};
 use crate::extmark::bcount_t;
 use crate::globals::*;
 use crate::log::logmsg;
@@ -24,7 +24,7 @@ pub(crate) const ARENA_EMPTY: Arena = Arena {
     size: 0,
 };
 
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{Colnr, Linenr};
 
 const LOG_ERROR: c_int = 3;
 
@@ -44,7 +44,7 @@ fn textlock_wrap<F: FnOnce()>(f: F) {
 }
 
 pub fn buf_updates_register(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     channel_id: u64,
     cb: BufUpdateCallbacks,
     send_buffer: bool,
@@ -109,11 +109,11 @@ pub fn buf_updates_register(
         true
 }
 
-pub fn buf_updates_active(buf: &mut buf_T) -> bool {
+pub fn buf_updates_active(buf: &mut FileBuf) -> bool {
     !buf.update_channels.is_empty() || !buf.update_callbacks.is_empty()
 }
 
-pub fn buf_updates_send_end(buf: &mut buf_T, channelid: u64) {
+pub fn buf_updates_send_end(buf: &mut FileBuf, channelid: u64) {
     let mut items = [buffer_obj(buf.b_fnum)];
         let args = Array {
             size: 1,
@@ -123,7 +123,7 @@ pub fn buf_updates_send_end(buf: &mut buf_T, channelid: u64) {
         rpc_send_event(channelid, c"nvim_buf_detach_event", args);
 }
 
-pub fn buf_updates_unregister(buf: &mut buf_T, channelid: u64) {
+pub fn buf_updates_unregister(buf: &mut FileBuf, channelid: u64) {
     let size = buf.update_channels.len();
         if size == 0 {
             return;
@@ -138,12 +138,12 @@ pub fn buf_updates_unregister(buf: &mut buf_T, channelid: u64) {
         }
 }
 
-pub fn buf_free_callbacks(buf: &mut buf_T) {
+pub fn buf_free_callbacks(buf: &mut FileBuf) {
     buf.update_channels = Vec::new();
         buf.update_callbacks = Vec::new();
 }
 
-pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
+pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
     for channelid in std::mem::take(&mut buf.update_channels) {
             buf_updates_send_end(buf, channelid);
         }
@@ -198,8 +198,8 @@ pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
 }
 
 pub fn buf_updates_send_changes(
-    buf: &mut buf_T,
-    firstline: linenr_T,
+    buf: &mut FileBuf,
+    firstline: Linenr,
     num_added: i64,
     num_removed: i64,
 ) {
@@ -322,15 +322,15 @@ pub fn buf_updates_send_changes(
     }
 }
 
-pub fn buf_updates_send_splice(buf: &mut buf_T,
+pub fn buf_updates_send_splice(buf: &mut FileBuf,
     start_row: c_int,
-    start_col: colnr_T,
+    start_col: Colnr,
     start_byte: bcount_t,
     old_row: c_int,
-    old_col: colnr_T,
+    old_col: Colnr,
     old_byte: bcount_t,
     new_row: c_int,
-    new_col: colnr_T,
+    new_col: Colnr,
     new_byte: bcount_t,
 ) {
      {
@@ -388,7 +388,7 @@ pub fn buf_updates_send_splice(buf: &mut buf_T,
     }
 }
 
-pub fn buf_updates_changedtick(buf: &mut buf_T) {
+pub fn buf_updates_changedtick(buf: &mut FileBuf) {
     for idx in 0..buf.update_channels.len() {
             let channel_id = buf.update_channels[idx];
             buf_updates_changedtick_single(buf, channel_id);
@@ -433,7 +433,7 @@ pub fn buf_updates_changedtick(buf: &mut buf_T) {
         }
 }
 
-pub fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
+pub fn buf_updates_changedtick_single(buf: &mut FileBuf, channel_id: u64) {
     let mut items = [
             buffer_obj(buf.b_fnum),
             integer_obj(buf_get_changedtick(&*buf)),

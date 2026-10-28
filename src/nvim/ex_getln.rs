@@ -10,12 +10,12 @@ use crate::api::private::validate::{Array, NvimString};
 use crate::api::vim::nvim_create_buf;
 use crate::autocmd::{
     DOCMD_NOWAIT, EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE,
-    EVENT_CMDLINELEAVEPRE, EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, event_T, has_event,
+    EVENT_CMDLINELEAVEPRE, EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, AuEvent, has_event,
     unblock_autocmds,
 };
 use crate::buffer::bt_cmdwin;
 use crate::buffer::{
-    DOBUF_FIRST, DOBUF_GOTO, MAXLNUM, buf_T, buf_clear, buf_valid, buflist_findnr, do_buffer,
+    DOBUF_FIRST, DOBUF_GOTO, MAXLNUM, FileBuf, buf_clear, buf_valid, buflist_findnr, do_buffer,
     kUIMessages,
 };
 use crate::charset::{
@@ -37,7 +37,7 @@ use crate::cmdhist::{
     hist_char2type, init_history,
 };
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, kCtxKeepDirs};
-use crate::cursor::{clearpos, coladvance, equalpos, gchar_cursor, get_cursor_pos_ptr, lt, pos_T};
+use crate::cursor::{clearpos, coladvance, equalpos, gchar_cursor, get_cursor_pos_ptr, lt, CursorPos};
 use crate::digraph::{do_digraph, get_digraph, kBoolVarFalse, kBoolVarTrue};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_custom_title_later,
@@ -51,16 +51,16 @@ use crate::eval::typval::{
     tv_dict_add_nr, tv_dict_add_str, tv_dict_find, tv_dict_get_callback, tv_dict_get_number,
     tv_dict_get_string_buf_chk, tv_dict_set_keys_readonly, tv_get_number, tv_get_number_chk,
     tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first, tv_list_free,
-    tv_list_last, tv_list_len, typval_T, varnumber_T,
+    tv_list_last, tv_list_len, TypVal, Varnumber,
 };
 use crate::eval::vars::{get_globvar_dict, heredoc_get, set_vim_var_char};
-use crate::eval::window::viewstate_T;
+use crate::eval::window::Viewstate;
 use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
 use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::Event;
 use crate::ex_cmds::{B_IMODE_LMAP, Ctrl_C, Ctrl_E, Ctrl_Y, kOptInccommand, rename_buffer};
 use crate::ex_docmd::{
-    ADDR_LINES, CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE, cmdmod_T, do_cmdline, exarg_T, execute_cmd,
+    ADDR_LINES, CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE, Cmdmod, do_cmdline, Exarg, execute_cmd,
     expr_map_locked, parse_cmd_address, parse_cmdline, parse_command_modifiers, set_no_hlsearch,
     skip_range, undo_cmdmod,
 };
@@ -104,21 +104,21 @@ use crate::mouse::{MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, cmdline_mousescrol
 use crate::r#move::{
     changed_cline_bef_curs, restore_viewstate, save_viewstate, update_topline, validate_cursor,
 };
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 #[cfg(unix)]
 use crate::option::csh_like_shell;
 use crate::option::{
     OptInt, set_iminsert_global, set_imsearch_global, set_option_direct, string_to_key,
 };
 use crate::option_vars::*;
-use crate::optionstr::optset_T;
-use crate::os::env::{expand_T, home_replace_save};
+use crate::optionstr::Optset;
+use crate::os::env::{ExpandCtx, home_replace_save};
 use crate::os::input::line_breakcheck;
 use crate::path::vim_ispathsep;
 use crate::popupmenu::pum_check_clear;
-use crate::profile::{profile_setlimit, proftime_T};
+use crate::profile::{profile_setlimit, Proftime};
 use crate::regexp::{
-    Ctrl_H, Ctrl_V, MAGIC_ALL, MAGIC_ON, MAXCOL, NUMBUFLEN, magic_T, skip_regexp_ex,
+    Ctrl_H, Ctrl_V, MAGIC_ALL, MAGIC_ON, MAXCOL, NUMBUFLEN, RegMagic, skip_regexp_ex,
 };
 use crate::register::{
     cmdline_paste_reg, get_expr_line, get_expr_register, get_spec_reg, is_literal_register,
@@ -128,11 +128,11 @@ use crate::runtime::SID_NONE;
 use crate::search::{
     BACKWARD, FORWARD, SearchOffset, do_search, parse_search_pattern_offset, pat_has_uppercase,
     restore_last_search_pattern, restore_search_patterns, save_last_search_pattern,
-    save_search_patterns, searchit, searchit_arg_T,
+    save_search_patterns, searchit, SearchitArg,
 };
 use crate::state::{
     EditorState, MODE_CMDLINE, MODE_LANGMAP, may_trigger_modechanged, may_trigger_safestate,
-    save_v_event_T, state_enter, state_handle_k_event,
+    SaveVEvent, state_enter, state_handle_k_event,
 };
 use crate::strings::{
     gettext, vim_strchr, vim_strsave_escaped,
@@ -150,7 +150,7 @@ use crate::viml::parser::parser::{
 };
 use crate::window::{
     WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
-    may_trigger_win_scrolled_resized, win_T, win_enter, win_size_restore, win_size_save, win_split,
+    may_trigger_win_scrolled_resized, WinInfoInfo, win_enter, win_size_restore, win_size_save, win_split,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -158,8 +158,8 @@ use std::ptr;
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 
-pub type hlf_T = c_int;
-pub type disptick_T = u64;
+pub type Hlf = c_int;
+pub type Disptick = u64;
 use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_KEEP};
 
 pub(crate) const Ctrl_A: c_int = 1;
@@ -234,28 +234,28 @@ const BUFFER_ESC_CHARS: &CStr = c" \t\n*?[`$\\%#'\"|!<";
 /// Struct to store the state of `'incsearch'` highlighting.
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-struct incsearch_state_T {
-    search_start: pos_T,
-    save_cursor: pos_T,
-    winid: handle_T,
-    init_viewstate: viewstate_T,
-    old_viewstate: viewstate_T,
-    match_start: pos_T,
-    match_end: pos_T,
+struct IncsearchState {
+    search_start: CursorPos,
+    save_cursor: CursorPos,
+    winid: ObjHandle,
+    init_viewstate: Viewstate,
+    old_viewstate: Viewstate,
+    match_start: CursorPos,
+    match_end: CursorPos,
     did_incsearch: bool,
     incsearch_postponed: bool,
 }
 
-impl incsearch_state_T {
+impl IncsearchState {
     const fn new() -> Self {
         Self {
-            search_start: pos_T::new(),
-            save_cursor: pos_T::new(),
+            search_start: CursorPos::new(),
+            save_cursor: CursorPos::new(),
             winid: 0,
-            init_viewstate: viewstate_T::new(),
-            old_viewstate: viewstate_T::new(),
-            match_start: pos_T::new(),
-            match_end: pos_T::new(),
+            init_viewstate: Viewstate::new(),
+            old_viewstate: Viewstate::new(),
+            match_start: CursorPos::new(),
+            match_end: CursorPos::new(),
             did_incsearch: false,
             incsearch_postponed: false,
         }
@@ -275,7 +275,7 @@ struct CommandLineState {
     hiscnt: c_int,
     save_hiscnt: c_int,
     histype: c_int,
-    is_state: incsearch_state_T,
+    is_state: IncsearchState,
     did_wild_list: bool,
     wim_index: c_int,
     save_msg_scroll: c_int,
@@ -287,9 +287,9 @@ struct CommandLineState {
     some_key_typed: bool,
     ignore_drag_release: bool,
     break_ctrl_c: bool,
-    xpc: expand_T,
+    xpc: ExpandCtx,
     b_im_use_insert: Option<bool>,
-    b_im_ptr_buf: *mut buf_T,
+    b_im_ptr_buf: *mut FileBuf,
     cmdline_type: c_int,
     event_cmdlineleavepre_triggered: bool,
     did_hist_navigate: bool,
@@ -309,7 +309,7 @@ impl CommandLineState {
             hiscnt: 0,
             save_hiscnt: 0,
             histype: 0,
-            is_state: incsearch_state_T::new(),
+            is_state: IncsearchState::new(),
             did_wild_list: false,
             wim_index: 0,
             save_msg_scroll: 0,
@@ -321,7 +321,7 @@ impl CommandLineState {
             some_key_typed: false,
             ignore_drag_release: false,
             break_ctrl_c: false,
-            xpc: expand_T::new(),
+            xpc: ExpandCtx::new(),
             b_im_use_insert: None,
             b_im_ptr_buf: ptr::null_mut(),
             cmdline_type: 0,
@@ -349,11 +349,11 @@ impl Default for CommandLineState {
 
 #[derive(Clone)]
 struct CpBufInfo {
-    buf: *mut buf_T,
+    buf: *mut FileBuf,
     save_b_p_ma: c_int,
     save_b_changed: c_int,
-    save_b_op_start: pos_T,
-    save_b_op_end: pos_T,
+    save_b_op_start: CursorPos,
+    save_b_op_end: CursorPos,
     undo_checkpoint: UndoCheckpoint,
 }
 
@@ -363,8 +363,8 @@ impl CpBufInfo {
             buf: ptr::null_mut(),
             save_b_p_ma: 0,
             save_b_changed: 0,
-            save_b_op_start: pos_T::new(),
-            save_b_op_end: pos_T::new(),
+            save_b_op_start: CursorPos::new(),
+            save_b_op_end: CursorPos::new(),
             undo_checkpoint: UndoCheckpoint::new(),
         }
     }
@@ -379,9 +379,9 @@ impl Default for CpBufInfo {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct CpWinInfo {
-    win: *mut win_T,
-    save_w_cursor: pos_T,
-    save_viewstate: viewstate_T,
+    win: *mut WinInfoInfo,
+    save_w_cursor: CursorPos,
+    save_viewstate: Viewstate,
     save_w_p_cul: c_int,
     save_w_p_cuc: c_int,
 }
@@ -390,8 +390,8 @@ impl CpWinInfo {
     const fn new() -> Self {
         Self {
             win: ptr::null_mut(),
-            save_w_cursor: pos_T::new(),
-            save_viewstate: viewstate_T::new(),
+            save_w_cursor: CursorPos::new(),
+            save_viewstate: Viewstate::new(),
             save_w_p_cul: 0,
             save_w_p_cuc: 0,
         }
@@ -408,7 +408,7 @@ struct CpInfo {
     win_info: Vec<CpWinInfo>,
     buf_info: Vec<CpBufInfo>,
     save_hls: bool,
-    save_cmdmod: cmdmod_T,
+    save_cmdmod: Cmdmod,
     save_view: Vec<c_int>,
 }
 
@@ -420,7 +420,7 @@ struct ExGetlnState {
     cmdline_block: Array,
     getln_interrupted_highlight: bool,
     cedit_key: c_int,
-    cmdpreview_bufnr: handle_T,
+    cmdpreview_bufnr: ObjHandle,
     cmdpreview_ns: c_int,
     prev_prompt_id: c_uint,
     prev_prompt_errors: c_int,
@@ -453,7 +453,7 @@ fn getln_st() -> &'static mut ExGetlnState {
 
 use crate::api::private::helpers::array_add;
 
-fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
+fn trigger_cmd_autocmd(typechar: c_int, evt: AuEvent) {
     let mut typestr: [c_char; 2] = [typechar as c_char, NUL];
         apply_autocmds(
             evt,
@@ -464,7 +464,7 @@ fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
         );
 }
 
-fn init_incsearch_state(s: &mut incsearch_state_T) {
+fn init_incsearch_state(s: &mut IncsearchState) {
      {
         s.winid = curwin_mut().handle;
         s.match_start = curwin_mut().w_cursor;
@@ -478,7 +478,7 @@ fn init_incsearch_state(s: &mut incsearch_state_T) {
     }
 }
 
-fn set_search_match(t: &mut pos_T) {
+fn set_search_match(t: &mut CursorPos) {
      {
         t.lnum += g_st().Search.match_lines;
         t.col = g_st().Search.match_endcol;
@@ -494,12 +494,12 @@ fn set_search_match(t: &mut pos_T) {
 /// Returns true if pattern is valid.
 /// Sets `skiplen`, `patlen`, `Search.first_line`, and `Search.last_line` and `magic` if overruled.
 pub fn parse_pattern_and_range(
-    incsearch_start: &mut pos_T,search_delim: &mut c_int,skiplen: &mut c_int,patlen: &mut c_int,is_magic: &mut bool,
+    incsearch_start: &mut CursorPos,search_delim: &mut c_int,skiplen: &mut c_int,patlen: &mut c_int,is_magic: &mut bool,
 ) -> bool {
     unsafe {
         let mut delim_optional = false;
         let mut dummy: *const c_char = ptr::null();
-        let mut magic: magic_T = 0;
+        let mut magic: RegMagic = 0;
 
         *skiplen = 0;
         *patlen = getln_st().ccline.cmdlen;
@@ -508,13 +508,13 @@ pub fn parse_pattern_and_range(
         g_st().Search.first_line = 0;
         g_st().Search.last_line = MAXLNUM;
 
-        let mut ea: exarg_T = exarg_T::new();
+        let mut ea: Exarg = Exarg::new();
         ea.line1 = 1;
         ea.line2 = 1;
         ea.cmd = getln_st().ccline.cmdbuff;
         ea.addr_type = ADDR_LINES;
 
-        let mut dummy_cmdmod: cmdmod_T = cmdmod_T::new();
+        let mut dummy_cmdmod: Cmdmod = Cmdmod::new();
         // Skip over command modifiers
         parse_command_modifiers(&mut ea, &raw mut dummy, &mut dummy_cmdmod, true);
 
@@ -648,7 +648,7 @@ pub fn parse_pattern_and_range(
 fn do_incsearch_highlighting(
     firstc: c_int,
     search_delim: &mut c_int,
-    is_state: &mut incsearch_state_T,
+    is_state: &mut IncsearchState,
     skiplen: &mut c_int,
     patlen: &mut c_int,
     magic: &mut bool,
@@ -689,7 +689,7 @@ fn do_incsearch_highlighting(
 }
 
 /// May do `'incsearch'` highlighting if desired.
-fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_state_T) {
+fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut IncsearchState) {
     unsafe {
         let mut skiplen: c_int = 0;
         let mut patlen: c_int = 0;
@@ -755,8 +755,8 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
                 search_flags += SEARCH_START;
             }
             // Set the time limit to half a second.
-            let tm: proftime_T = profile_setlimit(500);
-            let mut sia = searchit_arg_T {
+            let tm: Proftime = profile_setlimit(500);
+            let mut sia = SearchitArg {
                 sa_stop_lnum: 0,
                 sa_tm: Some(tm),
                 sa_timed_out: 0,
@@ -872,7 +872,7 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
 /// When CTRL-L typed: add character from the match to the pattern.
 /// May set `*c` to the added character.
 /// Return `OK` when calling `command_line_not_changed`.
-fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_T) -> bool {
+fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut IncsearchState) -> bool {
     unsafe {
         let mut skiplen: c_int = 0;
         let mut patlen: c_int = 0;
@@ -938,7 +938,7 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut incsearch_state_
 }
 
 fn finish_incsearch_highlighting(
-    gotesc: bool,s: &mut incsearch_state_T,
+    gotesc: bool,s: &mut IncsearchState,
     call_update_screen: bool,
 ) {
      {
@@ -1118,11 +1118,11 @@ fn command_line_enter(
             let mut firstcbuf: [c_char; 2] = [(*s).cmdline_type as c_char, 0];
 
             if has_event(EVENT_CMDLINEENTER) {
-                let mut save_v_event: save_v_event_T = save_v_event_T::new();
+                let mut save_v_event: SaveVEvent = SaveVEvent::new();
                 let dict = get_v_event(&mut save_v_event);
 
                 tv_dict_add_str(&mut *dict, c"cmdtype", firstcbuf.as_ptr());
-                tv_dict_add_nr(&mut *dict, c"cmdlevel", getln_st().ccline.level as varnumber_T);
+                tv_dict_add_nr(&mut *dict, c"cmdlevel", getln_st().ccline.level as Varnumber);
                 tv_dict_set_keys_readonly(&mut *dict);
                 let mut tstate = TryState::new();
                 try_enter(&mut tstate);
@@ -1197,11 +1197,11 @@ fn command_line_enter(
             }
 
             if has_event(EVENT_CMDLINELEAVE) {
-                let mut save_v_event: save_v_event_T = save_v_event_T::new();
+                let mut save_v_event: SaveVEvent = SaveVEvent::new();
                 let dict = get_v_event(&mut save_v_event);
 
                 tv_dict_add_str(&mut *dict, c"cmdtype", firstcbuf.as_ptr());
-                tv_dict_add_nr(&mut *dict, c"cmdlevel", getln_st().ccline.level as varnumber_T);
+                tv_dict_add_nr(&mut *dict, c"cmdlevel", getln_st().ccline.level as Varnumber);
                 tv_dict_set_keys_readonly(&mut *dict);
                 tv_dict_add_bool(
                     &mut *dict,
@@ -1636,7 +1636,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
             return -1; // get another key
         }
 
-        let display_tick_saved: disptick_T = curwin_mut().w_display_tick;
+        let display_tick_saved: Disptick = curwin_mut().w_display_tick;
         s.c = key;
 
         if getln_st().ccline.cmdbuff_replaced && s.xpc.xp_numfiles > 0 {
@@ -1940,7 +1940,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
 fn may_do_command_line_next_incsearch(
     firstc: c_int,
     count: c_int,
-    s: &mut incsearch_state_T,
+    s: &mut IncsearchState,
     next_match: bool,
 ) -> bool {
     unsafe {
@@ -1970,7 +1970,7 @@ fn may_do_command_line_next_incsearch(
         ui_busy_start();
         ui_flush();
 
-        let mut t: pos_T;
+        let mut t: CursorPos;
         let mut pat = getln_st().ccline.cmdbuff.add(skiplen as usize);
         let mut dircp: *mut c_char = ptr::null_mut();
         let mut searchstr = pat;
@@ -2865,7 +2865,7 @@ fn command_line_not_changed(s: &mut CommandLineState) -> c_int {
 
 /// Guess that the pattern matches everything.
 fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
-    let mut magic_val: magic_T = MAGIC_ON;
+    let mut magic_val: RegMagic = MAGIC_ON;
 
         if len > 0 {
             skip_regexp_ex(
@@ -2884,7 +2884,7 @@ fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
         empty_pattern_magic(p, len, magic_val)
 }
 
-fn empty_pattern_magic(p: impl crate::strings::IntoCCharPtr, mut len: usize, magic_val: magic_T) -> bool { let p = p.into_c_char_ptr();
+fn empty_pattern_magic(p: impl crate::strings::IntoCCharPtr, mut len: usize, magic_val: RegMagic) -> bool { let p = p.into_c_char_ptr();
      {
         while len >= 2
             && crate::memory::cstr_byte_at(p, len - 2) == b'\\'
@@ -2901,7 +2901,7 @@ fn empty_pattern_magic(p: impl crate::strings::IntoCCharPtr, mut len: usize, mag
     }
 }
 
-pub fn cmdpreview_get_bufnr() -> handle_T {
+pub fn cmdpreview_get_bufnr() -> ObjHandle {
     getln_st().cmdpreview_bufnr
 }
 
@@ -2910,7 +2910,7 @@ pub fn cmdpreview_get_ns() -> c_int {
 }
 
 /// Sets up command preview buffer.
-fn cmdpreview_open_buf() -> *mut buf_T {
+fn cmdpreview_open_buf() -> *mut FileBuf {
     unsafe {
         let mut cmdpreview_buf = if getln_st().cmdpreview_bufnr != 0 {
             buflist_findnr(getln_st().cmdpreview_bufnr)
@@ -2967,7 +2967,7 @@ fn cmdpreview_open_buf() -> *mut buf_T {
 }
 
 /// Open command preview window if it's not already open.
-fn cmdpreview_open_win(cmdpreview_buf: &mut buf_T) -> *mut win_T {
+fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> *mut WinInfoInfo {
      {
         let save_curwin = curwin_ptr();
 
@@ -3018,13 +3018,13 @@ fn cmdpreview_close_win() {
 /// Save current state and prepare windows and buffers for command preview.
 fn cmdpreview_prepare() -> CpInfo {
     unsafe {
-        let mut saved_bufs: std::collections::HashSet<*mut buf_T> =
+        let mut saved_bufs: std::collections::HashSet<*mut FileBuf> =
             std::collections::HashSet::new();
         let mut cpinfo = CpInfo {
             win_info: Vec::new(),
             buf_info: Vec::new(),
             save_hls: false,
-            save_cmdmod: cmdmod_T::new(),
+            save_cmdmod: Cmdmod::new(),
             save_view: Vec::new(),
         };
 
@@ -3059,7 +3059,7 @@ fn cmdpreview_prepare() -> CpInfo {
         }
 
         cpinfo.save_hls = opt_vars().p_hls != 0;
-        cpinfo.save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, cmdmod_T::new());
+        cpinfo.save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, Cmdmod::new());
         win_size_save(&mut cpinfo.save_view);
         save_search_patterns();
 
@@ -3112,8 +3112,8 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 /// Show `'inccommand'` preview if command is previewable.
 fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     unsafe {
-        let mut ea: exarg_T = exarg_T::new();
-        let mut cmod: cmdmod_T = cmdmod_T::new();
+        let mut ea: Exarg = Exarg::new();
+        let mut cmod: Cmdmod = Cmdmod::new();
         let mut cmdpreview_type: c_int;
         let mut cmdline_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(getln_st().ccline.cmdbuff);
         let mut cmdline = cmdline_vec.as_mut_ptr();
@@ -3145,8 +3145,8 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         }
 
         let mut icm_split = crate::memory::cstr_first_byte(opt_vars().p_icm) == b's';
-        let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
-        let mut cmdpreview_win: *mut win_T = ptr::null_mut();
+        let mut cmdpreview_buf: *mut FileBuf = ptr::null_mut();
+        let mut cmdpreview_win: *mut WinInfoInfo = ptr::null_mut();
 
         g_st().emsg_silent += 1;
         g_st().msg_silent += 1;
@@ -3220,13 +3220,13 @@ fn do_autocmd_cmdlinechanged(firstc: c_int) {
     unsafe {
         if has_event(EVENT_CMDLINECHANGED) {
             let mut err = error_init();
-            let mut save_v_event: save_v_event_T = save_v_event_T::new();
+            let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let dict = get_v_event(&mut save_v_event);
 
             let mut firstcbuf: [c_char; 2] = [firstc as c_char, 0];
 
             tv_dict_add_str(&mut *dict, c"cmdtype", firstcbuf.as_ptr());
-            tv_dict_add_nr(&mut *dict, c"cmdlevel", getln_st().ccline.level as varnumber_T);
+            tv_dict_add_nr(&mut *dict, c"cmdlevel", getln_st().ccline.level as Varnumber);
             tv_dict_set_keys_readonly(&mut *dict);
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
@@ -3708,12 +3708,12 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
         }
 
         let mut arg_owned: Option<std::ffi::CString> = None;
-        let mut arg = typval_T {
+        let mut arg = TypVal {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
             vval: TypvalVval::String(colored_ccline.cmdbuff),
         };
-        let mut tv = typval_T {
+        let mut tv = TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -3803,7 +3803,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 if v_list.is_null() {
                     break 'color_cmdline_end;
                 }
-                let mut prev_end: varnumber_T = 0;
+                let mut prev_end: Varnumber = 0;
                 for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(v_list.as_ref()))) {
                     let li_tv = &mut (*li).li_tv;
                     if li_tv.v_type != VarType::VAR_LIST {
@@ -3836,7 +3836,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     if error {
                         break 'color_cmdline_error;
                     } else if !(prev_end <= start
-                        && start < colored_ccline.cmdlen as varnumber_T)
+                        && start < colored_ccline.cmdlen as Varnumber)
                     {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
@@ -3878,7 +3878,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     let end = tv_get_number_chk(&(*second_li).li_tv, Some(&mut error));
                     if error {
                         break 'color_cmdline_error;
-                    } else if !(start < end && end <= colored_ccline.cmdlen as varnumber_T) {
+                    } else if !(start < end && end <= colored_ccline.cmdlen as Varnumber) {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3891,7 +3891,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         );
                         printed_errmsg = true;
                         break 'color_cmdline_error;
-                    } else if end < colored_ccline.cmdlen as varnumber_T
+                    } else if end < colored_ccline.cmdlen as Varnumber
                         && utf8len_tab_zero
                             [crate::memory::cstr_byte_at(colored_ccline.cmdbuff, end as usize) as usize]
                             == 0
@@ -3921,7 +3921,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         hl_id: syn_name2id(group),
                     });
                 }
-                if prev_end < colored_ccline.cmdlen as varnumber_T {
+                if prev_end < colored_ccline.cmdlen as Varnumber {
                     (*ccline_colors).colors.push(CmdlineColorChunk {
                         start: prev_end as c_int,
                         end: colored_ccline.cmdlen,
@@ -4784,7 +4784,7 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
 }
 
 /// `"getcmdcomplpat()"` function.
-pub fn f_getcmdcomplpat(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getcmdcomplpat(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     crate::eval::typval::tv_set_string(
             rettv,
             get_cmdline_completion_pattern()
@@ -4794,7 +4794,7 @@ pub fn f_getcmdcomplpat(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 }
 
 /// `"getcmdcompltype()"` function.
-pub fn f_getcmdcompltype(_argvars: &mut [typval_T], rettv: &mut typval_T,
+pub fn f_getcmdcompltype(_argvars: &mut [TypVal], rettv: &mut TypVal,
     _fptr: EvalFuncData,){
     crate::eval::typval::tv_set_string(
             rettv,
@@ -4805,7 +4805,7 @@ pub fn f_getcmdcompltype(_argvars: &mut [typval_T], rettv: &mut typval_T,
 }
 
 /// `"getcmdline()"` function.
-pub fn f_getcmdline(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getcmdline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     if let Some(s) = get_cmdline_str() {
             crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
         } else {
@@ -4815,11 +4815,11 @@ pub fn f_getcmdline(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 }
 
 /// `"getcmdpos()"` function.
-pub fn f_getcmdpos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getcmdpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
         let p = get_ccline_ptr();
         rettv.vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
-            ((*p).cmdpos + 1) as varnumber_T
+            ((*p).cmdpos + 1) as Varnumber
         } else {
             0
         });
@@ -4827,7 +4827,7 @@ pub fn f_getcmdpos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 }
 
 /// `"getcmdprompt()"` function.
-pub fn f_getcmdprompt(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getcmdprompt(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
         let p = get_ccline_ptr();
         crate::eval::typval::tv_set_string(
@@ -4844,12 +4844,12 @@ pub fn f_getcmdprompt(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 }
 
 /// `"getcmdscreenpos()"` function.
-pub fn f_getcmdscreenpos(_argvars: &mut [typval_T], rettv: &mut typval_T,
+pub fn f_getcmdscreenpos(_argvars: &mut [TypVal], rettv: &mut TypVal,
     _fptr: EvalFuncData,){
     unsafe {
         let p = get_ccline_ptr();
         rettv.vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
-            ((*p).cmdspos + 1) as varnumber_T
+            ((*p).cmdspos + 1) as Varnumber
         } else {
             0
         });
@@ -4857,7 +4857,7 @@ pub fn f_getcmdscreenpos(_argvars: &mut [typval_T], rettv: &mut typval_T,
 }
 
 /// `"getcmdtype()"` function.
-pub fn f_getcmdtype(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getcmdtype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     let buf: [c_char; 2] = [get_cmdline_type() as c_char, 0];
         crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
 }
@@ -4907,7 +4907,7 @@ fn set_cmdline_pos(pos: c_int) -> c_int {
 }
 
 /// `"setcmdline()"` function.
-pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_setcmdline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         if !tv_check_for_string_arg(argvars, 0)
@@ -4930,17 +4930,17 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             }
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(tv_get_string(&argvars[0]), pos) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(tv_get_string(&argvars[0]), pos) as Varnumber);
     }
 }
 
 /// `"setcmdpos()"` function.
-pub fn f_setcmdpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_setcmdpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     let pos = (tv_get_number(&argvars[0]) - 1) as c_int;
 
         if pos >= 0 {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_pos(pos) as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_pos(pos) as Varnumber);
         }
 }
 
@@ -4954,7 +4954,7 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
     unsafe {
         let mut len: c_int = 0;
         let mut first = false;
-        let mut num: varnumber_T = 0;
+        let mut num: Varnumber = 0;
 
         *str = skipwhite(*str);
         if **str == b'-' as c_char || ascii_isdigit(**str as c_int) {
@@ -4970,7 +4970,7 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
                 None,
             );
             *str = (*str).add(len as usize);
-            if num > c_int::MAX as varnumber_T {
+            if num > c_int::MAX as Varnumber {
                 return false;
             }
 
@@ -4993,7 +4993,7 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
             );
             if len > 0 {
                 *str = skipwhite((*str).add(len as usize));
-                if num > c_int::MAX as varnumber_T {
+                if num > c_int::MAX as Varnumber {
                     return false;
                 }
 
@@ -5015,7 +5015,7 @@ pub fn cmdline_init() {
 }
 
 /// Validate the `'cedit'` option.
-pub fn validate_cedit(args: &mut optset_T) -> *const c_char {
+pub fn validate_cedit(args: &mut Optset) -> *const c_char {
      {
         let value = args.os_newval.data.string().data;
         if !crate::memory::cstr_is_empty(value) {
@@ -5029,7 +5029,7 @@ pub fn validate_cedit(args: &mut optset_T) -> *const c_char {
 }
 
 /// The `'cedit'` option is changed.
-pub fn did_set_cedit(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_cedit(_args: &mut Optset) -> *const c_char {
      {
         getln_st().cedit_key = if crate::memory::cstr_is_empty(opt_vars().p_cedit) {
             -1
@@ -5046,12 +5046,12 @@ fn cmdwin_invoke(action: impl crate::strings::IntoCCharPtr, firstc: c_int, conte
     unsafe {
         let mut fc: [c_char; 2] = [firstc as c_char, 0];
         let mut tv_args = [
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: 0,
                 vval: TypvalVval::String(fc.as_mut_ptr()),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: 0,
                 vval: TypvalVval::String(if !content.is_null() {
@@ -5060,12 +5060,12 @@ fn cmdwin_invoke(action: impl crate::strings::IntoCCharPtr, firstc: c_int, conte
                     c"".as_ptr().cast_mut()
                 }),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
-                vval: TypvalVval::Number((pos + 1) as varnumber_T),
+                vval: TypvalVval::Number((pos + 1) as Varnumber),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
@@ -5142,7 +5142,7 @@ pub fn is_in_cmdwin() -> bool {
 }
 
 /// Get script string.
-pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CString> {
+pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString> {
     unsafe {
         let mut cmd = eap.arg;
 
@@ -5187,8 +5187,8 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
 }
 
 /// Used by `f_input()` and `f_inputdialog()` functions.
-pub fn get_user_input(argvars: &[typval_T],
-    rettv: &mut typval_T,
+pub fn get_user_input(argvars: &[TypVal],
+    rettv: &mut TypVal,
     inputdialog: bool,
     secret: bool,
 ) {
@@ -5202,8 +5202,8 @@ pub fn get_user_input(argvars: &[typval_T],
 
         let prompt: *const c_char;
         let mut defstr: *const c_char = c"".as_ptr();
-        let mut cancelreturn: *mut typval_T = ptr::null_mut();
-        let mut cancelreturn_strarg2 = typval_T {
+        let mut cancelreturn: *mut TypVal = ptr::null_mut();
+        let mut cancelreturn_strarg2 = TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -5356,7 +5356,7 @@ pub fn get_user_input(argvars: &[typval_T],
 }
 
 /// `"wildtrigger()"` function.
-pub fn f_wildtrigger(_argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_wildtrigger(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData){
     if (g_st().State & MODE_CMDLINE) == 0
             || char_avail()
             || g_st().wild_menu_showing != 0

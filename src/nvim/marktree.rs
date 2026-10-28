@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 use crate::api::private::validate::NvimString;
 use crate::api::private::helpers::cbuf_to_string;
 
-use crate::cursor::colnr_T;
+use crate::cursor::Colnr;
 
 pub const MT_MAX_DEPTH: usize = 20;
 pub const MT_BRANCH_FACTOR: usize = 10;
@@ -2488,11 +2488,11 @@ pub fn marktree_splice(
 pub fn marktree_move_region(
     b: &mut MarkTree,
     start_row: c_int,
-    start_col: colnr_T,
+    start_col: Colnr,
     extent_row: c_int,
-    extent_col: colnr_T,
+    extent_col: Colnr,
     new_row: c_int,
-    new_col: colnr_T,
+    new_col: Colnr,
 ) {
     let start = MTPos {
             row: start_row,

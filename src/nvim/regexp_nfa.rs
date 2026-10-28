@@ -174,18 +174,18 @@ const e_ill_char_class: &CStr = c"E877: (NFA regexp) Invalid character class: %l
 const e_value_too_large: &CStr = c"E951: \\% value too large";
 
 struct RegexpNfaState {
-    temp_subs: regsubs_T,
+    temp_subs: Regsubs,
     nfa_match: c_int,
-    nfa_time_limit: Option<proftime_T>,
+    nfa_time_limit: Option<Proftime>,
     nfa_timed_out: *mut c_int,
     nfa_time_count: c_int,
-    rec_listbuf: Vec<[Vec<nfa_thread_T>; 2]>,
+    rec_listbuf: Vec<[Vec<NfaThread>; 2]>,
 }
 
 impl RegexpNfaState {
     const fn new() -> Self {
         Self {
-            temp_subs: regsubs_T::new(),
+            temp_subs: Regsubs::new(),
             nfa_match: 0,
             nfa_time_limit: None,
             nfa_timed_out: ptr::null_mut(),
@@ -231,7 +231,7 @@ fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
     }
 }
 
-fn nfa_get_reganch(states: &[nfa_state_T], start: Option<usize>, depth: c_int) -> c_int {
+fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: c_int) -> c_int {
     let mut p = start;
     if depth > 4 {
         return 0;
@@ -260,7 +260,7 @@ fn nfa_get_reganch(states: &[nfa_state_T], start: Option<usize>, depth: c_int) -
     0
 }
 
-fn nfa_get_regstart(states: &[nfa_state_T], start: Option<usize>, depth: c_int) -> c_int {
+fn nfa_get_regstart(states: &[NfaState], start: Option<usize>, depth: c_int) -> c_int {
     let mut p = start;
     if depth > 4 {
         return 0;
@@ -299,7 +299,7 @@ fn nfa_get_regstart(states: &[nfa_state_T], start: Option<usize>, depth: c_int) 
 }
 
 fn nfa_get_match_text(
-    states: &[nfa_state_T],
+    states: &[NfaState],
     start: Option<usize>,
 ) -> Option<std::ffi::CString> {
     unsafe {
@@ -1258,7 +1258,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         });
                     } else {
                         if cur {
-                            let mut vcol: colnr_T = 0;
+                            let mut vcol: Colnr = 0;
                             getvvcol(
                                 crate::globals::curwin_ptr(),
                                 &mut crate::globals::curwin_mut().w_cursor,
@@ -1552,7 +1552,7 @@ fn nfa_regatom_collection(
 
 fn nfa_regpiece() -> bool {
      {
-        let mut old_state = parse_state_T::new();
+        let mut old_state = ParseState::new();
 
         save_parse_state(&mut old_state);
         let my_post_start = re_st().post_vec.len();
@@ -1572,13 +1572,13 @@ fn nfa_regpiece() -> bool {
 #[inline(never)]
 fn nfa_regpiece_multi(
     op: c_int,
-    old_state: &mut parse_state_T,
+    old_state: &mut ParseState,
     my_post_start: usize,
 ) -> bool {
      {
         let mut minval: c_int = 0;
         let mut maxval: c_int = 0;
-        let mut new_state = parse_state_T::new();
+        let mut new_state = ParseState::new();
         skipchr();
         if op == Magic(b'*' as c_int) {
             EMIT(NFA_STAR);
@@ -1883,7 +1883,7 @@ fn re2post() -> bool {
 }
 
 fn alloc_state(
-    states: &mut [nfa_state_T],
+    states: &mut [NfaState],
     c: c_int,
     out: Option<usize>,
     out1: Option<usize>,
@@ -1893,7 +1893,7 @@ fn alloc_state(
         }
         let idx = re_st().istate as usize;
         re_st().istate += 1;
-        states[idx] = nfa_state_T {
+        states[idx] = NfaState {
             c,
             out,
             out1,
@@ -1904,8 +1904,8 @@ fn alloc_state(
 }
 
 #[inline]
-fn frag(start: Option<usize>, out: Vec<NfaOutSlot>) -> Frag_T {
-    Frag_T { start, out }
+fn frag(start: Option<usize>, out: Vec<NfaOutSlot>) -> Frag {
+    Frag { start, out }
 }
 
 #[inline]
@@ -1913,7 +1913,7 @@ fn list1(slot: NfaOutSlot) -> Vec<NfaOutSlot> {
     vec![slot]
 }
 
-fn patch(states: &mut [nfa_state_T], l: Vec<NfaOutSlot>, s: Option<usize>) {
+fn patch(states: &mut [NfaState], l: Vec<NfaOutSlot>, s: Option<usize>) {
     for slot in l {
         slot.set(states, s);
     }
@@ -1928,7 +1928,7 @@ fn st_error() {
     emsg(tr(c"E874: (NFA) Could not pop the stack!"));
 }
 
-fn nfa_max_width(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int) -> c_int {
+fn nfa_max_width(states: &[NfaState], startstate: Option<usize>, depth: c_int) -> c_int {
     let mut state = startstate;
         let mut len: c_int = 0;
 
@@ -2027,7 +2027,7 @@ fn nfa_max_width(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int
 }
 
 fn post2nfa(
-    states: &mut [nfa_state_T],
+    states: &mut [NfaState],
     postfix: *mut c_int,
     end: *mut c_int,
     nfa_calc_size: bool,
@@ -2042,7 +2042,7 @@ fn post2nfa(
         } else {
             0
         };
-        let mut stack: Vec<Frag_T> = Vec::with_capacity(max_stack);
+        let mut stack: Vec<Frag> = Vec::with_capacity(max_stack);
 
         macro_rules! push {
             ($s:expr) => {
@@ -2162,7 +2162,7 @@ fn post2nfa(
                         re_st().nstate += n;
                     } else {
                         let mut s: Option<usize> = None;
-                        let mut e1 = Frag_T::new();
+                        let mut e1 = Frag::new();
                         let mut s1: Option<usize> = None;
                         while n > 0 {
                             n -= 1;
@@ -2333,7 +2333,7 @@ fn post2nfa(
     }
 }
 
-fn nfa_postprocess(prog: &mut nfa_regprog_T) {
+fn nfa_postprocess(prog: &mut NfaRegprog) {
     for i in 0..prog.nstate as usize {
         let st = prog.state[i];
         let c = st.c;
@@ -2366,7 +2366,7 @@ fn nfa_postprocess(prog: &mut nfa_regprog_T) {
 }
 
 #[inline]
-fn copy_pim(to: &mut nfa_pim_T, from: &mut nfa_pim_T) {
+fn copy_pim(to: &mut NfaPim, from: &mut NfaPim) {
      {
         to.result = from.result;
         to.state = from.state;
@@ -2378,7 +2378,7 @@ fn copy_pim(to: &mut nfa_pim_T, from: &mut nfa_pim_T) {
     }
 }
 
-fn clear_sub(sub: &mut regsub_T) {
+fn clear_sub(sub: &mut Regsub) {
     {
         let n = re_st().rex.nfa_nsubexpr as usize;
         if REG_MULTI() {
@@ -2396,7 +2396,7 @@ fn clear_sub(sub: &mut regsub_T) {
 }
 
 #[inline]
-fn copy_sub(to: &mut regsub_T, from: &mut regsub_T) {
+fn copy_sub(to: &mut Regsub, from: &mut Regsub) {
     let in_use = from.in_use;
     to.in_use = in_use;
     if in_use <= 0 {
@@ -2413,7 +2413,7 @@ fn copy_sub(to: &mut regsub_T, from: &mut regsub_T) {
 }
 
 #[inline]
-fn copy_sub_off(to: &mut regsub_T, from: &mut regsub_T) {
+fn copy_sub_off(to: &mut Regsub, from: &mut Regsub) {
     if to.in_use < from.in_use {
         to.in_use = from.in_use;
     }
@@ -2423,7 +2423,7 @@ fn copy_sub_off(to: &mut regsub_T, from: &mut regsub_T) {
     to.list.copy_range_from_1(&from.list, from.in_use as usize);
 }
 
-fn copy_ze_off(to: &mut regsub_T, from: &mut regsub_T) {
+fn copy_ze_off(to: &mut Regsub, from: &mut Regsub) {
     if re_st().rex.nfa_has_zend == 0 {
             return;
         }
@@ -2442,7 +2442,7 @@ fn copy_ze_off(to: &mut regsub_T, from: &mut regsub_T) {
 }
 
 #[inline]
-fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
+fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
     let todo = sub1.in_use.max(sub2.in_use) as usize;
     if todo == 1 && sub1.in_use == 1 && sub2.in_use == 1 && re_st().rex.nfa_has_backref == 0 {
         if REG_MULTI() {
@@ -2532,10 +2532,10 @@ fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
 
 #[inline]
 fn has_state_with_pos(
-    l: &mut nfa_list_T,
+    l: &mut NfaList,
     state: usize,
-    subs: &mut regsubs_T,
-    pim: Option<&nfa_pim_T>,
+    subs: &mut Regsubs,
+    pim: Option<&NfaPim>,
 ) -> bool {
     unsafe {
         let tp = l.t.as_mut_ptr();
@@ -2555,7 +2555,7 @@ fn has_state_with_pos(
 }
 
 #[inline]
-fn pim_equal(one: Option<&nfa_pim_T>, two: Option<&nfa_pim_T>) -> bool {
+fn pim_equal(one: Option<&NfaPim>, two: Option<&NfaPim>) -> bool {
      {
         let one_unused = one.is_none() || one.unwrap().result == NFA_PIM_UNUSED;
         let two_unused = two.is_none() || two.unwrap().result == NFA_PIM_UNUSED;
@@ -2578,7 +2578,7 @@ fn pim_equal(one: Option<&nfa_pim_T>, two: Option<&nfa_pim_T>) -> bool {
     }
 }
 
-fn match_follows(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int) -> bool {
+fn match_follows(states: &[NfaState], startstate: Option<usize>, depth: c_int) -> bool {
     let mut state = startstate;
     if depth > 10 {
         return false;
@@ -2626,9 +2626,9 @@ fn match_follows(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int
 }
 
 fn state_in_list(
-    states: &[nfa_state_T],
-    l: &mut nfa_list_T,
-    state: Option<usize>,subs: &mut regsubs_T,
+    states: &[NfaState],
+    l: &mut NfaList,
+    state: Option<usize>,subs: &mut Regsubs,
 ) -> bool {
      {
         let Some(state_idx) = state else {
@@ -2646,13 +2646,13 @@ fn state_in_list(
 
 #[inline(always)]
 fn addstate(
-    states: &mut [nfa_state_T],
-    l: &mut nfa_list_T,
-    state: Option<usize>,subs_arg: Option<&mut regsubs_T>,
-    pim: *mut nfa_pim_T,
+    states: &mut [NfaState],
+    l: &mut NfaList,
+    state: Option<usize>,subs_arg: Option<&mut Regsubs>,
+    pim: *mut NfaPim,
     off_arg: c_int,
     depth: c_int,
-) -> *mut regsubs_T {
+) -> *mut Regsubs {
     let subs_ptr = subs_arg.map_or(ptr::null_mut(), |p| &raw mut *p);
     let Some(state_idx) = state else {
         if depth >= 5000 || subs_ptr.is_null() {
@@ -2665,14 +2665,14 @@ fn addstate(
 
 #[inline(always)]
 fn addstate_idx(
-    states: *mut nfa_state_T,
-    l: &mut nfa_list_T,
+    states: *mut NfaState,
+    l: &mut NfaList,
     state_idx: usize,
-    subs_arg: *mut regsubs_T,
-    pim: *mut nfa_pim_T,
+    subs_arg: *mut Regsubs,
+    pim: *mut NfaPim,
     off_arg: c_int,
     depth: c_int,
-) -> *mut regsubs_T {
+) -> *mut Regsubs {
     unsafe {
         if depth >= 5000 || subs_arg.is_null() {
             return ptr::null_mut();
@@ -2732,7 +2732,7 @@ fn addstate_idx(
                 let mut subs = subs_arg;
                 if l.n as usize == l.t.capacity() {
                     let newlen = l.t.capacity() * 3 / 2 + 50;
-                    let newsize = newlen * size_of::<nfa_thread_T>();
+                    let newsize = newlen * size_of::<NfaThread>();
                     if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
                         emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
                         return ptr::null_mut();
@@ -2751,7 +2751,7 @@ fn addstate_idx(
                 let thread_idx = l.n as usize;
                 l.n += 1;
                 if thread_idx == l.t.len() {
-                    l.t.push(nfa_thread_T::new());
+                    l.t.push(NfaThread::new());
                 }
                 let thread = &mut *l.t.as_mut_ptr().add(thread_idx);
                 thread.state = Some(state_idx);
@@ -2781,15 +2781,15 @@ fn addstate_idx(
 }
 
 fn addstate_eps(
-    states: *mut nfa_state_T,
-    l: &mut nfa_list_T,
+    states: *mut NfaState,
+    l: &mut NfaList,
     state_idx: usize,
     st_c: c_int,
-    mut subs: *mut regsubs_T,
-    pim: *mut nfa_pim_T,
+    mut subs: *mut Regsubs,
+    pim: *mut NfaPim,
     off_arg: c_int,
     depth: c_int,
-) -> *mut regsubs_T {
+) -> *mut Regsubs {
     unsafe {
         let off = if off_arg <= -ADDSTATE_HERE_OFFSET {
             0
@@ -2848,7 +2848,7 @@ fn addstate_eps(
                     } else {
                         multi[subidx].start_lnum = re_st().rex.lnum;
                         multi[subidx].start_col =
-                            (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + off;
+                            (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + off;
                     }
                     multi[subidx].end_lnum = -1;
                 } else {
@@ -2928,7 +2928,7 @@ fn addstate_eps(
                         } else {
                             multi[subidx].end_lnum = re_st().rex.lnum;
                             multi[subidx].end_col =
-                                (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + off;
+                                (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + off;
                         }
                     } else {
                         let line = (*sub).list.line_mut();
@@ -2964,12 +2964,12 @@ fn addstate_eps(
 }
 
 fn addstate_here(
-    states: &mut [nfa_state_T],
-    l: &mut nfa_list_T,
-    state: Option<usize>,subs: &mut regsubs_T,
-    pim: *mut nfa_pim_T,
+    states: &mut [NfaState],
+    l: &mut NfaList,
+    state: Option<usize>,subs: &mut Regsubs,
+    pim: *mut NfaPim,
     ip: &mut c_int,
-) -> *mut regsubs_T {
+) -> *mut Regsubs {
     unsafe {
         let tlen = l.n;
         let listidx = *ip;
@@ -2999,12 +2999,12 @@ fn addstate_here(
         } else if count > 1 {
             if (l.n + count) as usize > l.t.len() {
                 let newlen = l.t.len() * 3 / 2 + 50;
-                let newsize = newlen * size_of::<nfa_thread_T>();
+                let newsize = newlen * size_of::<NfaThread>();
                 if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
                     emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
                     return ptr::null_mut();
                 }
-                l.t.resize(newlen, nfa_thread_T::new());
+                l.t.resize(newlen, NfaThread::new());
             }
             let tp = l.t.as_mut_ptr();
             ptr::copy(
@@ -3129,7 +3129,7 @@ fn check_char_class(cls: c_int, c: c_int) -> bool {
         false
 }
 
-fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) -> bool {
+fn match_backref(sub: &mut Regsub, subidx: c_int, bytelen: &mut c_int) -> bool {
     unsafe {
         if sub.in_use <= subidx {
             *bytelen = 0;
@@ -3202,7 +3202,7 @@ fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
     }
 }
 
-fn nfa_save_listids(prog: &mut nfa_regprog_T, list: *mut c_int) {
+fn nfa_save_listids(prog: &mut NfaRegprog, list: *mut c_int) {
     unsafe {
         let mut p = prog.state.as_mut_ptr();
         let mut i = prog.nstate;
@@ -3217,7 +3217,7 @@ fn nfa_save_listids(prog: &mut nfa_regprog_T, list: *mut c_int) {
     }
 }
 
-fn nfa_restore_listids(prog: &mut nfa_regprog_T, list: *const c_int) {
+fn nfa_restore_listids(prog: &mut NfaRegprog, list: *const c_int) {
     unsafe {
         let mut p = prog.state.as_mut_ptr();
         let mut i = prog.nstate;
@@ -3244,7 +3244,7 @@ fn nfa_re_num_cmp(val: u64, op: c_int, pos: u64) -> bool {
 
 fn recursive_regmatch(
     state: usize,
-    pim: Option<&nfa_pim_T>,prog: &mut nfa_regprog_T,submatch: &mut regsubs_T,m: &mut regsubs_T,
+    pim: Option<&NfaPim>,prog: &mut NfaRegprog,submatch: &mut Regsubs,m: &mut Regsubs,
     listids: &mut Vec<c_int>,
 ) -> c_int {
     unsafe {
@@ -3253,8 +3253,8 @@ fn recursive_regmatch(
         let save_nfa_match = nfa_st().nfa_match;
         let save_nfa_listid = re_st().rex.nfa_listid;
         let save_nfa_endp = re_st().nfa_endp;
-        let mut endpos = save_se_T::new();
-        let mut endposp: *mut save_se_T = ptr::null_mut();
+        let mut endpos = SaveSe::new();
+        let mut endposp: *mut SaveSe = ptr::null_mut();
         let mut need_restore = false;
 
         if let Some(pim) = pim {
@@ -3274,8 +3274,8 @@ fn recursive_regmatch(
             if let Some(pim) = pim {
                 endpos.se_u = pim.end;
             } else if REG_MULTI() {
-                endpos.se_u = crate::regexp::RegPos::Pos(lpos_T {
-                    col: re_st().rex.input.offset_from(re_st().rex.line) as colnr_T,
+                endpos.se_u = crate::regexp::RegPos::Pos(Lpos {
+                    col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
                     lnum: re_st().rex.lnum,
                 });
             } else {
@@ -3355,7 +3355,7 @@ fn recursive_regmatch(
     }
 }
 
-fn failure_chance(states: &[nfa_state_T], state: Option<usize>, depth: c_int) -> c_int {
+fn failure_chance(states: &[NfaState], state: Option<usize>, depth: c_int) -> c_int {
     let Some(state_idx) = state else {
         return 1;
     };
@@ -3402,18 +3402,18 @@ fn failure_chance(states: &[nfa_state_T], state: Option<usize>, depth: c_int) ->
     }
 }
 
-fn skip_to_start(c: c_int, colp: &mut colnr_T) -> bool {
+fn skip_to_start(c: c_int, colp: &mut Colnr) -> bool {
     unsafe {
         let s = cstrchr(re_st().rex.line.add(*colp as usize).cast(), c);
         if s.is_null() {
             return false;
         }
-        *colp = s.cast::<u8>().offset_from(re_st().rex.line) as colnr_T;
+        *colp = s.cast::<u8>().offset_from(re_st().rex.line) as Colnr;
         true
     }
 }
 
-fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *const u8) -> c_int {
+fn find_match_text(startcol: &mut Colnr, regstart: c_int, match_text: *const u8) -> c_int {
     unsafe {
         let mut col = *startcol;
         loop {
@@ -3439,7 +3439,7 @@ fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *const u
                     (*re_st().rex.reg_startpos).lnum = re_st().rex.lnum;
                     (*re_st().rex.reg_startpos).col = col;
                     (*re_st().rex.reg_endpos).lnum = re_st().rex.lnum;
-                    (*re_st().rex.reg_endpos).col = s2.offset_from(re_st().rex.line) as colnr_T;
+                    (*re_st().rex.reg_endpos).col = s2.offset_from(re_st().rex.line) as Colnr;
                 } else {
                     *re_st().rex.reg_startp = re_st().rex.line.add(col as usize);
                     *re_st().rex.reg_endp = s2;
@@ -3459,7 +3459,7 @@ fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *const u
 }
 
 fn match_composing(
-    states: &[nfa_state_T],
+    states: &[NfaState],
     mut sta: Option<usize>,
     curc: c_int,
     clen: c_int,
@@ -3529,8 +3529,8 @@ fn nfa_did_time_out() -> bool {
     }
 }
 
-fn nfa_regmatch(prog: &mut nfa_regprog_T,
-    start: Option<usize>,submatch: &mut regsubs_T,m: &mut regsubs_T,
+fn nfa_regmatch(prog: &mut NfaRegprog,
+    start: Option<usize>,submatch: &mut Regsubs,m: &mut Regsubs,
 ) -> c_int {
     unsafe {
         let Some(start_idx) = start else {
@@ -3568,14 +3568,14 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
         if t1.capacity() < init_len {
             t1.reserve(init_len - t1.len());
         }
-        let mut list: [nfa_list_T; 2] = [
-            nfa_list_T {
+        let mut list: [NfaList; 2] = [
+            NfaList {
                 t: t0,
                 n: 0,
                 id: re_st().rex.nfa_listid + 1,
                 has_pim: 0,
             },
-            nfa_list_T {
+            NfaList {
                 t: t1,
                 n: 0,
                 id: 0,
@@ -3585,7 +3585,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
 
         let r = if toplevel {
             if REG_MULTI() {
-                let start_col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
+                let start_col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
                 m.norm.list.multi_mut()[0].start_lnum = re_st().rex.lnum;
                 m.norm.list.multi_mut()[0].start_col = start_col;
                 m.norm.orig_start_col = start_col;
@@ -3637,8 +3637,8 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
             let this_idx = flag;
             flag ^= 1;
             let next_idx = flag;
-            let thislist = (&raw mut list).cast::<nfa_list_T>().add(this_idx);
-            let nextlist = (&raw mut list).cast::<nfa_list_T>().add(next_idx);
+            let thislist = (&raw mut list).cast::<NfaList>().add(this_idx);
+            let nextlist = (&raw mut list).cast::<NfaList>().add(next_idx);
             (*nextlist).n = 0;
             (*nextlist).has_pim = 0;
             re_st().rex.nfa_listid += 1;
@@ -3704,7 +3704,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             && if REG_MULTI() {
                                 let end_pos = (*re_st().nfa_endp).se_u.pos();
                                 re_st().rex.lnum != end_pos.lnum
-                                    || (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) != end_pos.col
+                                    || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) != end_pos.col
                             } else {
                                 re_st().rex.input != (*re_st().nfa_endp).se_u.ptr()
                             }
@@ -3773,14 +3773,14 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             }
                             m.norm.in_use = in_use;
                         } else {
-                            let mut pim = nfa_pim_T::new();
+                            let mut pim = NfaPim::new();
                             pim.state = Some(t_state_idx);
                             pim.result = NFA_PIM_TODO;
                             pim.subs.norm.in_use = 0;
                             pim.subs.synt.in_use = 0;
                             if REG_MULTI() {
-                                pim.end = crate::regexp::RegPos::Pos(lpos_T {
-                                    col: re_st().rex.input.offset_from(re_st().rex.line) as colnr_T,
+                                pim.end = crate::regexp::RegPos::Pos(Lpos {
+                                    col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
                                     lnum: re_st().rex.lnum,
                                 });
                             } else {
@@ -3850,7 +3850,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 }
                                 let bytelen = if REG_MULTI() {
                                     m.norm.list.multi()[0].end_col
-                                        - (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T)
+                                        - (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
                                 } else {
                                     m.norm.list.line()[0].end.offset_from(re_st().rex.input) as c_int
                                 };
@@ -4268,7 +4268,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     }
                     NFA_VCOL | NFA_VCOL_GT | NFA_VCOL_LT => {
                         let op = t_st.c - NFA_VCOL;
-                        let col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
+                        let col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
                         if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                             let mut matched = false;
                             let wp = if re_st().rex.reg_win.is_null() {
@@ -4333,7 +4333,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             } else {
                                 pos.col
                             };
-                            let cur_col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
+                            let cur_col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
                             let st_c = t_st.c;
                             let matched = if pos.lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum {
                                 if pos_col == cur_col {
@@ -4357,7 +4357,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     NFA_CURSOR => {
                         if !re_st().rex.reg_win.is_null()
                             && re_st().rex.lnum + re_st().rex.reg_firstlnum == (*re_st().rex.reg_win).w_cursor.lnum
-                            && (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T)
+                            && (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
                                 == (*re_st().rex.reg_win).w_cursor.col
                         {
                             add_here = true;
@@ -4390,12 +4390,12 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                 }
 
                 if let Some(add_state_idx) = add_state {
-                    let mut pim: *mut nfa_pim_T = if (*t).pim.result == NFA_PIM_UNUSED {
+                    let mut pim: *mut NfaPim = if (*t).pim.result == NFA_PIM_UNUSED {
                         ptr::null_mut()
                     } else {
                         &raw mut (*t).pim
                     };
-                    let mut pim_copy: nfa_pim_T;
+                    let mut pim_copy: NfaPim;
 
                     if !pim.is_null() && (clen == 0 || match_follows(&prog.state, add_state, 0))
                     {
@@ -4443,7 +4443,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     }
 
                     if pim == &raw mut (*t).pim {
-                        pim_copy = nfa_pim_T::new();
+                        pim_copy = NfaPim::new();
                         copy_pim(&mut pim_copy,  &mut *pim);
                         pim = &raw mut pim_copy;
                     }
@@ -4488,13 +4488,13 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     && re_st().rex.lnum == 0
                     && clen != 0
                     && (re_st().rex.reg_maxcol == 0
-                        || (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) < re_st().rex.reg_maxcol))
+                        || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) < re_st().rex.reg_maxcol))
                     || (!re_st().nfa_endp.is_null()
                         && if REG_MULTI() {
                             let end_pos = (*re_st().nfa_endp).se_u.pos();
                             re_st().rex.lnum < end_pos.lnum
                                 || (re_st().rex.lnum == end_pos.lnum
-                                    && (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) < end_pos.col)
+                                    && (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) < end_pos.col)
                         } else {
                             re_st().rex.input < (*re_st().nfa_endp).se_u.ptr()
                         }))
@@ -4503,7 +4503,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     let mut add = true;
                     if prog.regstart != NUL as c_int && clen != 0 {
                         if (*nextlist).n == 0 {
-                            let mut col = (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + clen;
+                            let mut col = (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + clen;
                             if !skip_to_start(prog.regstart, &mut col) {
                                 break;
                             }
@@ -4519,7 +4519,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     }
                     if add {
                         if REG_MULTI() {
-                            let start_col = (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + clen;
+                            let start_col = (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + clen;
                             m.norm.list.multi_mut()[0].start_col = start_col;
                             m.norm.orig_start_col = start_col;
                         } else {
@@ -4609,9 +4609,9 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
     }
 }
 
-fn finish_nfa_regmatch(prog: &mut nfa_regprog_T,
+fn finish_nfa_regmatch(prog: &mut NfaRegprog,
     toplevel: bool,
-    list: &mut [nfa_list_T; 2],
+    list: &mut [NfaList; 2],
 ) -> c_int {
      {
         if toplevel
@@ -4631,13 +4631,13 @@ fn finish_nfa_regmatch(prog: &mut nfa_regprog_T,
 }
 
 fn nfa_regtry(
-    prog: &mut nfa_regprog_T,
-    col: colnr_T,
-    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
+    prog: &mut NfaRegprog,
+    col: Colnr,
+    tm: Option<Proftime>,timed_out: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
-        let mut subs = regsubs_T::new();
-        let mut m = regsubs_T::new();
+        let mut subs = Regsubs::new();
+        let mut m = Regsubs::new();
         let start = prog.start;
 
         re_st().rex.input = re_st().rex.line.add(col as usize);
@@ -4675,7 +4675,7 @@ fn nfa_regtry(
             }
             if (*re_st().rex.reg_endpos).lnum < 0 {
                 (*re_st().rex.reg_endpos).lnum = re_st().rex.lnum;
-                (*re_st().rex.reg_endpos).col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
+                (*re_st().rex.reg_endpos).col = re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
             } else {
                 re_st().rex.lnum = (*re_st().rex.reg_endpos).lnum;
             }
@@ -4697,7 +4697,7 @@ fn nfa_regtry(
 
         if prog.reghasz == REX_SET {
             cleanup_zsubexpr();
-            let mut extmatch = reg_extmatch_T::default();
+            let mut extmatch = RegExtmatch::default();
             for i in 1..subs.synt.in_use as usize {
                 if REG_MULTI() {
                     let mpos = subs.synt.list.multi()[i];
@@ -4729,14 +4729,14 @@ fn nfa_regtry(
 
 fn nfa_regexec_both(
     mut line: *mut u8,
-    startcol: colnr_T,
-    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
+    startcol: Colnr,
+    tm: Option<Proftime>,timed_out: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
         let mut retval: c_int = 0;
         let mut col = startcol;
 
-        let prog: *mut nfa_regprog_T = if REG_MULTI() {
+        let prog: *mut NfaRegprog = if REG_MULTI() {
             let p = (*(*re_st().rex.reg_mmatch).regprog).nfa_mut();
             line = reg_getline(0).cast();
             re_st().rex.reg_startpos = (&raw mut (*re_st().rex.reg_mmatch).startpos).cast();
@@ -4819,7 +4819,7 @@ fn nfa_regexec_both(
     }
 }
 
-fn finish_nfa_regexec(retval: c_int, col: colnr_T) -> c_int {
+fn finish_nfa_regexec(retval: c_int, col: Colnr) -> c_int {
     unsafe {
         if retval > 0 {
             if REG_MULTI() {
@@ -4839,7 +4839,7 @@ fn finish_nfa_regexec(retval: c_int, col: colnr_T) -> c_int {
     }
 }
 
-pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_T> {
+pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<NfaRegprog> {
     unsafe {
         if expr.is_null() {
             return None;
@@ -4857,7 +4857,7 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_
         let post_end_ptr = postfix.add(re_st().post_vec.len());
         post2nfa(&mut [], postfix, post_end_ptr, true);
 
-        let mut prog = nfa_regprog_T {
+        let mut prog = NfaRegprog {
             regflags: 0,
             re_engine: 0,
             start: None,
@@ -4871,7 +4871,7 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_
             nsubexp: 0,
             nstate: 0,
             listbuf: [Vec::new(), Vec::new()],
-            state: vec![nfa_state_T::new(); re_st().nstate as usize],
+            state: vec![NfaState::new(); re_st().nstate as usize],
         };
 
         prog.start = post2nfa(&mut prog.state, postfix, post_end_ptr, false);
@@ -4896,7 +4896,7 @@ pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_
     }
 }
 
-fn cleanup_nfa_regcomp(prog: Option<nfa_regprog_T>) -> Option<nfa_regprog_T> {
+fn cleanup_nfa_regcomp(prog: Option<NfaRegprog>) -> Option<NfaRegprog> {
      {
         if re_st().post_vec.capacity() > NFA_POSTFIX_KEEP {
             re_st().post_vec = Vec::new();
@@ -4908,9 +4908,9 @@ fn cleanup_nfa_regcomp(prog: Option<nfa_regprog_T>) -> Option<nfa_regprog_T> {
 }
 
 pub(super) fn nfa_regexec_nl(
-    rmp: &mut regmatch_T,
+    rmp: &mut Regmatch,
     line: *mut u8,
-    col: colnr_T,
+    col: Colnr,
     line_lbr: bool,
 ) -> c_int {
     unsafe {
@@ -4929,12 +4929,12 @@ pub(super) fn nfa_regexec_nl(
 }
 
 pub(super) fn nfa_regexec_multi(
-    rmp: &mut regmmatch_T,
-    win: *mut win_T,
-    buf: *mut buf_T,
-    lnum: linenr_T,
-    col: colnr_T,
-    tm: Option<proftime_T>,timed_out: Option<&mut c_int>,
+    rmp: &mut Regmmatch,
+    win: *mut WinInfoInfo,
+    buf: *mut FileBuf,
+    lnum: Linenr,
+    col: Colnr,
+    tm: Option<Proftime>,timed_out: Option<&mut c_int>,
 ) -> c_int {
     init_regexec_multi(rmp, win, buf, lnum);
         nfa_regexec_both(ptr::null_mut(), col, tm, timed_out)

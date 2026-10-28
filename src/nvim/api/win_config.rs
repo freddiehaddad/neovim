@@ -13,10 +13,10 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, Window};
 use crate::autocmd::{EVENT_WINNEW, apply_autocmds_win, block_autocmds, unblock_autocmds};
-use crate::buffer::{bufref_T, bufref_valid, set_bufref};
+use crate::buffer::{Bufref, bufref_valid, set_bufref};
 use crate::charset::transstr;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
-use crate::cursor::lpos_T;
+use crate::cursor::Lpos;
 use crate::decoration::{VirtText, VirtTextChunk};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
@@ -35,8 +35,8 @@ use crate::ui::ui_has;
 use crate::ui_compositor::ui_comp_remove_grid;
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT, WinConfig,
-    check_split_disallowed_err, clear_float_config, frame_T, goto_tabpage_win, last_status,
-    lastwin_nofloating, merge_win_config, one_window, tabpage_T, win_T, win_append, win_comp_pos,
+    check_split_disallowed_err, clear_float_config, Frame, goto_tabpage_win, last_status,
+    lastwin_nofloating, merge_win_config, one_window, TabPageInfo, WinInfoInfo, win_append, win_comp_pos,
     win_find_tabpage, win_goto, win_locked, win_remove, win_set_buf, win_setheight_win,
     win_setwidth_win, win_split_ins, win_valid, win_valid_any_tab, window_layout_locked_err,
     winframe_find_altwin, winframe_remove, winframe_restore,
@@ -148,7 +148,7 @@ pub struct KeyDict_win_config {
 
 pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
     window: 0,
-    bufpos: lpos_T { lnum: -1, col: 0 },
+    bufpos: Lpos { lnum: -1, col: 0 },
     height: 0,
     width: 0,
     row: 0.0,
@@ -354,7 +354,7 @@ pub fn nvim_open_win(
         }
 
         'cleanup: {
-            let mut wp: *mut win_T = ptr::null_mut();
+            let mut wp: *mut WinInfoInfo = ptr::null_mut();
             let mut tp = g_st().curtab;
             assert!(!(curwin_ptr()).is_null());
             let mut parent = if config.win == 0 {
@@ -459,7 +459,7 @@ pub fn nvim_open_win(
                 g_st().cmdline_win = wp;
             }
 
-            let mut bufref = bufref_T {
+            let mut bufref = Bufref {
                 br_buf: ptr::null_mut(),
                 br_fnum: 0,
                 br_buf_free_count: 0,
@@ -525,7 +525,7 @@ pub fn nvim_open_win(
     }
 }
 
-fn win_split_dir(win: &win_T) -> WinSplit {
+fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
     unsafe {
         if win.w_frame.is_null() || (*win.w_frame).fr_parent.is_null() {
             return kWinSplitLeft;
@@ -561,7 +561,7 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
     flags
 }
 
-fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool {
+fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) -> bool {
     unsafe {
         if one_window( &mut *wp, if &raw mut *tp == g_st().curtab { ptr::null_mut() } else { &raw mut *tp }) {
             api_set_error!(
@@ -579,7 +579,7 @@ fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool 
             );
             return false;
         }
-        if window_layout_locked_err(crate::cmdexpand::cmdidx_T::CMD_SIZE, err) {
+        if window_layout_locked_err(crate::cmdexpand::Cmdidx::CMD_SIZE, err) {
             return false;
         }
         if g_st().textlock != 0 || expr_map_locked() {
@@ -603,7 +603,7 @@ fn win_can_move_tp(wp: *mut win_T, tp: &mut tabpage_T, err: &mut Error) -> bool 
     }
 }
 
-fn win_find_altwin(win: *mut win_T, tp: &mut tabpage_T) -> *mut win_T {
+fn win_find_altwin(win: *mut WinInfoInfo, tp: &mut TabPageInfo) -> *mut WinInfoInfo {
     unsafe {
         let tp_arg = if ptr::eq(tp, g_st().curtab) { ptr::null_mut() } else { &raw mut *tp };
         if (*win).w_floating {
@@ -616,7 +616,7 @@ fn win_find_altwin(win: *mut win_T, tp: &mut tabpage_T) -> *mut win_T {
 }
 
 fn win_config_split(
-    win: &mut win_T,
+    win: &mut WinInfoInfo,
     config: &KeyDict_win_config,
     fconfig: &mut WinConfig,
     err: &mut Error,
@@ -652,8 +652,8 @@ fn win_config_split(
                 break 'resize;
             }
 
-            let mut parent: *mut win_T = ptr::null_mut();
-            let mut parent_tp: *mut tabpage_T = ptr::null_mut();
+            let mut parent: *mut WinInfoInfo = ptr::null_mut();
+            let mut parent_tp: *mut TabPageInfo = ptr::null_mut();
             if config.win == 0 {
                 parent = curwin_ptr();
                 parent_tp = g_st().curtab;
@@ -722,8 +722,8 @@ fn win_config_split(
                 }
 
                 let mut dir: c_int = 0;
-                let mut unflat_altfr: *mut frame_T = ptr::null_mut();
-                let altwin: *mut win_T;
+                let mut unflat_altfr: *mut Frame = ptr::null_mut();
+                let altwin: *mut WinInfoInfo;
 
                 if was_split {
                     if (*win.w_frame).fr_parent.is_null() {
@@ -739,7 +739,7 @@ fn win_config_split(
                             n_frames += 1;
                         }
 
-                        let mut neighbor: *mut win_T = ptr::null_mut();
+                        let mut neighbor: *mut WinInfoInfo = ptr::null_mut();
 
                         if n_frames > 2 {
                             let frame = (*win.w_frame).fr_parent;
@@ -894,7 +894,7 @@ fn win_config_split(
 }
 
 fn win_config_float_tp(
-    win: &mut win_T,
+    win: &mut WinInfoInfo,
     config: &KeyDict_win_config,
     fconfig: &WinConfig,
     err: &mut Error,
@@ -912,7 +912,7 @@ fn win_config_float_tp(
         }
 
         let mut curwin_moving_tp = false;
-        let mut altwin: *mut win_T = ptr::null_mut();
+        let mut altwin: *mut WinInfoInfo = ptr::null_mut();
 
         'restore_curwin: {
             if win_tp != parent_tp {
@@ -1297,7 +1297,7 @@ fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
     }
 }
 
-fn parse_float_bufpos(bufpos: Array, out: &mut lpos_T) -> bool {
+fn parse_float_bufpos(bufpos: Array, out: &mut Lpos) -> bool {
     if bufpos.size != 2
             || bufpos[0].obj_type != ObjectType::kObjectTypeInteger
             || bufpos[1].obj_type != ObjectType::kObjectTypeInteger
@@ -1379,7 +1379,7 @@ pub fn parse_bordertext(
 }
 
 fn parse_bordertext_pos(
-    wp: Option<&win_T>,
+    wp: Option<&WinInfoInfo>,
     bordertext_pos: NvimString,
     bordertext_type: BorderTextType,
     fconfig: &mut WinConfig,
@@ -1572,7 +1572,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
     }
 }
 
-fn generate_api_error(wp: Option<&win_T>, attribute: &std::ffi::CStr, err: &mut Error) {
+fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err: &mut Error) {
     unsafe {
         if let Some(wp) = wp && wp.w_floating {
             api_set_error!(
@@ -1626,7 +1626,7 @@ pub fn parse_winborder(fconfig: Option<&mut WinConfig>,
 }
 
 fn parse_win_config(
-    wp: *mut win_T,
+    wp: *mut WinInfoInfo,
     config: &mut KeyDict_win_config,
     fconfig: &mut WinConfig,
     reconf: bool,

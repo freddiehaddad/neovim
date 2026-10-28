@@ -6,7 +6,7 @@ const LN_MAX_BUFS: usize = 8;
 const LN_DECISION_MAX: usize = (1 << LN_MAX_BUFS) - 1;
 const MATCH_CHAR_MAX_LEN: usize = 800;
 
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 
 use crate::xdiff::mmfile_t;
 
@@ -139,7 +139,7 @@ fn count_n_matched_chars(sp: &[mmfile_t], iwhite: bool) -> c_int {
 ///
 /// # Safety
 /// If `s.ptr` is non-null and `s.size > 0`, `s.ptr` must be valid for `s.size` bytes.
-pub fn fastforward_buf_to_lnum(mut s: mmfile_t, lnum: linenr_T) -> mmfile_t {
+pub fn fastforward_buf_to_lnum(mut s: mmfile_t, lnum: Linenr) -> mmfile_t {
     for _ in 0..(lnum - 1) {
         if s.ptr.is_null() || s.size <= 0 {
             s.ptr = std::ptr::null_mut();

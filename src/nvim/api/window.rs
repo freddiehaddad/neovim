@@ -11,7 +11,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
-use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
+use crate::cursor::{check_cursor_col, Colnr, Linenr};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::vars::MAXCOL;
@@ -169,8 +169,8 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
             return;
         }
 
-        w.w_cursor.lnum = row as linenr_T;
-        w.w_cursor.col = col as colnr_T;
+        w.w_cursor.lnum = row as Linenr;
+        w.w_cursor.col = col as Colnr;
         w.w_cursor.coladd = 0;
         check_cursor_col(w);
 
@@ -567,8 +567,8 @@ pub fn nvim_win_text_height(
         let buf = w.w_buffer;
         let line_count = (*buf).b_ml.ml_line_count;
 
-        let mut start_lnum: linenr_T = 1;
-        let mut end_lnum: linenr_T = line_count;
+        let mut start_lnum: Linenr = 1;
+        let mut end_lnum: Linenr = line_count;
         let mut start_vcol: i64 = -1;
         let mut end_vcol: i64 = -1;
 
@@ -576,11 +576,11 @@ pub fn nvim_win_text_height(
         let mask = opts.is_set__win_text_height_;
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__start_row) {
-            start_lnum = normalize_index(&mut *buf, opts.start_row, false, &mut oob) as linenr_T;
+            start_lnum = normalize_index(&mut *buf, opts.start_row, false, &mut oob) as Linenr;
         }
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
-            end_lnum = normalize_index(&mut *buf, opts.end_row, false, &mut oob) as linenr_T;
+            end_lnum = normalize_index(&mut *buf, opts.end_row, false, &mut oob) as Linenr;
         }
 
         if oob {

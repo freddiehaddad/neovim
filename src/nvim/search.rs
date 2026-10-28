@@ -1,13 +1,13 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
-use crate::buffer::{buf_T, buf_get_changedtick, kUIMessages};
+use crate::buffer::{FileBuf, buf_get_changedtick, kUIMessages};
 use crate::change::{TAB, get_leader_len};
 use crate::charset::{NUL, ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
-    check_cursor, clearpos, colnr_T, dec_cursor, equalpos, get_cursor_line_len,
-    get_cursor_line_ptr, inc_cursor, linenr_T, lpos_T, lt, ltoreq, pos_T,
+    check_cursor, clearpos, Colnr, dec_cursor, equalpos, get_cursor_line_len,
+    get_cursor_line_ptr, inc_cursor, Linenr, Lpos, lt, ltoreq, CursorPos,
 };
 use crate::drawscreen::{
     UPD_INVERTED, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_curbuf_later, redraw_later,
@@ -15,9 +15,9 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, VarType, dict_T, dictitem_T, listitem_T, tv_check_for_nonnull_dict_arg,
+    EvalFuncData, VarType, TvDict, Dictitem, Listitem, tv_check_for_nonnull_dict_arg,
     tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_get_number_chk,
-    tv_get_string_chk, tv_list_find, tv_list_len, typval_T, varnumber_T,
+    tv_get_string_chk, tv_list_find, tv_list_len, TypVal, Varnumber,
 };
 use crate::eval::vars::{VV_SEARCHFORWARD, set_vim_var_nr};
 use crate::ex_cmds::{HLF_R, RE_BOTH, RE_SUBST, SEARCH_HIS, getfile, prepare_tagpreview};
@@ -35,7 +35,7 @@ use crate::fold::{foldOpenCursor, hasFolding};
 use crate::globals::*;
 use crate::indent_c::{FM_BACKWARD, FM_BLOCKSTOP, FM_SKIPCOMM, check_linecomment};
 use crate::input::char_avail;
-use crate::input_cmdatom::cmdarg_T;
+use crate::input_cmdatom::Cmdarg;
 use crate::insexpand::{
     ACTION_EXPAND, LSIZE, compl_status_adding, compl_status_sol, ctrl_x_mode_not_default,
     find_word_end, find_word_start, ins_compl_add_infercase, ins_compl_check_keys,
@@ -68,16 +68,16 @@ use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::os::time::{Timestamp, os_delay, os_time};
 use crate::path::{kPathCmpExpand, kPathCmpFull, path_equal, path_try_shorten_fname, to_slash};
 use crate::plines::getvcol;
-use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
+use crate::profile::{profile_passed_limit, profile_setlimit, Proftime};
 use crate::regexp::{
-    MAGIC_ALL, MAGIC_ON, MAXCOL, RE_MAGIC, magic_T, regmatch_T, regmmatch_T, skip_regexp_ex,
+    MAGIC_ALL, MAGIC_ON, MAXCOL, RE_MAGIC, RegMagic, Regmatch, Regmmatch, skip_regexp_ex,
     vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::state::MODE_SHOWMATCH;
 use crate::strings::{reverse_text, tr, vim_snprintf, vim_strchr};
-use crate::textformat::oparg_T;
+use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
-use crate::window::{reset_binding, win_T, win_enter, win_split, win_valid};
+use crate::window::{reset_binding, WinInfoInfo, win_enter, win_split, win_valid};
 use std::ffi::{CStr, CString, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -166,14 +166,14 @@ impl Default for SearchPattern {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct searchit_arg_T {
-    pub sa_stop_lnum: linenr_T,
-    pub sa_tm: Option<proftime_T>,
+pub struct SearchitArg {
+    pub sa_stop_lnum: Linenr,
+    pub sa_tm: Option<Proftime>,
     pub sa_timed_out: c_int,
     pub sa_wrapped: c_int,
 }
 
-impl searchit_arg_T {
+impl SearchitArg {
     pub const fn new() -> Self {
         Self {
             sa_stop_lnum: 0,
@@ -184,7 +184,7 @@ impl searchit_arg_T {
     }
 }
 
-impl Default for searchit_arg_T {
+impl Default for SearchitArg {
     fn default() -> Self {
         Self::new()
     }
@@ -192,7 +192,7 @@ impl Default for searchit_arg_T {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct searchstat_T {
+pub struct Searchstat {
     pub cur: c_int,
     pub cnt: c_int,
     pub exact_match: bool,
@@ -204,7 +204,7 @@ pub struct searchstat_T {
 struct SearchedFile {
     fp: Option<crate::os::fs::CFile>,
     name: Option<CString>,
-    lnum: linenr_T,
+    lnum: Linenr,
     matched: c_int,
 }
 
@@ -258,10 +258,10 @@ struct SearchModuleState {
     did_save_last_search_spat: c_int,
     saved_last_idx: c_int,
     saved_no_hlsearch: bool,
-    saved_search_match_endcol: colnr_T,
-    saved_search_match_lines: linenr_T,
-    findmatch_pos: pos_T,
-    stat_lastpos: pos_T,
+    saved_search_match_endcol: Colnr,
+    saved_search_match_lines: Linenr,
+    findmatch_pos: CursorPos,
+    stat_lastpos: CursorPos,
     stat_cur: c_int,
     stat_cnt: c_int,
     stat_exact_match: bool,
@@ -269,7 +269,7 @@ struct SearchModuleState {
     stat_last_maxcount: c_int,
     stat_chgtick: c_int,
     stat_lastpat: Option<CString>,
-    stat_lbuf: *mut buf_T,
+    stat_lbuf: *mut FileBuf,
 }
 
 impl SearchModuleState {
@@ -294,12 +294,12 @@ impl SearchModuleState {
             saved_no_hlsearch: false,
             saved_search_match_endcol: 0,
             saved_search_match_lines: 0,
-            findmatch_pos: pos_T {
+            findmatch_pos: CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
             },
-            stat_lastpos: pos_T {
+            stat_lastpos: CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
@@ -324,7 +324,7 @@ fn srch() -> &'static mut SearchModuleState {
 }
 
 #[inline]
-const fn empty_pos(a: pos_T) -> bool {
+const fn empty_pos(a: CursorPos) -> bool {
     a.lnum == 0 && a.col == 0 && a.coladd == 0
 }
 
@@ -349,7 +349,7 @@ pub fn search_regcomp(
     pat_use: c_int,
     options: c_int,
     mut magic: bool,
-    regmatch: &mut regmmatch_T,
+    regmatch: &mut Regmmatch,
 ) -> bool {
     let mut pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
@@ -554,7 +554,7 @@ pub fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int {
 pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
     unsafe {
         let mut p = pat;
-        let mut magic_val: magic_T = MAGIC_ON;
+        let mut magic_val: RegMagic = MAGIC_ON;
 
         skip_regexp_ex(
             pat,
@@ -673,7 +673,7 @@ pub fn set_last_search_pat(s: impl crate::strings::IntoCCharPtr, idx: c_int, mag
     }
 }
 
-pub fn last_pat_prog(regmatch: &mut regmmatch_T) {
+pub fn last_pat_prog(regmatch: &mut Regmmatch) {
     if srch().spats[srch().last_idx as usize].pat.is_none() {
             regmatch.regprog = ptr::null_mut();
             return;
@@ -693,27 +693,27 @@ pub fn last_pat_prog(regmatch: &mut regmmatch_T) {
 }
 
 pub fn searchit(
-    win: *mut win_T,
-    buf: &mut buf_T,
-    pos: *mut pos_T,
-    mut end_pos: Option<&mut pos_T>,
+    win: *mut WinInfoInfo,
+    buf: &mut FileBuf,
+    pos: *mut CursorPos,
+    mut end_pos: Option<&mut CursorPos>,
     dir: Direction,
     pat: impl crate::strings::IntoCCharPtr,
     patlen: usize,
     mut count: c_int,
     options: c_int,
     pat_use: c_int,
-    magic: bool,mut extra_arg: Option<&mut searchit_arg_T>,
+    magic: bool,mut extra_arg: Option<&mut SearchitArg>,
 ) -> c_int {
     let pat = pat.into_c_char_ptr().cast_mut();
     unsafe {
         let mut found: c_int;
-        let mut lnum: linenr_T;
-        let mut regmatch: regmmatch_T = regmmatch_T::new();
+        let mut lnum: Linenr;
+        let mut regmatch: Regmmatch = Regmmatch::new();
         let mut ptr_line: *mut c_char;
-        let mut matchcol: colnr_T;
-        let mut endpos: lpos_T;
-        let mut matchpos: lpos_T;
+        let mut matchcol: Colnr;
+        let mut endpos: Lpos;
+        let mut matchpos: Lpos;
         let mut extra_col: c_int;
         let mut start_char_len: c_int;
         let mut match_ok: bool;
@@ -722,8 +722,8 @@ pub fn searchit(
         let mut first_match = true;
         let called_emsg_before = g_st().called_emsg;
         let mut break_loop = false;
-        let mut stop_lnum: linenr_T = 0;
-        let mut tm: Option<proftime_T> = None;
+        let mut stop_lnum: Linenr = 0;
+        let mut tm: Option<Proftime> = None;
 
         if let Some(ref ea) = extra_arg {
             stop_lnum = ea.sa_stop_lnum;
@@ -1141,11 +1141,11 @@ pub fn set_search_direction(cdir: c_int) {
 fn set_vv_searchforward() {
     set_vim_var_nr(
             VV_SEARCHFORWARD,
-            varnumber_T::from(srch().spats[0].off.dir == b'/' as c_char),
+            Varnumber::from(srch().spats[0].off.dir == b'/' as c_char),
         );
 }
 
-fn first_submatch(rp: &regmmatch_T) -> c_int {
+fn first_submatch(rp: &Regmmatch) -> c_int {
     for submatch in 1..=9 {
         if rp.startpos[submatch].lnum >= 0 {
             return submatch as c_int;
@@ -1241,14 +1241,14 @@ pub fn parse_search_pattern_offset(
 }
 
 pub fn do_search(
-    mut oap: Option<&mut oparg_T>,
+    mut oap: Option<&mut Oparg>,
     mut dirc: c_int,
     mut search_delim: c_int,
     mut pat: *mut c_char,
     mut patlen: usize,
     count: c_int,
     options: c_int,
-    magic: bool,mut sia: Option<&mut searchit_arg_T>,
+    magic: bool,mut sia: Option<&mut SearchitArg>,
 ) -> c_int {
     unsafe {
         let mut searchstr: *mut c_char;
@@ -1566,7 +1566,7 @@ pub fn do_search(
                     } else if c > i64::from(curbuf_mut().b_ml.ml_line_count) {
                         pos.lnum = curbuf_mut().b_ml.ml_line_count;
                     } else {
-                        pos.lnum = c as linenr_T;
+                        pos.lnum = c as Linenr;
                     }
                     pos.col = 0;
 
@@ -1651,13 +1651,13 @@ pub fn do_search(
 }
 
 pub fn search_for_exact_line(
-    buf: &mut buf_T,
-    pos: &mut pos_T,
+    buf: &mut FileBuf,
+    pos: &mut CursorPos,
     dir: Direction,
     pat: impl crate::strings::IntoCCharPtr,
 ) -> bool { let pat = pat.into_c_char_ptr();
     unsafe {
-        let mut start: linenr_T = 0;
+        let mut start: Linenr = 0;
         let compl_len = ins_compl_len();
 
         if buf.b_ml.ml_line_count == 0 {
@@ -1694,7 +1694,7 @@ pub fn search_for_exact_line(
             }
             let ptr_line = ml_get_buf(buf, pos.lnum);
             let p = skipwhite(ptr_line);
-            pos.col = p.offset_from(ptr_line) as colnr_T;
+            pos.col = p.offset_from(ptr_line) as Colnr;
 
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(opt_vars().p_ic != 0, p, pat) == 0 {
@@ -1716,7 +1716,7 @@ pub fn search_for_exact_line(
     }
 }
 
-pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
+pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
     unsafe {
         let mut c = cap.nchar;
         let mut dir = cap.arg;
@@ -1799,7 +1799,7 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
     }
 }
 
-pub fn findmatch(oap: Option<&mut oparg_T>, initc: c_int) -> *mut pos_T {
+pub fn findmatch(oap: Option<&mut Oparg>, initc: c_int) -> *mut CursorPos {
     findmatchlimit(oap, initc, 0, 0)
 }
 
@@ -1823,8 +1823,8 @@ fn check_prevcol(
 
 fn find_rawstring_end(
     linep: impl crate::strings::IntoCCharPtr,
-    startpos: &pos_T,
-    endpos: &pos_T,
+    startpos: &CursorPos,
+    endpos: &CursorPos,
 ) -> bool { let linep = linep.into_c_char_ptr();
     unsafe {
         let mut p = linep.add((startpos.col + 1) as usize);
@@ -1848,7 +1848,7 @@ fn find_rawstring_end(
                 0
             });
             while !crate::memory::cstr_is_empty(p) {
-                if lnum == endpos.lnum && (p.offset_from(line) as colnr_T) >= endpos.col {
+                if lnum == endpos.lnum && (p.offset_from(line) as Colnr) >= endpos.col {
                     break;
                 }
                 if crate::memory::cstr_first_byte(p) == b')'
@@ -1911,11 +1911,11 @@ fn find_mps_values(
 }
 
 pub fn findmatchlimit(
-    oap: Option<&mut oparg_T>,
+    oap: Option<&mut Oparg>,
     mut initc: c_int,
     flags: c_int,
     maxtravel: i64,
-) -> *mut pos_T {
+) -> *mut CursorPos {
     unsafe {
         let mut findc: c_int = 0;
         let mut count: c_int = 0;
@@ -1972,7 +1972,7 @@ pub fn findmatchlimit(
                 if !cpo_match {
                     ptr_line = skipwhite(linep);
                     if crate::memory::cstr_first_byte(ptr_line) == b'#'
-                        && srch().findmatch_pos.col <= (ptr_line.offset_from(linep) as colnr_T)
+                        && srch().findmatch_pos.col <= (ptr_line.offset_from(linep) as Colnr)
                     {
                         ptr_line = skipwhite(ptr_line.add(1));
                         if (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"if"[..2])
@@ -2070,7 +2070,7 @@ pub fn findmatchlimit(
                     if crate::memory::cstr_first_byte(ptr_line) != b'#' {
                         continue;
                     }
-                    srch().findmatch_pos.col = ptr_line.offset_from(linep) as colnr_T;
+                    srch().findmatch_pos.col = ptr_line.offset_from(linep) as Colnr;
                     ptr_line = skipwhite(ptr_line.add(1));
                     if hash_dir > 0 {
                         if crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"if"[..2] {
@@ -2109,7 +2109,7 @@ pub fn findmatchlimit(
         let mut do_quotes: c_int = -1;
         let mut at_start: c_int;
         let mut start_in_quotes: TriState = kNone;
-        let mut match_pos = pos_T {
+        let mut match_pos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
@@ -2464,7 +2464,7 @@ pub fn findmatchlimit(
 
 pub fn showmatch(c: c_int) {
     unsafe {
-        let mut vcol: colnr_T = 0;
+        let mut vcol: Colnr = 0;
         let so: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
             &raw mut (*curwin_ptr()).w_onebuf_opt.wo_so
         } else {
@@ -2689,13 +2689,13 @@ fn is_zero_width(
     pattern: impl crate::strings::IntoCCharPtr,
     mut patternlen: usize,
     move_to_start: bool,
-    cur: &mut pos_T,
+    cur: &mut CursorPos,
     direction: Direction,
 ) -> c_int { let mut pattern = pattern.into_c_char_ptr();
      {
-        let mut regmatch: regmmatch_T = regmmatch_T::new();
+        let mut regmatch: Regmmatch = Regmmatch::new();
         let mut result: c_int = -1;
-        let mut pos = pos_T {
+        let mut pos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
@@ -2785,7 +2785,7 @@ fn is_zero_width(
     }
 }
 
-pub fn linewhite(lnum: linenr_T) -> bool {
+pub fn linewhite(lnum: Linenr) -> bool {
      {
         let p = skipwhite(ml_get(lnum));
         crate::memory::cstr_is_empty(p)
@@ -2794,8 +2794,8 @@ pub fn linewhite(lnum: linenr_T) -> bool {
 
 fn cmdline_search_stat(
     dirc: c_int,
-    pos: &mut pos_T,
-    cursor_pos: &mut pos_T,
+    pos: &mut CursorPos,
+    cursor_pos: &mut CursorPos,
     show_top_bot_msg: bool,
     msgbuf: *mut c_char,
     msgbuflen: usize,
@@ -2804,7 +2804,7 @@ fn cmdline_search_stat(
     timeout: c_int,
 ) {
     unsafe {
-        let mut stat = searchstat_T::default();
+        let mut stat = Searchstat::default();
 
         update_search_stat(
             dirc,
@@ -2899,9 +2899,9 @@ fn cmdline_search_stat(
 
 fn update_search_stat(
     dirc: c_int,
-    pos: &mut pos_T,
-    cursor_pos: &mut pos_T,
-    stat: &mut searchstat_T,
+    pos: &mut CursorPos,
+    cursor_pos: &mut CursorPos,
+    stat: &mut Searchstat,
     recompute: bool,
     maxcount: c_int,
     timeout: c_int,
@@ -2910,7 +2910,7 @@ fn update_search_stat(
         let save_ws = opt_vars().p_ws;
         let p = *pos;
 
-        *stat = searchstat_T::default();
+        *stat = Searchstat::default();
 
         if dirc == 0 && !recompute && !empty_pos(srch().stat_lastpos) {
             stat.cur = srch().stat_cur;
@@ -2939,7 +2939,7 @@ fn update_search_stat(
             srch().stat_cnt = 0;
             srch().stat_exact_match = false;
             srch().stat_incomplete = 0;
-            srch().stat_lastpos = pos_T {
+            srch().stat_lastpos = CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
@@ -2963,9 +2963,9 @@ fn update_search_stat(
                 -1
             };
         } else {
-            let mut start: proftime_T = 0;
+            let mut start: Proftime = 0;
             let mut done_search = false;
-            let mut endpos = pos_T {
+            let mut endpos = CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
@@ -3027,7 +3027,7 @@ fn update_search_stat(
     }
 }
 
-pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         let mut pos = curwin_mut().w_cursor;
@@ -3035,7 +3035,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut maxcount = opt_vars().p_msc as c_int;
         let mut timeout = SEARCH_STAT_DEF_TIMEOUT;
         let mut recompute = true;
-        let mut stat = searchstat_T::default();
+        let mut stat = Searchstat::default();
 
         tv_dict_alloc_ret(rettv);
 
@@ -3049,8 +3049,8 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             if !tv_check_for_nonnull_dict_arg(argvars, 0) {
                 return;
             }
-            let dict: *mut dict_T = argvars[0].vval.v_dict();
-            let mut di: *mut dictitem_T = tv_dict_find(dict.as_ref(), c"timeout", -1);
+            let dict: *mut TvDict = argvars[0].vval.v_dict();
+            let mut di: *mut Dictitem = tv_dict_find(dict.as_ref(), c"timeout", -1);
             if !di.is_null() {
                 timeout = tv_get_number_chk(&(*di).di_tv, Some(&mut error)) as c_int;
                 if error {
@@ -3085,10 +3085,10 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                     );
                     return;
                 }
-                let mut li: *mut listitem_T = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 0);
+                let mut li: *mut Listitem = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 0);
                 if !li.is_null() {
                     pos.lnum =
-                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as linenr_T;
+                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Linenr;
                     if error {
                         return;
                     }
@@ -3096,7 +3096,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 1);
                 if !li.is_null() {
                     pos.col =
-                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as colnr_T - 1;
+                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr - 1;
                     if error {
                         return;
                     }
@@ -3104,7 +3104,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                 li = tv_list_find(((*di).di_tv.vval.v_list()).as_mut(), 2);
                 if !li.is_null() {
                     pos.coladd =
-                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as colnr_T;
+                        tv_get_number_chk(&(*li).li_tv, Some(&mut error)) as Colnr;
                     if error {
                         return;
                     }
@@ -3140,27 +3140,27 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             tv_dict_add_nr(
                 &mut *rettv.vval.v_dict(),
                 c"current",
-                varnumber_T::from(stat.cur),
+                Varnumber::from(stat.cur),
             );
             tv_dict_add_nr(
                 &mut *rettv.vval.v_dict(),
                 c"total",
-                varnumber_T::from(stat.cnt),
+                Varnumber::from(stat.cnt),
             );
             tv_dict_add_nr(
                 &mut *rettv.vval.v_dict(),
                 c"exact_match",
-                varnumber_T::from(stat.exact_match),
+                Varnumber::from(stat.exact_match),
             );
             tv_dict_add_nr(
                 &mut *rettv.vval.v_dict(),
                 c"incomplete",
-                varnumber_T::from(stat.incomplete),
+                Varnumber::from(stat.incomplete),
             );
             tv_dict_add_nr(
                 &mut *rettv.vval.v_dict(),
                 c"maxcount",
-                varnumber_T::from(stat.last_maxcount),
+                Varnumber::from(stat.last_maxcount),
             );
         }
 
@@ -3169,7 +3169,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-fn get_line_and_copy(lnum: linenr_T, buf: *mut c_char) -> *mut c_char {
+fn get_line_and_copy(lnum: Linenr, buf: *mut c_char) -> *mut c_char {
     let line = ml_get(lnum);
         xstrlcpy(buf, line, LSIZE);
         buf
@@ -3184,8 +3184,8 @@ pub fn find_pattern_in_path(
     type_: c_int,
     mut count: c_int,
     action: c_int,
-    start_lnum: linenr_T,
-    mut end_lnum: linenr_T,
+    start_lnum: Linenr,
+    mut end_lnum: Linenr,
     forceit: bool,
     silent: bool,
 ) { let ptr_pat = ptr_pat.into_c_char_ptr();
@@ -3197,16 +3197,16 @@ pub fn find_pattern_in_path(
         let mut prev_fname: *mut c_char = ptr::null_mut();
         let mut p: *mut c_char;
         let mut define_matched: bool;
-        let mut regmatch: regmatch_T = regmatch_T::new();
-        let mut incl_regmatch: regmatch_T = regmatch_T::new();
-        let mut def_regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
+        let mut incl_regmatch: Regmatch = Regmatch::new();
+        let mut def_regmatch: Regmatch = Regmatch::new();
         let mut matched = false;
         let mut did_show = false;
         let mut found = false;
         let mut i: c_int;
         let mut already: *mut c_char = ptr::null_mut();
         let mut startp: *mut c_char = ptr::null_mut();
-        let mut curwin_save: *mut win_T = ptr::null_mut();
+        let mut curwin_save: *mut WinInfoInfo = ptr::null_mut();
         let l_g_do_tagpreview = g_st().g_do_tagpreview;
 
         let mut file_line_vec: Vec<c_char> = vec![0; LSIZE];
@@ -3497,7 +3497,7 @@ pub fn find_pattern_in_path(
                                 matched = false;
                             }
                         } else if !regmatch.regprog.is_null()
-                            && vim_regexec(&mut regmatch, line, p.offset_from(line) as colnr_T)
+                            && vim_regexec(&mut regmatch, line, p.offset_from(line) as Colnr)
                         {
                             matched = true;
                             startp = regmatch.startp[0];
@@ -3776,7 +3776,7 @@ pub fn find_pattern_in_path(
                             }
                             if !stop_fpip_loop {
                                 if action != ACTION_SHOW {
-                                    curwin_mut().w_cursor.col = startp.offset_from(line) as colnr_T;
+                                    curwin_mut().w_cursor.col = startp.offset_from(line) as Colnr;
                                     curwin_mut().w_set_curswant = true;
                                 }
 
@@ -3897,7 +3897,7 @@ fn show_pat_in_path(
     did_show: bool,
     action: c_int,
     fp: *mut FILE,
-    lnum: *mut linenr_T,
+    lnum: *mut Linenr,
     count: c_int,
 ) {
     unsafe {
@@ -4031,7 +4031,7 @@ mod tests {
 
     #[test]
     fn first_submatch_and_pos_helpers() {
-        let mut rm: regmmatch_T = regmmatch_T::new();
+        let mut rm: Regmmatch = Regmmatch::new();
         for i in 0..10 {
             rm.startpos[i].lnum = -1;
         }
@@ -4039,7 +4039,7 @@ mod tests {
         rm.startpos[3].lnum = 0;
         assert_eq!(first_submatch(&rm), 3);
 
-        let mut p = pos_T {
+        let mut p = CursorPos {
             lnum: 2,
             col: 5,
             coladd: 1,

@@ -3,13 +3,13 @@
 use crate::charset::{getdigits_int32, skipwhite};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::{e_invarg2, e_noname};
-use crate::eval::typval::{Callback, tv_clear, typval_T};
+use crate::eval::typval::{Callback, tv_clear, TypVal};
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
-use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T};
+use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, Exarg};
 use crate::ex_getln::getcmdline_prompt;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
-use crate::input::{restore_typeahead, save_typeahead, tasave_T};
+use crate::input::{restore_typeahead, save_typeahead, Tasave};
 
 use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
 use crate::os::env::{expand_env_save, home_replace};
@@ -92,10 +92,10 @@ pub struct debuggy {
     pub dbg_nr: c_int,
     pub dbg_type: c_int,
     pub dbg_name: std::ffi::CString,
-    pub dbg_prog: Option<Box<crate::regexp::regprog_T>>,
+    pub dbg_prog: Option<Box<crate::regexp::Regprog>>,
     pub dbg_lnum: i32,
     pub dbg_forceit: c_int,
-    pub dbg_val: Option<typval_T>,
+    pub dbg_val: Option<TypVal>,
     pub dbg_level: c_int,
 }
 
@@ -213,7 +213,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
         let save_msg_silent = g_st().msg_silent;
         let save_emsg_silent = g_st().emsg_silent;
         let save_redir_off = g_st().redir_off;
-        let mut typeaheadbuf = tasave_T::new();
+        let mut typeaheadbuf = Tasave::new();
         let mut typeahead_saved = false;
         let mut save_ignore_script = false;
         let mut cmdline_cstr: Option<CString>;
@@ -419,7 +419,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
 }
 
 /// `:debug` command (`ex_debug`).
-pub fn ex_debug(eap: &mut exarg_T) {
+pub fn ex_debug(eap: &mut Exarg) {
     let save = g_st().debug_break_level;
         g_st().debug_break_level = 9999;
         do_cmdline_cmd(eap.arg);
@@ -427,7 +427,7 @@ pub fn ex_debug(eap: &mut exarg_T) {
 }
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
-pub fn dbg_check_breakpoint(eap: &mut exarg_T) {
+pub fn dbg_check_breakpoint(eap: &mut Exarg) {
     unsafe {
         dbg_st().DEBUG_SKIPPED = false;
         if !dbg_st().DEBUG_BREAKPOINT_NAME.is_null() {
@@ -463,7 +463,7 @@ pub fn dbg_check_breakpoint(eap: &mut exarg_T) {
 }
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
-pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
+pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
     if !dbg_st().DEBUG_SKIPPED {
             return false;
         }
@@ -477,7 +477,7 @@ pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
         true
 }
 
-fn eval_expr_no_emsg(name: impl crate::strings::IntoCCharPtr) -> Option<typval_T> { let name = name.into_c_char_ptr();
+fn eval_expr_no_emsg(name: impl crate::strings::IntoCCharPtr) -> Option<TypVal> { let name = name.into_c_char_ptr();
     g_st().emsg_off += 1;
         let tv = eval_expr(name, None);
         g_st().emsg_off -= 1;
@@ -568,7 +568,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
 }
 
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
-pub fn ex_breakadd(eap: &mut exarg_T) {
+pub fn ex_breakadd(eap: &mut Exarg) {
         let is_prof = eap.cmdidx == CMD_PROFILE;
         let gap = dbg_vec_mut(is_prof);
 
@@ -611,7 +611,7 @@ pub fn ex_breakadd(eap: &mut exarg_T) {
 }
 
 /// `:debuggreedy` command (`ex_debuggreedy`).
-pub fn ex_debuggreedy(eap: &mut exarg_T) {
+pub fn ex_debuggreedy(eap: &mut Exarg) {
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
     dbg_st().DEBUG_GREEDY = greedy;
 }
@@ -622,7 +622,7 @@ fn update_has_expr_breakpoint() {
 }
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
-pub fn ex_breakdel(eap: &mut exarg_T) {
+pub fn ex_breakdel(eap: &mut Exarg) {
      {
         let mut todel: isize = -1;
         let mut del_all = false;
@@ -678,7 +678,7 @@ pub fn ex_breakdel(eap: &mut exarg_T) {
 }
 
 /// `:breaklist` command (`ex_breaklist`).
-pub fn ex_breaklist(_eap: &mut exarg_T) {
+pub fn ex_breaklist(_eap: &mut Exarg) {
     let gap = dbg_vec_mut(false);
         if gap.is_empty() {
             msg(c"No breakpoints defined", 0);

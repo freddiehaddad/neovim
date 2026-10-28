@@ -1,9 +1,9 @@
 //! Lua bindings for Tree-sitter (`src/nvim/lua/treesitter.c`).
 
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::charset::NUL;
 use crate::context::handle_get_buffer;
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -21,7 +21,7 @@ use crate::lua::converter::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{raw_alloc, raw_calloc, raw_dealloc, raw_realloc, xstrlcpy};
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
 use crate::strings::vim_snprintf;
@@ -1048,14 +1048,14 @@ unsafe extern "C" fn input_cb(
     bytes_read: *mut u32,
 ) -> *const c_char {
     unsafe {
-        let bp = payload.cast::<buf_T>();
+        let bp = payload.cast::<FileBuf>();
         let buf_ptr = (&raw mut ts_st().INPUT_BUF).cast::<c_char>();
 
-        if (position.row as linenr_T) >= (*bp).b_ml.ml_line_count {
+        if (position.row as Linenr) >= (*bp).b_ml.ml_line_count {
             *bytes_read = 0;
             return c"".as_ptr();
         }
-        let lnum = (position.row as linenr_T) + 1;
+        let lnum = (position.row as Linenr) + 1;
         let line = ml_get_buf(&mut *bp, lnum);
         let len = ml_get_buf_len(&mut *bp, lnum) as usize;
         let col = position.column as usize;
@@ -1139,7 +1139,7 @@ pub unsafe extern "C-unwind" fn nts_parser_parse_buf(
     timeout_ns: u64,
 ) -> *mut TSTree {
     unsafe {
-        let buf = handle_get_buffer(bufnr as handle_T);
+        let buf = handle_get_buffer(bufnr as ObjHandle);
         if buf.is_null() {
             std::process::abort();
         }
@@ -1189,7 +1189,7 @@ unsafe extern "C-unwind" fn parser_parse(L: *mut lua_State) -> c_int {
                 ts_parser_parse_string(p, old_tree, str_ptr, len as u32)
             }
             LUA_TNUMBER => {
-                let bufnr = lua_tointeger(L, 3) as handle_T;
+                let bufnr = lua_tointeger(L, 3) as ObjHandle;
                 let buf = handle_get_buffer(bufnr);
                 if buf.is_null() {
                     let mut ebuf = [0 as c_char; IOSIZE];

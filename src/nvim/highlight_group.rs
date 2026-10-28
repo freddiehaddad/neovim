@@ -48,10 +48,10 @@ use crate::msgpack_rpc::packer::Integer;
 use crate::option::{option_was_set, reset_option_was_set, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
-use crate::os::env::expand_T;
+use crate::os::env::ExpandCtx;
 use crate::os::time::os_delay;
 use crate::runtime::{
-    DIP_OPT, DIP_START, sctx_T, source_runtime_vim_lua, sourcing_lnum, sourcing_name,
+    DIP_OPT, DIP_START, Sctx, source_runtime_vim_lua, sourcing_lnum, sourcing_name,
 };
 use crate::strings::{gettext};
 use crate::ui::{
@@ -102,7 +102,7 @@ pub struct KeyDict_get_highlight {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct color_name_table_T {
+pub struct ColorNameTable {
     pub name: &'static CStr,
     pub color: RgbValue,
 }
@@ -116,8 +116,8 @@ struct HlGroup {
     sg_link: c_int,
     sg_deflink: c_int,
     sg_set: c_int,
-    sg_deflink_sctx: sctx_T,
-    sg_script_ctx: sctx_T,
+    sg_deflink_sctx: Sctx,
+    sg_script_ctx: Sctx,
     sg_cterm: c_int,
     sg_cterm_fg: c_int,
     sg_cterm_bg: c_int,
@@ -143,8 +143,8 @@ impl HlGroup {
             sg_link: 0,
             sg_deflink: 0,
             sg_set: 0,
-            sg_deflink_sctx: sctx_T::new(),
-            sg_script_ctx: sctx_T::new(),
+            sg_deflink_sctx: Sctx::new(),
+            sg_script_ctx: Sctx::new(),
             sg_cterm: 0,
             sg_cterm_fg: 0,
             sg_cterm_bg: 0,
@@ -2496,7 +2496,7 @@ pub fn highlight_changed() {
     }
 }
 
-pub fn set_context_in_highlight_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let mut arg = arg.into_c_char_ptr();
+pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) { let mut arg = arg.into_c_char_ptr();
      {
         xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut();
@@ -2564,12 +2564,12 @@ fn highlight_list_two(cnt: c_int, id: c_int) {
     }
 }
 
-pub fn get_highlight_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_highlight_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     get_highlight_name_ext(xp, idx, true).cast_mut()
 }
 
 pub fn get_highlight_name_ext(
-    _xp: &mut expand_T,
+    _xp: &mut ExpandCtx,
     idx: c_int,
     skip_cleared: bool,
 ) -> *const c_char {
@@ -2681,14 +2681,14 @@ pub fn name_to_ctermcolor(name: impl crate::strings::IntoCCharPtr) -> c_int { le
 
 macro_rules! cname {
     ($name:literal, $r:expr, $g:expr, $b:expr) => {
-        color_name_table_T {
+        ColorNameTable {
             name: $name,
             color: rgb($r, $g, $b),
         }
     };
 }
 
-pub static color_name_table: [color_name_table_T; 707] = [
+pub static color_name_table: [ColorNameTable; 707] = [
     cname!(c"AliceBlue", 0xf0, 0xf8, 0xff),
     cname!(c"AntiqueWhite", 0xfa, 0xeb, 0xd7),
     cname!(c"AntiqueWhite1", 0xff, 0xef, 0xdb),

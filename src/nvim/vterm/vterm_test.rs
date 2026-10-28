@@ -8,7 +8,7 @@ use std::ptr;
 use std::sync::Mutex;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::grid::{schar_T, schar_get};
+use crate::grid::{Schar, schar_get};
 use crate::mbyte::utf_ptr2StrCharInfo;
 use crate::vterm::keyboard::{VTermColor, VTermStateFull};
 use crate::vterm::mouse::VTermPos;
@@ -333,7 +333,7 @@ pub fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> c_int 
     1
 }
 
-fn format_schar(out: &mut Vec<u8>, schar: schar_T) {
+fn format_schar(out: &mut Vec<u8>, schar: Schar) {
     unsafe {
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(buf.as_mut_ptr(), schar);
@@ -602,7 +602,7 @@ pub fn screen_sb_popline(
     let cols = cells.len() as c_int;
     for (col, cell) in cells.iter_mut().enumerate() {
         cell.schar = if col < 5 {
-            (b'A' + col as u8) as schar_T
+            (b'A' + col as u8) as Schar
         } else {
             0
         };

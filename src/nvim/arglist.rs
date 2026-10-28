@@ -1,7 +1,7 @@
 //! Functions for dealing with the argument list (`src/nvim/arglist.c`).
 
 use crate::buffer::{
-    BLN_CURBUF, BLN_LISTED, buf_hide, buf_is_empty, buflist_add, buflist_findnr, bufref_T,
+    BLN_CURBUF, BLN_LISTED, buf_hide, buf_is_empty, buflist_add, buflist_findnr, Bufref,
     bufref_valid, curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
 };
 use crate::charset::{NUL, ascii_isspace, rem_backslash, skipwhite};
@@ -9,12 +9,12 @@ use crate::context::is_ctx_win;
 use crate::errors::*;
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_list_alloc_ret,
-    tv_list_append_string, tv_set_string, typval_T, varnumber_T,
+    tv_list_append_string, tv_set_string, TypVal, Varnumber,
 };
 use crate::eval::window::{find_tabwin, find_win_by_nr_or_id};
 use crate::ex_cmds::{ECMD_FORCEIT, ECMD_HIDE, ECMD_LAST, ECMD_OLDBUF, ECMD_ONE, do_ecmd};
 use crate::ex_cmds2::{autowrite, check_changed};
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 use crate::ex_getln::gotocmdline;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
@@ -28,13 +28,13 @@ use crate::path::{
     EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOTFOUND, EW_NOTWILD, FullName_save, expand_wildcards_vec,
     fix_fname, gen_expand_wildcards_vec, kPathCmpExpand, kPathCmpFull, kPathCmpLiteral, path_equal,
 };
-use crate::regexp::{RE_MAGIC, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::gettext;
 use crate::undo::bufIsChanged;
 use crate::version::list_in_columns;
 use crate::window::{
     WSP_BELOW, WSP_ROOM, check_can_set_curbuf_forceit, goto_tabpage_tp, lastwin_nofloating,
-    tabpage_T, tabpage_index, valid_tabpage, win_T, win_close, win_enter, win_move_after,
+    TabPageInfo, tabpage_index, valid_tabpage, WinInfoInfo, win_close, win_enter, win_move_after,
     win_split, win_valid,
 };
 use std::ffi::{CStr, CString, c_char, c_int};
@@ -42,7 +42,7 @@ use std::ptr;
 
 use crate::math::{FAIL, OK};
 use crate::option::OptInt;
-use crate::os::env::expand_T;
+use crate::os::env::ExpandCtx;
 
 const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;
@@ -65,12 +65,12 @@ pub(crate) const ML_EMPTY: c_int = 0x01;
 const E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY: &CStr = c"E249: Window layout changed unexpectedly";
 
 #[repr(C)]
-pub struct alist_T {
-    pub al_ga: Vec<aentry_T>,
+pub struct Alist {
+    pub al_ga: Vec<Aentry>,
     pub id: c_int,
 }
 
-impl alist_T {
+impl Alist {
     pub const fn new() -> Self {
         Self {
             al_ga: Vec::new(),
@@ -80,12 +80,12 @@ impl alist_T {
 }
 
 #[repr(C)]
-pub struct aentry_T {
+pub struct Aentry {
     pub ae_fname: Option<std::ffi::CString>,
     pub ae_fnum: c_int,
 }
 
-impl aentry_T {
+impl Aentry {
     #[inline]
     pub fn fname_ptr(&self) -> *mut c_char {
         self.ae_fname
@@ -94,16 +94,16 @@ impl aentry_T {
     }
 }
 
-struct arg_all_state_T {
-    alist: *mut alist_T,
-    local_alist: Option<std::rc::Rc<std::cell::RefCell<alist_T>>>,
+struct ArgAllState {
+    alist: *mut Alist,
+    local_alist: Option<std::rc::Rc<std::cell::RefCell<Alist>>>,
     had_tab: c_int,
     keep_tabs: bool,
     forceit: bool,
     use_firstwin: bool,
     opened: Vec<u8>,
-    new_curwin: *mut win_T,
-    new_curtab: *mut tabpage_T,
+    new_curwin: *mut WinInfoInfo,
+    new_curtab: *mut TabPageInfo,
 }
 
 struct ArglistModuleState {
@@ -126,7 +126,7 @@ fn arglist_st() -> &'static mut ArglistModuleState {
 }
 
 #[inline]
-pub fn win_alist(wp: &win_T) -> *mut alist_T {
+pub fn win_alist(wp: &WinInfoInfo) -> *mut Alist {
     wp
             .w_alist
             .as_ref()
@@ -134,22 +134,22 @@ pub fn win_alist(wp: &win_T) -> *mut alist_T {
 }
 
 #[inline]
-fn aarglist(al: &mut alist_T) -> *mut aentry_T {
+fn aarglist(al: &mut Alist) -> *mut Aentry {
     al.al_ga.as_mut_ptr()
 }
 
 #[inline]
-fn warglist(wp: &win_T) -> *mut aentry_T {
+fn warglist(wp: &WinInfoInfo) -> *mut Aentry {
     unsafe { aarglist(&mut *win_alist(wp)) }
 }
 
 #[inline]
-fn wargcount(wp: &win_T) -> c_int {
+fn wargcount(wp: &WinInfoInfo) -> c_int {
     unsafe { (*win_alist(wp)).al_ga.len() as c_int }
 }
 
 #[inline]
-pub fn arglist() -> *mut aentry_T {
+pub fn arglist() -> *mut Aentry {
      warglist(curwin_mut())
 }
 
@@ -159,7 +159,7 @@ pub fn argcount() -> c_int {
 }
 
 #[inline]
-pub fn garglist() -> *mut aentry_T {
+pub fn garglist() -> *mut Aentry {
     aarglist(&mut g_st().global_alist)
 }
 
@@ -181,7 +181,7 @@ fn check_arglist_locked() -> bool {
 }
 
 /// Clear an argument list: free all file names and reset it to zero entries (`alist_clear`).
-pub fn alist_clear(al: &mut alist_T) {
+pub fn alist_clear(al: &mut Alist) {
      {
         if !check_arglist_locked() {
             return;
@@ -194,7 +194,7 @@ pub fn alist_clear(al: &mut alist_T) {
 pub fn alist_new() {
      {
         g_st().max_alist_id += 1;
-        curwin_mut().w_alist = Some(std::rc::Rc::new(std::cell::RefCell::new(alist_T {
+        curwin_mut().w_alist = Some(std::rc::Rc::new(std::cell::RefCell::new(Alist {
             al_ga: Vec::new(),
             id: g_st().max_alist_id,
         })));
@@ -202,7 +202,7 @@ pub fn alist_new() {
 }
 
 /// Set the argument list for the current window (`alist_set`).
-fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
+fn alist_set(al: *mut Alist, files: Vec<CString>, use_curbuf: c_int) {
     unsafe {
         if !check_arglist_locked() {
             return;
@@ -228,7 +228,7 @@ fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
 }
 
 /// Add file `fname` to argument list `al` (`alist_add`).
-pub fn alist_add(al: &mut alist_T, ae_fname: CString, set_fnum: c_int) {
+pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: c_int) {
     unsafe {
         let wp = curwin_ptr();
         if !check_arglist_locked() {
@@ -245,7 +245,7 @@ pub fn alist_add(al: &mut alist_T, ae_fname: CString, set_fnum: c_int) {
         } else {
             0
         };
-        al.al_ga.push(aentry_T {
+        al.al_ga.push(Aentry {
             ae_fname: Some(ae_fname),
             ae_fnum,
         });
@@ -361,7 +361,7 @@ fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                     flags,
                 );
-                new_entries.push(aentry_T { ae_fname, ae_fnum });
+                new_entries.push(Aentry { ae_fname, ae_fnum });
             }
             let pos = after as usize;
             (*al).al_ga.splice(pos..pos, new_entries);
@@ -377,7 +377,7 @@ fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool) {
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
 fn arglist_del_files(alist_ga: &[*mut c_char]) {
     unsafe {
-        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
         regmatch.rm_ic = opt_vars().p_fic != 0;
 
         for &orig_p in alist_ga {
@@ -474,7 +474,7 @@ pub fn set_arglist(str_: *mut c_char) {
 }
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
-pub fn editing_arg_idx(win: &mut win_T) -> bool {
+pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
     unsafe {
         let idx = win.w_arg_idx;
         if idx >= wargcount(&*win) {
@@ -490,7 +490,7 @@ pub fn editing_arg_idx(win: &mut win_T) -> bool {
 }
 
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
-pub fn check_arg_idx(win: &mut win_T) {
+pub fn check_arg_idx(win: &mut WinInfoInfo) {
     unsafe {
         let wcount = wargcount(&*win);
         if wcount > 1 && !editing_arg_idx(win) {
@@ -525,7 +525,7 @@ pub fn check_arg_idx(win: &mut win_T) {
 }
 
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
-pub fn ex_args(eap: &mut exarg_T) {
+pub fn ex_args(eap: &mut Exarg) {
     unsafe {
         if eap.cmdidx != CMD_args {
             if !check_arglist_locked() {
@@ -570,7 +570,7 @@ pub fn ex_args(eap: &mut exarg_T) {
             for i in 0..gcount {
                 let ge = &*garglist().add(i);
                 if ge.ae_fname.is_some() {
-                    (*al).al_ga.push(aentry_T {
+                    (*al).al_ga.push(Aentry {
                         ae_fname: ge.ae_fname.clone(),
                         ae_fnum: ge.ae_fnum,
                     });
@@ -581,7 +581,7 @@ pub fn ex_args(eap: &mut exarg_T) {
 }
 
 /// `:previous`, `:sprevious`, `:Next` and `:sNext` (`ex_previous`).
-pub fn ex_previous(eap: &mut exarg_T) {
+pub fn ex_previous(eap: &mut Exarg) {
      {
         let count = argcount();
         let target = if curwin_mut().w_arg_idx - eap.line2 >= count {
@@ -594,17 +594,17 @@ pub fn ex_previous(eap: &mut exarg_T) {
 }
 
 /// `:rewind`, `:first`, `:sfirst` and `:srewind` (`ex_rewind`).
-pub fn ex_rewind(eap: &mut exarg_T) {
+pub fn ex_rewind(eap: &mut Exarg) {
     do_argfile(eap, 0);
 }
 
 /// `:last` and `:slast` (`ex_last`).
-pub fn ex_last(eap: &mut exarg_T) {
+pub fn ex_last(eap: &mut Exarg) {
     do_argfile(eap, argcount() - 1);
 }
 
 /// `:argument` and `:sargument` (`ex_argument`).
-pub fn ex_argument(eap: &mut exarg_T) {
+pub fn ex_argument(eap: &mut Exarg) {
      {
         let i = if eap.addr_count > 0 {
             eap.line2 - 1
@@ -616,7 +616,7 @@ pub fn ex_argument(eap: &mut exarg_T) {
 }
 
 /// Edit file `argn` of the argument lists (`do_argfile`).
-pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
+pub fn do_argfile(eap: &mut Exarg, argn: c_int) {
     unsafe {
         let is_split_cmd = crate::memory::cstr_first_byte(eap.cmd) == b's';
         let old_arg_idx = curwin_mut().w_arg_idx;
@@ -697,7 +697,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
 }
 
 /// `:next`, and commands that behave like it (`ex_next`).
-pub fn ex_next(eap: &mut exarg_T) {
+pub fn ex_next(eap: &mut Exarg) {
      {
         if buf_hide(curbuf_mut())
             || eap.cmdidx == CMD_snext
@@ -720,7 +720,7 @@ pub fn ex_next(eap: &mut exarg_T) {
 }
 
 /// `:argdedupe` (`ex_argdedupe`).
-pub fn ex_argdedupe(_eap: &mut exarg_T) {
+pub fn ex_argdedupe(_eap: &mut Exarg) {
     unsafe {
         let mut i: c_int = 0;
         while i < argcount() {
@@ -758,7 +758,7 @@ pub fn ex_argdedupe(_eap: &mut exarg_T) {
 }
 
 /// `:argedit` (`ex_argedit`).
-pub fn ex_argedit(eap: &mut exarg_T) {
+pub fn ex_argedit(eap: &mut Exarg) {
      {
         let mut i = if eap.addr_count != 0 {
             eap.line2
@@ -785,7 +785,7 @@ pub fn ex_argedit(eap: &mut exarg_T) {
 }
 
 /// `:argadd` (`ex_argadd`).
-pub fn ex_argadd(eap: &mut exarg_T) {
+pub fn ex_argadd(eap: &mut Exarg) {
      {
         do_arglist(
             eap.arg,
@@ -802,7 +802,7 @@ pub fn ex_argadd(eap: &mut exarg_T) {
 }
 
 /// `:argdelete` (`ex_argdelete`).
-pub fn ex_argdelete(eap: &mut exarg_T) {
+pub fn ex_argdelete(eap: &mut Exarg) {
     unsafe {
         if !check_arglist_locked() {
             return;
@@ -855,7 +855,7 @@ pub fn ex_argdelete(eap: &mut exarg_T) {
 }
 
 /// Obtain the possible arguments of the `argedit` and `argdelete` commands (`get_arglist_name`).
-pub fn get_arglist_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_arglist_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     unsafe {
         if idx >= argcount() {
             return ptr::null_mut();
@@ -865,7 +865,7 @@ pub fn get_arglist_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Get the file name for an argument list entry (`alist_name`).
-pub fn alist_name(aep: &aentry_T) -> *mut c_char {
+pub fn alist_name(aep: &Aentry) -> *mut c_char {
     unsafe {
         let bp = buflist_findnr(aep.ae_fnum);
         if bp.is_null() || (*bp).b_fname.is_null() {
@@ -877,7 +877,7 @@ pub fn alist_name(aep: &aentry_T) -> *mut c_char {
 }
 
 /// Close all the windows containing files which are not in the argument list (`arg_all_close_unused_windows`).
-fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
+fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
     unsafe {
         let old_curwin = curwin_ptr();
         let old_curtab = g_st().curtab;
@@ -970,7 +970,7 @@ fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
                         || !bufIsChanged(&mut *buf))
                 {
                     if !buf_hide(&*buf) && (*buf).b_nwindows <= 1 && bufIsChanged(&mut *buf) {
-                        let mut bufref: bufref_T = bufref_T::new();
+                        let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf);
                         autowrite(&mut *buf, false);
                         if !win_valid(wp) || !bufref_valid(Some(&bufref)) {
@@ -1014,7 +1014,7 @@ fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
 }
 
 /// Open up to `count` windows for the files in the argument list `aall->alist` (`arg_all_open_windows`).
-fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
+fn arg_all_open_windows(aall: &mut ArgAllState, count: c_int) {
     unsafe {
         let mut tab_drop_empty_window = false;
 
@@ -1120,7 +1120,7 @@ fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
         }
         setpcmark();
 
-        let mut aall = arg_all_state_T {
+        let mut aall = ArgAllState {
             alist: win_alist(curwin_mut()),
             local_alist: curwin_mut().w_alist.clone(),
             had_tab: g_st().cmdmod.cmod_tab,
@@ -1183,7 +1183,7 @@ fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 }
 
 /// `:all` and `:sall` (`ex_all`).
-pub fn ex_all(eap: &mut exarg_T) {
+pub fn ex_all(eap: &mut Exarg) {
     if eap.addr_count == 0 {
             eap.line2 = 9999;
         }
@@ -1217,17 +1217,17 @@ pub fn arg_all() -> CString {
 }
 
 /// `argc([window id])` function (`f_argc`).
-pub fn f_argc(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_argc(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         if argvars[0].v_type == VarType::VAR_UNKNOWN {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(argcount() as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(argcount() as Varnumber);
         } else if argvars[0].v_type == VarType::VAR_NUMBER && tv_get_number(&argvars[0]) == -1 {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as Varnumber);
         } else {
             let wp = find_win_by_nr_or_id(&argvars[0]);
             rettv.vval = crate::eval::typval::TypvalVval::Number(if !wp.is_null() {
-                wargcount(unsafe { &*wp }) as varnumber_T
+                wargcount(unsafe { &*wp }) as Varnumber
             } else {
                 -1
             });
@@ -1236,25 +1236,25 @@ pub fn f_argc(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 }
 
 /// `argidx()` function (`f_argidx`).
-pub fn f_argidx(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_argidx(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
      {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(curwin_mut().w_arg_idx as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(curwin_mut().w_arg_idx as Varnumber);
     }
 }
 
 /// `arglistid()` function (`f_arglistid`).
-pub fn f_arglistid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_arglistid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         let wp = find_tabwin(&argvars[0], &argvars[1]);
         if !wp.is_null() {
-            rettv.vval = crate::eval::typval::TypvalVval::Number((*win_alist(&*wp)).id as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number((*win_alist(&*wp)).id as Varnumber);
         }
     }
 }
 
-fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut typval_T) {
+fn get_arglist_as_rettv(arglist_ptr: *mut Aentry, count: c_int, rettv: &mut TypVal) {
     unsafe {
         tv_list_alloc_ret(&mut *rettv, count as isize);
         if !arglist_ptr.is_null() {
@@ -1266,10 +1266,10 @@ fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut ty
 }
 
 /// `argv(nr)` function (`f_argv`).
-pub fn f_argv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        let mut al_ptr: *mut aentry_T = ptr::null_mut();
+        let mut al_ptr: *mut Aentry = ptr::null_mut();
         let mut count: c_int = -1;
 
         if argvars[0].v_type == VarType::VAR_UNKNOWN {
@@ -1309,7 +1309,7 @@ mod tests {
 
     #[test]
     fn alist_init_and_clear_work() {
-        let mut al = alist_T::new();
+        let mut al = Alist::new();
             assert!(al.al_ga.is_empty());
             alist_clear(&mut al);
             assert!(al.al_ga.is_empty());

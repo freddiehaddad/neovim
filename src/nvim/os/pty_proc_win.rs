@@ -1,7 +1,7 @@
 //! Windows PTY process spawning (`src/nvim/os/pty_proc_win.c`).
 
 #[cfg(windows)]
-use crate::eval::typval::{dict_T, tv_dict_to_env};
+use crate::eval::typval::{TvDict, tv_dict_to_env};
 #[cfg(windows)]
 use crate::event::r#loop::{Loop, loop_schedule_fast, uv_req_size, uv_run, uv_translate_sys_error};
 #[cfg(windows)]
@@ -487,7 +487,7 @@ mod win_impl {
         }
     }
 
-    fn build_env_block(denv: Option<&dict_T>, env_block: &mut Vec<u16>) -> c_int {
+    fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> c_int {
         env_block.clear();
             let mut rc: c_int = 0;
             let env = tv_dict_to_env(denv);

@@ -8,12 +8,12 @@ use crate::autocmd::{
 #[cfg(unix)]
 use crate::buffer::buf_set_file_id;
 use crate::buffer::{
-    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, buf_T, buf_get_changedtick, bufref_T,
+    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, FileBuf, buf_get_changedtick, Bufref,
     bufref_valid, set_bufref,
 };
 use crate::change::unchanged;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
-use crate::cursor::{linenr_T, pos_T};
+use crate::cursor::{Linenr, CursorPos};
 use crate::dialog::ask_yesno;
 use crate::drawscreen::status_redraw_all;
 use crate::errors::*;
@@ -22,7 +22,7 @@ use crate::event::r#loop::uv_strerror;
 #[cfg(unix)]
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{CMOD_LOCKMARKS, UNDO_HASH_SIZE, exarg_T};
+use crate::ex_docmd::{CMOD_LOCKMARKS, UNDO_HASH_SIZE, Exarg};
 use crate::ex_eval::{aborting, should_abort};
 use crate::fileio::{
     EOL_DOS, EOL_UNIX, FIO_ENDIAN_L, FIO_LATIN1, FIO_NOCONVERT, FIO_UCS2, FIO_UCS4, FIO_UTF8,
@@ -46,14 +46,14 @@ use crate::os::fs::{
     os_copy, os_copy_xattr, os_errno, os_file_is_writable, os_fileinfo, os_fileinfo_hardlinks,
     os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync, os_get_acl, os_getperm,
     os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists, os_remove, os_set_acl,
-    os_setperm, vim_acl_T,
+    os_setperm, VimAcl,
 };
 #[cfg(unix)]
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
 use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
 use crate::path::{after_pathsep, kPathCmpLiteral, path_equal, path_tail};
-use crate::sha256::context_sha256_T;
+use crate::sha256::ContextSha256;
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
@@ -96,7 +96,7 @@ const UV_FS_COPYFILE_FICLONE: c_int = 0x0002;
 use crate::os::fs::UV_ENOTSUP;
 
 #[repr(C)]
-struct Error_T {
+struct BwError {
     num: Option<&'static CStr>,
     msg: Option<std::ffi::CString>,
     arg: c_int,
@@ -111,8 +111,8 @@ struct bw_info {
     bw_first: c_int,
     bw_conv_buf: Vec<c_char>,
     bw_conv_error: c_int,
-    bw_conv_error_lnum: linenr_T,
-    bw_start_lnum: linenr_T,
+    bw_conv_error_lnum: Linenr,
+    bw_start_lnum: Linenr,
     bw_iconv_fd: iconv_t,
 }
 
@@ -325,7 +325,7 @@ fn buf_write_bytes(ip: &mut bw_info) -> bool {
         true
 }
 
-fn check_mtime(buf: &mut buf_T, file_info: &FileInfo) -> bool {
+fn check_mtime(buf: &mut FileBuf, file_info: &FileInfo) -> bool {
      {
         if buf.b_mtime_read != 0
             && time_differs(file_info, buf.b_mtime_read, buf.b_mtime_read_ns)
@@ -367,19 +367,19 @@ fn make_bom(buf_in: *mut c_char, name: impl crate::strings::IntoCCharPtr) -> c_i
 }
 
 fn buf_write_do_autocmds(
-    mut buf: *mut buf_T,
+    mut buf: *mut FileBuf,
     fnamep: *mut *mut c_char,
     sfnamep: *mut *mut c_char,
     ffnamep: *mut *mut c_char,
-    start: linenr_T,
-    endp: &mut linenr_T,eap: Option<&exarg_T>,
+    start: Linenr,
+    endp: &mut Linenr,eap: Option<&Exarg>,
     append: bool,
     filtering: bool,
     reset_changed: bool,
     overwriting: bool,
     whole: bool,
-    orig_start: pos_T,
-    orig_end: pos_T,
+    orig_start: CursorPos,
+    orig_end: CursorPos,
 ) -> c_int {
     unsafe {
         let old_line_count = (*buf).b_ml.ml_line_count;
@@ -389,7 +389,7 @@ fn buf_write_do_autocmds(
         let mut did_cmd = false;
         let mut nofile_err = false;
         let empty_memline = (*buf).b_ml.ml_mfp.is_none();
-        let mut bufref = bufref_T {
+        let mut bufref = Bufref {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
@@ -552,8 +552,8 @@ fn buf_write_do_autocmds(
 }
 
 fn buf_write_do_post_autocmds(
-    buf: *mut buf_T,
-    fname: impl crate::strings::IntoCCharPtr,eap: Option<&exarg_T>,
+    buf: *mut FileBuf,
+    fname: impl crate::strings::IntoCCharPtr,eap: Option<&Exarg>,
     append: bool,
     filtering: bool,
     reset_changed: bool,
@@ -587,9 +587,9 @@ fn buf_write_do_post_autocmds(
 }
 
 #[inline]
-fn set_err_num(num: &'static CStr, msg: impl crate::strings::IntoCCharPtr) -> Error_T { let msg = msg.into_c_char_ptr();
+fn set_err_num(num: &'static CStr, msg: impl crate::strings::IntoCCharPtr) -> BwError { let msg = msg.into_c_char_ptr();
      {
-        Error_T {
+        BwError {
             num: Some(num),
             msg: if msg.is_null() {
                 None
@@ -602,9 +602,9 @@ fn set_err_num(num: &'static CStr, msg: impl crate::strings::IntoCCharPtr) -> Er
 }
 
 #[inline]
-fn set_err(msg: impl crate::strings::IntoCCharPtr) -> Error_T { let msg = msg.into_c_char_ptr();
+fn set_err(msg: impl crate::strings::IntoCCharPtr) -> BwError { let msg = msg.into_c_char_ptr();
      {
-        Error_T {
+        BwError {
             num: None,
             msg: if msg.is_null() {
                 None
@@ -617,10 +617,10 @@ fn set_err(msg: impl crate::strings::IntoCCharPtr) -> Error_T { let msg = msg.in
 }
 
 #[inline]
-fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> Error_T {
+fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> BwError {
     let msg = msg.into_c_char_ptr();
      {
-        Error_T {
+        BwError {
             num: None,
             msg: if msg.is_null() {
                 None
@@ -632,7 +632,7 @@ fn set_err_arg(msg: impl crate::strings::IntoCCharPtr, arg: c_int) -> Error_T {
     }
 }
 
-fn emit_err(e: &mut Error_T, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
+fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) { let msg_id = msg_id.into_c_char_ptr();
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
         let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
@@ -689,7 +689,7 @@ fn get_fileinfo_os(
     perm: *mut c_int,
     device: *mut bool,
     newfile: *mut bool,
-    err: *mut Error_T,
+    err: *mut BwError,
 ) -> bool {
     unsafe {
         *perm = -1;
@@ -730,7 +730,7 @@ fn get_fileinfo_os(
     perm: *mut c_int,
     device: *mut bool,
     newfile: *mut bool,
-    err: *mut Error_T,
+    err: *mut BwError,
 ) -> bool {
     unsafe {
         let nodetype = if fname.is_null() {
@@ -770,7 +770,7 @@ fn get_fileinfo_os(
 }
 
 fn get_fileinfo(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     fname: *mut c_char,
     overwriting: bool,
     forceit: bool,
@@ -779,7 +779,7 @@ fn get_fileinfo(
     device: &mut bool,
     newfile: &mut bool,
     readonly: &mut bool,
-    err: &mut Error_T,
+    err: &mut BwError,
 ) -> bool {
     {
         if !get_fileinfo_os(
@@ -867,14 +867,14 @@ fn buf_write_make_backup(
     fname: *mut c_char,
     append: bool,
     file_info_old: &mut FileInfo,
-    acl: vim_acl_T,
+    acl: VimAcl,
     perm: c_int,
     bkc: c_uint,
     file_readonly: bool,
     forceit: bool,
     backup_copyp: &mut bool,
     backupp: &mut Option<std::ffi::CString>,
-    err: &mut Error_T,
+    err: &mut BwError,
 ) -> bool {
     unsafe {
         let mut file_info = FileInfo::new();
@@ -1110,11 +1110,11 @@ fn buf_write_make_backup(
 
 /// Write to file `fname` lines `start` through `end`.
 pub fn buf_write(
-    mut buf: *mut buf_T,
+    mut buf: *mut FileBuf,
     mut fname: *mut c_char,
     mut sfname: *mut c_char,
-    mut start: linenr_T,
-    mut end: linenr_T,eap: Option<&exarg_T>,
+    mut start: Linenr,
+    mut end: Linenr,eap: Option<&Exarg>,
     append: bool,
     forceit: bool,
     reset_changed: bool,
@@ -1126,7 +1126,7 @@ pub fn buf_write(
         let mut prev_got_int = g_st().got_int;
         let whole = start == 1 && end == (*buf).b_ml.ml_line_count;
         let mut write_undo_file = false;
-        let mut sha_ctx = context_sha256_T::new();
+        let mut sha_ctx = ContextSha256::new();
         let bkc = get_bkc_flags( &mut *buf);
 
         if crate::memory::cstr_is_empty(fname) {
@@ -1274,7 +1274,7 @@ pub fn buf_write(
         let mut backup: Option<std::ffi::CString> = None;
         let mut fenc_tofree: Option<std::ffi::CString> = None;
         let mut file_info_old = FileInfo::new();
-        let mut acl: vim_acl_T = ptr::null_mut();
+        let mut acl: VimAcl = ptr::null_mut();
 
         'nofail: {
             'fail: {
@@ -1433,7 +1433,7 @@ pub fn buf_write(
 
                     let mut no_eol = false;
                     let mut nchars: i64;
-                    let mut lnum: linenr_T;
+                    let mut lnum: Linenr;
                     let mut fileformat: c_int;
                     let mut checking_conversion = true;
                     let mut fd: c_int;
@@ -1563,7 +1563,7 @@ pub fn buf_write(
                             && reset_changed
                             && !checking_conversion;
                         if write_undo_file {
-                            sha_ctx = context_sha256_T::new();
+                            sha_ctx = ContextSha256::new();
                         }
 
                         write_info.bw_len = 0;
@@ -1797,7 +1797,7 @@ pub fn buf_write(
                                         ),
                                         write_info.bw_conv_error_lnum,
                                     );
-                                    err = Error_T {
+                                    err = BwError {
                                         num: None,
                                         msg: Some(crate::memory::cstr_to_cstring(alloc_msg.as_ptr())),
                                         arg: 0,

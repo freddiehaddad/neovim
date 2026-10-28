@@ -1,10 +1,10 @@
 //! Garbage collection registries for dicts and lists (`src/nvim/eval/gc.c`).
 
-use crate::eval::typval::{dict_T, list_T};
+use crate::eval::typval::{TvDict, TvList};
 
 struct GcModuleState {
-    GC_DICTS: Vec<*mut dict_T>,
-    GC_LISTS: Vec<*mut list_T>,
+    GC_DICTS: Vec<*mut TvDict>,
+    GC_LISTS: Vec<*mut TvList>,
 }
 
 impl GcModuleState {
@@ -24,7 +24,7 @@ fn gc_st() -> &'static mut GcModuleState {
 }
 
 #[inline]
-pub fn gc_register_dict(d: &mut dict_T) {
+pub fn gc_register_dict(d: &mut TvDict) {
      {
         let idx = gc_st().GC_DICTS.len();
         gc_st().GC_DICTS.push(d);
@@ -44,7 +44,7 @@ pub fn gc_unregister_dict(idx: usize) {
 }
 
 #[inline]
-pub fn gc_register_list(l: &mut list_T) {
+pub fn gc_register_list(l: &mut TvList) {
      {
         let idx = gc_st().GC_LISTS.len();
         gc_st().GC_LISTS.push(l);
@@ -64,14 +64,14 @@ pub fn gc_unregister_list(idx: usize) {
 }
 
 #[inline]
-pub fn gc_dicts_slice() -> &'static [*mut dict_T] {
+pub fn gc_dicts_slice() -> &'static [*mut TvDict] {
      {
         gc_st().GC_DICTS.as_slice()
     }
 }
 
 #[inline]
-pub fn gc_lists_slice() -> &'static [*mut list_T] {
+pub fn gc_lists_slice() -> &'static [*mut TvList] {
      {
         gc_st().GC_LISTS.as_slice()
     }

@@ -10,15 +10,15 @@ use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
 use crate::memory::Arena;
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::window::{
-    tabpage_index, tabpage_win_valid, valid_tabpage, win_T, win_goto, win_new_tabpage, win_set_buf,
+    tabpage_index, tabpage_win_valid, valid_tabpage, WinInfoInfo, win_goto, win_new_tabpage, win_set_buf,
 };
 use std::ffi::c_int;
 
-pub type Buffer = handle_T;
-pub type Window = handle_T;
-pub type Tabpage = handle_T;
+pub type Buffer = ObjHandle;
+pub type Window = ObjHandle;
+pub type Tabpage = ObjHandle;
 
 const KEYSET_OPTIDX_tabpage_config__after: u64 = 1;
 
@@ -270,7 +270,7 @@ pub fn nvim_open_tabpage(
             -1
         };
 
-        let mut wp: *mut win_T = std::ptr::null_mut();
+        let mut wp: *mut WinInfoInfo = std::ptr::null_mut();
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let tp = win_new_tabpage(after + 1, std::ptr::null_mut(), enter, &mut wp);

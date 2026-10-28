@@ -154,7 +154,7 @@ impl Default for Directory {
         Self::new()
     }
 }
-pub type vim_acl_T = *mut c_void;
+pub type VimAcl = *mut c_void;
 pub type uv_fs_buf_t = [u64; 80];
 #[cfg(any(unix, test))]
 use crate::event::r#loop::{uv_fs_fchown, uv_gid_t, uv_uid_t};
@@ -1262,13 +1262,13 @@ pub fn os_copy_xattr(from_file: impl crate::strings::IntoCCharPtr, to_file: impl
     }
 }
 
-pub fn os_get_acl(_fname: *const c_char) -> vim_acl_T {
+pub fn os_get_acl(_fname: *const c_char) -> VimAcl {
     ptr::null_mut()
 }
 
-pub fn os_set_acl(_fname: *const c_char, _aclent: vim_acl_T) {}
+pub fn os_set_acl(_fname: *const c_char, _aclent: VimAcl) {}
 
-pub fn os_free_acl(_aclent: vim_acl_T) {}
+pub fn os_free_acl(_aclent: VimAcl) {}
 
 /// Checks if the current user owns a file.
 pub fn os_file_owned(fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();

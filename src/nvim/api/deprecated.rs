@@ -16,7 +16,7 @@ use crate::api::private::validate::{
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::charset::{NL, NUL};
-use crate::cursor::colnr_T;
+use crate::cursor::Colnr;
 use crate::decoration::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, decor_find_virttext,
     kHlModeUnknown, kVPosEndOfLine,
@@ -248,9 +248,9 @@ pub fn nvim_buf_add_highlight(
             ns,
             None,
             line as c_int,
-            col_start as colnr_T,
+            col_start as Colnr,
             end_line,
-            col_end as colnr_T,
+            col_end as Colnr,
             decor,
             MT_FLAG_DECOR_HL,
             true,

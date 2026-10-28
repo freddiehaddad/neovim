@@ -1,14 +1,14 @@
 //! Functions for creating a session file (`:mkexrc`, `:mkvimrc`, `:mkview`, `:mksession`) (`src/nvim/ex_session.c`).
 
-use crate::arglist::{aentry_T, alist_name};
+use crate::arglist::{Aentry, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
-use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buf_T, buflist_findnr};
+use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, FileBuf, buflist_findnr};
 use crate::charset::{NUL, ascii_isdigit};
 use crate::errors::*;
 use crate::eval::typval::{VarType, tv_get_string};
 use crate::eval::vars::{VV_THIS_SESSION, get_globvar_dict, set_vim_var_string};
 use crate::eval::{VAR_FLAVOUR_SESSION, var_flavour};
-use crate::ex_docmd::{exarg_T, open_exfile, vim_mkdir_emsg};
+use crate::ex_docmd::{Exarg, open_exfile, vim_mkdir_emsg};
 use crate::ex_getln::{VSE_NONE, vim_strsave_fnameescape};
 use crate::file_search::vim_chdirfile;
 use crate::fileio::{FILE, fclose, fputc, fputs, fwrite, shorten_fnames};
@@ -25,7 +25,7 @@ use crate::os::fs::{MAXPATHL, os_chdir, os_dirname, os_isdir};
 use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
-use crate::window::{frame_T, tabpage_T, tabpage_index, win_T};
+use crate::window::{Frame, TabPageInfo, tabpage_index, WinInfoInfo};
 use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -94,7 +94,7 @@ fn write_fmt(fd: *mut FILE, s: String) -> bool {
     write_bytes(fd, s.as_bytes())
 }
 
-fn put_view_curpos(fd: *mut FILE, wp: &win_T, spaces: &str) -> c_int {
+fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> c_int {
      {
         let s = if wp.w_curswant == MAXCOL {
             format!("{spaces}normal! $\n")
@@ -105,7 +105,7 @@ fn put_view_curpos(fd: *mut FILE, wp: &win_T, spaces: &str) -> c_int {
     }
 }
 
-fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win_T) -> bool {
+fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInfo) -> bool {
     unsafe {
         if restore_size && (opt_vars().ssop_flags & kOptSsopFlagWinsize) != 0 {
             let mut n: c_int = 0;
@@ -151,7 +151,7 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win_T) -> 
     }
 }
 
-fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> bool {
+fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
     unsafe {
         let mut count: c_int = 0;
 
@@ -202,7 +202,7 @@ fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> bool {
     }
 }
 
-fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
+fn ses_skipframe(fr: *mut Frame) -> *mut Frame {
     unsafe {
         let mut frc = fr;
         while !frc.is_null() {
@@ -215,7 +215,7 @@ fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
     }
 }
 
-fn ses_do_frame(fr: &frame_T) -> bool {
+fn ses_do_frame(fr: &Frame) -> bool {
     unsafe {
         if fr.fr_layout == FR_LEAF {
             return ses_do_win(&mut *fr.fr_win) != 0;
@@ -229,7 +229,7 @@ fn ses_do_frame(fr: &frame_T) -> bool {
     }
 }
 
-fn ses_do_win(wp: &mut win_T) -> c_int {
+fn ses_do_win(wp: &mut WinInfoInfo) -> c_int {
     unsafe {
         if wp.w_floating {
             return 0;
@@ -251,7 +251,7 @@ fn ses_do_win(wp: &mut win_T) -> c_int {
 fn ses_arglist(
     fd: *mut FILE,
     cmd: &std::ffi::CStr,
-    gap: &[aentry_T],
+    gap: &[Aentry],
     fullname: bool,
     _flagp: &mut c_uint,
 ) -> bool {
@@ -279,7 +279,7 @@ fn ses_arglist(
         true
 }
 
-fn ses_get_fname(buf: &mut buf_T, flagp: &c_uint) -> *mut c_char {
+fn ses_get_fname(buf: &mut FileBuf, flagp: &c_uint) -> *mut c_char {
      {
         if !buf.b_sfname.is_null()
             && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
@@ -293,7 +293,7 @@ fn ses_get_fname(buf: &mut buf_T, flagp: &c_uint) -> *mut c_char {
     }
 }
 
-fn ses_fname(fd: *mut FILE, buf: &mut buf_T, flagp: &mut c_uint, add_eol: bool) -> bool {
+fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut c_uint, add_eol: bool) -> bool {
     let name = ses_get_fname( buf, flagp);
         if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
             return false;
@@ -330,8 +330,8 @@ fn ses_put_fname(fd: *mut FILE, name: impl crate::strings::IntoCCharPtr, _flagp:
 
 fn put_view(
     fd: *mut FILE,
-    wp: *mut win_T,
-    tp: &mut tabpage_T,
+    wp: *mut WinInfoInfo,
+    tp: &mut TabPageInfo,
     add_edit: bool,
     flagp: &mut c_uint,
     current_arg_idx: c_int,
@@ -605,7 +605,7 @@ fn store_session_globals(fd: *mut FILE) -> bool {
 fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool { let dirnow = dirnow.into_c_char_ptr();
     unsafe {
         let mut only_save_windows = true;
-        let mut edited_win: *mut win_T = ptr::null_mut();
+        let mut edited_win: *mut WinInfoInfo = ptr::null_mut();
         let mut cur_arg_idx: c_int = 0;
         let mut next_arg_idx: c_int = 0;
 
@@ -783,8 +783,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
             let mut tp = tp_iter;
             let mut need_tabnext = false;
             let mut cnr: c_int = 1;
-            let tab_firstwin: *mut win_T;
-            let tab_topframe: *mut frame_T;
+            let tab_firstwin: *mut WinInfoInfo;
+            let tab_topframe: *mut Frame;
 
             if (opt_vars().ssop_flags & kOptSsopFlagTabpages) != 0 {
                 if ptr::eq(tp, g_st().curtab) {
@@ -792,7 +792,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     tab_topframe = g_st().topframe;
                 } else {
                     tab_firstwin = (*tp).tp_firstwin;
-                    tab_topframe = (*tp).tp_topframe.cast::<frame_T>();
+                    tab_topframe = (*tp).tp_topframe.cast::<Frame>();
                 }
                 if !ptr::eq(tp, g_st().first_tabpage) {
                     need_tabnext = true;
@@ -1007,7 +1007,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
     }
 }
 
-pub fn ex_loadview(eap: &mut exarg_T) {
+pub fn ex_loadview(eap: &mut Exarg) {
     unsafe {
         let Some(fname) = get_view_file(*eap.arg) else {
             return;
@@ -1019,7 +1019,7 @@ pub fn ex_loadview(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_mkrc(eap: &mut exarg_T) {
+pub fn ex_mkrc(eap: &mut Exarg) {
     unsafe {
         let mut view_session = false;
         let mut using_vdir = false;

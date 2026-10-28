@@ -6,7 +6,7 @@ use crate::api::win_config::kUIMultigrid;
 use crate::buffer::{buf_is_empty, kUIMessages};
 use crate::charset::vim_strsize;
 use crate::drawscreen::screenclear;
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 use crate::globals::*;
 use crate::grid::{GridView, grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
@@ -3945,7 +3945,7 @@ pub fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
     false
 }
 
-pub fn ex_version(eap: &mut exarg_T) {
+pub fn ex_version(eap: &mut Exarg) {
      {
         if crate::memory::cstr_is_empty(eap.arg) {
             if !ui_has(kUIMessages) {
@@ -4287,7 +4287,7 @@ fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: boo
     }
 }
 
-pub fn ex_intro(_eap: &mut exarg_T) {
+pub fn ex_intro(_eap: &mut Exarg) {
     screenclear();
         intro_message(true);
         plain_vgetc();

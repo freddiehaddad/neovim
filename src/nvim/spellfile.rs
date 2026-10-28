@@ -2,12 +2,12 @@
 
 use crate::api::private::helpers::cstr_as_obj;
 use crate::arglist::get_arglist_exp;
-use crate::buffer::{buf_T, buflist_findname_exp};
+use crate::buffer::{FileBuf, buflist_findname_exp};
 use crate::charset::{NUL, ascii_isdigit, getdigits_int, skipdigits, skipwhite};
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 use crate::fileio::{
     EOF, FILE, SEEK_SET, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell,
     fwrite, get2c, get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets,
@@ -17,7 +17,7 @@ use crate::globals::*;
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back,
     mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_valid_string, utfc_ptr2len,
-    vimconv_T,
+    Vimconv,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{xstrlcpy};
@@ -36,7 +36,7 @@ use crate::path::{
     dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail, path_tail_with_sep,
     vim_ispathsep,
 };
-use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING, regprog_T, vim_regexec_prog};
+use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING, Regprog, vim_regexec_prog};
 use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
     MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
@@ -45,7 +45,7 @@ use crate::spell::{
     open_spellbuf, parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, spell_casefold,
     spell_enc, spell_priv_st, spell_soundfold, spell_toupper,
 };
-use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
+use crate::spellsuggest::{Fromto, Idx, Salitem, Slang, Spelltab};
 use crate::strings::{
     gettext, strerror, vim_snprintf, vim_strchr,
 };
@@ -149,7 +149,7 @@ const AFT_NUM: c_int = 3;
 const AH_KEY_LEN: usize = 17;
 const SBLOCKSIZE: usize = 16000;
 const WN_MASK: c_int = 0xffff;
-const SHARED_MASK: idx_T = 0x0800_0000;
+const SHARED_MASK: Idx = 0x0800_0000;
 
 const PFX_FLAGS: c_int = -256;
 
@@ -191,7 +191,7 @@ fn spellfile_st() -> &'static mut SpellfileModuleState {
 }
 
 #[repr(C)]
-struct afffile_T {
+struct Afffile {
     af_enc: Option<std::ffi::CString>,
     af_flagtype: c_int,
     af_rare: c_uint,
@@ -206,23 +206,23 @@ struct afffile_T {
     af_nosuggest: c_uint,
     af_pfxpostpone: c_int,
     af_ignoreextra: bool,
-    af_pref: std::collections::BTreeMap<Vec<u8>, affheader_T>,
-    af_suff: std::collections::BTreeMap<Vec<u8>, affheader_T>,
-    af_comp: std::collections::BTreeMap<Vec<u8>, compitem_T>,
+    af_pref: std::collections::BTreeMap<Vec<u8>, Affheader>,
+    af_suff: std::collections::BTreeMap<Vec<u8>, Affheader>,
+    af_comp: std::collections::BTreeMap<Vec<u8>, Compitem>,
 }
 
 #[repr(C)]
-struct affentry_T {
+struct Affentry {
     ae_chop: Option<std::ffi::CString>,
     ae_add: Option<std::ffi::CString>,
     ae_flags: Option<std::ffi::CString>,
     ae_cond: Option<std::ffi::CString>,
-    ae_prog: Option<Box<regprog_T>>,
+    ae_prog: Option<Box<Regprog>>,
     ae_compforbid: c_char,
     ae_comppermit: c_char,
 }
 
-impl affentry_T {
+impl Affentry {
     #[inline]
     fn chop_ptr(&self) -> *mut c_char {
         self.ae_chop
@@ -253,17 +253,17 @@ impl affentry_T {
 }
 
 #[repr(C)]
-struct affheader_T {
+struct Affheader {
     ah_key: [c_char; AH_KEY_LEN],
     ah_flag: c_uint,
     ah_newID: c_int,
     ah_combine: c_int,
     ah_follows: c_int,
-    ah_entries: Vec<affentry_T>,
+    ah_entries: Vec<Affentry>,
 }
 
 #[repr(C)]
-struct compitem_T {
+struct Compitem {
     ci_key: [c_char; AH_KEY_LEN],
     ci_flag: c_uint,
     ci_newID: c_int,
@@ -276,7 +276,7 @@ enum NodeSlot {
 }
 
 impl NodeSlot {
-    fn set(self, nodes: &mut [wordnode_T], val: Option<usize>) {
+    fn set(self, nodes: &mut [Wordnode], val: Option<usize>) {
         match self {
             Self::Sibling(idx) => nodes[idx].wn_sibling = val,
             Self::Child(idx) => nodes[idx].wn_child = val,
@@ -285,7 +285,7 @@ impl NodeSlot {
 }
 
 #[derive(Clone, Copy, Default)]
-struct wordnode_T {
+struct Wordnode {
     wn_index: c_int,
     wn_wnode: Option<usize>,
     wn_child: Option<usize>,
@@ -297,7 +297,7 @@ struct wordnode_T {
     wn_region: i16,
 }
 
-impl wordnode_T {
+impl Wordnode {
     const fn new() -> Self {
         Self {
             wn_index: 0,
@@ -313,33 +313,33 @@ impl wordnode_T {
     }
 }
 
-struct spellinfo_T {
+struct Spellinfo {
     si_foldroot: Option<usize>,
     si_foldwcount: c_int,
     si_keeproot: Option<usize>,
     si_keepwcount: c_int,
     si_prefroot: Option<usize>,
     si_sugtree: c_int,
-    si_nodes: Vec<wordnode_T>,
+    si_nodes: Vec<Wordnode>,
     si_blocks_cnt: c_int,
     si_compress_cnt: c_int,
     si_first_free: Option<usize>,
     si_free_count: c_int,
-    si_spellbuf: Option<Box<buf_T>>,
+    si_spellbuf: Option<Box<FileBuf>>,
     si_ascii: c_int,
     si_add: c_int,
     si_clear_chartab: c_int,
     si_region: c_int,
-    si_conv: vimconv_T,
+    si_conv: Vimconv,
     si_memtot: c_int,
     si_verbose: c_int,
     si_msg_count: c_int,
     si_info: Option<std::ffi::CString>,
     si_region_count: c_int,
     si_region_name: [c_char; MAXREGIONS * 2 + 1],
-    si_rep: Vec<fromto_T>,
-    si_repsal: Vec<fromto_T>,
-    si_sal: Vec<fromto_T>,
+    si_rep: Vec<Fromto>,
+    si_repsal: Vec<Fromto>,
+    si_sal: Vec<Fromto>,
     si_sofofr: Option<std::ffi::CString>,
     si_sofoto: Option<std::ffi::CString>,
     si_nosugfile: c_int,
@@ -365,7 +365,7 @@ struct spellinfo_T {
     si_newcompID: c_int,
 }
 
-impl Default for spellinfo_T {
+impl Default for Spellinfo {
     fn default() -> Self {
         Self {
             si_foldroot: None,
@@ -384,7 +384,7 @@ impl Default for spellinfo_T {
             si_add: 0,
             si_clear_chartab: 0,
             si_region: 0,
-            si_conv: vimconv_T::new(),
+            si_conv: Vimconv::new(),
             si_memtot: 0,
             si_verbose: 0,
             si_msg_count: 0,
@@ -470,13 +470,13 @@ fn spell_check_magic_string(fd: *mut FILE) -> c_int {
     }
 }
 
-/// Load one spell file and store the info into a slang_T.
+/// Load one spell file and store the info into a Slang.
 pub fn spell_load_file(
     fname: impl crate::strings::IntoCCharPtr,
     lang: *mut c_char,
-    old_lp: *mut slang_T,
+    old_lp: *mut Slang,
     silent: bool,
-) -> *mut slang_T { let fname = fname.into_c_char_ptr();
+) -> *mut Slang { let fname = fname.into_c_char_ptr();
     unsafe {
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
@@ -507,7 +507,7 @@ pub fn spell_load_file(
         } else {
             None
         };
-        let mut lp: *mut slang_T = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
+        let mut lp: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
 
         estack_push(ETYPE_SPELL, fname, 0);
         let did_estack_push = true;
@@ -733,9 +733,9 @@ pub fn spell_load_file(
     }
 }
 
-fn tree_count_words(byts: *const u8, byts_len: c_int, idxs: *mut idx_T) {
+fn tree_count_words(byts: *const u8, byts_len: c_int, idxs: *mut Idx) {
     unsafe {
-        let mut arridx = [0 as idx_T; MAXWLEN];
+        let mut arridx = [0 as Idx; MAXWLEN];
         let mut curi = [0 as c_int; MAXWLEN];
         let mut wordcount = [0 as c_int; MAXWLEN];
 
@@ -864,7 +864,7 @@ pub fn suggest_load_files() {
 
                         if !someerror {
                             let mut sugbuf = open_spellbuf();
-                            let sugbuf_ptr: *mut buf_T = &raw mut *sugbuf;
+                            let sugbuf_ptr: *mut FileBuf = &raw mut *sugbuf;
                             (*slang).sl_sugbuf = Some(sugbuf);
                             let wcount = get4c(fd);
                             if wcount < 0 {
@@ -889,7 +889,7 @@ pub fn suggest_load_files() {
                                     }
                                     if !ml_append_buf(
                                          &mut *sugbuf_ptr,
-                                        wordnr as linenr_T,
+                                        wordnr as Linenr,
                                         ga.as_mut_ptr().cast(),
                                         ga.len() as c_int,
                                         true,
@@ -954,7 +954,7 @@ fn read_cnt_string(
     }
 }
 
-fn read_region_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
+fn read_region_section(fd: *mut FILE, lp: &mut Slang, len: c_int) -> c_int {
     unsafe {
         if len > (MAXREGIONS * 2) as c_int {
             return SP_FORMERROR;
@@ -993,7 +993,7 @@ fn read_charflags_section(fd: *mut FILE) -> c_int {
         0
 }
 
-fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
+fn read_prefcond_section(fd: *mut FILE, lp: &mut Slang) -> c_int {
     unsafe {
         let cnt = get2c(fd);
         if cnt <= 0 {
@@ -1024,7 +1024,7 @@ fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
     }
 }
 
-fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i16) -> c_int {
+fn read_rep_section(fd: *mut FILE, gap: &mut Vec<Fromto>, first: *mut i16) -> c_int {
     unsafe {
         let cnt = get2c(fd);
         if cnt < 0 {
@@ -1053,7 +1053,7 @@ fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i16) -> 
             let ft_to = raw_to.map_or_else(std::ffi::CString::default, |v| {
                 crate::memory::cstr_to_cstring(v.as_ptr())
             });
-            gap.push(fromto_T { ft_from, ft_to });
+            gap.push(Fromto { ft_from, ft_to });
         }
 
         for i in 0..256 {
@@ -1069,7 +1069,7 @@ fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i16) -> 
     }
 }
 
-fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
+fn read_sal_section(fd: *mut FILE, slang: &mut Slang) -> c_int {
     unsafe {
         slang.sl_sofo = false;
 
@@ -1172,7 +1172,7 @@ fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
                 None => Vec::new(),
             };
             let sm_rules = crate::memory::cstr_to_cstring(sm_rules_ptr);
-            gap.push(salitem_T {
+            gap.push(Salitem {
                 sm_leadlen,
                 sm_rules,
                 sm_lead_w,
@@ -1182,7 +1182,7 @@ fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
         }
 
         if !gap.is_empty() {
-            gap.push(salitem_T {
+            gap.push(Salitem {
                 sm_leadlen: 0,
                 sm_rules: std::ffi::CString::default(),
                 sm_lead_w: mb_str2wide(c""),
@@ -1196,7 +1196,7 @@ fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
     }
 }
 
-fn read_words_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
+fn read_words_section(fd: *mut FILE, lp: &mut Slang, len: c_int) -> c_int {
     unsafe {
         let mut done: c_int = 0;
         let mut word = [0u8; MAXWLEN];
@@ -1225,7 +1225,7 @@ fn read_words_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
     }
 }
 
-fn read_sofo_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
+fn read_sofo_section(fd: *mut FILE, slang: &mut Slang) -> c_int {
     let mut cnt: c_int = 0;
         let from = read_cnt_string(fd, 2, &mut cnt);
         if cnt < 0 {
@@ -1244,7 +1244,7 @@ fn read_sofo_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
         }
 }
 
-fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int {
+fn read_compound(fd: *mut FILE, slang: &mut Slang, len: c_int) -> c_int {
     unsafe {
         let mut todo = len;
         let mut cnt: c_int = 0;
@@ -1399,7 +1399,7 @@ fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int {
     }
 }
 
-fn set_sofo(lp: &mut slang_T, from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> c_int { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
+fn set_sofo(lp: &mut Slang, from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> c_int { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
      {
         lp.sl_sal = Vec::new();
         lp.sl_sofo_sal = Vec::new();
@@ -1428,7 +1428,7 @@ fn set_sofo(lp: &mut slang_T, from: impl crate::strings::IntoCCharPtr, to: impl 
     }
 }
 
-fn set_sal_first(lp: &mut slang_T) {
+fn set_sal_first(lp: &mut Slang) {
     let gap = &mut lp.sl_sal;
         lp.sl_sal_first.fill(-1);
         let len = gap.len() as c_int;
@@ -1472,7 +1472,7 @@ fn mb_str2wide(s: impl crate::strings::IntoCCharPtr) -> Vec<c_int> {
 fn spell_read_tree(
     fd: *mut FILE,
     bytsp: &mut Vec<u8>,
-    idxsp: &mut Vec<idx_T>,
+    idxsp: &mut Vec<Idx>,
     prefixtree: bool,
     prefixcnt: c_int,
 ) -> c_int {
@@ -1514,13 +1514,13 @@ fn spell_read_tree(
 fn read_tree_node(
     fd: *mut FILE,
     byts: *mut u8,
-    idxs: *mut idx_T,
+    idxs: *mut Idx,
     maxidx: c_int,
-    startidx: idx_T,
+    startidx: Idx,
     prefixtree: bool,
     maxprefcondnr: c_int,
     depth: c_int,
-) -> idx_T {
+) -> Idx {
     unsafe {
         let mut idx = startidx;
 
@@ -1648,7 +1648,7 @@ fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) 
 
         let len = spell_priv_st().first_lang.len();
         for i in (0..len).rev() {
-            let slang: *mut slang_T = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
+            let slang: *mut Slang = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
             if (*slang)
                 .sl_fname
                 .as_ref()
@@ -1711,13 +1711,13 @@ pub fn spell_check_msm(value: *mut c_char, apply: bool) -> bool {
     }
 }
 
-fn spell_read_aff(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) -> Option<afffile_T> { let fname = fname.into_c_char_ptr();
+fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) -> Option<Afffile> { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut rline = [0 as c_char; MAXLINELEN];
         let mut pc_vec: Vec<c_char>;
         let mut items = [ptr::null_mut::<c_char>(); MAXITEMCNT];
         let mut lnum: c_int = 0;
-        let mut cur_aff: *mut affheader_T = ptr::null_mut();
+        let mut cur_aff: *mut Affheader = ptr::null_mut();
         let mut did_postpone_prefix = false;
         let mut aff_todo: c_int = 0;
         let mut has_low = false;
@@ -1753,7 +1753,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharP
         let do_sal = spin.si_sal.is_empty();
         let do_mapline = spin.si_map.is_empty();
 
-        let mut aff = afffile_T {
+        let mut aff = Afffile {
             af_enc: None,
             af_flagtype: 0,
             af_rare: 0,
@@ -2146,7 +2146,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharP
                                 items[1],
                             );
                         }
-                        let mut new_ah = affheader_T {
+                        let mut new_ah = Affheader {
                             ah_key: [0; AH_KEY_LEN],
                             ah_flag,
                             ah_newID: 0,
@@ -2207,7 +2207,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharP
                     }
 
                     aff_todo -= 1;
-                    let mut aff_entry_val = affentry_T {
+                    let mut aff_entry_val = Affentry {
                         ae_chop: None,
                         ae_add: None,
                         ae_flags: None,
@@ -2216,7 +2216,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharP
                         ae_compforbid: 0,
                         ae_comppermit: 0,
                     };
-                    let aff_entry: *mut affentry_T = &raw mut aff_entry_val;
+                    let aff_entry: *mut Affentry = &raw mut aff_entry_val;
 
                     if crate::memory::cstr_as_bytes(items[2]) != b"0" {
                         (*aff_entry).ae_chop = Some(crate::memory::cstr_to_cstring(items[2]));
@@ -2241,7 +2241,7 @@ fn spell_read_aff(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharP
                             || !crate::memory::cstr_as_bytes((*aff_entry).add_ptr()).is_ascii())
                     {
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
-                        let aff_entry: *mut affentry_T = (*cur_aff).ah_entries.as_mut_ptr();
+                        let aff_entry: *mut Affentry = (*cur_aff).ah_entries.as_mut_ptr();
 
                         if crate::memory::cstr_as_bytes(items[4]) != b"." {
                             let mut buf = [0 as c_char; MAXLINELEN];
@@ -2637,7 +2637,7 @@ fn is_aff_rule(
     }
 }
 
-fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
+fn aff_process_flags(affile: &Afffile, entry: &mut Affentry) {
     unsafe {
         if let Some(ref flags_cstr) = entry.ae_flags
             && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
@@ -2751,7 +2751,7 @@ fn get_affitem(flagtype: c_int, pp: *mut *mut c_char) -> c_uint {
     }
 }
 
-fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mut c_char) {
+fn process_compflags(spin: &mut Spellinfo, aff: &mut Afffile, compflags: *mut c_char) {
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
@@ -2777,7 +2777,7 @@ fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mu
                     let id = if let Some(ci) = aff.af_comp.get(key_bytes) {
                         ci.ci_newID
                     } else {
-                        let mut ci = compitem_T {
+                        let mut ci = Compitem {
                             ci_key: [0; AH_KEY_LEN],
                             ci_flag: flag,
                             ci_newID: 0,
@@ -2808,7 +2808,7 @@ fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mu
     }
 }
 
-fn check_renumber(spin: &mut spellinfo_T) {
+fn check_renumber(spin: &mut Spellinfo) {
     if spin.si_newprefID == spin.si_newcompID && spin.si_newcompID < 128 {
             spin.si_newprefID = 127;
             spin.si_newcompID = 255;
@@ -2899,7 +2899,7 @@ fn aff_check_string(
 }
 
 fn add_fromto(
-    gap: &mut Vec<fromto_T>,
+    gap: &mut Vec<Fromto>,
     from: impl crate::strings::IntoCCharPtr,
     to: impl crate::strings::IntoCCharPtr,
 ) { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
@@ -2921,7 +2921,7 @@ fn add_fromto(
             MAXWLEN as c_int,
         );
         let ft_to = crate::memory::cstr_to_cstring(word.as_ptr());
-        gap.push(fromto_T { ft_from, ft_to });
+        gap.push(Fromto { ft_from, ft_to });
     }
 }
 
@@ -2929,7 +2929,7 @@ fn sal_to_bool(s: impl crate::strings::IntoCCharPtr) -> bool { let s = s.into_c_
      crate::memory::cstr_as_bytes(s) == b"1" || crate::memory::cstr_as_bytes(s) == b"true"
 }
 
-fn spell_read_dic(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr, affile: &afffile_T) -> bool { let fname = fname.into_c_char_ptr();
+fn spell_read_dic(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr, affile: &Afffile) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut line = [0 as c_char; MAXLINELEN];
@@ -3163,7 +3163,7 @@ fn spell_read_dic(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharP
     }
 }
 
-fn get_affix_flags(affile: &afffile_T, afflist: *mut c_char) -> c_int {
+fn get_affix_flags(affile: &Afffile, afflist: *mut c_char) -> c_int {
     let mut flags: c_int = 0;
 
         if affile.af_keepcase != 0
@@ -3196,7 +3196,7 @@ fn get_affix_flags(affile: &afffile_T, afflist: *mut c_char) -> c_int {
 }
 
 fn get_pfxlist(
-    affile: &afffile_T,
+    affile: &Afffile,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
     cntp: &mut c_int,
@@ -3226,7 +3226,7 @@ fn get_pfxlist(
 }
 
 fn get_compflags(
-    affile: &afffile_T,
+    affile: &Afffile,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
     cntp: &mut c_int,
@@ -3255,12 +3255,12 @@ fn get_compflags(
 }
 
 fn store_aff_word(
-    spin: &mut spellinfo_T,
+    spin: &mut Spellinfo,
     word: *mut c_char,
     afflist: *mut c_char,
-    affile: &afffile_T,
-    ht: &std::collections::BTreeMap<Vec<u8>, affheader_T>,
-    xht: Option<&std::collections::BTreeMap<Vec<u8>, affheader_T>>,
+    affile: &Afffile,
+    ht: &std::collections::BTreeMap<Vec<u8>, Affheader>,
+    xht: Option<&std::collections::BTreeMap<Vec<u8>, Affheader>>,
     condit: c_int,
     flags: c_int,
     pfxlist: *mut c_char,
@@ -3282,7 +3282,7 @@ fn store_aff_word(
                     && flag_in_afflist(affile.af_flagtype, afflist, ah.ah_flag)
                 {
                     for ae_ref in &ah.ah_entries {
-                        let ae: *mut affentry_T = (&raw const *ae_ref).cast_mut();
+                        let ae: *mut Affentry = (&raw const *ae_ref).cast_mut();
                         let ae_chop = (*ae).chop_ptr();
                         let ae_add = (*ae).add_ptr();
                         let ae_flags = (*ae).flags_ptr();
@@ -3552,9 +3552,9 @@ fn store_aff_word(
     }
 }
 
-fn spell_read_wordfile(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
+fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
-        let mut lnum: linenr_T = 0;
+        let mut lnum: Linenr = 0;
         let mut rline = [0 as c_char; MAXLINELEN];
         let mut pc_vec: Vec<c_char>;
         let mut retval = true;
@@ -3767,7 +3767,7 @@ fn spell_read_wordfile(spin: &mut spellinfo_T, fname: impl crate::strings::IntoC
     }
 }
 
-fn wordtree_alloc(spin: &mut spellinfo_T) -> Option<usize> {
+fn wordtree_alloc(spin: &mut Spellinfo) -> Option<usize> {
     Some(get_wordnode(spin))
 }
 
@@ -3788,7 +3788,7 @@ fn valid_spell_word(word: impl crate::strings::IntoCCharPtr, end: impl crate::st
 }
 
 fn store_word(
-    spin: &mut spellinfo_T,
+    spin: &mut Spellinfo,
     word: impl crate::strings::IntoCCharPtr,
     flags: c_int,
     region: c_int,
@@ -3850,7 +3850,7 @@ fn store_word(
 }
 
 fn tree_add_word(
-    spin: &mut spellinfo_T,
+    spin: &mut Spellinfo,
     word: impl crate::strings::IntoCCharPtr,
     root: Option<usize>,
     flags: c_int,
@@ -3999,24 +3999,24 @@ fn tree_add_word(
     }
 }
 
-fn get_wordnode(spin: &mut spellinfo_T) -> usize {
+fn get_wordnode(spin: &mut Spellinfo) -> usize {
     if let Some(n) = spin.si_first_free {
         spin.si_first_free = spin.si_nodes[n].wn_child;
-        spin.si_nodes[n] = wordnode_T::new();
+        spin.si_nodes[n] = Wordnode::new();
         spin.si_free_count -= 1;
         n
     } else {
-        let nodes_per_block = (SBLOCKSIZE / size_of::<wordnode_T>()).max(1);
+        let nodes_per_block = (SBLOCKSIZE / size_of::<Wordnode>()).max(1);
         if spin.si_nodes.len().is_multiple_of(nodes_per_block) {
             spin.si_blocks_cnt += 1;
         }
         let idx = spin.si_nodes.len();
-        spin.si_nodes.push(wordnode_T::new());
+        spin.si_nodes.push(Wordnode::new());
         idx
     }
 }
 
-fn deref_wordnode(spin: &mut spellinfo_T, node: usize) -> c_int {
+fn deref_wordnode(spin: &mut Spellinfo, node: usize) -> c_int {
     let mut cnt: c_int = 0;
 
     spin.si_nodes[node].wn_refs -= 1;
@@ -4036,13 +4036,13 @@ fn deref_wordnode(spin: &mut spellinfo_T, node: usize) -> c_int {
     cnt
 }
 
-fn free_wordnode(spin: &mut spellinfo_T, n: usize) {
+fn free_wordnode(spin: &mut Spellinfo, n: usize) {
     spin.si_nodes[n].wn_child = spin.si_first_free;
     spin.si_first_free = Some(n);
     spin.si_free_count += 1;
 }
 
-fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: &std::ffi::CStr) {
+fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi::CStr) {
      {
                 let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
         let mut tot: c_int = 0;
@@ -4080,7 +4080,7 @@ fn wordtree_compress(spin: &mut spellinfo_T, root: Option<usize>, name: &std::ff
 }
 
 fn node_compress(
-    spin: &mut spellinfo_T,
+    spin: &mut Spellinfo,
     node: usize,
     ht: &mut std::collections::HashMap<[u8; 6], usize>,
     tot: &mut c_int,
@@ -4155,7 +4155,7 @@ fn node_compress(
         (compressed, hashkey)
 }
 
-fn node_equal(nodes: &[wordnode_T], n1: usize, n2: usize) -> bool {
+fn node_equal(nodes: &[Wordnode], n1: usize, n2: usize) -> bool {
     let mut p1 = Some(n1);
     let mut p2 = Some(n2);
     while let (Some(i1), Some(i2)) = (p1, p2) {
@@ -4176,7 +4176,7 @@ fn node_equal(nodes: &[wordnode_T], n1: usize, n2: usize) -> bool {
     p1.is_none() && p2.is_none()
 }
 
-fn write_vim_spell(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
+fn write_vim_spell(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut retval = true;
 
@@ -4490,7 +4490,7 @@ fn write_vim_spell(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCChar
     }
 }
 
-fn clear_node(nodes: &mut [wordnode_T], node: Option<usize>) {
+fn clear_node(nodes: &mut [Wordnode], node: Option<usize>) {
     let mut np = node;
     while let Some(np_idx) = np {
         nodes[np_idx].wn_index = 0;
@@ -4506,7 +4506,7 @@ fn clear_node(nodes: &mut [wordnode_T], node: Option<usize>) {
 
 fn put_node(
     fd: *mut FILE,
-    nodes: &mut [wordnode_T],
+    nodes: &mut [Wordnode],
     node: Option<usize>,
     idx: c_int,
     regionmask: c_int,
@@ -4611,7 +4611,7 @@ fn put_node(
 
 /// ":mkspell [-ascii] outfile  infile ..."
 /// ":mkspell [-ascii] addfile"
-pub fn ex_mkspell(eap: &mut exarg_T) {
+pub fn ex_mkspell(eap: &mut Exarg) {
     unsafe {
         let mut fnames: Vec<std::ffi::CString> = Vec::new();
         let mut arg = eap.arg;
@@ -4630,7 +4630,7 @@ pub fn ex_mkspell(eap: &mut exarg_T) {
     }
 }
 
-fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: impl crate::strings::IntoCCharPtr) { let wfname = wfname.into_c_char_ptr();
+fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCharPtr) { let wfname = wfname.into_c_char_ptr();
     unsafe {
         let mut slang = spell_priv_st().first_lang
             .iter_mut()
@@ -4641,7 +4641,7 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: impl crate::strings::IntoC
                     .is_some_and(|f| path_equal(wfname, f.as_ptr(), kPathCmpExpand))
             })
             .map_or(ptr::null_mut(), |s| &raw mut **s);
-        let mut temp_slang: Option<Box<slang_T>> = None;
+        let mut temp_slang: Option<Box<Slang>> = None;
         if slang.is_null() {
             spell_message(&*spin, gettext(c"Reading back spell file..."));
             let mut new_lp = slang_alloc(ptr::null_mut());
@@ -4688,9 +4688,9 @@ fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: impl crate::strings::IntoC
     }
 }
 
-fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> bool {
+fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
     unsafe {
-        let mut arridx = [0 as idx_T; MAXWLEN];
+        let mut arridx = [0 as Idx; MAXWLEN];
         let mut curi = [0 as c_int; MAXWLEN];
         let mut tword = [0 as c_char; MAXWLEN];
         let mut tsalword = [0 as c_char; MAXWLEN];
@@ -4770,7 +4770,7 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> bool {
     }
 }
 
-fn sug_maketable(spin: &mut spellinfo_T) -> bool {
+fn sug_maketable(spin: &mut Spellinfo) -> bool {
      {
                 let mut ga: Vec<c_char> = Vec::with_capacity(100);
         let mut res = true;
@@ -4789,7 +4789,7 @@ fn sug_maketable(spin: &mut spellinfo_T) -> bool {
 }
 
 fn sug_filltable(
-    spin: &mut spellinfo_T,
+    spin: &mut Spellinfo,
     node: Option<usize>,
     startwordnr: c_int,
     gap: &mut Vec<c_char>,
@@ -4821,7 +4821,7 @@ fn sug_filltable(
                 let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
                 if !ml_append_buf(
                      &mut *spellbuf,
-                    wordnr as linenr_T,
+                    wordnr as Linenr,
                     gap.as_mut_ptr(),
                     gap.len() as c_int,
                     true,
@@ -4886,7 +4886,7 @@ fn offset2bytes(nr: c_int, buf_in: *mut c_char) -> c_int {
     }
 }
 
-fn sug_write(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
+fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) { let fname = fname.into_c_char_ptr();
     unsafe {
         let fd = os_fopen(fname, c"w");
         if fd.is_null() {
@@ -4922,7 +4922,7 @@ fn sug_write(spin: &mut spellinfo_T, fname: impl crate::strings::IntoCCharPtr) {
 
         put_node(fd, &mut spin.si_nodes, tree, 0, 0, false);
 
-        let spellbuf: *mut buf_T = spin
+        let spellbuf: *mut FileBuf = spin
             .si_spellbuf
             .as_deref_mut()
             .map_or(ptr::null_mut(), |b| &raw mut *b);
@@ -4968,9 +4968,9 @@ fn mkspell(
     unsafe {
         let mut fname_buf = [0 as c_char; MAXPATHL];
         let mut wfname_buf = [0 as c_char; MAXPATHL];
-        let mut afile: [Option<afffile_T>; MAXREGIONS] = [const { None }; MAXREGIONS];
+        let mut afile: [Option<Afffile>; MAXREGIONS] = [const { None }; MAXREGIONS];
         let mut error = false;
-        let mut spin = spellinfo_T::default();
+        let mut spin = Spellinfo::default();
 
         spell_check_msm(opt_vars().p_msm, true);
 
@@ -5161,7 +5161,7 @@ fn mkspell(
     }
 }
 
-fn spell_message(spin: &spellinfo_T, str_: impl crate::strings::IntoCCharPtr) { let str_ = str_.into_c_char_ptr();
+fn spell_message(spin: &Spellinfo, str_: impl crate::strings::IntoCCharPtr) { let str_ = str_.into_c_char_ptr();
      {
         if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
             if spin.si_verbose == 0 {
@@ -5180,7 +5180,7 @@ fn spell_message(spin: &spellinfo_T, str_: impl crate::strings::IntoCCharPtr) { 
 /// ":[count]spellwrong {word}"
 /// ":[count]spellundo  {word}"
 /// ":[count]spellrare  {word}"
-pub fn ex_spell(eap: &mut exarg_T) {
+pub fn ex_spell(eap: &mut Exarg) {
      {
         let what = if eap.cmdidx == CMD_spellwrong {
             SPELL_ADD_BAD
@@ -5213,7 +5213,7 @@ pub fn spell_add_word(
 ) { let word = word.into_c_char_ptr();
     unsafe {
         let mut fd: *mut FILE = ptr::null_mut();
-        let mut buf: *mut buf_T = ptr::null_mut();
+        let mut buf: *mut FileBuf = ptr::null_mut();
         let mut new_spf = false;
         let mut fnamebuf_arr = [0 as c_char; MAXPATHL];
         let mut line = [0 as c_char; MAXWLEN * 2];
@@ -5472,7 +5472,7 @@ fn init_spellfile() {
 fn set_spell_charflags(flags_in: impl crate::strings::IntoCCharPtr, cnt: c_int, fol: impl crate::strings::IntoCCharPtr) { let flags_in = flags_in.into_c_char_ptr(); let fol = fol.into_c_char_ptr();
     unsafe {
         let flags = flags_in.cast::<u8>();
-        let mut new_st = spelltab_T::new();
+        let mut new_st = Spelltab::new();
         let mut p = fol;
 
         clear_spell_chartab(&mut new_st);
@@ -5496,7 +5496,7 @@ fn set_spell_charflags(flags_in: impl crate::strings::IntoCCharPtr, cnt: c_int, 
     }
 }
 
-fn set_spell_finish(new_st: &mut spelltab_T) -> bool {
+fn set_spell_finish(new_st: &mut Spelltab) -> bool {
     if spell_priv_st().did_set_spelltab {
             for i in 0..256 {
                 if spell_priv_st().spelltab.st_isw[i] != new_st.st_isw[i]
@@ -5545,7 +5545,7 @@ fn write_spell_prefcond(
     }
 }
 
-fn set_map_str(lp: &mut slang_T, map: impl crate::strings::IntoCCharPtr) { let map = map.into_c_char_ptr();
+fn set_map_str(lp: &mut Slang, map: impl crate::strings::IntoCCharPtr) { let map = map.into_c_char_ptr();
      {
         let mut headc: c_int = 0;
 

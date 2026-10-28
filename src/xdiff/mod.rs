@@ -60,7 +60,7 @@ pub enum xdemitcb_t {
     #[default]
     None,
     Unified(*mut Vec<u8>),
-    Diff(*mut crate::diff::diffout_T),
+    Diff(*mut crate::diff::Diffout),
     OnHunk(*mut crate::lua::xdiff::HunkPriv),
     Locations(*mut crate::lua::xdiff::HunkPriv),
 }

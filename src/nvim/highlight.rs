@@ -27,7 +27,7 @@ use crate::option_vars::*;
 use crate::popupmenu::pum_drawn;
 use crate::strings::gettext;
 use crate::ui::ui_call_hl_attr_define;
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -276,7 +276,7 @@ use crate::eval::funcs::{
 use crate::lua::converter::LUA_NOREF;
 
 #[inline]
-pub fn win_hl_attr(wp: &mut win_T, hlf: c_int) -> c_int {
+pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: c_int) -> c_int {
      {
         if let Some(ref tbl) = wp.w_ns_hl_attr
             && g_st().ns_hl_fast < 0
@@ -605,7 +605,7 @@ pub fn hl_check_ns() -> bool {
     }
 }
 
-pub fn win_check_ns_hl(wp: Option<&win_T>) -> bool {
+pub fn win_check_ns_hl(wp: Option<&WinInfoInfo>) -> bool {
      {
         g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl);
         hl_check_ns()
@@ -677,7 +677,7 @@ pub fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
     }
 }
 
-pub fn update_window_hl(wp: &mut win_T, invalid: bool) {
+pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
      {
         let ns_id = wp.w_ns_hl;
 
@@ -790,7 +790,7 @@ pub fn update_ns_hl(ns_id: c_int) {
     }
 }
 
-pub fn win_bg_attr(wp: &mut win_T) -> c_int {
+pub fn win_bg_attr(wp: &mut WinInfoInfo) -> c_int {
      {
         if g_st().ns_hl_fast < 0 {
             let local = if ptr::eq(wp, curwin_ptr()) {

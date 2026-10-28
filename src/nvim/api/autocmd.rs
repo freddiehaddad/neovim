@@ -15,7 +15,7 @@ use crate::autocmd::{
     apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
     aucmd_span_pattern, augroup_add, augroup_del, augroup_del_by_id, augroup_exists, augroup_find,
     augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat,
-    autocmd_delete_id, autocmd_register, do_autocmd_event, event_T, event_name2nr_str,
+    autocmd_delete_id, autocmd_register, do_autocmd_event, AuEvent, event_name2nr_str,
     event_nr2name,
 };
 use crate::buffer::do_modelines;
@@ -327,7 +327,7 @@ fn get_patterns_from_pattern_or_buf(
 }
 
 fn clear_autocmd(
-    event: event_T,
+    event: AuEvent,
     pat: impl crate::strings::IntoCCharPtr,
     au_group: c_int,
     err: &mut Error,
@@ -604,7 +604,7 @@ pub fn nvim_get_autocmds(
                     continue;
                 }
 
-                let acs = au_get_autocmds_for_event(event as event_T);
+                let acs = au_get_autocmds_for_event(event as AuEvent);
                 for ac in acs {
                     let Some(ref ap) = ac.pat else {
                         continue;
@@ -727,7 +727,7 @@ pub fn nvim_get_autocmds(
                     put_c(
                         &mut autocmd_info,
                         c"event",
-                        string_obj(cstr_as_string(event_nr2name(event as event_T))),
+                        string_obj(cstr_as_string(event_nr2name(event as AuEvent))),
                     );
                     put_c(&mut autocmd_info, c"once", boolean_obj(ac.once));
 
@@ -1071,7 +1071,7 @@ pub fn nvim_clear_autocmds(
             for event in 0..NUM_EVENTS {
                 for j in 0..patterns.size {
                     let pat_object = patterns[j];
-                    if !clear_autocmd(event as event_T, pat_object.data.string().data, au_group, err)
+                    if !clear_autocmd(event as AuEvent, pat_object.data.string().data, au_group, err)
                     {
                         return;
                     }
@@ -1144,7 +1144,7 @@ pub fn nvim_create_augroup(
 
         if clear_autocmds {
             for event in 0..NUM_EVENTS {
-                aucmd_del_for_event_and_group(event as event_T, augroup);
+                aucmd_del_for_event_and_group(event as AuEvent, augroup);
             }
         }
         g_st().current_sctx = save_current_sctx;

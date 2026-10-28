@@ -42,7 +42,7 @@ pub enum CursorShape {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct cursorentry_T {
+pub struct Cursorentry {
     pub full_name: &'static CStr,
     pub shape: CursorShape,
     pub mshape: c_int,
@@ -67,8 +67,8 @@ const fn entry(
     blinkoff: c_int,
     name: &'static CStr,
     used_for: c_char,
-) -> cursorentry_T {
-    cursorentry_T {
+) -> Cursorentry {
+    Cursorentry {
         full_name,
         shape: CursorShape::SHAPE_BLOCK,
         mshape: 0,
@@ -83,7 +83,7 @@ const fn entry(
     }
 }
 
-static SHAPE_TABLE: GlobalState<[cursorentry_T; SHAPE_IDX_COUNT]> = GlobalState::new([
+static SHAPE_TABLE: GlobalState<[Cursorentry; SHAPE_IDX_COUNT]> = GlobalState::new([
     entry(c"normal", 700, 400, 250, c"n", SHAPE_BOTH),
     entry(c"visual", 700, 400, 250, c"v", SHAPE_BOTH),
     entry(c"insert", 700, 400, 250, c"i", SHAPE_BOTH),
@@ -105,7 +105,7 @@ static SHAPE_TABLE: GlobalState<[cursorentry_T; SHAPE_IDX_COUNT]> = GlobalState:
 ]);
 
 #[inline]
-pub fn shape_table_mut() -> &'static mut [cursorentry_T; SHAPE_IDX_COUNT] {
+pub fn shape_table_mut() -> &'static mut [Cursorentry; SHAPE_IDX_COUNT] {
     unsafe { &mut *SHAPE_TABLE.as_ptr() }
 }
 

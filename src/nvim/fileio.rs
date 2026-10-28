@@ -10,8 +10,8 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC,
-    NOTDONE, SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, buf_T, buf_contents_changed,
-    buf_is_empty, buflist_new, bufref_T, bufref_valid, do_modelines, kShmFileinfo, kShmRo,
+    NOTDONE, SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, FileBuf, buf_contents_changed,
+    buf_is_empty, buflist_new, Bufref, bufref_valid, do_modelines, kShmFileinfo, kShmRo,
     kUIMessages, set_bufref, setfname, wipe_buffer,
 };
 use crate::buffer_updates::buf_updates_unload;
@@ -22,7 +22,7 @@ use crate::charset::{EOL_MAC, ascii_isspace};
 #[cfg(test)]
 use crate::charset::{ascii_isdigit, skipdigits};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
-use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, linenr_T, pos_T};
+use crate::cursor::{check_cursor, check_cursor_lnum, Colnr, Linenr, CursorPos};
 use crate::dialog::do_dialog;
 use crate::diff::diff_invalidate;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later, status_redraw_all};
@@ -35,7 +35,7 @@ use crate::eval::vars::{
 use crate::event::r#loop::uv_strerror;
 #[cfg(unix)]
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
-use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, exarg_T};
+use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, Exarg};
 use crate::ex_eval::aborting;
 use crate::fold::{foldUpdateAll, foldmethodIsManual};
 use crate::globals::IOSIZE;
@@ -70,7 +70,7 @@ use crate::os::fs::{
     os_errno, os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd,
     os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm, os_isdir,
     os_isrealdir, os_mkdir, os_mkdtemp, os_open, os_path_exists, os_remove, os_rename, os_rmdir,
-    os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, os_set_errno, vim_acl_T,
+    os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, os_set_errno, VimAcl,
 };
 #[cfg(unix)]
 use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, s_islnk};
@@ -81,8 +81,8 @@ use crate::path::{
     add_pathsep, after_pathsep, dir_of_file_exists, kPathCmpLiteral, path_equal, path_is_absolute,
     path_shorten_fname, path_tail, path_with_url, vim_FullName, vim_ispathsep,
 };
-use crate::regexp::{RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regfree};
-use crate::sha256::context_sha256_T;
+use crate::regexp::{RE_MAGIC, Regmatch, Regprog, vim_regcomp, vim_regexec, vim_regfree};
+use crate::sha256::ContextSha256;
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
 use crate::strings::{ngettext, tr, vim_snprintf, vim_strchr};
@@ -97,7 +97,7 @@ use std::ptr;
 #[cfg(windows)]
 use crate::os::os_win_console::os_open_conin_fd;
 
-pub type off_T = i64;
+pub type Off = i64;
 pub type iconv_t = isize;
 pub type FILE = c_void;
 
@@ -288,13 +288,13 @@ unsafe extern "C" {
     pub fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
     #[cfg_attr(windows, link_name = "_lseeki64")]
     #[cfg_attr(not(windows), link_name = "lseek")]
-    pub fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T;
+    pub fn vim_lseek(fd: c_int, offset: Off, whence: c_int) -> Off;
     #[cfg_attr(windows, link_name = "_fseeki64")]
     #[cfg_attr(not(windows), link_name = "fseeko")]
-    pub fn vim_fseek(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int;
+    pub fn vim_fseek(stream: *mut FILE, offset: Off, whence: c_int) -> c_int;
     #[cfg_attr(windows, link_name = "_ftelli64")]
     #[cfg_attr(not(windows), link_name = "ftello")]
-    pub fn vim_ftell(stream: *mut FILE) -> off_T;
+    pub fn vim_ftell(stream: *mut FILE) -> Off;
     #[cfg_attr(windows, link_name = "_fdopen")]
     pub fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
     #[cfg_attr(windows, link_name = "_fileno")]
@@ -884,7 +884,7 @@ fn call_umask(mask: c_uint) -> c_uint {
 }
 
 /// Shows a message about file `name`, e.g. `"foo.txt" [New]`.
-fn filemess(buf: *mut buf_T, name: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg_id = msg_id.into_c_char_ptr();
+fn filemess(buf: *mut FileBuf, name: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg_id = msg_id.into_c_char_ptr();
     let s = s.into_c_char_ptr();
     unsafe {
         let prev_msg_col = g_st().msg_col;
@@ -932,7 +932,7 @@ fn filemess(buf: *mut buf_T, name: impl crate::strings::IntoCCharPtr, s: impl cr
 
 /// Shows file `name` before writing it, as a "bufwrite" message with `msg_id`, which buf_write()
 /// replaces when done (or with a progress-message, if slow).
-pub fn filemess_bufwrite(buf: *mut buf_T, name: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg_id = msg_id.into_c_char_ptr();
+pub fn filemess_bufwrite(buf: *mut FileBuf, name: impl crate::strings::IntoCCharPtr, msg_id: impl crate::strings::IntoCCharPtr) { let name = name.into_c_char_ptr(); let msg_id = msg_id.into_c_char_ptr();
     filemess(buf, name, c"", msg_id);
 }
 
@@ -977,9 +977,9 @@ fn readfile_progress(
 pub fn readfile(
     fname: *mut c_char,
     mut sfname: *mut c_char,
-    from: linenr_T,
-    lines_to_skip: linenr_T,
-    lines_to_read: linenr_T,eap: Option<&exarg_T>,
+    from: Linenr,
+    lines_to_skip: Linenr,
+    lines_to_read: Linenr,eap: Option<&Exarg>,
     flags: c_int,
     silent: bool,
 ) -> c_int {
@@ -994,8 +994,8 @@ pub fn readfile(
         let read_buffer = (flags & READ_BUFFER) != 0;
         let read_fifo = (flags & READ_FIFO) != 0;
         let set_options = newfile || read_buffer || (eap.is_some() && eap.unwrap().read_edit != 0);
-        let mut read_buf_lnum: linenr_T = 1;
-        let mut read_buf_col: colnr_T = 0;
+        let mut read_buf_lnum: Linenr = 1;
+        let mut read_buf_col: Colnr = 0;
         let mut lnum = from;
         let mut ptr: *mut c_char = ptr::null_mut();
         let mut buffer_vec: Vec<c_char> = Vec::new();
@@ -1003,9 +1003,9 @@ pub fn readfile(
         let mut line_start: *mut c_char = ptr::null_mut();
         let mut size: isize = 0;
         let mut p: *mut u8;
-        let mut filesize: off_T = 0;
+        let mut filesize: Off = 0;
         let mut skip_read = false;
-        let mut sha_ctx = context_sha256_T::new();
+        let mut sha_ctx = ContextSha256::new();
         let mut read_undo_file = false;
         let mut split: c_int = 0;
         let mut error = false;
@@ -1017,13 +1017,13 @@ pub fn readfile(
         let mut fileformat: c_int = 0;
         let mut keep_fileformat = false;
         let mut file_info: FileInfo = FileInfo::new();
-        let mut skip_count: linenr_T = 0;
-        let mut read_count: linenr_T = 0;
+        let mut skip_count: Linenr = 0;
+        let mut read_count: Linenr = 0;
         let msg_save = g_st().msg_scroll;
-        let mut read_no_eol_lnum: linenr_T = 0;
+        let mut read_no_eol_lnum: Linenr = 0;
         let mut file_rewind = false;
-        let mut conv_error: linenr_T = 0;
-        let mut illegal_byte: linenr_T = 0;
+        let mut conv_error: Linenr = 0;
+        let mut illegal_byte: Linenr = 0;
         let mut keep_dest_enc = false;
         let mut bad_char_behavior: c_int = BAD_REPLACE;
         let mut tmpname: Option<std::ffi::CString> = None;
@@ -1039,7 +1039,7 @@ pub fn readfile(
         let mut notconverted = false;
         let mut conv_rest: [c_char; CONV_RESTLEN] = [0; CONV_RESTLEN];
         let mut conv_restlen: c_int = 0;
-        let mut orig_start: pos_T;
+        let mut orig_start: CursorPos;
 
         curbuf_mut().b_au_did_filetype = false;
         curbuf_mut().b_no_eol_lnum = 0;
@@ -1637,7 +1637,7 @@ pub fn readfile(
                         && !read_stdin
                         && !read_buffer;
                     if read_undo_file {
-                        sha_ctx = context_sha256_T::new();
+                        sha_ctx = ContextSha256::new();
                     }
                 }
 
@@ -1701,7 +1701,7 @@ pub fn readfile(
                                                     if ch == b'\n' { NUL } else { ch as c_char };
                                                 tlen += 1;
                                             }
-                                            read_buf_col += n as colnr_T;
+                                            read_buf_col += n as Colnr;
                                             break;
                                         }
 
@@ -2159,7 +2159,7 @@ pub fn readfile(
                             }
                         }
 
-                        filesize += size as off_T;
+                        filesize += size as Off;
 
                         if fileformat == EOL_UNKNOWN {
                             if try_dos != 0 || try_unix != 0 {
@@ -2245,7 +2245,7 @@ pub fn readfile(
                             } else {
                                 if skip_count == 0 {
                                     *ptr = NUL;
-                                    let len = (ptr.offset_from(line_start) + 1) as colnr_T;
+                                    let len = (ptr.offset_from(line_start) + 1) as Colnr;
                                     if !ml_append(lnum, line_start, len, newfile) {
                                         error = true;
                                         break;
@@ -2301,7 +2301,7 @@ pub fn readfile(
                             ptr = nl;
                             if skip_count == 0 {
                                 *ptr = NUL;
-                                let mut len = (ptr.offset_from(line_start) + 1) as colnr_T;
+                                let mut len = (ptr.offset_from(line_start) + 1) as Colnr;
                                 if fileformat == EOL_DOS {
                                     if ptr > line_start && *ptr.sub(1) == CAR {
                                         *ptr.sub(1) = NUL;
@@ -2401,7 +2401,7 @@ pub fn readfile(
                     curbuf_mut().b_p_eol = 0;
                 }
                 *ptr = NUL;
-                let len = (ptr.offset_from(line_start) + 1) as colnr_T;
+                let len = (ptr.offset_from(line_start) + 1) as Colnr;
                 if !ml_append(lnum, line_start, len, newfile) {
                     error = true;
                 } else {
@@ -2815,7 +2815,7 @@ pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 /// Estimate the line number where we are now.
-fn readfile_linenr(linecnt: linenr_T, p: impl crate::strings::IntoCCharPtr, endp: impl crate::strings::IntoCCharPtr) -> linenr_T { let p = p.into_c_char_ptr(); let endp = endp.into_c_char_ptr();
+fn readfile_linenr(linecnt: Linenr, p: impl crate::strings::IntoCCharPtr, endp: impl crate::strings::IntoCCharPtr) -> Linenr { let p = p.into_c_char_ptr(); let endp = endp.into_c_char_ptr();
     unsafe {
         let mut lnum = curbuf_mut().b_ml.ml_line_count - linecnt + 1;
         let mut s: *const c_char = p;
@@ -2831,7 +2831,7 @@ fn readfile_linenr(linecnt: linenr_T, p: impl crate::strings::IntoCCharPtr, endp
 
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
-pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
+pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
      {
         let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
         let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
@@ -2854,7 +2854,7 @@ pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
 }
 
 /// Set default or forced 'fileformat' and 'binary'.
-pub fn set_file_options(set_options: bool,eap: Option<&exarg_T>) {
+pub fn set_file_options(set_options: bool,eap: Option<&Exarg>) {
      {
         if set_options {
             if eap.is_some() && eap.unwrap().force_ff != 0 {
@@ -2875,7 +2875,7 @@ pub fn set_file_options(set_options: bool,eap: Option<&exarg_T>) {
 }
 
 /// Set forced 'fileencoding'.
-pub fn set_forced_fenc(eap: &exarg_T) {
+pub fn set_forced_fenc(eap: &Exarg) {
     unsafe {
         if eap.force_enc == 0 {
             return;
@@ -3025,7 +3025,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
 pub fn add_quoted_fname(
     ret_buf: *mut c_char,
     bufsize: usize,
-    buf: *const buf_T,
+    buf: *const FileBuf,
     fname: impl crate::strings::IntoCCharPtr,
 ) { let mut fname = fname.into_c_char_ptr();
     unsafe {
@@ -3045,7 +3045,7 @@ pub fn fname_msg_id(
     msg_id: *mut c_char,
     size: usize,
     prefix: &std::ffi::CStr,
-    buf: *const buf_T,
+    buf: *const FileBuf,
     fname: impl crate::strings::IntoCCharPtr,
 ) { let fname = fname.into_c_char_ptr();
     unsafe {
@@ -3086,7 +3086,7 @@ pub fn msg_add_fileformat(eol_type: c_int) -> bool {
 }
 
 /// Append line and character count to IObuff.
-pub fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
+pub fn msg_add_lines(insert_space: c_int, lnum: Linenr, nchars: Off) {
     unsafe {
         let iobuf_ptr = g_st().IObuff.as_mut_ptr();
         let mut len = crate::memory::cstr_len(iobuf_ptr);
@@ -3265,7 +3265,7 @@ fn check_for_bom(
 }
 
 /// Shorten filename of a buffer.
-pub fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_int) -> bool {
+pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: *mut c_char, force: c_int) -> bool {
     unsafe {
         if buf.b_fname.is_null()
             || bt_nofilename(Some(&*buf))
@@ -3654,7 +3654,7 @@ pub fn vim_copyfile(from: impl crate::strings::IntoCCharPtr, to: impl crate::str
         }
     }
 
-    let acl: vim_acl_T = os_get_acl(from);
+    let acl: VimAcl = os_get_acl(from);
 
     if os_copy(from, to, UV_FS_COPYFILE_EXCL) != 0 {
         os_free_acl(acl);
@@ -3696,7 +3696,7 @@ pub fn check_timestamps(focus: c_int) -> c_int {
             let mut buf = g_st().firstbuf;
             while !buf.is_null() {
                 if (*buf).b_nwindows > 0 {
-                    let mut bufref: bufref_T = bufref_T::new();
+                    let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf);
                     let n = buf_check_timestamp(&mut *buf);
                     didit = didit.max(n);
@@ -3719,7 +3719,7 @@ pub fn check_timestamps(focus: c_int) -> c_int {
 }
 
 /// Move all the lines from buffer "frombuf" to buffer "tobuf".
-fn move_lines(frombuf: &mut buf_T, tobuf: *mut buf_T) -> bool {
+fn move_lines(frombuf: &mut FileBuf, tobuf: *mut FileBuf) -> bool {
      {
         let tbuf = g_st().curbuf;
         let mut retval = true;
@@ -3751,7 +3751,7 @@ fn move_lines(frombuf: &mut buf_T, tobuf: *mut buf_T) -> bool {
 }
 
 /// Check if buffer "buf" has been changed.
-pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
+pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
     unsafe {
         static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -3768,7 +3768,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
         let orig_size = buf.b_orig_size;
         let orig_mode = buf.b_orig_mode;
 
-        let mut bufref: bufref_T = bufref_T::new();
+        let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, &raw mut *buf);
 
         if !buf.terminal.is_null()
@@ -3985,12 +3985,12 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
 }
 
 /// Reload a buffer that is already loaded.
-pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
+pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
     unsafe {
-        let mut ea: exarg_T = exarg_T::new();
+        let mut ea: Exarg = Exarg::new();
         let old_ro = (*buf).b_p_ro;
-        let savebuf: *mut buf_T;
-        let mut bufref: bufref_T = bufref_T::new();
+        let savebuf: *mut FileBuf;
+        let mut bufref: Bufref = Bufref::new();
         let mut saved = OK;
         let mut aco: CtxSwitch = CtxSwitch::new();
         let mut flags = READ_NEW;
@@ -4110,7 +4110,7 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
     }
 }
 
-pub fn buf_store_file_info(buf: &mut buf_T, file_info: &mut FileInfo) {
+pub fn buf_store_file_info(buf: &mut FileBuf, file_info: &mut FileInfo) {
     buf.b_mtime = file_info.stat.st_mtim.tv_sec as _;
         buf.b_mtime_ns = file_info.stat.st_mtim.tv_nsec as _;
         buf.b_orig_size = os_fileinfo_size(file_info);
@@ -4118,7 +4118,7 @@ pub fn buf_store_file_info(buf: &mut buf_T, file_info: &mut FileInfo) {
 }
 
 /// Adjust the line with missing eol, used for the next write.
-pub fn write_lnum_adjust(offset: linenr_T) {
+pub fn write_lnum_adjust(offset: Linenr) {
      {
         if curbuf_mut().b_no_eol_lnum != 0 {
             curbuf_mut().b_no_eol_lnum += offset;
@@ -4285,7 +4285,7 @@ fn vim_mktempdir() {
 pub fn readdir_core(
     entries: &mut Vec<std::ffi::CString>,
     path: impl crate::strings::IntoCCharPtr,
-    mut context: Option<&mut crate::eval::typval::typval_T>,
+    mut context: Option<&mut crate::eval::typval::TypVal>,
 ) -> bool { let path = path.into_c_char_ptr();
      {
         entries.clear();
@@ -4510,13 +4510,13 @@ pub fn vim_tempname() -> Option<std::ffi::CString> {
 /// precompiled regprog "prog" ("pattern" is NULL).
 pub fn match_file_pat(
     pattern: impl crate::strings::IntoCCharPtr,
-    prog: Option<&regprog_T>,
+    prog: Option<&Regprog>,
     fname: impl crate::strings::IntoCCharPtr,
     sfname: impl crate::strings::IntoCCharPtr,
     tail: impl crate::strings::IntoCCharPtr,
     allow_dirs: c_int,
 ) -> bool { let pattern = pattern.into_c_char_ptr(); let fname = fname.into_c_char_ptr(); let sfname = sfname.into_c_char_ptr(); let tail = tail.into_c_char_ptr();
-    let mut regmatch: regmatch_T = regmatch_T::new();
+    let mut regmatch: Regmatch = Regmatch::new();
         let mut result = false;
 
         regmatch.rm_ic = opt_vars().p_fic != 0;

@@ -13,20 +13,20 @@ use crate::charset::{NUL, transstr, vim_strsize};
 use crate::cmdexpand::{
     cmdline_compl_is_fuzzy, cmdline_compl_pattern, kUICmdline, kUIPopupmenu, kUIWildmenu,
 };
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 use crate::drawscreen::{
     DEFAULT_GRID_HANDLE, UPD_NOT_VALID, UPD_SOME_VALID, conceal_cursor_line, redraw_later,
     setcursor_mayforce, update_screen,
 };
 use crate::errors::*;
-use crate::eval::typval::{dict_T, tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
+use crate::eval::typval::{TvDict, tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
 use crate::ex_cmds::{Ctrl_C, ECMD_ONE, do_ecmd, prepare_tagpreview};
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::globals::*;
 use crate::grid::{
     get_win_by_grid_handle, grid_alloc, grid_assign_handle, grid_draw_border, grid_free,
-    grid_invalidate, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts, schar_T,
+    grid_invalidate, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts, Schar,
     schar_from_ascii, schar_from_str, screengrid_line_start,
 };
 use crate::highlight::{HLF_PNI, HLF_PST, hl_combine_attr, hl_get_ui_attr, win_hl_attr};
@@ -42,7 +42,7 @@ use crate::keycodes::{
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
-use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
+use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, Vimmenu};
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
 use crate::r#move::{update_topline, validate_cheight, validate_cursor, validate_cursor_col};
@@ -58,7 +58,7 @@ use crate::ui::{
     ui_has, ui_pum_get_height, ui_pum_get_pos,
 };
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
-use crate::window::{goto_tabpage_tp, valid_tabpage, win_T, win_enter, win_setheight, win_valid};
+use crate::window::{goto_tabpage_tp, valid_tabpage, WinInfoInfo, win_enter, win_setheight, win_valid};
 use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_float_special};
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
@@ -67,14 +67,14 @@ use crate::api::vim::kOptCotFlagPopup;
 use crate::change::TAB;
 use crate::diff::kOptDiff;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-use crate::ex_getln::hlf_T;
+use crate::ex_getln::Hlf;
 use crate::math::OK;
 use crate::regexp::MAXCOL;
 use crate::state::MODE_CMDLINE;
 
 #[repr(C)]
 #[derive(Clone, Default)]
-pub struct pumitem_T {
+pub struct Pumitem {
     pub pum_text: Option<std::ffi::CString>,
     pub pum_kind: Option<std::ffi::CString>,
     pub pum_extra: Option<std::ffi::CString>,
@@ -85,7 +85,7 @@ pub struct pumitem_T {
     pub pum_comp_idx: Option<usize>,
 }
 
-impl pumitem_T {
+impl Pumitem {
     pub const fn new() -> Self {
         Self {
             pum_text: None,
@@ -143,15 +143,15 @@ const CPT_ABBR: c_int = 0;
 const CPT_KIND: c_int = 1;
 const CPT_MENU: c_int = 2;
 
-const HLF_PSI: hlf_T = 42;
-const HLF_PMNI: hlf_T = 43;
-const HLF_PMSI: hlf_T = 44;
-const HLF_PNK: hlf_T = 45;
-const HLF_PSK: hlf_T = 46;
-const HLF_PNX: hlf_T = 47;
-const HLF_PSX: hlf_T = 48;
-const HLF_PSB: hlf_T = 49;
-const HLF_PBR: hlf_T = 51;
+const HLF_PSI: Hlf = 42;
+const HLF_PMNI: Hlf = 43;
+const HLF_PMSI: Hlf = 44;
+const HLF_PNK: Hlf = 45;
+const HLF_PSK: Hlf = 46;
+const HLF_PNX: Hlf = 47;
+const HLF_PSX: Hlf = 48;
+const HLF_PSB: Hlf = 49;
+const HLF_PBR: Hlf = 51;
 
 const kZIndexPopupMenu: c_int = 100;
 const kZIndexCmdlinePopupMenu: c_int = 250;
@@ -159,7 +159,7 @@ const kZIndexCmdlinePopupMenu: c_int = 250;
 const kOptCotFlagPreview: c_uint = 0x1000;
 
 struct PopupmenuState {
-    array: *mut pumitem_T,
+    array: *mut Pumitem,
     size: c_int,
     selected: c_int,
     first: c_int,
@@ -255,7 +255,7 @@ fn pum_compute_size() {
 /// Calculate vertical placement for popup menu (`pum_compute_vertical_placement`).
 fn pum_compute_vertical_placement(
     size: c_int,
-    mut target_win: Option<&mut win_T>,
+    mut target_win: Option<&mut WinInfoInfo>,
     pum_win_row: c_int,
     above_row: c_int,
     below_row: c_int,
@@ -353,7 +353,7 @@ fn set_pum_width_aligned_with_cursor(mut width: c_int, available_width: c_int) -
 
 /// Calculate horizontal placement for popup menu (`pum_compute_horizontal_placement`).
 fn pum_compute_horizontal_placement(
-    target_win: Option<&win_T>,
+    target_win: Option<&WinInfoInfo>,
     cursor_col: c_int,
     border_width: c_int,
 ) {
@@ -420,7 +420,7 @@ fn pum_border_width() -> c_int {
 
 /// Show the popup menu with items `array[size]` (`pum_display`).
 pub fn pum_display(
-    array: *mut pumitem_T,
+    array: *mut Pumitem,
     size: c_int,
     selected: c_int,
     array_changed: bool,
@@ -543,7 +543,7 @@ pub fn pum_display(
                 }
             }
 
-            let mut pvwin: *mut win_T = ptr::null_mut();
+            let mut pvwin: *mut WinInfoInfo = ptr::null_mut();
             for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
                 if (*wp).w_onebuf_opt.wo_pvw != 0 {
                     pvwin = wp;
@@ -605,7 +605,7 @@ pub fn pum_display(
 /// Computes attributes of text on the popup menu (`pum_compute_text_attrs`).
 fn pum_compute_text_attrs(
     text: impl crate::strings::IntoCCharPtr,
-    hlf: hlf_T,
+    hlf: Hlf,
     user_hlattr: c_int,
 ) -> Option<Vec<c_int>> { let text = text.into_c_char_ptr();
     unsafe {
@@ -770,14 +770,14 @@ pub fn pum_redraw() {
         let attr_thumb = win_hl_attr(curwin_mut(), HLF_PST);
         let mut thumb_pos: c_int = 0;
         let mut thumb_height: c_int = 1;
-        let fcs_trunc: schar_T = if pum().rl {
+        let fcs_trunc: Schar = if pum().rl {
             curwin_mut().w_p_fcs_chars.truncrl
         } else {
             curwin_mut().w_p_fcs_chars.trunc
         };
 
-        const HLFS_NORM: [hlf_T; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
-        const HLFS_SEL: [hlf_T; 3] = [HLF_PSI, HLF_PSK, HLF_PSX];
+        const HLFS_NORM: [Hlf; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
+        const HLFS_SEL: [Hlf; 3] = [HLF_PSI, HLF_PSK, HLF_PSX];
 
         let mut grid_width = pum().width;
         let mut col_off: c_int = 0;
@@ -802,8 +802,8 @@ pub fn pum_redraw() {
         let mut fconfig = WIN_CONFIG_INIT;
         let border_width = pum_border_width();
         let mut border_attr: c_int = 0;
-        let mut border_char: schar_T = 0;
-        let fill_char: schar_T = schar_from_ascii(b' ');
+        let mut border_char: Schar = 0;
+        let fill_char: Schar = schar_from_ascii(b' ');
         let has_border = border_width > 0;
 
         if border_width > 0 {
@@ -1179,9 +1179,9 @@ pub fn pum_redraw() {
 
 /// Set the informational text in the preview buffer (`pum_preview_set_text`).
 fn pum_preview_set_text(
-    win: &mut win_T,
+    win: &mut WinInfoInfo,
     info: *mut c_char,
-    lnum: &mut linenr_T,
+    lnum: &mut Linenr,
     max_width: &mut c_int,
 ) {
     unsafe {
@@ -1248,7 +1248,7 @@ fn pum_preview_set_text(
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
-fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
+fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: c_int) -> bool {
      {
         let border_width = pum_border_width();
         let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
@@ -1289,7 +1289,7 @@ fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
 }
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
-pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
+pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut WinInfoInfo {
     unsafe {
         if !pum().is_visible || !compl_match_curr_select(selected) {
             return ptr::null_mut();
@@ -1306,7 +1306,7 @@ pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
             (*wp).w_topline = 1;
             (*wp).w_onebuf_opt.wo_wfb = 1;
         }
-        let mut lnum: linenr_T = 0;
+        let mut lnum: Linenr = 0;
         let mut max_info_width: c_int = 0;
         pum_preview_set_text(&mut *wp, info, &mut lnum, &mut max_info_width);
         g_st().no_u_sync -= 1;
@@ -1453,7 +1453,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                     }
 
                     if res == OK {
-                        let mut lnum: linenr_T = 0;
+                        let mut lnum: Linenr = 0;
                         let mut max_info_width: c_int = 0;
                         pum_preview_set_text(
                             curwin_mut(),
@@ -1462,7 +1462,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             &mut max_info_width,
                         );
                         if repeat == 0 && !use_float {
-                            lnum = lnum.min(opt_vars().p_pvh as linenr_T);
+                            lnum = lnum.min(opt_vars().p_pvh as Linenr);
                             if curwin_mut().w_height < lnum {
                                 win_setheight(lnum);
                                 resized = true;
@@ -1611,7 +1611,7 @@ pub fn pum_get_height() -> c_int {
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
-pub fn pum_set_event_info(dict: &mut dict_T) {
+pub fn pum_set_event_info(dict: &mut TvDict) {
     if !pum_visible() {
         return;
     }
@@ -1764,14 +1764,14 @@ fn pum_select_mouse_pos() {
 }
 
 /// Execute the currently selected popup menu item (`pum_execute_menu`).
-fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
+fn pum_execute_menu(menu: &mut Vimmenu, mode: c_int) {
     let mut idx: c_int = 0;
         for mp in &mut menu.children {
             if (mp.modes & mp.enabled & mode) != 0 {
                 let cur_idx = idx;
                 idx += 1;
                 if cur_idx == pum().selected {
-                    let ea: exarg_T = exarg_T::new();
+                    let ea: Exarg = Exarg::new();
                     execute_menu(&ea, mp, -1);
                     break;
                 }
@@ -1780,7 +1780,7 @@ fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
 }
 
 /// Open the terminal version of the popup menu (`pum_show_popupmenu`).
-pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
+pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     unsafe {
         pum_undisplay(true);
         pum().size = 0;
@@ -1800,7 +1800,7 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
         }
 
         let mut idx: usize = 0;
-        let mut array_vec: Vec<pumitem_T> = vec![pumitem_T::new(); pum().size as usize];
+        let mut array_vec: Vec<Pumitem> = vec![Pumitem::new(); pum().size as usize];
         let array = array_vec.as_mut_ptr();
 
         for mp in &menu.children {

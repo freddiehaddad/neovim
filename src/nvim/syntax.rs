@@ -1,18 +1,18 @@
 //! Code for syntax highlighting (`src/nvim/syntax.c`).
 
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
-use crate::buffer::{MAXLNUM, buf_T, buf_get_changedtick};
+use crate::buffer::{MAXLNUM, FileBuf, buf_get_changedtick};
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, check_isopt, getdigits_int, getdigits_int32,
     parse_isopt, skiptowhite, skipwhite, str_foldcase, vim_isprintc, vim_iswordp_buf,
 };
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SYNTAX, HLF_D};
-use crate::cursor::{colnr_T, linenr_T, lpos_T, pos_T};
+use crate::cursor::{Colnr, Linenr, Lpos, CursorPos};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_curbuf_later, redraw_later};
 use crate::errors::*;
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 use crate::ex_docmd::{
-    EX_NOSPC, EX_XFILE, check_nextcmd, do_cmdline_cmd, ends_excmd, exarg_T, expand_filename,
+    EX_NOSPC, EX_XFILE, check_nextcmd, do_cmdline_cmd, ends_excmd, Exarg, expand_filename,
     find_nextcmd, separate_nextcmd,
 };
 use crate::fold::{foldUpdateAll, foldmethodIsSyntax};
@@ -32,38 +32,38 @@ use crate::message::{
 };
 use crate::option_vars::*;
 use crate::optionstr::clear_string_option;
-use crate::os::env::{EXPAND_BUF_LEN, expand_T};
+use crate::os::env::{EXPAND_BUF_LEN, ExpandCtx};
 use crate::os::input::line_breakcheck;
 use crate::path::path_is_absolute;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::profile::{
     profile_add, profile_cmp, profile_divide, profile_end, profile_msg, profile_start,
-    profile_zero, proftime_T,
+    profile_zero, Proftime,
 };
 use crate::regexp::{
-    MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, reg_extmatch_T, regmatch_T, regmmatch_T,
-    regprog_T, skip_regexp, vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi,
+    MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, RegExtmatch, Regmatch, Regmmatch,
+    Regprog, skip_regexp, vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi,
     vim_regfree,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
     gettext, vim_snprintf, vim_strchr,
     };
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct syn_time_T {
+pub struct SynTime {
     pub total: u64,
     pub slowest: u64,
     pub count: c_int,
     pub match_: c_int,
 }
 
-impl syn_time_T {
+impl SynTime {
     pub const fn new() -> Self {
         Self {
             total: 0,
@@ -75,16 +75,16 @@ impl syn_time_T {
 }
 
 #[repr(C)]
-pub struct synblock_T {
-    pub b_keywtab: std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
-    pub b_keywtab_ic: std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
+pub struct Synblock {
+    pub b_keywtab: std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
+    pub b_keywtab_ic: std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
     pub b_syn_error: bool,
     pub b_syn_slow: bool,
     pub b_syn_ic: c_int,
     pub b_syn_foldlevel: c_int,
     pub b_syn_spell: c_int,
-    pub b_syn_patterns: Vec<synpat_T>,
-    pub b_syn_clusters: Vec<syn_cluster_T>,
+    pub b_syn_patterns: Vec<Synpat>,
+    pub b_syn_clusters: Vec<SynCluster>,
     pub b_spell_cluster_id: c_int,
     pub b_nospell_cluster_id: c_int,
     pub b_syn_containedin: c_int,
@@ -94,23 +94,23 @@ pub struct synblock_T {
     pub b_syn_sync_maxlines: i32,
     pub b_syn_sync_linebreaks: i32,
     pub b_syn_linecont_pat: Option<std::ffi::CString>,
-    pub b_syn_linecont_prog: Option<Box<regprog_T>>,
-    pub b_syn_linecont_time: syn_time_T,
+    pub b_syn_linecont_prog: Option<Box<Regprog>>,
+    pub b_syn_linecont_time: SynTime,
     pub b_syn_linecont_ic: c_int,
     pub b_syn_topgrp: c_int,
     pub b_syn_conceal: c_int,
     pub b_syn_folditems: c_int,
-    pub b_sst_array: Vec<synstate_T>,
+    pub b_sst_array: Vec<Synstate>,
     pub b_sst_max: c_int,
     pub b_sst_search: usize,
     pub b_sst_check_lnum: i32,
     pub b_sst_lasttick: u64,
-    pub b_idlist_cache: Option<Box<idl_cache_T>>,
-    pub b_langp: Vec<crate::spellsuggest::langp_T>,
+    pub b_idlist_cache: Option<Box<IdlCache>>,
+    pub b_langp: Vec<crate::spellsuggest::Langp>,
     pub b_spell_ismw: [bool; 256],
     pub b_spell_ismw_mb: Option<std::ffi::CString>,
     pub b_p_spc: *mut c_char,
-    pub b_cap_prog: Option<Box<regprog_T>>,
+    pub b_cap_prog: Option<Box<Regprog>>,
     pub b_p_spf: *mut c_char,
     pub b_p_spl: *mut c_char,
     pub b_p_spo: *mut c_char,
@@ -120,7 +120,7 @@ pub struct synblock_T {
     pub b_syn_isk: Option<std::ffi::CString>,
 }
 
-impl synblock_T {
+impl Synblock {
     pub const fn new() -> Self {
         Self {
             b_keywtab: std::collections::BTreeMap::new(),
@@ -142,7 +142,7 @@ impl synblock_T {
             b_syn_sync_linebreaks: 0,
             b_syn_linecont_pat: None,
             b_syn_linecont_prog: None,
-            b_syn_linecont_time: syn_time_T {
+            b_syn_linecont_time: SynTime {
                 total: 0,
                 slowest: 0,
                 count: 0,
@@ -174,7 +174,7 @@ impl synblock_T {
     }
 }
 
-use crate::ex_getln::disptick_T;
+use crate::ex_getln::Disptick;
 
 pub const HL_CONTAINED: c_int = 0x01;
 pub const HL_TRANSP: c_int = 0x02;
@@ -318,7 +318,7 @@ impl Default for sp_syn {
 }
 
 #[repr(C)]
-pub struct keyentry_T {
+pub struct Keyentry {
     pub k_syn: sp_syn,
     pub next_list: SynIdList,
     pub flags: c_int,
@@ -327,27 +327,27 @@ pub struct keyentry_T {
 }
 
 #[repr(C)]
-pub struct bufstate_T {
+pub struct Bufstate {
     pub bs_idx: c_int,
     pub bs_flags: c_int,
     pub bs_seqnr: c_int,
     pub bs_cchar: c_int,
-    pub bs_extmatch: Option<std::rc::Rc<reg_extmatch_T>>,
+    pub bs_extmatch: Option<std::rc::Rc<RegExtmatch>>,
 }
 
 #[repr(C)]
 #[derive(Default)]
-pub struct synstate_T {
-    pub sst_lnum: linenr_T,
-    pub sst_stack: Vec<bufstate_T>,
+pub struct Synstate {
+    pub sst_lnum: Linenr,
+    pub sst_stack: Vec<Bufstate>,
     pub sst_next_flags: c_int,
     pub sst_next_list: SynIdList,
-    pub sst_tick: disptick_T,
-    pub sst_change_lnum: linenr_T,
+    pub sst_tick: Disptick,
+    pub sst_change_lnum: Linenr,
 }
 
 #[repr(C)]
-pub struct synpat_T {
+pub struct Synpat {
     sp_type: c_char,
     sp_syncing: bool,
     sp_syn_match_id: i16,
@@ -363,11 +363,11 @@ pub struct synpat_T {
     sp_next_list: SynIdList,
     sp_syn: sp_syn,
     sp_pattern: Option<std::ffi::CString>,
-    sp_prog: Option<Box<regprog_T>>,
-    sp_time: syn_time_T,
+    sp_prog: Option<Box<Regprog>>,
+    sp_time: SynTime,
 }
 
-impl synpat_T {
+impl Synpat {
     pub const fn new() -> Self {
         Self {
             sp_type: 0,
@@ -386,35 +386,35 @@ impl synpat_T {
             sp_syn: sp_syn::new(),
             sp_pattern: None,
             sp_prog: None,
-            sp_time: syn_time_T::new(),
+            sp_time: SynTime::new(),
         }
     }
 }
 
-impl Default for synpat_T {
+impl Default for Synpat {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[repr(C)]
-pub struct syn_cluster_T {
+pub struct SynCluster {
     scl_name: std::ffi::CString,
     scl_name_u: std::ffi::CString,
     scl_list: SynIdList,
 }
 
 #[repr(C)]
-struct stateitem_T {
+struct Stateitem {
     si_idx: c_int,
     si_id: c_int,
     si_trans_id: c_int,
     si_m_lnum: c_int,
     si_m_startcol: c_int,
-    si_m_endpos: lpos_T,
-    si_h_startpos: lpos_T,
-    si_h_endpos: lpos_T,
-    si_eoe_pos: lpos_T,
+    si_m_endpos: Lpos,
+    si_h_startpos: Lpos,
+    si_h_endpos: Lpos,
+    si_eoe_pos: Lpos,
     si_end_idx: c_int,
     si_ends: c_int,
     si_attr: c_int,
@@ -423,10 +423,10 @@ struct stateitem_T {
     si_cchar: c_int,
     si_cont_list: SynIdList,
     si_next_list: SynIdList,
-    si_extmatch: Option<std::rc::Rc<reg_extmatch_T>>,
+    si_extmatch: Option<std::rc::Rc<RegExtmatch>>,
 }
 
-impl stateitem_T {
+impl Stateitem {
     const fn new() -> Self {
         Self {
             si_idx: 0,
@@ -434,10 +434,10 @@ impl stateitem_T {
             si_trans_id: 0,
             si_m_lnum: 0,
             si_m_startcol: 0,
-            si_m_endpos: lpos_T::new(),
-            si_h_startpos: lpos_T::new(),
-            si_h_endpos: lpos_T::new(),
-            si_eoe_pos: lpos_T::new(),
+            si_m_endpos: Lpos::new(),
+            si_h_startpos: Lpos::new(),
+            si_h_endpos: Lpos::new(),
+            si_eoe_pos: Lpos::new(),
             si_end_idx: 0,
             si_ends: 0,
             si_attr: 0,
@@ -451,13 +451,13 @@ impl stateitem_T {
     }
 }
 
-impl Default for stateitem_T {
+impl Default for Stateitem {
     fn default() -> Self {
         Self::new()
     }
 }
 
-struct syn_opt_arg_T {
+struct SynOptArg {
     flags: c_int,
     keyword: bool,
     sync_idx: Option<c_int>,
@@ -468,7 +468,7 @@ struct syn_opt_arg_T {
 }
 
 #[derive(Default)]
-pub struct idl_entry_T {
+pub struct IdlEntry {
     idl_key: SynIdList,
     idl_ids: Vec<i16>,
     idl_marker: i16,
@@ -476,26 +476,26 @@ pub struct idl_entry_T {
 }
 
 #[derive(Default)]
-pub struct idl_cache_T {
-    ent: [idl_entry_T; IDL_CACHE_SIZE],
+pub struct IdlCache {
+    ent: [IdlEntry; IDL_CACHE_SIZE],
     round: c_int,
     last: c_int,
 }
 
 #[repr(C)]
 #[derive(Clone)]
-struct time_entry_T {
-    total: proftime_T,
+struct TimeEntry {
+    total: Proftime,
     count: c_int,
     match_: c_int,
-    slowest: proftime_T,
-    average: proftime_T,
+    slowest: Proftime,
+    average: Proftime,
     id: c_int,
     pattern: Option<std::ffi::CString>,
 }
 
-struct pat_ptr_T {
-    pp_synp: synpat_T,
+struct PatPtr {
+    pp_synp: Synpat,
     pp_matchgroup_id: c_int,
 }
 
@@ -515,25 +515,25 @@ struct SyntaxState {
     keepend_level: c_int,
     next_seqnr: c_int,
     next_match_col: c_int,
-    next_match_m_endpos: lpos_T,
-    next_match_h_startpos: lpos_T,
-    next_match_h_endpos: lpos_T,
+    next_match_m_endpos: Lpos,
+    next_match_h_startpos: Lpos,
+    next_match_h_endpos: Lpos,
     next_match_idx: c_int,
     next_match_flags: c_int,
-    next_match_eos_pos: lpos_T,
-    next_match_eoe_pos: lpos_T,
+    next_match_eos_pos: Lpos,
+    next_match_eoe_pos: Lpos,
     next_match_end_idx: c_int,
-    next_match_extmatch: Option<std::rc::Rc<reg_extmatch_T>>,
-    syn_win: *mut win_T,
-    syn_buf: *mut buf_T,
-    syn_block: *mut synblock_T,
-    syn_tm: Option<proftime_T>,
-    current_lnum: linenr_T,
-    current_col: colnr_T,
+    next_match_extmatch: Option<std::rc::Rc<RegExtmatch>>,
+    syn_win: *mut WinInfoInfo,
+    syn_buf: *mut FileBuf,
+    syn_block: *mut Synblock,
+    syn_tm: Option<Proftime>,
+    current_lnum: Linenr,
+    current_col: Colnr,
     current_state_stored: bool,
     current_finished: bool,
     current_state_valid: bool,
-    current_state: Vec<stateitem_T>,
+    current_state: Vec<Stateitem>,
     current_next_list: SynIdList,
     current_next_flags: c_int,
     current_line_id: c_int,
@@ -560,13 +560,13 @@ impl SyntaxState {
             keepend_level: -1,
             next_seqnr: 1,
             next_match_col: 0,
-            next_match_m_endpos: lpos_T { lnum: 0, col: 0 },
-            next_match_h_startpos: lpos_T { lnum: 0, col: 0 },
-            next_match_h_endpos: lpos_T { lnum: 0, col: 0 },
+            next_match_m_endpos: Lpos { lnum: 0, col: 0 },
+            next_match_h_startpos: Lpos { lnum: 0, col: 0 },
+            next_match_h_endpos: Lpos { lnum: 0, col: 0 },
             next_match_idx: 0,
             next_match_flags: 0,
-            next_match_eos_pos: lpos_T { lnum: 0, col: 0 },
-            next_match_eoe_pos: lpos_T { lnum: 0, col: 0 },
+            next_match_eos_pos: Lpos { lnum: 0, col: 0 },
+            next_match_eoe_pos: Lpos { lnum: 0, col: 0 },
             next_match_end_idx: 0,
             next_match_extmatch: None,
             syn_win: ptr::null_mut(),
@@ -597,17 +597,17 @@ fn syn_st() -> &'static mut SyntaxState {
 }
 
 #[inline]
-pub fn win_s(wp: &mut win_T) -> *mut synblock_T {
+pub fn win_s(wp: &mut WinInfoInfo) -> *mut Synblock {
     wp.w_s_ptr()
 }
 
 #[inline]
-fn syn_items(block: &mut synblock_T) -> *mut synpat_T {
+fn syn_items(block: &mut Synblock) -> *mut Synpat {
     block.b_syn_patterns.as_mut_ptr()
 }
 
 #[inline]
-fn syn_clstr(block: &mut synblock_T) -> *mut syn_cluster_T {
+fn syn_clstr(block: &mut Synblock) -> *mut SynCluster {
     block.b_syn_clusters.as_mut_ptr()
 }
 
@@ -626,14 +626,14 @@ fn cur_state_empty() -> bool {
 }
 
 #[inline]
-fn cur_state_at(idx: c_int) -> *mut stateitem_T {
+fn cur_state_at(idx: c_int) -> *mut Stateitem {
     unsafe {
         syn_st().current_state.as_mut_ptr().offset(idx as isize)
     }
 }
 
 #[inline]
-fn ke2hikey(kp: &keyentry_T) -> *const c_char {
+fn ke2hikey(kp: &Keyentry) -> *const c_char {
     kp.keyword.as_ptr()
 }
 
@@ -653,12 +653,12 @@ fn valid_state() -> bool {
 }
 
 /// Set the timeout used for syntax highlighting.
-pub fn syn_set_timeout(tm: Option<proftime_T>) {
+pub fn syn_set_timeout(tm: Option<Proftime>) {
     syn_st().syn_tm = tm;
 }
 
 /// Start the syntax recognition for a line.
-pub fn syntax_start(wp: &mut win_T, lnum: linenr_T) {
+pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
     unsafe {
         let mut last_valid: Option<usize> = None;
         let mut last_min_valid: Option<usize> = None;
@@ -799,13 +799,13 @@ fn clear_current_state() {
     }
 }
 
-fn syn_sync(wp: &mut win_T, mut start_lnum: linenr_T, last_valid: *const synstate_T) {
+fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Synstate) {
     unsafe {
         let mut found_flags: c_int = 0;
         let mut found_match_idx: c_int = 0;
-        let mut found_current_lnum: linenr_T = 0;
-        let mut found_current_col: colnr_T = 0;
-        let mut found_m_endpos = lpos_T { lnum: 0, col: 0 };
+        let mut found_current_lnum: Linenr = 0;
+        let mut found_current_col: Colnr = 0;
+        let mut found_m_endpos = Lpos { lnum: 0, col: 0 };
 
         invalidate_current_state();
 
@@ -847,7 +847,7 @@ fn syn_sync(wp: &mut win_T, mut start_lnum: linenr_T, last_valid: *const synstat
             }
             syn_st().current_lnum = start_lnum;
 
-            let cursor_save: pos_T = wp.w_cursor;
+            let cursor_save: CursorPos = wp.w_cursor;
             wp.w_cursor.lnum = start_lnum;
             wp.w_cursor.col = 0;
 
@@ -1021,13 +1021,13 @@ fn restore_chartab(chartab: impl crate::strings::IntoCCharPtr) { let chartab = c
     }
 }
 
-fn syn_match_linecont(lnum: linenr_T) -> c_int {
+fn syn_match_linecont(lnum: Linenr) -> c_int {
     unsafe {
         if (*syn_st().syn_block).b_syn_linecont_prog.is_none() {
             return 0;
         }
 
-        let mut regmatch: regmmatch_T = regmmatch_T::new();
+        let mut regmatch: Regmmatch = Regmmatch::new();
         let mut buf_chartab = [0 as c_char; 32];
         save_chartab(buf_chartab.as_mut_ptr());
 
@@ -1113,7 +1113,7 @@ fn syn_update_ends(startofline: bool) {
     }
 }
 
-fn syn_stack_free_block(block: &mut synblock_T) {
+fn syn_stack_free_block(block: &mut Synblock) {
      {
         idl_cache_clear( block);
         (block).b_sst_array = Vec::new();
@@ -1123,7 +1123,7 @@ fn syn_stack_free_block(block: &mut synblock_T) {
 }
 
 /// Free b_sst_array[] for buffer "buf".
-pub fn syn_stack_free_all(block: *mut synblock_T) {
+pub fn syn_stack_free_all(block: *mut Synblock) {
      {
         syn_stack_free_block(unsafe { &mut *block });
 
@@ -1159,7 +1159,7 @@ fn syn_stack_alloc() {
 }
 
 /// Check for changes in a buffer to affect stored syntax states.
-pub fn syn_stack_apply_changes(buf: &mut buf_T) {
+pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
     unsafe {
         let buf_ptr = &raw mut *buf;
         syn_stack_apply_changes_block(&mut buf.b_s, &mut *buf_ptr);
@@ -1174,7 +1174,7 @@ pub fn syn_stack_apply_changes(buf: &mut buf_T) {
     }
 }
 
-fn syn_stack_apply_changes_block(block: &mut synblock_T, buf: &mut buf_T) {
+fn syn_stack_apply_changes_block(block: &mut Synblock, buf: &mut FileBuf) {
     let mut idx = 0;
         while idx < block.b_sst_array.len() {
             let p = &mut block.b_sst_array.as_mut_slice()[idx];
@@ -1257,7 +1257,7 @@ fn syn_stack_cleanup() -> bool {
     }
 }
 
-fn syn_stack_find_entry(lnum: linenr_T) -> Option<usize> {
+fn syn_stack_find_entry(lnum: Linenr) -> Option<usize> {
     unsafe {
         let arr = (*syn_st().syn_block).b_sst_array.as_slice();
         if arr.is_empty() {
@@ -1328,9 +1328,9 @@ fn store_current_state() -> Option<usize> {
                 let insert_idx = sp_idx.map_or(0, |idx| idx + 1);
                 (*syn_st().syn_block).b_sst_array.insert(
                     insert_idx,
-                    synstate_T {
+                    Synstate {
                         sst_lnum: syn_st().current_lnum,
-                        ..synstate_T::default()
+                        ..Synstate::default()
                     },
                 );
                 (*syn_st().syn_block).b_sst_search = insert_idx;
@@ -1344,7 +1344,7 @@ fn store_current_state() -> Option<usize> {
             sp.sst_stack.reserve(len as usize);
             for j in 0..len {
                 let cur_si = cur_state_at(j);
-                sp.sst_stack.push(bufstate_T {
+                sp.sst_stack.push(Bufstate {
                     bs_idx: (*cur_si).si_idx,
                     bs_flags: (*cur_si).si_flags,
                     bs_seqnr: (*cur_si).si_seqnr,
@@ -1362,7 +1362,7 @@ fn store_current_state() -> Option<usize> {
     }
 }
 
-fn load_current_state(from: *const synstate_T) {
+fn load_current_state(from: *const Synstate) {
     unsafe {
         clear_current_state();
         validate_current_state();
@@ -1372,7 +1372,7 @@ fn load_current_state(from: *const synstate_T) {
             syn_st().current_state.reserve(stacksize as usize);
             for (i, b) in (*from).sst_stack.iter().enumerate() {
                 let i_c = i as c_int;
-                let mut item = stateitem_T::new();
+                let mut item = Stateitem::new();
                 item.si_idx = b.bs_idx;
                 item.si_flags = b.bs_flags;
                 item.si_seqnr = b.bs_seqnr;
@@ -1400,7 +1400,7 @@ fn load_current_state(from: *const synstate_T) {
     }
 }
 
-fn syn_stack_equal(sp: &synstate_T) -> bool {
+fn syn_stack_equal(sp: &Synstate) -> bool {
     unsafe {
         if sp.sst_stack.len() as c_int != cur_state_len()
             || !syn_id_list_eq(
@@ -1458,7 +1458,7 @@ fn syn_stack_equal(sp: &synstate_T) -> bool {
 }
 
 /// We stop parsing syntax above line "lnum".
-pub fn syntax_end_parsing(wp: &mut win_T, lnum: linenr_T) {
+pub fn syntax_end_parsing(wp: &mut WinInfoInfo, lnum: Linenr) {
     unsafe {
         if syn_st().syn_block != win_s(wp) {
             return;
@@ -1489,7 +1489,7 @@ fn validate_current_state() {
 }
 
 /// Check if the syntax at start of lnum changed since last time.
-pub fn syntax_check_changed(lnum: linenr_T) -> bool {
+pub fn syntax_check_changed(lnum: Linenr) -> bool {
     unsafe {
         let mut retval = true;
 
@@ -1541,7 +1541,7 @@ fn syn_finish_line(syncing: bool) -> bool {
 }
 
 /// Gets highlight attributes for next character.
-pub fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bool) -> c_int {
+pub fn get_syntax_attr(col: Colnr, can_spell: *mut bool, keep_state: bool) -> c_int {
     unsafe {
         let mut attr: c_int = 0;
 
@@ -1557,7 +1557,7 @@ pub fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bool) -> 
             return 0;
         }
 
-        if (*syn_st().syn_buf).b_p_smc > 0 && col >= (*syn_st().syn_buf).b_p_smc as colnr_T {
+        if (*syn_st().syn_buf).b_p_smc > 0 && col >= (*syn_st().syn_buf).b_p_smc as Colnr {
             clear_current_state();
             syn_st().current_id = 0;
             syn_st().current_trans_id = 0;
@@ -1595,23 +1595,23 @@ fn syn_current_attr(
     keep_state: bool,
 ) -> c_int {
     unsafe {
-        let mut endpos = lpos_T { lnum: 0, col: 0 };
-        let mut hl_startpos = lpos_T { lnum: 0, col: 0 };
-        let mut hl_endpos = lpos_T { lnum: 0, col: 0 };
-        let mut eos_pos = lpos_T { lnum: 0, col: 0 };
-        let mut eoe_pos = lpos_T { lnum: 0, col: 0 };
+        let mut endpos = Lpos { lnum: 0, col: 0 };
+        let mut hl_startpos = Lpos { lnum: 0, col: 0 };
+        let mut hl_endpos = Lpos { lnum: 0, col: 0 };
+        let mut eos_pos = Lpos { lnum: 0, col: 0 };
+        let mut eoe_pos = Lpos { lnum: 0, col: 0 };
         let mut end_idx: c_int;
-        let mut cur_si: *mut stateitem_T;
-        let mut sip: *mut stateitem_T = ptr::null_mut();
+        let mut cur_si: *mut Stateitem;
+        let mut sip: *mut Stateitem = ptr::null_mut();
         let mut startcol: c_int;
         let mut endcol: c_int = 0;
         let mut flags: c_int = 0;
         let mut cchar: c_int = 0;
         let mut next_list: SynIdList = None;
         let mut found_match: bool;
-        let mut regmatch: regmmatch_T = regmmatch_T::new();
-        let mut pos = lpos_T { lnum: 0, col: 0 };
-        let mut cur_extmatch: Option<std::rc::Rc<reg_extmatch_T>> = None;
+        let mut regmatch: Regmmatch = Regmmatch::new();
+        let mut pos = Lpos { lnum: 0, col: 0 };
+        let mut cur_extmatch: Option<std::rc::Rc<RegExtmatch>> = None;
         let mut buf_chartab = [0 as c_char; 32];
 
         let mut keep_next_list: bool;
@@ -2052,7 +2052,7 @@ fn did_match_already(idx: c_int, gap: &[c_int]) -> bool {
     }
 }
 
-fn push_next_match() -> *mut stateitem_T {
+fn push_next_match() -> *mut Stateitem {
     unsafe {
         let spp = syn_items(&mut *syn_st().syn_block).offset(syn_st().next_match_idx as isize);
 
@@ -2251,8 +2251,8 @@ fn check_keepend() {
             i -= 1;
         }
 
-        let mut maxpos = lpos_T { lnum: 0, col: 0 };
-        let mut maxpos_h = lpos_T { lnum: 0, col: 0 };
+        let mut maxpos = Lpos { lnum: 0, col: 0 };
+        let mut maxpos_h = Lpos { lnum: 0, col: 0 };
         while i < len {
             let sip = cur_state_at(i);
             if maxpos.lnum != 0 {
@@ -2282,7 +2282,7 @@ fn check_keepend() {
     }
 }
 
-fn update_si_end(sip: &mut stateitem_T, startcol: c_int, force: bool) {
+fn update_si_end(sip: &mut Stateitem, startcol: c_int, force: bool) {
     unsafe {
         if sip.si_idx < 0 {
             return;
@@ -2293,13 +2293,13 @@ fn update_si_end(sip: &mut stateitem_T, startcol: c_int, force: bool) {
         }
 
         let mut end_idx: c_int = 0;
-        let mut startpos = lpos_T {
+        let mut startpos = Lpos {
             lnum: syn_st().current_lnum,
             col: startcol,
         };
-        let mut endpos = lpos_T { lnum: 0, col: 0 };
-        let mut hl_endpos = lpos_T { lnum: 0, col: 0 };
-        let mut end_endpos = lpos_T { lnum: 0, col: 0 };
+        let mut endpos = Lpos { lnum: 0, col: 0 };
+        let mut hl_endpos = Lpos { lnum: 0, col: 0 };
+        let mut end_endpos = Lpos { lnum: 0, col: 0 };
 
         find_endpos(
             sip.si_idx,
@@ -2334,7 +2334,7 @@ fn update_si_end(sip: &mut stateitem_T, startcol: c_int, force: bool) {
 
 fn push_current_state(idx: c_int) {
      {
-        let mut item = stateitem_T::new();
+        let mut item = Stateitem::new();
         item.si_idx = idx;
         syn_st().current_state.push(item);
     }
@@ -2353,13 +2353,13 @@ fn pop_current_state() {
 
 fn find_endpos(
     mut idx: c_int,
-    startpos: &mut lpos_T,
-    m_endpos: &mut lpos_T,
-    hl_endpos: &mut lpos_T,
+    startpos: &mut Lpos,
+    m_endpos: &mut Lpos,
+    hl_endpos: &mut Lpos,
     flagsp: &mut c_int,
-    end_endpos: &mut lpos_T,
+    end_endpos: &mut Lpos,
     end_idx: &mut c_int,
-    start_ext: Option<std::rc::Rc<reg_extmatch_T>>,
+    start_ext: Option<std::rc::Rc<RegExtmatch>>,
 ) {
     unsafe {
         if idx < 0 {
@@ -2391,9 +2391,9 @@ fn find_endpos(
 
         let mut matchcol = startpos.col;
         let start_idx = idx;
-        let mut regmatch: regmmatch_T = regmmatch_T::new();
-        let mut best_regmatch: regmmatch_T = regmmatch_T::new();
-        let mut pos = lpos_T { lnum: 0, col: 0 };
+        let mut regmatch: Regmmatch = Regmmatch::new();
+        let mut best_regmatch: Regmmatch = Regmmatch::new();
+        let mut pos = Lpos { lnum: 0, col: 0 };
         let mut had_match = false;
         let mut buf_chartab = [0 as c_char; 32];
 
@@ -2524,7 +2524,7 @@ fn find_endpos(
     }
 }
 
-fn limit_pos(pos: &mut lpos_T, limit: &mut lpos_T) {
+fn limit_pos(pos: &mut Lpos, limit: &mut Lpos) {
     if pos.lnum > limit.lnum {
             *pos = *limit;
         } else if pos.lnum == limit.lnum && pos.col > limit.col {
@@ -2532,7 +2532,7 @@ fn limit_pos(pos: &mut lpos_T, limit: &mut lpos_T) {
         }
 }
 
-fn limit_pos_zero(pos: &mut lpos_T, limit: &mut lpos_T) {
+fn limit_pos_zero(pos: &mut Lpos, limit: &mut Lpos) {
     if pos.lnum == 0 {
             *pos = *limit;
         } else {
@@ -2541,9 +2541,9 @@ fn limit_pos_zero(pos: &mut lpos_T, limit: &mut lpos_T) {
 }
 
 fn syn_add_end_off(
-    result: &mut lpos_T,
-    regmatch: &mut regmmatch_T,
-    spp: &mut synpat_T,
+    result: &mut Lpos,
+    regmatch: &mut Regmmatch,
+    spp: &mut Synpat,
     idx: usize,
     extra: c_int,
 ) {
@@ -2584,9 +2584,9 @@ fn syn_add_end_off(
 }
 
 fn syn_add_start_off(
-    result: &mut lpos_T,
-    regmatch: &mut regmmatch_T,
-    spp: &mut synpat_T,
+    result: &mut Lpos,
+    regmatch: &mut Regmmatch,
+    spp: &mut Synpat,
     idx: usize,
     extra: c_int,
 ) {
@@ -2633,18 +2633,18 @@ fn syn_getcurline() -> *mut c_char {
 }
 
 #[inline]
-fn syn_getcurline_len() -> colnr_T {
+fn syn_getcurline_len() -> Colnr {
     ml_get_buf_len(unsafe { &mut *syn_st().syn_buf }, syn_st().current_lnum)
 }
 
 fn syn_regexec(
-    rmp: &mut regmmatch_T,
-    lnum: linenr_T,
-    col: colnr_T,st: &mut syn_time_T,
+    rmp: &mut Regmmatch,
+    lnum: Linenr,
+    col: Colnr,st: &mut SynTime,
 ) -> bool {
     unsafe {
         let mut timed_out: c_int = 0;
-        let mut pt: proftime_T = 0;
+        let mut pt: Proftime = 0;
         let l_syn_time_on = syn_st().syn_time_on;
 
         if l_syn_time_on {
@@ -2655,7 +2655,7 @@ fn syn_regexec(
             return false;
         }
 
-        rmp.rmm_maxcol = (*syn_st().syn_buf).b_p_smc as colnr_T;
+        rmp.rmm_maxcol = (*syn_st().syn_buf).b_p_smc as Colnr;
         let r = vim_regexec_multi(rmp, syn_st().syn_win, syn_st().syn_buf, lnum, col, syn_st().syn_tm, Some(&mut timed_out));
 
         if l_syn_time_on {
@@ -2692,7 +2692,7 @@ fn check_keyword_id(
     endcolp: &mut c_int,
     flagsp: &mut c_int,
     next_listp: &mut SynIdList,
-    cur_si: *mut stateitem_T,
+    cur_si: *mut Stateitem,
     ccharp: &mut c_int,
 ) -> c_int { let line = line.into_c_char_ptr();
     unsafe {
@@ -2712,7 +2712,7 @@ fn check_keyword_id(
         let mut keyword = [0 as c_char; MAXKEYWLEN + 1];
         crate::memory::cstr_ncpy(keyword.as_mut_ptr(), kwp, kwlen as usize);
 
-        let mut kp: *const keyentry_T = std::ptr::null();
+        let mut kp: *const Keyentry = std::ptr::null();
 
         if !(*syn_st().syn_block).b_keywtab.is_empty() {
             kp = match_keyword(keyword.as_mut_ptr(), &(*syn_st().syn_block).b_keywtab, cur_si);
@@ -2737,9 +2737,9 @@ fn check_keyword_id(
 
 fn match_keyword(
     keyword: impl crate::strings::IntoCCharPtr,
-    ht: &std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
-    cur_si: *mut stateitem_T,
-) -> *const keyentry_T { let keyword = keyword.into_c_char_ptr();
+    ht: &std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
+    cur_si: *mut Stateitem,
+) -> *const Keyentry { let keyword = keyword.into_c_char_ptr();
     unsafe {
         let key_bytes = crate::memory::cstr_as_bytes(keyword);
         if let Some(entries) = ht.get(key_bytes) {
@@ -2761,7 +2761,7 @@ fn match_keyword(
     }
 }
 
-fn syn_cmd_conceal(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_conceal(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let arg = eap.arg;
         eap.nextcmd = find_nextcmd(arg);
@@ -2786,7 +2786,7 @@ fn syn_cmd_conceal(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn syn_cmd_case(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_case(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let arg = eap.arg;
         eap.nextcmd = find_nextcmd(arg);
@@ -2811,7 +2811,7 @@ fn syn_cmd_case(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let mut arg = eap.arg;
         eap.nextcmd = find_nextcmd(arg);
@@ -2849,7 +2849,7 @@ fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_spell(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let arg = eap.arg;
         eap.nextcmd = find_nextcmd(arg);
@@ -2882,7 +2882,7 @@ fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let mut arg = eap.arg;
         if eap.skip != 0 {
@@ -2919,7 +2919,7 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
 }
 
 /// Clear all syntax info for one buffer.
-pub fn syntax_clear(block: &mut synblock_T) {
+pub fn syntax_clear(block: &mut Synblock) {
     block.b_syn_error = false;
         block.b_syn_slow = false;
         block.b_syn_ic = 0;
@@ -2953,14 +2953,14 @@ pub fn syntax_clear(block: &mut synblock_T) {
         syn_st().running_syn_inc_tag = 0;
 }
 
-impl Drop for synblock_T {
+impl Drop for Synblock {
     fn drop(&mut self) {
         syntax_clear(self);
     }
 }
 
 /// Get rid of ownsyntax for window "wp".
-pub fn reset_synblock(wp: &mut win_T) {
+pub fn reset_synblock(wp: &mut WinInfoInfo) {
     wp.w_s_owned = None;
 }
 
@@ -2987,7 +2987,7 @@ fn syntax_sync_clear() {
     }
 }
 
-fn syn_remove_pattern(block: &mut synblock_T, idx: c_int) {
+fn syn_remove_pattern(block: &mut Synblock, idx: c_int) {
     unsafe {
         let spp = syn_items(block).offset(idx as isize);
         if ((*spp).sp_flags & HL_FOLD) != 0 {
@@ -2998,7 +2998,7 @@ fn syn_remove_pattern(block: &mut synblock_T, idx: c_int) {
     }
 }
 
-fn syn_cmd_clear(eap: &mut exarg_T, syncing: c_int) {
+fn syn_cmd_clear(eap: &mut Exarg, syncing: c_int) {
     unsafe {
         let mut arg = eap.arg;
         eap.nextcmd = find_nextcmd(arg);
@@ -3066,26 +3066,26 @@ fn syn_clear_one(id: c_int, syncing: bool) {
     }
 }
 
-fn syn_cmd_on(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_on(eap: &mut Exarg, _syncing: c_int) {
     syn_cmd_onoff(eap, c"syntax");
 }
 
-fn syn_cmd_reset(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_reset(eap: &mut Exarg, _syncing: c_int) {
     eap.nextcmd = check_nextcmd(eap.arg);
         if eap.skip == 0 {
             init_highlight(true, true);
         }
 }
 
-fn syn_cmd_manual(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_manual(eap: &mut Exarg, _syncing: c_int) {
     syn_cmd_onoff(eap, c"manual");
 }
 
-fn syn_cmd_off(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_off(eap: &mut Exarg, _syncing: c_int) {
     syn_cmd_onoff(eap, c"nosyntax");
 }
 
-fn syn_cmd_onoff(eap: &mut exarg_T, name: &std::ffi::CStr) {
+fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
     unsafe {
         eap.nextcmd = check_nextcmd(eap.arg);
         if eap.skip == 0 {
@@ -3100,14 +3100,14 @@ fn syn_cmd_onoff(eap: &mut exarg_T, name: &std::ffi::CStr) {
 
 pub fn syn_maybe_enable() {
     if !syn_st().did_syntax_onoff {
-            let mut ea: exarg_T = exarg_T::new();
+            let mut ea: Exarg = Exarg::new();
             ea.arg = c"".as_ptr().cast_mut();
             ea.skip = 0;
             syn_cmd_on(&mut ea, 0);
         }
 }
 
-fn syn_cmd_list(eap: &mut exarg_T, syncing: c_int) {
+fn syn_cmd_list(eap: &mut Exarg, syncing: c_int) {
     unsafe {
         let mut arg = eap.arg;
         eap.nextcmd = find_nextcmd(arg);
@@ -3419,7 +3419,7 @@ fn put_id_list(name: &std::ffi::CStr, list: *const i16, hl_id: c_int) {
     }
 }
 
-fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &synpat_T, hl_id: c_int) {
+fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &Synpat, hl_id: c_int) {
     const SEPCHARS: &[u8] = b"/+=-#@\"|'^&\0";
 
         if syn_st().last_matchgroup != spp.sp_syn_match_id as c_int {
@@ -3484,7 +3484,7 @@ fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &synpat_T, hl_id: c_int) {
 
 fn syn_list_keywords(
     id: c_int,
-    ht: &std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
+    ht: &std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
     mut did_header: bool,
     hl_id: c_int,
 ) -> bool {
@@ -3572,7 +3572,7 @@ fn syn_list_keywords(
 
 fn syn_clear_keyword(
     id: c_int,
-    ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
+    ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>,
 ) {
     ht.retain(|_, entries| {
         entries.retain(|kp| kp.k_syn.id as c_int != id);
@@ -3580,7 +3580,7 @@ fn syn_clear_keyword(
     });
 }
 
-fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>) {
+fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<Keyentry>>) {
     ht.clear();
 }
 
@@ -3613,7 +3613,7 @@ fn add_keyword(
         if cont_in_list.is_some() {
             (*win_s(curwin_mut())).b_syn_containedin = 1;
         }
-        let kp = keyentry_T {
+        let kp = Keyentry {
             k_syn: sp_syn {
                 inc_tag: syn_st().current_syn_inc_tag,
                 id: id as i16,
@@ -3648,7 +3648,7 @@ fn get_group_name(arg: impl crate::strings::IntoCCharPtr, name_end: *mut *mut c_
 
 fn get_syn_options(
     mut arg: *mut c_char,
-    opt: &mut syn_opt_arg_T,
+    opt: &mut SynOptArg,
     conceal_char: &mut c_int,
     skip: c_int,
 ) -> *mut c_char {
@@ -3815,7 +3815,7 @@ fn syn_incl_toplevel(id: c_int, flagsp: &mut c_int) {
     }
 }
 
-fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_include(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let mut arg = eap.arg;
         let mut sgl_id: c_int = 1;
@@ -3882,7 +3882,7 @@ fn syn_cmd_include(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_keyword(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
@@ -3899,7 +3899,7 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
             if syn_id != 0 {
                 let mut keyword_buf = vec![0 as c_char; crate::memory::cstr_len(rest) + 1];
                 let keyword_copy = keyword_buf.as_mut_ptr();
-                let mut syn_opt_arg = syn_opt_arg_T {
+                let mut syn_opt_arg = SynOptArg {
                     flags: 0,
                     keyword: true,
                     sync_idx: None,
@@ -4000,16 +4000,16 @@ fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
+fn syn_cmd_match(eap: &mut Exarg, syncing: c_int) {
     unsafe {
         let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
-        let mut item = synpat_T::new();
+        let mut item = Synpat::new();
         let mut conceal_char: c_int = NUL as c_int;
 
         let mut rest = get_group_name(arg, &raw mut group_name_end);
 
-        let mut syn_opt_arg = syn_opt_arg_T {
+        let mut syn_opt_arg = SynOptArg {
             flags: 0,
             keyword: false,
             sync_idx: (syncing != 0).then_some(0),
@@ -4081,12 +4081,12 @@ fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
     }
 }
 
-fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
+fn syn_cmd_region(eap: &mut Exarg, syncing: c_int) {
     unsafe {
         let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut key: Option<std::ffi::CString> = None;
-        let mut pat_ptrs: [Vec<pat_ptr_T>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+        let mut pat_ptrs: [Vec<PatPtr>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         let mut pat_count: c_int = 0;
         let mut matchgroup_id: c_int = 0;
         let mut not_enough = false;
@@ -4096,7 +4096,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
 
         let mut rest = get_group_name(arg, &raw mut group_name_end);
 
-        let mut syn_opt_arg = syn_opt_arg_T {
+        let mut syn_opt_arg = SynOptArg {
             flags: 0,
             keyword: false,
             sync_idx: None,
@@ -4168,7 +4168,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
                 }
                 rest = skipwhite(p);
             } else {
-                let mut synp = synpat_T::new();
+                let mut synp = Synpat::new();
 
                 if item == ITEM_START {
                     g_st().reg_do_extmatch = REX_SET;
@@ -4185,7 +4185,7 @@ fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
                 }
                 pat_ptrs[item].insert(
                     0,
-                    pat_ptr_T {
+                    PatPtr {
                         pp_synp: synp,
                         pp_matchgroup_id: matchgroup_id,
                     },
@@ -4372,7 +4372,7 @@ fn syn_add_cluster(name: std::ffi::CString) -> c_int {
         );
 
         let clusters = &mut (*win_s(curwin_mut())).b_syn_clusters;
-        clusters.push(syn_cluster_T {
+        clusters.push(SynCluster {
             scl_name: name,
             scl_name_u,
             scl_list: None,
@@ -4389,7 +4389,7 @@ fn syn_add_cluster(name: std::ffi::CString) -> c_int {
     }
 }
 
-fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_cluster(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let arg = eap.arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
@@ -4459,7 +4459,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
+fn get_syn_pattern(arg: *mut c_char, ci: &mut Synpat) -> *mut c_char {
     unsafe {
         if crate::memory::cstr_is_empty(arg) || crate::memory::cstr_byte_at(arg, 1) == 0 || crate::memory::cstr_byte_at(arg, 2) == 0 {
             return ptr::null_mut();
@@ -4547,7 +4547,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut synpat_T) -> *mut c_char {
     }
 }
 
-fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
+fn syn_cmd_sync(eap: &mut Exarg, _syncing: c_int) {
     unsafe {
         let mut arg_start = eap.arg;
         let mut key_owned: Option<std::ffi::CString>;
@@ -4600,7 +4600,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                     illegal = true;
                     break;
                 }
-                let n: linenr_T = getdigits_int32(&raw mut arg_end, false, 0);
+                let n: Linenr = getdigits_int32(&raw mut arg_end, false, 0);
                 if eap.skip == 0 {
                     if crate::memory::cstr_byte_at(key, 4) == b'B' {
                         (*win_s(curwin_mut())).b_syn_sync_linebreaks = n;
@@ -4692,7 +4692,7 @@ fn get_id_list(
         let mut p: *mut c_char = ptr::null_mut();
         let mut total_count: c_int = 0;
         let mut retval: Vec<i16> = Vec::new();
-        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
         let mut failed = false;
 
         let mut round: c_int = 1;
@@ -4860,11 +4860,11 @@ fn idl_collect(list: &[i16], ga: &mut Vec<i16>, seen: &mut Vec<i16>) -> bool {
     }
 }
 
-fn idl_get_entry(list: &SynIdList) -> *mut idl_entry_T {
+fn idl_get_entry(list: &SynIdList) -> *mut IdlEntry {
     unsafe {
         let cache = (*syn_st().syn_block)
             .b_idlist_cache
-            .get_or_insert_with(|| Box::new(idl_cache_T::default()));
+            .get_or_insert_with(|| Box::new(IdlCache::default()));
         let last = cache.last as usize;
         if syn_id_list_eq(&cache.ent[last].idl_key, list) {
             return &raw mut cache.ent[last];
@@ -4907,18 +4907,18 @@ fn idl_get_entry(list: &SynIdList) -> *mut idl_entry_T {
     }
 }
 
-fn idl_contains(e: &idl_entry_T, id: i16) -> bool {
+fn idl_contains(e: &IdlEntry, id: i16) -> bool {
     e.idl_ids.binary_search(&id).is_ok()
 }
 
-fn idl_cache_clear(block: &mut synblock_T) {
+fn idl_cache_clear(block: &mut Synblock) {
      {
         block.b_idlist_cache = None;
     }
 }
 
 fn in_id_list(
-    mut cur_si: *mut stateitem_T,
+    mut cur_si: *mut Stateitem,
     list: &SynIdList,ssp: &mut sp_syn,
     flags: c_int,
 ) -> c_int {
@@ -5022,7 +5022,7 @@ fn in_id_list(
     }
 }
 
-type SubcmdFn = fn(&mut exarg_T, c_int);
+type SubcmdFn = fn(&mut Exarg, c_int);
 
 const SUBCOMMANDS: [(&std::ffi::CStr, SubcmdFn); 19] = [
     (c"case", syn_cmd_case),
@@ -5047,7 +5047,7 @@ const SUBCOMMANDS: [(&std::ffi::CStr, SubcmdFn); 19] = [
 ];
 
 /// ":syntax".
-pub fn ex_syntax(eap: &mut exarg_T) {
+pub fn ex_syntax(eap: &mut Exarg) {
     unsafe {
         let arg = eap.arg;
 
@@ -5085,11 +5085,11 @@ pub fn ex_syntax(eap: &mut exarg_T) {
 }
 
 /// @deprecated
-pub fn ex_ownsyntax(eap: &mut exarg_T) {
+pub fn ex_ownsyntax(eap: &mut Exarg) {
     unsafe {
         if curwin_mut().w_s_owned.is_none() {
-            let mut new_s = Box::new(synblock_T::new());
-            let new_s_ptr: *mut synblock_T = &raw mut *new_s;
+            let mut new_s = Box::new(Synblock::new());
+            let new_s_ptr: *mut Synblock = &raw mut *new_s;
             curwin_mut().w_s_owned = Some(new_s);
             curwin_mut().w_onebuf_opt.wo_spell = 0;
             clear_string_option(&raw mut (*new_s_ptr).b_p_spc);
@@ -5121,7 +5121,7 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
     }
 }
 
-pub fn syntax_present(win: &mut win_T) -> bool {
+pub fn syntax_present(win: &mut WinInfoInfo) -> bool {
     unsafe {
         !(*win_s(win)).b_syn_patterns.is_empty()
             || !(*win_s(win)).b_syn_clusters.is_empty()
@@ -5136,13 +5136,13 @@ pub fn reset_expand_highlight() {
         g_st().include_link = 0;
 }
 
-pub fn set_context_in_echohl_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
+pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut();
         g_st().include_none = 1;
 }
 
-pub fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
+pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
     unsafe {
         xp.xp_context = EXPAND_SYNTAX;
         syn_st().expand_what = EXP_SUBCMD;
@@ -5189,7 +5189,7 @@ pub fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: impl crate::strings::In
     }
 }
 
-pub fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_syntax_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     unsafe {
         if idx < 0 {
             return ptr::null_mut();
@@ -5268,9 +5268,9 @@ pub fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Function called for expression evaluation: get syntax ID at file position.
 pub fn syn_get_id(
-    wp: &mut win_T,
-    lnum: linenr_T,
-    col: colnr_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
+    col: Colnr,
     trans: c_int,spellp: Option<&mut bool>,
     keep_state: c_int,
 ) -> c_int {
@@ -5327,7 +5327,7 @@ fn syn_cur_foldlevel() -> c_int {
     }
 }
 
-pub fn syn_get_foldlevel(wp: &mut win_T, lnum: linenr_T) -> c_int {
+pub fn syn_get_foldlevel(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
     unsafe {
         let mut level: c_int = 0;
 
@@ -5365,7 +5365,7 @@ pub fn syn_get_foldlevel(wp: &mut win_T, lnum: linenr_T) -> c_int {
 }
 
 /// ":syntime".
-pub fn ex_syntime(eap: &mut exarg_T) {
+pub fn ex_syntime(eap: &mut Exarg) {
      {
         if crate::memory::cstr_as_bytes(eap.arg) == b"on" {
             syn_st().syn_time_on = true;
@@ -5381,7 +5381,7 @@ pub fn ex_syntime(eap: &mut exarg_T) {
     }
 }
 
-fn syn_clear_time(st: &mut syn_time_T) {
+fn syn_clear_time(st: &mut SynTime) {
     st.total = profile_zero();
         st.slowest = profile_zero();
         st.count = 0;
@@ -5400,7 +5400,7 @@ fn syntime_clear() {
     }
 }
 
-pub fn get_syntime_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_syntime_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"on".as_ptr().cast_mut(),
         1 => c"off".as_ptr().cast_mut(),
@@ -5410,7 +5410,7 @@ pub fn get_syntime_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-fn syn_compare_syntime(s1: &time_entry_T, s2: &time_entry_T) -> std::cmp::Ordering {
+fn syn_compare_syntime(s1: &TimeEntry, s2: &TimeEntry) -> std::cmp::Ordering {
     profile_cmp(s1.total, s2.total).cmp(&0)
 }
 
@@ -5421,7 +5421,7 @@ fn syntime_report() {
             return;
         }
 
-        let mut ga: Vec<time_entry_T> = Vec::new();
+        let mut ga: Vec<TimeEntry> = Vec::new();
 
         let mut total_total = profile_zero();
         let mut total_count: c_int = 0;
@@ -5429,7 +5429,7 @@ fn syntime_report() {
             if pat.sp_time.count > 0 {
                 total_total = profile_add(total_total, pat.sp_time.total);
                 total_count += pat.sp_time.count;
-                ga.push(time_entry_T {
+                ga.push(TimeEntry {
                     total: pat.sp_time.total,
                     count: pat.sp_time.count,
                     match_: pat.sp_time.match_,
@@ -5500,17 +5500,17 @@ mod tests {
     fn get_syntime_arg_and_limit_pos_work() {
          {
             assert_eq!(
-                crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::expand_T::new(), 0)),
+                crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 0)),
                 b"on"
             );
             assert_eq!(
-                crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::expand_T::new(), 3)),
+                crate::memory::cstr_as_bytes(get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 3)),
                 b"report"
             );
-            assert!(get_syntime_arg(&mut crate::os::env::expand_T::new(), 4).is_null());
+            assert!(get_syntime_arg(&mut crate::os::env::ExpandCtx::new(), 4).is_null());
 
-            let mut pos = lpos_T { lnum: 5, col: 10 };
-            let mut limit = lpos_T { lnum: 5, col: 4 };
+            let mut pos = Lpos { lnum: 5, col: 10 };
+            let mut limit = Lpos { lnum: 5, col: 4 };
             limit_pos(&mut pos, &mut limit);
             assert_eq!(pos.col, 4);
         }

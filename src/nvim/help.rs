@@ -8,9 +8,9 @@ use crate::charset::{
 use crate::errors::*;
 use crate::eval::kBoolVarFalse;
 use crate::eval::kBoolVarTrue;
-use crate::eval::typval::{TypvalVval, VarType, tv_clear, typval_T};
+use crate::eval::typval::{TypvalVval, VarType, tv_clear, TypVal};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
-use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, exarg_T};
+use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, Exarg};
 use crate::fileio::fclose;
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
@@ -23,7 +23,7 @@ use crate::os::fs::os_fopen;
 use crate::strings::gettext;
 use crate::tag::{do_tag, find_tags};
 use crate::window::{
-    WSP_BOT, WSP_HELP, WSP_TOP, win_T, win_close, win_enter, win_setheight, win_split,
+    WSP_BOT, WSP_HELP, WSP_TOP, WinInfoInfo, win_close, win_enter, win_setheight, win_split,
 };
 use std::ffi::{c_char, c_int};
 use std::ptr;
@@ -46,10 +46,10 @@ pub(crate) const kOptIskeyword: OptIndex = 155;
 use crate::eval::funcs::kSpecialVarNull;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
-pub fn ex_help(eap: &mut exarg_T) {
+pub fn ex_help(eap: &mut Exarg) {
     unsafe {
         let mut arg: *mut c_char;
-        let mut wp: *mut win_T;
+        let mut wp: *mut WinInfoInfo;
         let mut empty_fnum: c_int = 0;
         let mut alt_fnum: c_int = 0;
         let old_KeyTyped = g_st().KeyTyped;
@@ -103,12 +103,12 @@ pub fn ex_help(eap: &mut exarg_T) {
         // ":help!" (bang, no args): DWIM help, resolve best tag at cursor via Lua.
         let mut allocated_arg: Option<std::ffi::CString> = None;
         if helpbang {
-            let mut no_args = [typval_T {
+            let mut no_args = [TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             }];
-            let mut rettv = typval_T {
+            let mut rettv = TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
@@ -257,7 +257,7 @@ pub fn ex_help(eap: &mut exarg_T) {
 }
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).
-pub fn ex_helpclose(eap: &mut exarg_T) {
+pub fn ex_helpclose(eap: &mut Exarg) {
     unsafe {
         for win in for_all_windows_ptr() {
             if bt_help(((*win).w_buffer).as_ref()) {
@@ -340,18 +340,18 @@ pub fn find_help_tags(
 ) -> bool { let arg = arg.into_c_char_ptr();
      {
         let mut tv_args = [
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: 0,
                 vval: TypvalVval::String(arg.cast_mut()),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),
             },
         ];
-        let mut rettv = typval_T {
+        let mut rettv = TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -486,7 +486,7 @@ pub fn prepare_help_buffer() {
 
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
 pub fn get_local_additions() {
-    let mut no_args = [typval_T {
+    let mut no_args = [TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -500,17 +500,17 @@ pub fn get_local_additions() {
 }
 
 /// `:exusage` (`ex_exusage`).
-pub fn ex_exusage(_eap: &mut exarg_T) {
+pub fn ex_exusage(_eap: &mut Exarg) {
     do_cmdline_cmd(c"help ex-cmd-index");
 }
 
 /// `:viusage` (`ex_viusage`).
-pub fn ex_viusage(_eap: &mut exarg_T) {
+pub fn ex_viusage(_eap: &mut Exarg) {
     do_cmdline_cmd(c"help normal-index");
 }
 
 /// `:helptags` (`ex_helptags`).
-pub fn ex_helptags(eap: &mut exarg_T) {
+pub fn ex_helptags(eap: &mut Exarg) {
     unsafe {
         let mut add_help_tags = false;
 
@@ -522,19 +522,19 @@ pub fn ex_helptags(eap: &mut exarg_T) {
 
         let mut tv_args = [
             if crate::memory::cstr_as_bytes(eap.arg) == b"ALL" {
-                typval_T {
+                TypVal {
                     v_type: VarType::VAR_SPECIAL,
                     v_lock: 0,
                     vval: TypvalVval::Special(kSpecialVarNull),
                 }
             } else {
-                typval_T {
+                TypVal {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
                     vval: TypvalVval::String(eap.arg),
                 }
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_BOOL,
                 v_lock: 0,
                 vval: TypvalVval::Number(if add_help_tags {
@@ -543,7 +543,7 @@ pub fn ex_helptags(eap: &mut exarg_T) {
                     kBoolVarFalse
                 }),
             },
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
                 vval: TypvalVval::Number(0),

@@ -1,20 +1,20 @@
 //! Code for spell checking (`src/nvim/spell.c`).
 use crate::api::private::helpers::boolean_obj;
 use crate::autocmd::{EVENT_SPELLFILEMISSING, apply_autocmds};
-use crate::buffer::{buf_T, buf_is_empty, bufref_T, bufref_valid, set_bufref};
+use crate::buffer::{FileBuf, buf_is_empty, Bufref, bufref_valid, set_bufref};
 use crate::change::{TAB, inserted_bytes};
 use crate::charset::{
     NUL, ascii_isalpha, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex,
     skipwhite, vim_is_fname_char,
 };
-use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, pos_T};
+use crate::cursor::{Colnr, get_cursor_line_len, get_cursor_line_ptr, Linenr, CursorPos};
 use crate::decoration::{decor_redraw_col, decor_redraw_line, decor_redraw_reset};
 use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::errors::*;
 use crate::ex_cmds::do_sub_msg;
-use crate::ex_docmd::{do_cmdline_cmd, exarg_T};
-use crate::ex_getln::hlf_T;
+use crate::ex_docmd::{do_cmdline_cmd, Exarg};
+use crate::ex_getln::Hlf;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -42,20 +42,20 @@ use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail};
-use crate::regexp::{MAXCOL, RE_MAGIC, regmatch_T, regprog_T, vim_regexec, vim_regexec_prog};
+use crate::regexp::{MAXCOL, RE_MAGIC, Regmatch, Regprog, vim_regexec, vim_regexec_prog};
 use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
-use crate::spellsuggest::{idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T};
+use crate::spellsuggest::{Idx, Langp, Slang, spell_suggest_list, Spelltab};
 use crate::strings::{
     concat_str, gettext, vim_snprintf, vim_strchr,
 };
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
-use crate::window::{win_T, win_valid_any_tab};
+use crate::window::{WinInfoInfo, win_valid_any_tab};
 use std::ffi::{c_char, c_int};
 use std::ptr;
-pub type smt_T = c_int;
+pub type Smt = c_int;
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::drawline::{HLF_COUNT, SMT_ALL, kOptSpoFlagNoplainbuffer};
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR, SEARCH_KEEP};
@@ -102,8 +102,8 @@ const DUMPFLAG_COUNT: c_int = 2;
 const DUMPFLAG_ICASE: c_int = 4;
 const DUMPFLAG_ONECAP: c_int = 8;
 const DUMPFLAG_ALLCAP: c_int = 16;
-struct matchinf_T {
-    mi_lp: langp_T,
+struct Matchinf {
+    mi_lp: Langp,
     mi_word: *mut c_char,
     mi_end: *mut c_char,
     mi_fend: *mut c_char,
@@ -120,15 +120,15 @@ struct matchinf_T {
     mi_compextra: c_int,
     mi_result: c_int,
     mi_capflags: c_int,
-    mi_win: *mut win_T,
+    mi_win: *mut WinInfoInfo,
     mi_result2: c_int,
     mi_end2: *mut c_char,
 }
 
-impl matchinf_T {
+impl Matchinf {
     const fn new() -> Self {
         Self {
-            mi_lp: langp_T::new(),
+            mi_lp: Langp::new(),
             mi_word: ptr::null_mut(),
             mi_end: ptr::null_mut(),
             mi_fend: ptr::null_mut(),
@@ -152,27 +152,27 @@ impl matchinf_T {
     }
 }
 
-impl Default for matchinf_T {
+impl Default for Matchinf {
     fn default() -> Self {
         Self::new()
     }
 }
 #[repr(C)]
-pub struct spelload_T {
+pub struct Spelload {
     sl_lang: [c_char; MAXWLEN + 1],
     sl_loaded: bool,
     sl_nobreak: c_int,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct syl_item_T {
+pub struct SylItem {
     sy_chars: [c_char; SY_MAXLEN],
     sy_len: c_int,
 }
-pub struct OwnedSlang(pub Box<slang_T>);
+pub struct OwnedSlang(pub Box<Slang>);
 
 impl std::ops::Deref for OwnedSlang {
-    type Target = slang_T;
+    type Target = Slang;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -189,7 +189,7 @@ pub const e_format: &std::ffi::CStr = c"E759: Format error in spell file";
 pub(crate) struct SpellPrivateState {
     pub(crate) first_lang: Vec<OwnedSlang>,
     pub(crate) int_wordlist: Option<std::ffi::CString>,
-    pub(crate) spelltab: spelltab_T,
+    pub(crate) spelltab: Spelltab,
     pub(crate) did_set_spelltab: bool,
     pub(crate) repl_from: Option<std::ffi::CString>,
     pub(crate) repl_to: Option<std::ffi::CString>,
@@ -202,7 +202,7 @@ impl SpellPrivateState {
         Self {
             first_lang: Vec::new(),
             int_wordlist: None,
-            spelltab: spelltab_T {
+            spelltab: Spelltab {
                 st_isw: [false; 256],
                 st_isu: [false; 256],
                 st_fold: [0; 256],
@@ -261,8 +261,8 @@ fn mb_cptr_adv(p: &mut *const c_char) {
 }
 /// Main spell-checking function.
 pub fn spell_check(
-    wp: &mut win_T,
-    ptr: *mut c_char,attrp: &mut hlf_T,mut capcol: Option<&mut c_int>,
+    wp: &mut WinInfoInfo,
+    ptr: *mut c_char,attrp: &mut Hlf,mut capcol: Option<&mut c_int>,
     docount: bool,
 ) -> usize {
     unsafe {
@@ -278,7 +278,7 @@ pub fn spell_check(
         let mut count_word = docount;
         let use_camel_case = ((*w_s).b_p_spo_flags & kOptSpoFlagCamel) != 0;
         let mut is_camel_case = false;
-        let mut mi = matchinf_T::new();
+        let mut mi = Matchinf::new();
         if *ptr >= b'0' as c_char && *ptr <= b'9' as c_char {
             if crate::memory::cstr_first_byte(ptr) == b'0'
                 && (crate::memory::cstr_byte_at(ptr, 1) == b'b' || crate::memory::cstr_byte_at(ptr, 1) == b'B')
@@ -370,7 +370,7 @@ pub fn spell_check(
                 if let Some(capcol) = capcol
                     && (*w_s).b_cap_prog.is_some()
                 {
-                    let mut regmatch = regmatch_T::new();
+                    let mut regmatch = Regmatch::new();
                     regmatch.regprog = crate::regexp::regprog_as_ptr(&(*w_s).b_cap_prog);
                     regmatch.rm_ic = false;
                     let r = vim_regexec(&mut regmatch, ptr, 0);
@@ -430,7 +430,7 @@ fn get_char_type(c: c_int) -> c_int {
 }
 fn advance_camelcase_word(
     str_: *mut c_char,
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     is_camel_case: &mut bool,
 ) -> *mut c_char {
      {
@@ -463,14 +463,14 @@ fn advance_camelcase_word(
         end
     }
 }
-fn find_word(mip: &mut matchinf_T, mode: c_int) {
+fn find_word(mip: &mut Matchinf, mode: c_int) {
     unsafe {
         let mut wlen: c_int = 0;
         let mut flen: c_int;
         let ptr: *mut c_char;
         let slang = &mut *mip.mi_lp.lp_slang;
         let byts: *mut u8;
-        let idxs: *mut idx_T;
+        let idxs: *mut Idx;
         if mode == FIND_KEEPWORD || mode == FIND_KEEPCOMPOUND {
             if slang.sl_kbyts.is_empty() {
                 return;
@@ -498,9 +498,9 @@ fn find_word(mip: &mut matchinf_T, mode: c_int) {
                 flen -= mip.mi_compoff;
             }
         }
-        let mut arridx: idx_T = 0;
+        let mut arridx: Idx = 0;
         let mut endlen: [c_int; MAXWLEN] = [0; MAXWLEN];
-        let mut endidx: [idx_T; MAXWLEN] = [0; MAXWLEN];
+        let mut endidx: [Idx; MAXWLEN] = [0; MAXWLEN];
         let mut endidxcnt: usize = 0;
         loop {
             if flen <= 0 && !crate::memory::cstr_is_empty(mip.mi_fend) {
@@ -856,7 +856,7 @@ pub fn match_checkcompoundpattern(
         false
     }
 }
-pub fn can_compound(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr, flags: *const u8) -> bool { let word = word.into_c_char_ptr();
+pub fn can_compound(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr, flags: *const u8) -> bool { let word = word.into_c_char_ptr();
     unsafe {
         let mut uflags: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         if slang.sl_compprog.is_none() {
@@ -881,7 +881,7 @@ pub fn can_compound(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr
         true
     }
 }
-pub fn match_compoundrule(slang: &mut slang_T, compflags: *const u8) -> bool {
+pub fn match_compoundrule(slang: &mut Slang, compflags: *const u8) -> bool {
     unsafe {
         let Some(ref rules) = slang.sl_comprules else {
             return false;
@@ -931,7 +931,7 @@ pub fn valid_word_prefix(
     arridx: c_int,
     flags: c_int,
     word: impl crate::strings::IntoCCharPtr,
-    slang: &mut slang_T,
+    slang: &mut Slang,
     cond_req: bool,
 ) -> c_int { let word = word.into_c_char_ptr();
     let prefid = ((flags as u32) >> 24) as c_int;
@@ -957,9 +957,9 @@ pub fn valid_word_prefix(
         }
         0
 }
-fn find_prefix(mip: &mut matchinf_T, mode: c_int) {
+fn find_prefix(mip: &mut Matchinf, mode: c_int) {
     unsafe {
-        let mut arridx: idx_T = 0;
+        let mut arridx: Idx = 0;
         let mut wlen: c_int = 0;
         let slang = &mut *mip.mi_lp.lp_slang;
         if slang.sl_pbyts.is_empty() {
@@ -1028,7 +1028,7 @@ fn find_prefix(mip: &mut matchinf_T, mode: c_int) {
         }
     }
 }
-fn fold_more(mip: &mut matchinf_T) -> c_int {
+fn fold_more(mip: &mut Matchinf) -> c_int {
     unsafe {
         let p = mip.mi_fend;
         loop {
@@ -1060,7 +1060,7 @@ pub fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
         || ((treeflags & (WF_ALLCAP | WF_KEEPCAP)) == 0
             && ((treeflags & WF_ONECAP) == 0 || (wordflags & WF_ONECAP) != 0))
 }
-pub fn spell_check_window(wp: &mut win_T) -> bool {
+pub fn spell_check_window(wp: &mut WinInfoInfo) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         wp.w_onebuf_opt.wo_spell != 0
@@ -1069,7 +1069,7 @@ pub fn spell_check_window(wp: &mut win_T) -> bool {
             && !(&(*w_s).b_langp)[0].lp_slang.is_null()
     }
 }
-pub fn no_spell_checking(wp: &mut win_T) -> bool {
+pub fn no_spell_checking(wp: &mut WinInfoInfo) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if wp.w_onebuf_opt.wo_spell == 0 || crate::memory::cstr_is_empty((*w_s).b_p_spl) || (*w_s).b_langp.is_empty() {
@@ -1079,9 +1079,9 @@ pub fn no_spell_checking(wp: &mut win_T) -> bool {
         false
     }
 }
-fn decor_spell_nav_col(wp: &mut win_T,
-    lnum: linenr_T,
-    decor_lnum: &mut linenr_T,
+fn decor_spell_nav_col(wp: &mut WinInfoInfo,
+    lnum: Linenr,
+    decor_lnum: &mut Linenr,
     col: c_int,
 ) -> TriState {
     if *decor_lnum != lnum {
@@ -1094,41 +1094,41 @@ fn decor_spell_nav_col(wp: &mut win_T,
         g_st().decor_state.spell
 }
 #[inline]
-fn can_syn_spell(wp: &mut win_T, lnum: linenr_T, col: c_int) -> bool {
+fn can_syn_spell(wp: &mut WinInfoInfo, lnum: Linenr, col: c_int) -> bool {
     let mut can_spell = false;
         let _ = syn_get_id( &mut *wp, lnum, col, 0, Some(&mut can_spell), 0);
         can_spell
 }
 pub fn spell_move_to(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     dir: c_int,
-    behaviour: smt_T,
+    behaviour: Smt,
     curline: bool,
-    attrp: *mut hlf_T,
+    attrp: *mut Hlf,
 ) -> usize {
     unsafe {
         if no_spell_checking(wp) {
             return 0;
         }
-        let mut found_pos = pos_T {
+        let mut found_pos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
         };
         let mut found_len: usize = 0;
-        let mut attr: hlf_T = HLF_COUNT;
+        let mut attr: Hlf = HLF_COUNT;
         let has_syntax = syntax_present(&mut *wp);
         let mut buf_vec: Vec<c_char>;
         let mut buf: *mut c_char = ptr::null_mut();
         let mut buflen: usize = 0;
         let mut skip: c_int = 0;
-        let mut capcol: colnr_T = -1;
+        let mut capcol: Colnr = -1;
         let mut found_one = false;
         let mut wrapped = false;
         let mut ret: usize = 0;
         let mut lnum = wp.w_cursor.lnum;
         let saved_decor_start = std::mem::replace(&mut g_st().decor_state, crate::decoration::DecorState::new());
-        let mut decor_lnum: linenr_T = -1;
+        let mut decor_lnum: Linenr = -1;
         'theend: {
             while !g_st().got_int {
                 let mut line = ml_get_buf(wp.buf_mut(), lnum);
@@ -1142,9 +1142,9 @@ pub fn spell_move_to(
                     capcol = 0;
                 }
                 if capcol == 0 {
-                    capcol = getwhitecols(line) as colnr_T;
+                    capcol = getwhitecols(line) as Colnr;
                 } else if curline && ptr::eq(wp, curwin_ptr()) {
-                    let col = getwhitecols(line) as colnr_T;
+                    let col = getwhitecols(line) as Colnr;
                     if check_need_cap(curwin_mut(), lnum, col) {
                         capcol = col;
                     }
@@ -1165,7 +1165,7 @@ pub fn spell_move_to(
                     if dir == BACKWARD
                         && lnum == wp.w_cursor.lnum
                         && !wrapped
-                        && (p.offset_from(buf) as colnr_T) >= wp.w_cursor.col
+                        && (p.offset_from(buf) as Colnr) >= wp.w_cursor.col
                     {
                         break;
                     }
@@ -1177,16 +1177,16 @@ pub fn spell_move_to(
                             || (behaviour == SMT_RARE && attr == HLF_SPR))
                     {
                         let check_col = if curline {
-                            (p.offset_from(buf) + len as isize) as colnr_T
+                            (p.offset_from(buf) + len as isize) as Colnr
                         } else {
-                            p.offset_from(buf) as colnr_T
+                            p.offset_from(buf) as Colnr
                         };
                         if dir == BACKWARD
                             || lnum != wp.w_cursor.lnum
                             || wrapped
                             || check_col > wp.w_cursor.col
                         {
-                            let col = p.offset_from(buf) as colnr_T;
+                            let col = p.offset_from(buf) as Colnr;
                             let w_s = wp.w_s_ptr();
                             let no_plain_buffer =
                                 ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
@@ -1203,7 +1203,7 @@ pub fn spell_move_to(
                                 attr = HLF_COUNT;
                             } else {
                                 found_one = true;
-                                found_pos = pos_T {
+                                found_pos = CursorPos {
                                     lnum,
                                     col,
                                     coladd: 0,
@@ -1303,7 +1303,7 @@ fn spell_load_lang(lang: impl crate::strings::IntoCCharPtr) { let lang = lang.in
     unsafe {
         let mut fname_enc: [c_char; 85] = [0; 85];
         let mut r: c_int = FAIL;
-        let mut sl = spelload_T {
+        let mut sl = Spelload {
             sl_lang: [0; MAXWLEN + 1],
             sl_loaded: false,
             sl_nobreak: 0,
@@ -1406,9 +1406,9 @@ fn int_wordlist_spl(fname: *mut c_char) {
         );
     }
 }
-pub fn slang_alloc(lang: impl crate::strings::IntoCCharPtr) -> Box<slang_T> { let lang = lang.into_c_char_ptr();
+pub fn slang_alloc(lang: impl crate::strings::IntoCCharPtr) -> Box<Slang> { let lang = lang.into_c_char_ptr();
      {
-        Box::new(slang_T {
+        Box::new(Slang {
             sl_name: if !lang.is_null() {
                 Some(crate::memory::cstr_to_cstring(lang))
             } else {
@@ -1464,7 +1464,7 @@ pub fn slang_alloc(lang: impl crate::strings::IntoCCharPtr) -> Box<slang_T> { le
         })
     }
 }
-pub fn slang_clear(lp: &mut slang_T) {
+pub fn slang_clear(lp: &mut Slang) {
     lp.sl_fbyts = Vec::new();
         lp.sl_kbyts = Vec::new();
         lp.sl_pbyts = Vec::new();
@@ -1493,7 +1493,7 @@ pub fn slang_clear(lp: &mut slang_T) {
         lp.sl_compsylmax = MAXWLEN as c_int;
         lp.sl_regions[0] = NUL;
 }
-pub fn slang_clear_sug(lp: &mut slang_T) {
+pub fn slang_clear_sug(lp: &mut Slang) {
     lp.sl_sbyts = Vec::new();
         lp.sl_sidxs = Vec::new();
         close_spellbuf(&mut lp.sl_sugbuf);
@@ -1503,7 +1503,7 @@ pub fn slang_clear_sug(lp: &mut slang_T) {
 pub fn spell_load_cb(
     fnames: &[std::ffi::CString],
     all: bool,
-    slp: &mut spelload_T,
+    slp: &mut Spelload,
 ) -> bool {
     unsafe {
         for fname in fnames {
@@ -1529,7 +1529,7 @@ pub fn spell_load_cb(
         !fnames.is_empty()
     }
 }
-pub fn count_common_word(lp: &mut slang_T, word: impl crate::strings::IntoCCharPtr, len: c_int, count: u8) { let word = word.into_c_char_ptr();
+pub fn count_common_word(lp: &mut Slang, word: impl crate::strings::IntoCCharPtr, len: c_int, count: u8) { let word = word.into_c_char_ptr();
      {
         if len >= MAXWLEN as c_int {
             return;
@@ -1561,7 +1561,7 @@ pub fn byte_in_str(str_: *const u8, n: c_int) -> bool {
         false
     }
 }
-pub fn init_syl_tab(slang: &mut slang_T) -> c_int {
+pub fn init_syl_tab(slang: &mut Slang) -> c_int {
      {
         let syl_items = &mut slang.sl_syl_items;
         syl_items.clear();
@@ -1581,7 +1581,7 @@ pub fn init_syl_tab(slang: &mut slang_T) -> c_int {
                 if part.len() >= SY_MAXLEN {
                     return SP_FORMERROR;
                 }
-                let mut syl = syl_item_T {
+                let mut syl = SylItem {
                     sy_chars: [0; SY_MAXLEN],
                     sy_len: part.len() as c_int,
                 };
@@ -1594,7 +1594,7 @@ pub fn init_syl_tab(slang: &mut slang_T) -> c_int {
         OK
     }
 }
-fn count_syllables(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr) -> c_int { let word = word.into_c_char_ptr();
+fn count_syllables(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) -> c_int { let word = word.into_c_char_ptr();
     unsafe {
         let Some(ref sl_syllable) = slang.sl_syllable else {
             return 0;
@@ -1632,7 +1632,7 @@ fn count_syllables(slang: &mut slang_T, word: impl crate::strings::IntoCCharPtr)
         cnt
     }
 }
-pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
+pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
     unsafe {
         let mut region_cp: [c_char; 3] = [0; 3];
         let mut lang: [c_char; MAXWLEN + 1] = [0; MAXWLEN + 1];
@@ -1641,7 +1641,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
         let mut dont_use_region = false;
         let mut nobreak = false;
         let mut ret_msg: *mut c_char = ptr::null_mut();
-        let mut bufref = bufref_T {
+        let mut bufref = Bufref {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
@@ -1651,7 +1651,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
             return ptr::null_mut();
         }
         spell_priv_st().parse_spelllang_recursive = true;
-        let mut ga: Vec<langp_T> = Vec::with_capacity(2);
+        let mut ga: Vec<Langp> = Vec::with_capacity(2);
         clear_midword(wp);
         let w_s = wp.w_s_ptr();
         let spl_copy = crate::memory::cstr_to_cstring((*w_s).b_p_spl);
@@ -1744,7 +1744,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                     }
                 }
                 for s in spell_priv_st().first_lang.iter_mut().rev() {
-                    let slang: &mut slang_T = s;
+                    let slang: &mut Slang = s;
                     let matched = if filename {
                         slang.sl_fname.as_ref().is_some_and(|f| {
                             path_equal(lang_ptr, f.as_ptr(), kPathCmpExpand as PathCmpFlags)
@@ -1776,7 +1776,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                             }
                         }
                         if region_mask != 0 {
-                            ga.push(langp_T {
+                            ga.push(Langp {
                                 lp_slang: &raw mut *slang,
                                 lp_sallang: ptr::null_mut(),
                                 lp_replang: ptr::null_mut(),
@@ -1855,7 +1855,7 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
                         }
                     }
                     if region_mask != 0 {
-                        ga.push(langp_T {
+                        ga.push(Langp {
                             lp_slang: &raw mut *slang,
                             lp_sallang: ptr::null_mut(),
                             lp_replang: ptr::null_mut(),
@@ -1908,14 +1908,14 @@ pub fn parse_spelllang(wp: &mut win_T) -> *mut c_char {
         ret_msg
     }
 }
-fn clear_midword(wp: &mut win_T) {
+fn clear_midword(wp: &mut WinInfoInfo) {
     unsafe {
         let w_s = wp.w_s_ptr();
         (*w_s).b_spell_ismw = [false; 256];
         (*w_s).b_spell_ismw_mb = None;
     }
 }
-fn use_midword(lp: &mut slang_T, wp: &mut win_T) {
+fn use_midword(lp: &mut Slang, wp: &mut WinInfoInfo) {
     unsafe {
         let Some(ref sl_midword) = lp.sl_midword else {
             return;
@@ -2025,8 +2025,8 @@ pub fn spell_reload() {
         }
     }
 }
-pub fn open_spellbuf() -> Box<buf_T> {
-    let mut buf = Box::new(buf_T::new());
+pub fn open_spellbuf() -> Box<FileBuf> {
+    let mut buf = Box::new(FileBuf::new());
         buf.b_spell = true;
         buf.b_p_swf = 1;
         if !ml_open(&mut buf) {
@@ -2042,12 +2042,12 @@ pub fn open_spellbuf() -> Box<buf_T> {
         ml_open_file(&mut buf);
         buf
 }
-pub fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
+pub fn close_spellbuf(buf: &mut Option<Box<FileBuf>>) {
     if let Some(mut b) = buf.take() {
             ml_close(&mut b, 1);
         }
 }
-pub fn clear_spell_chartab(sp: &mut spelltab_T) {
+pub fn clear_spell_chartab(sp: &mut Spelltab) {
     sp.st_isw = [false; 256];
         sp.st_isu = [false; 256];
         for i in 0..256 {
@@ -2079,7 +2079,7 @@ pub fn init_spell_chartab() {
             spell_priv_st().spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
         }
 }
-pub fn spell_iswordp(p: impl crate::strings::IntoCCharPtr, wp: &win_T) -> bool { let p = p.into_c_char_ptr();
+pub fn spell_iswordp(p: impl crate::strings::IntoCCharPtr, wp: &WinInfoInfo) -> bool { let p = p.into_c_char_ptr();
     unsafe {
         let w_s = wp.w_s_ptr();
         let l = utfc_ptr2len(p);
@@ -2108,7 +2108,7 @@ pub fn spell_iswordp(p: impl crate::strings::IntoCCharPtr, wp: &win_T) -> bool {
         c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
-pub fn spell_iswordp_nmw(p: impl crate::strings::IntoCCharPtr, wp: &mut win_T) -> bool { let p = p.into_c_char_ptr();
+pub fn spell_iswordp_nmw(p: impl crate::strings::IntoCCharPtr, wp: &mut WinInfoInfo) -> bool { let p = p.into_c_char_ptr();
      {
         let c = utf_ptr2char(p);
         if c > 255 {
@@ -2117,7 +2117,7 @@ pub fn spell_iswordp_nmw(p: impl crate::strings::IntoCCharPtr, wp: &mut win_T) -
         c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
     }
 }
-fn spell_mb_isword_class(cl: c_int, wp: &win_T) -> bool {
+fn spell_mb_isword_class(cl: c_int, wp: &WinInfoInfo) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if (*w_s).b_cjk != 0 {
@@ -2126,7 +2126,7 @@ fn spell_mb_isword_class(cl: c_int, wp: &win_T) -> bool {
         cl >= 2 && cl != 0x2070 && cl != 0x2080 && cl != 3
     }
 }
-fn spell_iswordp_w(p: *const c_int, wp: &win_T) -> bool {
+fn spell_iswordp_w(p: *const c_int, wp: &WinInfoInfo) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         let s = if if *p < 256 && *p >= 0 {
@@ -2148,7 +2148,7 @@ fn spell_iswordp_w(p: *const c_int, wp: &win_T) -> bool {
     }
 }
 pub fn spell_casefold(
-    wp: &win_T,
+    wp: &WinInfoInfo,
     str_: impl crate::strings::IntoCCharPtr,
     len: c_int,
     buf: *mut c_char,
@@ -2183,7 +2183,7 @@ pub fn spell_casefold(
         true
     }
 }
-pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
+pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if (*w_s).b_cap_prog.is_none() {
@@ -2196,8 +2196,8 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
             ptr::null_mut()
         };
         let mut line_copy: Option<std::ffi::CString> = None;
-        let mut endcol: colnr_T = 0;
-        if col == 0 || (getwhitecols(line) as colnr_T) >= col {
+        let mut endcol: Colnr = 0;
+        if col == 0 || (getwhitecols(line) as Colnr) >= col {
             if lnum == 1 {
                 need_cap = true;
             } else {
@@ -2209,14 +2209,14 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
                     line = line_copy
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    endcol = crate::memory::cstr_len(line) as colnr_T;
+                    endcol = crate::memory::cstr_len(line) as Colnr;
                 }
             }
         } else {
             endcol = col;
         }
         if endcol > 0 {
-            let mut regmatch = regmatch_T::new();
+            let mut regmatch = Regmatch::new();
             regmatch.regprog = crate::regexp::regprog_as_ptr(&(*w_s).b_cap_prog);
             regmatch.rm_ic = false;
             let mut p = line.add(endcol as usize);
@@ -2237,11 +2237,11 @@ pub fn check_need_cap(wp: &mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
         need_cap
     }
 }
-pub fn ex_spellrepall(_eap: &mut exarg_T) {
+pub fn ex_spellrepall(_eap: &mut Exarg) {
     unsafe {
         let pos = curwin_mut().w_cursor;
         let save_ws = opt_vars().p_ws;
-        let mut prev_lnum: linenr_T = 0;
+        let mut prev_lnum: Linenr = 0;
         let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
             spell_priv_st().repl_from.as_ref(),
             spell_priv_st().repl_to.as_ref(),
@@ -2302,7 +2302,7 @@ pub fn ex_spellrepall(_eap: &mut exarg_T) {
                 }
                 g_st().sub_nsubs += 1;
             }
-            curwin_mut().w_cursor.col += repl_to_len as colnr_T;
+            curwin_mut().w_cursor.col += repl_to_len as Colnr;
         }
         opt_vars().p_ws = save_ws;
         curwin_mut().w_cursor = pos;
@@ -2400,7 +2400,7 @@ pub fn eval_soundfold(word: impl crate::strings::IntoCCharPtr) -> std::ffi::CStr
     }
 }
 pub fn spell_soundfold(
-    slang: &mut slang_T,
+    slang: &mut Slang,
     inword: *mut c_char,
     folded: bool,
     res: *mut c_char,
@@ -2426,7 +2426,7 @@ pub fn spell_soundfold(
         }
     }
 }
-fn spell_soundfold_sofo(slang: &mut slang_T, inword: impl crate::strings::IntoCCharPtr, res: *mut c_char) { let inword = inword.into_c_char_ptr();
+fn spell_soundfold_sofo(slang: &mut Slang, inword: impl crate::strings::IntoCCharPtr, res: *mut c_char) { let inword = inword.into_c_char_ptr();
     unsafe {
         let mut ri: usize = 0;
         let mut prevc: c_int = 0;
@@ -2454,7 +2454,7 @@ fn spell_soundfold_sofo(slang: &mut slang_T, inword: impl crate::strings::IntoCC
         *res.add(ri) = NUL;
     }
 }
-fn spell_soundfold_wsal(slang: &mut slang_T, inword: impl crate::strings::IntoCCharPtr, res: *mut c_char) { let inword = inword.into_c_char_ptr();
+fn spell_soundfold_wsal(slang: &mut Slang, inword: impl crate::strings::IntoCCharPtr, res: *mut c_char) { let inword = inword.into_c_char_ptr();
     unsafe {
         let mut word: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut did_white = false;
@@ -2749,7 +2749,7 @@ fn spell_soundfold_wsal(slang: &mut slang_T, inword: impl crate::strings::IntoCC
         *res.add(l) = NUL;
     }
 }
-pub fn ex_spellinfo(_eap: &mut exarg_T) {
+pub fn ex_spellinfo(_eap: &mut Exarg) {
     unsafe {
         if no_spell_checking(curwin_mut()) {
             return;
@@ -2786,7 +2786,7 @@ pub fn ex_spellinfo(_eap: &mut exarg_T) {
         msg_end();
     }
 }
-pub fn ex_spelldump(eap: &mut exarg_T) {
+pub fn ex_spelldump(eap: &mut Exarg) {
      {
         if no_spell_checking(curwin_mut()) {
             return;
@@ -2821,10 +2821,10 @@ pub fn spell_dump_compl(
     dumpflags_arg: c_int,
 ) { let pat = pat.into_c_char_ptr();
     unsafe {
-        let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
+        let mut arridx: [Idx; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut word: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let mut lnum: linenr_T = 0;
+        let mut lnum: Linenr = 0;
         let mut region_names: *mut c_char = ptr::null_mut();
         let mut do_region = true;
         let mut dumpflags = dumpflags_arg;
@@ -2977,12 +2977,12 @@ pub fn spell_dump_compl(
     }
 }
 fn dump_word(
-    slang: &mut slang_T,
+    slang: &mut Slang,
     word: *mut c_char,
     pat: impl crate::strings::IntoCCharPtr,mut dir: Option<&mut Direction>,
     dumpflags: c_int,
     wordflags: c_int,
-    lnum: linenr_T,
+    lnum: Linenr,
 ) { let pat = pat.into_c_char_ptr();
     unsafe {
         let mut keepcap = false;
@@ -3069,15 +3069,15 @@ fn dump_word(
     }
 }
 fn dump_prefixes(
-    slang: &mut slang_T,
+    slang: &mut Slang,
     word: impl crate::strings::IntoCCharPtr,
     pat: impl crate::strings::IntoCCharPtr,mut dir: Option<&mut Direction>,
     dumpflags: c_int,
     flags: c_int,
-    startlnum: linenr_T,
-) -> linenr_T { let word = word.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
+    startlnum: Linenr,
+) -> Linenr { let word = word.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
     unsafe {
-        let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
+        let mut arridx: [Idx; MAXWLEN] = [0; MAXWLEN];
         let mut curi: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut prefix: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut word_up: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -3183,7 +3183,7 @@ fn dump_prefixes(
         lnum
     }
 }
-pub fn spell_to_word_end(start: *mut c_char,win: &mut win_T) -> *mut c_char {
+pub fn spell_to_word_end(start: *mut c_char,win: &mut WinInfoInfo) -> *mut c_char {
      {
         let mut p = start;
         while !crate::memory::cstr_is_empty(p) && spell_iswordp(p, &*win) {
@@ -3217,13 +3217,13 @@ pub fn spell_word_start(startcol: c_int) -> c_int {
         col
     }
 }
-pub fn spell_expand_check_cap(col: colnr_T) {
+pub fn spell_expand_check_cap(col: Colnr) {
      {
         spell_priv_st().spell_expand_need_cap = check_need_cap(curwin_mut(), curwin_mut().w_cursor.lnum, col);
     }
 }
 pub fn expand_spelling(
-    _lnum: linenr_T,
+    _lnum: Linenr,
     pat: *mut c_char,
     matches: &mut Vec<std::ffi::CString>,
 ) {
@@ -3277,10 +3277,10 @@ pub fn did_set_spell_option() -> *const c_char {
 }
 pub fn compile_cap_prog(
     value: impl crate::strings::IntoCCharPtr,
-    prog: &mut Option<Box<regprog_T>>,
+    prog: &mut Option<Box<Regprog>>,
 ) -> *const c_char { let value = value.into_c_char_ptr();
      {
-        let mut rp: Option<Box<regprog_T>> = None;
+        let mut rp: Option<Box<Regprog>> = None;
         if !crate::memory::cstr_is_empty(value) {
             let re = concat_str(c"^", value);
             rp = crate::regexp::vim_regcomp_box(re.as_ptr(), RE_MAGIC);

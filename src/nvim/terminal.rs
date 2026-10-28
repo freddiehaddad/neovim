@@ -17,7 +17,7 @@ use crate::autocmd::{
     EVENT_TERMREQUEST, EVENT_TEXTCHANGEDT, apply_autocmds, apply_autocmds_group, block_autocmds,
     has_event, is_autocmd_blocked, unblock_autocmds,
 };
-use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_T, buf_get_changedtick, do_buffer};
+use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, FileBuf, buf_get_changedtick, do_buffer};
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
 use crate::channel::{
     TerminalOptions, channel_term_close, channel_term_read_pause, channel_term_resize,
@@ -27,7 +27,7 @@ use crate::charset::{NUL, is_special};
 use crate::context::{
     CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
 };
-use crate::cursor::{coladvance, linenr_T, pos_T};
+use crate::cursor::{coladvance, Linenr, CursorPos};
 use crate::cursor_shape::{
     CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table_mut,
 };
@@ -60,7 +60,7 @@ use crate::highlight::{
 };
 use crate::highlight_group::name_to_color;
 use crate::input::{K_PASTE_START, map_execute_lua, merge_modifiers, paste_repeat, requeue_key};
-use crate::input_cmdatom::{atom_term_enter, cmdarg_T};
+use crate::input_cmdatom::{atom_term_enter, Cmdarg};
 use crate::keycodes::{
     ESC, K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8,
     K_F9, K_F10, K_F11, K_F12, K_F13, K_F14, K_F15, K_F16, K_F17, K_F18, K_F19, K_F20, K_F21,
@@ -83,15 +83,15 @@ use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mousescroll, mouse_find_win_inner,
 };
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
 use crate::optionstr::{alloc_string_option, free_string_option};
 use crate::state::{
-    EditorState, MODE_TERMINAL, may_trigger_modechanged, save_v_event_T, state_enter,
+    EditorState, MODE_TERMINAL, may_trigger_modechanged, SaveVEvent, state_enter,
     state_handle_k_event,
 };
 use crate::strings::vim_snprintf;
-use crate::textformat::oparg_T;
+use crate::textformat::Oparg;
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
@@ -129,7 +129,7 @@ use crate::vterm::state::{
 use crate::vterm::vterm::{
     vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
 };
-use crate::window::{may_trigger_win_scrolled_resized, win_valid, winopt_T};
+use crate::window::{may_trigger_win_scrolled_resized, win_valid, Winopt};
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
@@ -201,7 +201,7 @@ struct TerminalState {
     got_bsl: bool,
     got_bsl_o: bool,
     cursor_visible: bool,
-    save_curwin_handle: handle_T,
+    save_curwin_handle: ObjHandle,
     save_w_p_cul: bool,
     save_w_p_culopt: Option<std::ffi::CString>,
     save_w_p_culopt_flags: u8,
@@ -306,7 +306,7 @@ pub struct Terminal {
     old_sb_deleted: usize,
     old_height: c_int,
     title: Vec<c_char>,
-    buf_handle: handle_T,
+    buf_handle: ObjHandle,
     in_altscreen: bool,
     suspended: bool,
     closed: bool,
@@ -414,7 +414,7 @@ const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
 }
 
 pub struct TermRequestEvent {
-    pub buf_handle: handle_T,
+    pub buf_handle: ObjHandle,
     pub sequence: Vec<c_char>,
     pub pending_send: std::rc::Rc<std::cell::RefCell<Vec<c_char>>>,
     pub row: c_int,
@@ -729,7 +729,7 @@ fn term_output_callback(s: &[u8], term: *mut Terminal) {
     }
 }
 
-fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut buf_T) -> bool {
+fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut FileBuf) -> bool {
     unsafe {
         if term.sb_allocated {
             return true;
@@ -751,7 +751,7 @@ fn term_may_alloc_scrollback(term: &mut Terminal, mut buf: *mut buf_T) -> bool {
     }
 }
 
-pub fn terminal_alloc(buf: &mut buf_T, mut opts: TerminalOptions) -> *mut Terminal {
+pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> *mut Terminal {
     unsafe {
         if opts.width == 0 {
             opts.width = 80;
@@ -847,7 +847,7 @@ pub fn terminal_alloc(buf: &mut buf_T, mut opts: TerminalOptions) -> *mut Termin
     }
 }
 
-pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut buf_T) {
+pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
     unsafe {
         debug_assert!(!(*termpp).is_null());
         let term = &mut **termpp;
@@ -880,7 +880,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut buf_T) {
         }
         curwin_mut().w_onebuf_opt.wo_scb = 0;
         curwin_mut().w_onebuf_opt.wo_crb = 0;
-        curwin_mut().w_cursor = pos_T {
+        curwin_mut().w_cursor = CursorPos {
             lnum: 1,
             col: 0,
             coladd: 0,
@@ -991,7 +991,7 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
         }
 
         if !buf.is_null() && !is_autocmd_blocked() {
-            let mut save_v_event: save_v_event_T = save_v_event_T::new();
+            let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let dict = get_v_event(&mut save_v_event);
             tv_dict_add_nr(&mut *dict, c"status", i64::from(status));
             tv_dict_set_keys_readonly(&mut *dict);
@@ -1027,7 +1027,7 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
     }
 }
 
-pub fn terminal_state_change_event(buf_handle: handle_T) {
+pub fn terminal_state_change_event(buf_handle: ObjHandle) {
     unsafe {
         let buf = handle_get_buffer(buf_handle);
         if !buf.is_null() && !(*buf).terminal.is_null() {
@@ -1133,7 +1133,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 
         let wp = handle_get_window(s.save_curwin_handle);
         if !wp.is_null() {
-            let mut winopts: *mut winopt_T = ptr::null_mut();
+            let mut winopts: *mut Winopt = ptr::null_mut();
             if (*wp).buf_mut().b_fnum != (*s.term).buf_handle {
                 let buf = handle_get_buffer((*s.term).buf_handle);
                 if !buf.is_null() {
@@ -1282,7 +1282,7 @@ fn terminal_check_cursor() {
             set_topline(curwin_mut(), topline);
         }
         if term.suspended && (g_st().State & MODE_TERMINAL) != 0 {
-            curwin_mut().w_cursor = pos_T {
+            curwin_mut().w_cursor = CursorPos {
                 lnum: curbuf_mut().b_ml.ml_line_count,
                 col: 0,
                 coladd: 0,
@@ -1585,7 +1585,7 @@ fn terminal_send_key(term: &mut Terminal, mut c: c_int) {
         }
 }
 
-pub fn on_sync_flush(buf_handle: handle_T) {
+pub fn on_sync_flush(buf_handle: ObjHandle) {
     unsafe {
         if g_st().exiting {
             return;
@@ -1844,7 +1844,7 @@ fn term_movecursor(
     }
 }
 
-fn buf_set_term_title(buf: *mut buf_T, title: impl crate::strings::IntoCCharPtr, len: usize) { let title = title.into_c_char_ptr();
+fn buf_set_term_title(buf: *mut FileBuf, title: impl crate::strings::IntoCCharPtr, len: usize) { let title = title.into_c_char_ptr();
     unsafe {
         if buf.is_null() {
             return;
@@ -2286,8 +2286,8 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
                 set_curwin(mouse_win);
                 g_st().curbuf = curwin_mut().w_buffer;
 
-                let mut cap = cmdarg_T::new();
-                let mut oa = oparg_T::new();
+                let mut cap = Cmdarg::new();
+                let mut oa = Oparg::new();
                 cap.oap = &mut oa;
                 cap.cmdchar = c;
                 cap.arg = match c {
@@ -2520,7 +2520,7 @@ pub fn on_scrollback_option_changed(term: &mut Terminal) {
         }
 }
 
-fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
+fn adjust_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
     if buf.b_p_scbk < 1 {
             buf.b_p_scbk = SB_MAX;
         }
@@ -2539,24 +2539,24 @@ fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
             mark_adjust_buf(
                 &mut *buf,
                 1,
-                diff as linenr_T,
+                diff as Linenr,
                 MAXLNUM,
-                -(diff as linenr_T),
+                -(diff as Linenr),
                 true,
                 kMarkAdjustTerm,
                 kExtmarkUndo,
             );
-            deleted_lines_buf(buf, 1, diff as linenr_T);
+            deleted_lines_buf(buf, 1, diff as Linenr);
         }
 
         term.sb_size = scbk;
 }
 
-fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
+fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
     unsafe {
         channel_term_read_pause(true, &mut *term.opts.data);
 
-        let mut deleted = (term.sb_deleted - term.old_sb_deleted) as linenr_T;
+        let mut deleted = (term.sb_deleted - term.old_sb_deleted) as Linenr;
         deleted = deleted.min(buf.b_ml.ml_line_count);
         mark_adjust_buf(
             &mut *buf,
@@ -2606,7 +2606,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
     }
 }
 
-fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
+fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
     let mut changed: c_int = 0;
         let mut added: c_int = 0;
         let mut height: c_int = 0;
@@ -2645,7 +2645,7 @@ fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
         changed_lines(buf, change_start, 0, change_end, added, true);
 }
 
-fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
+fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: c_int) {
     unsafe {
         let ml_end = buf.b_ml.ml_line_count;
 
@@ -2700,7 +2700,7 @@ fn is_focused(term: &mut Terminal) -> bool {
      (g_st().State & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
 }
 
-fn get_config_string(buf: &mut buf_T, key: *mut c_char) -> *mut c_char {
+fn get_config_string(buf: &mut FileBuf, key: *mut c_char) -> *mut c_char {
      {
         let mut err = Error::new();
         let key_str = NvimString {

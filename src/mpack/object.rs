@@ -19,9 +19,9 @@ pub enum mpack_data_t {
     Int(mpack_sintmax_t),
     LmpackUnpacker(*mut crate::mpack::lmpack::LmpackUnpacker),
     LmpackPacker(*mut crate::mpack::lmpack::Packer),
-    Typval(*mut crate::eval::typval::typval_T),
-    List(*mut crate::eval::typval::list_T),
-    MapPairs(Vec<[crate::eval::typval::typval_T; 2]>),
+    Typval(*mut crate::eval::typval::TypVal),
+    List(*mut crate::eval::typval::TvList),
+    MapPairs(Vec<[crate::eval::typval::TypVal; 2]>),
     OwnedBytes(Vec<u8>),
     Bytes(*mut u8),
     Unpacker(*mut crate::msgpack_rpc::unpacker::Unpacker),
@@ -58,7 +58,7 @@ impl mpack_data_t {
     }
 
     #[inline]
-    pub const fn typval(&self) -> *mut crate::eval::typval::typval_T {
+    pub const fn typval(&self) -> *mut crate::eval::typval::TypVal {
         match *self {
             Self::Typval(p) => p,
             _ => ptr::null_mut(),
@@ -66,7 +66,7 @@ impl mpack_data_t {
     }
 
     #[inline]
-    pub const fn list(&self) -> *mut crate::eval::typval::list_T {
+    pub const fn list(&self) -> *mut crate::eval::typval::TvList {
         match *self {
             Self::List(p) => p,
             _ => ptr::null_mut(),
@@ -74,7 +74,7 @@ impl mpack_data_t {
     }
 
     #[inline]
-    pub fn map_pairs_mut(&mut self) -> &mut [[crate::eval::typval::typval_T; 2]] {
+    pub fn map_pairs_mut(&mut self) -> &mut [[crate::eval::typval::TypVal; 2]] {
         match self {
             Self::MapPairs(v) => v.as_mut_slice(),
             _ => &mut [],
@@ -82,7 +82,7 @@ impl mpack_data_t {
     }
 
     #[inline]
-    pub fn take_map_pairs(&mut self) -> Vec<[crate::eval::typval::typval_T; 2]> {
+    pub fn take_map_pairs(&mut self) -> Vec<[crate::eval::typval::TypVal; 2]> {
         match std::mem::take(self) {
             Self::MapPairs(v) => v,
             _ => Vec::new(),

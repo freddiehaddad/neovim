@@ -15,14 +15,14 @@ use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::wstream::wstream_new_vec_buffer;
 use crate::globals::*;
-use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
+use crate::grid::{Sattr, Schar, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::{RemoteUI, find_channel, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
-    Integer, PackerBuffer, handle_T, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
+    Integer, PackerBuffer, ObjHandle, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
     mpack_w,
 };
 use crate::option::set_tty_option;
@@ -720,7 +720,7 @@ pub fn nvim_ui_try_resize_grid(
         if grid == Integer::from(crate::drawscreen::DEFAULT_GRID_HANDLE) {
             nvim_ui_try_resize(channel_id, width, height, err);
         } else {
-            ui_grid_resize(grid as handle_T, width as c_int, height as c_int, err);
+            ui_grid_resize(grid as ObjHandle, width as c_int, height as c_int, err);
         }
     }
 }
@@ -1227,7 +1227,7 @@ pub fn remote_ui_put(ui: &mut RemoteUI, cell: impl crate::strings::IntoCCharPtr)
 
 // DLLEXPORT void remote_ui_raw_line(RemoteUI *ui, Integer grid, Integer row, Integer startcol,
 //                                   Integer endcol, Integer clearcol, Integer clearattr,
-//                                   LineFlags flags, const schar_T *chunk, const sattr_T *attrs);
+//                                   LineFlags flags, const Schar *chunk, const Sattr *attrs);
 pub fn remote_ui_raw_line(
     ui: &mut RemoteUI,
     grid: Integer,
@@ -1237,8 +1237,8 @@ pub fn remote_ui_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: c_int,
-    chunk: *const schar_T,
-    attrs: *const sattr_T,
+    chunk: *const Schar,
+    attrs: *const Sattr,
 ) {
     unsafe {
         if ui.ui_ext[kUILinegrid] {
@@ -1712,7 +1712,7 @@ pub fn remote_ui_msg_set_pos(
 pub fn remote_ui_win_viewport(
     ui: &mut RemoteUI,
     grid: Integer,
-    win: handle_T,
+    win: ObjHandle,
     topline: Integer,
     botline: Integer,
     curline: Integer,
@@ -1741,7 +1741,7 @@ pub fn remote_ui_win_viewport(
 pub fn remote_ui_win_viewport_margins(
     ui: &mut RemoteUI,
     grid: Integer,
-    win: handle_T,
+    win: ObjHandle,
     top: Integer,
     bottom: Integer,
     left: Integer,

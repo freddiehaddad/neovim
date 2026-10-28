@@ -34,7 +34,7 @@ pub enum Event {
     ChannelTermDelayedFree(*mut crate::channel::Channel),
     ChannelSetInfo {
         chan: *mut crate::channel::Channel,
-        event: crate::autocmd::event_T,
+        event: crate::autocmd::AuEvent,
     },
     RpcRequest(Box<crate::msgpack_rpc::channel::RequestEvent>),
     RpcInternalRead {
@@ -61,8 +61,8 @@ pub enum Event {
         fd: c_int,
     },
     TermRequest(Box<crate::terminal::TermRequestEvent>),
-    TermStateChange(crate::msgpack_rpc::packer::handle_T),
-    TermSyncFlush(crate::msgpack_rpc::packer::handle_T),
+    TermStateChange(crate::msgpack_rpc::packer::ObjHandle),
+    TermSyncFlush(crate::msgpack_rpc::packer::ObjHandle),
     TermClipboardSet {
         mask: c_int,
         data: CString,

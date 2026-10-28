@@ -15,7 +15,7 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BLN_LISTED, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
-    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_T, bufref_valid,
+    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, Bufref, bufref_valid,
     do_autochdir, do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref,
     set_curbuf, setfname,
 };
@@ -31,7 +31,7 @@ use crate::drawscreen::{
 use crate::errors::*;
 use crate::eval::typval::{
     tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_set_lock,
-    varnumber_T,
+    Varnumber,
 };
 use crate::eval::userfunc::invoke_all_defer;
 use crate::eval::vars::{
@@ -75,7 +75,7 @@ use crate::memory::{mem_st, free_all_mem};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::server::{server_init, server_teardown};
 use crate::normal::{
     check_scrollbind, init_normal_cmds, kOptCbFlagUnnamed, kOptCbFlagUnnamedplus, normal_enter,
@@ -129,7 +129,7 @@ use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
 use crate::ui_compositor::ui_comp_syn_init;
 use crate::version::{list_version, main_exitfree};
 use crate::window::{
-    goto_tabpage, make_tabpages, make_windows, only_one_window, tabpage_T, win_alloc_first,
+    goto_tabpage, make_tabpages, make_windows, only_one_window, TabPageInfo, win_alloc_first,
     win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int};
@@ -165,7 +165,7 @@ const ERR_TOO_MANY_ARGS: &CStr = c"Too many edit arguments";
 const ERR_EXTRA_CMD: &CStr =
     c"Too many \"+command\", \"-c command\" or \"--cmd command\" arguments";
 
-pub struct mparm_T {
+pub struct Mparm {
     pub argc: c_int,
     pub argv: *mut *mut c_char,
 
@@ -200,7 +200,7 @@ pub struct mparm_T {
     pub had_stdin_file: bool,
 }
 
-impl mparm_T {
+impl Mparm {
     pub const fn new() -> Self {
         Self {
             argc: 0,
@@ -232,7 +232,7 @@ impl mparm_T {
     }
 }
 
-impl Default for mparm_T {
+impl Default for Mparm {
     fn default() -> Self {
         Self::new()
     }
@@ -341,12 +341,12 @@ fn event_teardown() -> bool {
     }
 }
 
-fn early_init(paramp: &mut mparm_T) {
+fn early_init(paramp: &mut Mparm) {
     os_hint_priority();
     estack_init();
     cmdline_init();
     eval_init();
-    set_vim_var_nr(VV_STARTTIME, os_realtime() as varnumber_T);
+    set_vim_var_nr(VV_STARTTIME, os_realtime() as Varnumber);
     init_path(if !main_init_st().ARGV0.is_null() {
         main_init_st().ARGV0
     } else {
@@ -440,7 +440,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         let mut fname: *mut c_char = ptr::null_mut();
-        let mut params = mparm_T::new();
+        let mut params = Mparm::new();
 
         init_params(&mut params, argc, argv);
         init_startuptime(&mut params);
@@ -664,10 +664,10 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         set_window_layout(&mut params);
 
         if g_st().recoverymode && fname.is_null() {
-            let mut items_tv = crate::eval::typval::typval_T::new();
+            let mut items_tv = crate::eval::typval::TypVal::new();
             tv_list_alloc_ret(&mut items_tv, 0);
             recover_names(ptr::null_mut(), false,  &mut *items_tv.vval.v_list());
-            let mut lua_args = [items_tv, crate::eval::typval::typval_T::new()];
+            let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
             nlua_call_typval(
                 c"vim._core.swapfile",
                 c"list_swaps",
@@ -830,7 +830,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                     true,
                     c"executing stdin as Ex commands",
                 );
-                let mut args = [crate::eval::typval::typval_T::new(); 1];
+                let mut args = [crate::eval::typval::TypVal::new(); 1];
                 nlua_call_typval(
                     c"vim._core.exmode",
                     c"run",
@@ -930,7 +930,7 @@ pub fn getout(mut exitval: c_int) -> ! {
         }
 
         set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VAR_NUMBER);
-        set_vim_var_nr(VV_EXITING, varnumber_T::from(exitval));
+        set_vim_var_nr(VV_EXITING, Varnumber::from(exitval));
 
         if *get_vim_var_str(VV_EXITREASON) == NUL {
             set_vim_var_string(VV_EXITREASON, c"quit", 4);
@@ -939,8 +939,8 @@ pub fn getout(mut exitval: c_int) -> ! {
         invoke_all_defer();
 
         if g_st().v_dying <= 1 {
-            let mut next_tp: *const tabpage_T;
-            let mut tp: *const tabpage_T = g_st().first_tabpage;
+            let mut next_tp: *const TabPageInfo;
+            let mut tp: *const TabPageInfo = g_st().first_tabpage;
             while !tp.is_null() {
                 next_tp = (*tp).tp_next;
                 for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
@@ -953,7 +953,7 @@ pub fn getout(mut exitval: c_int) -> ! {
                     }
                     let buf = wp.w_buffer;
                     if buf_get_changedtick(&*buf) != -1 {
-                        let mut bufref: bufref_T = bufref_T::new();
+                        let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf);
                         apply_autocmds(
                             EVENT_BUFWINLEAVE,
@@ -974,7 +974,7 @@ pub fn getout(mut exitval: c_int) -> ! {
 
             for buf in for_all_buffers_ptr() {
                 if (*buf).b_ml.ml_mfp.is_some() {
-                    let mut bufref: bufref_T = bufref_T::new();
+                    let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf);
                     apply_autocmds(EVENT_BUFUNLOAD, (*buf).b_fname, (*buf).b_fname, false, buf);
                     if !bufref_valid(Some(&bufref)) {
@@ -1157,7 +1157,7 @@ fn server_connect(server_addr: impl crate::strings::IntoCCharPtr, errmsg: *mut *
 }
 
 fn remote_request(
-    params: &mut mparm_T,
+    params: &mut Mparm,
     remote_args: c_int,
     server_addr: impl crate::strings::IntoCCharPtr,
     argc: c_int,
@@ -1331,7 +1331,7 @@ fn remote_request(
     }
 }
 
-fn edit_stdin(parmp: &mut mparm_T) -> bool {
+fn edit_stdin(parmp: &mut Mparm) -> bool {
     let implicit = !g_st().headless_mode
             && !(g_st().embedded_mode && g_st().stdin_fd <= 0)
             && (!parmp.exmode || parmp.input_istext)
@@ -1341,7 +1341,7 @@ fn edit_stdin(parmp: &mut mparm_T) -> bool {
         parmp.had_stdin_file || implicit
 }
 
-fn command_line_scan(parmp: &mut mparm_T) {
+fn command_line_scan(parmp: &mut Mparm) {
     unsafe {
         let mut argc = parmp.argc - 1;
         let mut argv = parmp.argv.add(1);
@@ -1838,8 +1838,8 @@ fn set_argf_var() {
     }
 }
 
-fn init_params(paramp: &mut mparm_T, argc: c_int, argv: *mut *mut c_char) {
-    *paramp = mparm_T::new();
+fn init_params(paramp: &mut Mparm, argc: c_int, argv: *mut *mut c_char) {
+    *paramp = Mparm::new();
         paramp.argc = argc;
         paramp.argv = argv;
         paramp.use_debug_break_level = -1;
@@ -1851,7 +1851,7 @@ fn init_params(paramp: &mut mparm_T, argc: c_int, argv: *mut *mut c_char) {
         paramp.lua_arg0 = -1;
 }
 
-fn init_startuptime(paramp: &mut mparm_T) {
+fn init_startuptime(paramp: &mut Mparm) {
     unsafe {
         let mut is_embed = false;
         for i in 1..(paramp.argc - 1) {
@@ -1877,7 +1877,7 @@ fn init_startuptime(paramp: &mut mparm_T) {
     }
 }
 
-fn check_and_set_isatty(_paramp: &mut mparm_T) {
+fn check_and_set_isatty(_paramp: &mut Mparm) {
     g_st().stdin_isatty = os_isatty(STDIN_FILENO);
         g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
         g_st().stderr_isatty = os_isatty(STDERR_FILENO);
@@ -1900,11 +1900,11 @@ fn init_path(exename: impl crate::strings::IntoCCharPtr) {
         }
 }
 
-fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
+fn get_fname(_parmp: &mut Mparm) -> *mut c_char {
     unsafe { alist_name(&*garglist()) }
 }
 
-fn set_window_layout(paramp: &mut mparm_T) {
+fn set_window_layout(paramp: &mut Mparm) {
     if paramp.diff_mode != 0 && paramp.window_layout == 0 {
             paramp.window_layout = if diffopt_horizontal() {
                 WIN_HOR
@@ -1914,7 +1914,7 @@ fn set_window_layout(paramp: &mut mparm_T) {
         }
 }
 
-fn handle_quickfix(paramp: &mut mparm_T) {
+fn handle_quickfix(paramp: &mut Mparm) {
     if paramp.edit_type == EDIT_QF {
             if let Some(ref use_ef) = paramp.use_ef {
                 set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
@@ -1968,7 +1968,7 @@ fn read_stdin() {
                 return;
             }
 
-            let initial_buf_handle: handle_T = curbuf_mut().b_fnum;
+            let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum;
             set_curbuf(stdin_buf, 0, false);
             readfile(
                 ptr::null_mut(),
@@ -1981,7 +1981,7 @@ fn read_stdin() {
                 true,
             );
 
-            let stdin_buf_handle: handle_T = (*stdin_buf).b_fnum;
+            let stdin_buf_handle: ObjHandle = (*stdin_buf).b_fnum;
             let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
             let mut buf = [0 as c_char; 100];
@@ -2018,7 +2018,7 @@ fn read_stdin() {
     }
 }
 
-fn create_windows(parmp: &mut mparm_T) {
+fn create_windows(parmp: &mut Mparm) {
     unsafe {
         if parmp.window_count == -1 {
             parmp.window_count = 1;
@@ -2121,7 +2121,7 @@ fn create_windows(parmp: &mut mparm_T) {
     }
 }
 
-fn edit_buffers(parmp: &mut mparm_T) {
+fn edit_buffers(parmp: &mut Mparm) {
     unsafe {
         let mut advance = true;
         let mut p_shm_save: Option<std::ffi::CString> = None;
@@ -2233,7 +2233,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
     }
 }
 
-fn exe_pre_commands(parmp: &mut mparm_T) {
+fn exe_pre_commands(parmp: &mut Mparm) {
      {
         if parmp.pre_commands.is_empty() {
             return;
@@ -2251,7 +2251,7 @@ fn exe_pre_commands(parmp: &mut mparm_T) {
     }
 }
 
-fn exe_commands(parmp: &mut mparm_T) {
+fn exe_commands(parmp: &mut Mparm) {
      {
         g_st().msg_scroll = 1;
         if parmp.tagname.is_none() && curwin_mut().w_cursor.lnum <= 1 {
@@ -2468,7 +2468,7 @@ fn do_exrc_initialization() {
     }
 }
 
-fn source_startup_scripts(parmp: &mparm_T) {
+fn source_startup_scripts(parmp: &Mparm) {
     if let Some(ref use_vimrc) = parmp.use_vimrc {
             if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
                 // Do nothing.
@@ -2676,7 +2676,7 @@ mod tests {
             assert_eq!(val, 25);
             assert_eq!(idx, 3);
 
-            let mut params = mparm_T::new();
+            let mut params = Mparm::new();
             init_params(&mut params, 3, ptr::null_mut());
             assert_eq!(params.argc, 3);
             assert_eq!(params.window_count, -1);

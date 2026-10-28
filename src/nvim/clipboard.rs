@@ -2,7 +2,7 @@
 
 use crate::api::private::helpers::{api_clear_string, cstr_to_string};
 use crate::eval::typval::{
-    VarType, list_T, tv_list_alloc, tv_list_append_list, tv_list_append_string,
+    VarType, TvList, tv_list_alloc, tv_list_append_list, tv_list_append_string,
 };
 use crate::eval::{eval_call_provider, eval_has_provider};
 use crate::mcursor::mc_replaying;
@@ -10,7 +10,7 @@ use crate::message::{emsg, msg, redirecting};
 use crate::option_vars::*;
 use crate::register::{
     EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, get_y_previous, get_y_register,
-    update_yankreg_width, yankreg_T,
+    update_yankreg_width, Yankreg,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
@@ -51,7 +51,7 @@ pub fn adjust_clipboard_name(
     name: &mut c_int,
     quiet: bool,
     writing: bool,
-) -> *mut yankreg_T {
+) -> *mut Yankreg {
     let reg_char = *name;
         let flags = opt_vars().cb_flags;
         let explicit_cb_reg = reg_char == b'*' as c_int || reg_char == b'+' as c_int;
@@ -110,7 +110,7 @@ pub fn adjust_clipboard_name(
 }
 
 /// Read clipboard contents into `*target` (`get_clipboard`).
-pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) -> bool {
+pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) -> bool {
     unsafe {
         let implicit = name == 0;
         let mut errmsg = true;
@@ -141,12 +141,12 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
         );
 
         let fail_cleanup =
-            |reg: &mut yankreg_T, errmsg: bool, target: *mut *mut yankreg_T| -> bool {
+            |reg: &mut Yankreg, errmsg: bool, target: *mut *mut Yankreg| -> bool {
                 *reg = EMPTY_YANKREG;
                 if errmsg {
                     emsg(c"clipboard: provider returned invalid data");
                 }
-                *target = reg as *mut yankreg_T;
+                *target = reg as *mut Yankreg;
                 false
             };
 
@@ -159,7 +159,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
 
         let res = result.vval.v_list();
         let res_len = if res.is_null() { 0 } else { (*res).lv_len };
-        let lines: *mut list_T;
+        let lines: *mut TvList;
 
         if res_len == 2
             && !(*res).lv_first.is_null()
@@ -230,7 +230,7 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
 }
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
-pub fn set_clipboard(mut name: c_int, reg: &yankreg_T) {
+pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
     unsafe {
         if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
             return;

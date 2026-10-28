@@ -3,21 +3,21 @@
 use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
 use crate::errors::e_notopen;
-use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
-use crate::eval::userfunc::{defer_T, func_tbl_get, get_current_funccal, ufunc_T};
+use crate::eval::typval::{TvDict, Dictitem, TvList, Listitem, TypVal};
+use crate::eval::userfunc::{DeferCall, func_tbl_get, get_current_funccal, UserFunc};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::Exarg;
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 use crate::globals::*;
 use crate::message::{emsg, semsg};
-use crate::os::env::{expand_T, expand_env_save_opt};
+use crate::os::env::{ExpandCtx, expand_env_save_opt};
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
 use std::ffi::{CStr, CString, c_char, c_int};
 
-pub type proftime_T = u64;
+pub type Proftime = u64;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
 const PROF_PAUSED: c_int = 2;
@@ -27,11 +27,11 @@ const IOFBF: c_int = 0;
 const PEXP_SUBCMD: i32 = 0;
 
 struct ProfileModuleState {
-    PROF_WAIT_TIME: proftime_T,
-    WAIT_TIME: proftime_T,
-    PAUSE_TIME: proftime_T,
-    G_START_TIME: proftime_T,
-    G_PREV_TIME: proftime_T,
+    PROF_WAIT_TIME: Proftime,
+    WAIT_TIME: Proftime,
+    PAUSE_TIME: Proftime,
+    G_START_TIME: Proftime,
+    G_PREV_TIME: Proftime,
     PEXPAND_WHAT: i32,
     STARTUPTIME_BUF: Vec<c_char>,
     PROFILE_FNAME: Option<CString>,
@@ -73,35 +73,35 @@ const PEXPAND_CMDS: [&CStr; 7] = [
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct sn_prl_T {
+pub struct SnPrl {
     pub snp_count: c_int,
-    pub sn_prl_total: proftime_T,
-    pub sn_prl_self: proftime_T,
+    pub sn_prl_total: Proftime,
+    pub sn_prl_self: Proftime,
 }
 
 #[repr(C)]
-pub struct scriptitem_T {
-    pub sn_vars: Box<crate::runtime::scriptvar_T>,
+pub struct Scriptitem {
+    pub sn_vars: Box<crate::runtime::Scriptvar>,
     pub sn_name: Option<std::ffi::CString>,
     pub sn_lua: bool,
     pub sn_prof_on: bool,
     pub sn_pr_force: bool,
-    pub sn_pr_child: proftime_T,
+    pub sn_pr_child: Proftime,
     pub sn_pr_nest: c_int,
     pub sn_pr_count: c_int,
-    pub sn_pr_total: proftime_T,
-    pub sn_pr_self: proftime_T,
-    pub sn_pr_start: proftime_T,
-    pub sn_pr_children: proftime_T,
-    pub sn_prl_ga: Vec<sn_prl_T>,
-    pub sn_prl_start: proftime_T,
-    pub sn_prl_children: proftime_T,
-    pub sn_prl_wait: proftime_T,
+    pub sn_pr_total: Proftime,
+    pub sn_pr_self: Proftime,
+    pub sn_pr_start: Proftime,
+    pub sn_pr_children: Proftime,
+    pub sn_prl_ga: Vec<SnPrl>,
+    pub sn_prl_start: Proftime,
+    pub sn_prl_children: Proftime,
+    pub sn_prl_wait: Proftime,
     pub sn_prl_idx: i32,
     pub sn_prl_execed: c_int,
 }
 
-impl scriptitem_T {
+impl Scriptitem {
     #[inline]
     pub fn name_ptr(&self) -> *mut c_char {
         self.sn_name
@@ -120,13 +120,13 @@ use crate::keycodes::K_SPECIAL;
 #[derive(Clone)]
 pub enum EStackInfo {
     None,
-    Ufunc(*mut ufunc_T),
-    AuCmd(std::rc::Rc<std::cell::Cell<crate::runtime::sctx_T>>),
+    Ufunc(*mut UserFunc),
+    AuCmd(std::rc::Rc<std::cell::Cell<crate::runtime::Sctx>>),
 }
 
 impl EStackInfo {
     #[inline]
-    pub const fn ufunc(&self) -> *mut ufunc_T {
+    pub const fn ufunc(&self) -> *mut UserFunc {
         match *self {
             Self::Ufunc(p) => p,
             _ => std::ptr::null_mut(),
@@ -134,23 +134,23 @@ impl EStackInfo {
     }
 
     #[inline]
-    pub fn aucmd_sctx(&self) -> crate::runtime::sctx_T {
+    pub fn aucmd_sctx(&self) -> crate::runtime::Sctx {
         match self {
             Self::AuCmd(sctx) => sctx.get(),
-            _ => crate::runtime::sctx_T::new(),
+            _ => crate::runtime::Sctx::new(),
         }
     }
 }
 
 #[derive(Clone)]
-pub struct estack_T {
+pub struct Estack {
     pub es_lnum: i32,
     pub es_name: Option<std::ffi::CString>,
     pub es_type: c_int,
     pub es_info: EStackInfo,
 }
 
-impl estack_T {
+impl Estack {
     #[inline]
     pub fn name_ptr(&self) -> *mut c_char {
         self.es_name
@@ -160,40 +160,40 @@ impl estack_T {
 }
 
 #[repr(C)]
-pub struct funccall_T {
-    pub fc_func: *mut ufunc_T,
+pub struct Funccall {
+    pub fc_func: *mut UserFunc,
     pub fc_linenr: c_int,
     pub fc_returned: c_int,
-    pub fc_l_vars: dict_T,
-    pub fc_l_vars_var: dictitem_T,
-    pub fc_l_avars: dict_T,
-    pub fc_l_avars_var: dictitem_T,
-    pub fc_l_varlist: list_T,
-    pub fc_l_listitems: [listitem_T; MAX_FUNC_ARGS],
-    pub fc_rettv: *mut typval_T,
+    pub fc_l_vars: TvDict,
+    pub fc_l_vars_var: Dictitem,
+    pub fc_l_avars: TvDict,
+    pub fc_l_avars_var: Dictitem,
+    pub fc_l_varlist: TvList,
+    pub fc_l_listitems: [Listitem; MAX_FUNC_ARGS],
+    pub fc_rettv: *mut TypVal,
     pub fc_breakpoint: i32,
     pub fc_dbg_tick: c_int,
     pub fc_level: c_int,
-    pub fc_defer: Vec<defer_T>,
-    pub fc_prof_child: proftime_T,
-    pub fc_caller: *mut funccall_T,
+    pub fc_defer: Vec<DeferCall>,
+    pub fc_prof_child: Proftime,
+    pub fc_caller: *mut Funccall,
     pub fc_refcount: c_int,
     pub fc_copyID: c_int,
-    pub fc_ufuncs: Vec<*mut ufunc_T>,
+    pub fc_ufuncs: Vec<*mut UserFunc>,
 }
 
-impl funccall_T {
+impl Funccall {
     pub const fn new() -> Self {
         Self {
             fc_func: std::ptr::null_mut(),
             fc_linenr: 0,
             fc_returned: 0,
-            fc_l_vars: dict_T::new(),
-            fc_l_vars_var: dictitem_T::new(),
-            fc_l_avars: dict_T::new(),
-            fc_l_avars_var: dictitem_T::new(),
-            fc_l_varlist: list_T::new(),
-            fc_l_listitems: [const { listitem_T::new() }; MAX_FUNC_ARGS],
+            fc_l_vars: TvDict::new(),
+            fc_l_vars_var: Dictitem::new(),
+            fc_l_avars: TvDict::new(),
+            fc_l_avars_var: Dictitem::new(),
+            fc_l_varlist: TvList::new(),
+            fc_l_listitems: [const { Listitem::new() }; MAX_FUNC_ARGS],
             fc_rettv: std::ptr::null_mut(),
             fc_breakpoint: 0,
             fc_dbg_tick: 0,
@@ -211,17 +211,17 @@ impl funccall_T {
 use crate::fileio::setvbuf;
 
 /// Gets the current time (`profile_start`).
-pub fn profile_start() -> proftime_T {
+pub fn profile_start() -> Proftime {
     os_hrtime()
 }
 
 /// Computes the time elapsed (`profile_end`).
-pub fn profile_end(tm: proftime_T) -> proftime_T {
+pub fn profile_end(tm: Proftime) -> Proftime {
     profile_sub(os_hrtime(), tm)
 }
 
 /// Gets a static string representing time `tm` (`profile_msg`).
-pub fn profile_msg(tm: proftime_T) -> *const c_char {
+pub fn profile_msg(tm: Proftime) -> *const c_char {
     let secs = (profile_signed(tm) as f64) / NS_PER_SEC;
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
@@ -235,17 +235,17 @@ pub fn profile_msg(tm: proftime_T) -> *const c_char {
 }
 
 /// Gets the time `msec` into the future (`profile_setlimit`).
-pub fn profile_setlimit(msec: i64) -> proftime_T {
+pub fn profile_setlimit(msec: i64) -> Proftime {
     if msec <= 0 {
         return profile_zero();
     }
     assert!(msec < (i64::MAX / 1_000_000));
-    let nsec = (msec as proftime_T) * 1_000_000;
+    let nsec = (msec as Proftime) * 1_000_000;
     os_hrtime().wrapping_add(nsec)
 }
 
 /// Checks if current time has passed `tm` (`profile_passed_limit`).
-pub fn profile_passed_limit(tm: proftime_T) -> bool {
+pub fn profile_passed_limit(tm: Proftime) -> bool {
     if tm == 0 {
         return false;
     }
@@ -253,34 +253,34 @@ pub fn profile_passed_limit(tm: proftime_T) -> bool {
 }
 
 /// Gets the zero time (`profile_zero`).
-pub const fn profile_zero() -> proftime_T {
+pub const fn profile_zero() -> Proftime {
     0
 }
 
 /// Divides time `tm` by `count` (`profile_divide`).
-pub fn profile_divide(tm: proftime_T, count: c_int) -> proftime_T {
+pub fn profile_divide(tm: Proftime, count: c_int) -> Proftime {
     if count <= 0 {
         return profile_zero();
     }
-    ((tm as f64) / (count as f64)).round() as proftime_T
+    ((tm as f64) / (count as f64)).round() as Proftime
 }
 
 /// Adds time `tm2` to `tm1` (`profile_add`).
-pub const fn profile_add(tm1: proftime_T, tm2: proftime_T) -> proftime_T {
+pub const fn profile_add(tm1: Proftime, tm2: Proftime) -> Proftime {
     tm1.wrapping_add(tm2)
 }
 
 /// Subtracts time `tm2` from `tm1` (`profile_sub`).
-pub const fn profile_sub(tm1: proftime_T, tm2: proftime_T) -> proftime_T {
+pub const fn profile_sub(tm1: Proftime, tm2: Proftime) -> Proftime {
     tm1.wrapping_sub(tm2)
 }
 
 /// Adds the `self` time from the total time and the `children` time (`profile_self`).
 pub const fn profile_self(
-    self_time: proftime_T,
-    total: proftime_T,
-    children: proftime_T,
-) -> proftime_T {
+    self_time: Proftime,
+    total: Proftime,
+    children: Proftime,
+) -> Proftime {
     if total <= children {
         return self_time;
     }
@@ -288,28 +288,28 @@ pub const fn profile_self(
 }
 
 #[inline]
-fn profile_get_wait() -> proftime_T {
+fn profile_get_wait() -> Proftime {
     prof_st().PROF_WAIT_TIME
 }
 
 /// Sets the current waittime (`profile_set_wait`).
-pub fn profile_set_wait(wait: proftime_T) {
+pub fn profile_set_wait(wait: Proftime) {
     prof_st().PROF_WAIT_TIME = wait;
 }
 
 /// Subtracts the passed waittime since `tm` (`profile_sub_wait`).
-pub fn profile_sub_wait(tm: proftime_T, tma: proftime_T) -> proftime_T {
+pub fn profile_sub_wait(tm: Proftime, tma: Proftime) -> Proftime {
     let tm3 = profile_sub(profile_get_wait(), tm);
     profile_sub(tma, tm3)
 }
 
 #[inline]
-const fn profile_equal(tm1: proftime_T, tm2: proftime_T) -> bool {
+const fn profile_equal(tm1: Proftime, tm2: Proftime) -> bool {
     tm1 == tm2
 }
 
 /// Converts time duration `tm` to a signed integer (`profile_signed`).
-pub const fn profile_signed(tm: proftime_T) -> i64 {
+pub const fn profile_signed(tm: Proftime) -> i64 {
     if tm <= (i64::MAX as u64) {
         tm as i64
     } else {
@@ -318,7 +318,7 @@ pub const fn profile_signed(tm: proftime_T) -> i64 {
 }
 
 /// Compares profiling times (`profile_cmp`).
-pub const fn profile_cmp(tm1: proftime_T, tm2: proftime_T) -> c_int {
+pub const fn profile_cmp(tm1: Proftime, tm2: Proftime) -> c_int {
     if tm1 == tm2 {
         return 0;
     }
@@ -380,7 +380,7 @@ pub fn profile_reset() {
 }
 
 /// `":profile cmd args"` (`ex_profile`).
-pub fn ex_profile(eap: &mut exarg_T) {
+pub fn ex_profile(eap: &mut Exarg) {
     unsafe {
         let arg = eap.arg;
         let mut e = skiptowhite(arg);
@@ -421,7 +421,7 @@ pub fn ex_profile(eap: &mut exarg_T) {
 }
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
-pub fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_profile_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     if prof_st().PEXPAND_WHAT == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -430,7 +430,7 @@ pub fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
-pub fn set_context_in_profile_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
+pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_PROFILE;
     prof_st().PEXPAND_WHAT = PEXP_SUBCMD;
     xp.xp_pattern = arg.cast_mut();
@@ -479,8 +479,8 @@ pub fn prof_def_func() -> bool {
 fn prof_func_line(
     fd: *mut FILE,
     count: c_int,
-    total: &proftime_T,
-    self_time: &proftime_T,
+    total: &Proftime,
+    self_time: &Proftime,
     prefer_self: bool,
 ) {
     if count > 0 {
@@ -502,7 +502,7 @@ fn prof_func_line(
 
 fn prof_sort_list(
     fd: *mut FILE,
-    sorttab: *mut *mut ufunc_T,
+    sorttab: *mut *mut UserFunc,
     st_len: c_int,
     title: &std::ffi::CStr,
     prefer_self: bool,
@@ -531,16 +531,16 @@ fn prof_sort_list(
     }
 }
 
-fn prof_total_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
+fn prof_total_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering {
     unsafe { profile_cmp((*s1).uf_tm_total, (*s2).uf_tm_total).cmp(&0) }
 }
 
-fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
+fn prof_self_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering {
     unsafe { profile_cmp((*s1).uf_tm_self, (*s2).uf_tm_self).cmp(&0) }
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
-pub fn func_do_profile(fp: *mut ufunc_T) {
+pub fn func_do_profile(fp: *mut UserFunc) {
     let fp = unsafe { &mut *fp };
     let mut len = fp.uf_lines.len() as c_int;
 
@@ -571,7 +571,7 @@ pub fn func_do_profile(fp: *mut ufunc_T) {
 }
 
 /// Prepare profiling for entering a child (`prof_child_enter`).
-pub fn prof_child_enter(tm: &mut proftime_T) {
+pub fn prof_child_enter(tm: &mut Proftime) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -582,7 +582,7 @@ pub fn prof_child_enter(tm: &mut proftime_T) {
 }
 
 /// Take care of time spent in a child (`prof_child_exit`).
-pub fn prof_child_exit(tm: &mut proftime_T) {
+pub fn prof_child_exit(tm: &mut Proftime) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -597,7 +597,7 @@ pub fn prof_child_exit(tm: &mut proftime_T) {
 }
 
 /// Called when starting to read a function line (`func_line_start`).
-pub fn func_line_start(fcp: &mut funccall_T) {
+pub fn func_line_start(fcp: &mut Funccall) {
     unsafe {
         let fp = &mut *fcp.fc_func;
         let slnum = sourcing_lnum();
@@ -616,7 +616,7 @@ pub fn func_line_start(fcp: &mut funccall_T) {
 }
 
 /// Called when actually executing a function line (`func_line_exec`).
-pub fn func_line_exec(fcp: &mut funccall_T) {
+pub fn func_line_exec(fcp: &mut Funccall) {
     let fp = unsafe { &mut *fcp.fc_func };
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         fp.uf_tml_execed = 1;
@@ -624,7 +624,7 @@ pub fn func_line_exec(fcp: &mut funccall_T) {
 }
 
 /// Called when done with a function line (`func_line_end`).
-pub fn func_line_end(fcp: &mut funccall_T) {
+pub fn func_line_end(fcp: &mut Funccall) {
     let fp = unsafe { &mut *fcp.fc_func };
 
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
@@ -648,7 +648,7 @@ fn func_dump_profile(fd: *mut FILE) {
             return;
         }
 
-        let mut sorttab: Vec<*mut ufunc_T> = Vec::with_capacity(todo);
+        let mut sorttab: Vec<*mut UserFunc> = Vec::with_capacity(todo);
 
         for &fp in functbl.values() {
             if (*fp).uf_prof_initialized != 0 {
@@ -716,7 +716,7 @@ fn func_dump_profile(fd: *mut FILE) {
 }
 
 /// Start profiling a script (`profile_init`).
-pub fn profile_init(si: *mut scriptitem_T) {
+pub fn profile_init(si: *mut Scriptitem) {
     let si = unsafe { &mut *si };
     si.sn_pr_count = 0;
     si.sn_pr_total = profile_zero();
@@ -729,7 +729,7 @@ pub fn profile_init(si: *mut scriptitem_T) {
 }
 
 /// Save time when starting to invoke another script or function (`script_prof_save`).
-pub fn script_prof_save(tm: &mut proftime_T) {
+pub fn script_prof_save(tm: &mut Proftime) {
     unsafe {
         if script_id_valid(g_st().current_sctx.sc_sid) {
             let si = &mut *script_item(g_st().current_sctx.sc_sid);
@@ -748,7 +748,7 @@ pub fn script_prof_save(tm: &mut proftime_T) {
 }
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
-pub fn script_prof_restore(tm: &proftime_T) {
+pub fn script_prof_restore(tm: &Proftime) {
     unsafe {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
@@ -867,7 +867,7 @@ pub fn script_line_start() {
             if (*si).sn_prl_ga.len() < slnum as usize {
                 (*si).sn_prl_ga.resize(
                     slnum as usize,
-                    sn_prl_T {
+                    SnPrl {
                         snp_count: 0,
                         sn_prl_total: profile_zero(),
                         sn_prl_self: profile_zero(),
@@ -922,7 +922,7 @@ pub fn script_line_end() {
 }
 
 /// Saves the previous time before doing something that could nest (`time_push`).
-pub fn time_push(rel: &mut proftime_T, start: &mut proftime_T) {
+pub fn time_push(rel: &mut Proftime, start: &mut Proftime) {
     let now = profile_start();
     {
         let prev = prof_st().G_PREV_TIME;
@@ -933,11 +933,11 @@ pub fn time_push(rel: &mut proftime_T, start: &mut proftime_T) {
 }
 
 /// Computes the prev time after doing something that could nest (`time_pop`).
-pub fn time_pop(tp: proftime_T) {
+pub fn time_pop(tp: Proftime) {
     prof_st().G_PREV_TIME = prof_st().G_PREV_TIME.wrapping_sub(tp);
 }
 
-fn time_diff(then: proftime_T, now: proftime_T) {
+fn time_diff(then: Proftime, now: Proftime) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
     if let Some(ref tf) = g_st().time_fd {
@@ -970,7 +970,7 @@ pub fn time_start(message: &std::ffi::CStr) {
 }
 
 /// Prints out timing info (`time_msg`).
-pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&proftime_T>) {
+pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&Proftime>) {
     let mesg = mesg.into_c_char_ptr();
     {
         let Some(ref tf) = g_st().time_fd else {

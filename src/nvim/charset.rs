@@ -1,6 +1,6 @@
 //! Code related to character sets (`src/nvim/charset.c`).
 
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::cursor::get_cursor_line_ptr;
 use crate::globals::*;
 use crate::mbyte::{
@@ -16,10 +16,10 @@ use std::ffi::{CString, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::change::TAB;
-use crate::eval::typval::varnumber_T;
+use crate::eval::typval::Varnumber;
 use crate::keycodes::CAR;
 use crate::regexp::MAXCOL;
-pub type uvarnumber_T = u64;
+pub type Uvarnumber = u64;
 
 pub(crate) const NUL: c_char = 0;
 pub(crate) const NL: c_char = b'\n' as c_char;
@@ -161,9 +161,9 @@ pub(crate) const STR2NR_OOCT: c_int = 1 << 3;
 pub(crate) const STR2NR_QUOTE: c_int = 1 << 4;
 pub(crate) const STR2NR_FORCE: c_int = 1 << 7;
 
-const VARNUMBER_MAX: uvarnumber_T = i64::MAX as u64;
-pub(crate) const VARNUMBER_MIN: varnumber_T = i64::MIN;
-const UVARNUMBER_MAX: uvarnumber_T = u64::MAX;
+const VARNUMBER_MAX: Uvarnumber = i64::MAX as u64;
+pub(crate) const VARNUMBER_MIN: Varnumber = i64::MIN;
+const UVARNUMBER_MAX: Uvarnumber = u64::MAX;
 
 struct CharsetModuleState {
     isf_chartab: [u64; 4],
@@ -239,7 +239,7 @@ const fn nr2hex(n: u32) -> u8 {
 
 use crate::keycodes::k_second;
 
-pub fn buf_init_isk_chartab(buf: &mut buf_T) -> bool {
+pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
     let save_chartab = buf.b_chartab;
         buf.b_chartab = [0; 4];
         if buf.b_p_lisp != 0 {
@@ -589,7 +589,7 @@ pub fn transchar(c: c_int) -> *mut c_char {
     transchar_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_buf(buf: Option<&buf_T>, mut c: c_int) -> *mut c_char {
+pub fn transchar_buf(buf: Option<&FileBuf>, mut c: c_int) -> *mut c_char {
     unsafe {
         let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
         let mut i: usize = 0;
@@ -616,7 +616,7 @@ pub fn transchar_byte(c: c_int) -> *mut c_char {
     transchar_byte_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_byte_buf(buf: Option<&buf_T>, c: c_int) -> *mut c_char {
+pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: c_int) -> *mut c_char {
     if c >= 0x80 {
             let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<c_char>();
             transchar_nonprint(buf, charbuf_ptr, c);
@@ -625,7 +625,7 @@ pub fn transchar_byte_buf(buf: Option<&buf_T>, c: c_int) -> *mut c_char {
         transchar_buf(buf, c)
 }
 
-pub fn transchar_nonprint(buf: Option<&buf_T>, charbuf: *mut c_char, mut c: c_int) {
+pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: c_int) {
     unsafe {
         if c == c_int::from(NL) {
             c = 0;
@@ -733,7 +733,7 @@ pub fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
         }
 }
 
-pub fn vim_iswordc_buf(c: c_int, buf: &mut buf_T) -> bool {
+pub fn vim_iswordc_buf(c: c_int, buf: &mut FileBuf) -> bool {
     vim_iswordc_tab(c, buf.b_chartab.as_ptr())
 }
 
@@ -741,7 +741,7 @@ pub fn vim_iswordp(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.int
     vim_iswordp_buf(p, crate::globals::curbuf_mut())
 }
 
-pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut buf_T) -> bool { let p = p.into_c_char_ptr();
+pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> bool { let p = p.into_c_char_ptr();
      {
         let mut c = c_int::from(crate::memory::cstr_first_byte(p));
         if utf8len_tab[c as usize] > 1 {
@@ -1030,8 +1030,8 @@ pub fn vim_str2nr(
     prep: Option<&mut c_int>,
     mut len: Option<&mut c_int>,
     what: c_int,
-    nptr: Option<&mut varnumber_T>,
-    unptr: Option<&mut uvarnumber_T>,
+    nptr: Option<&mut Varnumber>,
+    unptr: Option<&mut Uvarnumber>,
     maxlen: c_int,
     strict: bool,
     mut overflow: Option<&mut bool>,
@@ -1043,7 +1043,7 @@ pub fn vim_str2nr(
         };
         let mut pre: c_int = 0;
         let negative = crate::memory::cstr_first_byte(ptr) == b'-';
-        let mut un: uvarnumber_T = 0;
+        let mut un: Uvarnumber = 0;
 
         if let Some(len) = len.as_deref_mut() {
             *len = 0;
@@ -1053,7 +1053,7 @@ pub fn vim_str2nr(
             ptr = ptr.add(1);
         }
 
-        let base: uvarnumber_T;
+        let base: Uvarnumber;
         if (what & STR2NR_FORCE) != 0 {
             match what & !(STR2NR_FORCE | STR2NR_QUOTE) {
                 STR2NR_HEX => {
@@ -1168,9 +1168,9 @@ pub fn vim_str2nr(
                 break;
             }
             let digit = if base == 16 {
-                hex2nr(c) as uvarnumber_T
+                hex2nr(c) as Uvarnumber
             } else {
-                (c - b'0' as c_int) as uvarnumber_T
+                (c - b'0' as c_int) as Uvarnumber
             };
             if un < UVARNUMBER_MAX / base
                 || (un == UVARNUMBER_MAX / base && (base != 10 || digit <= UVARNUMBER_MAX % 10))
@@ -1205,7 +1205,7 @@ pub fn vim_str2nr(
                         *overflow = true;
                     }
                 } else {
-                    *nptr = -(un as varnumber_T);
+                    *nptr = -(un as Varnumber);
                 }
             } else {
                 if un > VARNUMBER_MAX {
@@ -1214,7 +1214,7 @@ pub fn vim_str2nr(
                         *overflow = true;
                     }
                 }
-                *nptr = un as varnumber_T;
+                *nptr = un as Varnumber;
             }
         }
 
@@ -1324,13 +1324,13 @@ mod tests {
                          maxlen: c_int,
                          strict: bool,
                          exp_len: c_int,
-                         exp_num: Option<varnumber_T>,
-                         exp_unum: Option<uvarnumber_T>,
+                         exp_num: Option<Varnumber>,
+                         exp_unum: Option<Uvarnumber>,
                          exp_pre: Option<c_int>| {
                 let mut pre: c_int = -99;
                 let mut len: c_int = -99;
-                let mut num: varnumber_T = -99;
-                let mut unum: uvarnumber_T = 99;
+                let mut num: Varnumber = -99;
+                let mut unum: Uvarnumber = 99;
                 vim_str2nr(
                     s.as_ptr(),
                     Some(&mut pre),

@@ -1,6 +1,6 @@
 //! Process spawning, waiting, stopping, and teardown (`src/nvim/event/proc.c`).
 
-use crate::eval::typval::dict_T;
+use crate::eval::typval::TvDict;
 pub use crate::event::libuv_proc::LibuvProc;
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{
@@ -42,7 +42,7 @@ pub struct Proc {
     pub cwd: Option<std::ffi::CString>,
     pub argv: Vec<std::ffi::CString>,
     pub exepath: Option<std::ffi::CString>,
-    pub env: *mut dict_T,
+    pub env: *mut TvDict,
     pub r#in: Stream,
     pub out: RStream,
     pub err: RStream,

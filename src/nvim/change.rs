@@ -2,7 +2,7 @@
 
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
 use crate::buffer::{
-    BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, buf_T, buf_inc_changedtick,
+    BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, FileBuf, buf_inc_changedtick,
     buf_meta_total, kUIMessages,
 };
 use crate::buffer_updates::buf_updates_send_changes;
@@ -11,8 +11,8 @@ use crate::charset::{
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
-    check_cursor_lnum, check_visual_pos, coladvance_force, colnr_T, get_cursor_line_len,
-    get_cursor_line_ptr, get_cursor_pos_ptr, getviscol, linenr_T, pos_T,
+    check_cursor_lnum, check_visual_pos, coladvance_force, Colnr, get_cursor_line_len,
+    get_cursor_line_ptr, get_cursor_pos_ptr, getviscol, Linenr, CursorPos,
 };
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
@@ -61,7 +61,7 @@ use crate::strings::{concat_str, tr, vim_strchr};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -115,7 +115,7 @@ pub const fn replace_normal(s: c_int) -> bool {
 }
 
 #[inline]
-fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
+fn for_all_tab_windows(mut f: impl FnMut(*mut WinInfoInfo)) {
      {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(unsafe { &*tp }) {
@@ -126,7 +126,7 @@ fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
 }
 
 /// If the file is readonly, give a warning message with the first change.
-pub fn change_warning(buf: &mut buf_T, col: c_int) {
+pub fn change_warning(buf: &mut FileBuf, col: c_int) {
      {
         const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
@@ -166,7 +166,7 @@ pub fn change_warning(buf: &mut buf_T, col: c_int) {
 }
 
 /// Call this function when something in a buffer is changed.
-pub fn changed(buf: &mut buf_T) {
+pub fn changed(buf: &mut FileBuf) {
      {
         if buf.b_changed == 0 {
             let save_msg_scroll = g_st().msg_scroll;
@@ -199,7 +199,7 @@ pub fn changed(buf: &mut buf_T) {
 }
 
 /// Internal part of `changed()`, no user interaction.
-pub fn changed_internal(buf: &mut buf_T) {
+pub fn changed_internal(buf: &mut FileBuf) {
     let was_changed = buf.b_changed != 0;
         buf.b_changed = 1;
         ml_setflags( &mut *buf);
@@ -213,11 +213,11 @@ pub fn changed_internal(buf: &mut buf_T) {
 
 /// Invalidate a window's `w_valid` flags and `w_lines[]` entries after changing lines.
 fn changed_lines_invalidate_win(
-    wp: &mut win_T,
-    lnum: linenr_T,
-    col: colnr_T,
-    mut lnume: linenr_T,
-    xtra: linenr_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
+    col: Colnr,
+    mut lnume: Linenr,
+    xtra: Linenr,
 ) {
      {
         if wp.w_cursor.lnum <= lnum {
@@ -268,11 +268,11 @@ fn changed_lines_invalidate_win(
 }
 
 /// Like `changed_lines_invalidate_win()`, but for all windows displaying a buffer.
-pub fn changed_lines_invalidate_buf(buf: &mut buf_T,
-    lnum: linenr_T,
-    col: colnr_T,
-    lnume: linenr_T,
-    xtra: linenr_T,
+pub fn changed_lines_invalidate_buf(buf: &mut FileBuf,
+    lnum: Linenr,
+    col: Colnr,
+    lnume: Linenr,
+    xtra: Linenr,
 ) {
     unsafe {
         for_all_tab_windows(|wp| {
@@ -285,11 +285,11 @@ pub fn changed_lines_invalidate_buf(buf: &mut buf_T,
 
 /// Common code for when a change was made.
 fn changed_common(
-    buf: &mut buf_T,
-    mut lnum: linenr_T,
-    col: colnr_T,
-    lnume: linenr_T,
-    xtra: linenr_T,
+    buf: &mut FileBuf,
+    mut lnum: Linenr,
+    col: Colnr,
+    lnume: Linenr,
+    xtra: Linenr,
 ) {
     unsafe {
         changed(buf);
@@ -317,7 +317,7 @@ fn changed_common(
             }
             reset_fmark(
                 &mut buf.b_last_change,
-                pos_T {
+                CursorPos {
                     lnum,
                     col,
                     coladd: 0,
@@ -463,7 +463,7 @@ fn changed_common(
 }
 
 /// Changed bytes within a single line for the current buffer.
-pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
+pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     unsafe {
         changed_lines_redraw_buf(curbuf_mut(), lnum, lnum + 1, 0);
         changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
@@ -490,7 +490,7 @@ pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
 }
 
 /// Insert/delete bytes at column.
-pub fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_col: c_int) {
+pub fn inserted_bytes(lnum: Linenr, start_col: Colnr, old_col: c_int, new_col: c_int) {
     if g_st().curbuf_splice_pending == 0 {
             extmark_splice_cols(curbuf_mut(), lnum - 1, start_col, old_col, new_col, kExtmarkUndo);
         }
@@ -499,33 +499,33 @@ pub fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_co
 }
 
 /// Appended `count` lines below line `lnum` in the given buffer.
-pub fn appended_lines_buf(buf: &mut buf_T, lnum: linenr_T, count: linenr_T) {
+pub fn appended_lines_buf(buf: &mut FileBuf, lnum: Linenr, count: Linenr) {
     changed_lines( buf, lnum + 1, 0, lnum + 1, count, true);
 }
 
 /// Appended `count` lines below line `lnum` in the current buffer.
-pub fn appended_lines(lnum: linenr_T, count: linenr_T) {
+pub fn appended_lines(lnum: Linenr, count: Linenr) {
     appended_lines_buf(curbuf_mut(), lnum, count);
 }
 
 /// Like `appended_lines()`, but adjust marks first.
-pub fn appended_lines_mark(lnum: linenr_T, count: c_int) {
+pub fn appended_lines_mark(lnum: Linenr, count: c_int) {
     mark_adjust(lnum + 1, MAXLNUM, count, 0, kExtmarkUndo);
         changed_lines(curbuf_mut(), lnum + 1, 0, lnum + 1, count, true);
 }
 
 /// Deleted `count` lines at line `lnum` in the given buffer.
-pub fn deleted_lines_buf(buf: &mut buf_T, lnum: linenr_T, count: linenr_T) {
+pub fn deleted_lines_buf(buf: &mut FileBuf, lnum: Linenr, count: Linenr) {
     changed_lines( buf, lnum, 0, lnum + count, -count, true);
 }
 
 /// Deleted `count` lines at line `lnum` in the current buffer.
-pub fn deleted_lines(lnum: linenr_T, count: linenr_T) {
+pub fn deleted_lines(lnum: Linenr, count: Linenr) {
     deleted_lines_buf(crate::globals::curbuf_mut(), lnum, count);
 }
 
 /// Like `deleted_lines()`, but adjust marks first.
-pub fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
+pub fn deleted_lines_mark(lnum: Linenr, count: c_int) {
      {
         let made_empty = count > 0 && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
 
@@ -544,10 +544,10 @@ pub fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
 
 /// Marks the area to be redrawn after a change.
 pub fn changed_lines_redraw_buf(
-    buf: &mut buf_T,
-    lnum: linenr_T,
-    mut lnume: linenr_T,
-    xtra: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
+    mut lnume: Linenr,
+    xtra: Linenr,
 ) {
      {
         if xtra != 0 && buf.b_marktree.n_keys > 0 {
@@ -573,11 +573,11 @@ pub fn changed_lines_redraw_buf(
 
 /// Changed lines for a buffer.
 pub fn changed_lines(
-    buf: &mut buf_T,
-    lnum: linenr_T,
-    col: colnr_T,
-    lnume: linenr_T,
-    xtra: linenr_T,
+    buf: &mut FileBuf,
+    lnum: Linenr,
+    col: Colnr,
+    lnume: Linenr,
+    xtra: Linenr,
     do_buf_event: bool,
 ) {
     unsafe {
@@ -610,7 +610,7 @@ pub fn changed_lines(
 }
 
 /// Called when the changed flag must be reset for buffer `buf`.
-pub fn unchanged(buf: &mut buf_T, ff: bool, always_inc_changedtick: bool) {
+pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
      {
         if buf.b_changed != 0 || (ff && file_ff_differs(buf, false)) {
             let was_changed = buf.b_changed != 0;
@@ -633,7 +633,7 @@ pub fn unchanged(buf: &mut buf_T, ff: bool, always_inc_changedtick: bool) {
 }
 
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
-pub fn save_file_ff(buf: &mut buf_T) {
+pub fn save_file_ff(buf: &mut FileBuf) {
      {
         buf.b_start_ffc = c_int::from(crate::memory::cstr_first_byte(buf.b_p_ff));
         buf.b_start_eof = buf.b_p_eof;
@@ -653,7 +653,7 @@ pub fn save_file_ff(buf: &mut buf_T) {
 
 /// Return true if `'fileformat'` and/or `'fileencoding'` has a different value
 /// from when editing started.
-pub fn file_ff_differs(buf: &mut buf_T, ignore_empty: bool) -> bool {
+pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     unsafe {
         if (buf.b_flags & BF_NEVERLOADED) != 0 {
             return false;
@@ -733,7 +733,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) { 
                 if old_list != 0 && vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
                     curwin_mut().w_onebuf_opt.wo_list = 0;
                 }
-                let mut vcol: colnr_T = 0;
+                let mut vcol: Colnr = 0;
                 getvcol(
                     curwin_mut(),
                     &mut curwin_mut().w_cursor,
@@ -786,14 +786,14 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) { 
 
         ml_replace(lnum, newp, true);
         drop(newp_vec);
-        inserted_bytes(lnum, col as colnr_T, oldlen as c_int, newlen as c_int);
+        inserted_bytes(lnum, col as Colnr, oldlen as c_int, newlen as c_int);
 
         if opt_vars().p_sm != 0 && (g_st().State & MODE_INSERT) != 0 && g_st().msg_silent == 0 && !ins_compl_active() {
             showmatch(utf_ptr2char(buf));
         }
 
         if opt_vars().p_ri == 0 || (g_st().State & REPLACE_FLAG) != 0 {
-            curwin_mut().w_cursor.col += charlen as colnr_T;
+            curwin_mut().w_cursor.col += charlen as Colnr;
         }
     }
 }
@@ -828,7 +828,7 @@ pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
         ml_replace(lnum, newp, true);
         drop(newp_vec);
         inserted_bytes(lnum, col, 0, slen as c_int);
-        curwin_mut().w_cursor.col += slen as colnr_T;
+        curwin_mut().w_cursor.col += slen as Colnr;
     }
 }
 
@@ -846,7 +846,7 @@ pub fn del_char(fixpos: bool) -> bool {
 /// Like `del_bytes()`, but delete characters instead of bytes.
 pub fn del_chars(count: c_int, fixpos: c_int) -> bool {
     unsafe {
-        let mut bytes: colnr_T = 0;
+        let mut bytes: Colnr = 0;
         let mut p = get_cursor_pos_ptr();
         let mut i: c_int = 0;
         while i < count && !crate::memory::cstr_is_empty(p) {
@@ -860,7 +860,7 @@ pub fn del_chars(count: c_int, fixpos: c_int) -> bool {
 }
 
 /// Delete `count` bytes under the cursor.
-pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> bool {
+pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bool {
     unsafe {
         let lnum = curwin_mut().w_cursor.lnum;
         let mut col = curwin_mut().w_cursor.col;
@@ -958,9 +958,9 @@ pub fn open_line(
     unsafe {
         let mut next_line_vec: Vec<c_char> = Vec::new();
         let mut p_extra: *mut c_char = ptr::null_mut();
-        let mut less_cols: colnr_T = 0;
-        let mut less_cols_off: colnr_T = 0;
-        let mut newcol: colnr_T = 0;
+        let mut less_cols: Colnr = 0;
+        let mut less_cols_off: Colnr = 0;
+        let mut newcol: Colnr = 0;
         let mut newindent: c_int = 0;
         let mut trunc_line = false;
         let mut retval = false;
@@ -1064,7 +1064,7 @@ pub fn open_line(
                             p = p.add(1);
                             while !crate::memory::cstr_is_empty(p) {
                                 if crate::memory::cstr_first_byte(p) == b'/' && *p.sub(1) == b'*' as c_char {
-                                    curwin_mut().w_cursor.col = p.offset_from(ptr) as colnr_T;
+                                    curwin_mut().w_cursor.col = p.offset_from(ptr) as Colnr;
                                     let pos = findmatch(None, 0);
                                     if !pos.is_null() {
                                         curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1093,7 +1093,7 @@ pub fn open_line(
                             }
                         }
                         if crate::memory::cstr_first_byte(p) == b')' {
-                            curwin_mut().w_cursor.col = p.offset_from(ptr) as colnr_T;
+                            curwin_mut().w_cursor.col = p.offset_from(ptr) as Colnr;
                             let pos = findmatch(None, b'(' as c_int);
                             if !pos.is_null() {
                                 curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1526,7 +1526,7 @@ pub fn open_line(
                 && (curbuf_mut().b_p_ai != 0 || do_si)
             {
                 let old_cursor = curwin_mut().w_cursor;
-                curwin_mut().w_cursor.col = comment_end.offset_from(saved_line) as colnr_T;
+                curwin_mut().w_cursor.col = comment_end.offset_from(saved_line) as Colnr;
                 let pos = findmatch(None, 0);
                 if !pos.is_null() {
                     curwin_mut().w_cursor.lnum = (*pos).lnum;
@@ -1554,7 +1554,7 @@ pub fn open_line(
                 }
             }
 
-            less_cols = p_extra.offset_from(saved_line) as colnr_T;
+            less_cols = p_extra.offset_from(saved_line) as Colnr;
         }
 
         if p_extra.is_null() {
@@ -1778,10 +1778,10 @@ pub fn open_line(
                     && curbuf_mut().b_p_ai != 0
                 {
                     fixthisline(get_lisp_indent);
-                    g_st().Ins.ai_col = getwhitecols_curline() as colnr_T;
+                    g_st().Ins.ai_col = getwhitecols_curline() as Colnr;
                 } else if do_cindent || (curbuf_mut().b_p_ai != 0 && use_indentexpr_for_lisp()) {
                     do_c_expr_indent();
-                    g_st().Ins.ai_col = getwhitecols_curline() as colnr_T;
+                    g_st().Ins.ai_col = getwhitecols_curline() as Colnr;
                 }
             }
 
@@ -1841,7 +1841,7 @@ pub fn truncate_line(fixpos: c_int) {
 }
 
 /// Delete `nlines` lines at the cursor.
-pub fn del_lines(nlines: linenr_T, undo: bool) {
+pub fn del_lines(nlines: Linenr, undo: bool) {
      {
         let first = curwin_mut().w_cursor.lnum;
 

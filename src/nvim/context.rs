@@ -11,21 +11,21 @@ use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, O
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{
-    BCO_ENTER, BCO_NOHELP, MAXLNUM, bt_prompt, buf_T, bufref_valid, do_autochdir, set_bufref,
+    BCO_ENTER, BCO_NOHELP, MAXLNUM, bt_prompt, FileBuf, bufref_valid, do_autochdir, set_bufref,
 };
-use crate::cursor::{check_cursor, check_pos, colnr_T, equalpos, pos_T};
+use crate::cursor::{check_cursor, check_pos, Colnr, equalpos, CursorPos};
 use crate::eval::encode::encode_vim_list_to_buf;
-use crate::eval::typval::{VarType, tv_clear, typval_T};
+use crate::eval::typval::{VarType, tv_clear, TypVal};
 use crate::eval::userfunc::func_tbl_get;
 use crate::eval::vars::vars_clear;
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
-use crate::mark::{fmark_T, fmarkv_T};
+use crate::mark::{Fmark, Fmarkv};
 use crate::memory::{Arena};
-use crate::msgpack_rpc::packer::handle_T;
-use crate::normal::visualinfo_T;
+use crate::msgpack_rpc::packer::ObjHandle;
+use crate::normal::Visualinfo;
 use crate::option::buf_copy_options;
 use crate::option_vars::*;
 use crate::os::fs::{MAXPATHL, os_chdir, os_dirname};
@@ -35,8 +35,8 @@ use crate::shada::{
     shada_encode_gvars, shada_encode_jumps, shada_encode_regs, shada_read_string,
 };
 use crate::window::{
-    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, tabpage_T, unuse_tabpage,
-    update_cwd, use_tabpage, valid_tabpage, valid_tabpage_win, win_T, win_alloc_ctx_win,
+    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, TabPageInfo, unuse_tabpage,
+    update_cwd, use_tabpage, valid_tabpage, valid_tabpage_win, WinInfoInfo, win_alloc_ctx_win,
     win_append, win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
 };
 use crate::winfloat::win_config_float;
@@ -56,20 +56,20 @@ pub type CdCause = c_int;
 pub struct CtxSwitch {
     pub cs_flags: c_int,
     pub cs_mode: c_int,
-    pub cs_curwin: handle_T,
+    pub cs_curwin: ObjHandle,
     pub cs_curwin_xtab: bool,
-    pub cs_prevwin: handle_T,
-    pub cs_curtab: *mut tabpage_T,
+    pub cs_prevwin: ObjHandle,
+    pub cs_curtab: *mut TabPageInfo,
     pub cs_same_win: bool,
     pub cs_visual_active: bool,
     pub cs_prompt_insert: c_int,
-    pub cs_new_curwin: handle_T,
-    pub cs_new_curbuf: crate::buffer::bufref_T,
+    pub cs_new_curwin: ObjHandle,
+    pub cs_new_curbuf: crate::buffer::Bufref,
     pub cs_ctxwin_idx: c_int,
-    pub cs_target_win: handle_T,
-    pub cs_target_old_pos: pos_T,
+    pub cs_target_win: ObjHandle,
+    pub cs_target_old_pos: CursorPos,
     pub cs_did_chdir: bool,
-    pub cs_dirs_tab: handle_T,
+    pub cs_dirs_tab: ObjHandle,
     pub cs_w_localdir: Option<std::ffi::CString>,
     pub cs_b_localdir: Option<std::ffi::CString>,
     pub cs_tp_localdir: Option<std::ffi::CString>,
@@ -91,10 +91,10 @@ impl CtxSwitch {
             cs_visual_active: false,
             cs_prompt_insert: 0,
             cs_new_curwin: 0,
-            cs_new_curbuf: crate::buffer::bufref_T::new(),
+            cs_new_curbuf: crate::buffer::Bufref::new(),
             cs_ctxwin_idx: 0,
             cs_target_win: 0,
-            cs_target_old_pos: pos_T::new(),
+            cs_target_old_pos: CursorPos::new(),
             cs_did_chdir: false,
             cs_dirs_tab: 0,
             cs_w_localdir: None,
@@ -139,17 +139,17 @@ const kCtxSwitchDirs: c_int = 3;
 
 #[derive(Clone)]
 pub struct Context {
-    pub pos: pos_T,
+    pub pos: CursorPos,
     pub mark: u32,
-    pub curswant: colnr_T,
+    pub curswant: Colnr,
     pub visual_mode_eval: c_int,
-    pub visual: visualinfo_T,
-    pub op_start: pos_T,
-    pub op_end: pos_T,
-    pub last_change: fmark_T,
-    pub last_insert: fmark_T,
+    pub visual: Visualinfo,
+    pub op_start: CursorPos,
+    pub op_end: CursorPos,
+    pub last_change: Fmark,
+    pub last_insert: Fmark,
     pub pos_marks: [u32; 6],
-    pub buf: handle_T,
+    pub buf: ObjHandle,
     pub regs: Vec<u8>,
     pub jumps: Vec<u8>,
     pub bufs: Vec<u8>,
@@ -160,22 +160,22 @@ pub struct Context {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CtxWin {
-    pub cw_win: *mut win_T,
+    pub cw_win: *mut WinInfoInfo,
     pub cw_used: bool,
 }
 
-pub const INIT_POS: pos_T = pos_T {
+pub const INIT_POS: CursorPos = CursorPos {
     lnum: 0,
     col: 0,
     coladd: 0,
 };
 
-pub const INIT_FMARKV: fmarkv_T = fmarkv_T {
+pub const INIT_FMARKV: Fmarkv = Fmarkv {
     topline_offset: MAXLNUM,
     skipcol: 0,
 };
 
-pub const INIT_FMARK: fmark_T = fmark_T {
+pub const INIT_FMARK: Fmark = Fmark {
     mark: INIT_POS,
     fnum: 0,
     timestamp: 0,
@@ -188,7 +188,7 @@ pub const CONTEXT_INIT: Context = Context {
     mark: 0,
     curswant: -1,
     visual_mode_eval: 0,
-    visual: visualinfo_T {
+    visual: Visualinfo {
         vi_start: INIT_POS,
         vi_end: INIT_POS,
         vi_mode: 0,
@@ -209,7 +209,7 @@ pub const CONTEXT_INIT: Context = Context {
 
 struct ContextModuleState {
     CTX_SWITCH_DEPTH: c_int,
-    CTX_SAVED_CURWIN: handle_T,
+    CTX_SAVED_CURWIN: ObjHandle,
     CTX_DID_CHDIR: bool,
     CTX_MARKS_NS_ID: u32,
 }
@@ -233,14 +233,14 @@ fn ctx_st() -> &'static mut ContextModuleState {
 }
 
 #[inline]
-pub fn handle_get_buffer(h: handle_T) -> *mut buf_T {
+pub fn handle_get_buffer(h: ObjHandle) -> *mut FileBuf {
      {
         g_st().buffer_handles.get(&h).copied().unwrap_or(ptr::null_mut())
     }
 }
 
 #[inline]
-pub fn handle_get_window(h: handle_T) -> *mut win_T {
+pub fn handle_get_window(h: ObjHandle) -> *mut WinInfoInfo {
      {
         g_st().window_handles.get(&h).copied().unwrap_or(ptr::null_mut())
     }
@@ -255,7 +255,7 @@ fn ctx_marks_ns() -> u32 {
     }
 }
 
-fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [*mut pos_T; 6] {
+fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [*mut CursorPos; 6] {
      {
         let visual = (flags & kCtxVisual) != 0;
         let marks = (flags & kCtxMarks) != 0;
@@ -487,7 +487,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
 fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     unsafe {
         let mut sbuf = Vec::new();
-        let mut list_tv: typval_T = typval_T::new();
+        let mut list_tv: TypVal = TypVal::new();
         object_to_vim(array_obj(array), &mut list_tv, err);
 
         assert_eq!(list_tv.v_type, VarType::VAR_LIST);
@@ -576,7 +576,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
     }
 }
 
-fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: &mut buf_T) {
+fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut WinInfoInfo, buf: &mut FileBuf) {
      {
         cw_win.w_localdir = None;
         cs.cs_b_localdir = buf.b_localdir.take();
@@ -586,8 +586,8 @@ fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: &mut buf_T) {
 }
 
 fn ctx_localdirs_restore(cs: &mut CtxSwitch,
-    cwp: Option<&win_T>,
-    mut tp: Option<&mut tabpage_T>,
+    cwp: Option<&WinInfoInfo>,
+    mut tp: Option<&mut TabPageInfo>,
     persist: bool,
 ) {
     unsafe {
@@ -602,7 +602,7 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
         }
 
         let b = if bufref_valid(Some(&cs.cs_new_curbuf)) {
-            cs.cs_new_curbuf.br_buf.cast::<buf_T>()
+            cs.cs_new_curbuf.br_buf.cast::<FileBuf>()
         } else {
             ptr::null_mut()
         };
@@ -631,7 +631,7 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
     }
 }
 
-fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &mut win_T, tp: *mut tabpage_T, buf: *mut buf_T) {
+fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &mut WinInfoInfo, tp: *mut TabPageInfo, buf: *mut FileBuf) {
     unsafe {
         if (cs.cs_flags & (kCtxKeepCwd | kCtxKeepDirs)) == 0 {
             return;
@@ -675,7 +675,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
         }
 
         if (cs.cs_flags & kCtxKeepDirs) != 0 {
-            let mut dirs_tab: *mut tabpage_T = ptr::null_mut();
+            let mut dirs_tab: *mut TabPageInfo = ptr::null_mut();
             for tp in for_all_tabpages_ptr() {
                 if (*tp).handle == cs.cs_dirs_tab {
                     dirs_tab = tp;
@@ -704,11 +704,11 @@ pub fn ctx_did_chdir() {
     ctx_st().CTX_DID_CHDIR = true;
 }
 
-pub fn is_ctx_win(win: *const win_T) -> bool {
+pub fn is_ctx_win(win: *const WinInfoInfo) -> bool {
     g_st().ctx_win_vec.iter().any(|item| item.cw_used && ptr::eq(item.cw_win, win))
 }
 
-fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut buf_T) -> *mut win_T {
+fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
     unsafe {
         let mut need_append = true;
         let idx = g_st().ctx_win_vec
@@ -746,7 +746,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut buf_T) -> *mut win_T {
     }
 }
 
-fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
+fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut WinInfoInfo {
     unsafe {
         let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
 
@@ -782,7 +782,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
     }
 }
 
-pub fn ctx_saved_curwin() -> *mut win_T {
+pub fn ctx_saved_curwin() -> *mut WinInfoInfo {
     if ctx_st().CTX_SAVED_CURWIN == 0 {
             ptr::null_mut()
         } else {
@@ -791,9 +791,9 @@ pub fn ctx_saved_curwin() -> *mut win_T {
 }
 
 pub fn ctx_switch(cs: &mut CtxSwitch,
-    mut wp: *mut win_T,
-    tp: *mut tabpage_T,
-    buf: *mut buf_T,
+    mut wp: *mut WinInfoInfo,
+    tp: *mut TabPageInfo,
+    buf: *mut FileBuf,
     flags: CtxSwitchFlags,
 ) -> bool {
     unsafe {
@@ -894,7 +894,7 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
     }
 }
 
-fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut win_T) {
+fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut WinInfoInfo) {
      {
         let mut save_curwin = if cs.cs_curwin_xtab {
             handle_get_window(cs.cs_curwin)
@@ -948,7 +948,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
                 curwin_mut().w_topfill = 0;
             }
         } else if cs.cs_mode == kCtxSwitchBuf {
-            let saved_buf = cs.cs_new_curbuf.br_buf.cast::<buf_T>();
+            let saved_buf = cs.cs_new_curbuf.br_buf.cast::<FileBuf>();
             if curwin_mut().handle == cs.cs_new_curwin
                 && g_st().curbuf != saved_buf
                 && bufref_valid(Some(&cs.cs_new_curbuf))
@@ -1007,17 +1007,17 @@ mod tests {
 
     #[test]
     fn equalpos_compares_all_three_fields() {
-        let a = pos_T {
+        let a = CursorPos {
             lnum: 10,
             col: 5,
             coladd: 0,
         };
-        let b = pos_T {
+        let b = CursorPos {
             lnum: 10,
             col: 5,
             coladd: 0,
         };
-        let c = pos_T {
+        let c = CursorPos {
             lnum: 10,
             col: 5,
             coladd: 1,

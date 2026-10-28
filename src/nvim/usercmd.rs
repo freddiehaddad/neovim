@@ -6,7 +6,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
-use crate::buffer::buf_T;
+use crate::buffer::FileBuf;
 use crate::charset::{
     NUL, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
     skiptowhite, skipwhite,
@@ -22,7 +22,7 @@ use crate::cmdexpand::{
     EXPAND_SHELLCMD, EXPAND_SHELLCMDLINE, EXPAND_SIGN, EXPAND_SYNTIME, EXPAND_TAGS,
     EXPAND_TAGS_LISTFILES, EXPAND_UNSUCCESSFUL, EXPAND_USER, EXPAND_USER_ADDR_TYPE,
     EXPAND_USER_CMD_FLAGS, EXPAND_USER_COMMANDS, EXPAND_USER_COMPLETE, EXPAND_USER_DEFINED,
-    EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS, HLF_D, cmd_addr_T,
+    EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS, HLF_D, CmdAddr,
 };
 use crate::eval::funcs::DOCMD_KEYTYPED;
 use crate::eval::last_set_msg;
@@ -33,8 +33,8 @@ use crate::ex_docmd::{
     CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
     CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
     CMOD_UNSILENT, EX_ARGSPACE, EX_BANG, EX_BUFNAME, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT,
-    EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, KE_FILLER, cmdmod_T,
-    do_cmdline, ends_excmd, exarg_T,
+    EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, KE_FILLER, Cmdmod,
+    do_cmdline, ends_excmd, Exarg,
 };
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -50,7 +50,7 @@ use crate::message::{
     msg_puts, msg_puts_hl, msg_puts_title, semsg,
 };
 use crate::option_vars::*;
-use crate::os::env::expand_T;
+use crate::os::env::ExpandCtx;
 use crate::os::input::line_breakcheck;
 use crate::runtime::sourcing_lnum;
 use crate::strings::{
@@ -64,14 +64,14 @@ use std::ptr;
 pub(crate) const UC_BUFFER: c_int = 1;
 
 #[repr(C)]
-pub struct ucmd_T {
+pub struct Ucmd {
     pub uc_name: CString,
     pub uc_argt: u32,
     pub uc_rep: CString,
     pub uc_def: i64,
     pub uc_compl: c_int,
-    pub uc_addr_type: cmd_addr_T,
-    pub uc_script_ctx: crate::runtime::sctx_T,
+    pub uc_addr_type: CmdAddr,
+    pub uc_script_ctx: crate::runtime::Sctx,
     pub uc_compl_arg: Option<CString>,
     pub uc_compl_luaref: LuaRef,
     pub uc_preview_luaref: LuaRef,
@@ -79,7 +79,7 @@ pub struct ucmd_T {
     pub uc_desc: Option<CString>,
 }
 
-impl Drop for ucmd_T {
+impl Drop for Ucmd {
     fn drop(&mut self) {
         nlua_clear_ref(&mut self.uc_compl_luaref);
             nlua_clear_ref(&mut self.uc_luaref);
@@ -87,7 +87,7 @@ impl Drop for ucmd_T {
     }
 }
 
-impl ucmd_T {
+impl Ucmd {
     pub fn new() -> Self {
         Self {
             uc_name: CString::default(),
@@ -96,7 +96,7 @@ impl ucmd_T {
             uc_def: 0,
             uc_compl: 0,
             uc_addr_type: 0,
-            uc_script_ctx: crate::runtime::sctx_T::new(),
+            uc_script_ctx: crate::runtime::Sctx::new(),
             uc_compl_arg: None,
             uc_compl_luaref: 0,
             uc_preview_luaref: 0,
@@ -106,7 +106,7 @@ impl ucmd_T {
     }
 }
 
-impl Default for ucmd_T {
+impl Default for Ucmd {
     fn default() -> Self {
         Self::new()
     }
@@ -119,10 +119,10 @@ const E_COMPLETE_USED_WITHOUT_ALLOWING_ARGUMENTS: &CStr =
 const E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR: &CStr =
     c"E1237: No such user-defined command in current buffer: %s";
 
-static UCMDS_STATE: GlobalState<Vec<ucmd_T>> = GlobalState::new(Vec::new());
+static UCMDS_STATE: GlobalState<Vec<Ucmd>> = GlobalState::new(Vec::new());
 
 #[inline]
-pub(crate) fn ucmds_mut() -> &'static mut Vec<ucmd_T> {
+pub(crate) fn ucmds_mut() -> &'static mut Vec<Ucmd> {
     unsafe { &mut *UCMDS_STATE.as_ptr() }
 }
 
@@ -181,7 +181,7 @@ fn command_complete_entry(idx: c_int) -> Option<&'static CStr> {
 }
 
 struct AddrTypeComplete {
-    expand: cmd_addr_T,
+    expand: CmdAddr,
     name: Option<&'static CStr>,
     shortname: Option<&'static CStr>,
 }
@@ -236,8 +236,8 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
 pub fn find_ucmd(
-    eap: &mut exarg_T,
-    p: *mut c_char,mut full: Option<&mut c_int>,mut xp: Option<&mut expand_T>,mut complp: Option<&mut c_int>,
+    eap: &mut Exarg,
+    p: *mut c_char,mut full: Option<&mut c_int>,mut xp: Option<&mut ExpandCtx>,mut complp: Option<&mut c_int>,
 ) -> *mut c_char {
     unsafe {
         let len = p.offset_from(eap.cmd) as c_int;
@@ -247,7 +247,7 @@ pub fn find_ucmd(
         let mut amb_local = false;
 
         let mut is_global = false;
-        let mut gap: &[ucmd_T] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut gap: &[Ucmd] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
         loop {
             let mut j: c_int = 0;
             while (j as usize) < gap.len() {
@@ -336,7 +336,7 @@ pub fn find_ucmd(
 }
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
-pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg_in = arg_in.into_c_char_ptr();
+pub fn set_context_in_user_cmd(xp: &mut ExpandCtx, arg_in: impl crate::strings::IntoCCharPtr) -> *const c_char { let arg_in = arg_in.into_c_char_ptr();
     unsafe {
         let mut arg = arg_in;
         let mut p: *const c_char;
@@ -388,7 +388,7 @@ pub fn set_context_in_user_cmdarg(
     arg: impl crate::strings::IntoCCharPtr,
     argt: u32,
     context: c_int,
-    xp: &mut expand_T,
+    xp: &mut ExpandCtx,
     forceit: bool,
 ) -> *const c_char { let cmd = cmd.into_c_char_ptr(); let mut arg = arg.into_c_char_ptr();
     unsafe {
@@ -414,7 +414,7 @@ pub fn set_context_in_user_cmdarg(
                 forceit,
                 false,
                 false,
-                crate::cmdexpand::cmdidx_T::CMD_map,
+                crate::cmdexpand::Cmdidx::CMD_map,
             );
         }
         if (argt & EX_ARGSPACE) == 0 {
@@ -436,11 +436,11 @@ pub fn set_context_in_user_cmdarg(
 }
 
 pub fn expand_user_command_name(idx: c_int) -> *mut c_char {
-    get_user_commands(&mut crate::os::env::expand_T::new(), idx - CMD_SIZE)
+    get_user_commands(&mut crate::os::env::ExpandCtx::new(), idx - CMD_SIZE)
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
-pub fn get_user_commands(_xp: &mut expand_T, mut idx: c_int) -> *mut c_char {
+pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: c_int) -> *mut c_char {
     unsafe {
         let buf = (*prevwin_curwin()).w_buffer;
         let b_len = (*buf).b_ucmds.len() as c_int;
@@ -485,7 +485,7 @@ pub fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user address type names (`get_user_cmd_addr_type`).
-pub fn get_user_cmd_addr_type(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_addr_type(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ADDR_TYPE_COMPLETE.len() {
         return ptr::null_mut();
     }
@@ -496,7 +496,7 @@ pub fn get_user_cmd_addr_type(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command attributes (`get_user_cmd_flags`).
-pub fn get_user_cmd_flags(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_flags(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     const USER_CMD_FLAGS: [&CStr; 10] = [
         c"addr",
         c"bang",
@@ -516,7 +516,7 @@ pub fn get_user_cmd_flags(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-nargs` (`get_user_cmd_nargs`).
-pub fn get_user_cmd_nargs(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_nargs(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     const USER_CMD_NARGS: [&CStr; 6] = [c"0", c"1", c"_", c"*", c"?", c"+"];
     if idx < 0 || (idx as usize) >= USER_CMD_NARGS.len() {
         return ptr::null_mut();
@@ -535,7 +535,7 @@ fn get_command_complete(arg: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-complete` (`get_user_cmd_complete`).
-pub fn get_user_cmd_complete(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_complete(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= COMMAND_COMPLETE_LEN {
         return ptr::null_mut();
     }
@@ -597,7 +597,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
 
         msg_ext_set_kind(c"list_cmd");
         let mut is_global = false;
-        let mut gap: &[ucmd_T] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
+        let mut gap: &[Ucmd] = &(*(*prevwin_curwin()).w_buffer).b_ucmds;
         loop {
             let mut i: c_int = 0;
             while (i as usize) < gap.len() {
@@ -821,7 +821,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
 pub fn parse_addr_type_arg(
     value: *mut c_char,
     vallen: c_int,
-    addr_type_arg: &mut cmd_addr_T,
+    addr_type_arg: &mut CmdAddr,
 ) -> bool {
     unsafe {
         for entry in &ADDR_TYPE_COMPLETE {
@@ -931,7 +931,7 @@ fn uc_scan_attr(
     flags: &mut c_int,
     complp: &mut c_int,
     compl_arg: &mut Option<CString>,
-    addr_type_arg: &mut cmd_addr_T,
+    addr_type_arg: &mut CmdAddr,
 ) -> bool {
     unsafe {
         if len == 0 {
@@ -1094,13 +1094,13 @@ pub fn uc_add_command(
     compl_arg: Option<CString>,
     mut compl_luaref: LuaRef,
     mut preview_luaref: LuaRef,
-    addr_type: cmd_addr_T,
+    addr_type: CmdAddr,
     mut luaref: LuaRef,
     desc: impl crate::strings::IntoCCharPtr,
     force: bool,
 ) -> bool { let name = name.into_c_char_ptr(); let rep = rep.into_c_char_ptr(); let desc = desc.into_c_char_ptr();
     unsafe {
-        let mut cmd: *mut ucmd_T = ptr::null_mut();
+        let mut cmd: *mut Ucmd = ptr::null_mut();
         let mut cmp: c_int = 1;
         let rep_cstr = replace_termcodes(
             rep,
@@ -1114,7 +1114,7 @@ pub fn uc_add_command(
         .unwrap_or_else(|| crate::memory::cstr_to_cstring(rep));
 
         let u = ucmds_mut();
-        let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
+        let gap: &mut Vec<Ucmd> = if (flags & UC_BUFFER) != 0 {
             &mut curbuf_mut().b_ucmds
         } else { u };
 
@@ -1163,7 +1163,7 @@ pub fn uc_add_command(
 
         if cmp != 0 {
             let name_slice = crate::memory::cstr_slice(name, name_len);
-            let mut empty_ucmd = ucmd_T::new();
+            let mut empty_ucmd = Ucmd::new();
             empty_ucmd.uc_name = CString::new(name_slice).unwrap();
             gap.insert(i as usize, empty_ucmd);
             cmd = &raw mut gap[i as usize];
@@ -1192,14 +1192,14 @@ pub fn uc_add_command(
 }
 
 /// `:command ...` (`ex_command`).
-pub fn ex_command(eap: &mut exarg_T) {
+pub fn ex_command(eap: &mut Exarg) {
     unsafe {
         let mut argt: u32 = 0;
         let mut def: c_int = -1;
         let mut flags: c_int = 0;
         let mut context: c_int = EXPAND_NOTHING;
         let mut compl_arg: Option<CString> = None;
-        let mut addr_type_arg: cmd_addr_T = ADDR_NONE;
+        let mut addr_type_arg: CmdAddr = ADDR_NONE;
         let has_attr = crate::memory::cstr_first_byte(eap.arg) == b'-';
 
         let mut p = eap.arg;
@@ -1266,7 +1266,7 @@ pub fn ex_command(eap: &mut exarg_T) {
 }
 
 /// `:comclear` (`ex_comclear`).
-pub fn ex_comclear(_eap: &mut exarg_T) {
+pub fn ex_comclear(_eap: &mut Exarg) {
      {
         let u = ucmds_mut();
         u.clear();
@@ -1276,7 +1276,7 @@ pub fn ex_comclear(_eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_delcommand(eap: &mut exarg_T) {
+pub fn ex_delcommand(eap: &mut Exarg) {
     unsafe {
         let mut i: c_int;
         let mut res: c_int = -1;
@@ -1289,7 +1289,7 @@ pub fn ex_delcommand(eap: &mut exarg_T) {
         }
 
         let mut is_global = false;
-        let mut gap: &mut Vec<ucmd_T> = &mut curbuf_mut().b_ucmds;
+        let mut gap: &mut Vec<Ucmd> = &mut curbuf_mut().b_ucmds;
         loop {
             i = 0;
             while (i as usize) < gap.len() {
@@ -1538,7 +1538,7 @@ fn add_cmd_modifier(
 /// Add modifiers from `cmod->cmod_split` to `buf` (`add_win_cmd_modifiers`).
 pub fn add_win_cmd_modifiers(
     buf: *mut c_char,
-    cmod: &cmdmod_T,
+    cmod: &Cmdmod,
     multi_mods: &mut bool,
 ) -> usize {
     let mut result: usize = 0;
@@ -1576,7 +1576,7 @@ pub fn add_win_cmd_modifiers(
 }
 
 /// Generate text for the `cmod` command modifiers (`uc_mods`).
-pub fn uc_mods(mut buf: *mut c_char, cmod: &cmdmod_T, quote: bool) -> usize {
+pub fn uc_mods(mut buf: *mut c_char, cmod: &Cmdmod, quote: bool) -> usize {
     unsafe {
         let mut multi_mods = false;
 
@@ -1658,8 +1658,8 @@ fn uc_check_code(
     code: impl crate::strings::IntoCCharPtr,
     len: usize,
     mut buf: *mut c_char,
-    cmd: &mut ucmd_T,
-    eap: &mut exarg_T,
+    cmd: &mut Ucmd,
+    eap: &mut Exarg,
     split_buf: &mut Option<CString>,
     split_len: &mut usize,
 ) -> usize { let code = code.into_c_char_ptr();
@@ -1863,7 +1863,7 @@ fn uc_check_code(
     }
 }
 
-pub fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
+pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> c_int {
     unsafe {
         let mut end: *mut c_char = ptr::null_mut();
         let mut split_len: usize = 0;
@@ -1997,10 +1997,10 @@ fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
 
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
 /// defined globally if `buf` is NULL (`commands_array`).
-pub fn commands_array(buf: Option<&buf_T>, arena: &mut Arena) -> Dict {
+pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
      {
         let u = ucmds_mut();
-        let gap: &[ucmd_T] = buf.map_or(u, |buf| &buf.b_ucmds);
+        let gap: &[Ucmd] = buf.map_or(u, |buf| &buf.b_ucmds);
 
         let mut rv = arena_dict(arena, gap.len());
         for cmd in gap {

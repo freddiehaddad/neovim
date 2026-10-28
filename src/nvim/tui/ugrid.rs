@@ -1,13 +1,13 @@
 //! TUI screen cell grid (`src/nvim/tui/ugrid.c`).
 
-use crate::grid::{sattr_T, schar_T, schar_from_ascii};
+use crate::grid::{Sattr, Schar, schar_from_ascii};
 use std::ffi::c_int;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UCell {
-    pub data: schar_T,
-    pub attr: sattr_T,
+    pub data: Schar,
+    pub attr: Sattr,
 }
 
 #[derive(Debug, Default)]
@@ -25,7 +25,7 @@ fn clear_region(
     bot: c_int,
     left: c_int,
     right: c_int,
-    attr: sattr_T,
+    attr: Sattr,
 ) {
     let space = schar_from_ascii(b' ');
     if right < left || bot < top {
@@ -53,7 +53,7 @@ pub fn ugrid_clear(grid: &mut UGrid) {
 }
 
 /// Clear `row` from `col` to `endcol - 1` with `attr` (`ugrid_clear_chunk`).
-pub fn ugrid_clear_chunk(grid: &mut UGrid, row: c_int, col: c_int, endcol: c_int, attr: sattr_T) {
+pub fn ugrid_clear_chunk(grid: &mut UGrid, row: c_int, col: c_int, endcol: c_int, attr: Sattr) {
     clear_region(grid, row, row, col, endcol - 1, attr);
 }
 

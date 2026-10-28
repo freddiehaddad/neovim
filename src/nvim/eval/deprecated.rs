@@ -6,8 +6,8 @@ use crate::errors::{e_api_spawn_failed, e_invarg, e_invarg2};
 use crate::eval::find_job;
 use crate::eval::funcs::{f_jobstart, f_jobstop};
 use crate::eval::typval::{
-    Callback, EvalFuncData, VarType, list_T, tv_dict_add_bool, tv_dict_alloc,
-    tv_dict_free, tv_get_string, typval_T,
+    Callback, EvalFuncData, VarType, TvList, tv_dict_add_bool, tv_dict_alloc,
+    tv_dict_free, tv_get_string, TypVal,
 };
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
@@ -28,7 +28,7 @@ const fn callback_reader_init() -> CallbackReader {
 }
 
 /// `"rpcstart()"` function (`f_rpcstart`).
-pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.v_type = VarType::VAR_NUMBER;
@@ -47,7 +47,7 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             return;
         }
 
-        let mut args: *mut list_T = std::ptr::null_mut();
+        let mut args: *mut TvList = std::ptr::null_mut();
         let mut argsl: c_int = 0;
         if arg1.v_type == VarType::VAR_LIST {
             args = arg1.vval.v_list();
@@ -106,7 +106,7 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 }
 
 /// `"rpcstop()"` function (`f_rpcstop`).
-pub fn f_rpcstop(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData){
+pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData){
     rettv.v_type = VarType::VAR_NUMBER;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -134,7 +134,7 @@ pub fn f_rpcstop(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncD
 }
 
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
-pub fn f_last_buffer_nr(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_last_buffer_nr(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
      {
         let mut n: c_int = 0;
         for buf in for_all_buffers_mut() {
@@ -147,7 +147,7 @@ pub fn f_last_buffer_nr(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 }
 
 /// `"termopen(cmd[, cwd])"` function (`f_termopen`).
-pub fn f_termopen(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData){
+pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData){
     if check_secure() {
             return;
         }

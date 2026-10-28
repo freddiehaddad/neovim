@@ -6,8 +6,8 @@ use crate::api::private::helpers::{
     error_set, integer_obj, window_obj,
 };
 use crate::api::private::validate::{Array, ObjectType};
-use crate::buffer::buf_T;
-use crate::cursor::linenr_T;
+use crate::buffer::FileBuf;
+use crate::cursor::Linenr;
 use crate::decoration::{NS, decor_check_to_be_deleted};
 use crate::globals::*;
 use crate::highlight::hl_check_ns;
@@ -17,7 +17,7 @@ use crate::lua::executor::{api_free_luaref, kRetMulti, kRetNilBool, nlua_call_re
 use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::c_int;
 use std::ptr;
 
@@ -186,7 +186,7 @@ fn decor_provider_invoke(
     }
 }
 
-pub fn decor_providers_invoke_spell(wp: &mut win_T,
+pub fn decor_providers_invoke_spell(wp: &mut WinInfoInfo,
     start_row: c_int,
     start_col: c_int,
     end_row: c_int,
@@ -226,7 +226,7 @@ pub fn decor_providers_invoke_spell(wp: &mut win_T,
 }
 
 /// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
-pub fn decor_providers_invoke_conceal_line(wp: &mut win_T, row: c_int) -> bool {
+pub fn decor_providers_invoke_conceal_line(wp: &mut WinInfoInfo, row: c_int) -> bool {
      {
         let keys = wp.buf_mut().b_marktree.n_keys;
         let mut i = 0usize;
@@ -295,7 +295,7 @@ pub fn decor_providers_start() {
 }
 
 /// For each provider run 'win' (`decor_providers_invoke_win`).
-pub fn decor_providers_invoke_win(wp: &mut win_T) {
+pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
      {
         debug_assert!(
             g_st().decor_state.current_end == 0 && g_st().decor_state.future_begin == g_st().decor_state.ranges_i.len() as c_int
@@ -304,7 +304,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
         if !providers_mut().is_empty() {
             validate_botline_win(&mut *wp);
         }
-        let botline: linenr_T = wp.w_botline.min(wp.buf_mut().b_ml.ml_line_count);
+        let botline: Linenr = wp.w_botline.min(wp.buf_mut().b_ml.ml_line_count);
 
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -346,7 +346,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
 }
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
-pub fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
+pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: c_int) {
      {
         g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
@@ -384,7 +384,7 @@ pub fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
 }
 
 pub fn decor_providers_invoke_range(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     start_row: c_int,
     start_col: c_int,
     end_row: c_int,
@@ -461,7 +461,7 @@ pub fn decor_providers_invoke_range(
 }
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
-pub fn decor_providers_invoke_buf(buf: &mut buf_T) {
+pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
      {
         let mut i = 0usize;
         while i < providers_mut().len() {

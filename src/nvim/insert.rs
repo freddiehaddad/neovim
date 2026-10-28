@@ -4,11 +4,11 @@ use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     EVENT_CURSORMOVEDI, EVENT_INSERTCHANGE, EVENT_INSERTCHARPRE, EVENT_INSERTENTER,
     EVENT_INSERTLEAVE, EVENT_INSERTLEAVEPRE, EVENT_TEXTCHANGEDI, EVENT_TEXTCHANGEDP,
-    apply_autocmds, event_T, has_event,
+    apply_autocmds, AuEvent, has_event,
 };
 use crate::buffer::{
-    bt_cmdwin, bt_prompt, bt_quickfix, buf_T, buf_get_changedtick, buf_is_empty, buf_meta_total,
-    bufref_T, bufref_valid, kUIMessages, set_bufref,
+    bt_cmdwin, bt_prompt, bt_quickfix, FileBuf, buf_get_changedtick, buf_is_empty, buf_meta_total,
+    Bufref, bufref_valid, kUIMessages, set_bufref,
 };
 use crate::change::{
     COM_MAX_LEN, MB_MAXCHAR, OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes,
@@ -23,9 +23,9 @@ use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
     VALID_VIRTCOL, char_before_cursor, check_cursor, check_cursor_col, check_visual_pos,
-    coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
+    coladvance, Colnr, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
     get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor,
-    kOptVeFlagAll, linenr_T, lt, pos_T,
+    kOptVeFlagAll, Linenr, lt, CursorPos,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
@@ -55,7 +55,7 @@ use crate::fold::{
 use crate::globals::*;
 use crate::grid::{
     grid_line_flush, grid_line_getchar, grid_line_put_schar, grid_line_puts, grid_line_start,
-    schar_T, schar_from_ascii,
+    Schar, schar_from_ascii,
 };
 use crate::highlight_group::highlight_changed;
 use crate::indent::{
@@ -136,7 +136,7 @@ use crate::popupmenu::{pum_check_clear, pum_visible};
 use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};
 use crate::register::{
     PUT_CURSEND, PUT_FIXINDENT, YREG_PASTE, do_put, get_expr_register, get_yank_register,
-    insert_reg, is_literal_register, valid_yank_reg, yankreg_T,
+    insert_reg, is_literal_register, valid_yank_reg, Yankreg,
 };
 use crate::search::{BACKWARD, FORWARD};
 use crate::state::{
@@ -153,7 +153,7 @@ use crate::textformat::{
 use crate::textobject::{bck_word, fwd_word};
 use crate::ui::{ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::undo::{u_clearallandblockfree, u_save, u_save_cursor, u_sync};
-use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized, win_T};
+use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized, WinInfoInfo};
 use std::ffi::{c_char, c_int, c_long, c_uint};
 use std::ptr;
 
@@ -234,7 +234,7 @@ struct InsertState {
     i: c_int,
     did_backspace: bool,
     line_is_white: bool,
-    old_topline: linenr_T,
+    old_topline: Linenr,
     old_topfill: c_int,
     inserted_space: c_int,
     replaceState: c_int,
@@ -288,7 +288,7 @@ struct InsertModuleState {
     last_insert_skip: c_int,
     replace_stack: Vec<c_char>,
     pc_status: c_int,
-    pc_schar: schar_T,
+    pc_schar: Schar,
     pc_attr: c_int,
     pc_row: c_int,
     pc_col: c_int,
@@ -1038,7 +1038,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 ins_mousescroll(MSCR_RIGHT);
             }
             K_PASTE_START | K_EVENT | K_COMMAND | K_LUA => {
-                let mut save_curbuf = bufref_T {
+                let mut save_curbuf = Bufref {
                     br_buf: ptr::null_mut(),
                     br_fnum: 0,
                     br_buf_free_count: 0,
@@ -1547,7 +1547,7 @@ pub fn edit_putchar(c: c_int, highlight: bool) {
 }
 
 /// Return the effective prompt for the specified buffer.
-pub fn buf_prompt_text(buf: &buf_T) -> *mut c_char {
+pub fn buf_prompt_text(buf: &FileBuf) -> *mut c_char {
     buf
             .b_prompt_text
             .as_ref()
@@ -1562,7 +1562,7 @@ pub fn prompt_text() -> *mut c_char {
 fn init_prompt(cmdchar_todo: c_int) {
     unsafe {
         let prompt = prompt_text();
-        let prompt_len = crate::memory::cstr_len(prompt) as colnr_T;
+        let prompt_len = crate::memory::cstr_len(prompt) as Colnr;
 
         if curbuf_mut().b_prompt_start.mark.lnum < 1
             || curbuf_mut().b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
@@ -1638,7 +1638,7 @@ pub fn prompt_curpos_editable() -> bool {
     }
 }
 
-fn set_insstart(lnum: linenr_T, col: colnr_T) {
+fn set_insstart(lnum: Linenr, col: Colnr) {
     g_st().Ins.start.lnum = lnum;
         g_st().Ins.start.col = col;
         g_st().Ins.start_orig = g_st().Ins.start;
@@ -1665,7 +1665,7 @@ pub fn edit_unputchar() {
 }
 
 /// Display a `$` at the end of changed text when `$` is in `cpoptions`.
-pub fn display_dollar(col_arg: colnr_T) {
+pub fn display_dollar(col_arg: Colnr) {
     unsafe {
         let col = col_arg.max(0);
         if !redrawing() {
@@ -1964,7 +1964,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
             && opt_vars().p_ri == 0
         {
             let mut buf = [0 as c_char; INPUT_BUFLEN + 1];
-            let mut virtcol: colnr_T = 0;
+            let mut virtcol: Colnr = 0;
 
             buf[0] = c as c_char;
             let mut i: usize = 1;
@@ -2037,7 +2037,7 @@ fn redo_literal(c: c_int) {
 }
 
 /// Called when the cursor moves in insert-mode without editing text.
-pub fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int) {
+pub fn start_arrow(end_insert_pos: *mut CursorPos, end_change: bool, move_key: c_int) {
     if g_st().Ins.moved == kInsNone && end_change {
             stop_insert(end_insert_pos, 0, 0);
         }
@@ -2058,7 +2058,7 @@ pub fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int
         check_spell_redraw();
 }
 
-fn start_arrow_with_change(end_insert_pos: &mut pos_T, end_change: bool, move_key: c_int) {
+fn start_arrow_with_change(end_insert_pos: &mut CursorPos, end_change: bool, move_key: c_int) {
     if !end_change && g_st().Ins.moved != kInsJump {
             redo_append_char(Ctrl_G);
             redo_append_char(b'U' as c_int);
@@ -2125,7 +2125,7 @@ pub fn stop_arrow() -> bool {
     }
 }
 
-fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
+fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
     unsafe {
         stop_redo_ins();
         ins_st().replace_stack = Vec::new();
@@ -2352,7 +2352,7 @@ pub fn oneleft() -> bool {
 }
 
 /// Move the cursor up `n` lines in window `wp`.
-pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
+pub fn cursor_up_inner(wp: &mut WinInfoInfo, mut n: Linenr, skip_conceal: bool) {
     let mut lnum = wp.w_cursor.lnum;
 
         if n >= lnum {
@@ -2380,7 +2380,7 @@ pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
         wp.w_cursor.lnum = lnum;
 }
 
-pub fn cursor_up(n: linenr_T, upd_topline: bool) -> bool {
+pub fn cursor_up(n: Linenr, upd_topline: bool) -> bool {
      {
         if n > 0 && curwin_mut().w_cursor.lnum <= 1 {
             return false;
@@ -2395,7 +2395,7 @@ pub fn cursor_up(n: linenr_T, upd_topline: bool) -> bool {
 }
 
 /// Move the cursor down `n` lines in window `wp`.
-pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
+pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: c_int, skip_conceal: bool) {
      {
         let mut lnum = wp.w_cursor.lnum;
         let line_count = wp.buf_mut().b_ml.ml_line_count;
@@ -2403,7 +2403,7 @@ pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
         if lnum + n >= line_count {
             lnum = line_count;
         } else if win_lines_concealed(&mut *wp) {
-            let mut last: linenr_T = 0;
+            let mut last: Linenr = 0;
             while n > 0 {
                 n -= 1;
                 if hasFoldingWin(
@@ -2634,7 +2634,7 @@ fn mb_replace_pop_ins() {
 
 fn replace_do_bs(limit_col: c_int) {
     unsafe {
-        let mut start_vcol: colnr_T = 0;
+        let mut start_vcol: Colnr = 0;
         let l_state = g_st().State;
 
         let cc = replace_pop_if_nul();
@@ -2722,7 +2722,7 @@ fn ins_reg() {
             vim_beep(kOptBoFlagRegister);
             need_redraw = true;
         } else {
-            let reg: *mut yankreg_T = get_yank_register(regname, YREG_PASTE);
+            let reg: *mut Yankreg = get_yank_register(regname, YREG_PASTE);
 
             if literally == Ctrl_O || literally == Ctrl_P {
                 redo_append_char(Ctrl_R);
@@ -3174,7 +3174,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             if g_st().Ins.revins_on {
                 dec_cursor();
             }
-            let mut mincol: colnr_T = 0;
+            let mut mincol: Colnr = 0;
             if mode == BACKSPACE_LINE && (curbuf_mut().b_p_ai != 0 || cindent_on()) && !g_st().Ins.revins_on {
                 let save_col = curwin_mut().w_cursor.col;
                 beginline(BL_WHITE);
@@ -3200,8 +3200,8 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                 let line = get_cursor_line_ptr();
                 let cursor_ptr = line.offset(curwin_mut().w_cursor.col as isize).cast_const();
 
-                let mut vcol: colnr_T = 0;
-                let mut space_vcol: colnr_T = 0;
+                let mut vcol: Colnr = 0;
+                let mut space_vcol: Colnr = 0;
                 let mut sci = utf_ptr2StrCharInfo(line);
                 let mut space_sci = sci;
                 let mut prev_space = false;
@@ -3221,7 +3221,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
                 let mut want_vcol = if vcol > 0 { vcol - 1 } else { 0 };
                 if opt_vars().p_sta != 0 && in_indent {
-                    want_vcol -= want_vcol % (get_sw_value(curbuf_mut()) as colnr_T);
+                    want_vcol -= want_vcol % (get_sw_value(curbuf_mut()) as Colnr);
                 } else {
                     want_vcol = tabstop_start(
                         want_vcol,
@@ -3246,7 +3246,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                     space_vcol += size;
                     space_sci = cli.next;
                 }
-                let want_col = space_sci.ptr.offset_from(line.cast_const()) as colnr_T;
+                let want_col = space_sci.ptr.offset_from(line.cast_const()) as Colnr;
 
                 while curwin_mut().w_cursor.col > want_col {
                     dec_cursor();
@@ -3680,13 +3680,13 @@ fn ins_tab() -> bool {
                 || get_sts_value() > 0
                 || (opt_vars().p_sta != 0 && ind))
         {
-            let mut pos: pos_T;
-            let cursor: *mut pos_T;
+            let mut pos: CursorPos;
+            let cursor: *mut CursorPos;
             let mut saved_line_vec: Vec<c_char>;
             let mut saved_line: *mut c_char = ptr::null_mut();
             let mut ptr: *mut c_char;
-            let mut vcol: colnr_T = 0;
-            let mut want_vcol: colnr_T = 0;
+            let mut vcol: Colnr = 0;
+            let mut want_vcol: Colnr = 0;
             let mut change_col: c_int = -1;
             let save_list = curwin_mut().w_onebuf_opt.wo_list;
 
@@ -3924,7 +3924,7 @@ fn ins_digraph() -> c_int {
 }
 
 /// Handle CTRL-E and CTRL-Y in Insert mode: copy char from other line.
-pub fn ins_copychar(lnum: linenr_T) -> c_int {
+pub fn ins_copychar(lnum: Linenr) -> c_int {
      {
         if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
             vim_beep(kOptBoFlagCopy);
@@ -3999,7 +3999,7 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
 }
 
 /// Get the value that `w_virtcol` would have when `'list'` is off.
-pub fn get_nolist_virtcol() -> colnr_T {
+pub fn get_nolist_virtcol() -> Colnr {
      {
         if curwin_mut().w_buffer.is_null()
             || curwin_mut().buf_mut().b_ml.ml_mfp.is_none()
@@ -4053,7 +4053,7 @@ pub fn set_can_cindent(val: bool) {
 }
 
 /// Trigger `event` and take care of fixing undo.
-pub fn ins_apply_autocmds(event: event_T) -> c_int {
+pub fn ins_apply_autocmds(event: AuEvent) -> c_int {
      {
         let tick = buf_get_changedtick(curbuf_mut());
         let r = c_int::from(apply_autocmds(

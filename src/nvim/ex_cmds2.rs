@@ -1,15 +1,15 @@
 //! Functions for command-line commands (`src/nvim/ex_cmds2.c`).
 
 use crate::arglist::{
-    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, do_argfile,
+    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, Aentry, do_argfile,
     editing_arg_idx, ex_all, ex_rewind, set_arglist,
 };
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_VERBOSE, EVENT_SYNTAX, apply_autocmds, au_event_disable, au_event_restore,
 };
 use crate::buffer::{
-    DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, bt_dontwrite, buf_T, buf_hide, buf_set_name, buf_spname,
-    buflist_findnr, bufref_T, bufref_valid, first_win_in_tab, goto_buffer, kUIMessages,
+    DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, bt_dontwrite, FileBuf, buf_hide, buf_set_name, buf_spname,
+    buflist_findnr, Bufref, bufref_valid, first_win_in_tab, goto_buffer, kUIMessages,
     no_write_message, no_write_message_nobang, set_bufref, set_curbuf,
 };
 use crate::bufwrite::buf_write;
@@ -23,13 +23,13 @@ use crate::errors::*;
 use crate::eval::eval_call_provider;
 use crate::eval::typval::{
     tv_list_alloc, tv_list_append_number, tv_list_append_string,
-    varnumber_T,
+    Varnumber,
 };
 use crate::eval::vars::{
     VV_SWAPCOMMAND, do_unlet, get_var_value, set_internal_string_var, set_vim_var_string,
 };
 use crate::ex_cmds::{DIALOG_MSG_SIZE, check_overwrite, set_swapcommand};
-use crate::ex_docmd::{CMOD_CONFIRM, do_cmdline, do_cmdline_cmd, exarg_T};
+use crate::ex_docmd::{CMOD_CONFIRM, do_cmdline, do_cmdline_cmd, Exarg};
 use crate::ex_getln::script_get;
 use crate::fileio::{buf_check_timestamp, check_timestamps};
 use crate::globals::*;
@@ -50,7 +50,7 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 use crate::eval::funcs::VIM_QUESTION;
 use crate::math::OK;
 use crate::os::fs::MAXPATHL;
@@ -80,48 +80,48 @@ fn curwin_argcount() -> c_int {
 }
 
 #[inline]
-fn curwin_arglist() -> *mut aentry_T {
+fn curwin_arglist() -> *mut Aentry {
     crate::arglist::arglist()
 }
 
-pub fn ex_ruby(eap: &mut exarg_T) {
+pub fn ex_ruby(eap: &mut Exarg) {
     script_host_execute(c"ruby", eap);
 }
 
-pub fn ex_rubyfile(eap: &mut exarg_T) {
+pub fn ex_rubyfile(eap: &mut Exarg) {
     script_host_execute_file(c"ruby", eap);
 }
 
-pub fn ex_rubydo(eap: &mut exarg_T) {
+pub fn ex_rubydo(eap: &mut Exarg) {
     script_host_do_range(c"ruby", eap);
 }
 
-pub fn ex_python3(eap: &mut exarg_T) {
+pub fn ex_python3(eap: &mut Exarg) {
     script_host_execute(c"python3", eap);
 }
 
-pub fn ex_py3file(eap: &mut exarg_T) {
+pub fn ex_py3file(eap: &mut Exarg) {
     script_host_execute_file(c"python3", eap);
 }
 
-pub fn ex_pydo3(eap: &mut exarg_T) {
+pub fn ex_pydo3(eap: &mut Exarg) {
     script_host_do_range(c"python3", eap);
 }
 
-pub fn ex_perl(eap: &mut exarg_T) {
+pub fn ex_perl(eap: &mut Exarg) {
     script_host_execute(c"perl", eap);
 }
 
-pub fn ex_perlfile(eap: &mut exarg_T) {
+pub fn ex_perlfile(eap: &mut Exarg) {
     script_host_execute_file(c"perl", eap);
 }
 
-pub fn ex_perldo(eap: &mut exarg_T) {
+pub fn ex_perldo(eap: &mut Exarg) {
     script_host_do_range(c"perl", eap);
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
-pub fn autowrite(buf: &mut buf_T, forceit: bool) -> bool {
+pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
     if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
             || opt_vars().p_write == 0
             || bt_dontwrite(Some(&*buf))
@@ -130,7 +130,7 @@ pub fn autowrite(buf: &mut buf_T, forceit: bool) -> bool {
         {
             return false;
         }
-        let mut bufref: bufref_T = bufref_T::new();
+        let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, &raw mut *buf);
         let mut r = buf_write_all(buf, forceit) == OK;
 
@@ -150,7 +150,7 @@ pub fn autowrite_all() {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if bufIsChanged(&mut *buf) && (*buf).b_p_ro == 0 && !bt_dontwrite(buf.as_ref()) {
-                let mut bufref: bufref_T = bufref_T::new();
+                let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
                 buf_write_all(&mut *buf, false);
                 if !bufref_valid(Some(&bufref)) {
@@ -164,10 +164,10 @@ pub fn autowrite_all() {
 }
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
-pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
+pub fn check_changed(buf: &mut FileBuf, flags: c_int) -> bool {
      {
         let forceit = (flags & CCGD_FORCEIT) != 0;
-        let mut bufref: bufref_T = bufref_T::new();
+        let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, &raw mut *buf);
 
         if !forceit
@@ -206,10 +206,10 @@ pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
 }
 
 /// Ask the user what to do when abandoning a changed buffer (`dialog_changed`).
-pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
+pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     unsafe {
         let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
-        let mut ea: exarg_T = exarg_T::new();
+        let mut ea: Exarg = Exarg::new();
 
         let fname = if !buf.b_fname.is_null() {
             buf.b_fname.cast_const()
@@ -250,7 +250,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
             let mut buf2 = g_st().firstbuf;
             while !buf2.is_null() {
                 if bufIsChanged(&mut *buf2) && !(*buf2).b_ffname.is_null() && (*buf2).b_p_ro == 0 {
-                    let mut bufref: bufref_T = bufref_T::new();
+                    let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf2);
 
                     if !(*buf2).b_fname.is_null()
@@ -280,7 +280,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
 }
 
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
-pub fn dialog_close_terminal(buf: &mut buf_T) -> bool {
+pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
     let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
         let fname = if !buf.b_fname.is_null() {
             buf.b_fname.cast_const()
@@ -297,7 +297,7 @@ pub fn dialog_close_terminal(buf: &mut buf_T) -> bool {
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
-pub fn can_abandon(buf: &mut buf_T, forceit: bool) -> bool {
+pub fn can_abandon(buf: &mut FileBuf, forceit: bool) -> bool {
     buf_hide(buf)
             || !bufIsChanged(buf)
             || buf.b_nwindows > 1
@@ -345,12 +345,12 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
             add_bufnum(&mut bufnrs, b.b_fnum);
         }
 
-        let mut buf: *mut buf_T = ptr::null_mut();
+        let mut buf: *mut FileBuf = ptr::null_mut();
         let mut i: usize = 0;
         while i < bufnrs.len() {
             buf = buflist_findnr(bufnrs[i]);
             if !buf.is_null() && (!hidden || (*buf).b_nwindows == 0) && bufIsChanged(&mut *buf) {
-                let mut bufref: bufref_T = bufref_T::new();
+                let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
 
                 if check_changed(
@@ -404,7 +404,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 while !tp.is_null() && !found {
                     for wp in win_iter_ptr(first_win_in_tab( &mut *tp)) {
                         if (*wp).w_buffer == buf {
-                            let mut bufref: bufref_T = bufref_T::new();
+                            let mut bufref: Bufref = Bufref::new();
                             set_bufref(&mut bufref, buf);
                             goto_tabpage_win(&mut *tp, wp);
                             if !bufref_valid(Some(&bufref)) {
@@ -439,7 +439,7 @@ pub fn check_fname() -> bool {
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
-pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
+pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> c_int {
     let old_curbuf = g_st().curbuf;
         let retval = buf_write(
             &raw mut *buf,
@@ -466,7 +466,7 @@ pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
 }
 
 /// `:argdo`, `:windo`, `:bufdo`, `:tabdo`, `:cdo`, `:ldo`, `:cfdo` and `:lfdo` (`ex_listdo`).
-pub fn ex_listdo(eap: &mut exarg_T) {
+pub fn ex_listdo(eap: &mut Exarg) {
     unsafe {
         if curwin_mut().w_onebuf_opt.wo_wfb != 0
             && eap.cmdidx != CMD_windo
@@ -563,7 +563,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                     i = eap.line1 - 1;
                     if eap.addr_count <= 0 {
                         debug_assert!(qf_size < MAXLNUM);
-                        eap.line2 = qf_size as linenr_T;
+                        eap.line2 = qf_size as Linenr;
                     }
                 }
             } else {
@@ -712,7 +712,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
 }
 
 /// `:compiler[!] {name}` (`ex_compiler`).
-pub fn ex_compiler(eap: &mut exarg_T) {
+pub fn ex_compiler(eap: &mut Exarg) {
      {
         let mut old_cur_comp: Option<std::ffi::CString> = None;
 
@@ -767,7 +767,7 @@ pub fn ex_compiler(eap: &mut exarg_T) {
 }
 
 /// `:checktime [buffer]` (`ex_checktime`).
-pub fn ex_checktime(eap: &mut exarg_T) {
+pub fn ex_checktime(eap: &mut Exarg) {
     unsafe {
         let save_no_check_timestamps = g_st().no_check_timestamps;
 
@@ -784,21 +784,21 @@ pub fn ex_checktime(eap: &mut exarg_T) {
     }
 }
 
-fn script_host_execute(name: &std::ffi::CStr, eap: &mut exarg_T) {
+fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
     unsafe {
         let mut len: usize = 0;
         if let Some(script) = script_get(eap, &mut len) {
             let args = tv_list_alloc(3);
             crate::eval::typval::tv_list_append_string( &mut *args, script.as_ptr(), -1);
-            tv_list_append_number( &mut *args, eap.line1 as varnumber_T);
-            tv_list_append_number( &mut *args, eap.line2 as varnumber_T);
+            tv_list_append_number( &mut *args, eap.line1 as Varnumber);
+            tv_list_append_number( &mut *args, eap.line2 as Varnumber);
 
             eval_call_provider(name.as_ptr().cast_mut(), c"execute", &mut *args, true);
         }
     }
 }
 
-fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut exarg_T) {
+fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
     unsafe {
         if eap.skip == 0 {
             let mut buffer = [0 as c_char; MAXPATHL];
@@ -806,8 +806,8 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut exarg_T) {
 
             let args = tv_list_alloc(3);
             tv_list_append_string( &mut *args, buffer.as_ptr(), -1);
-            tv_list_append_number( &mut *args, eap.line1 as varnumber_T);
-            tv_list_append_number( &mut *args, eap.line2 as varnumber_T);
+            tv_list_append_number( &mut *args, eap.line1 as Varnumber);
+            tv_list_append_number( &mut *args, eap.line2 as Varnumber);
             eval_call_provider(
                 name.as_ptr().cast_mut(),
                 c"execute_file",
@@ -818,12 +818,12 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut exarg_T) {
     }
 }
 
-fn script_host_do_range(name: &std::ffi::CStr, eap: &mut exarg_T) {
+fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
     unsafe {
         if eap.skip == 0 {
             let args = tv_list_alloc(3);
-            tv_list_append_number( &mut *args, eap.line1 as varnumber_T);
-            tv_list_append_number( &mut *args, eap.line2 as varnumber_T);
+            tv_list_append_number( &mut *args, eap.line1 as Varnumber);
+            tv_list_append_number( &mut *args, eap.line2 as Varnumber);
             tv_list_append_string( &mut *args, eap.arg, -1);
             eval_call_provider(name.as_ptr().cast_mut(), c"do_range", &mut *args, true);
         }
@@ -831,7 +831,7 @@ fn script_host_do_range(name: &std::ffi::CStr, eap: &mut exarg_T) {
 }
 
 /// `:drop` (`ex_drop`).
-pub fn ex_drop(eap: &mut exarg_T) {
+pub fn ex_drop(eap: &mut Exarg) {
     unsafe {
         let mut split = false;
 

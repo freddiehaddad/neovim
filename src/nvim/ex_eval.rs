@@ -1,25 +1,25 @@
 //! Ex command-line evaluation, conditionals, loops, and exception handling (`src/nvim/ex_eval.c`).
 
 use crate::charset::{ascii_isdigit, skipwhite};
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
-use crate::eval::typval::{list_T, tv_clear, tv_list_ref, tv_list_unref, typval_T};
+use crate::eval::typval::{TvList, tv_clear, tv_list_ref, tv_list_unref, TypVal};
 use crate::eval::userfunc::{do_return, get_return_cmd};
 use crate::eval::vars::{
-    VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, evalarg_T, set_vim_var_list, set_vim_var_string,
+    VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, Evalarg, set_vim_var_list, set_vim_var_string,
 };
 use crate::eval::{
     eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
-    forinfo_T, next_for_item,
+    Forinfo, next_for_item,
 };
-use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
+use crate::ex_docmd::{ends_excmd, Exarg, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::regexp::{
-    RE_MAGIC, RE_STRING, regmatch_T, skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree,
+    RE_MAGIC, RE_STRING, Regmatch, skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree,
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{
@@ -64,7 +64,7 @@ pub const CSL_HAD_FINA: c_int = 8;
 pub const ET_USER: c_int = 0;
 pub const ET_ERROR: c_int = 1;
 pub const ET_INTERRUPT: c_int = 2;
-pub type except_type_T = c_int;
+pub type ExceptType = c_int;
 
 const RP_MAKE: c_int = 0;
 const RP_RESUME: c_int = 1;
@@ -79,12 +79,12 @@ const E_MULTIPLE_ELSE: &CStr = c"E583: Multiple :else";
 const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
 
 #[repr(C)]
-pub struct cstack_T {
+pub struct Cstack {
     pub cs_flags: [c_int; CSTACK_LEN],
     pub cs_pending: [c_char; CSTACK_LEN],
-    pub cs_rettv: [Option<typval_T>; CSTACK_LEN],
-    pub cs_exception: [Option<std::rc::Rc<except_T>>; CSTACK_LEN],
-    pub cs_forinfo: [Option<Box<forinfo_T>>; CSTACK_LEN],
+    pub cs_rettv: [Option<TypVal>; CSTACK_LEN],
+    pub cs_exception: [Option<std::rc::Rc<Except>>; CSTACK_LEN],
+    pub cs_forinfo: [Option<Box<Forinfo>>; CSTACK_LEN],
     pub cs_line: [c_int; CSTACK_LEN],
     pub cs_idx: c_int,
     pub cs_looplevel: c_int,
@@ -93,7 +93,7 @@ pub struct cstack_T {
     pub cs_lflags: c_int,
 }
 
-impl Default for cstack_T {
+impl Default for Cstack {
     fn default() -> Self {
         Self {
             cs_flags: [0; CSTACK_LEN],
@@ -113,26 +113,26 @@ impl Default for cstack_T {
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct msglist_T {
+pub struct Msglist {
     pub msg: CString,
     pub throw_idx: usize,
     pub throw_off: usize,
     pub sfile: Option<CString>,
-    pub slnum: linenr_T,
+    pub slnum: Linenr,
     pub multiline: bool,
 }
 
 #[repr(C)]
-pub struct except_T {
-    pub r#type: except_type_T,
+pub struct Except {
+    pub r#type: ExceptType,
     pub value: CString,
-    pub messages: Vec<msglist_T>,
+    pub messages: Vec<Msglist>,
     pub throw_name: CString,
-    pub throw_lnum: linenr_T,
-    pub stacktrace: *mut list_T,
+    pub throw_lnum: Linenr,
+    pub stacktrace: *mut TvList,
 }
 
-impl Drop for except_T {
+impl Drop for Except {
     fn drop(&mut self) {
         tv_list_unref(self.stacktrace);
     }
@@ -141,17 +141,17 @@ impl Drop for except_T {
 #[derive(Clone)]
 pub enum PendingVal {
     None,
-    Return(Option<typval_T>),
-    Throw(Option<std::rc::Rc<except_T>>),
+    Return(Option<TypVal>),
+    Throw(Option<std::rc::Rc<Except>>),
 }
 
 #[repr(C)]
-pub struct cleanup_T {
+pub struct ExCleanup {
     pub pending: c_int,
-    pub exception: Option<std::rc::Rc<except_T>>,
+    pub exception: Option<std::rc::Rc<Except>>,
 }
 
-impl cleanup_T {
+impl ExCleanup {
     #[inline]
     pub const fn new() -> Self {
         Self {
@@ -161,7 +161,7 @@ impl cleanup_T {
     }
 }
 
-impl Default for cleanup_T {
+impl Default for ExCleanup {
     #[inline]
     fn default() -> Self {
         Self::new()
@@ -169,15 +169,15 @@ impl Default for cleanup_T {
 }
 
 #[repr(C)]
-pub struct exception_state_T {
-    pub estate_current_exception: Option<std::rc::Rc<except_T>>,
+pub struct ExceptionState {
+    pub estate_current_exception: Option<std::rc::Rc<Except>>,
     pub estate_did_throw: bool,
     pub estate_need_rethrow: bool,
     pub estate_trylevel: c_int,
     pub estate_did_emsg: c_int,
 }
 
-impl exception_state_T {
+impl ExceptionState {
     pub const fn new() -> Self {
         Self {
             estate_current_exception: None,
@@ -189,7 +189,7 @@ impl exception_state_T {
     }
 }
 
-impl Default for exception_state_T {
+impl Default for ExceptionState {
     fn default() -> Self {
         Self::new()
     }
@@ -219,7 +219,7 @@ fn exeval_st() -> &'static mut ExEvalModuleState {
 }
 
 #[inline]
-fn check_skip(cstack: &cstack_T) -> bool {
+fn check_skip(cstack: &Cstack) -> bool {
     g_st().did_emsg != 0
             || g_st().got_int
             || g_st().did_throw
@@ -228,7 +228,7 @@ fn check_skip(cstack: &cstack_T) -> bool {
 }
 
 #[inline]
-fn discard_pending_return(p: &mut Option<typval_T>) {
+fn discard_pending_return(p: &mut Option<TypVal>) {
     if let Some(ref mut tv) = p.take() {
         tv_clear(tv);
     }
@@ -307,7 +307,7 @@ pub fn cause_errthrow(
                 && tmsg_bytes[7].is_ascii_digit()
                 && tmsg_bytes[8] == b':'
                 && tmsg_bytes[9] == b' ';
-            list.push(msglist_T {
+            list.push(Msglist {
                 msg: tmsg,
                 throw_idx: 0,
                 throw_off: 0,
@@ -334,7 +334,7 @@ pub fn free_global_msglist() {
     }
 }
 
-pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: impl crate::strings::IntoCCharPtr) { let cmdname = cmdname.into_c_char_ptr();
+pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: impl crate::strings::IntoCCharPtr) { let cmdname = cmdname.into_c_char_ptr();
     unsafe {
         if exeval_st().cause_abort {
             exeval_st().cause_abort = false;
@@ -360,7 +360,7 @@ pub fn do_errthrow(cstack: Option<&mut cstack_T>, cmdname: impl crate::strings::
     }
 }
 
-pub fn do_intthrow(cstack: *mut cstack_T) -> bool {
+pub fn do_intthrow(cstack: *mut Cstack) -> bool {
      {
         if !g_st().got_int || (g_st().trylevel == 0 && !g_st().did_throw) {
             return false;
@@ -385,7 +385,7 @@ pub fn do_intthrow(cstack: *mut cstack_T) -> bool {
 }
 
 enum ExceptionValue {
-    Error(Vec<msglist_T>),
+    Error(Vec<Msglist>),
     Interrupt(CString),
     User(CString),
 }
@@ -475,7 +475,7 @@ fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCha
         let stacktrace = stacktrace_create();
         tv_list_ref(stacktrace.as_mut());
 
-        let excp = std::rc::Rc::new(except_T {
+        let excp = std::rc::Rc::new(Except {
             r#type,
             value: excp_value,
             messages,
@@ -519,7 +519,7 @@ fn throw_exception(value: ExceptionValue, cmdname: impl crate::strings::IntoCCha
     }
 }
 
-fn discard_exception(excp: Option<std::rc::Rc<except_T>>, was_finished: bool) {
+fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
      {
         let Some(excp) = excp else {
             internal_error(c"discard_exception()");
@@ -580,7 +580,7 @@ pub fn discard_current_exception() {
     }
 }
 
-fn catch_exception(excp: &std::rc::Rc<except_T>) {
+fn catch_exception(excp: &std::rc::Rc<Except>) {
      {
         g_st().caught_stack.push(excp.clone());
         set_vim_var_string(VV_EXCEPTION, excp.value.as_ptr(), -1);
@@ -643,7 +643,7 @@ fn catch_exception(excp: &std::rc::Rc<except_T>) {
     }
 }
 
-fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
+fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
      {
         if match (g_st().caught_stack.last(), excp.as_ref()) {
             (Some(last), Some(e)) => !std::rc::Rc::ptr_eq(last, e),
@@ -690,7 +690,7 @@ fn finish_exception(excp: Option<std::rc::Rc<except_T>>) {
     }
 }
 
-pub fn exception_state_save(estate: &mut exception_state_T) {
+pub fn exception_state_save(estate: &mut ExceptionState) {
      {
         estate.estate_current_exception = g_st().current_exception.clone();
         estate.estate_did_throw = g_st().did_throw;
@@ -700,7 +700,7 @@ pub fn exception_state_save(estate: &mut exception_state_T) {
     }
 }
 
-pub fn exception_state_restore(estate: &mut exception_state_T) {
+pub fn exception_state_restore(estate: &mut ExceptionState) {
     if g_st().did_throw {
             handle_did_throw();
         }
@@ -729,7 +729,7 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
 
         let s_owned: Option<CString>;
         let mesg_owned: Option<CString>;
-        let excp_hold: Option<std::rc::Rc<except_T>>;
+        let excp_hold: Option<std::rc::Rc<Except>>;
         let s: *const c_char = match pending {
             CSTP_NONE => return,
             CSTP_CONTINUE => c":continue".as_ptr(),
@@ -823,9 +823,9 @@ fn report_discard_pending(pending: c_int, value: PendingVal) {
         }
 }
 
-pub fn ex_eval(eap: &mut exarg_T) {
-    let mut tv: typval_T = typval_T::new();
-        let mut evalarg = evalarg_T::new();
+pub fn ex_eval(eap: &mut Exarg) {
+    let mut tv: TypVal = TypVal::new();
+        let mut evalarg = Evalarg::new();
 
         fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
@@ -834,9 +834,9 @@ pub fn ex_eval(eap: &mut exarg_T) {
         }
 }
 
-pub fn ex_if(eap: &mut exarg_T) {
+pub fn ex_if(eap: &mut Exarg) {
     unsafe {
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
             eap.errmsg = gettext(c"E579: :if nesting too deep");
@@ -860,10 +860,10 @@ pub fn ex_if(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_endif(eap: &mut exarg_T) {
+pub fn ex_endif(eap: &mut Exarg) {
     unsafe {
         g_st().did_endif = true;
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
         if (*cstack).cs_idx < 0
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY))
                 != 0
@@ -880,9 +880,9 @@ pub fn ex_endif(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_else(eap: &mut exarg_T) {
+pub fn ex_else(eap: &mut Exarg) {
     unsafe {
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
         let mut skip = check_skip(&*cstack);
 
         if (*cstack).cs_idx < 0
@@ -946,10 +946,10 @@ pub fn ex_else(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_while(eap: &mut exarg_T) {
+pub fn ex_while(eap: &mut Exarg) {
     unsafe {
         let mut error = false;
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
             eap.errmsg = gettext(c"E585: :while/:for nesting too deep");
@@ -970,7 +970,7 @@ pub fn ex_while(eap: &mut exarg_T) {
             let result = if eap.cmdidx == CMD_while {
                 eval_to_bool(eap.arg, &mut error, eap, skip, false)
             } else {
-                let mut evalarg = evalarg_T::new();
+                let mut evalarg = Evalarg::new();
                 fill_evalarg_from_eap(&mut evalarg, skip);
                 if ((*cstack).cs_lflags & CSL_HAD_LOOP) != 0 {
                     error = false;
@@ -1008,9 +1008,9 @@ pub fn ex_while(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_continue(eap: &mut exarg_T) {
+pub fn ex_continue(eap: &mut Exarg) {
     unsafe {
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
             eap.errmsg = gettext(c"E586: :continue without :while or :for");
@@ -1028,9 +1028,9 @@ pub fn ex_continue(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_break(eap: &mut exarg_T) {
+pub fn ex_break(eap: &mut Exarg) {
     unsafe {
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
             eap.errmsg = gettext(c"E587: :break without :while or :for");
@@ -1044,9 +1044,9 @@ pub fn ex_break(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_endwhile(eap: &mut exarg_T) {
+pub fn ex_endwhile(eap: &mut Exarg) {
     unsafe {
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
         let (err, csf) = if eap.cmdidx == CMD_endwhile {
             (e_while.as_ptr(), CSF_WHILE)
         } else {
@@ -1096,7 +1096,7 @@ pub fn ex_endwhile(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_throw(eap: &mut exarg_T) {
+pub fn ex_throw(eap: &mut Exarg) {
      {
         let arg = eap.arg;
         let value = if !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && crate::memory::cstr_first_byte(arg) != b'\n' {
@@ -1115,7 +1115,7 @@ pub fn ex_throw(eap: &mut exarg_T) {
     }
 }
 
-pub fn do_throw(cstack: *mut cstack_T) {
+pub fn do_throw(cstack: *mut Cstack) {
     unsafe {
         let idx = cleanup_conditionals(&mut *cstack, 0, 0);
         if idx >= 0 {
@@ -1135,9 +1135,9 @@ pub fn do_throw(cstack: *mut cstack_T) {
     }
 }
 
-pub fn ex_try(eap: &mut exarg_T) {
+pub fn ex_try(eap: &mut Exarg) {
     unsafe {
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
             eap.errmsg = gettext(c"E601: :try nesting too deep");
@@ -1162,12 +1162,12 @@ pub fn ex_try(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_catch(eap: &mut exarg_T) {
+pub fn ex_catch(eap: &mut Exarg) {
     unsafe {
         let mut idx: c_int = 0;
         let mut give_up = false;
         let mut skip = false;
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
 
         if (*cstack).cs_trylevel <= 0 || (*cstack).cs_idx < 0 {
             eap.errmsg = gettext(c"E603: :catch without :try");
@@ -1237,7 +1237,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                     let save_cpo = opt_vars().p_cpo;
                     opt_vars().p_cpo = empty_string_option.as_ptr().cast();
                     g_st().emsg_off += 1;
-                    let mut regmatch: regmatch_T = regmatch_T::new();
+                    let mut regmatch: Regmatch = Regmatch::new();
                     regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
                     g_st().emsg_off -= 1;
                     regmatch.rm_ic = false;
@@ -1289,10 +1289,10 @@ pub fn ex_catch(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_finally(eap: &mut exarg_T) {
+pub fn ex_finally(eap: &mut Exarg) {
     unsafe {
         let mut pending = CSTP_NONE;
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
 
         let mut idx = (*cstack).cs_idx;
         while idx >= 0 {
@@ -1368,12 +1368,12 @@ pub fn ex_finally(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_endtry(eap: &mut exarg_T) {
+pub fn ex_endtry(eap: &mut Exarg) {
     unsafe {
         let mut rethrow = false;
         let mut pending: c_int = CSTP_NONE;
-        let mut rettv: Option<typval_T> = None;
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let mut rettv: Option<TypVal> = None;
+        let cstack = eap.cstack.cast::<Cstack>();
 
         let mut idx = (*cstack).cs_idx;
         while idx >= 0 {
@@ -1484,7 +1484,7 @@ pub fn ex_endtry(eap: &mut exarg_T) {
     }
 }
 
-pub fn enter_cleanup(csp: &mut cleanup_T) {
+pub fn enter_cleanup(csp: &mut ExCleanup) {
      {
         let pending = CSTP_NONE;
 
@@ -1519,7 +1519,7 @@ pub fn enter_cleanup(csp: &mut cleanup_T) {
     }
 }
 
-pub fn leave_cleanup(csp: &mut cleanup_T) {
+pub fn leave_cleanup(csp: &mut ExCleanup) {
      {
         let pending = csp.pending;
         if pending == CSTP_NONE {
@@ -1567,7 +1567,7 @@ pub fn leave_cleanup(csp: &mut cleanup_T) {
 }
 
 pub fn cleanup_conditionals(
-    cstack: &mut cstack_T,
+    cstack: &mut Cstack,
     searched_cond: c_int,
     inclusive: c_int,
 ) -> c_int {
@@ -1655,7 +1655,7 @@ pub fn cleanup_conditionals(
         idx
 }
 
-fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
+fn get_end_emsg(cstack: &Cstack) -> *mut c_char {
     let fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & CSF_WHILE) != 0 {
             return gettext(e_endwhile);
@@ -1667,7 +1667,7 @@ fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
 }
 
 pub fn rewind_conditionals(
-    cstack: &mut cstack_T,
+    cstack: &mut Cstack,
     idx: c_int,
     cond_type: c_int,
     cond_level: &mut c_int,
@@ -1684,7 +1684,7 @@ pub fn rewind_conditionals(
         }
 }
 
-pub fn ex_endfunction(_eap: &mut exarg_T) {
+pub fn ex_endfunction(_eap: &mut Exarg) {
     semsg!(
             gettext(e_str_not_inside_function),
             c":endfunction",

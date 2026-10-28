@@ -16,22 +16,22 @@ use crate::charset::{NL, NUL, ascii_iswhite, getdigits_int, skipwhite, transchar
 use crate::clipboard::{adjust_clipboard_name, get_clipboard, set_clipboard};
 use crate::cmdexpand::Ctrl_P;
 use crate::cursor::{
-    coladvance_force, colnr_T, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, kOptVeFlagAll, linenr_T, pos_T,
+    coladvance_force, Colnr, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
+    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, kOptVeFlagAll, Linenr, CursorPos,
 };
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::drawscreen::{showmode, update_screen};
 use crate::errors::*;
 use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
-    dict_T, list_T, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
+    TvDict, TvList, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_set_keys_readonly, tv_list_alloc,
     tv_list_append_string,
 };
 use crate::eval::{ESC, eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
-use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, exarg_T};
+use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, Exarg};
 use crate::ex_getln::{Ctrl_A, Ctrl_F, Ctrl_L, Ctrl_R, Ctrl_W, cmdline_paste_str, getcmdline};
 use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
@@ -69,13 +69,13 @@ use crate::os::time::{Timestamp, os_realtime};
 use crate::plines::{CSType, CharsizeArg, getvcol, init_charsize_arg, win_charsize};
 use crate::regexp::{Ctrl_V, MAXCOL, NUMBUFLEN};
 use crate::search::{BACKWARD, Direction, FORWARD, last_search_pat, set_last_search_pat};
-use crate::state::{REPLACE_FLAG, save_v_event_T};
+use crate::state::{REPLACE_FLAG, SaveVEvent};
 use crate::strings::{
     gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr,
     vim_strsave_escaped_ext,
 };
 use crate::terminal::terminal_paste;
-use crate::textformat::oparg_T;
+use crate::textformat::Oparg;
 use crate::ui::ui_has;
 use crate::undo::{u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_ulong};
@@ -91,7 +91,7 @@ pub enum MotionType {
 }
 
 #[derive(Clone, Debug)]
-pub struct yankreg_T {
+pub struct Yankreg {
     pub y_array: Vec<NvimString>,
     pub y_allocated: bool,
     pub y_type: MotionType,
@@ -100,7 +100,7 @@ pub struct yankreg_T {
     pub additional_data: Option<crate::search::AdditionalData>,
 }
 
-impl Drop for yankreg_T {
+impl Drop for Yankreg {
     fn drop(&mut self) {
         for item in self.y_array.iter_mut().rev() {
                 api_clear_string(item);
@@ -143,16 +143,16 @@ pub struct block_def {
     pub endspaces: c_int,
     pub textlen: c_int,
     pub textstart: *mut c_char,
-    pub textcol: colnr_T,
-    pub start_vcol: colnr_T,
-    pub end_vcol: colnr_T,
+    pub textcol: Colnr,
+    pub start_vcol: Colnr,
+    pub end_vcol: Colnr,
     pub is_short: c_int,
     pub is_MAX: c_int,
     pub is_oneChar: c_int,
     pub pre_whitesp: c_int,
     pub pre_whitesp_c: c_int,
-    pub end_char_vcols: colnr_T,
-    pub start_char_vcols: colnr_T,
+    pub end_char_vcols: Colnr,
+    pub start_char_vcols: Colnr,
 }
 
 impl block_def {
@@ -176,7 +176,7 @@ impl block_def {
     }
 }
 
-pub const EMPTY_YANKREG: yankreg_T = yankreg_T {
+pub const EMPTY_YANKREG: Yankreg = Yankreg {
     y_array: Vec::new(),
     y_allocated: false,
     y_type: MotionType::kMTCharWise,
@@ -189,9 +189,9 @@ struct RegisterModuleState {
     expr_line: Option<std::ffi::CString>,
     get_expr_line_nested: c_int,
     execreg_lastc: c_int,
-    y_regs: [yankreg_T; NUM_REGISTERS],
-    y_previous: *mut yankreg_T,
-    empty_reg: yankreg_T,
+    y_regs: [Yankreg; NUM_REGISTERS],
+    y_previous: *mut Yankreg,
+    empty_reg: Yankreg,
     do_record_regname: c_int,
     textyankpost_recursive: bool,
     put_autocmd_recursive: bool,
@@ -269,7 +269,7 @@ pub const fn get_register_name(num: c_int) -> c_int {
 }
 
 #[inline]
-pub fn reg_empty(reg: &yankreg_T) -> bool {
+pub fn reg_empty(reg: &Yankreg) -> bool {
      {
                 !reg.y_allocated
             || reg.y_array.is_empty()
@@ -298,16 +298,16 @@ pub fn get_unname_register() -> c_int {
         if reg_st().y_previous.is_null() {
             -1
         } else {
-            reg_st().y_previous.offset_from((&raw const reg_st().y_regs).cast::<yankreg_T>()) as c_int
+            reg_st().y_previous.offset_from((&raw const reg_st().y_regs).cast::<Yankreg>()) as c_int
         }
     }
 }
 
-pub fn get_y_register(reg: c_int) -> *mut yankreg_T {
-    unsafe { (&raw mut reg_st().y_regs).cast::<yankreg_T>().add(reg as usize) }
+pub fn get_y_register(reg: c_int) -> *mut Yankreg {
+    unsafe { (&raw mut reg_st().y_regs).cast::<Yankreg>().add(reg as usize) }
 }
 
-pub fn get_y_previous() -> *mut yankreg_T {
+pub fn get_y_previous() -> *mut Yankreg {
     reg_st().y_previous
 }
 
@@ -359,9 +359,9 @@ pub fn get_default_register_name() -> c_int {
 
 pub fn op_reg_iter(
     iter: Option<usize>,
-    regs: &[yankreg_T],
+    regs: &[Yankreg],
     name: &mut c_char,
-    reg: &mut *const yankreg_T,
+    reg: &mut *const Yankreg,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
     *name = NUL;
@@ -389,7 +389,7 @@ pub fn op_reg_iter(
 pub fn op_global_reg_iter(
     iter: Option<usize>,
     name: &mut c_char,
-    reg: &mut *const yankreg_T,
+    reg: &mut *const Yankreg,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
     op_reg_iter(
@@ -407,7 +407,7 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
         let mut iter: Option<usize> = None;
         loop {
             let mut name: c_char = NUL;
-            let mut reg: *const yankreg_T = ptr::null();
+            let mut reg: *const Yankreg = ptr::null();
             let mut is_unnamed = false;
             iter = op_global_reg_iter(iter, &mut name, &mut reg, &mut is_unnamed);
             if name == NUL {
@@ -426,13 +426,13 @@ pub fn reg_max_ts(clipboard: bool) -> Timestamp {
     }
 }
 
-pub fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool {
+pub fn op_reg_set(name: c_char, reg: Yankreg, is_unnamed: bool) -> bool {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
             return false;
         }
-        let target = (&raw mut reg_st().y_regs).cast::<yankreg_T>().add(i as usize);
+        let target = (&raw mut reg_st().y_regs).cast::<Yankreg>().add(i as usize);
         *target = reg;
 
         if is_unnamed {
@@ -442,13 +442,13 @@ pub fn op_reg_set(name: c_char, reg: yankreg_T, is_unnamed: bool) -> bool {
     }
 }
 
-pub fn op_reg_get(name: c_char) -> *const yankreg_T {
+pub fn op_reg_get(name: c_char) -> *const Yankreg {
     unsafe {
         let i = op_reg_index(c_int::from(name as u8));
         if i == -1 {
             return ptr::null();
         }
-        (&raw const reg_st().y_regs).cast::<yankreg_T>().add(i as usize)
+        (&raw const reg_st().y_regs).cast::<Yankreg>().add(i as usize)
     }
 }
 
@@ -458,12 +458,12 @@ pub fn op_reg_set_previous(name: c_char) -> bool {
         if i == -1 {
             return false;
         }
-        reg_st().y_previous = (&raw mut reg_st().y_regs).cast::<yankreg_T>().add(i as usize);
+        reg_st().y_previous = (&raw mut reg_st().y_regs).cast::<Yankreg>().add(i as usize);
         true
     }
 }
 
-pub fn update_yankreg_width(reg: &mut yankreg_T) {
+pub fn update_yankreg_width(reg: &mut Yankreg) {
      {
         if reg.y_type == MotionType::kMTBlockWise {
             let mut maxlen: usize = 0;
@@ -472,14 +472,14 @@ pub fn update_yankreg_width(reg: &mut yankreg_T) {
                 maxlen = maxlen.max(rowlen);
             }
             assert!(maxlen <= c_int::MAX as usize);
-            reg.y_width = reg.y_width.max((maxlen as colnr_T) - 1);
+            reg.y_width = reg.y_width.max((maxlen as Colnr) - 1);
         }
     }
 }
 
-pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut yankreg_T {
+pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut Yankreg {
     unsafe {
-        let mut reg: *mut yankreg_T = ptr::null_mut();
+        let mut reg: *mut Yankreg = ptr::null_mut();
 
         if (mode == YREG_PASTE || mode == YREG_PUT) && get_clipboard(regname, &raw mut reg, false) {
             return reg;
@@ -500,7 +500,7 @@ pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut yankreg_T {
         if i == -1 {
             i = 0;
         }
-        reg = (&raw mut reg_st().y_regs).cast::<yankreg_T>().add(i as usize);
+        reg = (&raw mut reg_st().y_regs).cast::<Yankreg>().add(i as usize);
 
         if mode == YREG_YANK {
             reg_st().y_previous = reg;
@@ -509,7 +509,7 @@ pub fn get_yank_register(regname: c_int, mode: c_int) -> *mut yankreg_T {
     }
 }
 
-pub fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> bool {
+pub fn yank_register_mline(regname: c_int, reg: *mut *mut Yankreg) -> bool {
     unsafe {
         *reg = ptr::null_mut();
         if regname != 0 && !valid_yank_reg(regname, false) {
@@ -523,11 +523,11 @@ pub fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> bool {
     }
 }
 
-pub fn copy_register(name: c_int) -> yankreg_T {
+pub fn copy_register(name: c_int) -> Yankreg {
     unsafe {
         let reg = &*get_yank_register(name, YREG_PASTE);
         let y_array = reg.y_array.iter().map(|&s| copy_string_global(s)).collect();
-        yankreg_T {
+        Yankreg {
             y_array,
             y_allocated: reg.y_allocated,
             y_type: reg.y_type,
@@ -592,7 +592,7 @@ pub fn do_record(c: c_int) -> bool {
                 );
             }
         } else {
-            let mut save_v_event: save_v_event_T = save_v_event_T::new();
+            let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let dict = get_v_event(&mut save_v_event);
 
             let mut p_vec = get_recorded().into_bytes_with_nul();
@@ -842,7 +842,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
     }
 }
 
-pub fn insert_reg(regname: c_int, mut reg: *mut yankreg_T, literally_arg: bool) -> bool {
+pub fn insert_reg(regname: c_int, mut reg: *mut Yankreg, literally_arg: bool) -> bool {
     unsafe {
         let mut retval = true;
         let mut owned: Option<Vec<c_char>> = None;
@@ -1058,7 +1058,7 @@ pub fn cmdline_paste_reg(regname: c_int, literally_arg: bool, remcr: bool) -> bo
 
 pub fn shift_delete_registers(y_append: bool) {
     unsafe {
-        let regs = (&raw mut reg_st().y_regs).cast::<yankreg_T>();
+        let regs = (&raw mut reg_st().y_regs).cast::<Yankreg>();
         *regs.add(9) = EMPTY_YANKREG;
         let mut n = 9;
         while n > 1 {
@@ -1073,7 +1073,7 @@ pub fn shift_delete_registers(y_append: bool) {
 
 pub fn clear_registers() {
     unsafe {
-        let regs = (&raw mut reg_st().y_regs).cast::<yankreg_T>();
+        let regs = (&raw mut reg_st().y_regs).cast::<Yankreg>();
         for i in 0..NUM_REGISTERS {
             *regs.add(i) = EMPTY_YANKREG;
         }
@@ -1081,7 +1081,7 @@ pub fn clear_registers() {
 }
 
 fn yank_copy_line(
-    reg: &mut yankreg_T,
+    reg: &mut Yankreg,
     bd: &mut block_def,
     y_idx: usize,
     exclude_trailing_space: bool,
@@ -1113,7 +1113,7 @@ fn yank_copy_line(
     }
 }
 
-pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, append: bool) {
+pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append: bool) {
     unsafe {
         let mut newreg = EMPTY_YANKREG;
         let orig_motion = match oap.motion_type {
@@ -1316,7 +1316,7 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
 
 pub fn format_reg_type(
     reg_type: MotionType,
-    reg_width: colnr_T,
+    reg_width: Colnr,
     buf: *mut c_char,
     bufsize: usize,
 ) -> usize {
@@ -1345,8 +1345,8 @@ pub fn format_reg_type(
 }
 
 fn add_regtype_to_dict(
-    reg: Option<&yankreg_T>,
-    dict: &mut dict_T,
+    reg: Option<&Yankreg>,
+    dict: &mut TvDict,
     buf: *mut c_char,
     bufsize: usize,
 ) {
@@ -1365,7 +1365,7 @@ fn add_regtype_to_dict(
     }
 }
 
-pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
+pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
     unsafe {
         if reg_st().textyankpost_recursive || !has_event(EVENT_TEXTYANKPOST) {
             return;
@@ -1373,7 +1373,7 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
 
         reg_st().textyankpost_recursive = true;
 
-        let mut save_v_event: save_v_event_T = save_v_event_T::new();
+        let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
 
         let list = tv_list_alloc(reg.y_array.len() as isize);
@@ -1432,7 +1432,7 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
 
 fn put_do_autocmd(
     regname: c_int,
-    reg: Option<&yankreg_T>,
+    reg: Option<&Yankreg>,
     insert: Option<&NvimString>,
     post: bool,
     dir: Direction,
@@ -1446,7 +1446,7 @@ fn put_do_autocmd(
             return;
         }
 
-        let mut save_v_event: save_v_event_T = save_v_event_T::new();
+        let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 
         let list = tv_list_alloc(reg.map_or(1, |reg| reg.y_array.len() as isize));
@@ -1516,7 +1516,7 @@ fn put_do_autocmd(
     }
 }
 
-pub fn op_yank(oap: &mut oparg_T, message: bool) -> bool {
+pub fn op_yank(oap: &mut Oparg, message: bool) -> bool {
     unsafe {
         if oap.regname != 0 && !valid_yank_reg(oap.regname, true) {
             beep_flush();
@@ -1536,22 +1536,22 @@ pub fn op_yank(oap: &mut oparg_T, message: bool) -> bool {
 
 pub fn do_put(
     regname: c_int,
-    mut reg: *mut yankreg_T,
+    mut reg: *mut Yankreg,
     mut dir: c_int,
     mut count: c_int,
     flags: c_int,
 ) {
     unsafe {
         let mut totlen: usize = 0;
-        let mut lnum: linenr_T;
+        let mut lnum: Linenr;
         let mut y_type: MotionType;
         let y_size: usize;
         let mut y_width: c_int = 0;
-        let mut vcol: colnr_T = 0;
+        let mut vcol: Colnr = 0;
         let y_array: *mut NvimString;
         let mut expr_y_array: Vec<NvimString> = Vec::new();
         let mut y_allocated = true;
-        let mut nr_lines: linenr_T = 0;
+        let mut nr_lines: Linenr = 0;
         let orig_start = curbuf_mut().b_op_start;
         let orig_end = curbuf_mut().b_op_end;
         let cur_ve_flags = get_ve_flags(curwin_mut());
@@ -1749,7 +1749,7 @@ pub fn do_put(
                 break 'end;
             }
 
-            let mut split_pos: colnr_T = 0;
+            let mut split_pos: Colnr = 0;
             if y_type == MotionType::kMTLineWise {
                 if (flags & PUT_LINE_SPLIT) != 0 {
                     if !u_save_cursor() {
@@ -1762,7 +1762,7 @@ pub fn do_put(
                     if dir == FORWARD && !crate::memory::cstr_is_empty(p) {
                         p = p.add(utfc_ptr2len(p) as usize);
                     }
-                    split_pos = ((p as usize) - (curline as usize)) as colnr_T;
+                    split_pos = ((p as usize) - (curline as usize)) as Colnr;
 
                     let tail_len = plen - ((p as usize) - (p_orig as usize));
                     let mut tail_vec: Vec<c_char> = Vec::with_capacity(tail_len + 1);
@@ -1806,7 +1806,7 @@ pub fn do_put(
             }
 
             if y_type == MotionType::kMTBlockWise {
-                lnum = curwin_mut().w_cursor.lnum + (y_size as linenr_T) + 1;
+                lnum = curwin_mut().w_cursor.lnum + (y_size as Linenr) + 1;
                 lnum = lnum.min(curbuf_mut().b_ml.ml_line_count + 1);
                 if !u_save(curwin_mut().w_cursor.lnum - 1, lnum) {
                     break 'end;
@@ -1865,7 +1865,7 @@ pub fn do_put(
                 let mut incr: c_int = 0;
                 let mut bd = block_def::default();
                 let c = gchar_cursor();
-                let mut endcol2: colnr_T = 0;
+                let mut endcol2: Colnr = 0;
 
                 if dir == FORWARD && c != 0 {
                     if cur_ve_flags == kOptVeFlagAll {
@@ -1966,7 +1966,7 @@ pub fn do_put(
                         ci = cli.next;
                     }
                     let mut ptr_ = ci.ptr.cast_mut();
-                    bd.textcol = ((ptr_ as usize) - (oldp as usize)) as colnr_T;
+                    bd.textcol = ((ptr_ as usize) - (oldp as usize)) as Colnr;
 
                     let shortline = (vcol < col) || (vcol == col && crate::memory::cstr_is_empty(ptr_));
 
@@ -2072,7 +2072,7 @@ pub fn do_put(
                     curbuf_mut(),
                     lnum,
                     0,
-                    curbuf_mut().b_op_start.lnum + (y_size as linenr_T) - nr_lines,
+                    curbuf_mut().b_op_start.lnum + (y_size as Linenr) - nr_lines,
                     nr_lines,
                     true,
                 );
@@ -2081,7 +2081,7 @@ pub fn do_put(
                 curbuf_mut().b_op_start.lnum = lnum;
 
                 curbuf_mut().b_op_end.lnum = curwin_mut().w_cursor.lnum - 1;
-                curbuf_mut().b_op_end.col = (bd.textcol + (totlen as colnr_T) - 1).max(0);
+                curbuf_mut().b_op_end.col = (bd.textcol + (totlen as Colnr) - 1).max(0);
                 curbuf_mut().b_op_end.coladd = 0;
                 if (flags & PUT_CURSEND) != 0 {
                     curwin_mut().w_cursor = curbuf_mut().b_op_end;
@@ -2111,7 +2111,7 @@ pub fn do_put(
                 let new_cursor = curwin_mut().w_cursor;
 
                 if y_type == MotionType::kMTCharWise && y_size == 1 {
-                    let mut end_lnum: linenr_T = 0;
+                    let mut end_lnum: Linenr = 0;
                     let start_lnum = lnum;
                     let mut first_byte_off: c_int = 0;
 
@@ -2122,7 +2122,7 @@ pub fn do_put(
                             .lnum
                             .max(curbuf_mut().b_visual.vi_start.lnum);
                         if end_lnum > start_lnum {
-                            let mut pos = pos_T {
+                            let mut pos = CursorPos {
                                 lnum,
                                 col,
                                 coladd: 0,
@@ -2147,7 +2147,7 @@ pub fn do_put(
                             let oldp = ml_get(lnum);
                             let oldlen = ml_get_len(lnum);
                             if lnum > start_lnum {
-                                let mut pos = pos_T {
+                                let mut pos = CursorPos {
                                     lnum,
                                     col: 0,
                                     coladd: 0,
@@ -2182,7 +2182,7 @@ pub fn do_put(
                             if lnum == curwin_mut().w_cursor.lnum {
                                 changed_cline_bef_curs(curwin_mut());
                                 invalidate_botline_win(curwin_mut());
-                                curwin_mut().w_cursor.col += (totlen - 1) as colnr_T;
+                                curwin_mut().w_cursor.col += (totlen - 1) as Colnr;
                             }
                             changed_bytes(lnum, col);
                             extmark_splice_cols(
@@ -2360,7 +2360,7 @@ pub fn do_put(
                     };
                     mark_adjust(
                         curbuf_mut().b_op_start.lnum
-                            + linenr_T::from(y_type == MotionType::kMTCharWise),
+                            + Linenr::from(y_type == MotionType::kMTCharWise),
                         MAXLNUM,
                         nr_lines,
                         0,
@@ -2389,7 +2389,7 @@ pub fn do_put(
 
                     curbuf_mut().b_op_end.lnum = new_lnum;
                     let last_item = *y_array.add(y_size - 1);
-                    col = ((last_item.size as colnr_T) - lendiff).max(0);
+                    col = ((last_item.size as Colnr) - lendiff).max(0);
                     if col > 1 {
                         curbuf_mut().b_op_end.col = col - 1;
                         if last_item.size > 0 {
@@ -2495,7 +2495,7 @@ fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) { let mut p = p
     }
 }
 
-pub fn ex_display(eap: &mut exarg_T) {
+pub fn ex_display(eap: &mut Exarg) {
     unsafe {
         let mut arg = eap.arg;
         if !arg.is_null() && crate::memory::cstr_is_empty(arg) {
@@ -2507,7 +2507,7 @@ pub fn ex_display(eap: &mut exarg_T) {
         g_st().msg_ext_skip_flush = true;
         msg_puts_title(gettext(c"\nType Name Content"));
 
-        let regs = (&raw mut reg_st().y_regs).cast::<yankreg_T>();
+        let regs = (&raw mut reg_st().y_regs).cast::<Yankreg>();
         let mut i: c_int = -1;
         while i < (NUM_REGISTERS as c_int) && !g_st().got_int {
             let name = get_register_name(i);
@@ -2620,7 +2620,7 @@ pub fn ex_display(eap: &mut exarg_T) {
 
         if (arg.is_null() || !vim_strchr(arg, c_int::from(b'#')).is_null()) && !g_st().got_int {
             let mut fname: *mut c_char = ptr::null_mut();
-            let mut dummy: linenr_T = 0;
+            let mut dummy: Linenr = 0;
             if buflist_name_nr(0, &raw mut fname, &mut dummy)
                 && !message_filtered(fname)
             {
@@ -2650,7 +2650,7 @@ pub fn ex_display(eap: &mut exarg_T) {
     }
 }
 
-pub fn get_reg_type(regname: c_int, reg_width: Option<&mut colnr_T>) -> MotionType {
+pub fn get_reg_type(regname: c_int, reg_width: Option<&mut Colnr>) -> MotionType {
     unsafe {
         if regname == c_int::from(b'%')
             || regname == c_int::from(b'#')
@@ -2684,7 +2684,7 @@ pub fn get_reg_type(regname: c_int, reg_width: Option<&mut colnr_T>) -> MotionTy
     }
 }
 
-fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut list_T {
+fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> *mut TvList {
     unsafe {
         let Some(s) = s else {
             return ptr::null_mut();
@@ -2751,7 +2751,7 @@ pub fn get_reg_contents_str(mut regname: c_int, flags: c_int) -> Option<std::ffi
     }
 }
 
-pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut list_T {
+pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut TvList {
     unsafe {
         if regname == c_int::from(b'=') {
             if (flags & kGRegNoExpr) != 0 {
@@ -2795,9 +2795,9 @@ pub fn get_reg_contents_list(mut regname: c_int, flags: c_int) -> *mut list_T {
 
 fn init_write_reg(
     name: c_int,
-    old_y_previous: *mut *mut yankreg_T,
+    old_y_previous: *mut *mut Yankreg,
     must_append: bool,
-) -> *mut yankreg_T {
+) -> *mut Yankreg {
     unsafe {
         if !valid_yank_reg(name, true) {
             emsg_invreg(name);
@@ -2815,11 +2815,11 @@ fn init_write_reg(
 }
 
 fn str_to_reg(
-    y_ptr: &mut yankreg_T,
+    y_ptr: &mut Yankreg,
     mut yank_type: MotionType,
     str_: impl crate::strings::IntoCCharPtr,
     len: usize,
-    blocklen: colnr_T,
+    blocklen: Colnr,
     str_list: bool,
 ) { let str_ = str_.into_c_char_ptr();
     unsafe {
@@ -2933,7 +2933,7 @@ fn str_to_reg(
         y_ptr.timestamp = os_realtime() as u64;
         if yank_type == MotionType::kMTBlockWise {
             y_ptr.y_width = if blocklen == -1 {
-                (maxlen as colnr_T) - 1
+                (maxlen as Colnr) - 1
             } else {
                 blocklen
             };
@@ -2943,7 +2943,7 @@ fn str_to_reg(
     }
 }
 
-fn finish_write_reg(name: c_int, reg: &mut yankreg_T, old_y_previous: *mut yankreg_T) {
+fn finish_write_reg(name: c_int, reg: &mut Yankreg, old_y_previous: *mut Yankreg) {
     set_clipboard(name,  reg);
         if name != c_int::from(b'"') {
             reg_st().y_previous = old_y_previous;
@@ -2960,7 +2960,7 @@ pub fn write_reg_contents_lst(
     strings: *mut *mut c_char,
     must_append: bool,
     yank_type: MotionType,
-    block_len: colnr_T,
+    block_len: Colnr,
 ) {
     unsafe {
         if name == c_int::from(b'/') || name == c_int::from(b'=') || name == c_int::from(b'#') {
@@ -2983,7 +2983,7 @@ pub fn write_reg_contents_lst(
             return;
         }
 
-        let mut old_y_previous: *mut yankreg_T = ptr::null_mut();
+        let mut old_y_previous: *mut Yankreg = ptr::null_mut();
         let reg = init_write_reg(name, &raw mut old_y_previous, must_append);
         if reg.is_null() {
             return;
@@ -3000,7 +3000,7 @@ pub fn write_reg_contents_ex(
     mut len: isize,
     must_append: bool,
     yank_type: MotionType,
-    block_len: colnr_T,
+    block_len: Colnr,
 ) { let str_ = str_.into_c_char_ptr();
     unsafe {
         if len < 0 {
@@ -3059,7 +3059,7 @@ pub fn write_reg_contents_ex(
             return;
         }
 
-        let mut old_y_previous: *mut yankreg_T = ptr::null_mut();
+        let mut old_y_previous: *mut Yankreg = ptr::null_mut();
         let reg = init_write_reg(name, &raw mut old_y_previous, must_append);
         if reg.is_null() {
             return;
@@ -3070,7 +3070,7 @@ pub fn write_reg_contents_ex(
 }
 
 pub fn prepare_yankreg_from_object(
-    reg: &mut yankreg_T,
+    reg: &mut Yankreg,
     regtype: NvimString,
     _lines: usize,
 ) -> bool {
@@ -3110,7 +3110,7 @@ pub fn prepare_yankreg_from_object(
     }
 }
 
-pub fn finish_yankreg_from_object(reg: &mut yankreg_T, clipboard_adjust: bool) {
+pub fn finish_yankreg_from_object(reg: &mut Yankreg, clipboard_adjust: bool) {
         if reg.y_array.last().is_some_and(|last| last.size == 0) {
             if reg.y_type != MotionType::kMTCharWise {
                 if reg.y_type == MotionType::kMTUnknown || clipboard_adjust {

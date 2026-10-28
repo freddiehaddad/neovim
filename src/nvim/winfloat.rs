@@ -12,7 +12,7 @@ use crate::api::win_config::{
     kFloatRelativeWindow, kUIMultigrid, kWinStyleMinimal, parse_bordertext, parse_winborder,
 };
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::cursor::{linenr_T, pos_T};
+use crate::cursor::{Linenr, CursorPos};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
@@ -32,7 +32,7 @@ use crate::strings::{concat_str, gettext};
 use crate::ui::ui_has;
 use crate::window::{
     STATUS_HEIGHT, WinConfig, WinKind, last_status, lastwin_nofloating, merge_win_config,
-    tabpage_T, tabpage_win_valid, win_T, win_alloc, win_append, win_close, win_comp_pos, win_enter,
+    TabPageInfo, tabpage_win_valid, WinInfoInfo, win_alloc, win_append, win_close, win_comp_pos, win_enter,
     win_find_tabpage, win_free, win_init, win_remove, win_remove_status_line, win_set_buf,
     win_set_inner_size, win_valid, winframe_remove,
 };
@@ -47,11 +47,11 @@ use crate::ex_cmds::kWinPreview;
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
 pub fn win_new_float(
-    mut wp: *mut win_T,
+    mut wp: *mut WinInfoInfo,
     last: bool,
     fconfig: WinConfig,
     err: &mut Error,
-) -> *mut win_T {
+) -> *mut WinInfoInfo {
     unsafe {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if wp.is_null() {
@@ -137,7 +137,7 @@ pub fn win_new_float(
     }
 }
 
-pub fn win_set_minimal_style(wp: &mut win_T) {
+pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
      {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         wp.w_onebuf_opt.wo_nu = 0;
@@ -206,15 +206,15 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
     }
 }
 
-pub fn win_border_height(wp: &mut win_T) -> c_int {
+pub fn win_border_height(wp: &mut WinInfoInfo) -> c_int {
     wp.w_border_adj[0] + wp.w_border_adj[2]
 }
 
-pub fn win_border_width(wp: &mut win_T) -> c_int {
+pub fn win_border_width(wp: &mut WinInfoInfo) -> c_int {
     wp.w_border_adj[1] + wp.w_border_adj[3]
 }
 
-pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
+pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     unsafe {
         // Process statusline changes before applying new height from config
         let show_stl = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl) && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
@@ -291,7 +291,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
                 col += (*parent).w_wincol;
                 grid_adjust(&mut (*parent).w_grid, &mut row, &mut col);
                 if wp.w_config.bufpos.lnum >= 0 {
-                    let mut pos = pos_T {
+                    let mut pos = CursorPos {
                         lnum: (wp.w_config.bufpos.lnum + 1)
                             .min((*parent).buf_mut().b_ml.ml_line_count),
                         col: wp.w_config.bufpos.col,
@@ -332,7 +332,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
 
 pub fn win_float_remove(bang: bool, mut count: c_int) {
     unsafe {
-        let mut float_win_arr: Vec<*mut win_T> = Vec::new();
+        let mut float_win_arr: Vec<*mut WinInfoInfo> = Vec::new();
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             if !(*wp).w_config.hide && (*wp).w_onebuf_opt.wo_wp == 0 {
@@ -357,7 +357,7 @@ pub fn win_float_remove(bang: bool, mut count: c_int) {
     }
 }
 
-pub fn win_check_anchored_floats(win: &mut win_T) {
+pub fn win_check_anchored_floats(win: &mut WinInfoInfo) {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -406,7 +406,7 @@ pub fn win_reconfig_floats() {
 }
 
 /// Find the floating window of the given kind in the current tabpage (`win_float_find`).
-pub fn win_float_find(kind: WinKind) -> *mut win_T {
+pub fn win_float_find(kind: WinKind) -> *mut WinInfoInfo {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -420,7 +420,7 @@ pub fn win_float_find(kind: WinKind) -> *mut win_T {
 }
 
 /// Select an alternative window to `win` (assumed floating) in tabpage `tp` (`win_float_find_altwin`).
-pub fn win_float_find_altwin(win: &win_T, tp: Option<&tabpage_T>) -> *mut win_T {
+pub fn win_float_find_altwin(win: &WinInfoInfo, tp: Option<&TabPageInfo>) -> *mut WinInfoInfo {
     unsafe {
         let mut wp = g_st().prevwin;
         let Some(tp) = tp else {
@@ -451,7 +451,7 @@ pub fn win_float_find_altwin(win: &win_T, tp: Option<&tabpage_T>) -> *mut win_T 
 
 /// Abort `win_float_special()`: emit any error, tear down the half-built window, unblock autocmds.
 #[inline]
-fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T {
+fn win_float_special_fail(wp: *mut WinInfoInfo, err: &mut Error) -> *mut WinInfoInfo {
     unsafe {
         if error_set(err) {
             emsg(err.msg_ptr());
@@ -467,7 +467,7 @@ fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T {
 }
 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
-pub fn win_float_anchor_preview(wp: &mut win_T) {
+pub fn win_float_anchor_preview(wp: &mut WinInfoInfo) {
      {
         wp.w_wantline = curwin_mut().w_winrow + curwin_mut().w_wrow;
         wp.w_wantcol = curwin_mut().w_wincol + curwin_mut().w_wcol;
@@ -475,7 +475,7 @@ pub fn win_float_anchor_preview(wp: &mut win_T) {
 }
 
 /// Creates a special floatwin: a 'previewpopup' preview or a pum-info popup (`win_float_special`).
-pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_T {
+pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinInfoInfo {
     unsafe {
         let mut config = WIN_CONFIG_INIT;
         config.col = curwin_mut().w_wcol as f64;
@@ -550,7 +550,7 @@ pub fn win_float_close(kind: WinKind) {
 }
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
-pub fn win_float_update_preview(wp: &mut win_T) {
+pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     unsafe {
         if wp.w_kind != kWinPreview || !wp.w_floating || wp.w_buffer.is_null() {
             return;
@@ -592,7 +592,7 @@ pub fn win_float_update_preview(wp: &mut win_T) {
         };
 
         // If a dimension is not given in 'previewpopup', autosize to the content.
-        let last: linenr_T = wp.buf_mut().b_ml.ml_line_count;
+        let last: Linenr = wp.buf_mut().b_ml.ml_line_count;
         if want_w == 0 {
             want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().Columns).max(1);
         }

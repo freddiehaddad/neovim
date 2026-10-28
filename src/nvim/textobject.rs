@@ -2,8 +2,8 @@
 
 use crate::charset::{NUL, ascii_iswhite, skipwhite};
 use crate::cursor::{
-    clearpos, coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_ptr,
-    get_cursor_pos_ptr, inc_cursor, linenr_T, lt, ltoreq, pos_T,
+    clearpos, coladvance, Colnr, dec_cursor, equalpos, gchar_cursor, get_cursor_line_ptr,
+    get_cursor_pos_ptr, inc_cursor, Linenr, lt, ltoreq, CursorPos,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, showmode};
 use crate::eval::funcs::{do_searchpair, kMTCharWise, kMTLineWise};
@@ -21,7 +21,7 @@ use crate::search::{
     BACKWARD, Direction, FORWARD, findmatch, findmatchlimit, kCpoMatchbsl, linewhite,
 };
 use crate::strings::vim_strchr;
-use crate::textformat::oparg_T;
+use crate::textformat::Oparg;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -53,7 +53,7 @@ fn tobj_st() -> &'static mut TextobjectState {
 pub fn findsent(dir: Direction, mut count: c_int) -> bool {
      {
         let mut c: c_int;
-        let func: fn(&mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
+        let func: fn(&mut CursorPos) -> c_int = if dir == FORWARD { incl } else { decl };
         let mut noskip = false;
 
         let mut pos = curwin_mut().w_cursor;
@@ -203,8 +203,8 @@ pub fn findpar(pincl: &mut bool,
     both: bool,
 ) -> bool {
     unsafe {
-        let mut fold_first: linenr_T = 0;
-        let mut fold_last: linenr_T = 0;
+        let mut fold_first: Linenr = 0;
+        let mut fold_last: Linenr = 0;
         let mut curr = curwin_mut().w_cursor.lnum;
 
         while {
@@ -296,7 +296,7 @@ fn inmacro(opt: impl crate::strings::IntoCCharPtr, s: impl crate::strings::IntoC
 }
 
 /// Return true if line `lnum` is the start of a section or paragraph (`startPS`).
-pub fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
+pub fn startPS(lnum: Linenr, para: c_int, both: bool) -> bool {
     unsafe {
         let s = ml_get(lnum);
         if c_int::from(crate::memory::cstr_first_byte(s)) == para
@@ -564,7 +564,7 @@ fn back_in_line() {
     }
 }
 
-fn find_first_blank(posp: &mut pos_T) {
+fn find_first_blank(posp: &mut CursorPos) {
     while decl(posp) != -1 {
             let c = gchar_pos(posp);
             if !ascii_iswhite(c) {
@@ -596,13 +596,13 @@ fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
 
 /// Find word under cursor, cursor at end (`current_word`).
 pub fn current_word(
-    oap: &mut oparg_T,
+    oap: &mut Oparg,
     mut count: c_int,
     include: bool,
     bigword: bool,
 ) -> bool {
      {
-        let mut start_pos = pos_T {
+        let mut start_pos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
@@ -715,7 +715,7 @@ pub fn current_word(
 }
 
 /// Find the current line ("il") or all lines ("al") (`current_line`).
-pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
+pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     unsafe {
         if include {
             if g_st().Visual.active {
@@ -754,11 +754,11 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
         }
 
         let mut start_pos = curwin_mut().w_cursor;
-        start_pos.col = start.offset_from(line) as colnr_T;
+        start_pos.col = start.offset_from(line) as Colnr;
         start_pos.coladd = 0;
 
         let mut end_pos = curwin_mut().w_cursor;
-        end_pos.col = mb_prevptr(line, end).offset_from(line) as colnr_T;
+        end_pos.col = mb_prevptr(line, end).offset_from(line) as Colnr;
         end_pos.coladd = 0;
 
         if g_st().Visual.active {
@@ -782,7 +782,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
 }
 
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
-pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> bool {
+pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
      {
         let mut start_pos = curwin_mut().w_cursor;
         let mut pos = start_pos;
@@ -920,20 +920,20 @@ pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> bool 
 
 /// Find block under the cursor, cursor at end (`current_block`).
 pub fn current_block(
-    oap: &mut oparg_T,
+    oap: &mut Oparg,
     mut count: c_int,
     include: bool,
     what: c_int,
     other: c_int,
 ) -> bool {
     unsafe {
-        let mut pos: *mut pos_T;
-        let mut start_pos = pos_T {
+        let mut pos: *mut CursorPos;
+        let mut start_pos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
         };
-        let mut end_pos: *mut pos_T;
+        let mut end_pos: *mut CursorPos;
         let mut sol = false;
 
         let old_pos = curwin_mut().w_cursor;
@@ -1096,9 +1096,9 @@ fn in_html_tag(end_tag: bool) -> bool {
             return false;
         }
 
-        let mut pos = pos_T {
+        let mut pos = CursorPos {
             lnum: curwin_mut().w_cursor.lnum,
-            col: p.offset_from(line) as colnr_T,
+            col: p.offset_from(line) as Colnr,
             coladd: 0,
         };
 
@@ -1126,7 +1126,7 @@ fn in_html_tag(end_tag: bool) -> bool {
 }
 
 /// Find tag block under the cursor, cursor at end (`current_tagblock`).
-pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> bool {
+pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> bool {
     unsafe {
         let mut count = count_arg;
         let mut do_include = include;
@@ -1306,7 +1306,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
 }
 
 /// Find paragraph under the cursor (`current_par`).
-pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int) -> bool {
+pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -> bool {
      {
         let mut retval = true;
         let mut do_white = false;
@@ -1534,7 +1534,7 @@ fn find_prev_quote(
 
 /// Find quote under the cursor, cursor at end (`current_quote`).
 pub fn current_quote(
-    oap: &mut oparg_T,
+    oap: &mut Oparg,
     count: c_int,
     include: bool,
     quotechar: c_int,

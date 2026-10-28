@@ -4,7 +4,7 @@
 use crate::errors::*;
 use crate::eval::typval::{
     TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf, tv_list_extend,
-    typval_T,
+    TypVal,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
 use crate::message::semsg;
@@ -12,7 +12,7 @@ use crate::regexp::NUMBUFLEN;
 use crate::strings::concat_str;
 use std::ffi::c_char;
 
-fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
+fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if op != b'+' || tv2.v_type != VarType::VAR_BLOB {
         return false;
     }
@@ -46,7 +46,7 @@ fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     true
 }
 
-fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
+fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if op != b'+' || tv2.v_type != VarType::VAR_LIST {
         return false;
     }
@@ -69,7 +69,7 @@ fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     true
 }
 
-fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
+fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     let mut n = tv_get_number(&*tv1);
 
     if tv2.v_type == VarType::VAR_FLOAT {
@@ -111,7 +111,7 @@ fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     true
 }
 
-fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> bool {
+fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
     if tv2.v_type == VarType::VAR_FLOAT {
         return false;
     }
@@ -131,7 +131,7 @@ fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> bool {
     true
 }
 
-fn tv_op_nr_or_string(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
+fn tv_op_nr_or_string(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if tv2.v_type == VarType::VAR_LIST {
         return false;
     }
@@ -142,7 +142,7 @@ fn tv_op_nr_or_string(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
     }
 }
 
-fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
+fn tv_op_float(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if op == b'%'
         || op == b'.'
         || !matches!(
@@ -171,7 +171,7 @@ fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
 }
 
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
-pub fn eexe_mod_op(tv1: &mut typval_T,tv2: &typval_T, op: impl crate::strings::IntoCCharPtr) -> bool {
+pub fn eexe_mod_op(tv1: &mut TypVal,tv2: &TypVal, op: impl crate::strings::IntoCCharPtr) -> bool {
     let op = op.into_c_char_ptr();
     let tv1 =  { tv1 };
     let tv2 =  { tv2 };
@@ -211,12 +211,12 @@ mod tests {
 
     #[test]
     fn numeric_and_float_mod_ops() {
-        let mut tv1 = typval_T {
+        let mut tv1 = TypVal {
             v_type: VarType::VAR_NUMBER,
             v_lock: 0,
             vval: TypvalVval::Number(10),
         };
-        let tv2 = typval_T {
+        let tv2 = TypVal {
             v_type: VarType::VAR_NUMBER,
             v_lock: 0,
             vval: TypvalVval::Number(5),

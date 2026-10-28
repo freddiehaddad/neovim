@@ -111,7 +111,7 @@ use crate::lua::converter::{
 };
 use crate::lua::xdiff::KeyDict_xdl_diff;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::shada::{
     KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
     KeyDict__shada_search_pat,
@@ -178,14 +178,14 @@ fn extract_keydict<T: Default>(
 fn extract_handle(
     item: Object,
     expected: ObjectType,
-    out: &mut handle_T,
+    out: &mut ObjHandle,
     wrong_type_msg: &std::ffi::CStr,
     error: &mut Error,
 ) -> bool {
     if (item.obj_type == expected || item.obj_type == ObjectType::kObjectTypeInteger)
             && item.data.integer() >= 0
         {
-            *out = item.data.integer() as handle_T;
+            *out = item.data.integer() as ObjHandle;
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());
@@ -204,7 +204,7 @@ fn extract_boolean(
             *out = item.data.boolean();
             true
         } else if item.obj_type == ObjectType::kObjectTypeInteger && item.data.integer() >= 0 {
-            *out = (item.data.integer() as handle_T) != 0;
+            *out = (item.data.integer() as ObjHandle) != 0;
             true
         } else {
             api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg.as_ptr());

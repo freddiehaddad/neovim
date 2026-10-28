@@ -1,7 +1,7 @@
 //! Vimscript expression lexer and parser (`src/nvim/viml/parser/expressions.c`).
 
 use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, uvarnumber_T, vim_str2nr,
+    ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, Uvarnumber, vim_str2nr,
 };
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special};
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
@@ -11,7 +11,7 @@ use crate::viml::parser::parser::{
 use std::ffi::{c_char, c_int};
 
 use crate::eval::STR2NR_ALL;
-use crate::eval::typval::float_T;
+use crate::eval::typval::TvFloat;
 use crate::testing::FF;
 
 pub(crate) const BS: u8 = 0x08;
@@ -265,8 +265,8 @@ impl Default for LexExprTokenErr {
 
 #[derive(Clone, Copy)]
 pub enum LexExprTokenNumVal {
-    Integer(uvarnumber_T),
-    Floating(float_T),
+    Integer(Uvarnumber),
+    Floating(TvFloat),
 }
 
 impl Default for LexExprTokenNumVal {
@@ -281,7 +281,7 @@ impl LexExprTokenNumVal {
     }
 
     #[inline]
-    pub const fn integer(self) -> uvarnumber_T {
+    pub const fn integer(self) -> Uvarnumber {
         match self {
             Self::Integer(v) => v,
             Self::Floating(_) => 0,
@@ -289,7 +289,7 @@ impl LexExprTokenNumVal {
     }
 
     #[inline]
-    pub const fn floating(self) -> float_T {
+    pub const fn floating(self) -> TvFloat {
         match self {
             Self::Floating(v) => v,
             Self::Integer(_) => 0.0,
@@ -658,7 +658,7 @@ impl ExprASTNodeCmp {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeNum {
-    pub value: uvarnumber_T,
+    pub value: Uvarnumber,
 }
 
 impl ExprASTNodeNum {
@@ -670,7 +670,7 @@ impl ExprASTNodeNum {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExprASTNodeFlt {
-    pub value: float_T,
+    pub value: TvFloat,
 }
 
 impl ExprASTNodeFlt {
@@ -1248,17 +1248,17 @@ fn viml_parser_highlight(
 
 #[inline]
 fn scale_number(
-    num: float_T,
+    num: TvFloat,
     base: u8,
-    exponent: uvarnumber_T,
+    exponent: Uvarnumber,
     exponent_negative: bool,
-) -> float_T {
+) -> TvFloat {
     if num == 0.0 || exponent == 0 {
         return num;
     }
     debug_assert_ne!(base, 0);
     let mut exp = exponent;
-    let mut p_base = float_T::from(base);
+    let mut p_base = TvFloat::from(base);
     let mut ret = num;
     while exp != 0 {
         if (exp & 1) != 0 {
@@ -1417,14 +1417,14 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                     }
                 }
                 if ret.data.num().is_float {
-                    let mut significand_part: float_T = 0.0;
-                    let mut exp_part: uvarnumber_T = 0;
-                    let frac_size = (frac_end - frac_start) as uvarnumber_T;
+                    let mut significand_part: TvFloat = 0.0;
+                    let mut exp_part: Uvarnumber = 0;
+                    let frac_size = (frac_end - frac_start) as Uvarnumber;
                     for (i, &b) in bytes[..frac_end].iter().enumerate() {
                         if i == frac_start - 1 {
                             continue;
                         }
-                        significand_part = significand_part * 10.0 + float_T::from(b - b'0');
+                        significand_part = significand_part * 10.0 + TvFloat::from(b - b'0');
                     }
                     if exp_start != 0 {
                         vim_str2nr(
@@ -1456,7 +1456,7 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                 } else {
                     let mut len: c_int = 0;
                     let mut prep: c_int = 0;
-                    let mut int_val: uvarnumber_T = 0;
+                    let mut int_val: Uvarnumber = 0;
                     vim_str2nr(
                         pline.data,
                         Some(&mut prep),

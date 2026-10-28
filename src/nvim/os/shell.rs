@@ -52,7 +52,7 @@ use crate::path::{
     EW_DIR, EW_EXEC, EW_FILE, EW_KEEPDOLLAR, EW_NOTFOUND, EW_SHELLCMD, EW_SILENT, add_pathsep,
     invocation_path_tail, path_has_wildcard, path_tail,
 };
-use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
+use crate::profile::{prof_child_enter, prof_child_exit, Proftime};
 use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 #[cfg(unix)]
 use crate::strings::{vim_strchr};
@@ -67,7 +67,7 @@ use crate::autocmd::PROF_YES;
 use crate::change::TAB;
 use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
 use crate::diff::{kShellOptDoOut, kShellOptSilent};
-use crate::eval::typval::varnumber_T;
+use crate::eval::typval::Varnumber;
 use crate::state::MODE_EXTERNCMD;
 
 const OUT_DATA_THRESHOLD: usize = 1024 * 10;
@@ -700,7 +700,7 @@ pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
 pub fn call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_shell_arg: impl crate::strings::IntoCCharPtr) -> c_int { let cmd = cmd.into_c_char_ptr(); let extra_shell_arg = extra_shell_arg.into_c_char_ptr();
      {
-        let mut wait_time: proftime_T = 0;
+        let mut wait_time: Proftime = 0;
 
         if opt_vars().p_verbose > 3 {
             verbose_enter();
@@ -727,7 +727,7 @@ pub fn call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_she
             os_call_shell(cmd, opts, extra_shell_arg)
         };
 
-        set_vim_var_nr(VV_SHELL_ERROR, varnumber_T::from(retval));
+        set_vim_var_nr(VV_SHELL_ERROR, Varnumber::from(retval));
         if g_st().do_profiling == PROF_YES {
             prof_child_exit(&mut wait_time);
         }

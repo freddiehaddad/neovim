@@ -9,9 +9,9 @@ use crate::charset::{
     NUL, ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite,
 };
 use crate::cursor::{
-    check_cursor, check_cursor_col, coladvance, colnr_T, dec_cursor, gchar_cursor,
+    check_cursor, check_cursor_col, coladvance, Colnr, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
-    linenr_T, pchar_cursor, pos_T,
+    Linenr, pchar_cursor, CursorPos,
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
 use crate::eval::eval_expr_option_number;
@@ -70,7 +70,7 @@ use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct oparg_T {
+pub struct Oparg {
     pub op_type: c_int,
     pub regname: c_int,
     pub motion_type: c_int,
@@ -78,22 +78,22 @@ pub struct oparg_T {
     pub use_reg_one: bool,
     pub inclusive: bool,
     pub end_adjusted: bool,
-    pub start: pos_T,
-    pub end: pos_T,
-    pub cursor_start: pos_T,
+    pub start: CursorPos,
+    pub end: CursorPos,
+    pub cursor_start: CursorPos,
     pub restore_cursor: bool,
-    pub line_count: linenr_T,
+    pub line_count: Linenr,
     pub empty: bool,
     pub is_VIsual: bool,
     pub from_visual: bool,
-    pub start_vcol: colnr_T,
-    pub end_vcol: colnr_T,
+    pub start_vcol: Colnr,
+    pub end_vcol: Colnr,
     pub prev_opcount: c_int,
     pub prev_count0: c_int,
     pub excl_tr_ws: bool,
 }
 
-impl oparg_T {
+impl Oparg {
     pub const fn new() -> Self {
         Self {
             op_type: 0,
@@ -103,9 +103,9 @@ impl oparg_T {
             use_reg_one: false,
             inclusive: false,
             end_adjusted: false,
-            start: pos_T::new(),
-            end: pos_T::new(),
-            cursor_start: pos_T::new(),
+            start: CursorPos::new(),
+            end: CursorPos::new(),
+            cursor_start: CursorPos::new(),
             restore_cursor: false,
             line_count: 0,
             empty: false,
@@ -120,7 +120,7 @@ impl oparg_T {
     }
 }
 
-impl Default for oparg_T {
+impl Default for Oparg {
     fn default() -> Self {
         Self::new()
     }
@@ -129,16 +129,16 @@ impl Default for oparg_T {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct InsState {
-    pub start: pos_T,
-    pub start_orig: pos_T,
-    pub start_textlen: colnr_T,
-    pub start_blank_vcol: colnr_T,
+    pub start: CursorPos,
+    pub start_orig: CursorPos,
+    pub start_textlen: Colnr,
+    pub start_blank_vcol: Colnr,
     pub moved: InsArrow,
     pub stop_insert_mode: bool,
     pub can_cindent: bool,
     pub need_undo: bool,
     pub did_ai: bool,
-    pub ai_col: colnr_T,
+    pub ai_col: Colnr,
     pub end_comment_pending: c_int,
     pub did_si: bool,
     pub can_si: bool,
@@ -151,7 +151,7 @@ pub struct InsState {
     pub revins_legal: c_int,
     pub revins_scol: c_int,
     pub dont_sync_undo: TriState,
-    pub o_lnum: linenr_T,
+    pub o_lnum: Linenr,
 }
 
 struct TextformatState {
@@ -207,7 +207,7 @@ pub fn internal_format(
         let fo_rigor_tw = has_format_option(kFoRigorousTw);
         let fo_white_par = has_format_option(kFoWhitePar);
         let mut first_line = true;
-        let mut leader_len: colnr_T;
+        let mut leader_len: Colnr;
         let mut no_leader = false;
         let mut do_comments = (flags & INSCHAR_DO_COM) != 0;
         let has_lbr = curwin_mut().w_onebuf_opt.wo_lbr;
@@ -228,7 +228,7 @@ pub fn internal_format(
             let mut end_foundcol: c_int = 0;
             let mut orig_col: c_int = 0;
             let mut saved_text: Vec<c_char> = Vec::new();
-            let mut col: colnr_T;
+            let mut col: Colnr;
             let mut did_do_comment = false;
 
             let virtcol =
@@ -547,7 +547,7 @@ pub fn internal_format(
 }
 
 fn fmt_check_par(
-    lnum: linenr_T,
+    lnum: Linenr,
     leader_len: &mut c_int,
     leader_flags: *mut *mut c_char,
     do_comments: bool,
@@ -574,7 +574,7 @@ fn fmt_check_par(
     }
 }
 
-fn ends_in_white(lnum: linenr_T) -> bool {
+fn ends_in_white(lnum: Linenr) -> bool {
      {
         let s = ml_get(lnum);
         if crate::memory::cstr_is_empty(s) {
@@ -586,7 +586,7 @@ fn ends_in_white(lnum: linenr_T) -> bool {
 }
 
 fn same_leader(
-    lnum: linenr_T,
+    lnum: Linenr,
     leader1_len: c_int,
     leader1_flags: impl crate::strings::IntoCCharPtr,
     leader2_len: c_int,
@@ -654,7 +654,7 @@ fn same_leader(
     }
 }
 
-fn paragraph_start(lnum: linenr_T) -> bool {
+fn paragraph_start(lnum: Linenr) -> bool {
      {
         let mut leader_len: c_int = 0;
         let mut leader_flags: *mut c_char = ptr::null_mut();
@@ -831,7 +831,7 @@ pub fn comp_textwidth(ff: bool) -> c_int {
 }
 
 /// Implementation of the format operator `gq` (`op_format`).
-pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
+pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
      {
         let mut old_line_count = curbuf_mut().b_ml.ml_line_count;
 
@@ -888,7 +888,7 @@ pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
 }
 
 /// Implementation of the format operator `gq` for when using `'formatexpr'` (`op_formatexpr`).
-pub fn op_formatexpr(oap: &mut oparg_T) {
+pub fn op_formatexpr(oap: &mut Oparg) {
     if oap.is_VIsual {
             redraw_curbuf_later(UPD_INVERTED);
         }
@@ -899,7 +899,7 @@ pub fn op_formatexpr(oap: &mut oparg_T) {
 }
 
 /// Evaluate `'formatexpr'` (`fex_format`).
-pub fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
+pub fn fex_format(lnum: Linenr, count: c_long, c: c_int) -> c_int {
      {
         let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), kOptFormatexpr, OPT_LOCAL) != 0;
         let save_sctx = g_st().current_sctx;
@@ -920,7 +920,7 @@ pub fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
 }
 
 /// Format `line_count` lines starting at the cursor position (`format_lines`).
-pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
+pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     unsafe {
         let mut is_not_par: bool;
         let mut next_is_not_par: bool;

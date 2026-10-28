@@ -12,7 +12,7 @@ use crate::api::private::validate::{
 use crate::api::tabpage::Buffer;
 use crate::api::ui::NO_SCREEN;
 use crate::buffer::{
-    bt_nofile, buf_T, buflist_findnr, bufref_T, bufref_valid, do_modelines, set_bufref,
+    bt_nofile, FileBuf, buflist_findnr, Bufref, bufref_valid, do_modelines, set_bufref,
 };
 use crate::charset::{NUL, ascii_iswhite, getdigits_int, skipdigits, skipwhite};
 use crate::cmdexpand::{EXPAND_EVENTS, EXPAND_FILES, EXPAND_NOTHING};
@@ -20,7 +20,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::errors::*;
 use crate::eval::typval::{
     Callback, callback_copy, callback_free, callback_to_string, kCallbackLua, tv_clear,
-    tv_dict_add_nr, tv_dict_add_tv, tv_dict_set_keys_readonly, typval_T, varnumber_T,
+    tv_dict_add_nr, tv_dict_add_tv, tv_dict_set_keys_readonly, TypVal, Varnumber,
 };
 use crate::eval::userfunc::{restore_funccal, save_funccal};
 use crate::eval::vars::{
@@ -32,7 +32,7 @@ use crate::event::r#loop::loop_queues;
 use crate::event::multiqueue::{
     Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
 };
-use crate::ex_docmd::{do_cmdline, ends_excmd, exarg_T, expand_sfile};
+use crate::ex_docmd::{do_cmdline, ends_excmd, Exarg, expand_sfile};
 use crate::ex_eval::{aborting, should_abort};
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::fileio::{check_timestamps, file_pat_to_reg_pat, match_file_pat};
@@ -48,34 +48,34 @@ use crate::message::{
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,
     verbose_enter_scroll, verbose_leave, verbose_leave_scroll,
 };
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::option::{OPT_LOCAL, apply_optionset_autocmd_now, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
-use crate::os::env::{expand_T, expand_env_save};
+use crate::os::env::{ExpandCtx, expand_env_save};
 use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
-use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
+use crate::profile::{prof_child_enter, prof_child_exit, Proftime};
 use crate::regexp::{RE_MAGIC, RE_NOBREAK};
-use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, rt_st, sctx_T};
+use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, rt_st, Sctx};
 use crate::search::{restore_search_patterns, save_search_patterns};
-use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
+use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, SaveVEvent};
 use crate::strings::tr;
 use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
-    use_tabpage, win_T,
+    use_tabpage, WinInfoInfo,
 };
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
-pub type event_T = c_int;
+pub type AuEvent = c_int;
 pub(crate) const BUFLOCAL_PAT_LEN: usize = 25;
 
 #[repr(C)]
 pub struct AutoPat {
     pub pat: CString,
-    pub reg_prog: Option<Box<crate::regexp::regprog_T>>,
+    pub reg_prog: Option<Box<crate::regexp::Regprog>>,
     pub group: c_int,
     pub patlen: c_int,
     pub buflocal_nr: c_int,
@@ -102,7 +102,7 @@ pub struct AutoCmd {
     pub id: i64,
     pub desc: Option<CString>,
     pub handler: AutoCmdHandler,
-    pub script_ctx: crate::runtime::sctx_T,
+    pub script_ctx: crate::runtime::Sctx,
     pub once: bool,
     pub nested: bool,
 }
@@ -114,7 +114,7 @@ impl AutoCmd {
             id: 0,
             desc: None,
             handler: AutoCmdHandler::None,
-            script_ctx: crate::runtime::sctx_T::new(),
+            script_ctx: crate::runtime::Sctx::new(),
             once: false,
             nested: false,
         }
@@ -156,156 +156,156 @@ pub(crate) const PROF_YES: c_int = 1;
 pub(crate) const HLF_8: c_int = 1;
 pub(crate) const HLF_T: c_int = 23;
 
-pub const EVENT_BUFADD: event_T = 0;
-pub const EVENT_BUFCREATE: event_T = 1;
-pub const EVENT_BUFDELETE: event_T = 2;
-pub const EVENT_BUFENTER: event_T = 3;
-pub const EVENT_BUFFILEPOST: event_T = 4;
-pub const EVENT_BUFFILEPRE: event_T = 5;
-pub const EVENT_BUFHIDDEN: event_T = 6;
-pub const EVENT_BUFLEAVE: event_T = 7;
-pub const EVENT_BUFNEW: event_T = 8;
-pub const EVENT_BUFNEWFILE: event_T = 9;
-pub const EVENT_BUFREAD: event_T = 10;
-pub const EVENT_BUFREADCMD: event_T = 11;
-pub const EVENT_BUFREADPOST: event_T = 12;
-pub const EVENT_BUFREADPRE: event_T = 13;
-pub const EVENT_BUFUNLOAD: event_T = 14;
-pub const EVENT_BUFWINENTER: event_T = 15;
-pub const EVENT_BUFWINLEAVE: event_T = 16;
-pub const EVENT_BUFWIPEOUT: event_T = 17;
-pub const EVENT_BUFWRITE: event_T = 18;
-pub const EVENT_BUFWRITECMD: event_T = 19;
-pub const EVENT_BUFWRITEPOST: event_T = 20;
-pub const EVENT_BUFWRITEPRE: event_T = 21;
-pub const EVENT_CHANCLOSE: event_T = 22;
-pub const EVENT_CHANINFO: event_T = 23;
-pub const EVENT_CHANOPEN: event_T = 24;
-pub const EVENT_CMDATOM: event_T = 25;
-pub const EVENT_CMDLINECHANGED: event_T = 26;
-pub const EVENT_CMDLINEENTER: event_T = 27;
-pub const EVENT_CMDLINELEAVE: event_T = 28;
-pub const EVENT_CMDLINELEAVEPRE: event_T = 29;
-pub const EVENT_CMDUNDEFINED: event_T = 30;
-pub const EVENT_CMDWINENTER: event_T = 31;
-pub const EVENT_CMDWINLEAVE: event_T = 32;
-pub const EVENT_COLORSCHEME: event_T = 33;
-pub const EVENT_COLORSCHEMEPRE: event_T = 34;
-pub const EVENT_COMPLETECHANGED: event_T = 35;
-pub const EVENT_COMPLETEDONE: event_T = 36;
-pub const EVENT_COMPLETEDONEPRE: event_T = 37;
-pub const EVENT_CURSORHOLD: event_T = 38;
-pub const EVENT_CURSORHOLDI: event_T = 39;
-pub const EVENT_CURSORMOVED: event_T = 40;
-pub const EVENT_CURSORMOVEDC: event_T = 41;
-pub const EVENT_CURSORMOVEDI: event_T = 42;
-pub const EVENT_DIAGNOSTICCHANGED: event_T = 43;
-pub const EVENT_DIFFUPDATED: event_T = 44;
-pub const EVENT_DIRCHANGED: event_T = 45;
-pub const EVENT_DIRCHANGEDPRE: event_T = 46;
-pub const EVENT_ENCODINGCHANGED: event_T = 47;
-pub const EVENT_EXITPRE: event_T = 48;
-pub const EVENT_FILEAPPENDCMD: event_T = 49;
-pub const EVENT_FILEAPPENDPOST: event_T = 50;
-pub const EVENT_FILEAPPENDPRE: event_T = 51;
-pub const EVENT_FILECHANGEDRO: event_T = 52;
-pub const EVENT_FILECHANGEDSHELL: event_T = 53;
-pub const EVENT_FILECHANGEDSHELLPOST: event_T = 54;
-pub const EVENT_FILEENCODING: event_T = 55;
-pub const EVENT_FILEREADCMD: event_T = 56;
-pub const EVENT_FILEREADPOST: event_T = 57;
-pub const EVENT_FILEREADPRE: event_T = 58;
-pub const EVENT_FILETYPE: event_T = 59;
-pub const EVENT_FILEWRITECMD: event_T = 60;
-pub const EVENT_FILEWRITEPOST: event_T = 61;
-pub const EVENT_FILEWRITEPRE: event_T = 62;
-pub const EVENT_FILTERREADPOST: event_T = 63;
-pub const EVENT_FILTERREADPRE: event_T = 64;
-pub const EVENT_FILTERWRITEPOST: event_T = 65;
-pub const EVENT_FILTERWRITEPRE: event_T = 66;
-pub const EVENT_FOCUSGAINED: event_T = 67;
-pub const EVENT_FOCUSLOST: event_T = 68;
-pub const EVENT_FUNCUNDEFINED: event_T = 69;
-pub const EVENT_GUIENTER: event_T = 70;
-pub const EVENT_GUIFAILED: event_T = 71;
-pub const EVENT_INSERTCHANGE: event_T = 72;
-pub const EVENT_INSERTCHARPRE: event_T = 73;
-pub const EVENT_INSERTENTER: event_T = 74;
-pub const EVENT_INSERTLEAVE: event_T = 75;
-pub const EVENT_INSERTLEAVEPRE: event_T = 76;
-pub const EVENT_LSPATTACH: event_T = 77;
-pub const EVENT_LSPDETACH: event_T = 78;
-pub const EVENT_LSPNOTIFY: event_T = 79;
-pub const EVENT_LSPPROGRESS: event_T = 80;
-pub const EVENT_LSPREQUEST: event_T = 81;
-pub const EVENT_LSPTOKENUPDATE: event_T = 82;
-pub const EVENT_MARKSET: event_T = 83;
-pub const EVENT_MENUPOPUP: event_T = 84;
-pub const EVENT_MODECHANGED: event_T = 85;
-pub const EVENT_OPTIONSET: event_T = 86;
-pub const EVENT_PACKCHANGED: event_T = 87;
-pub const EVENT_PACKCHANGEDPRE: event_T = 88;
-pub const EVENT_PROGRESS: event_T = 89;
-pub const EVENT_QUICKFIXCMDPOST: event_T = 90;
-pub const EVENT_QUICKFIXCMDPRE: event_T = 91;
-pub const EVENT_QUITPRE: event_T = 92;
-pub const EVENT_RECORDINGENTER: event_T = 93;
-pub const EVENT_RECORDINGLEAVE: event_T = 94;
-pub const EVENT_REMOTEREPLY: event_T = 95;
-pub const EVENT_SAFESTATE: event_T = 96;
-pub const EVENT_SEARCHWRAPPED: event_T = 97;
-pub const EVENT_SESSIONLOADPOST: event_T = 98;
-pub const EVENT_SESSIONLOADPRE: event_T = 99;
-pub const EVENT_SESSIONWRITEPOST: event_T = 100;
-pub const EVENT_SESSIONWRITEPRE: event_T = 101;
-pub const EVENT_SHELLCMDPOST: event_T = 102;
-pub const EVENT_SHELLFILTERPOST: event_T = 103;
-pub const EVENT_SIGNAL: event_T = 104;
-pub const EVENT_SOURCECMD: event_T = 105;
-pub const EVENT_SOURCEPOST: event_T = 106;
-pub const EVENT_SOURCEPRE: event_T = 107;
-pub const EVENT_SPELLFILEMISSING: event_T = 108;
-pub const EVENT_STDINREADPOST: event_T = 109;
-pub const EVENT_STDINREADPRE: event_T = 110;
-pub const EVENT_SWAPEXISTS: event_T = 111;
-pub const EVENT_SYNTAX: event_T = 112;
-pub const EVENT_TABCLOSED: event_T = 113;
-pub const EVENT_TABCLOSEDPRE: event_T = 114;
-pub const EVENT_TABENTER: event_T = 115;
-pub const EVENT_TABLEAVE: event_T = 116;
-pub const EVENT_TABMOVED: event_T = 117;
-pub const EVENT_TABNEW: event_T = 118;
-pub const EVENT_TABNEWENTERED: event_T = 119;
-pub const EVENT_TERMCHANGED: event_T = 120;
-pub const EVENT_TERMCLOSE: event_T = 121;
-pub const EVENT_TERMENTER: event_T = 122;
-pub const EVENT_TERMLEAVE: event_T = 123;
-pub const EVENT_TERMOPEN: event_T = 124;
-pub const EVENT_TERMREQUEST: event_T = 125;
-pub const EVENT_TERMRESPONSE: event_T = 126;
-pub const EVENT_TEXTCHANGED: event_T = 127;
-pub const EVENT_TEXTCHANGEDI: event_T = 128;
-pub const EVENT_TEXTCHANGEDP: event_T = 129;
-pub const EVENT_TEXTCHANGEDT: event_T = 130;
-pub const EVENT_TEXTPUTPOST: event_T = 131;
-pub const EVENT_TEXTPUTPRE: event_T = 132;
-pub const EVENT_TEXTYANKPOST: event_T = 133;
-pub const EVENT_UIENTER: event_T = 134;
-pub const EVENT_UILEAVE: event_T = 135;
-pub const EVENT_USER: event_T = 136;
-pub const EVENT_VIMENTER: event_T = 137;
-pub const EVENT_VIMLEAVE: event_T = 138;
-pub const EVENT_VIMLEAVEPRE: event_T = 139;
-pub const EVENT_VIMRESIZED: event_T = 140;
-pub const EVENT_VIMRESUME: event_T = 141;
-pub const EVENT_VIMSUSPEND: event_T = 142;
-pub const EVENT_WINCLOSED: event_T = 143;
-pub const EVENT_WINENTER: event_T = 144;
-pub const EVENT_WINLEAVE: event_T = 145;
-pub const EVENT_WINNEW: event_T = 146;
-pub const EVENT_WINNEWPRE: event_T = 147;
-pub const EVENT_WINRESIZED: event_T = 148;
-pub const EVENT_WINSCROLLED: event_T = 149;
+pub const EVENT_BUFADD: AuEvent = 0;
+pub const EVENT_BUFCREATE: AuEvent = 1;
+pub const EVENT_BUFDELETE: AuEvent = 2;
+pub const EVENT_BUFENTER: AuEvent = 3;
+pub const EVENT_BUFFILEPOST: AuEvent = 4;
+pub const EVENT_BUFFILEPRE: AuEvent = 5;
+pub const EVENT_BUFHIDDEN: AuEvent = 6;
+pub const EVENT_BUFLEAVE: AuEvent = 7;
+pub const EVENT_BUFNEW: AuEvent = 8;
+pub const EVENT_BUFNEWFILE: AuEvent = 9;
+pub const EVENT_BUFREAD: AuEvent = 10;
+pub const EVENT_BUFREADCMD: AuEvent = 11;
+pub const EVENT_BUFREADPOST: AuEvent = 12;
+pub const EVENT_BUFREADPRE: AuEvent = 13;
+pub const EVENT_BUFUNLOAD: AuEvent = 14;
+pub const EVENT_BUFWINENTER: AuEvent = 15;
+pub const EVENT_BUFWINLEAVE: AuEvent = 16;
+pub const EVENT_BUFWIPEOUT: AuEvent = 17;
+pub const EVENT_BUFWRITE: AuEvent = 18;
+pub const EVENT_BUFWRITECMD: AuEvent = 19;
+pub const EVENT_BUFWRITEPOST: AuEvent = 20;
+pub const EVENT_BUFWRITEPRE: AuEvent = 21;
+pub const EVENT_CHANCLOSE: AuEvent = 22;
+pub const EVENT_CHANINFO: AuEvent = 23;
+pub const EVENT_CHANOPEN: AuEvent = 24;
+pub const EVENT_CMDATOM: AuEvent = 25;
+pub const EVENT_CMDLINECHANGED: AuEvent = 26;
+pub const EVENT_CMDLINEENTER: AuEvent = 27;
+pub const EVENT_CMDLINELEAVE: AuEvent = 28;
+pub const EVENT_CMDLINELEAVEPRE: AuEvent = 29;
+pub const EVENT_CMDUNDEFINED: AuEvent = 30;
+pub const EVENT_CMDWINENTER: AuEvent = 31;
+pub const EVENT_CMDWINLEAVE: AuEvent = 32;
+pub const EVENT_COLORSCHEME: AuEvent = 33;
+pub const EVENT_COLORSCHEMEPRE: AuEvent = 34;
+pub const EVENT_COMPLETECHANGED: AuEvent = 35;
+pub const EVENT_COMPLETEDONE: AuEvent = 36;
+pub const EVENT_COMPLETEDONEPRE: AuEvent = 37;
+pub const EVENT_CURSORHOLD: AuEvent = 38;
+pub const EVENT_CURSORHOLDI: AuEvent = 39;
+pub const EVENT_CURSORMOVED: AuEvent = 40;
+pub const EVENT_CURSORMOVEDC: AuEvent = 41;
+pub const EVENT_CURSORMOVEDI: AuEvent = 42;
+pub const EVENT_DIAGNOSTICCHANGED: AuEvent = 43;
+pub const EVENT_DIFFUPDATED: AuEvent = 44;
+pub const EVENT_DIRCHANGED: AuEvent = 45;
+pub const EVENT_DIRCHANGEDPRE: AuEvent = 46;
+pub const EVENT_ENCODINGCHANGED: AuEvent = 47;
+pub const EVENT_EXITPRE: AuEvent = 48;
+pub const EVENT_FILEAPPENDCMD: AuEvent = 49;
+pub const EVENT_FILEAPPENDPOST: AuEvent = 50;
+pub const EVENT_FILEAPPENDPRE: AuEvent = 51;
+pub const EVENT_FILECHANGEDRO: AuEvent = 52;
+pub const EVENT_FILECHANGEDSHELL: AuEvent = 53;
+pub const EVENT_FILECHANGEDSHELLPOST: AuEvent = 54;
+pub const EVENT_FILEENCODING: AuEvent = 55;
+pub const EVENT_FILEREADCMD: AuEvent = 56;
+pub const EVENT_FILEREADPOST: AuEvent = 57;
+pub const EVENT_FILEREADPRE: AuEvent = 58;
+pub const EVENT_FILETYPE: AuEvent = 59;
+pub const EVENT_FILEWRITECMD: AuEvent = 60;
+pub const EVENT_FILEWRITEPOST: AuEvent = 61;
+pub const EVENT_FILEWRITEPRE: AuEvent = 62;
+pub const EVENT_FILTERREADPOST: AuEvent = 63;
+pub const EVENT_FILTERREADPRE: AuEvent = 64;
+pub const EVENT_FILTERWRITEPOST: AuEvent = 65;
+pub const EVENT_FILTERWRITEPRE: AuEvent = 66;
+pub const EVENT_FOCUSGAINED: AuEvent = 67;
+pub const EVENT_FOCUSLOST: AuEvent = 68;
+pub const EVENT_FUNCUNDEFINED: AuEvent = 69;
+pub const EVENT_GUIENTER: AuEvent = 70;
+pub const EVENT_GUIFAILED: AuEvent = 71;
+pub const EVENT_INSERTCHANGE: AuEvent = 72;
+pub const EVENT_INSERTCHARPRE: AuEvent = 73;
+pub const EVENT_INSERTENTER: AuEvent = 74;
+pub const EVENT_INSERTLEAVE: AuEvent = 75;
+pub const EVENT_INSERTLEAVEPRE: AuEvent = 76;
+pub const EVENT_LSPATTACH: AuEvent = 77;
+pub const EVENT_LSPDETACH: AuEvent = 78;
+pub const EVENT_LSPNOTIFY: AuEvent = 79;
+pub const EVENT_LSPPROGRESS: AuEvent = 80;
+pub const EVENT_LSPREQUEST: AuEvent = 81;
+pub const EVENT_LSPTOKENUPDATE: AuEvent = 82;
+pub const EVENT_MARKSET: AuEvent = 83;
+pub const EVENT_MENUPOPUP: AuEvent = 84;
+pub const EVENT_MODECHANGED: AuEvent = 85;
+pub const EVENT_OPTIONSET: AuEvent = 86;
+pub const EVENT_PACKCHANGED: AuEvent = 87;
+pub const EVENT_PACKCHANGEDPRE: AuEvent = 88;
+pub const EVENT_PROGRESS: AuEvent = 89;
+pub const EVENT_QUICKFIXCMDPOST: AuEvent = 90;
+pub const EVENT_QUICKFIXCMDPRE: AuEvent = 91;
+pub const EVENT_QUITPRE: AuEvent = 92;
+pub const EVENT_RECORDINGENTER: AuEvent = 93;
+pub const EVENT_RECORDINGLEAVE: AuEvent = 94;
+pub const EVENT_REMOTEREPLY: AuEvent = 95;
+pub const EVENT_SAFESTATE: AuEvent = 96;
+pub const EVENT_SEARCHWRAPPED: AuEvent = 97;
+pub const EVENT_SESSIONLOADPOST: AuEvent = 98;
+pub const EVENT_SESSIONLOADPRE: AuEvent = 99;
+pub const EVENT_SESSIONWRITEPOST: AuEvent = 100;
+pub const EVENT_SESSIONWRITEPRE: AuEvent = 101;
+pub const EVENT_SHELLCMDPOST: AuEvent = 102;
+pub const EVENT_SHELLFILTERPOST: AuEvent = 103;
+pub const EVENT_SIGNAL: AuEvent = 104;
+pub const EVENT_SOURCECMD: AuEvent = 105;
+pub const EVENT_SOURCEPOST: AuEvent = 106;
+pub const EVENT_SOURCEPRE: AuEvent = 107;
+pub const EVENT_SPELLFILEMISSING: AuEvent = 108;
+pub const EVENT_STDINREADPOST: AuEvent = 109;
+pub const EVENT_STDINREADPRE: AuEvent = 110;
+pub const EVENT_SWAPEXISTS: AuEvent = 111;
+pub const EVENT_SYNTAX: AuEvent = 112;
+pub const EVENT_TABCLOSED: AuEvent = 113;
+pub const EVENT_TABCLOSEDPRE: AuEvent = 114;
+pub const EVENT_TABENTER: AuEvent = 115;
+pub const EVENT_TABLEAVE: AuEvent = 116;
+pub const EVENT_TABMOVED: AuEvent = 117;
+pub const EVENT_TABNEW: AuEvent = 118;
+pub const EVENT_TABNEWENTERED: AuEvent = 119;
+pub const EVENT_TERMCHANGED: AuEvent = 120;
+pub const EVENT_TERMCLOSE: AuEvent = 121;
+pub const EVENT_TERMENTER: AuEvent = 122;
+pub const EVENT_TERMLEAVE: AuEvent = 123;
+pub const EVENT_TERMOPEN: AuEvent = 124;
+pub const EVENT_TERMREQUEST: AuEvent = 125;
+pub const EVENT_TERMRESPONSE: AuEvent = 126;
+pub const EVENT_TEXTCHANGED: AuEvent = 127;
+pub const EVENT_TEXTCHANGEDI: AuEvent = 128;
+pub const EVENT_TEXTCHANGEDP: AuEvent = 129;
+pub const EVENT_TEXTCHANGEDT: AuEvent = 130;
+pub const EVENT_TEXTPUTPOST: AuEvent = 131;
+pub const EVENT_TEXTPUTPRE: AuEvent = 132;
+pub const EVENT_TEXTYANKPOST: AuEvent = 133;
+pub const EVENT_UIENTER: AuEvent = 134;
+pub const EVENT_UILEAVE: AuEvent = 135;
+pub const EVENT_USER: AuEvent = 136;
+pub const EVENT_VIMENTER: AuEvent = 137;
+pub const EVENT_VIMLEAVE: AuEvent = 138;
+pub const EVENT_VIMLEAVEPRE: AuEvent = 139;
+pub const EVENT_VIMRESIZED: AuEvent = 140;
+pub const EVENT_VIMRESUME: AuEvent = 141;
+pub const EVENT_VIMSUSPEND: AuEvent = 142;
+pub const EVENT_WINCLOSED: AuEvent = 143;
+pub const EVENT_WINENTER: AuEvent = 144;
+pub const EVENT_WINLEAVE: AuEvent = 145;
+pub const EVENT_WINNEW: AuEvent = 146;
+pub const EVENT_WINNEWPRE: AuEvent = 147;
+pub const EVENT_WINRESIZED: AuEvent = 148;
+pub const EVENT_WINSCROLLED: AuEvent = 149;
 pub const NUM_EVENTS: usize = 150;
 
 const E_AUTOCOMMAND_NESTING_TOO_DEEP: &CStr = c"E218: Autocommand nesting too deep";
@@ -319,15 +319,15 @@ pub struct AutoPatCmd {
     pub fname: Option<std::ffi::CString>,
     pub sfname: Option<std::ffi::CString>,
     pub group: c_int,
-    pub event: event_T,
-    pub script_ctx: std::rc::Rc<std::cell::Cell<sctx_T>>,
+    pub event: AuEvent,
+    pub script_ctx: std::rc::Rc<std::cell::Cell<Sctx>>,
     pub arg_bufnr: std::rc::Rc<std::cell::Cell<c_int>>,
     pub data: Option<Object>,
 }
 
 #[repr(C)]
 pub struct AutoCmdEvent {
-    pub event: event_T,
+    pub event: AuEvent,
     pub fname: Option<std::ffi::CString>,
     pub fname_io: Option<std::ffi::CString>,
     pub buf: Buffer,
@@ -1110,7 +1110,7 @@ static EVENT_NAMES: [EventNameEntry; NUM_EVENTS] = [
     },
 ];
 
-static EVENT_HASH: [event_T; 150] = [
+static EVENT_HASH: [AuEvent; 150] = [
     EVENT_USER,
     EVENT_BUFADD,
     EVENT_BUFNEW,
@@ -1266,7 +1266,7 @@ static EVENT_HASH: [event_T; 150] = [
 struct AutocmdState {
     autocmds: [AutoCmdVec; NUM_EVENTS],
     active_apc_list: Vec<std::rc::Rc<std::cell::Cell<c_int>>>,
-    autocmd_winid: handle_T,
+    autocmd_winid: ObjHandle,
     next_augroup_id: c_int,
     deleted_augroup: *const c_char,
     current_augroup: c_int,
@@ -1532,12 +1532,12 @@ fn get_deleted_augroup() -> *const c_char {
 }
 
 fn au_show_for_all_events(group: c_int, pat: impl crate::strings::IntoCCharPtr) { let pat = pat.into_c_char_ptr();
-    for event in 0..NUM_EVENTS as event_T {
+    for event in 0..NUM_EVENTS as AuEvent {
             au_show_for_event(group, event, pat);
         }
 }
 
-fn au_show_for_event(group: c_int, event: event_T, pat: impl crate::strings::IntoCCharPtr) { let mut pat = pat.into_c_char_ptr();
+fn au_show_for_event(group: c_int, event: AuEvent, pat: impl crate::strings::IntoCCharPtr) { let mut pat = pat.into_c_char_ptr();
     unsafe {
         let acs = &raw mut au_st().autocmds[event as usize];
         if (*acs).is_empty() {
@@ -1678,7 +1678,7 @@ fn aucmd_del(ac: &mut AutoCmd) {
         au_st().au_need_clean = true;
 }
 
-pub fn aucmd_del_for_event_and_group(event: event_T, group: c_int) {
+pub fn aucmd_del_for_event_and_group(event: AuEvent, group: c_int) {
      {
         let acs = &mut au_st().autocmds[event as usize];
         for ac in acs {
@@ -1707,11 +1707,11 @@ fn au_cleanup() {
     }
 }
 
-pub fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
+pub fn au_get_autocmds_for_event(event: AuEvent) -> &'static mut AutoCmdVec {
     &mut au_st().autocmds[event as usize]
 }
 
-pub fn aubuflocal_remove(buf: &mut buf_T) {
+pub fn aubuflocal_remove(buf: &mut FileBuf) {
      {
         for arg_bufnr in au_st().active_apc_list.iter().rev() {
             if buf.b_fnum == arg_bufnr.get() {
@@ -1719,7 +1719,7 @@ pub fn aubuflocal_remove(buf: &mut buf_T) {
             }
         }
 
-        for event in 0..NUM_EVENTS as event_T {
+        for event in 0..NUM_EVENTS as AuEvent {
             let acs = &mut au_st().autocmds[event as usize];
             for ac in acs {
                 if !ac
@@ -1929,7 +1929,7 @@ pub fn free_all_autocmds() {
     }
 }
 
-pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_char) -> event_T {
+pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_char) -> AuEvent {
     let start = start.into_c_char_ptr();
     unsafe {
         let mut p = start;
@@ -1943,23 +1943,23 @@ pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_
         }
         *end = p.cast_mut();
         if hash_idx < 0 {
-            return NUM_EVENTS as event_T;
+            return NUM_EVENTS as AuEvent;
         }
         let ev = EVENT_HASH[hash_idx as usize] as usize;
-        EVENT_NAMES[ev].event.abs() as event_T
+        EVENT_NAMES[ev].event.abs() as AuEvent
     }
 }
 
-pub fn event_name2nr_str(str_: NvimString) -> event_T {
+pub fn event_name2nr_str(str_: NvimString) -> AuEvent {
     let hash_idx = event_name2nr_hash(str_.data, str_.size);
     if hash_idx < 0 {
-        return NUM_EVENTS as event_T;
+        return NUM_EVENTS as AuEvent;
     }
     let ev = EVENT_HASH[hash_idx as usize] as usize;
-    EVENT_NAMES[ev].event.abs() as event_T
+    EVENT_NAMES[ev].event.abs() as AuEvent
 }
 
-pub fn event_nr2name(event: event_T) -> *const c_char {
+pub fn event_nr2name(event: AuEvent) -> *const c_char {
     if event >= 0 && (event as usize) < NUM_EVENTS {
         EVENT_NAMES[event as usize].name.as_ptr()
     } else {
@@ -1967,7 +1967,7 @@ pub fn event_nr2name(event: event_T) -> *const c_char {
     }
 }
 
-pub fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
+pub fn event_ignored(event: AuEvent, mut ei: *mut c_char) -> bool {
     unsafe {
         let mut ignored = false;
         while !crate::memory::cstr_is_empty(ei) {
@@ -2004,7 +2004,7 @@ pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
                     ei = ei.add(1);
                 }
                 let event = event_name2nr(ei, &raw mut ei);
-                if event == NUM_EVENTS as event_T || (win && EVENT_NAMES[event as usize].event > 0)
+                if event == NUM_EVENTS as AuEvent || (win && EVENT_NAMES[event as usize].event > 0)
                 {
                     return false;
                 }
@@ -2038,7 +2038,7 @@ pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
         }
 }
 
-pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
+pub fn do_autocmd(eap: &mut Exarg, arg_in: *mut c_char, forceit: c_int) {
     unsafe {
         let mut arg = arg_in;
         let mut envpat: Option<CString> = None;
@@ -2166,7 +2166,7 @@ pub fn do_all_autocmd_events(
     del: bool,
     group: c_int,
 ) { let cmd = cmd.into_c_char_ptr(); let pat = pat.into_c_char_ptr();
-    for event in 0..NUM_EVENTS as event_T {
+    for event in 0..NUM_EVENTS as AuEvent {
             if !do_autocmd_event(event, pat, once, nested, cmd, del, group) {
                 return;
             }
@@ -2174,7 +2174,7 @@ pub fn do_all_autocmd_events(
 }
 
 pub fn do_autocmd_event(
-    event: event_T,
+    event: AuEvent,
     pat: impl crate::strings::IntoCCharPtr,
     once: bool,
     nested: c_int,
@@ -2260,7 +2260,7 @@ pub fn do_autocmd_event(
 
 pub fn autocmd_register(
     id: i64,
-    event: event_T,
+    event: AuEvent,
     pat: impl crate::strings::IntoCCharPtr,
     mut patlen: c_int,
     group: c_int,
@@ -2488,13 +2488,13 @@ pub fn do_doautocmd(
     }
 }
 
-pub fn ex_doautoall(eap: &mut exarg_T) {
+pub fn ex_doautoall(eap: &mut Exarg) {
     unsafe {
         let mut retval = OK;
         let mut aco: CtxSwitch = CtxSwitch::new();
         let mut arg = eap.arg;
         let call_do_modelines = check_nomodeline(&raw mut arg);
-        let mut bufref: bufref_T = bufref_T::new();
+        let mut bufref: Bufref = Bufref::new();
         let mut did_aucmd = false;
 
         for buf in for_all_buffers_ptr() {
@@ -2541,11 +2541,11 @@ pub fn check_nomodeline(argp: *mut *mut c_char) -> bool {
 }
 
 pub fn aucmd_defer(
-    event: event_T,
+    event: AuEvent,
     fname: impl crate::strings::IntoCCharPtr,
     fname_io: impl crate::strings::IntoCCharPtr,
     group: c_int,
-    buf: &mut buf_T,data: Option<&mut Object>,
+    buf: &mut FileBuf,data: Option<&mut Object>,
 ) { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
      {
         let evdata = Box::new(AutoCmdEvent {
@@ -2578,12 +2578,12 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
         let mut err = Error::new();
         let buf = find_buffer_by_handle(e.buf, &mut err);
         if !buf.is_null() {
-            let mut save_v_event: save_v_event_T = save_v_event_T::new();
+            let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let v_event = get_v_event(&mut save_v_event);
             if !data.is_null() && (*data).obj_type == ObjectType::kObjectTypeDict {
                 for i in 0..(*data).data.dict().size {
                     let item = *(*data).data.dict().items.add(i);
-                    let mut tv: typval_T = typval_T::new();
+                    let mut tv: TypVal = TypVal::new();
                     object_to_vim(item.value, &mut tv, &mut err);
                     if err.err_type != ErrorType::kErrorTypeNone {
                         api_clear_error(&mut err);
@@ -2631,7 +2631,7 @@ pub fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
         }
 }
 
-pub fn aucmd_defer_modified(buf: &mut buf_T, new_val: bool) {
+pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
     unsafe {
         if !has_event(EVENT_OPTIONSET)
             || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
@@ -2649,11 +2649,11 @@ pub fn aucmd_defer_modified(buf: &mut buf_T, new_val: bool) {
 }
 
 pub fn apply_autocmds(
-    event: event_T,
+    event: AuEvent,
     fname: impl crate::strings::IntoCCharPtr,
     fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
-    buf: *mut buf_T,
+    buf: *mut FileBuf,
 ) -> bool { let fname_io = fname_io.into_c_char_ptr();
     let fname = fname.into_c_char_ptr().cast_mut();
      {
@@ -2673,12 +2673,12 @@ pub fn apply_autocmds(
 }
 
 pub fn apply_autocmds_win(
-    event: event_T,
+    event: AuEvent,
     fname: impl crate::strings::IntoCCharPtr,
     fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
-    buf: *mut buf_T,
-    win: Option<&win_T>,
+    buf: *mut FileBuf,
+    win: Option<&WinInfoInfo>,
 ) -> bool { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
     apply_autocmds_group(
             event,
@@ -2695,11 +2695,11 @@ pub fn apply_autocmds_win(
 }
 
 pub fn apply_autocmds_exarg(
-    event: event_T,
+    event: AuEvent,
     fname: impl crate::strings::IntoCCharPtr,
     fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
-    buf: *mut buf_T,eap: Option<&exarg_T>,
+    buf: *mut FileBuf,eap: Option<&Exarg>,
 ) -> bool { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
      {
         apply_autocmds_group(
@@ -2718,11 +2718,11 @@ pub fn apply_autocmds_exarg(
 }
 
 pub fn apply_autocmds_retval(
-    event: event_T,
+    event: AuEvent,
     fname: impl crate::strings::IntoCCharPtr,
     fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
-    buf: *mut buf_T,
+    buf: *mut FileBuf,
     retval: &mut c_int,
 ) -> bool { let fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
      {
@@ -2749,7 +2749,7 @@ pub fn apply_autocmds_retval(
     }
 }
 
-pub fn has_event(event: event_T) -> bool {
+pub fn has_event(event: AuEvent) -> bool {
      {
         let acs = &au_st().autocmds[event as usize];
         !acs.is_empty()
@@ -2780,26 +2780,26 @@ pub fn trigger_cursorhold() -> bool {
 }
 
 pub fn apply_autocmds_group(
-    event: event_T,
+    event: AuEvent,
     fname: impl crate::strings::IntoCCharPtr,
     fname_io: impl crate::strings::IntoCCharPtr,
     force: bool,
     group: c_int,
-    buf: *mut buf_T,
-    win: Option<&win_T>,eap: Option<&exarg_T>,
+    buf: *mut FileBuf,
+    win: Option<&WinInfoInfo>,eap: Option<&Exarg>,
     data: *mut Object,
     with_buf: bool,
 ) -> bool { let mut fname = fname.into_c_char_ptr(); let fname_io = fname_io.into_c_char_ptr();
     unsafe {
         let mut retval = false;
-        let mut wait_time: proftime_T = 0;
+        let mut wait_time: Proftime = 0;
         let mut did_save_redobuff = false;
         let mut save_redo = RedoState::new();
         let save_KeyTyped = g_st().KeyTyped;
         let mut aco: CtxSwitch = CtxSwitch::new();
 
         'bypass_au: {
-            if event == NUM_EVENTS as event_T || !has_event(event) || is_autocmd_blocked() {
+            if event == NUM_EVENTS as AuEvent || !has_event(event) || is_autocmd_blocked() {
                 break 'bypass_au;
             }
 
@@ -3015,7 +3015,7 @@ pub fn apply_autocmds_group(
                 sfname: sfname_owned,
                 group,
                 event,
-                script_ctx: std::rc::Rc::new(std::cell::Cell::new(sctx_T {
+                script_ctx: std::rc::Rc::new(std::cell::Cell::new(Sctx {
                     sc_sid: 0,
                     sc_seq: 0,
                     sc_lnum: 0,
@@ -3033,7 +3033,7 @@ pub fn apply_autocmds_group(
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
                 let save_cmdarg = if let Some(eap) = eap {
                     let s = set_cmdarg(Some(eap), None);
-                    set_vim_var_nr(VV_CMDBANG, varnumber_T::from(eap.forceit));
+                    set_vim_var_nr(VV_CMDBANG, Varnumber::from(eap.forceit));
                     s
                 } else {
                     None
@@ -3373,8 +3373,8 @@ fn au_callback(
             );
             result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean()
         } else {
-            let mut argsin: typval_T = typval_T::new();
-            let mut rettv: typval_T = typval_T::new();
+            let mut argsin: TypVal = TypVal::new();
+            let mut rettv: TypVal = TypVal::new();
             callback_call(&mut callback, 0, &raw mut argsin, &mut rettv);
             false
         }
@@ -3453,8 +3453,8 @@ pub fn getnextac(
 }
 
 fn has_autocmd_ext(
-    event: event_T,
-    sfname: impl crate::strings::IntoCCharPtr,mut buf: Option<&mut buf_T>,
+    event: AuEvent,
+    sfname: impl crate::strings::IntoCCharPtr,mut buf: Option<&mut FileBuf>,
     is_full: bool,
 ) -> bool { let sfname = sfname.into_c_char_ptr();
      {
@@ -3500,20 +3500,20 @@ fn has_autocmd_ext(
     }
 }
 
-pub fn has_autocmd(event: event_T, sfname: impl crate::strings::IntoCCharPtr,buf: Option<&mut buf_T>) -> bool { let sfname = sfname.into_c_char_ptr();
+pub fn has_autocmd(event: AuEvent, sfname: impl crate::strings::IntoCCharPtr,buf: Option<&mut FileBuf>) -> bool { let sfname = sfname.into_c_char_ptr();
     has_autocmd_ext(event, sfname, buf, false)
 }
 
-pub fn has_autocmd_fullname(event: event_T, fname: impl crate::strings::IntoCCharPtr,buf: Option<&mut buf_T>) -> bool { let fname = fname.into_c_char_ptr();
+pub fn has_autocmd_fullname(event: AuEvent, fname: impl crate::strings::IntoCCharPtr,buf: Option<&mut FileBuf>) -> bool { let fname = fname.into_c_char_ptr();
     has_autocmd_ext(event, fname, buf, true)
 }
 
-pub fn expand_get_augroup_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn expand_get_augroup_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     augroup_name(idx + 1)
 }
 
 pub fn aucmd_set_expand_context(
-    xp: &mut expand_T,
+    xp: &mut ExpandCtx,
     mut arg: *mut c_char,
     doautocmd: bool,
 ) -> *mut c_char {
@@ -3576,7 +3576,7 @@ pub fn aucmd_set_expand_context(
     }
 }
 
-pub fn expand_get_event_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn expand_get_event_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     let name = augroup_name(idx + 1);
         if !name.is_null() {
             if !au_st().autocmd_include_groups || ptr::eq(name.cast_const(), get_deleted_augroup()) {
@@ -3593,7 +3593,7 @@ pub fn expand_get_event_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
         EVENT_NAMES[i as usize].name.as_ptr().cast_mut()
 }
 
-pub fn get_event_name_no_group(_xp: &mut expand_T, idx: c_int, win: bool) -> *mut c_char {
+pub fn get_event_name_no_group(_xp: &mut ExpandCtx, idx: c_int, win: bool) -> *mut c_char {
     if idx < 0 || (idx as usize) >= NUM_EVENTS {
         return ptr::null_mut();
     }
@@ -3616,12 +3616,12 @@ pub fn get_event_name_no_group(_xp: &mut expand_T, idx: c_int, win: bool) -> *mu
 
 pub fn autocmd_supported(event: impl crate::strings::IntoCCharPtr) -> bool { let event = event.into_c_char_ptr();
     let mut p: *mut c_char = ptr::null_mut();
-        event_name2nr(event, &raw mut p) != NUM_EVENTS as event_T
+        event_name2nr(event, &raw mut p) != NUM_EVENTS as AuEvent
 }
 
 pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool { let arg = arg.into_c_char_ptr();
     unsafe {
-        let mut buflocal_buf: *mut buf_T = ptr::null_mut();
+        let mut buflocal_buf: *mut FileBuf = ptr::null_mut();
         let mut retval = false;
 
         let mut arg_save_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(arg);
@@ -3651,7 +3651,7 @@ pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool { let arg = arg
 
         let pattern = p;
         let event = event_name2nr(event_name, &raw mut p);
-        if event != NUM_EVENTS as event_T {
+        if event != NUM_EVENTS as AuEvent {
             let acs = &mut au_st().autocmds[event as usize];
             if !acs.is_empty() {
                 if !pattern.is_null() && crate::memory::cstr_as_bytes(pattern).eq_ignore_ascii_case(b"<buffer>") {
@@ -3870,10 +3870,10 @@ pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
         }
         au_st().uienter_recursive = true;
 
-        let mut save_v_event: save_v_event_T = save_v_event_T::new();
+        let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
         assert!(chanid < i64::MAX as u64);
-        tv_dict_add_nr(&mut *dict, c"chan", chanid as varnumber_T);
+        tv_dict_add_nr(&mut *dict, c"chan", chanid as Varnumber);
         tv_dict_set_keys_readonly(&mut *dict);
         apply_autocmds(
             if attached {
@@ -3917,7 +3917,7 @@ pub fn do_autocmd_focusgained(gained: bool) {
         au_st().focusgained_recursive = false;
 }
 
-pub fn do_filetype_autocmd(buf: &mut buf_T, force: bool) -> bool {
+pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
     if au_st().ft_recursive > 0 && !force {
             return false;
         }

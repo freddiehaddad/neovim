@@ -1,7 +1,7 @@
 //! Low-level functions to manipulate individual character cells on the screen grid (`src/nvim/grid.c`).
 
 use crate::arabic::arabic_shape;
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{Colnr, Linenr};
 use crate::decoration::{VirtTextChunk, decor_check_invalid_glyphs, next_virt_text_chunk};
 use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
@@ -9,7 +9,7 @@ use crate::mbyte::{
     mb_string2cells, utf_ClusterInfo_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
     utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
 use crate::plines::{ClusterInfo, StrCharInfo};
@@ -17,13 +17,13 @@ use crate::ui::{
     ui_call_grid_resize, ui_call_grid_scroll, ui_check_cursor_grid, ui_grid_cursor_goto, ui_has,
     ui_line,
 };
-use crate::window::{WinConfig, win_T};
+use crate::window::{WinConfig, WinInfoInfo};
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
-pub type schar_T = u32;
-pub type sattr_T = i32;
-pub type sscratch_T = i32;
+pub type Schar = u32;
+pub type Sattr = i32;
+pub type Sscratch = i32;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::win_config::{
     AlignTextPos, BorderTextType, kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter,
@@ -42,7 +42,7 @@ const HLF_BFOOTER: usize = 69;
 #[repr(C)]
 #[derive(Clone, Default)]
 pub struct ScreenGrid {
-    pub handle: handle_T,
+    pub handle: ObjHandle,
     pub chars: Vec<u32>,
     pub attrs: Vec<i32>,
     pub vcols: Vec<i32>,
@@ -81,17 +81,17 @@ pub struct CharBoundsOff {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct wline_T {
-    pub wl_lnum: linenr_T,
+pub struct Wline {
+    pub wl_lnum: Linenr,
     pub wl_size: u16,
     pub wl_valid: bool,
     pub wl_folded: bool,
-    pub wl_foldend: linenr_T,
-    pub wl_lastlnum: linenr_T,
+    pub wl_foldend: Linenr,
+    pub wl_lastlnum: Linenr,
 }
 
 struct GridModuleState {
-    linebuf_scratch: Vec<sscratch_T>,
+    linebuf_scratch: Vec<Sscratch>,
     glyph_cache_keys: Vec<c_char>,
     glyph_cache_offsets: std::collections::BTreeMap<Vec<u8>, u32>,
     grid_line_grid: *mut ScreenGrid,
@@ -136,19 +136,19 @@ fn grid_st() -> &'static mut GridModuleState {
 }
 
 #[inline]
-pub const fn schar_from_ascii(x: u8) -> schar_T {
+pub const fn schar_from_ascii(x: u8) -> Schar {
     #[cfg(target_endian = "big")]
     {
-        (x as schar_T) << 24
+        (x as Schar) << 24
     }
     #[cfg(not(target_endian = "big"))]
     {
-        x as schar_T
+        x as Schar
     }
 }
 
 #[inline]
-const fn schar_idx(sc: schar_T) -> u32 {
+const fn schar_idx(sc: Schar) -> u32 {
     #[cfg(target_endian = "big")]
     {
         sc & 0x00FF_FFFF
@@ -189,7 +189,7 @@ pub fn grid_adjust(
     }
 }
 
-pub fn schar_from_str(str_: impl crate::strings::IntoCCharPtr) -> schar_T {
+pub fn schar_from_str(str_: impl crate::strings::IntoCCharPtr) -> Schar {
     let str_ = str_.into_c_char_ptr();
      {
         if str_.is_null() {
@@ -199,11 +199,11 @@ pub fn schar_from_str(str_: impl crate::strings::IntoCCharPtr) -> schar_T {
     }
 }
 
-pub fn schar_from_buf(buf: impl crate::strings::IntoCCharPtr, len: usize) -> schar_T { let buf = buf.into_c_char_ptr();
+pub fn schar_from_buf(buf: impl crate::strings::IntoCCharPtr, len: usize) -> Schar { let buf = buf.into_c_char_ptr();
     unsafe {
         assert!(len < MAX_SCHAR_SIZE);
         if len <= 4 {
-            let mut sc: schar_T = 0;
+            let mut sc: Schar = 0;
             ptr::copy_nonoverlapping(buf.cast::<u8>(), (&raw mut sc).cast::<u8>(), len);
             sc
         } else {
@@ -252,7 +252,7 @@ pub fn schar_cache_clear() {
     }
 }
 
-pub fn schar_high(sc: schar_T) -> bool {
+pub fn schar_high(sc: Schar) -> bool {
     #[cfg(target_endian = "big")]
     {
         (sc & 0xFF00_0000) == 0xFF00_0000
@@ -264,7 +264,7 @@ pub fn schar_high(sc: schar_T) -> bool {
 }
 
 /// Sets final NUL (`schar_get`).
-pub fn schar_get(mut buf_out: *mut c_char, sc: schar_T) -> usize {
+pub fn schar_get(mut buf_out: *mut c_char, sc: Schar) -> usize {
     unsafe {
         let len = schar_get_adv(&raw mut buf_out, sc);
         *buf_out = NUL;
@@ -273,7 +273,7 @@ pub fn schar_get(mut buf_out: *mut c_char, sc: schar_T) -> usize {
 }
 
 /// Advance `buf_out`. Do NOT set final NUL (`schar_get_adv`).
-pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
+pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: Schar) -> usize {
     unsafe {
         let len: usize;
         if schar_high(sc) {
@@ -292,7 +292,7 @@ pub fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
     }
 }
 
-pub fn schar_len(sc: schar_T) -> usize {
+pub fn schar_len(sc: Schar) -> usize {
     unsafe {
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
@@ -305,7 +305,7 @@ pub fn schar_len(sc: schar_T) -> usize {
 }
 
 #[inline]
-fn schar_get_first_byte(sc: schar_T) -> c_char {
+fn schar_get_first_byte(sc: Schar) -> c_char {
     unsafe {
         assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= grid_st().glyph_cache_keys.len()));
         if schar_high(sc) {
@@ -316,13 +316,13 @@ fn schar_get_first_byte(sc: schar_T) -> c_char {
     }
 }
 
-pub fn schar_get_first_codepoint(sc: schar_T) -> c_int {
+pub fn schar_get_first_codepoint(sc: Schar) -> c_int {
     let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), sc);
         utf_ptr2char(sc_buf.as_ptr())
 }
 
-pub fn schar_get_ascii(sc: schar_T) -> c_char {
+pub fn schar_get_ascii(sc: Schar) -> c_char {
     #[cfg(target_endian = "big")]
     unsafe {
         if (sc & 0x80FF_FFFF) == 0 {
@@ -338,13 +338,13 @@ pub fn schar_get_ascii(sc: schar_T) -> c_char {
 }
 
 #[inline]
-fn schar_in_arabic_block(sc: schar_T) -> bool {
+fn schar_in_arabic_block(sc: Schar) -> bool {
     let first_byte = schar_get_first_byte(sc) as u8;
         (first_byte & 0xFE) == 0xD8
 }
 
 #[inline]
-fn schar_get_first_two_codepoints(sc: schar_T, c0: &mut c_int, c1: &mut c_int) {
+fn schar_get_first_two_codepoints(sc: Schar, c0: &mut c_int, c1: &mut c_int) {
     unsafe {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), sc);
@@ -359,7 +359,7 @@ fn schar_get_first_two_codepoints(sc: schar_T, c0: &mut c_int, c1: &mut c_int) {
     }
 }
 
-pub fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
+pub fn line_do_arabic_shape(buf: *mut Schar, cols: c_int) {
     unsafe {
         let mut i: c_int = 0;
         while i < cols {
@@ -439,7 +439,7 @@ pub fn grid_clear_line(grid: &mut ScreenGrid, off: usize, width: c_int, valid: b
     {
         let len = width as usize;
         grid.chars[off..off + len].fill(schar_from_ascii(b' '));
-        let fill: sattr_T = if valid { 0 } else { -1 };
+        let fill: Sattr = if valid { 0 } else { -1 };
         grid.attrs[off..off + len].fill(fill);
         grid.vcols[off..off + len].fill(-1);
     }
@@ -465,7 +465,7 @@ pub fn grid_getchar(
     row: c_int,
     col: c_int,
     attrp: Option<&mut c_int>,
-) -> schar_T {
+) -> Schar {
      {
                 if grid.chars.is_empty() || row >= grid.rows || col >= grid.cols {
             return 0;
@@ -511,7 +511,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
     }
 }
 
-pub fn grid_line_getchar(mut col: c_int,mut attr: Option<&mut c_int>) -> schar_T {
+pub fn grid_line_getchar(mut col: c_int,mut attr: Option<&mut c_int>) -> Schar {
     unsafe {
         if col < grid_st().grid_line_maxcol {
             col += grid_st().grid_line_coloff;
@@ -527,7 +527,7 @@ pub fn grid_line_getchar(mut col: c_int,mut attr: Option<&mut c_int>) -> schar_T
     }
 }
 
-pub fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
+pub fn grid_line_put_schar(col: c_int, schar: Schar, attr: c_int) {
     assert!(!grid_st().grid_line_grid.is_null());
         if col >= grid_st().grid_line_maxcol {
             return;
@@ -603,7 +603,7 @@ pub fn grid_line_puts(
 pub fn grid_line_fill(
     start_col: c_int,
     mut end_col: c_int,
-    sc: schar_T,
+    sc: Schar,
     attr: c_int,
 ) -> c_int {
     end_col = end_col.min(grid_st().grid_line_maxcol);
@@ -670,7 +670,7 @@ pub fn linebuf_mirror(
         let n = (last - first) as usize;
         let mirror = width - 1;
         let scratch_ptr = grid_st().linebuf_scratch.as_mut_ptr();
-        let scratch_char = scratch_ptr.cast::<schar_T>();
+        let scratch_char = scratch_ptr.cast::<Schar>();
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_char[first as usize],
             scratch_char.add(first as usize),
@@ -689,7 +689,7 @@ pub fn linebuf_mirror(
             col += 1;
         }
 
-        let scratch_attr = scratch_ptr.cast::<sattr_T>();
+        let scratch_attr = scratch_ptr.cast::<Sattr>();
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_attr[first as usize],
             scratch_attr.add(first as usize),
@@ -699,7 +699,7 @@ pub fn linebuf_mirror(
             g_st().linebuf_attr[(mirror - c) as usize] = *scratch_attr.add(c as usize);
         }
 
-        let scratch_vcol = scratch_ptr.cast::<colnr_T>();
+        let scratch_vcol = scratch_ptr.cast::<Colnr>();
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_vcol[first as usize],
             scratch_vcol.add(first as usize),
@@ -803,7 +803,7 @@ pub fn grid_put_linebuf(
     mut clear_width: c_int,
     bg_attr: c_int,
     mut clear_attr: c_int,
-    mut last_vcol: colnr_T,
+    mut last_vcol: Colnr,
     flags: c_int,
 ) {
     let mut clear_next = false;
@@ -1074,7 +1074,7 @@ pub fn grid_free_all_mem() {
     }
 }
 
-pub fn win_grid_alloc(wp: &mut win_T) {
+pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     unsafe {
         let grid = &mut wp.w_grid;
         let grid_allocated = &raw mut wp.w_grid_alloc;
@@ -1090,7 +1090,7 @@ pub fn win_grid_alloc(wp: &mut win_T) {
             wp.w_lines.clear();
             wp
                 .w_lines
-                .resize(wp.w_view_height as usize + 1, wline_T::default());
+                .resize(wp.w_view_height as usize + 1, Wline::default());
         }
 
         let mut was_resized = false;
@@ -1337,7 +1337,7 @@ pub fn grid_draw_border(
         if adj.is_null() {
             adj = default_adj.as_mut_ptr();
         }
-        let mut chars = [0 as schar_T; 8];
+        let mut chars = [0 as Schar; 8];
         let mut border_attrs = [0 as c_int; 8];
 
         for i in 0..8 {
@@ -1448,7 +1448,7 @@ fn linecopy(grid: &mut ScreenGrid, to: c_int, from: c_int, col: c_int, width: c_
     }
 }
 
-pub fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
+pub fn get_win_by_grid_handle(handle: ObjHandle) -> *mut WinInfoInfo {
     unsafe {
         for wp in for_all_windows_ptr() {
             if (*wp).w_grid_alloc.handle == handle {
@@ -1460,8 +1460,8 @@ pub fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
 }
 
 /// Put a unicode character in a screen cell (`schar_from_char`).
-pub fn schar_from_char(mut c: c_int) -> schar_T {
-    let mut sc: schar_T = 0;
+pub fn schar_from_char(mut c: c_int) -> Schar {
+    let mut sc: Schar = 0;
     if c >= 0x20_0000 {
         c = 0xFFFD;
     }
@@ -1470,12 +1470,12 @@ pub fn schar_from_char(mut c: c_int) -> schar_T {
 }
 
 #[cfg(target_endian = "big")]
-pub const braille_space: schar_T = 0xe2a0_8000;
+pub const braille_space: Schar = 0xe2a0_8000;
 #[cfg(not(target_endian = "big"))]
-pub const braille_space: schar_T = 0x0080_a0e2;
+pub const braille_space: Schar = 0x0080_a0e2;
 
 #[inline]
-pub fn schar_invisible(sc: schar_T) -> bool {
+pub fn schar_invisible(sc: Schar) -> bool {
     sc == schar_from_ascii(b' ') || sc == braille_space
 }
 
@@ -1483,7 +1483,7 @@ pub fn schar_from_cluster_impl(
     buf: impl crate::strings::IntoCCharPtr,
     mut len: usize,
     first_compose: bool,
-) -> schar_T { let buf = buf.into_c_char_ptr();
+) -> Schar { let buf = buf.into_c_char_ptr();
     unsafe {
         let maxlen = MAX_SCHAR_SIZE - 1 - usize::from(first_compose);
         if len > maxlen {
@@ -1505,7 +1505,7 @@ pub fn schar_from_cluster_impl(
 }
 
 #[inline]
-pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> schar_T {
+pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
     assert!(ci.chr.value >= 0);
     let len = unsafe { cli.next.ptr.offset_from(ci.ptr) as usize };
     if len == 1 {
@@ -1514,7 +1514,7 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> schar_T {
     if cli.first_compose || len > 4 {
         return schar_from_cluster_impl(ci.ptr, len, cli.first_compose);
     }
-    let mut sc: schar_T = 0;
+    let mut sc: Schar = 0;
     unsafe {
         ptr::copy_nonoverlapping(ci.ptr, (&raw mut sc).cast::<c_char>(), len);
     }
@@ -1522,7 +1522,7 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> schar_T {
 }
 
 #[cfg(test)]
-pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut c_int) -> schar_T {
+pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut c_int) -> Schar {
     let ci = crate::mbyte::utf_ptr2StrCharInfo(buf.as_ptr());
     let cli = crate::mbyte::utf_ClusterInfo(ci);
     *firstc = ci.chr.value;

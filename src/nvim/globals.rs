@@ -5,39 +5,39 @@ use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::decoration::{DecorSignHighlight, DecorState, NS};
-use crate::ex_docmd::cmdmod_T;
+use crate::ex_docmd::Cmdmod;
 
 use crate::api::ui::NO_SCREEN;
-use crate::arglist::alist_T;
-use crate::buffer::{MAXLNUM, SEA_NONE, buf_T, bufref_T};
+use crate::arglist::Alist;
+use crate::buffer::{MAXLNUM, SEA_NONE, FileBuf, Bufref};
 use crate::channel::Channel;
 use crate::context::CtxWin;
-use crate::cursor::{colnr_T, linenr_T, pos_T};
+use crate::cursor::{Colnr, Linenr, CursorPos};
 use crate::drawscreen::WinExtmark;
 use crate::eval::caller_scope;
 use crate::eval::typval::Callback;
 use crate::eval::userfunc::MSG_BUF_LEN;
-use crate::eval::vars::evalarg_T;
+use crate::eval::vars::Evalarg;
 use crate::event::multiqueue::MultiQueue;
-use crate::ex_eval::{except_T, msglist_T};
-use crate::ex_getln::{disptick_T, hlf_T};
+use crate::ex_eval::{Except, Msglist};
+use crate::ex_getln::{Disptick, Hlf};
 use crate::extmark::TriState;
-use crate::grid::{GridView, ScreenGrid, sattr_T, schar_T};
+use crate::grid::{GridView, ScreenGrid, Sattr, Schar};
 use crate::lua::converter::nlua_ref_state_t;
-use crate::mapping::typebuf_T;
-use crate::mark::xfmark_T;
-use crate::r#match::{SearchState, match_T};
-use crate::menu::vimmenu_T;
+use crate::mapping::Typebuf;
+use crate::mark::Xfmark;
+use crate::r#match::{SearchState, SynMatch};
+use crate::menu::Vimmenu;
 use crate::mouse::StlClickDefinition;
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::VisualState;
 use crate::os::fs::{MAXPATHL, NvimStats};
 use crate::popupmenu::PumWant;
-use crate::regexp::reg_extmatch_T;
-use crate::runtime::sctx_T;
+use crate::regexp::RegExtmatch;
+use crate::runtime::Sctx;
 use crate::state::{MODE_MAX_LENGTH, MODE_NORMAL};
 use crate::textformat::InsState;
-use crate::window::{frame_T, tabpage_T, win_T};
+use crate::window::{Frame, TabPageInfo, WinInfoInfo};
 
 pub(crate) const IOSIZE: usize = 1024 + 1;
 pub(crate) const DFLT_ROWS: c_int = 24;
@@ -80,11 +80,11 @@ pub struct EditorState {
     pub redrawing_cmdline: bool,
     pub cmdline_was_last_drawn: bool,
     pub exec_from_reg: bool,
-    pub dollar_vcol: colnr_T,
+    pub dollar_vcol: Colnr,
     pub edit_submode: *const c_char,
     pub edit_submode_pre: *const c_char,
     pub edit_submode_extra: *mut c_char,
-    pub edit_submode_highl: hlf_T,
+    pub edit_submode_highl: Hlf,
     pub cmdmsg_rl: bool,
     pub msg_col: c_int,
     pub msg_row: c_int,
@@ -132,19 +132,19 @@ pub struct EditorState {
     pub debug_tick: c_int,
     pub debug_backtrace_level: c_int,
     pub do_profiling: c_int,
-    pub current_exception: Option<std::rc::Rc<except_T>>,
+    pub current_exception: Option<std::rc::Rc<Except>>,
     pub did_throw: bool,
     pub need_rethrow: bool,
     pub check_cstack: bool,
     pub trylevel: c_int,
     pub force_abort: bool,
-    pub msg_list: Option<Vec<msglist_T>>,
+    pub msg_list: Option<Vec<Msglist>>,
     pub suppress_errthrow: bool,
-    pub caught_stack: Vec<std::rc::Rc<except_T>>,
+    pub caught_stack: Vec<std::rc::Rc<Except>>,
     pub may_garbage_collect: bool,
     pub want_garbage_collect: bool,
     pub garbage_collect_at_exit: bool,
-    pub current_sctx: sctx_T,
+    pub current_sctx: Sctx,
     pub current_ui: u64,
     pub did_source_packages: bool,
     pub provider_caller_scope: caller_scope,
@@ -163,20 +163,20 @@ pub struct EditorState {
     pub mouse_past_bottom: bool,
     pub mouse_past_eol: bool,
     pub mouse_dragging: c_int,
-    pub root_menu: Vec<vimmenu_T>,
+    pub root_menu: Vec<Vimmenu>,
     pub sys_menu: bool,
-    pub firstwin: *mut win_T,
-    pub lastwin: *mut win_T,
-    pub prevwin: *mut win_T,
-    pub topframe: *mut frame_T,
-    pub first_tabpage: *mut tabpage_T,
-    pub curtab: *mut tabpage_T,
-    pub lastused_tabpage: *mut tabpage_T,
+    pub firstwin: *mut WinInfoInfo,
+    pub lastwin: *mut WinInfoInfo,
+    pub prevwin: *mut WinInfoInfo,
+    pub topframe: *mut Frame,
+    pub first_tabpage: *mut TabPageInfo,
+    pub curtab: *mut TabPageInfo,
+    pub lastused_tabpage: *mut TabPageInfo,
     pub redraw_tabline: bool,
-    pub firstbuf: *mut buf_T,
-    pub lastbuf: *mut buf_T,
-    pub curbuf: *mut buf_T,
-    pub global_alist: alist_T,
+    pub firstbuf: *mut FileBuf,
+    pub lastbuf: *mut FileBuf,
+    pub curbuf: *mut FileBuf,
+    pub global_alist: Alist,
     pub max_alist_id: c_int,
     pub arg_had_last: bool,
     pub ru_col: c_int,
@@ -196,12 +196,12 @@ pub struct EditorState {
     pub silent_mode: bool,
     pub exmode_active: bool,
     pub Visual: VisualState,
-    pub where_paste_started: pos_T,
+    pub where_paste_started: CursorPos,
     pub did_syncbind: bool,
     pub old_indent: c_int,
-    pub saved_cursor: pos_T,
+    pub saved_cursor: CursorPos,
     pub Ins: InsState,
-    pub orig_line_count: linenr_T,
+    pub orig_line_count: Linenr,
     pub vr_lines_changed: c_int,
     pub inhibit_delete_count: c_int,
     pub fenc_default: Option<std::ffi::CString>,
@@ -226,7 +226,7 @@ pub struct EditorState {
     pub no_abbr: bool,
     pub mapped_ctrl_c: c_int,
     pub ctrl_c_interrupts: bool,
-    pub cmdmod: cmdmod_T,
+    pub cmdmod: Cmdmod,
     pub msg_silent: c_int,
     pub emsg_silent: c_int,
     pub emsg_noredir: bool,
@@ -241,7 +241,7 @@ pub struct EditorState {
     pub RedrawingDisabled: c_int,
     pub readonlymode: bool,
     pub recoverymode: bool,
-    pub typebuf: typebuf_T,
+    pub typebuf: Typebuf,
     pub typebuf_was_empty: bool,
     pub ex_normal_busy: c_int,
     pub expr_map_lock: c_int,
@@ -258,8 +258,8 @@ pub struct EditorState {
     pub got_int: bool,
     pub bangredo: bool,
     pub reg_do_extmatch: c_int,
-    pub re_extmatch_in: Option<std::rc::Rc<reg_extmatch_T>>,
-    pub re_extmatch_out: Option<std::rc::Rc<reg_extmatch_T>>,
+    pub re_extmatch_in: Option<std::rc::Rc<RegExtmatch>>,
+    pub re_extmatch_out: Option<std::rc::Rc<RegExtmatch>>,
     pub did_outofmem_msg: bool,
     pub did_swapwrite_msg: bool,
     pub global_busy: c_int,
@@ -290,15 +290,15 @@ pub struct EditorState {
     pub km_stopsel: bool,
     pub km_startsel: bool,
     pub cmdwin_type: c_int,
-    pub cmdwin_buf: *mut buf_T,
-    pub cmdline_win: *mut win_T,
+    pub cmdwin_buf: *mut FileBuf,
+    pub cmdline_win: *mut WinInfoInfo,
     pub sub_nsubs: c_int,
-    pub sub_nlines: linenr_T,
+    pub sub_nlines: Linenr,
     pub wim_flags: [u8; 4],
     pub stl_syntax: c_int,
     pub typebuf_was_filled: bool,
     pub virtual_op: TriState,
-    pub spell_redraw_lnum: linenr_T,
+    pub spell_redraw_lnum: Linenr,
     pub time_fd: Option<crate::os::fs::CFile>,
     pub vim_ignored: c_int,
     pub embedded_mode: bool,
@@ -308,18 +308,18 @@ pub struct EditorState {
     pub skip_update_topline: bool,
     pub namespace_ids: Vec<(std::ffi::CString, c_int)>,
     pub namespace_localscope: std::collections::BTreeSet<u32>,
-    pub next_namespace_id: handle_T,
-    pub buffer_handles: std::collections::BTreeMap<c_int, *mut buf_T>,
-    pub window_handles: std::collections::BTreeMap<c_int, *mut win_T>,
-    pub tabpage_handles: std::collections::BTreeMap<c_int, *mut tabpage_T>,
-    pub last_cursormoved_win: *mut win_T,
-    pub last_cursormoved: pos_T,
+    pub next_namespace_id: ObjHandle,
+    pub buffer_handles: std::collections::BTreeMap<c_int, *mut FileBuf>,
+    pub window_handles: std::collections::BTreeMap<c_int, *mut WinInfoInfo>,
+    pub tabpage_handles: std::collections::BTreeMap<c_int, *mut TabPageInfo>,
+    pub last_cursormoved_win: *mut WinInfoInfo,
+    pub last_cursormoved: CursorPos,
     pub autocmd_busy: bool,
     pub autocmd_no_enter: c_int,
     pub autocmd_no_leave: c_int,
-    pub au_new_curbuf: bufref_T,
-    pub au_pending_free_buf: Vec<Box<buf_T>>,
-    pub au_pending_free_win: Vec<Box<win_T>>,
+    pub au_new_curbuf: Bufref,
+    pub au_pending_free_buf: Vec<Box<FileBuf>>,
+    pub au_pending_free_win: Vec<Box<WinInfoInfo>>,
     pub autocmd_fname: Option<std::ffi::CString>,
     pub autocmd_fname_full: bool,
     pub autocmd_bufnr: c_int,
@@ -338,17 +338,17 @@ pub struct EditorState {
     pub win_extmark_arr: Vec<WinExtmark>,
     pub updating_screen: bool,
     pub redraw_not_allowed: bool,
-    pub screen_search_hl: match_T,
-    pub search_hl_has_cursor_lnum: linenr_T,
-    pub EVALARG_EVALUATE: evalarg_T,
+    pub screen_search_hl: SynMatch,
+    pub search_hl_has_cursor_lnum: Linenr,
+    pub EVALARG_EVALUATE: Evalarg,
     pub curbuf_splice_pending: c_int,
     pub disable_fold_update: c_int,
     pub default_grid: ScreenGrid,
     pub default_gridview: GridView,
     pub resizing_screen: bool,
-    pub linebuf_char: Vec<schar_T>,
-    pub linebuf_attr: Vec<sattr_T>,
-    pub linebuf_vcol: Vec<colnr_T>,
+    pub linebuf_char: Vec<Schar>,
+    pub linebuf_attr: Vec<Sattr>,
+    pub linebuf_vcol: Vec<Colnr>,
     pub highlight_attr: [c_int; HLF_COUNT],
     pub highlight_attr_last: [c_int; HLF_COUNT],
     pub highlight_user: [c_int; 9],
@@ -367,7 +367,7 @@ pub struct EditorState {
     pub nlua_disable_preload: bool,
     pub tslua_query_parse_count: u64,
     pub repeat_luamap: c_int,
-    pub namedfm: [xfmark_T; 36],
+    pub namedfm: [Xfmark; 36],
     pub arena_alloc_count: usize,
     pub msg_ext_skip_flush: bool,
     pub msg_ext_overwrite: bool,
@@ -390,8 +390,8 @@ pub struct EditorState {
     pub ui_event_ns_id: u32,
     pub resize_events: *mut MultiQueue,
     pub ui_refresh_cmdheight: bool,
-    pub grid_line_buf_char: Vec<schar_T>,
-    pub grid_line_buf_attr: Vec<sattr_T>,
+    pub grid_line_buf_char: Vec<Schar>,
+    pub grid_line_buf_attr: Vec<Sattr>,
     pub ui_client_channel_id: u64,
     pub ui_client_error_exit: c_int,
     pub ui_client_exit_status: c_int,
@@ -487,7 +487,7 @@ impl EditorState {
             may_garbage_collect: false,
             want_garbage_collect: false,
             garbage_collect_at_exit: false,
-            current_sctx: sctx_T {
+            current_sctx: Sctx {
     sc_sid: 0,
     sc_seq: 0,
     sc_lnum: 0,
@@ -496,13 +496,13 @@ impl EditorState {
             current_ui: 0,
             did_source_packages: false,
             provider_caller_scope: caller_scope {
-    script_ctx: sctx_T {
+    script_ctx: Sctx {
         sc_sid: 0,
         sc_seq: 0,
         sc_lnum: 0,
         sc_chan: 0,
     },
-    es_entry: crate::profile::estack_T {
+    es_entry: crate::profile::Estack {
         es_lnum: 0,
         es_name: None,
         es_type: 0,
@@ -551,7 +551,7 @@ impl EditorState {
             firstbuf: ptr::null_mut(),
             lastbuf: ptr::null_mut(),
             curbuf: ptr::null_mut(),
-            global_alist: alist_T::new(),
+            global_alist: Alist::new(),
             max_alist_id: 0,
             arg_had_last: false,
             ru_col: 0,
@@ -571,7 +571,7 @@ impl EditorState {
             silent_mode: false,
             exmode_active: false,
             Visual: VisualState {
-    start: pos_T {
+    start: CursorPos {
         lnum: 0,
         col: 0,
         coladd: 0,
@@ -590,25 +590,25 @@ impl EditorState {
         vcol: 0,
     },
 },
-            where_paste_started: pos_T {
+            where_paste_started: CursorPos {
     lnum: 0,
     col: 0,
     coladd: 0,
 },
             did_syncbind: false,
             old_indent: 0,
-            saved_cursor: pos_T {
+            saved_cursor: CursorPos {
     lnum: 0,
     col: 0,
     coladd: 0,
 },
             Ins: InsState {
-    start: pos_T {
+    start: CursorPos {
         lnum: 0,
         col: 0,
         coladd: 0,
     },
-    start_orig: pos_T {
+    start_orig: CursorPos {
         lnum: 0,
         col: 0,
         coladd: 0,
@@ -660,7 +660,7 @@ impl EditorState {
             no_abbr: true,
             mapped_ctrl_c: 0,
             ctrl_c_interrupts: true,
-            cmdmod: cmdmod_T::new(),
+            cmdmod: Cmdmod::new(),
             msg_silent: 0,
             emsg_silent: 0,
             emsg_noredir: false,
@@ -675,7 +675,7 @@ impl EditorState {
             RedrawingDisabled: 0,
             readonlymode: false,
             recoverymode: false,
-            typebuf: typebuf_T::ZERO,
+            typebuf: Typebuf::ZERO,
             typebuf_was_empty: false,
             ex_normal_busy: 0,
             expr_map_lock: 0,
@@ -747,7 +747,7 @@ impl EditorState {
             window_handles: std::collections::BTreeMap::new(),
             tabpage_handles: std::collections::BTreeMap::new(),
             last_cursormoved_win: ptr::null_mut(),
-            last_cursormoved: pos_T {
+            last_cursormoved: CursorPos {
     lnum: 0,
     col: 0,
     coladd: 0,
@@ -755,7 +755,7 @@ impl EditorState {
             autocmd_busy: false,
             autocmd_no_enter: 0,
             autocmd_no_leave: 0,
-            au_new_curbuf: bufref_T {
+            au_new_curbuf: Bufref {
     br_buf: ptr::null_mut(),
     br_fnum: 0,
     br_buf_free_count: 0,
@@ -780,11 +780,11 @@ impl EditorState {
             win_extmark_arr: Vec::new(),
             updating_screen: false,
             redraw_not_allowed: false,
-            screen_search_hl: match_T {
-    rm: crate::regexp::regmmatch_T {
+            screen_search_hl: SynMatch {
+    rm: crate::regexp::Regmmatch {
         regprog: ptr::null_mut(),
-        startpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
-        endpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
+        startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
+        endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
         rmm_matchcol: 0,
         rmm_ic: 0,
         rmm_maxcol: 0,
@@ -801,7 +801,7 @@ impl EditorState {
     tm: 0,
 },
             search_hl_has_cursor_lnum: 0,
-            EVALARG_EVALUATE: evalarg_T { eval_flags: 1 },
+            EVALARG_EVALUATE: Evalarg { eval_flags: 1 },
             curbuf_splice_pending: 0,
             disable_fold_update: 0,
             default_grid: SCREEN_GRID_INIT,
@@ -832,7 +832,7 @@ impl EditorState {
             nlua_disable_preload: false,
             tslua_query_parse_count: 0,
             repeat_luamap: 0,
-            namedfm: [const { xfmark_T::ZERO }; 36],
+            namedfm: [const { Xfmark::ZERO }; 36],
             arena_alloc_count: 0,
             msg_ext_skip_flush: false,
             msg_ext_overwrite: false,
@@ -884,49 +884,49 @@ pub fn g_st() -> &'static mut EditorState {
 }
 
 #[unsafe(no_mangle)]
-pub static curwin: GlobalState<*mut win_T> = GlobalState::new(ptr::null_mut());
+pub static curwin: GlobalState<*mut WinInfoInfo> = GlobalState::new(ptr::null_mut());
 
 #[inline]
-pub fn curwin_mut() -> &'static mut win_T {
+pub fn curwin_mut() -> &'static mut WinInfoInfo {
     unsafe { &mut **curwin.as_ptr() }
 }
 
 #[inline]
-pub fn curwin_ptr() -> *mut win_T {
+pub fn curwin_ptr() -> *mut WinInfoInfo {
     unsafe { *curwin.as_ptr() }
 }
 
 #[inline]
-pub fn set_curwin(wp: *mut win_T) {
+pub fn set_curwin(wp: *mut WinInfoInfo) {
     unsafe {
         *curwin.as_ptr() = wp;
     }
 }
 
 #[inline]
-pub fn curbuf_mut() -> &'static mut buf_T {
+pub fn curbuf_mut() -> &'static mut FileBuf {
     unsafe { &mut *g_st().curbuf }
 }
 
 #[inline]
-pub fn curtab_mut() -> &'static mut tabpage_T {
+pub fn curtab_mut() -> &'static mut TabPageInfo {
     unsafe { &mut *g_st().curtab }
 }
 
 #[inline]
-pub fn firstwin_mut() -> &'static mut win_T {
+pub fn firstwin_mut() -> &'static mut WinInfoInfo {
     unsafe { &mut *g_st().firstwin }
 }
 
 #[inline]
-pub fn lastwin_mut() -> &'static mut win_T {
+pub fn lastwin_mut() -> &'static mut WinInfoInfo {
     unsafe { &mut *g_st().lastwin }
 }
 
-pub struct BufMutIter(*mut buf_T);
+pub struct BufMutIter(*mut FileBuf);
 
 impl Iterator for BufMutIter {
-    type Item = &'static mut buf_T;
+    type Item = &'static mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -942,10 +942,10 @@ impl Iterator for BufMutIter {
     }
 }
 
-pub struct BufPtrIter(*mut buf_T);
+pub struct BufPtrIter(*mut FileBuf);
 
 impl Iterator for BufPtrIter {
-    type Item = *mut buf_T;
+    type Item = *mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -967,7 +967,7 @@ pub fn for_all_buffers_mut() -> BufMutIter {
 }
 
 #[inline]
-pub fn buf_iter_mut(start: *mut buf_T) -> BufMutIter {
+pub fn buf_iter_mut(start: *mut FileBuf) -> BufMutIter {
     BufMutIter(start)
 }
 
@@ -976,10 +976,10 @@ pub fn for_all_buffers_ptr() -> BufPtrIter {
     BufPtrIter(g_st().firstbuf)
 }
 
-pub struct BufRevPtrIter(*mut buf_T);
+pub struct BufRevPtrIter(*mut FileBuf);
 
 impl Iterator for BufRevPtrIter {
-    type Item = *mut buf_T;
+    type Item = *mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1000,10 +1000,10 @@ pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
     BufRevPtrIter(g_st().lastbuf)
 }
 
-pub struct WinMutIter(*mut win_T);
+pub struct WinMutIter(*mut WinInfoInfo);
 
 impl Iterator for WinMutIter {
-    type Item = &'static mut win_T;
+    type Item = &'static mut WinInfoInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1019,10 +1019,10 @@ impl Iterator for WinMutIter {
     }
 }
 
-pub struct WinPtrIter(*mut win_T);
+pub struct WinPtrIter(*mut WinInfoInfo);
 
 impl Iterator for WinPtrIter {
-    type Item = *mut win_T;
+    type Item = *mut WinInfoInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1044,12 +1044,12 @@ pub fn for_all_windows_mut() -> WinMutIter {
 }
 
 #[inline]
-pub fn win_iter_mut(start: *mut win_T) -> WinMutIter {
+pub fn win_iter_mut(start: *mut WinInfoInfo) -> WinMutIter {
     WinMutIter(start)
 }
 
 #[inline]
-pub fn for_all_windows_in_tab_mut(tp: &tabpage_T) -> WinMutIter {
+pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
     WinMutIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
@@ -1063,12 +1063,12 @@ pub fn for_all_windows_ptr() -> WinPtrIter {
 }
 
 #[inline]
-pub fn win_iter_ptr(start: *mut win_T) -> WinPtrIter {
+pub fn win_iter_ptr(start: *mut WinInfoInfo) -> WinPtrIter {
     WinPtrIter(start)
 }
 
 #[inline]
-pub fn for_all_windows_in_tab_ptr(tp: &tabpage_T) -> WinPtrIter {
+pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
     WinPtrIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
@@ -1076,10 +1076,10 @@ pub fn for_all_windows_in_tab_ptr(tp: &tabpage_T) -> WinPtrIter {
     })
 }
 
-pub struct TabMutIter(*mut tabpage_T);
+pub struct TabMutIter(*mut TabPageInfo);
 
 impl Iterator for TabMutIter {
-    type Item = &'static mut tabpage_T;
+    type Item = &'static mut TabPageInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1095,10 +1095,10 @@ impl Iterator for TabMutIter {
     }
 }
 
-pub struct TabPtrIter(*mut tabpage_T);
+pub struct TabPtrIter(*mut TabPageInfo);
 
 impl Iterator for TabPtrIter {
-    type Item = *mut tabpage_T;
+    type Item = *mut TabPageInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1124,10 +1124,10 @@ pub fn for_all_tabpages_ptr() -> TabPtrIter {
     TabPtrIter(g_st().first_tabpage)
 }
 
-pub struct FrameMutIter(*mut frame_T);
+pub struct FrameMutIter(*mut Frame);
 
 impl Iterator for FrameMutIter {
-    type Item = &'static mut frame_T;
+    type Item = &'static mut Frame;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1143,10 +1143,10 @@ impl Iterator for FrameMutIter {
     }
 }
 
-pub struct FramePtrIter(*mut frame_T);
+pub struct FramePtrIter(*mut Frame);
 
 impl Iterator for FramePtrIter {
-    type Item = *mut frame_T;
+    type Item = *mut Frame;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1163,12 +1163,12 @@ impl Iterator for FramePtrIter {
 }
 
 #[inline]
-pub fn frame_iter_mut(start: *mut frame_T) -> FrameMutIter {
+pub fn frame_iter_mut(start: *mut Frame) -> FrameMutIter {
     FrameMutIter(start)
 }
 
 #[inline]
-pub fn frame_iter_ptr(start: *mut frame_T) -> FramePtrIter {
+pub fn frame_iter_ptr(start: *mut Frame) -> FramePtrIter {
     FramePtrIter(start)
 }
 
@@ -1190,10 +1190,10 @@ pub fn set_starting(v: c_int) {
 pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";
 pub const no_lines_msg: &std::ffi::CStr = c"--No lines in buffer--";
 #[unsafe(no_mangle)]
-pub static display_tick: GlobalState<disptick_T> = GlobalState::new(0);
+pub static display_tick: GlobalState<Disptick> = GlobalState::new(0);
 
 #[inline]
-pub fn display_tick_val() -> disptick_T {
+pub fn display_tick_val() -> Disptick {
     unsafe { *display_tick.as_ptr() }
 }
 

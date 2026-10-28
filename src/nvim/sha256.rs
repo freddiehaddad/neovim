@@ -93,13 +93,13 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct context_sha256_T {
+pub struct ContextSha256 {
     pub total: [u32; 2],
     pub state: [u32; 8],
     pub buffer: [u8; SHA256_BUFFER_SIZE],
 }
 
-impl Default for context_sha256_T {
+impl Default for ContextSha256 {
     fn default() -> Self {
         Self::new()
     }
@@ -135,7 +135,7 @@ const fn f1(x: u32, y: u32, z: u32) -> u32 {
     z ^ (x & (y ^ z))
 }
 
-impl context_sha256_T {
+impl ContextSha256 {
     #[inline]
     pub const fn new() -> Self {
         Self {
@@ -256,7 +256,7 @@ pub fn digest_to_hex(digest: &[u8; SHA256_SUM_SIZE]) -> [u8; SHA256_BUFFER_SIZE]
 }
 
 pub fn sha256_hex(buf: &[u8], salt: Option<&[u8]>) -> [u8; SHA256_BUFFER_SIZE] {
-    let mut ctx = context_sha256_T::new();
+    let mut ctx = ContextSha256::new();
     ctx.update(buf);
     if let Some(salt_bytes) = salt {
         ctx.update(salt_bytes);
@@ -285,7 +285,7 @@ pub fn sha256_self_test() -> bool {
         let output: [u8; SHA256_BUFFER_SIZE] = if i < 2 {
             sha256_hex(SELF_TEST_MSG[i], None)
         } else {
-            let mut ctx = context_sha256_T::new();
+            let mut ctx = ContextSha256::new();
             let buf = [b'a'; 1000];
             for _ in 0..1000 {
                 ctx.update(&buf);
@@ -306,8 +306,8 @@ mod tests {
 
     #[test]
     fn context_layout_matches_c() {
-        assert_eq!(std::mem::size_of::<context_sha256_T>(), 8 + 32 + 64);
-        assert_eq!(std::mem::align_of::<context_sha256_T>(), 4);
+        assert_eq!(std::mem::size_of::<ContextSha256>(), 8 + 32 + 64);
+        assert_eq!(std::mem::align_of::<ContextSha256>(), 4);
     }
 
     #[test]
@@ -355,7 +355,7 @@ mod tests {
         assert_eq!(sha256_hex(data, Some(salt)), expected_hex);
 
         for chunk_size in [1, 2, 3, 7, 13, 31, 55, 56, 63, 64, 65] {
-            let mut ctx = context_sha256_T::new();
+            let mut ctx = ContextSha256::new();
             for chunk in combined.chunks(chunk_size) {
                 ctx.update(chunk);
             }
@@ -371,7 +371,7 @@ mod tests {
             let input: Vec<u8> = (0..len).map(|i| (i & 0xFF) as u8).collect();
             let one_shot = sha256_hex(&input, None);
 
-            let mut ctx = context_sha256_T::new();
+            let mut ctx = ContextSha256::new();
             let mid = len / 2;
             ctx.update(&input[..mid]);
             ctx.update(&[]);

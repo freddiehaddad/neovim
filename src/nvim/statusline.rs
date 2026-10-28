@@ -5,19 +5,19 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::buffer::{
-    append_arg_number, bt_quickfix, buf_T, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
+    append_arg_number, bt_quickfix, FileBuf, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
 };
 use crate::charset::{
     EOL_MAC, ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf,
     vim_strnsize, vim_strsize,
 };
 use crate::context::ctx_saved_curwin;
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{Colnr, Linenr};
 use crate::digraph::get_keymap_str;
 use crate::drawline::{HLF_CLF, HLF_FC, MAX_STCWIDTH, fill_foldcolumn, use_cursor_line_highlight};
 use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing, w_endcol, w_endrow};
 use crate::eval::eval_to_string_safe;
-use crate::eval::typval::{TypvalVval, VarType, typval_T, varnumber_T};
+use crate::eval::typval::{TypvalVval, VarType, TypVal, Varnumber};
 use crate::eval::vars::{
     VV_LNUM, VV_RELNUM, VV_VIRTNUM, do_unlet, get_vim_var_nr, set_internal_string_var, set_var,
     set_vim_var_nr,
@@ -25,7 +25,7 @@ use crate::eval::vars::{
 use crate::globals::*;
 use crate::grid::{
     ScreenGrid, grid_adjust, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts,
-    grid_line_start, schar_T, schar_from_ascii, schar_get, schar_get_adv, schar_len,
+    grid_line_start, Schar, schar_from_ascii, schar_get, schar_get_adv, schar_len,
     screengrid_line_start,
 };
 use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
@@ -54,11 +54,11 @@ use crate::sign::describe_sign_text;
 use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::bufIsChanged;
-use crate::window::{global_stl_height, lastwin_nofloating, tabline_height, win_T};
+use crate::window::{global_stl_height, lastwin_nofloating, tabline_height, WinInfoInfo};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use crate::ex_getln::hlf_T;
+use crate::ex_getln::Hlf;
 pub type StlFlag = c_int;
 use crate::api::win_config::{FR_COL, UIExtension};
 
@@ -70,13 +70,13 @@ const kOptTabline: OptIndex = 306;
 
 pub(crate) const kUITabline: UIExtension = 2;
 
-const HLF_S: hlf_T = 19;
-const HLF_SNC: hlf_T = 20;
-const HLF_TP: hlf_T = 52;
-const HLF_TPS: hlf_T = 53;
-const HLF_TPF: hlf_T = 54;
-const HLF_WBR: hlf_T = 65;
-const HLF_WBRNC: hlf_T = 66;
+const HLF_S: Hlf = 19;
+const HLF_SNC: Hlf = 20;
+const HLF_TP: Hlf = 52;
+const HLF_TPS: Hlf = 53;
+const HLF_TPF: Hlf = 54;
+const HLF_WBR: Hlf = 65;
+const HLF_WBRNC: Hlf = 66;
 
 const STL_FILEPATH: c_char = b'f' as c_char;
 const STL_FULLPATH: c_char = b'F' as c_char;
@@ -226,14 +226,14 @@ impl Default for stl_item_t {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct foldinfo_T {
-    pub fi_lnum: linenr_T,
+pub struct Foldinfo {
+    pub fi_lnum: Linenr,
     pub fi_level: c_int,
     pub fi_low_level: c_int,
-    pub fi_lines: linenr_T,
+    pub fi_lines: Linenr,
 }
 
-impl foldinfo_T {
+impl Foldinfo {
     pub const fn new() -> Self {
         Self {
             fi_lnum: 0,
@@ -244,7 +244,7 @@ impl foldinfo_T {
     }
 }
 
-impl Default for foldinfo_T {
+impl Default for Foldinfo {
     fn default() -> Self {
         Self::new()
     }
@@ -262,18 +262,18 @@ use crate::runtime::SID_ERROR;
 use crate::state::MODE_INSERT;
 
 #[repr(C)]
-pub struct statuscol_T {
+pub struct Statuscol {
     pub width: c_int,
-    pub lnum: linenr_T,
+    pub lnum: Linenr,
     pub sign_cul_id: c_int,
     pub draw: bool,
     pub hlrec: Vec<stl_hlrec_t>,
-    pub foldinfo: foldinfo_T,
-    pub fold_vcol: [colnr_T; 9],
+    pub foldinfo: Foldinfo,
+    pub fold_vcol: [Colnr; 9],
     pub sattrs: [SignTextAttrs; 9],
 }
 
-impl statuscol_T {
+impl Statuscol {
     pub const fn new() -> Self {
         Self {
             width: 0,
@@ -281,7 +281,7 @@ impl statuscol_T {
             sign_cul_id: 0,
             draw: false,
             hlrec: Vec::new(),
-            foldinfo: foldinfo_T::new(),
+            foldinfo: Foldinfo::new(),
             fold_vcol: [0; 9],
             sattrs: [SignTextAttrs {
                 text: [0; 2],
@@ -291,7 +291,7 @@ impl statuscol_T {
     }
 }
 
-impl Default for statuscol_T {
+impl Default for Statuscol {
     fn default() -> Self {
         Self::new()
     }
@@ -335,7 +335,7 @@ fn stl_st() -> &'static mut StatuslineState {
 }
 
 /// Redraw the status line of window `wp`.
-pub fn win_redr_status(wp: &mut win_T) {
+pub fn win_redr_status(wp: &mut WinInfoInfo) {
      {
         let is_stl_global = global_stl_height() > 0;
 
@@ -363,7 +363,7 @@ pub fn win_redr_status(wp: &mut win_T) {
             win_redr_stl_expr(&raw mut *wp, false, false, false);
         }
 
-        let mut group: hlf_T = HLF_C;
+        let mut group: Hlf = HLF_C;
         if wp.w_vsep_width != 0 && wp.w_status_height != 0 && redrawing() {
             let fillchar = if stl_connected(wp) {
                 fillchar_status(&mut group, wp)
@@ -379,7 +379,7 @@ pub fn win_redr_status(wp: &mut win_T) {
     }
 }
 
-pub fn get_trans_bufname(buf: &mut buf_T) {
+pub fn get_trans_bufname(buf: &mut FileBuf) {
      {
         let name_buff = g_st().NameBuff.as_mut_ptr();
         let sp = buf_spname(&raw mut *buf);
@@ -394,7 +394,7 @@ pub fn get_trans_bufname(buf: &mut buf_T) {
 
 /// Return true if the status line of window `wp` is connected to the status
 /// line of the window right of it. If not, then it's a vertical separator.
-pub fn stl_connected(wp: &mut win_T) -> bool {
+pub fn stl_connected(wp: &mut WinInfoInfo) -> bool {
     unsafe {
         let mut fr = wp.w_frame;
         while !(*fr).fr_parent.is_null() {
@@ -481,14 +481,14 @@ pub fn stl_fill_click_defs(
 }
 
 /// Redraws the statusline, winbar, ruler or tabline.
-fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_event: bool) {
+fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, ui_event: bool) {
     unsafe {
         let mut col: c_int = 0;
         let attr: c_int;
         let mut row: c_int = 0;
         let maxwidth: c_int;
-        let mut group: hlf_T = 0;
-        let fillchar: schar_T;
+        let mut group: Hlf = 0;
+        let fillchar: Schar;
         let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut transbuf: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut stl: *mut c_char;
@@ -780,7 +780,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
     }
 }
 
-pub fn win_redr_winbar(wp: &mut win_T) {
+pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
      {
         if stl_st().winbar_entered {
             return;
@@ -831,7 +831,7 @@ pub fn redraw_ruler() {
 }
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
-pub fn fillchar_status(group: &mut hlf_T, wp: &mut win_T) -> schar_T {
+pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
      {
         if (&raw mut *wp) == curwin_ptr() {
             *group = HLF_S;
@@ -1130,19 +1130,19 @@ pub fn draw_tabline() {
 }
 
 /// Build the `'statuscolumn'` string for line `lnum`.
-pub fn build_statuscol_str(wp: &mut win_T,
-    lnum: linenr_T,
+pub fn build_statuscol_str(wp: &mut WinInfoInfo,
+    lnum: Linenr,
     relnum: c_int,
     virtnum: c_int,
     buf: CharBuf,
-    stcp: &mut statuscol_T,
+    stcp: &mut Statuscol,
 ) -> c_int {
     unsafe {
         if relnum >= 0 {
-            set_vim_var_nr(VV_LNUM, varnumber_T::from(lnum));
-            set_vim_var_nr(VV_RELNUM, varnumber_T::from(relnum));
+            set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
+            set_vim_var_nr(VV_RELNUM, Varnumber::from(relnum));
         }
-        set_vim_var_nr(VV_VIRTNUM, varnumber_T::from(virtnum));
+        set_vim_var_nr(VV_VIRTNUM, Varnumber::from(virtnum));
 
         let mut clickrec: *mut StlClickRecord = ptr::null_mut();
         let mut hlrec_ptr: *mut stl_hlrec_t = ptr::null_mut();
@@ -1189,7 +1189,7 @@ fn stl_truncate(
     width: &mut c_int,
     mut minwid: c_int,
     maxwid: c_int,
-    fillchar: schar_T,
+    fillchar: Schar,
     stl_items: &mut [stl_item_t],
     startitem: c_int,
     curitem: &mut c_int,
@@ -1285,7 +1285,7 @@ fn stl_expand(
     target_width: c_int,
     padding: StlPadding,
     remaining_capacity: c_int,
-    fillchar: schar_T,
+    fillchar: Schar,
     stl_items: &mut [stl_item_t],
     startitem: c_int,
     curitem: c_int,
@@ -1366,17 +1366,17 @@ fn stl_expand(
 /// Build a string from the status line items in `fmt`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn build_stl_str_hl(
-    wp: *mut win_T,
+    wp: *mut WinInfoInfo,
     out: CharBuf,
     fmt: *mut c_char,
     opt_idx: OptIndex,
     opt_scope: c_int,
-    mut fillchar: schar_T,
+    mut fillchar: Schar,
     maxwidth: c_int,
     hltab: *mut *mut stl_hlrec_t,
     hltab_len: *mut usize,
     tabtab: *mut *mut StlClickRecord,
-    stcp: *mut statuscol_T,
+    stcp: *mut Statuscol,
 ) -> c_int {
     unsafe {
 
@@ -1432,10 +1432,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
         };
 
         if crate::memory::cstr_first_byte(fmt) == b'%' && crate::memory::cstr_byte_at(fmt, 1) == b'!' {
-            let mut tv = typval_T {
+            let mut tv = TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
-                vval: TypvalVval::Number(varnumber_T::from((*wp).handle)),
+                vval: TypvalVval::Number(Varnumber::from((*wp).handle)),
             };
             set_var(
                 c"g:statusline_winid",
@@ -2209,10 +2209,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                 if width > 0 {
                     foldsignitem = stl_st().curitem;
-                    lnum = get_vim_var_nr(VV_LNUM) as linenr_T;
+                    lnum = get_vim_var_nr(VV_LNUM) as Linenr;
 
                     if fdc > 0 {
-                        let mut fold_buf: [schar_T; 9] = [0; 9];
+                        let mut fold_buf: [Schar; 9] = [0; 9];
                         fill_foldcolumn(
                              &mut *wp,
                             (*stcp).foldinfo,

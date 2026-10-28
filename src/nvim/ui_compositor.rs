@@ -4,13 +4,13 @@
 use crate::api::private::validate::NvimString;
 use crate::globals::*;
 use crate::grid::{
-    ScreenGrid, braille_space, kOptRdbFlagInvalid, sattr_T, schar_T, schar_from_ascii,
+    ScreenGrid, braille_space, kOptRdbFlagInvalid, Sattr, Schar, schar_from_ascii,
     schar_from_buf, schar_from_char, schar_invisible,
 };
 use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 use crate::lua::converter::Boolean;
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::option_vars::*;
 use crate::os::time::os_sleep;
 use crate::ui::{
@@ -33,8 +33,8 @@ use crate::msgpack_rpc::channel::RemoteUI;
 struct UiCompositorState {
     composed_uis: c_int,
     layers: Vec<*mut ScreenGrid>,
-    linebuf: Vec<schar_T>,
-    attrbuf: Vec<sattr_T>,
+    linebuf: Vec<Schar>,
+    attrbuf: Vec<Sattr>,
     chk_width: c_int,
     chk_height: c_int,
     curgrid: *mut ScreenGrid,
@@ -42,7 +42,7 @@ struct UiCompositorState {
     msg_current_row: c_int,
     msg_was_scrolled: bool,
     msg_sep_row: c_int,
-    msg_sep_char: schar_T,
+    msg_sep_char: Schar,
     dbghl_normal: c_int,
     dbghl_clear: c_int,
     dbghl_composed: c_int,
@@ -85,12 +85,12 @@ fn layers_mut() -> &'static mut Vec<*mut ScreenGrid> {
 }
 
 #[inline]
-fn linebuf_mut() -> &'static mut Vec<schar_T> {
+fn linebuf_mut() -> &'static mut Vec<Schar> {
     unsafe { &mut (*COMP_STATE.as_ptr()).linebuf }
 }
 
 #[inline]
-fn attrbuf_mut() -> &'static mut Vec<sattr_T> {
+fn attrbuf_mut() -> &'static mut Vec<Sattr> {
     unsafe { &mut (*COMP_STATE.as_ptr()).attrbuf }
 }
 
@@ -280,7 +280,7 @@ pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
     }
 }
 
-pub fn ui_comp_set_grid(handle: handle_T) -> bool {
+pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
     unsafe {
         if (*comp().curgrid).handle == handle {
             return true;
@@ -461,7 +461,7 @@ fn compose_line(
 
             if row == (comp().msg_sep_row as Integer) && (*grid).comp_index <= g_st().msg_grid.comp_index {
                 grid = &raw mut g_st().msg_grid;
-                let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as c_int) as sattr_T;
+                let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as c_int) as Sattr;
                 for i in col..until {
                     let idx = (i - startcol as c_int) as usize;
                     *lbuf.add(idx) = comp().msg_sep_char;
@@ -496,13 +496,13 @@ fn compose_line(
                     }
                     *abuf.add(idx) =
                         hl_blend_attrs(*bg_attrs.add(idx), *abuf.add(idx), &mut thru)
-                            as sattr_T;
+                            as Sattr;
                     if width == 2 {
                         *abuf.add(idx + 1) = hl_blend_attrs(
                             *bg_attrs.add(idx + 1),
                             *abuf.add(idx + 1),
                             &mut thru,
-                        ) as sattr_T;
+                        ) as Sattr;
                     }
                     if thru {
                         ptr::copy_nonoverlapping(bg_line.add(idx), lbuf.add(idx), width as usize);
@@ -647,8 +647,8 @@ pub fn ui_comp_raw_line(
     mut clearcol: Integer,
     clearattr: Integer,
     mut flags: LineFlags,
-    chunk: *const schar_T,
-    attrs: *const sattr_T,
+    chunk: *const Schar,
+    attrs: *const Sattr,
 ) {
     unsafe {
         if !ui_comp_should_draw() || !ui_comp_set_grid(grid as c_int) {

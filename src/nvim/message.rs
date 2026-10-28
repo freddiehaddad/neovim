@@ -18,14 +18,14 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::callback_call;
-use crate::eval::typval::{TypvalVval, VarType, tv_clear, typval_T};
+use crate::eval::typval::{TypvalVval, VarType, tv_clear, TypVal};
 use crate::eval::vars::{
     VV_ERRMSG, VV_SCROLLSTART, VV_STATUSMSG, VV_WARNINGMSG, get_vim_var_str, set_vim_var_string,
     var_redir_str,
 };
 use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::{Event, multiqueue_process_events};
-use crate::ex_docmd::{do_sleep, exarg_T};
+use crate::ex_docmd::{do_sleep, Exarg};
 use crate::ex_eval::cause_errthrow;
 use crate::extmark::{TriState, kFalse, kTrue};
 use crate::fileio::{check_timestamps, fprintf, fputc, fputs, printf};
@@ -33,8 +33,8 @@ use crate::globals::*;
 use crate::grid::{
     grid_adjust, grid_alloc, grid_assign_handle, grid_clear, grid_clear_line, grid_del_lines,
     grid_free, grid_ins_lines, grid_line_cursor_goto, grid_line_flush,
-    grid_line_flush_if_valid_row, grid_line_mirror, grid_line_puts, grid_line_start, sattr_T,
-    schar_T, schar_from_ascii, schar_get,
+    grid_line_flush_if_valid_row, grid_line_mirror, grid_line_puts, grid_line_start, Sattr,
+    Schar, schar_from_ascii, schar_get,
 };
 use crate::highlight::{hl_attr, hl_combine_attr};
 use crate::highlight_group::{highlight_changed, syn_check_group, syn_id2attr};
@@ -60,7 +60,7 @@ use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
 use crate::option_vars::*;
-use crate::optionstr::{OptKeyDict_mopt, opt_keyset, optset_T};
+use crate::optionstr::{OptKeyDict_mopt, opt_keyset, Optset};
 use crate::os::env::home_replace_save;
 use crate::os::fs::os_fopen;
 use crate::os::input::os_breakcheck;
@@ -117,7 +117,7 @@ pub struct MessageHistoryEntry {
 
 // To be able to scroll back at the "more" and "hit-enter" prompts we need to
 // store the displayed text and remember where screen lines start.
-struct msgchunk_T {
+struct Msgchunk {
     sb_eol: c_char,
     sb_msg_col: c_int,
     sb_hl_id: c_int,
@@ -126,7 +126,7 @@ struct msgchunk_T {
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum sb_clear_T {
+enum SbClear {
     SB_CLEAR_NONE = 0,
     SB_CLEAR_ALL = 1,
     SB_CLEAR_CMDLINE_BUSY = 2,
@@ -150,7 +150,7 @@ struct MessageState {
     msg_ext_id: MsgID,
     msg_ext_chunks: Array,
     msg_ext_last_chunk: Vec<c_char>,
-    msg_ext_last_attr: sattr_T,
+    msg_ext_last_attr: Sattr,
     msg_ext_last_hl_id: c_int,
     msg_ext_history: bool,
     msg_ext_append: bool,
@@ -165,8 +165,8 @@ struct MessageState {
     do_clear_hist_temp: bool,
     redir_col: c_int,
     STR2SPECIAL_BUF: [c_char; 7],
-    msgchunks: Vec<msgchunk_T>,
-    do_clear_sb_text: sb_clear_T,
+    msgchunks: Vec<Msgchunk>,
+    do_clear_sb_text: SbClear,
     DO_MORE_PROMPT_ENTERED: bool,
     SHOWMODE_CLEAR: bool,
     pre_verbose_kind: *const c_char,
@@ -210,7 +210,7 @@ impl MessageState {
             redir_col: 0,
             STR2SPECIAL_BUF: [0; 7],
             msgchunks: Vec::new(),
-            do_clear_sb_text: sb_clear_T::SB_CLEAR_NONE,
+            do_clear_sb_text: SbClear::SB_CLEAR_NONE,
             DO_MORE_PROMPT_ENTERED: false,
             SHOWMODE_CLEAR: false,
             pre_verbose_kind: ptr::null(),
@@ -1597,7 +1597,7 @@ pub fn msg_hist_clear_temp() {
 }
 
 /// Check the 'messagesopt' fields after schema validation.
-pub fn validate_messagesopt(args: &mut optset_T) -> *const c_char {
+pub fn validate_messagesopt(args: &mut Optset) -> *const c_char {
     unsafe {
         let v = opt_keyset(
             args.os_newval.data.string().data,
@@ -1622,7 +1622,7 @@ pub fn validate_messagesopt(args: &mut optset_T) -> *const c_char {
 }
 
 /// Process the updated 'messagesopt' option value.
-pub fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_messagesopt(_args: &mut Optset) -> *const c_char {
     unsafe {
         let v = opt_keyset(opt_vars().p_mopt, kOptMessagesopt, ptr::null_mut()).cast::<OptKeyDict_mopt>();
 
@@ -1640,7 +1640,7 @@ pub fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
 }
 
 /// :messages command implementation
-pub fn ex_messages(eap: &mut exarg_T) {
+pub fn ex_messages(eap: &mut Exarg) {
      {
         if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
             msg_hist_clear(if eap.addr_count != 0 {
@@ -2482,11 +2482,11 @@ pub fn str2special(
 /// print line for :print or :list command
 pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) { let mut s = s.into_c_char_ptr();
     unsafe {
-        let mut sc: schar_T;
+        let mut sc: Schar;
         let mut col = 0;
         let mut n_extra = 0;
-        let mut sc_extra: schar_T = 0;
-        let mut sc_final: schar_T = 0;
+        let mut sc_extra: Schar = 0;
+        let mut sc_final: Schar = 0;
         let mut p_extra: *const c_char = ptr::null();
         let mut hl_id = 0;
         let mut lead: *const c_char = ptr::null();
@@ -3179,18 +3179,18 @@ fn store_sb_text(
     finish: c_int,
 ) { let s = s.into_c_char_ptr();
     unsafe {
-        if msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_ALL
-            || msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_CMDLINE_DONE
+        if msg_st().do_clear_sb_text == SbClear::SB_CLEAR_ALL
+            || msg_st().do_clear_sb_text == SbClear::SB_CLEAR_CMDLINE_DONE
         {
-            clear_sb_text(msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_ALL);
+            clear_sb_text(msg_st().do_clear_sb_text == SbClear::SB_CLEAR_ALL);
             msg_sb_eol();
-            if msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_CMDLINE_DONE
+            if msg_st().do_clear_sb_text == SbClear::SB_CLEAR_CMDLINE_DONE
                 && s > *sb_str
                 && **sb_str == NL as c_char
             {
                 *sb_str = (*sb_str).add(1);
             }
-            msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_NONE;
+            msg_st().do_clear_sb_text = SbClear::SB_CLEAR_NONE;
         }
 
         if s > *sb_str {
@@ -3198,7 +3198,7 @@ fn store_sb_text(
             let mut text = Vec::with_capacity(text_len + 1);
             text.extend_from_slice(std::slice::from_raw_parts(*sb_str, text_len));
             text.push(NUL);
-            msg_st().msgchunks.push(msgchunk_T {
+            msg_st().msgchunks.push(Msgchunk {
                 sb_eol: finish as c_char,
                 sb_msg_col: *sb_col,
                 sb_hl_id: hl_id,
@@ -3218,24 +3218,24 @@ fn store_sb_text(
 /// Finished showing messages, clear the scroll-back text on the next message.
 pub fn may_clear_sb_text() {
     msg_ext_ui_flush();
-        msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_ALL;
+        msg_st().do_clear_sb_text = SbClear::SB_CLEAR_ALL;
         msg_st().do_clear_hist_temp = true;
 }
 
 /// Starting to edit the command line: do not clear messages now.
 pub fn sb_text_start_cmdline() {
-    if msg_st().do_clear_sb_text == sb_clear_T::SB_CLEAR_CMDLINE_BUSY {
+    if msg_st().do_clear_sb_text == SbClear::SB_CLEAR_CMDLINE_BUSY {
             sb_text_restart_cmdline();
         } else {
             msg_sb_eol();
-            msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_BUSY;
+            msg_st().do_clear_sb_text = SbClear::SB_CLEAR_CMDLINE_BUSY;
         }
 }
 
 /// Redrawing the command line: clear the last unfinished line.
 pub fn sb_text_restart_cmdline() {
      {
-        msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_BUSY;
+        msg_st().do_clear_sb_text = SbClear::SB_CLEAR_CMDLINE_BUSY;
 
         let Some(last) = msg_st().msgchunks.last() else {
             return;
@@ -3252,7 +3252,7 @@ pub fn sb_text_restart_cmdline() {
 
 /// Ending to edit the command line: clear old lines but the last one later.
 pub fn sb_text_end_cmdline() {
-    msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_DONE;
+    msg_st().do_clear_sb_text = SbClear::SB_CLEAR_CMDLINE_DONE;
 }
 
 /// Clear any text remembered for scrolling back.
@@ -3272,7 +3272,7 @@ pub fn clear_sb_text(all: bool) {
 pub fn show_sb_text() {
      {
         if ui_has(kUIMessages) {
-            let mut ea: exarg_T = exarg_T::new();
+            let mut ea: Exarg = Exarg::new();
             ea.arg = c"".as_ptr().cast_mut();
             ea.skip = 1;
             ex_messages(&mut ea);
@@ -3345,12 +3345,12 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) { let
         let mut buf = [0 as c_char; 7];
 
         if crate::eval::typval::Callback::raw_cb_type(&g_st().on_print) != kCallbackNone {
-            let mut argv = [typval_T {
+            let mut argv = [TypVal {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(str_.cast_mut()),
             }];
-            let mut rettv = typval_T {
+            let mut rettv = TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),

@@ -19,14 +19,14 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, MAXLNUM, NOTDONE, VALID_TOPLINE,
-    VAR_SCOPE, bt_help, bt_prompt, bt_quickfix, buf_T, buf_hide, buf_valid, buflist_findname_exp,
-    buflist_findnr, buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer,
+    VAR_SCOPE, bt_help, bt_prompt, bt_quickfix, FileBuf, buf_hide, buf_valid, buflist_findname_exp,
+    buflist_findnr, buflist_getfile, buflist_new, Bufref, bufref_valid, close_buffer,
     do_autochdir, do_buffer, kUIMessages, maketitle, set_bufref,
 };
 use crate::charset::{ascii_isdigit, getdigits_int};
-use crate::cmdexpand::{Ctrl_N, Ctrl_P, cmdidx_T};
+use crate::cmdexpand::{Ctrl_N, Ctrl_P, Cmdidx};
 use crate::context::{CdCause, CtxSwitch, ctx_restore, ctx_switch, is_ctx_win, kCdCauseWindow};
-use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, equalpos, linenr_T, pos_T};
+use crate::cursor::{check_cursor, check_cursor_lnum, Colnr, equalpos, Linenr, CursorPos};
 use crate::decoration::decor_conceal_line;
 use crate::diff::{diff_clear, diffopt_closeoff};
 use crate::drawscreen::{
@@ -35,9 +35,9 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, dict_T, list_T, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_tv,
+    TypvalVval, VarType, TvDict, TvList, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_tv,
     tv_dict_alloc, tv_dict_extend, tv_dict_set_keys_readonly, tv_dict_unref, tv_list_alloc,
-    tv_list_append_owned_tv, typval_T,
+    tv_list_append_owned_tv, TypVal,
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::eval::window::win_has_winnr;
@@ -56,7 +56,7 @@ use crate::ex_getln::{
 use crate::file_search::{do_autocmd_dirchanged, grab_file_name};
 use crate::fileio::shorten_fnames;
 use crate::fold::{
-    clearFolding, copyFoldingState, fold_T, foldInitWin, getDeepestNesting, hasFolding,
+    clearFolding, copyFoldingState, FoldEntry, foldInitWin, getDeepestNesting, hasFolding,
 };
 use crate::globals::*;
 use crate::grid::{
@@ -80,7 +80,7 @@ use crate::r#move::{
     set_topline, textpos2screenpos, update_topline, validate_botline_win, validate_cursor,
     win_col_off, win_col_off2,
 };
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::normal::{
     FIND_IDENT, add_to_showcmd, check_text_or_curbuf_locked, do_nv_ident, find_ident_under_cursor,
     reset_VIsual_and_resel,
@@ -90,7 +90,7 @@ use crate::option::{
     option_was_set, set_option_value, win_copy_options,
 };
 use crate::option_vars::*;
-use crate::optionstr::optset_T;
+use crate::optionstr::Optset;
 use crate::os::fs::{os_chdir, os_dirname};
 use crate::path::{kPathCmpLiteral, path_equal};
 use crate::plines::{plines_win, plines_win_col, plines_win_nofill, win_text_height};
@@ -98,7 +98,7 @@ use crate::popupmenu::pum_pos_ui_flush;
 use crate::quickfix::{copy_loclist_stack, kOptSwbFlagUsetab, qf_free_all, qf_view_result};
 use crate::search::find_pattern_in_path;
 use crate::state::{
-    MODE_CMDLINE, MODE_INSERT, MODE_NORMAL, MODE_TERMINAL, get_real_state, save_v_event_T,
+    MODE_CMDLINE, MODE_INSERT, MODE_NORMAL, MODE_TERMINAL, get_real_state, SaveVEvent,
     virtual_active,
 };
 use crate::statusline::{kUITabline, stl_clear_click_defs};
@@ -127,16 +127,16 @@ const K_WIN_OPT_COUNT: usize = 53;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct pos_save_T {
+pub struct PosSave {
     pub w_topline_save: c_int,
     pub w_topline_corr: c_int,
-    pub w_cursor_save: pos_T,
-    pub w_cursor_corr: pos_T,
+    pub w_cursor_save: CursorPos,
+    pub w_cursor_corr: CursorPos,
 }
 
 #[repr(C)]
 #[derive(Clone, Default)]
-pub struct lcs_chars_T {
+pub struct LcsChars {
     pub eol: u32,
     pub ext: u32,
     pub prec: u32,
@@ -155,7 +155,7 @@ pub struct lcs_chars_T {
     pub conceal: u32,
 }
 
-impl lcs_chars_T {
+impl LcsChars {
     pub const fn new() -> Self {
         Self {
             eol: 0,
@@ -180,7 +180,7 @@ impl lcs_chars_T {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct fcs_chars_T {
+pub struct FcsChars {
     pub stl: u32,
     pub stlnc: u32,
     pub wbr: u32,
@@ -205,7 +205,7 @@ pub struct fcs_chars_T {
 }
 
 #[repr(C)]
-pub struct winopt_T {
+pub struct Winopt {
     pub wo_arab: c_int,
     pub wo_bri: c_int,
     pub wo_briopt: *mut c_char,
@@ -273,10 +273,10 @@ pub struct winopt_T {
     pub wo_wbr_flags: u32,
     pub wo_fde_flags: u32,
     pub wo_fdt_flags: u32,
-    pub wo_script_ctx: [crate::runtime::sctx_T; K_WIN_OPT_COUNT],
+    pub wo_script_ctx: [crate::runtime::Sctx; K_WIN_OPT_COUNT],
 }
 
-impl winopt_T {
+impl Winopt {
     pub const ZERO: Self = Self {
         wo_arab: 0,
         wo_bri: 0,
@@ -345,7 +345,7 @@ impl winopt_T {
         wo_wbr_flags: 0,
         wo_fde_flags: 0,
         wo_fdt_flags: 0,
-        wo_script_ctx: [crate::runtime::sctx_T {
+        wo_script_ctx: [crate::runtime::Sctx {
             sc_sid: 0,
             sc_seq: 0,
             sc_lnum: 0,
@@ -354,7 +354,7 @@ impl winopt_T {
     };
 }
 
-impl Drop for winopt_T {
+impl Drop for Winopt {
     fn drop(&mut self) {
         crate::option::clear_winopt(self);
     }
@@ -364,7 +364,7 @@ impl Drop for winopt_T {
 #[derive(Clone)]
 pub struct WinConfig {
     pub window: crate::api::tabpage::Window,
-    pub bufpos: crate::cursor::lpos_T,
+    pub bufpos: crate::cursor::Lpos,
     pub height: c_int,
     pub width: c_int,
     pub row: f64,
@@ -398,20 +398,20 @@ pub struct WinConfig {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct frame_T {
+pub struct Frame {
     pub fr_layout: c_char,
     pub fr_width: c_int,
     pub fr_newwidth: c_int,
     pub fr_height: c_int,
     pub fr_newheight: c_int,
-    pub fr_parent: *mut frame_T,
-    pub fr_next: *mut frame_T,
-    pub fr_prev: *mut frame_T,
-    pub fr_child: *mut frame_T,
-    pub fr_win: *mut win_T,
+    pub fr_parent: *mut Frame,
+    pub fr_next: *mut Frame,
+    pub fr_prev: *mut Frame,
+    pub fr_child: *mut Frame,
+    pub fr_win: *mut WinInfoInfo,
 }
 
-impl frame_T {
+impl Frame {
     pub const fn new() -> Self {
         Self {
             fr_layout: 0,
@@ -429,10 +429,10 @@ impl frame_T {
 }
 
 #[repr(C)]
-pub struct win_T {
-    pub handle: handle_T,
-    pub w_buffer: *mut buf_T,
-    pub w_s_owned: Option<Box<crate::syntax::synblock_T>>,
+pub struct WinInfoInfo {
+    pub handle: ObjHandle,
+    pub w_buffer: *mut FileBuf,
+    pub w_s_owned: Option<Box<crate::syntax::Synblock>>,
     pub w_ns_hl: c_int,
     pub w_ns_hl_winhl: c_int,
     pub w_ns_hl_active: c_int,
@@ -442,11 +442,11 @@ pub struct win_T {
     pub w_hl_attr_normal: c_int,
     pub w_hl_attr_normalnc: c_int,
     pub w_hl_needs_update: c_int,
-    pub w_prev: *mut win_T,
-    pub w_next: *mut win_T,
+    pub w_prev: *mut WinInfoInfo,
+    pub w_next: *mut WinInfoInfo,
     pub w_locked: c_int,
-    pub w_frame: *mut frame_T,
-    pub w_cursor: pos_T,
+    pub w_frame: *mut Frame,
+    pub w_cursor: CursorPos,
     pub w_curswant: i32,
     pub w_set_curswant: bool,
     pub w_cursorline: i32,
@@ -459,8 +459,8 @@ pub struct win_T {
     pub w_old_visual_col: i32,
     pub w_old_curswant: i32,
     pub w_last_cursor_lnum_rnu: i32,
-    pub w_p_lcs_chars: lcs_chars_T,
-    pub w_p_fcs_chars: fcs_chars_T,
+    pub w_p_lcs_chars: LcsChars,
+    pub w_p_fcs_chars: FcsChars,
     pub w_topline: i32,
     pub w_topline_was_set: bool,
     pub w_topfill: c_int,
@@ -485,7 +485,7 @@ pub struct win_T {
     pub w_width: c_int,
     pub w_hsep_height: c_int,
     pub w_vsep_width: c_int,
-    pub w_save_cursor: pos_save_T,
+    pub w_save_cursor: PosSave,
     pub w_do_win_fix_cursor: bool,
     pub w_wantline: c_int,
     pub w_wantcol: c_int,
@@ -499,7 +499,7 @@ pub struct win_T {
     pub w_height_outer: c_int,
     pub w_width_outer: c_int,
     pub w_valid: c_int,
-    pub w_valid_cursor: pos_T,
+    pub w_valid_cursor: CursorPos,
     pub w_valid_leftcol: i32,
     pub w_valid_skipcol: i32,
     pub w_viewport_invalid: bool,
@@ -518,8 +518,8 @@ pub struct win_T {
     pub w_empty_rows: c_int,
     pub w_filler_rows: c_int,
     pub w_lines_valid: c_int,
-    pub w_lines: Vec<crate::grid::wline_T>,
-    pub w_folds: Vec<fold_T>,
+    pub w_lines: Vec<crate::grid::Wline>,
+    pub w_folds: Vec<FoldEntry>,
     pub w_fold_manual: bool,
     pub w_foldinvalid: bool,
     pub w_nrwidth: c_int,
@@ -534,7 +534,7 @@ pub struct win_T {
     pub w_redr_border: bool,
     pub w_redr_statuscol: bool,
     pub w_display_tick: u64,
-    pub w_stl_cursor: pos_T,
+    pub w_stl_cursor: CursorPos,
     pub w_stl_virtcol: i32,
     pub w_stl_topline: i32,
     pub w_stl_line_count: i32,
@@ -543,15 +543,15 @@ pub struct win_T {
     pub w_stl_recording: c_int,
     pub w_stl_state: c_int,
     pub w_stl_visual_mode: c_int,
-    pub w_stl_visual_pos: pos_T,
+    pub w_stl_visual_pos: CursorPos,
     pub w_alt_fnum: c_int,
-    pub w_alist: Option<std::rc::Rc<std::cell::RefCell<crate::arglist::alist_T>>>,
+    pub w_alist: Option<std::rc::Rc<std::cell::RefCell<crate::arglist::Alist>>>,
     pub w_arg_idx: c_int,
     pub w_arg_idx_invalid: bool,
     pub w_localdir: Option<std::ffi::CString>,
     pub w_prevdir: Option<std::ffi::CString>,
-    pub w_onebuf_opt: winopt_T,
-    pub w_allbuf_opt: winopt_T,
+    pub w_onebuf_opt: Winopt,
+    pub w_allbuf_opt: Winopt,
     pub w_p_cc_cols: Vec<c_int>,
     pub w_p_culopt_flags: u8,
     pub w_briopt_min: c_int,
@@ -561,15 +561,15 @@ pub struct win_T {
     pub w_briopt_vcol: c_int,
     pub w_scbind_pos: c_int,
     pub w_winvar: crate::eval::typval::ScopeDictDictItem,
-    pub w_pcmark: pos_T,
-    pub w_prev_pcmark: pos_T,
-    pub w_jumplist: [crate::mark::xfmark_T; 100],
+    pub w_pcmark: CursorPos,
+    pub w_prev_pcmark: CursorPos,
+    pub w_jumplist: [crate::mark::Xfmark; 100],
     pub w_jumplistlen: c_int,
     pub w_jumplistidx: c_int,
     pub w_changelistidx: c_int,
-    pub w_match_head: Vec<crate::r#match::matchitem_T>,
+    pub w_match_head: Vec<crate::r#match::Matchitem>,
     pub w_next_match_id: c_int,
-    pub w_tagstack: [crate::tag::taggy_T; 20],
+    pub w_tagstack: [crate::tag::Taggy; 20],
     pub w_tagstackidx: c_int,
     pub w_tagstacklen: c_int,
     pub w_grid: GridView,
@@ -583,21 +583,21 @@ pub struct win_T {
     pub w_nrwidth_line_count: i32,
     pub w_statuscol_line_count: i32,
     pub w_nrwidth_width: c_int,
-    pub w_llist: *mut crate::quickfix::qf_info_T,
-    pub w_llist_ref: *mut crate::quickfix::qf_info_T,
+    pub w_llist: *mut crate::quickfix::QfInfo,
+    pub w_llist_ref: *mut crate::quickfix::QfInfo,
     pub w_status_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_winbar_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_statuscol_click_defs: std::collections::BTreeMap<c_int, StcClicks>,
 }
 
-impl win_T {
+impl WinInfoInfo {
     #[inline]
-    pub fn buf_mut(&self) -> &'static mut buf_T {
+    pub fn buf_mut(&self) -> &'static mut FileBuf {
         unsafe { &mut *self.w_buffer }
     }
 
     pub const fn new() -> Self {
-        const ZERO_POS: pos_T = pos_T {
+        const ZERO_POS: CursorPos = CursorPos {
             lnum: 0,
             col: 0,
             coladd: 0,
@@ -619,7 +619,7 @@ impl win_T {
             w_next: ptr::null_mut(),
             w_locked: 0,
             w_frame: ptr::null_mut(),
-            w_cursor: pos_T {
+            w_cursor: CursorPos {
                 lnum: 1,
                 col: 0,
                 coladd: 0,
@@ -636,8 +636,8 @@ impl win_T {
             w_old_visual_col: 0,
             w_old_curswant: 0,
             w_last_cursor_lnum_rnu: 0,
-            w_p_lcs_chars: lcs_chars_T::new(),
-            w_p_fcs_chars: fcs_chars_T {
+            w_p_lcs_chars: LcsChars::new(),
+            w_p_fcs_chars: FcsChars {
                 stl: 0,
                 stlnc: 0,
                 wbr: 0,
@@ -684,7 +684,7 @@ impl win_T {
             w_width: 0,
             w_hsep_height: 0,
             w_vsep_width: 0,
-            w_save_cursor: pos_save_T {
+            w_save_cursor: PosSave {
                 w_topline_save: 0,
                 w_topline_corr: 0,
                 w_cursor_save: ZERO_POS,
@@ -754,8 +754,8 @@ impl win_T {
             w_arg_idx_invalid: false,
             w_localdir: None,
             w_prevdir: None,
-            w_onebuf_opt: winopt_T::ZERO,
-            w_allbuf_opt: winopt_T::ZERO,
+            w_onebuf_opt: Winopt::ZERO,
+            w_allbuf_opt: Winopt::ZERO,
             w_p_cc_cols: Vec::new(),
             w_p_culopt_flags: 0,
             w_briopt_min: 0,
@@ -767,13 +767,13 @@ impl win_T {
             w_winvar: crate::eval::typval::ScopeDictDictItem::new(),
             w_pcmark: ZERO_POS,
             w_prev_pcmark: ZERO_POS,
-            w_jumplist: [const { crate::mark::xfmark_T::ZERO }; 100],
+            w_jumplist: [const { crate::mark::Xfmark::ZERO }; 100],
             w_jumplistlen: 0,
             w_jumplistidx: 0,
             w_changelistidx: 0,
             w_match_head: Vec::new(),
             w_next_match_id: 0,
-            w_tagstack: [const { crate::tag::taggy_T::ZERO }; 20],
+            w_tagstack: [const { crate::tag::Taggy::ZERO }; 20],
             w_tagstackidx: 0,
             w_tagstacklen: 0,
             w_grid: GridView {
@@ -800,7 +800,7 @@ impl win_T {
     }
 
     #[inline]
-    pub fn w_s_ptr(&self) -> *mut crate::syntax::synblock_T {
+    pub fn w_s_ptr(&self) -> *mut crate::syntax::Synblock {
         if let Some(ref owned) = self.w_s_owned {
             (&raw const **owned).cast_mut()
         } else {
@@ -809,7 +809,7 @@ impl win_T {
     }
 
     #[inline]
-    pub const fn w_vars(&self) -> *mut dict_T {
+    pub const fn w_vars(&self) -> *mut TvDict {
         self.w_winvar.di_tv.vval.v_dict()
     }
 }
@@ -823,24 +823,24 @@ pub struct SnapshotFrame {
     pub fr_height: c_int,
     pub fr_next: Option<Box<SnapshotFrame>>,
     pub fr_child: Option<Box<SnapshotFrame>>,
-    pub fr_win: *mut win_T,
+    pub fr_win: *mut WinInfoInfo,
 }
 
 #[repr(C)]
-pub struct tabpage_T {
-    pub handle: handle_T,
-    pub tp_next: *mut tabpage_T,
-    pub tp_topframe: *mut frame_T,
-    pub tp_curwin: *mut win_T,
-    pub tp_prevwin: *mut win_T,
-    pub tp_firstwin: *mut win_T,
-    pub tp_lastwin: *mut win_T,
+pub struct TabPageInfo {
+    pub handle: ObjHandle,
+    pub tp_next: *mut TabPageInfo,
+    pub tp_topframe: *mut Frame,
+    pub tp_curwin: *mut WinInfoInfo,
+    pub tp_prevwin: *mut WinInfoInfo,
+    pub tp_firstwin: *mut WinInfoInfo,
+    pub tp_lastwin: *mut WinInfoInfo,
     pub tp_old_Rows_avail: i64,
     pub tp_old_Columns: i64,
     pub tp_ch_used: i64,
     pub tp_did_tabclosedpre: bool,
-    pub tp_diffs: Vec<crate::diff::diff_T>,
-    pub tp_diffbuf: [*mut buf_T; 8],
+    pub tp_diffs: Vec<crate::diff::DiffBlock>,
+    pub tp_diffbuf: [*mut FileBuf; 8],
     pub tp_diff_invalid: c_int,
     pub tp_diff_update: c_int,
     pub tp_snapshot: [Option<Box<SnapshotFrame>>; 3],
@@ -849,7 +849,7 @@ pub struct tabpage_T {
     pub tp_prevdir: Option<std::ffi::CString>,
 }
 
-impl tabpage_T {
+impl TabPageInfo {
     pub const fn new() -> Self {
         Self {
             handle: 0,
@@ -875,7 +875,7 @@ impl tabpage_T {
     }
 
     #[inline]
-    pub const fn tp_vars(&self) -> *mut dict_T {
+    pub const fn tp_vars(&self) -> *mut TvDict {
         self.tp_winvar.di_tv.vval.v_dict()
     }
 }
@@ -981,8 +981,8 @@ fn win_st() -> &'static mut WindowModuleState {
 const ERROR_INIT: Error = Error::new();
 
 #[inline]
-fn nowin() -> *mut win_T {
-    (-1isize) as *mut win_T
+fn nowin() -> *mut WinInfoInfo {
+    (-1isize) as *mut WinInfoInfo
 }
 
 #[inline]
@@ -999,7 +999,7 @@ fn one_window_macro() -> bool {
 }
 
 #[inline]
-pub fn reset_binding(wp: &mut win_T) {
+pub fn reset_binding(wp: &mut WinInfoInfo) {
     wp.w_onebuf_opt.wo_scb = 0;
         wp.w_onebuf_opt.wo_crb = 0;
 }
@@ -1021,7 +1021,7 @@ pub fn frames_locked() -> bool {
 }
 
 /// When the window layout cannot be changed give an error and return true.
-pub fn window_layout_locked(cmd: cmdidx_T) -> bool {
+pub fn window_layout_locked(cmd: Cmdidx) -> bool {
     let mut err = ERROR_INIT;
         let locked = window_layout_locked_err(cmd, &mut err);
         if error_set(&err) {
@@ -1032,10 +1032,10 @@ pub fn window_layout_locked(cmd: cmdidx_T) -> bool {
 }
 
 /// Like `window_layout_locked`, but set `err` to the (untranslated) error message when locked.
-pub fn window_layout_locked_err(cmd: cmdidx_T, err: &mut Error) -> bool {
+pub fn window_layout_locked_err(cmd: Cmdidx, err: &mut Error) -> bool {
     unsafe {
         if win_st().split_disallowed > 0 || win_st().close_disallowed > 0 {
-            if win_st().close_disallowed == 0 && cmd == cmdidx_T::CMD_tabnew {
+            if win_st().close_disallowed == 0 && cmd == Cmdidx::CMD_tabnew {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -1080,7 +1080,7 @@ pub fn check_can_set_curbuf_forceit(forceit: c_int) -> bool {
 
 /// Return the current window, unless in the cmdline window and "prevwin" is
 /// set, then return "prevwin".
-pub fn prevwin_curwin() -> *mut win_T {
+pub fn prevwin_curwin() -> *mut WinInfoInfo {
      {
         if is_in_cmdwin() && !g_st().prevwin.is_null() {
             g_st().prevwin
@@ -1093,8 +1093,8 @@ pub fn prevwin_curwin() -> *mut win_T {
 /// If the 'switchbuf' option contains "useopen" or "usetab", then try to jump
 /// to a window containing "buf".
 /// Returns the pointer to the window that was jumped to or NULL.
-pub fn swbuf_goto_win_with_buf(buf: *mut buf_T) -> *mut win_T {
-    let mut wp: *mut win_T = ptr::null_mut();
+pub fn swbuf_goto_win_with_buf(buf: *mut FileBuf) -> *mut WinInfoInfo {
+    let mut wp: *mut WinInfoInfo = ptr::null_mut();
 
         if buf.is_null() {
             return wp;
@@ -1137,14 +1137,14 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
             return;
         }
 
-        let mut lnum: linenr_T = -1;
+        let mut lnum: Linenr = -1;
         if let Some(fname_cstr) = grab_file_name(Prenum1, &mut lnum) {
             let ptr = fname_cstr.as_ptr().cast_mut();
             let oldtab = g_st().curtab;
             let oldwin = curwin_ptr();
             setpcmark();
 
-            let mut wp: *mut win_T = ptr::null_mut();
+            let mut wp: *mut WinInfoInfo = ptr::null_mut();
             if (opt_vars().swb_flags & (kOptSwbFlagUseopen | kOptSwbFlagUsetab)) != 0 && g_st().cmdmod.cmod_tab == 0 {
                 wp = swbuf_goto_win_with_buf(buflist_findname_exp(ptr));
             }
@@ -1266,7 +1266,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 do_cmdline_cmd(c"pclose");
             }
             c if c == b'P' as c_int => {
-                let mut wp: *mut win_T = ptr::null_mut();
+                let mut wp: *mut WinInfoInfo = ptr::null_mut();
                 for wp2 in for_all_windows_ptr() {
                     if (*wp2).w_onebuf_opt.wo_pvw != 0 {
                         wp = wp2;
@@ -1293,7 +1293,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 if one_window_macro() && Prenum != 1 {
                     beep_flush();
                 } else {
-                    let mut wp: *mut win_T;
+                    let mut wp: *mut WinInfoInfo;
                     if Prenum != 0 {
                         let mut last_focusable = g_st().firstwin;
                         wp = g_st().firstwin;
@@ -1603,7 +1603,7 @@ fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, Prenu
     }
 }
 
-pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
+pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
     unsafe {
         let win_handle = win.handle;
         let tab = win_find_tabpage(&raw mut *win);
@@ -1652,7 +1652,7 @@ pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
 }
 
 /// Return the number of fold columns to display
-pub fn win_fdccol_count(wp: &mut win_T) -> c_int {
+pub fn win_fdccol_count(wp: &mut WinInfoInfo) -> c_int {
      {
         let fdc = wp.w_onebuf_opt.wo_fdc;
         if crate::memory::cstr_first_byte(fdc) == b'a'
@@ -1690,7 +1690,7 @@ pub fn clear_float_config(fconfig: &mut WinConfig, free_fields: bool) {
         fconfig._cmdline_offset = saved_cmdline_offset;
 }
 
-pub fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
+pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
     unsafe {
         wp.w_pos_changed = false;
         if !wp.w_floating {
@@ -1733,7 +1733,7 @@ pub fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
                     col += f64::from(col_off);
                     if c.bufpos.lnum >= 0 {
                         let lnum = (c.bufpos.lnum + 1).min((*win).buf_mut().b_ml.ml_line_count);
-                        let mut pos = pos_T {
+                        let mut pos = CursorPos {
                             lnum,
                             col: c.bufpos.col,
                             coladd: 0,
@@ -1837,7 +1837,7 @@ pub fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
     }
 }
 
-pub fn ui_ext_win_viewport(wp: &mut win_T) {
+pub fn ui_ext_win_viewport(wp: &mut WinInfoInfo) {
      {
         if (ptr::eq(wp, curwin_ptr()) || ui_has(kUIMultigrid))
             && wp.w_viewport_invalid
@@ -1924,7 +1924,7 @@ pub fn ui_ext_win_viewport(wp: &mut win_T) {
 
 /// If "split_disallowed" is set, or "wp"'s buffer is closing, give an error and return FAIL.
 /// Otherwise return OK.
-pub fn check_split_disallowed(wp: *const win_T) -> bool {
+pub fn check_split_disallowed(wp: *const WinInfoInfo) -> bool {
     let mut err = ERROR_INIT;
         let ok = check_split_disallowed_err(wp, &mut err);
         if error_set(&err) {
@@ -1936,7 +1936,7 @@ pub fn check_split_disallowed(wp: *const win_T) -> bool {
 
 /// Like `check_split_disallowed`, but set `err` to the (untranslated) error message on failure and
 /// return false. Otherwise return true.
-pub fn check_split_disallowed_err(wp: *const win_T, err: &mut Error) -> bool {
+pub fn check_split_disallowed_err(wp: *const WinInfoInfo, err: &mut Error) -> bool {
     unsafe {
         if win_st().split_disallowed > 0 {
             api_set_error!(
@@ -1996,10 +1996,10 @@ pub fn win_split(size: c_int, mut flags: c_int) -> bool {
 pub fn win_split_ins(
     size: c_int,
     flags: c_int,
-    new_wp: *mut win_T,
+    new_wp: *mut WinInfoInfo,
     dir: c_int,
-    to_flatten: *mut frame_T,
-) -> *mut win_T {
+    to_flatten: *mut Frame,
+) -> *mut WinInfoInfo {
     unsafe {
         let mut wp = new_wp;
 
@@ -2243,7 +2243,7 @@ pub fn win_split_ins(
         }
 
         let before: bool;
-        let mut curfrp: *mut frame_T;
+        let mut curfrp: *mut Frame;
 
         if toplevel {
             if ((*g_st().topframe).fr_layout == FR_COL && !vertical)
@@ -2272,7 +2272,7 @@ pub fn win_split_ins(
             }
         }
         if (*curfrp).fr_parent.is_null() || (*(*curfrp).fr_parent).fr_layout != layout {
-            let mut frp = Box::into_raw(Box::new(frame_T {
+            let mut frp = Box::into_raw(Box::new(Frame {
                 fr_parent: curfrp,
                 fr_next: ptr::null_mut(),
                 fr_prev: ptr::null_mut(),
@@ -2500,7 +2500,7 @@ pub fn win_split_ins(
     }
 }
 
-pub fn win_init(newp: &mut win_T, oldp: &mut win_T, flags: c_int) {
+pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: c_int) {
      {
         newp.w_buffer = oldp.w_buffer;
         newp.w_s_owned = None;
@@ -2553,18 +2553,18 @@ pub fn win_init(newp: &mut win_T, oldp: &mut win_T, flags: c_int) {
     }
 }
 
-fn win_init_some(newp: &mut win_T, oldp: &mut win_T) {
+fn win_init_some(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo) {
     newp.w_alist = oldp.w_alist.clone();
         newp.w_arg_idx = oldp.w_arg_idx;
 
         win_copy_options(oldp, newp);
 }
 
-pub fn win_valid(win: *const win_T) -> bool {
+pub fn win_valid(win: *const WinInfoInfo) -> bool {
     tabpage_win_valid(g_st().curtab, win)
 }
 
-pub fn tabpage_win_valid(tp: *const tabpage_T, win: *const win_T) -> bool {
+pub fn tabpage_win_valid(tp: *const TabPageInfo, win: *const WinInfoInfo) -> bool {
     if win.is_null() {
         return false;
     }
@@ -2577,7 +2577,7 @@ pub fn tabpage_win_valid(tp: *const tabpage_T, win: *const win_T) -> bool {
     false
 }
 
-pub fn win_find_by_handle(handle: handle_T) -> *mut win_T {
+pub fn win_find_by_handle(handle: ObjHandle) -> *mut WinInfoInfo {
     unsafe {
         for wp in for_all_windows_ptr() {
             if (*wp).handle == handle {
@@ -2588,7 +2588,7 @@ pub fn win_find_by_handle(handle: handle_T) -> *mut win_T {
     }
 }
 
-pub fn win_valid_any_tab(win: *const win_T) -> bool {
+pub fn win_valid_any_tab(win: *const WinInfoInfo) -> bool {
     if win.is_null() {
         return false;
     }
@@ -2678,7 +2678,7 @@ fn win_exchange(mut Prenum: c_int) {
             return;
         }
 
-        let mut frp: *mut frame_T;
+        let mut frp: *mut Frame;
         if Prenum != 0 {
             frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
             while !frp.is_null() && {
@@ -2761,8 +2761,8 @@ fn win_rotate(upwards: bool, mut count: c_int) {
             frp = (*frp).fr_next;
         }
 
-        let mut wp1: *mut win_T = ptr::null_mut();
-        let mut wp2: *mut win_T = ptr::null_mut();
+        let mut wp1: *mut WinInfoInfo = ptr::null_mut();
+        let mut wp2: *mut WinInfoInfo = ptr::null_mut();
 
         while count > 0 {
             count -= 1;
@@ -2818,7 +2818,7 @@ fn win_rotate(upwards: bool, mut count: c_int) {
     }
 }
 
-pub fn win_splitmove(wp: &mut win_T, size: c_int, flags: c_int) -> bool {
+pub fn win_splitmove(wp: &mut WinInfoInfo, size: c_int, flags: c_int) -> bool {
     unsafe {
         let mut dir: c_int = 0;
         let height = wp.w_height;
@@ -2830,7 +2830,7 @@ pub fn win_splitmove(wp: &mut win_T, size: c_int, flags: c_int) -> bool {
             return false;
         }
 
-        let mut unflat_altfr: *mut frame_T = ptr::null_mut();
+        let mut unflat_altfr: *mut Frame = ptr::null_mut();
         if wp.w_floating {
             win_remove( wp, ptr::null_mut());
         } else {
@@ -2861,7 +2861,7 @@ pub fn win_splitmove(wp: &mut win_T, size: c_int, flags: c_int) -> bool {
     }
 }
 
-pub fn win_move_after(win1: &mut win_T, win2: &mut win_T) {
+pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
     unsafe {
         if ptr::eq(win1, win2) {
             return;
@@ -2915,7 +2915,7 @@ pub fn win_move_after(win1: &mut win_T, win2: &mut win_T) {
     }
 }
 
-fn get_maximum_wincount(fr: &mut frame_T, mut height: c_int) -> c_int {
+fn get_maximum_wincount(fr: &mut Frame, mut height: c_int) -> c_int {
     unsafe {
         if fr.fr_layout != FR_COL {
             return height / (opt_vars().p_wmh as c_int + STATUS_HEIGHT + (*frame2win(&raw mut *fr)).w_winbar_height);
@@ -2939,7 +2939,7 @@ fn get_maximum_wincount(fr: &mut frame_T, mut height: c_int) -> c_int {
     }
 }
 
-pub fn win_equal(next_curwin: *mut win_T, current: bool, mut dir: c_int) {
+pub fn win_equal(next_curwin: *mut WinInfoInfo, current: bool, mut dir: c_int) {
     unsafe {
         if dir == 0 {
             dir = c_int::from(crate::memory::cstr_first_byte(opt_vars().p_ead));
@@ -2965,9 +2965,9 @@ pub fn win_equal(next_curwin: *mut win_T, current: bool, mut dir: c_int) {
 }
 
 fn win_equal_rec(
-    next_curwin: *mut win_T,
+    next_curwin: *mut WinInfoInfo,
     current: bool,
-    topfr: &mut frame_T,
+    topfr: &mut Frame,
     dir: c_int,
     mut col: c_int,
     mut row: c_int,
@@ -3239,7 +3239,7 @@ fn win_equal_rec(
     }
 }
 
-pub fn leaving_window(win: &mut win_T) {
+pub fn leaving_window(win: &mut WinInfoInfo) {
      {
         if !bt_prompt(unsafe { win.w_buffer.as_ref() }) || is_ctx_win(&raw mut *win) {
             return;
@@ -3260,7 +3260,7 @@ pub fn leaving_window(win: &mut win_T) {
     }
 }
 
-pub fn entering_window(win: &mut win_T) {
+pub fn entering_window(win: &mut WinInfoInfo) {
      {
         if !bt_prompt(unsafe { win.w_buffer.as_ref() }) || is_ctx_win(&raw mut *win) {
             return;
@@ -3276,7 +3276,7 @@ pub fn entering_window(win: &mut win_T) {
     }
 }
 
-pub fn win_init_empty(wp: &mut win_T) {
+pub fn win_init_empty(wp: &mut WinInfoInfo) {
     redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         wp.w_lines_valid = 0;
         wp.w_cursor.lnum = 1;
@@ -3300,7 +3300,7 @@ pub fn curwin_init() {
     }
 }
 
-pub fn close_windows(buf: *mut buf_T, keep_curwin: bool) {
+pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
     unsafe {
         g_st().RedrawingDisabled += 1;
 
@@ -3310,7 +3310,7 @@ pub fn close_windows(buf: *mut buf_T, keep_curwin: bool) {
                 && (!keep_curwin || !ptr::eq(wp, curwin_ptr()))
                 && !(win_locked(&mut *wp) != 0 || (*wp).buf_mut().b_locked > 0)
             {
-                if window_layout_locked(cmdidx_T::CMD_SIZE) {
+                if window_layout_locked(Cmdidx::CMD_SIZE) {
                     g_st().RedrawingDisabled -= 1;
                     return;
                 }
@@ -3332,7 +3332,7 @@ pub fn close_windows(buf: *mut buf_T, keep_curwin: bool) {
                     if ptr::eq((*wp2).w_buffer, buf)
                         && !(win_locked(&mut *wp2) != 0 || (*wp2).buf_mut().b_locked > 0)
                     {
-                        if window_layout_locked(cmdidx_T::CMD_SIZE) {
+                        if window_layout_locked(Cmdidx::CMD_SIZE) {
                             g_st().RedrawingDisabled -= 1;
                             return;
                         }
@@ -3353,11 +3353,11 @@ pub fn close_windows(buf: *mut buf_T, keep_curwin: bool) {
     }
 }
 
-pub fn last_window(win: &mut win_T) -> bool {
+pub fn last_window(win: &mut WinInfoInfo) -> bool {
     unsafe { one_window( win, ptr::null_mut()) && (*g_st().first_tabpage).tp_next.is_null() }
 }
 
-pub fn one_window(win: &mut win_T, tp: *mut tabpage_T) -> bool {
+pub fn one_window(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> bool {
     unsafe {
         let first = if !tp.is_null() {
             (*tp).tp_firstwin
@@ -3369,7 +3369,7 @@ pub fn one_window(win: &mut win_T, tp: *mut tabpage_T) -> bool {
     }
 }
 
-fn can_close_floating_windows(tp: *mut tabpage_T) -> bool {
+fn can_close_floating_windows(tp: *mut TabPageInfo) -> bool {
     unsafe {
         debug_assert!(!ptr::eq(tp, g_st().curtab) && (!tp.is_null() || !is_ctx_win(g_st().lastwin)));
         let mut wp = if !tp.is_null() {
@@ -3390,9 +3390,9 @@ fn can_close_floating_windows(tp: *mut tabpage_T) -> bool {
 }
 
 fn close_last_window_tabpage(
-    win: &mut win_T,
+    win: &mut WinInfoInfo,
     mut free_buf: bool,
-    prev_curtab: &mut tabpage_T,
+    prev_curtab: &mut TabPageInfo,
 ) -> bool {
      {
         if !one_window_macro() {
@@ -3452,7 +3452,7 @@ fn close_last_window_tabpage(
     }
 }
 
-fn win_close_buffer(win: &mut win_T, action: c_int, abort_if_last: bool) -> bool {
+fn win_close_buffer(win: &mut WinInfoInfo, action: c_int, abort_if_last: bool) -> bool {
      {
         if !win.w_buffer.is_null() {
             reset_synblock(win);
@@ -3467,7 +3467,7 @@ fn win_close_buffer(win: &mut win_T, action: c_int, abort_if_last: bool) -> bool
 
         let mut retval = false;
         if !win.w_buffer.is_null() {
-            let mut bufref: bufref_T = bufref_T::new();
+            let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, g_st().curbuf);
             win.w_locked += 1;
             retval = close_buffer((&raw mut *win), win.w_buffer, action, abort_if_last, true, true);
@@ -3484,7 +3484,7 @@ fn win_close_buffer(win: &mut win_T, action: c_int, abort_if_last: bool) -> bool
     }
 }
 
-fn win_unclose_buffer(win: &mut win_T, _bufref: &mut bufref_T) {
+fn win_unclose_buffer(win: &mut WinInfoInfo, _bufref: &mut Bufref) {
     unsafe {
         if win.w_buffer.is_null() {
             win.w_buffer = g_st().firstbuf;
@@ -3497,7 +3497,7 @@ fn win_unclose_buffer(win: &mut win_T, _bufref: &mut bufref_T) {
     }
 }
 
-pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
+pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
     unsafe {
         let prev_curtab = g_st().curtab;
         let win_frame = if (*win).w_floating {
@@ -3511,7 +3511,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
             return false;
         }
-        if !(*win).w_floating && window_layout_locked(cmdidx_T::CMD_close) {
+        if !(*win).w_floating && window_layout_locked(Cmdidx::CMD_close) {
             return false;
         }
 
@@ -3626,7 +3626,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             return true;
         }
 
-        let mut bufref: bufref_T = bufref_T::new();
+        let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, (*win).w_buffer);
 
         win_close_buffer( &mut *win, if free_buf { DOBUF_UNLOAD } else { 0 }, true);
@@ -3828,7 +3828,7 @@ fn trigger_winnewpre() {
         window_layout_unlock();
 }
 
-fn do_autocmd_winclosed(win: &mut win_T) {
+fn do_autocmd_winclosed(win: &mut WinInfoInfo) {
      {
         if win_st().winclosed_recursive || !has_event(EVENT_WINCLOSED) {
             return;
@@ -3853,7 +3853,7 @@ fn do_autocmd_winclosed(win: &mut win_T) {
     }
 }
 
-pub fn trigger_tabclosedpre(tp: *mut tabpage_T) {
+pub fn trigger_tabclosedpre(tp: *mut TabPageInfo) {
     let ptp = g_st().curtab;
 
         if !has_event(EVENT_TABCLOSEDPRE) || win_st().tabclosedpre_recursive {
@@ -3882,15 +3882,15 @@ pub fn trigger_tabclosedpre(tp: *mut tabpage_T) {
 }
 
 pub fn win_close_othertab(
-    win: *mut win_T,
+    win: *mut WinInfoInfo,
     free_buf: c_int,
-    tp: *mut tabpage_T,
+    tp: *mut TabPageInfo,
     force: bool,
 ) -> bool {
     unsafe {
         debug_assert!(!ptr::eq(tp, g_st().curtab));
 
-        if window_layout_locked(cmdidx_T::CMD_SIZE) {
+        if window_layout_locked(Cmdidx::CMD_SIZE) {
             return false;
         }
         if win_locked(&mut *win) != 0 || (!(*win).w_buffer.is_null() && (*win).buf_mut().b_locked > 0) {
@@ -3939,7 +3939,7 @@ pub fn win_close_othertab(
             }
         }
 
-        let mut bufref: bufref_T = bufref_T::new();
+        let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, (*win).w_buffer);
 
         if !(*win).w_buffer.is_null() {
@@ -4042,9 +4042,9 @@ pub fn win_close_othertab(
     }
 }
 
-fn win_free_mem(win: *mut win_T, dirp: &mut c_int, tp: *mut tabpage_T) -> *mut win_T {
+fn win_free_mem(win: *mut WinInfoInfo, dirp: &mut c_int, tp: *mut TabPageInfo) -> *mut WinInfoInfo {
     unsafe {
-        let wp: *mut win_T;
+        let wp: *mut WinInfoInfo;
         let win_tp = if tp.is_null() { g_st().curtab } else { tp };
 
         if !(*win).w_floating {
@@ -4110,12 +4110,12 @@ pub fn win_free_all() {
 }
 
 pub fn winframe_remove(
-    win: &mut win_T,dirp: &mut c_int,
-    tp: *mut tabpage_T,
-    unflat_altfr: *mut *mut frame_T,
-) -> *mut win_T {
+    win: &mut WinInfoInfo,dirp: &mut c_int,
+    tp: *mut TabPageInfo,
+    unflat_altfr: *mut *mut Frame,
+) -> *mut WinInfoInfo {
     unsafe {
-        let mut altfr: *mut frame_T = ptr::null_mut();
+        let mut altfr: *mut Frame = ptr::null_mut();
         let wp = winframe_find_altwin(win, dirp, tp, &raw mut altfr);
         if wp.is_null() {
             return ptr::null_mut();
@@ -4173,10 +4173,10 @@ pub fn winframe_remove(
 }
 
 pub fn winframe_find_altwin(
-    win: &mut win_T,dirp: &mut c_int,
-    tp: *mut tabpage_T,
-    altfr: *mut *mut frame_T,
-) -> *mut win_T {
+    win: &mut WinInfoInfo,dirp: &mut c_int,
+    tp: *mut TabPageInfo,
+    altfr: *mut *mut Frame,
+) -> *mut WinInfoInfo {
     unsafe {
         debug_assert!(tp.is_null() || !ptr::eq(tp, g_st().curtab));
 
@@ -4247,7 +4247,7 @@ pub fn winframe_find_altwin(
     }
 }
 
-fn frame_flatten(mut frp: *mut frame_T) {
+fn frame_flatten(mut frp: *mut Frame) {
     unsafe {
         if !(*frp).fr_next.is_null() || !(*frp).fr_prev.is_null() {
             return;
@@ -4300,7 +4300,7 @@ fn frame_flatten(mut frp: *mut frame_T) {
     }
 }
 
-pub fn winframe_restore(wp: &mut win_T, dir: c_int, unflat_altfr: &mut frame_T) {
+pub fn winframe_restore(wp: &mut WinInfoInfo, dir: c_int, unflat_altfr: &mut Frame) {
     unsafe {
         let frp = wp.w_frame;
 
@@ -4352,7 +4352,7 @@ pub fn winframe_restore(wp: &mut win_T, dir: c_int, unflat_altfr: &mut frame_T) 
     }
 }
 
-fn win_altframe(win: &mut win_T, tp: *mut tabpage_T) -> *mut frame_T {
+fn win_altframe(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> *mut Frame {
     unsafe {
         debug_assert!(tp.is_null() || !ptr::eq(tp, g_st().curtab));
 
@@ -4394,7 +4394,7 @@ fn win_altframe(win: &mut win_T, tp: *mut tabpage_T) -> *mut frame_T {
     }
 }
 
-fn alt_tabpage() -> *mut tabpage_T {
+fn alt_tabpage() -> *mut TabPageInfo {
     unsafe {
         if (opt_vars().tcl_flags & kOptTclFlagUselast) != 0 && valid_tabpage(g_st().lastused_tabpage) {
             return g_st().lastused_tabpage;
@@ -4415,7 +4415,7 @@ fn alt_tabpage() -> *mut tabpage_T {
     }
 }
 
-pub fn frame2win(mut frp: *mut frame_T) -> *mut win_T {
+pub fn frame2win(mut frp: *mut Frame) -> *mut WinInfoInfo {
     unsafe {
         while (*frp).fr_win.is_null() {
             frp = (*frp).fr_child;
@@ -4424,7 +4424,7 @@ pub fn frame2win(mut frp: *mut frame_T) -> *mut win_T {
     }
 }
 
-fn frame_has_win(frp: &frame_T, wp: *const win_T) -> bool {
+fn frame_has_win(frp: &Frame, wp: *const WinInfoInfo) -> bool {
      {
         if frp.fr_layout == FR_LEAF {
             return ptr::eq(frp.fr_win, wp);
@@ -4438,7 +4438,7 @@ fn frame_has_win(frp: &frame_T, wp: *const win_T) -> bool {
     }
 }
 
-fn is_bottom_win(wp: &mut win_T) -> bool {
+fn is_bottom_win(wp: &mut WinInfoInfo) -> bool {
     unsafe {
         let mut frp = wp.w_frame;
         while !(*frp).fr_parent.is_null() {
@@ -4452,7 +4452,7 @@ fn is_bottom_win(wp: &mut win_T) -> bool {
 }
 
 pub fn frame_new_height(
-    topfrp: *mut frame_T,
+    topfrp: *mut Frame,
     mut height: c_int,
     topfirst: bool,
     wfh: bool,
@@ -4475,7 +4475,7 @@ pub fn frame_new_height(
             }
             win_new_height( &mut *wp, height - (*wp).w_hsep_height - (*wp).w_status_height);
         } else if (*topfrp).fr_layout == FR_ROW {
-            let mut frp: *mut frame_T;
+            let mut frp: *mut Frame;
             loop {
                 frp = (*topfrp).fr_child;
                 while !frp.is_null() {
@@ -4555,7 +4555,7 @@ pub fn frame_new_height(
     }
 }
 
-fn frame_fixed_height(mut frp: *mut frame_T) -> bool {
+fn frame_fixed_height(mut frp: *mut Frame) -> bool {
     unsafe {
         if !(*frp).fr_win.is_null() {
             return (*(*frp).fr_win).w_onebuf_opt.wo_wfh != 0;
@@ -4582,7 +4582,7 @@ fn frame_fixed_height(mut frp: *mut frame_T) -> bool {
     }
 }
 
-fn frame_fixed_width(mut frp: *mut frame_T) -> bool {
+fn frame_fixed_width(mut frp: *mut Frame) -> bool {
     unsafe {
         if !(*frp).fr_win.is_null() {
             return (*(*frp).fr_win).w_onebuf_opt.wo_wfw != 0;
@@ -4609,7 +4609,7 @@ fn frame_fixed_width(mut frp: *mut frame_T) -> bool {
     }
 }
 
-fn frame_add_statusline(mut frp: *mut frame_T) {
+fn frame_add_statusline(mut frp: *mut Frame) {
     unsafe {
         if (*frp).fr_layout == FR_LEAF {
             let wp = (*frp).fr_win;
@@ -4631,7 +4631,7 @@ fn frame_add_statusline(mut frp: *mut frame_T) {
     }
 }
 
-fn frame_new_width(topfrp: &mut frame_T, mut width: c_int, leftfirst: bool, wfw: bool) {
+fn frame_new_width(topfrp: &mut Frame, mut width: c_int, leftfirst: bool, wfw: bool) {
     unsafe {
         if topfrp.fr_layout == FR_LEAF {
             let wp = topfrp.fr_win;
@@ -4647,7 +4647,7 @@ fn frame_new_width(topfrp: &mut frame_T, mut width: c_int, leftfirst: bool, wfw:
             }
             win_new_width(&mut *wp, width - (*wp).w_vsep_width);
         } else if topfrp.fr_layout == FR_COL {
-            let mut frp: *mut frame_T;
+            let mut frp: *mut Frame;
             loop {
                 frp = topfrp.fr_child;
                 while !frp.is_null() {
@@ -4721,7 +4721,7 @@ fn frame_new_width(topfrp: &mut frame_T, mut width: c_int, leftfirst: bool, wfw:
     }
 }
 
-fn frame_set_vsep(mut frp: *const frame_T, add: bool) {
+fn frame_set_vsep(mut frp: *const Frame, add: bool) {
     unsafe {
         if (*frp).fr_layout == FR_LEAF {
             let wp = (*frp).fr_win;
@@ -4751,7 +4751,7 @@ fn frame_set_vsep(mut frp: *const frame_T, add: bool) {
     }
 }
 
-fn frame_add_hsep(mut frp: *const frame_T) {
+fn frame_add_hsep(mut frp: *const Frame) {
     unsafe {
         if (*frp).fr_layout == FR_LEAF {
             let wp = (*frp).fr_win;
@@ -4774,20 +4774,20 @@ fn frame_add_hsep(mut frp: *const frame_T) {
 }
 
 #[inline]
-fn frame_fix_width(wp: &mut win_T) {
+fn frame_fix_width(wp: &mut WinInfoInfo) {
     unsafe {
         (*wp.w_frame).fr_width = wp.w_width + wp.w_vsep_width;
     }
 }
 
 #[inline]
-fn frame_fix_height(wp: &mut win_T) {
+fn frame_fix_height(wp: &mut WinInfoInfo) {
     unsafe {
         (*wp.w_frame).fr_height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
     }
 }
 
-fn frame_minheight(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
+fn frame_minheight(topfrp: &mut Frame, next_curwin: *mut WinInfoInfo) -> c_int {
     unsafe {
         let mut m: c_int;
         if !topfrp.fr_win.is_null() {
@@ -4820,7 +4820,7 @@ fn frame_minheight(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
     }
 }
 
-fn frame_minwidth(topfrp: &mut frame_T, next_curwin: *mut win_T) -> c_int {
+fn frame_minwidth(topfrp: &mut Frame, next_curwin: *mut WinInfoInfo) -> c_int {
     unsafe {
         let mut m: c_int;
         if !topfrp.fr_win.is_null() {
@@ -4866,7 +4866,7 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
             return;
         }
 
-        let mut nextwp: *mut win_T;
+        let mut nextwp: *mut WinInfoInfo;
         let mut wp = g_st().firstwin;
         while win_valid(wp) {
             nextwp = (*wp).w_next;
@@ -4932,7 +4932,7 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
     }
 }
 
-pub fn unuse_tabpage(tp: &mut tabpage_T) {
+pub fn unuse_tabpage(tp: &mut TabPageInfo) {
      {
         tp.tp_topframe = g_st().topframe;
         tp.tp_firstwin = g_st().firstwin;
@@ -4942,7 +4942,7 @@ pub fn unuse_tabpage(tp: &mut tabpage_T) {
     }
 }
 
-pub fn use_tabpage(tp: *mut tabpage_T) {
+pub fn use_tabpage(tp: *mut TabPageInfo) {
      {
         g_st().curtab = tp;
         g_st().topframe = curtab_mut().tp_topframe;
@@ -4981,7 +4981,7 @@ pub fn win_alloc_ctx_win(idx: c_int) {
     }
 }
 
-fn win_alloc_firstwin(oldwin: Option<&mut win_T>) -> bool {
+fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
     unsafe {
         set_curwin(win_alloc(ptr::null_mut(), false));
         if let Some(oldwin) = oldwin {
@@ -5008,11 +5008,11 @@ fn win_alloc_firstwin(oldwin: Option<&mut win_T>) -> bool {
     }
 }
 
-fn new_frame(wp: &mut win_T) {
-    wp.w_frame = Box::into_raw(Box::new(frame_T {
+fn new_frame(wp: &mut WinInfoInfo) {
+    wp.w_frame = Box::into_raw(Box::new(Frame {
             fr_layout: FR_LEAF,
             fr_win: wp,
-            ..frame_T::new()
+            ..Frame::new()
         }));
 }
 
@@ -5032,9 +5032,9 @@ pub fn win_init_size() {
     }
 }
 
-fn alloc_tabpage() -> *mut tabpage_T {
+fn alloc_tabpage() -> *mut TabPageInfo {
     unsafe {
-        let tp = Box::into_raw(Box::new(tabpage_T::new()));
+        let tp = Box::into_raw(Box::new(TabPageInfo::new()));
         win_st().last_tp_handle += 1;
         (*tp).handle = win_st().last_tp_handle;
         g_st().tabpage_handles.insert((*tp).handle, tp);
@@ -5046,7 +5046,7 @@ fn alloc_tabpage() -> *mut tabpage_T {
     }
 }
 
-impl Drop for tabpage_T {
+impl Drop for TabPageInfo {
     fn drop(&mut self) {
         unsafe {
             g_st().tabpage_handles.remove(&self.handle);
@@ -5065,7 +5065,7 @@ impl Drop for tabpage_T {
     }
 }
 
-pub fn free_tabpage(tp: *mut tabpage_T) {
+pub fn free_tabpage(tp: *mut TabPageInfo) {
     unsafe {
         if !tp.is_null() {
             drop(Box::from_raw(tp));
@@ -5077,12 +5077,12 @@ pub fn win_new_tabpage(
     after: c_int,
     filename: impl crate::strings::IntoCCharPtr,
     enter: bool,
-    first: *mut *mut win_T,
-) -> *mut tabpage_T { let filename = filename.into_c_char_ptr();
+    first: *mut *mut WinInfoInfo,
+) -> *mut TabPageInfo { let filename = filename.into_c_char_ptr();
     unsafe {
         let old_curtab = g_st().curtab;
 
-        if window_layout_locked(cmdidx_T::CMD_tabnew) {
+        if window_layout_locked(Cmdidx::CMD_tabnew) {
             return ptr::null_mut();
         }
 
@@ -5250,7 +5250,7 @@ pub fn make_tabpages(maxcount: c_int) -> c_int {
     }
 }
 
-pub fn valid_tabpage(tpc: *const tabpage_T) -> bool {
+pub fn valid_tabpage(tpc: *const TabPageInfo) -> bool {
     for tp in for_all_tabpages_ptr() {
         if ptr::eq(tp, tpc) {
             return true;
@@ -5259,7 +5259,7 @@ pub fn valid_tabpage(tpc: *const tabpage_T) -> bool {
     false
 }
 
-pub fn valid_tabpage_win(tpc: &mut tabpage_T) -> c_int {
+pub fn valid_tabpage_win(tpc: &mut TabPageInfo) -> c_int {
     unsafe {
         for tp in for_all_tabpages_ptr() {
             if ptr::eq(tp, tpc) {
@@ -5279,9 +5279,9 @@ pub fn valid_tabpage_win(tpc: &mut tabpage_T) -> c_int {
     }
 }
 
-pub fn close_tabpage(tab: &mut tabpage_T) {
+pub fn close_tabpage(tab: &mut TabPageInfo) {
     unsafe {
-        let mut ptp: *mut tabpage_T;
+        let mut ptp: *mut TabPageInfo;
         if ptr::eq(tab, g_st().first_tabpage) {
             g_st().first_tabpage = tab.tp_next;
             ptp = g_st().first_tabpage;
@@ -5299,7 +5299,7 @@ pub fn close_tabpage(tab: &mut tabpage_T) {
     }
 }
 
-pub fn find_tabpage(n: c_int) -> *mut tabpage_T {
+pub fn find_tabpage(n: c_int) -> *mut TabPageInfo {
     unsafe {
         if n == 0 {
             return g_st().curtab;
@@ -5315,7 +5315,7 @@ pub fn find_tabpage(n: c_int) -> *mut tabpage_T {
     }
 }
 
-pub fn tabpage_index(ftp: *mut tabpage_T) -> c_int {
+pub fn tabpage_index(ftp: *mut TabPageInfo) -> c_int {
     unsafe {
         let mut i: c_int = 1;
         let mut tp = g_st().first_tabpage;
@@ -5327,7 +5327,7 @@ pub fn tabpage_index(ftp: *mut tabpage_T) -> c_int {
     }
 }
 
-fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> bool {
+fn leave_tabpage(new_curbuf: *mut FileBuf, trigger_leave_autocmds: bool) -> bool {
     unsafe {
         let tp = g_st().curtab;
 
@@ -5384,8 +5384,8 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> bool {
 }
 
 fn enter_tabpage(
-    tp: &mut tabpage_T,
-    old_curbuf: &mut buf_T,
+    tp: &mut TabPageInfo,
+    old_curbuf: &mut FileBuf,
     trigger_enter_autocmds: bool,
     trigger_leave_autocmds: bool,
 ) {
@@ -5468,7 +5468,7 @@ fn enter_tabpage(
     }
 }
 
-fn tabpage_check_windows(old_curtab: &mut tabpage_T) {
+fn tabpage_check_windows(old_curtab: &mut TabPageInfo) {
     unsafe {
         for wp in win_iter_ptr(old_curtab.tp_firstwin) {
             if (*wp).w_floating {
@@ -5505,7 +5505,7 @@ pub fn goto_tabpage(n: c_int) {
             return;
         }
 
-        let mut tp: *mut tabpage_T = ptr::null_mut();
+        let mut tp: *mut TabPageInfo = ptr::null_mut();
 
         if n == 0 {
             if curtab_mut().tp_next.is_null() {
@@ -5540,7 +5540,7 @@ pub fn goto_tabpage(n: c_int) {
 }
 
 pub fn goto_tabpage_tp(
-    tp: *mut tabpage_T,
+    tp: *mut TabPageInfo,
     trigger_enter_autocmds: bool,
     trigger_leave_autocmds: bool,
 ) {
@@ -5575,7 +5575,7 @@ pub fn goto_tabpage_lastused() -> bool {
         true
 }
 
-pub fn goto_tabpage_win(tp: &mut tabpage_T, wp: *mut win_T) {
+pub fn goto_tabpage_win(tp: &mut TabPageInfo, wp: *mut WinInfoInfo) {
     goto_tabpage_tp(&raw mut *tp, true, true);
         if ptr::eq(g_st().curtab, tp) && win_valid(wp) {
             win_enter(wp, true);
@@ -5667,7 +5667,7 @@ pub fn tabpage_move(nr: c_int) {
     }
 }
 
-pub fn win_goto(wp: *mut win_T) {
+pub fn win_goto(wp: *mut WinInfoInfo) {
     unsafe {
         let owp = curwin_ptr();
 
@@ -5697,7 +5697,7 @@ pub fn win_goto(wp: *mut win_T) {
     }
 }
 
-pub fn win_find_tabpage(win: *const win_T) -> *mut tabpage_T {
+pub fn win_find_tabpage(win: *const WinInfoInfo) -> *mut TabPageInfo {
     for tp in for_all_tabpages_mut() {
         for wp in for_all_windows_in_tab_ptr(tp) {
             if ptr::eq(wp, win) {
@@ -5709,11 +5709,11 @@ pub fn win_find_tabpage(win: *const win_T) -> *mut tabpage_T {
 }
 
 pub fn win_vert_neighbor(
-    tp: &mut tabpage_T,
-    wp: &mut win_T,
+    tp: &mut TabPageInfo,
+    wp: &mut WinInfoInfo,
     up: bool,
     mut count: c_int,
-) -> *mut win_T {
+) -> *mut WinInfoInfo {
     unsafe {
         let mut foundfr = wp.w_frame;
 
@@ -5727,7 +5727,7 @@ pub fn win_vert_neighbor(
 
         'outer: while count > 0 {
             count -= 1;
-            let mut nfr: *mut frame_T;
+            let mut nfr: *mut Frame;
             let mut fr = foundfr;
             loop {
                 if ptr::eq(fr, tp.tp_topframe.cast()) {
@@ -5784,11 +5784,11 @@ fn win_goto_ver(up: bool, count: c_int) {
 }
 
 pub fn win_horz_neighbor(
-    tp: &mut tabpage_T,
-    wp: &mut win_T,
+    tp: &mut TabPageInfo,
+    wp: &mut WinInfoInfo,
     left: bool,
     mut count: c_int,
-) -> *mut win_T {
+) -> *mut WinInfoInfo {
     unsafe {
         let mut foundfr = wp.w_frame;
 
@@ -5802,7 +5802,7 @@ pub fn win_horz_neighbor(
 
         'outer: while count > 0 {
             count -= 1;
-            let mut nfr: *mut frame_T;
+            let mut nfr: *mut Frame;
             let mut fr = foundfr;
             loop {
                 if ptr::eq(fr, tp.tp_topframe.cast()) {
@@ -5858,7 +5858,7 @@ fn win_goto_hor(left: bool, count: c_int) {
     }
 }
 
-pub fn win_enter(wp: *mut win_T, undo_sync: bool) {
+pub fn win_enter(wp: *mut WinInfoInfo, undo_sync: bool) {
     win_enter_ext(
             wp,
             (if undo_sync { WEE_UNDO_SYNC } else { 0 })
@@ -5867,7 +5867,7 @@ pub fn win_enter(wp: *mut win_T, undo_sync: bool) {
         );
 }
 
-fn win_enter_ext(wp: *mut win_T, flags: c_int) {
+fn win_enter_ext(wp: *mut WinInfoInfo, flags: c_int) {
     unsafe {
         let mut other_buffer = false;
         let curwin_invalid = (flags & WEE_CURWIN_INVALID) != 0;
@@ -6056,7 +6056,7 @@ pub fn update_cwd(cause: CdCause) {
     }
 }
 
-pub fn buf_jump_open_win(buf: *mut buf_T) -> *mut win_T {
+pub fn buf_jump_open_win(buf: *mut FileBuf) -> *mut WinInfoInfo {
     unsafe {
         if ptr::eq(curwin_mut().w_buffer, buf) {
             win_enter(curwin_ptr(), false);
@@ -6072,7 +6072,7 @@ pub fn buf_jump_open_win(buf: *mut buf_T) -> *mut win_T {
     }
 }
 
-pub fn buf_jump_open_tab(buf: *mut buf_T) -> *mut win_T {
+pub fn buf_jump_open_tab(buf: *mut FileBuf) -> *mut WinInfoInfo {
     unsafe {
         let wp = buf_jump_open_win(buf);
         if !wp.is_null() {
@@ -6100,9 +6100,9 @@ pub fn buf_jump_open_tab(buf: *mut buf_T) -> *mut win_T {
     }
 }
 
-pub fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
+pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> *mut WinInfoInfo {
     unsafe {
-        let new_wp = Box::into_raw(Box::new(win_T::new()));
+        let new_wp = Box::into_raw(Box::new(WinInfoInfo::new()));
 
         win_st().last_win_id += 1;
         (*new_wp).handle = win_st().last_win_id;
@@ -6118,7 +6118,7 @@ pub fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
 
         block_autocmds();
         if !hidden {
-            let mut tp: *mut tabpage_T = ptr::null_mut();
+            let mut tp: *mut TabPageInfo = ptr::null_mut();
             if !after.is_null() {
                 tp = win_find_tabpage(after);
                 if ptr::eq(tp, g_st().curtab) {
@@ -6149,7 +6149,7 @@ pub fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
     }
 }
 
-pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
+pub fn win_free(wp: *mut WinInfoInfo, tp: *mut TabPageInfo) {
     unsafe {
         g_st().window_handles.remove(&(*wp).handle);
         clearFolding(&mut *wp);
@@ -6247,7 +6247,7 @@ pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
     }
 }
 
-impl Drop for win_T {
+impl Drop for WinInfoInfo {
     fn drop(&mut self) {
         for i in 0..self.w_tagstacklen as usize {
                 tagstack_clear_entry(&mut self.w_tagstack[i]);
@@ -6261,7 +6261,7 @@ impl Drop for win_T {
     }
 }
 
-pub fn win_free_grid(wp: &mut win_T, reinit: bool) {
+pub fn win_free_grid(wp: &mut WinInfoInfo, reinit: bool) {
      {
         if wp.w_grid_alloc.handle != 0 && ui_has(kUIMultigrid) {
             ui_call_grid_destroy(Integer::from(wp.w_grid_alloc.handle));
@@ -6273,7 +6273,7 @@ pub fn win_free_grid(wp: &mut win_T, reinit: bool) {
     }
 }
 
-pub fn win_append(after: *mut win_T, wp: *mut win_T, tp: *mut tabpage_T) {
+pub fn win_append(after: *mut WinInfoInfo, wp: *mut WinInfoInfo, tp: *mut TabPageInfo) {
     unsafe {
         debug_assert!(tp.is_null() || !ptr::eq(tp, g_st().curtab));
 
@@ -6309,7 +6309,7 @@ pub fn win_append(after: *mut win_T, wp: *mut win_T, tp: *mut tabpage_T) {
     }
 }
 
-pub fn win_remove(wp: &mut win_T, tp: *mut tabpage_T) {
+pub fn win_remove(wp: &mut WinInfoInfo, tp: *mut TabPageInfo) {
     unsafe {
         debug_assert!(tp.is_null() || !ptr::eq(tp, g_st().curtab));
 
@@ -6332,7 +6332,7 @@ pub fn win_remove(wp: &mut win_T, tp: *mut tabpage_T) {
     }
 }
 
-fn frame_append(after: &mut frame_T, frp: &mut frame_T) {
+fn frame_append(after: &mut Frame, frp: &mut Frame) {
     unsafe {
         frp.fr_next = after.fr_next;
         after.fr_next = frp;
@@ -6343,7 +6343,7 @@ fn frame_append(after: &mut frame_T, frp: &mut frame_T) {
     }
 }
 
-fn frame_insert(before: &mut frame_T, frp: &mut frame_T) {
+fn frame_insert(before: &mut Frame, frp: &mut Frame) {
     unsafe {
         frp.fr_next = before;
         frp.fr_prev = before.fr_prev;
@@ -6356,7 +6356,7 @@ fn frame_insert(before: &mut frame_T, frp: &mut frame_T) {
     }
 }
 
-fn frame_remove(frp: &mut frame_T) {
+fn frame_remove(frp: &mut Frame) {
     unsafe {
         if !frp.fr_prev.is_null() {
             (*frp.fr_prev).fr_next = frp.fr_next;
@@ -6451,7 +6451,7 @@ fn make_win_info_dict(
     topfill: c_int,
     leftcol: c_int,
     skipcol: c_int,
-) -> *mut dict_T {
+) -> *mut TvDict {
     unsafe {
         let d = tv_dict_alloc();
         (*d).dv_refcount = 1;
@@ -6466,7 +6466,7 @@ fn make_win_info_dict(
         ];
 
         for (key, val) in entries {
-            let mut tv = typval_T {
+            let mut tv = TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(i64::from(val)),
@@ -6482,10 +6482,10 @@ fn make_win_info_dict(
 
 fn check_window_scroll_resize(
     mut size_count: Option<&mut c_int>,
-    first_scroll_win: *mut *mut win_T,
-    first_size_win: *mut *mut win_T,
-    mut winlist: Option<&mut list_T>,
-    mut v_event: Option<&mut dict_T>,
+    first_scroll_win: *mut *mut WinInfoInfo,
+    first_size_win: *mut *mut WinInfoInfo,
+    mut winlist: Option<&mut TvList>,
+    mut v_event: Option<&mut TvDict>,
 ) {
     unsafe {
         let mut tot_width: c_int = 0;
@@ -6511,7 +6511,7 @@ fn check_window_scroll_resize(
                 && ((*wp).w_last_width != (*wp).w_width || (*wp).w_last_height != (*wp).w_height);
             if size_changed {
                 if winlist.is_some() {
-                    let tv = typval_T {
+                    let tv = TypVal {
                         v_type: VarType::VAR_NUMBER,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(i64::from((*wp).handle)),
@@ -6606,8 +6606,8 @@ pub fn may_trigger_win_scrolled_resized() {
         }
 
         let mut size_count: c_int = 0;
-        let mut first_scroll_win: *mut win_T = ptr::null_mut();
-        let mut first_size_win: *mut win_T = ptr::null_mut();
+        let mut first_scroll_win: *mut WinInfoInfo = ptr::null_mut();
+        let mut first_size_win: *mut WinInfoInfo = ptr::null_mut();
         check_window_scroll_resize(
             Some(&mut size_count),
             &raw mut first_scroll_win,
@@ -6621,7 +6621,7 @@ pub fn may_trigger_win_scrolled_resized() {
             return;
         }
 
-        let mut windows_list: *mut list_T = ptr::null_mut();
+        let mut windows_list: *mut TvList = ptr::null_mut();
         if trigger_resize {
             windows_list = tv_list_alloc(size_count as isize);
             check_window_scroll_resize(
@@ -6633,7 +6633,7 @@ pub fn may_trigger_win_scrolled_resized() {
             );
         }
 
-        let mut scroll_dict: *mut dict_T = ptr::null_mut();
+        let mut scroll_dict: *mut TvDict = ptr::null_mut();
         if trigger_scroll {
             scroll_dict = tv_dict_alloc();
             (*scroll_dict).dv_refcount = 1;
@@ -6651,8 +6651,8 @@ pub fn may_trigger_win_scrolled_resized() {
         win_st().win_scrolled_resized_recursive = true;
 
         let mut resize_winid = [0 as c_char; NUMBUFLEN];
-        let mut resize_win: *mut win_T = ptr::null_mut();
-        let mut resize_bufref: bufref_T = bufref_T::new();
+        let mut resize_win: *mut WinInfoInfo = ptr::null_mut();
+        let mut resize_bufref: Bufref = Bufref::new();
         if trigger_resize {
             resize_win = first_size_win;
             vim_snprintf!(
@@ -6665,8 +6665,8 @@ pub fn may_trigger_win_scrolled_resized() {
         }
 
         let mut scroll_winid = [0 as c_char; NUMBUFLEN];
-        let mut scroll_win: *mut win_T = ptr::null_mut();
-        let mut scroll_bufref: bufref_T = bufref_T::new();
+        let mut scroll_win: *mut WinInfoInfo = ptr::null_mut();
+        let mut scroll_bufref: Bufref = Bufref::new();
         if trigger_scroll {
             scroll_win = first_scroll_win;
             vim_snprintf!(
@@ -6679,7 +6679,7 @@ pub fn may_trigger_win_scrolled_resized() {
         }
 
         if trigger_resize && !windows_list.is_null() {
-            let mut save_v_event: save_v_event_T = save_v_event_T::new();
+            let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let v_event = get_v_event(&mut save_v_event);
 
             if tv_dict_add_list(&mut *v_event, c"windows", windows_list) {
@@ -6707,7 +6707,7 @@ pub fn may_trigger_win_scrolled_resized() {
         }
 
         if trigger_scroll && !scroll_dict.is_null() {
-            let mut save_v_event: save_v_event_T = save_v_event_T::new();
+            let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let v_event = get_v_event(&mut save_v_event);
 
             tv_dict_extend(&mut *v_event, &mut *scroll_dict, c"move");
@@ -6794,7 +6794,7 @@ pub fn win_comp_pos() -> c_int {
     }
 }
 
-fn frame_comp_pos(topfrp: &mut frame_T, row: &mut c_int, col: &mut c_int) {
+fn frame_comp_pos(topfrp: &mut Frame, row: &mut c_int, col: &mut c_int) {
     unsafe {
         let wp = topfrp.fr_win;
         if !wp.is_null() {
@@ -6833,7 +6833,7 @@ pub fn win_setheight(height: c_int) {
     }
 }
 
-pub fn win_setheight_win(mut height: c_int, win: &mut win_T, from_top: bool) {
+pub fn win_setheight_win(mut height: c_int, win: &mut WinInfoInfo, from_top: bool) {
     unsafe {
         let min_wmh = if ptr::eq(win, curwin_ptr()) {
             opt_vars().p_wmh.max(1)
@@ -6862,7 +6862,7 @@ pub fn win_setheight_win(mut height: c_int, win: &mut win_T, from_top: bool) {
     }
 }
 
-fn frame_setheight(curfrp: &mut frame_T, mut height: c_int, from_top: bool) {
+fn frame_setheight(curfrp: &mut Frame, mut height: c_int, from_top: bool) {
     unsafe {
         if curfrp.fr_height == height {
             return;
@@ -6989,7 +6989,7 @@ pub fn win_setwidth(width: c_int) {
     }
 }
 
-pub fn win_setwidth_win(mut width: c_int, wp: &mut win_T, from_left: bool) {
+pub fn win_setwidth_win(mut width: c_int, wp: &mut WinInfoInfo, from_left: bool) {
     unsafe {
         if ptr::eq(wp, curwin_ptr()) {
             width = width.max(opt_vars().p_wmw as c_int).max(1);
@@ -7009,7 +7009,7 @@ pub fn win_setwidth_win(mut width: c_int, wp: &mut win_T, from_left: bool) {
     }
 }
 
-fn frame_setwidth(curfrp: &mut frame_T, mut width: c_int, from_left: bool) {
+fn frame_setwidth(curfrp: &mut Frame, mut width: c_int, from_left: bool) {
     unsafe {
         if curfrp.fr_width == width {
             return;
@@ -7109,7 +7109,7 @@ fn frame_setwidth(curfrp: &mut frame_T, mut width: c_int, from_left: bool) {
     }
 }
 
-pub fn did_set_winminheight(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_winminheight(_args: &mut Optset) -> *const c_char {
     let mut first = true;
         while opt_vars().p_wmh > 0 {
             let room = g_st().Rows - opt_vars().p_ch as c_int;
@@ -7126,7 +7126,7 @@ pub fn did_set_winminheight(_args: &mut optset_T) -> *const c_char {
         ptr::null()
 }
 
-pub fn did_set_winminwidth(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_winminwidth(_args: &mut Optset) -> *const c_char {
     unsafe {
         let mut first = true;
         while opt_vars().p_wmw > 0 {
@@ -7145,7 +7145,7 @@ pub fn did_set_winminwidth(_args: &mut optset_T) -> *const c_char {
     }
 }
 
-pub fn win_drag_status_line(dragwin: &mut win_T, mut offset: c_int) {
+pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: c_int) {
     unsafe {
         let mut fr = dragwin.w_frame;
         let mut curfr = fr;
@@ -7241,7 +7241,7 @@ pub fn win_drag_status_line(dragwin: &mut win_T, mut offset: c_int) {
     }
 }
 
-pub fn win_drag_vsep_line(dragwin: &mut win_T, mut offset: c_int) {
+pub fn win_drag_vsep_line(dragwin: &mut WinInfoInfo, mut offset: c_int) {
     unsafe {
         let mut fr = dragwin.w_frame;
         if ptr::eq(fr, g_st().topframe) {
@@ -7326,7 +7326,7 @@ pub fn win_drag_vsep_line(dragwin: &mut win_T, mut offset: c_int) {
     }
 }
 
-pub fn set_fraction(wp: &mut win_T) {
+pub fn set_fraction(wp: &mut WinInfoInfo) {
      {
         if wp.w_view_height > 1 {
             wp.w_fraction =
@@ -7406,7 +7406,7 @@ fn win_fix_cursor(normal: bool) {
         let bot = (*wp).w_cursor.lnum;
 
         (*wp).w_cursor.lnum = lnum;
-        let mut nlnum: linenr_T = 0;
+        let mut nlnum: Linenr = 0;
         if lnum > bot && ((*wp).w_botline - (*wp).buf_mut().b_ml.ml_line_count) != 1 {
             nlnum = bot;
         } else if lnum < top && (*wp).w_topline != 1 {
@@ -7430,7 +7430,7 @@ fn win_fix_cursor(normal: bool) {
     }
 }
 
-pub fn win_new_height(wp: &mut win_T, mut height: c_int) {
+pub fn win_new_height(wp: &mut WinInfoInfo, mut height: c_int) {
      {
         height = height.max(0);
         if wp.w_height == height {
@@ -7443,7 +7443,7 @@ pub fn win_new_height(wp: &mut win_T, mut height: c_int) {
     }
 }
 
-pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
+pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: c_int) {
     unsafe {
         let height = wp.w_view_height;
 
@@ -7469,7 +7469,7 @@ pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
                 wp.w_wrow = line_size;
                 if wp.w_wrow >= wp.w_view_height && (wp.w_view_width - win_col_off(wp)) > 0
                 {
-                    let mut skipcol: colnr_T = wp.w_view_width - win_col_off(wp);
+                    let mut skipcol: Colnr = wp.w_view_width - win_col_off(wp);
                     wp.w_wrow -= 1;
                     while wp.w_wrow >= wp.w_view_height {
                         skipcol += wp.w_view_width - win_col_off(wp) + win_col_off2( &mut *wp);
@@ -7518,7 +7518,7 @@ pub fn scroll_to_fraction(wp: &mut win_T, prev_height: c_int) {
     }
 }
 
-pub fn win_set_inner_size(wp: &mut win_T, valid_cursor: bool) {
+pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
     unsafe {
         let mut width = wp.w_width_request;
         if width == 0 {
@@ -7602,17 +7602,17 @@ pub fn win_set_inner_size(wp: &mut win_T, valid_cursor: bool) {
     }
 }
 
-pub fn win_new_width(wp: &mut win_T, width: c_int) {
+pub fn win_new_width(wp: &mut WinInfoInfo, width: c_int) {
     wp.w_width = if width < 0 { 0 } else { width };
         wp.w_pos_changed = true;
         win_set_inner_size(&mut *wp, true);
 }
 
-pub fn win_default_scroll(wp: &mut win_T) -> OptInt {
+pub fn win_default_scroll(wp: &mut WinInfoInfo) -> OptInt {
     OptInt::from(wp.w_view_height / 2).max(1)
 }
 
-pub fn win_comp_scroll(wp: &mut win_T) {
+pub fn win_comp_scroll(wp: &mut WinInfoInfo) {
     let old_w_p_scr = wp.w_onebuf_opt.wo_scr;
         wp.w_onebuf_opt.wo_scr = win_default_scroll(wp);
 
@@ -7674,7 +7674,7 @@ pub fn command_height() {
     }
 }
 
-fn frame_add_height(mut frp: *mut frame_T, n: c_int) {
+fn frame_add_height(mut frp: *mut Frame, n: c_int) {
     unsafe {
         frame_new_height(frp, (*frp).fr_height + n, false, false, false);
         loop {
@@ -7698,7 +7698,7 @@ pub fn last_status(morewin: bool) {
     }
 }
 
-pub fn win_remove_status_line(wp: &mut win_T, add_hsep: bool) {
+pub fn win_remove_status_line(wp: &mut WinInfoInfo, add_hsep: bool) {
     wp.w_status_height = 0;
         if add_hsep {
             wp.w_hsep_height = 1;
@@ -7716,7 +7716,7 @@ pub fn win_remove_status_line(wp: &mut win_T, add_hsep: bool) {
         wp.w_status_click_defs = Vec::new();
 }
 
-fn find_horizontally_resizable_frame(fr: &mut frame_T) -> *mut frame_T {
+fn find_horizontally_resizable_frame(fr: &mut Frame) -> *mut Frame {
     unsafe {
         let mut fp = fr;
         while fp.fr_height <= frame_minheight(fp, ptr::null_mut()) {
@@ -7733,7 +7733,7 @@ fn find_horizontally_resizable_frame(fr: &mut frame_T) -> *mut frame_T {
     }
 }
 
-fn resize_frame_for_status(fr: &mut frame_T) -> bool {
+fn resize_frame_for_status(fr: &mut Frame) -> bool {
     unsafe {
         let wp = fr.fr_win;
         let fp = find_horizontally_resizable_frame(fr);
@@ -7757,7 +7757,7 @@ fn resize_frame_for_status(fr: &mut frame_T) -> bool {
     }
 }
 
-fn resize_frame_for_winbar(fr: &mut frame_T) -> bool {
+fn resize_frame_for_winbar(fr: &mut Frame) -> bool {
     let old_height = fr.fr_height;
         frame_setheight(fr, old_height + 1, false);
         if fr.fr_height == old_height {
@@ -7768,7 +7768,7 @@ fn resize_frame_for_winbar(fr: &mut frame_T) -> bool {
         true
 }
 
-fn last_status_rec(fr: &mut frame_T, statusline: bool, is_stl_global: bool) {
+fn last_status_rec(fr: &mut Frame, statusline: bool, is_stl_global: bool) {
     unsafe {
         if fr.fr_layout == FR_LEAF {
             let wp = fr.fr_win;
@@ -7802,7 +7802,7 @@ fn last_status_rec(fr: &mut frame_T, statusline: bool, is_stl_global: bool) {
     }
 }
 
-pub fn set_winbar_win(wp: &mut win_T, make_room: bool, valid_cursor: bool) -> c_int {
+pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool) -> c_int {
     unsafe {
         let winbar_height = if wp.w_floating {
             c_int::from(!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr))
@@ -7899,7 +7899,7 @@ pub fn last_stl_height(morewin: bool) -> c_int {
         }
 }
 
-pub fn min_rows(tp: &mut tabpage_T) -> c_int {
+pub fn min_rows(tp: &mut TabPageInfo) -> c_int {
     unsafe {
         if g_st().firstwin.is_null() {
             return MIN_LINES;
@@ -8042,7 +8042,7 @@ pub fn make_snapshot(idx: c_int) {
     }
 }
 
-fn make_snapshot_rec(fr: &mut frame_T) -> Box<SnapshotFrame> {
+fn make_snapshot_rec(fr: &mut Frame) -> Box<SnapshotFrame> {
     unsafe {
         Box::new(SnapshotFrame {
             fr_layout: fr.fr_layout,
@@ -8059,11 +8059,11 @@ fn make_snapshot_rec(fr: &mut frame_T) -> Box<SnapshotFrame> {
     }
 }
 
-fn clear_snapshot(tp: &mut tabpage_T, idx: c_int) {
+fn clear_snapshot(tp: &mut TabPageInfo, idx: c_int) {
     tp.tp_snapshot[idx as usize] = None;
 }
 
-fn get_snapshot_curwin_rec(ft: &SnapshotFrame) -> *mut win_T {
+fn get_snapshot_curwin_rec(ft: &SnapshotFrame) -> *mut WinInfoInfo {
     if let Some(ref next) = ft.fr_next {
         let wp = get_snapshot_curwin_rec(next);
         if !wp.is_null() {
@@ -8079,7 +8079,7 @@ fn get_snapshot_curwin_rec(ft: &SnapshotFrame) -> *mut win_T {
     ft.fr_win
 }
 
-fn get_snapshot_curwin(idx: c_int) -> *mut win_T {
+fn get_snapshot_curwin(idx: c_int) -> *mut WinInfoInfo {
      {
         let Some(ref sn) = curtab_mut().tp_snapshot[idx as usize] else {
             return ptr::null_mut();
@@ -8105,7 +8105,7 @@ pub fn restore_snapshot(idx: c_int, close_curwin: c_int) {
     }
 }
 
-fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut frame_T) -> bool {
+fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> bool {
     unsafe {
         !(sn.fr_layout != fr.fr_layout
             || sn.fr_next.is_none() != fr.fr_next.is_null()
@@ -8122,9 +8122,9 @@ fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut frame_T) -> bool {
     }
 }
 
-fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut frame_T) -> *mut win_T {
+fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> *mut WinInfoInfo {
     unsafe {
-        let mut wp: *mut win_T = ptr::null_mut();
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
 
         fr.fr_height = sn.fr_height;
         fr.fr_width = sn.fr_width;
@@ -8149,7 +8149,7 @@ fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut frame_T) -> *mut win_T {
     }
 }
 
-fn frame_check_height(topfrp: &frame_T, height: c_int) -> bool {
+fn frame_check_height(topfrp: &Frame, height: c_int) -> bool {
      {
         if topfrp.fr_height != height {
             return false;
@@ -8165,7 +8165,7 @@ fn frame_check_height(topfrp: &frame_T, height: c_int) -> bool {
     }
 }
 
-fn frame_check_width(topfrp: &frame_T, width: c_int) -> bool {
+fn frame_check_width(topfrp: &Frame, width: c_int) -> bool {
      {
         if topfrp.fr_width != width {
             return false;
@@ -8181,7 +8181,7 @@ fn frame_check_width(topfrp: &frame_T, width: c_int) -> bool {
     }
 }
 
-pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut win_T>) -> *const c_char {
+pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *const c_char {
     unsafe {
         if wp.is_some() && wp.as_deref_mut().unwrap().w_buffer.is_null() {
             return ptr::null();
@@ -8257,11 +8257,11 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut win_T>) -> *const 
     }
 }
 
-pub fn win_locked(wp: &mut win_T) -> c_int {
+pub fn win_locked(wp: &mut WinInfoInfo) -> c_int {
     wp.w_locked
 }
 
-pub fn win_get_tabwin(id: handle_T, tabnr: &mut c_int, winnr: &mut c_int) {
+pub fn win_get_tabwin(id: ObjHandle, tabnr: &mut c_int, winnr: &mut c_int) {
      {
         *tabnr = 0;
         *winnr = 0;
@@ -8311,7 +8311,7 @@ pub fn win_ui_flush(validate: bool) {
     }
 }
 
-pub fn lastwin_nofloating(tp: *mut tabpage_T) -> *mut win_T {
+pub fn lastwin_nofloating(tp: *mut TabPageInfo) -> *mut WinInfoInfo {
     unsafe {
         debug_assert!(!ptr::eq(tp, g_st().curtab) || tp.is_null());
         let mut res = if !tp.is_null() {
@@ -8332,17 +8332,17 @@ mod tests {
 
     #[test]
     fn test_equalpos() {
-        let p1 = pos_T {
+        let p1 = CursorPos {
             lnum: 5,
             col: 10,
             coladd: 0,
         };
-        let p2 = pos_T {
+        let p2 = CursorPos {
             lnum: 5,
             col: 10,
             coladd: 0,
         };
-        let p3 = pos_T {
+        let p3 = CursorPos {
             lnum: 5,
             col: 11,
             coladd: 0,
@@ -8364,10 +8364,10 @@ mod tests {
 
     #[test]
     fn test_frame_list_helpers() {
-        let mut parent: frame_T = frame_T::new();
-            let mut f1: frame_T = frame_T::new();
-            let mut f2: frame_T = frame_T::new();
-            let mut f3: frame_T = frame_T::new();
+        let mut parent: Frame = Frame::new();
+            let mut f1: Frame = Frame::new();
+            let mut f2: Frame = Frame::new();
+            let mut f3: Frame = Frame::new();
             f1.fr_parent = &raw mut parent;
             f2.fr_parent = &raw mut parent;
             f3.fr_parent = &raw mut parent;

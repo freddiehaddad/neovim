@@ -2,13 +2,13 @@
 
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::buffer::{
-    MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_T, buf_meta_total, kUIMessages,
+    MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, FileBuf, buf_meta_total, kUIMessages,
     maketitle,
 };
 use crate::charset::{NUL, vim_isprintc, vim_strsize};
 use crate::cmdexpand::{cmdline_pum_display, kUICmdline};
 use crate::context::ctx_saved_curwin;
-use crate::cursor::{colnr_T, linenr_T, pos_T};
+use crate::cursor::{Colnr, Linenr, CursorPos};
 use crate::decoration::{
     DecorVirtText, DecorVirtTextData, NS, SCL_NUM, VirtTextChunk, buf_signcols_count_range,
     decor_conceal_line, decor_range_add_virt, decor_redraw_reset, decor_virt_lines, kVPosWinCol,
@@ -21,10 +21,10 @@ use crate::decoration_provider::{
 use crate::diff::diff_redraw;
 use crate::digraph::{HLF_CM, get_keymap_str};
 use crate::drawline::{HLF_AT, HLF_COUNT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
-use crate::eval::typval::{kCallbackNone, varnumber_T};
+use crate::eval::typval::{kCallbackNone, Varnumber};
 use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
 use crate::ex_getln::{
-    cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, hlf_T, redrawcmdline,
+    cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, Hlf, redrawcmdline,
 };
 use crate::fold::{fold_info, foldmethodIsSyntax, hasAnyFolding, hasFolding};
 use crate::globals::*;
@@ -32,7 +32,7 @@ use crate::grid::{
     grid_adjust, grid_alloc, grid_allocated, grid_clear, grid_clear_line, grid_del_lines,
     grid_draw_border, grid_ins_lines, grid_invalidate, grid_line_clear_end, grid_line_fill,
     grid_line_flush, grid_line_getchar, grid_line_mirror, grid_line_put_schar, grid_line_start,
-    schar_T, schar_cache_clear_if_full, schar_from_ascii, win_grid_alloc, wline_T,
+    Schar, schar_cache_clear_if_full, schar_from_ascii, win_grid_alloc, Wline,
 };
 use crate::highlight::{
     hl_combine_attr, update_window_hl, win_bg_attr, win_check_ns_hl, win_hl_attr,
@@ -54,7 +54,7 @@ use crate::r#move::{
     invalidate_botline_win, plines_correct_topline, set_empty_rows, update_curswant,
     update_topline, validate_cursor, validate_virtcol, win_col_off, win_col_off2,
 };
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::normal::{clear_showcmd, do_check_scrollbind};
 use crate::option::{OptInt, get_ve_flags, shortmess};
 use crate::option_vars::*;
@@ -70,7 +70,7 @@ use crate::state::{
     get_real_state,
 };
 use crate::statusline::{
-    draw_tabline, foldinfo_T, redraw_ruler, stl_alloc_click_defs, stl_clear_click_defs,
+    draw_tabline, Foldinfo, redraw_ruler, stl_alloc_click_defs, stl_clear_click_defs,
     win_redr_status, win_redr_winbar,
 };
 use crate::strings::{gettext, vim_strchr};
@@ -86,8 +86,8 @@ use crate::ui::{
 use crate::ui_compositor::ui_comp_set_screen_valid;
 use crate::version::{intro_message, may_show_intro};
 use crate::window::{
-    MIN_COLUMNS, frame_T, frame2win, global_stl_height, last_stl_height, min_rows,
-    min_rows_for_all_tabpages, win_T, win_fdccol_count, win_new_screensize, win_ui_flush,
+    MIN_COLUMNS, Frame, frame2win, global_stl_height, last_stl_height, min_rows,
+    min_rows_for_all_tabpages, WinInfoInfo, win_fdccol_count, win_new_screensize, win_ui_flush,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -106,7 +106,7 @@ pub const UPD_SOME_VALID: c_int = 35;
 pub const UPD_NOT_VALID: c_int = 40;
 pub const UPD_CLEAR: c_int = 50;
 
-pub(crate) const DEFAULT_GRID_HANDLE: handle_T = 1;
+pub(crate) const DEFAULT_GRID_HANDLE: ObjHandle = 1;
 const COL_RULER: c_int = 18;
 pub(crate) const SHOWCMD_COLS: c_int = 10;
 pub(crate) const SIGN_WIDTH: c_int = 2;
@@ -118,7 +118,7 @@ pub(crate) const VALID_BOTLINE: c_int = 0x20;
 
 pub(crate) const GETVCOL_END_EXCL_LBR: c_int = 1;
 
-const HLF_EOB: hlf_T = 2;
+const HLF_EOB: Hlf = 2;
 pub(crate) const HLF_C: c_int = 21;
 pub(crate) const HLF_MSG: usize = 63;
 
@@ -154,13 +154,13 @@ pub struct WinExtmark {
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
-pub struct spellvars_T {
+pub struct Spellvars {
     pub spv_has_spell: bool,
     pub spv_unchanged: bool,
     pub spv_checked_col: c_int,
-    pub spv_checked_lnum: linenr_T,
+    pub spv_checked_lnum: Linenr,
     pub spv_cap_col: c_int,
-    pub spv_capcol_lnum: linenr_T,
+    pub spv_capcol_lnum: Linenr,
 }
 
 struct DrawscreenState {
@@ -197,17 +197,17 @@ fn ds_st() -> &'static mut DrawscreenState {
 }
 
 #[inline]
-pub fn w_endcol(wp: &win_T) -> c_int {
+pub fn w_endcol(wp: &WinInfoInfo) -> c_int {
     wp.w_wincol + wp.w_width
 }
 
 #[inline]
-pub fn w_endrow(wp: &win_T) -> c_int {
+pub fn w_endrow(wp: &WinInfoInfo) -> c_int {
     wp.w_winrow + wp.w_height
 }
 
 #[inline]
-fn w_lines_at(wp: &mut win_T, idx: usize) -> &mut wline_T {
+fn w_lines_at(wp: &mut WinInfoInfo, idx: usize) -> &mut Wline {
     &mut wp.w_lines[idx]
 }
 
@@ -793,7 +793,7 @@ pub fn setcursor() {
     }
 }
 
-pub fn setcursor_mayforce(wp: &mut win_T, force: bool) {
+pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
     unsafe {
         if force || redrawing() {
             validate_cursor(wp);
@@ -1128,11 +1128,11 @@ pub fn comp_col() {
         if g_st().ru_col <= 0 {
             g_st().ru_col = 1;
         }
-        set_vim_var_nr(VV_ECHOSPACE, varnumber_T::from(g_st().sc_col - 1));
+        set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col - 1));
     }
 }
 
-fn win_redraw_signcols(wp: &mut win_T) -> bool {
+fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
     unsafe {
         let buf = wp.w_buffer;
 
@@ -1166,7 +1166,7 @@ fn win_redraw_signcols(wp: &mut win_T) -> bool {
     }
 }
 
-fn hsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
+fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
     unsafe {
         let before = corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft;
         let sep_row = if corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight {
@@ -1207,7 +1207,7 @@ fn hsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
     }
 }
 
-fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
+fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
     unsafe {
         let before = corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight;
         let sep_col = if corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft {
@@ -1248,7 +1248,7 @@ fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
     }
 }
 
-fn draw_vsep_win(wp: &mut win_T) {
+fn draw_vsep_win(wp: &mut WinInfoInfo) {
     if wp.w_vsep_width == 0 {
             return;
         }
@@ -1264,7 +1264,7 @@ fn draw_vsep_win(wp: &mut win_T) {
         }
 }
 
-fn draw_hsep_win(wp: &mut win_T) {
+fn draw_hsep_win(wp: &mut WinInfoInfo) {
     if wp.w_hsep_height == 0 {
             return;
         }
@@ -1279,7 +1279,7 @@ fn draw_hsep_win(wp: &mut win_T) {
         grid_line_flush();
 }
 
-fn get_corner_sep_connector(wp: &mut win_T, corner: WindowCorner) -> schar_T {
+fn get_corner_sep_connector(wp: &mut WinInfoInfo, corner: WindowCorner) -> Schar {
     if vsep_connected(wp, corner) {
             if hsep_connected(wp, corner) {
                 wp.w_p_fcs_chars.verthoriz
@@ -1295,7 +1295,7 @@ fn get_corner_sep_connector(wp: &mut win_T, corner: WindowCorner) -> schar_T {
         }
 }
 
-fn draw_sep_connectors_win(wp: &mut win_T) {
+fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
     unsafe {
         if global_stl_height() == 0 || !(wp.w_hsep_height == 1 || wp.w_vsep_width == 1) {
             return;
@@ -1368,7 +1368,7 @@ fn draw_sep_connectors_win(wp: &mut win_T) {
     }
 }
 
-fn win_update(wp: &mut win_T) {
+fn win_update(wp: &mut WinInfoInfo) {
     unsafe {
         if ptr::eq(wp.w_grid.target, &raw mut g_st().default_grid) && wp.w_wincol >= g_st().Columns {
             return;
@@ -1384,9 +1384,9 @@ fn win_update(wp: &mut win_T) {
         let mut bot_scroll_start: c_int = 999;
         let mut did_update = DidUpdate::None;
 
-        let mut syntax_last_parsed: linenr_T = 0;
-        let mut mod_top: linenr_T = 0;
-        let mut mod_bot: linenr_T = 0;
+        let mut syntax_last_parsed: Linenr = 0;
+        let mut mod_top: Linenr = 0;
+        let mut mod_bot: Linenr = 0;
 
         let mut type_ = wp.w_redr_type;
 
@@ -1733,8 +1733,8 @@ fn win_update(wp: &mut win_T) {
         if (g_st().Visual.active && ptr::eq(buf, curwin_mut().w_buffer))
             || (wp.w_old_cursor_lnum != 0 && type_ != UPD_NOT_VALID)
         {
-            let mut from: linenr_T;
-            let mut to: linenr_T;
+            let mut from: Linenr;
+            let mut to: Linenr;
 
             if g_st().Visual.active {
                 if g_st().Visual.mode != c_int::from(wp.w_old_visual_mode as u8)
@@ -1775,8 +1775,8 @@ fn win_update(wp: &mut win_T) {
                 }
 
                 if g_st().Visual.mode == Ctrl_V {
-                    let mut fromc: colnr_T = 0;
-                    let mut toc: colnr_T = 0;
+                    let mut fromc: Colnr = 0;
+                    let mut toc: Colnr = 0;
                     getvcols(
                         &raw mut *wp,
                         &mut g_st().Visual.start,
@@ -1790,7 +1790,7 @@ fn win_update(wp: &mut win_T) {
                         if (get_ve_flags(curwin_mut()) & kOptVeFlagBlock) != 0 {
                             let cursor_above = curwin_mut().w_cursor.lnum < g_st().Visual.start.lnum;
                             toc = 0;
-                            let mut pos = pos_T {
+                            let mut pos = CursorPos {
                                 lnum: curwin_mut().w_cursor.lnum,
                                 col: 0,
                                 coladd: 0,
@@ -1800,7 +1800,7 @@ fn win_update(wp: &mut win_T) {
                             } else {
                                 pos.lnum >= g_st().Visual.start.lnum
                             } {
-                                let mut t: colnr_T = 0;
+                                let mut t: Colnr = 0;
                                 pos.col = ml_get_buf_len(wp.buf_mut(), pos.lnum);
                                 getvvcol(
                                     &raw mut *wp,
@@ -1887,7 +1887,7 @@ fn win_update(wp: &mut win_T) {
             wp.w_old_visual_col = 0;
         }
 
-        let mut cursorline_fi = foldinfo_T::new();
+        let mut cursorline_fi = Foldinfo::new();
         win_update_cursorline(wp, &mut cursorline_fi);
         if ptr::eq(wp, curwin_ptr()) {
             ds_st().conceal_cursor_used = conceal_cursor_line(curwin_mut());
@@ -1895,7 +1895,7 @@ fn win_update(wp: &mut win_T) {
 
         win_check_ns_hl(Some(&*wp));
 
-        let mut spv = spellvars_T::default();
+        let mut spv = Spellvars::default();
         let mut lnum = wp.w_topline;
         if spell_check_window(wp) {
             spv.spv_has_spell = true;
@@ -2120,7 +2120,7 @@ fn win_update(wp: &mut win_T) {
                             && (foldinfo.fi_lines == 0
                                 || wp.w_onebuf_opt.wo_fdt.cb_type() == kCallbackNone);
 
-                        let mut zero_spv = spellvars_T::default();
+                        let mut zero_spv = Spellvars::default();
                         row = win_line(
                             wp,
                             lnum,
@@ -2143,7 +2143,7 @@ fn win_update(wp: &mut win_T) {
                         }
 
                         let lastlnum =
-                            lnum + foldinfo.fi_lines - linenr_T::from(foldinfo.fi_lines > 0);
+                            lnum + foldinfo.fi_lines - Linenr::from(foldinfo.fi_lines > 0);
                         let wl_ptr = w_lines_at(&mut *wp, idx as usize);
                         wl_ptr.wl_folded = foldinfo.fi_lines > 0;
                         wl_ptr.wl_foldend = lastlnum;
@@ -2323,8 +2323,8 @@ fn win_update(wp: &mut win_T) {
                     wp.w_botline = (*buf).b_ml.ml_line_count + 1;
                     let j = win_get_fill(wp, wp.w_botline);
                     if j > 0 && !wp.w_botfill && row < wp.w_view_height {
-                        let mut zero_spv = spellvars_T::default();
-                        let zero_foldinfo = foldinfo_T::new();
+                        let mut zero_spv = Spellvars::default();
+                        let zero_foldinfo = Foldinfo::new();
                         row = win_line(
                             wp,
                             wp.w_botline,
@@ -2425,7 +2425,7 @@ fn win_update(wp: &mut win_T) {
     }
 }
 
-pub fn win_scroll_lines(wp: &mut win_T, row: c_int, line_count: c_int) {
+pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: c_int, line_count: c_int) {
     unsafe {
         if !redrawing() || line_count == 0 {
             return;
@@ -2465,12 +2465,12 @@ pub fn win_scroll_lines(wp: &mut win_T, row: c_int, line_count: c_int) {
 }
 
 pub fn win_draw_end(
-    wp: &mut win_T,
-    c1: schar_T,
+    wp: &mut WinInfoInfo,
+    c1: Schar,
     draw_margin: bool,
     startrow: c_int,
     endrow: c_int,
-    hl: hlf_T,
+    hl: Hlf,
 ) {
     assert!((0..HLF_COUNT).contains(&hl));
         let view_width = wp.w_view_width;
@@ -2529,7 +2529,7 @@ pub fn win_draw_end(
         }
 }
 
-pub fn compute_foldcolumn(wp: &mut win_T, col: c_int) -> c_int {
+pub fn compute_foldcolumn(wp: &mut WinInfoInfo, col: c_int) -> c_int {
      {
         let fdc = win_fdccol_count(wp);
         let wmw = if ptr::eq((&raw mut *wp), curwin_ptr()) && opt_vars().p_wmw == 0 {
@@ -2542,7 +2542,7 @@ pub fn compute_foldcolumn(wp: &mut win_T, col: c_int) -> c_int {
     }
 }
 
-pub fn number_width(wp: &mut win_T) -> c_int {
+pub fn number_width(wp: &mut WinInfoInfo) -> c_int {
      {
         let mut lnum = if wp.w_onebuf_opt.wo_rnu != 0 && wp.w_onebuf_opt.wo_nu == 0 {
             wp.w_view_height
@@ -2586,7 +2586,7 @@ pub fn number_width(wp: &mut win_T) -> c_int {
     }
 }
 
-pub fn redraw_later(mut wp: Option<&mut win_T>, type_: c_int) {
+pub fn redraw_later(mut wp: Option<&mut WinInfoInfo>, type_: c_int) {
      {
         assert!(wp.is_some() || g_st().exiting);
         if !g_st().exiting && !g_st().redraw_not_allowed && wp.as_deref_mut().unwrap().w_redr_type < type_ {
@@ -2627,7 +2627,7 @@ pub fn redraw_curbuf_later(type_: c_int) {
     redraw_buf_later(g_st().curbuf, type_);
 }
 
-pub fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
+pub fn redraw_buf_later(buf: *mut FileBuf, type_: c_int) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
@@ -2637,7 +2637,7 @@ pub fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
     }
 }
 
-pub fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
+pub fn redraw_buf_line_later(buf: *mut FileBuf, line: Linenr, force: bool) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
@@ -2650,7 +2650,7 @@ pub fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
     }
 }
 
-pub fn redraw_win_range_later(wp: &mut win_T, first: linenr_T, last: linenr_T) {
+pub fn redraw_win_range_later(wp: &mut WinInfoInfo, first: Linenr, last: Linenr) {
      {
         if last >= wp.w_topline && first < wp.w_botline {
             if wp.w_redraw_top == 0 || wp.w_redraw_top > first {
@@ -2664,11 +2664,11 @@ pub fn redraw_win_range_later(wp: &mut win_T, first: linenr_T, last: linenr_T) {
     }
 }
 
-pub fn redrawWinline(wp: &mut win_T, lnum: linenr_T) {
+pub fn redrawWinline(wp: &mut WinInfoInfo, lnum: Linenr) {
     redraw_win_range_later( wp, lnum, lnum);
 }
 
-pub fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
+pub fn redraw_buf_range_later(buf: *mut FileBuf, first: Linenr, last: Linenr) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
@@ -2678,7 +2678,7 @@ pub fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) 
     }
 }
 
-pub fn redraw_buf_status_later(buf: *mut buf_T) {
+pub fn redraw_buf_status_later(buf: *mut FileBuf) {
     unsafe {
         for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf)
@@ -2720,7 +2720,7 @@ pub fn status_redraw_curbuf() {
     status_redraw_buf(g_st().curbuf);
 }
 
-pub fn status_redraw_buf(buf: *mut buf_T) {
+pub fn status_redraw_buf(buf: *mut FileBuf) {
     unsafe {
         let is_stl_global = global_stl_height() != 0;
 
@@ -2762,7 +2762,7 @@ pub fn redraw_statuslines() {
     }
 }
 
-pub fn win_redraw_last_status(mut frp: *const frame_T) {
+pub fn win_redraw_last_status(mut frp: *const Frame) {
     unsafe {
         if (*frp).fr_layout == FR_LEAF {
             (*(*frp).fr_win).w_redr_status = true;
@@ -2781,7 +2781,7 @@ pub fn win_redraw_last_status(mut frp: *const frame_T) {
     }
 }
 
-pub fn conceal_cursor_line(wp: &win_T) -> bool {
+pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
      {
         if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cocu) {
             return false;
@@ -2801,14 +2801,14 @@ pub fn conceal_cursor_line(wp: &win_T) -> bool {
     }
 }
 
-pub fn win_cursorline_standout(wp: &win_T) -> bool {
+pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {
      {
         wp.w_onebuf_opt.wo_cul != 0
             || (ptr::eq(wp, curwin_ptr()) && wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line( wp))
     }
 }
 
-pub fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
+pub fn win_update_cursorline(wp: &mut WinInfoInfo, foldinfo: &mut Foldinfo) {
     wp.w_cursorline = if win_cursorline_standout(&*wp) {
             wp.w_cursor.lnum
         } else {

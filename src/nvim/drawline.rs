@@ -4,13 +4,13 @@
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX};
 use crate::autocmd::HLF_8;
-use crate::buffer::{bt_quickfix, buf_T, buf_meta_total};
+use crate::buffer::{bt_quickfix, FileBuf, buf_meta_total};
 use crate::change::TAB;
 use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, kOptDyFlagUhex, rl_mirror_ascii, skiptowhite, skipwhite,
     transchar_buf, transchar_hex, transstr_buf, vim_isprintc,
 };
-use crate::cursor::{VALID_VIRTCOL, colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq, pos_T};
+use crate::cursor::{VALID_VIRTCOL, Colnr, get_cursor_rel_lnum, Linenr, ltoreq, CursorPos};
 use crate::decoration::{
     DecorRange, DecorVirtText, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText, VirtTextChunk,
     decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
@@ -22,19 +22,19 @@ use crate::decoration::{
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
     HLF_ADD, HLF_CHD, HLF_TXA, HLF_TXD, diff_change_parse, diff_check_fill,
-    diff_check_with_linestatus, diff_find_change, diffline_T,
+    diff_check_with_linestatus, diff_find_change, Diffline,
 };
 use crate::drawscreen::{
-    SIGN_WIDTH, WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, spellvars_T,
+    SIGN_WIDTH, WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, Spellvars,
     win_draw_end,
 };
 use crate::eval::typval::kCallbackNone;
-use crate::ex_getln::{disptick_T, hlf_T};
+use crate::ex_getln::{Disptick, Hlf};
 use crate::extmark::{TriState, kFalse, kTrue};
 use crate::fold::get_foldtext;
 use crate::globals::*;
 use crate::grid::{
-    GridView, grid_adjust, grid_put_linebuf, linebuf_mirror, schar_T, schar_from_ascii,
+    GridView, grid_adjust, grid_put_linebuf, linebuf_mirror, Schar, schar_from_ascii,
     schar_from_char, schar_from_cluster, schar_get, schar_get_adv, schar_get_ascii,
     schar_invisible, schar_len,
 };
@@ -70,7 +70,7 @@ use crate::search::FORWARD;
 use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, spell_to_word_end};
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
-use crate::statusline::{build_statuscol_str, foldinfo_T, statuscol_T};
+use crate::statusline::{build_statuscol_str, Foldinfo, Statuscol};
 use crate::strings::{vim_snprintf, vim_strchr};
 use crate::syntax::{
     HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present,
@@ -78,7 +78,7 @@ use crate::syntax::{
 };
 use crate::terminal::{terminal_get_line_attributes};
 use crate::ui::ui_rgb_attached;
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -127,15 +127,15 @@ const HLF_CUL: c_int = 56;
 const HLF_MC: c_int = 57;
 pub(crate) const HLF_QFL: c_int = 58;
 pub(crate) const HLF_0: c_int = 59;
-pub(crate) const HLF_COUNT: hlf_T = 76;
+pub(crate) const HLF_COUNT: Hlf = 76;
 
 /// Structure with variables passed between `win_line()` and other functions.
-struct winlinevars_T<'a> {
-    lnum: linenr_T,
-    foldinfo: foldinfo_T,
+struct Winlinevars<'a> {
+    lnum: Linenr,
+    foldinfo: Foldinfo,
     startrow: c_int,
     row: c_int,
-    vcol: colnr_T,
+    vcol: Colnr,
     col: c_int,
     boguscols: c_int,
     old_boguscols: c_int,
@@ -149,18 +149,18 @@ struct winlinevars_T<'a> {
     sign_cul_attr: c_int,
     fromcol: c_int,
     tocol: c_int,
-    vcol_sbr: colnr_T,
+    vcol_sbr: Colnr,
     need_showbreak: bool,
     char_attr: c_int,
     n_extra: c_int,
     n_attr: c_int,
     p_extra: *mut c_char,
     extra_attr: c_int,
-    sc_extra: schar_T,
-    sc_final: schar_T,
+    sc_extra: Schar,
+    sc_final: Schar,
     extra_for_extmark: bool,
     extra: [c_char; 11],
-    diff_hlf: hlf_T,
+    diff_hlf: Hlf,
     n_virt_lines: c_int,
     n_virt_below: c_int,
     filler_lines: c_int,
@@ -181,15 +181,15 @@ struct winlinevars_T<'a> {
 struct DrawlineState {
     extra_buf: Vec<c_char>,
     saved_w_virtcol: c_int,
-    margin_prev_wp: *mut win_T,
+    margin_prev_wp: *mut WinInfoInfo,
     prev_width1: c_int,
     prev_width2: c_int,
     prev_left_col: c_int,
     prev_right_col: c_int,
     stc_prev_virtnum: c_int,
-    stc_prev_wp: *mut win_T,
-    stc_prev_lnum: linenr_T,
-    stc_prev_tick: disptick_T,
+    stc_prev_wp: *mut WinInfoInfo,
+    stc_prev_lnum: Linenr,
+    stc_prev_tick: Disptick,
 }
 
 impl DrawlineState {
@@ -229,7 +229,7 @@ const fn tristate_to_bool(val: TriState, default: bool) -> bool {
 }
 
 #[inline]
-const fn vcol_hlc(wlv: &winlinevars_T) -> c_int {
+const fn vcol_hlc(wlv: &Winlinevars) -> c_int {
     wlv.vcol - wlv.vcol_off_co
 }
 
@@ -248,7 +248,7 @@ pub fn drawline_free_all_mem() {
 
 /// Get the 'listchars' "extends" characters to use for "wp", or NUL if it
 /// shouldn't be used.
-fn get_lcs_ext(wp: &mut win_T) -> schar_T {
+fn get_lcs_ext(wp: &mut WinInfoInfo) -> Schar {
     if wp.w_onebuf_opt.wo_wrap != 0 {
             return 0;
         }
@@ -263,7 +263,7 @@ fn get_lcs_ext(wp: &mut win_T) -> schar_T {
 }
 
 /// Advance `wlv.color_cols` if not empty.
-fn advance_color_col(wlv: &mut winlinevars_T<'_>, vcol: c_int) {
+fn advance_color_col(wlv: &mut Winlinevars<'_>, vcol: c_int) {
     while let Some((&first, rest)) = wlv.color_cols.split_first() {
         if first < 0 {
             wlv.color_cols = &[];
@@ -279,7 +279,7 @@ fn advance_color_col(wlv: &mut winlinevars_T<'_>, vcol: c_int) {
 
 /// Used when 'cursorlineopt' contains "screenline": compute the margins between
 /// which the highlighting is used.
-fn margin_columns_win(wp: &mut win_T, left_col: &mut c_int, right_col: &mut c_int) {
+fn margin_columns_win(wp: &mut WinInfoInfo, left_col: &mut c_int, right_col: &mut c_int) {
     unsafe {
         let cur_col_off = win_col_off(wp);
         let width1 = wp.w_view_width - cur_col_off;
@@ -319,8 +319,8 @@ fn margin_columns_win(wp: &mut win_T, left_col: &mut c_int, right_col: &mut c_in
 /// If `*pp` is a double-width char and only one cell is left, emit a space,
 /// and don't advance `*pp`.
 fn draw_virt_text(
-    wp: &mut win_T,
-    buf: &mut buf_T,
+    wp: &mut WinInfoInfo,
+    buf: &mut FileBuf,
     col_off: c_int,
     end_col: &mut c_int,
     win_row: c_int,
@@ -438,7 +438,7 @@ fn draw_virt_text(
 }
 
 fn draw_virt_text_item(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     mut col: c_int,
     vt: &[VirtTextChunk],
     hl_mode: HlMode,
@@ -552,12 +552,12 @@ fn draw_virt_text_item(
     }
 }
 
-fn draw_col_buf(wp: &mut win_T,
-    wlv: &mut winlinevars_T,
+fn draw_col_buf(wp: &mut WinInfoInfo,
+    wlv: &mut Winlinevars,
     text: impl crate::strings::IntoCCharPtr,
     len: usize,
     attr: c_int,
-    mut fold_vcol: *const colnr_T,
+    mut fold_vcol: *const Colnr,
     inc_vcol: bool,
 ) { let text = text.into_c_char_ptr();
     unsafe {
@@ -605,7 +605,7 @@ fn draw_col_buf(wp: &mut win_T,
     }
 }
 
-fn draw_col_fill(wlv: &mut winlinevars_T, fillchar: schar_T, width: c_int, attr: c_int) {
+fn draw_col_fill(wlv: &mut Winlinevars, fillchar: Schar, width: c_int, attr: c_int) {
     for _ in 0..width {
             g_st().linebuf_char[wlv.off as usize] = fillchar;
             g_st().linebuf_attr[wlv.off as usize] = attr;
@@ -615,12 +615,12 @@ fn draw_col_fill(wlv: &mut winlinevars_T, fillchar: schar_T, width: c_int, attr:
 
 /// Return true if CursorLineSign / CursorLineFold highlight is to be used.
 /// This depends only on 'cursorline', not on 'cursorlineopt'.
-pub fn use_cursor_line_highlight(wp: &mut win_T, lnum: linenr_T) -> bool {
+pub fn use_cursor_line_highlight(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
     wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursorline
 }
 
 /// Setup for drawing the 'foldcolumn', if there is one.
-fn draw_foldcolumn(wp: &mut win_T, wlv: &mut winlinevars_T) {
+fn draw_foldcolumn(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
      {
         let fdc = compute_foldcolumn( &mut *wp, 0);
         if fdc > 0 {
@@ -647,7 +647,7 @@ fn draw_foldcolumn(wp: &mut win_T, wlv: &mut winlinevars_T) {
 }
 
 #[inline]
-fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: &mut win_T) -> schar_T {
+fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: &mut WinInfoInfo) -> Schar {
      {
         if first_level == 1 {
             wp.w_p_fcs_chars.foldsep
@@ -663,15 +663,15 @@ fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: &mut win_T) -> schar_T 
 
 /// Draw the foldcolumn or fill "out_buffer". Assume monocell characters.
 pub fn fill_foldcolumn(
-    wp: &mut win_T,
-    foldinfo: foldinfo_T,
-    lnum: linenr_T,
+    wp: &mut WinInfoInfo,
+    foldinfo: Foldinfo,
+    lnum: Linenr,
     attr: c_int,
     fdc: c_int,
     is_virt: bool,
     wlv_off: *mut c_int,
-    out_vcol: *mut colnr_T,
-    out_buffer: *mut schar_T,
+    out_vcol: *mut Colnr,
+    out_buffer: *mut Schar,
 ) {
     unsafe {
         let closed = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
@@ -681,7 +681,7 @@ pub fn fill_foldcolumn(
         let closedcol = fdc.min(level);
 
         for i in 0..fdc {
-            let mut symbol: schar_T;
+            let mut symbol: Schar;
             if i >= level {
                 symbol = schar_from_ascii(b' ');
             } else if i == closedcol - 1 && closed {
@@ -723,7 +723,7 @@ pub fn fill_foldcolumn(
     }
 }
 
-fn draw_sign(nrcol: bool,wp: &mut win_T, wlv: &mut winlinevars_T, sign_idx: c_int) {
+fn draw_sign(nrcol: bool,wp: &mut WinInfoInfo, wlv: &mut Winlinevars, sign_idx: c_int) {
      {
         let sattr = wlv.sattrs[sign_idx as usize];
         let hlf = if use_cursor_line_highlight(wp, wlv.lnum) {
@@ -761,8 +761,8 @@ fn draw_sign(nrcol: bool,wp: &mut win_T, wlv: &mut winlinevars_T, sign_idx: c_in
 }
 
 #[inline]
-fn get_line_number_str(wp: &mut win_T, lnum: linenr_T, buf: *mut c_char, buf_len: usize) {
-    let mut num: linenr_T;
+fn get_line_number_str(wp: &mut WinInfoInfo, lnum: Linenr, buf: *mut c_char, buf_len: usize) {
+    let mut num: Linenr;
         let mut fmt: *const c_char = c"%*d ".as_ptr();
 
         if wp.w_onebuf_opt.wo_nu != 0 && wp.w_onebuf_opt.wo_rnu == 0 {
@@ -778,7 +778,7 @@ fn get_line_number_str(wp: &mut win_T, lnum: linenr_T, buf: *mut c_char, buf_len
         vim_snprintf!(buf, buf_len, fmt, number_width(&mut *wp), num);
 }
 
-fn use_cursor_line_nr(wp: &mut win_T, wlv: &winlinevars_T) -> bool {
+fn use_cursor_line_nr(wp: &mut WinInfoInfo, wlv: &Winlinevars) -> bool {
     wp.w_onebuf_opt.wo_cul != 0
             && wlv.lnum == wp.w_cursorline
             && (wp.w_p_culopt_flags & kOptCuloptFlagNumber) != 0
@@ -787,7 +787,7 @@ fn use_cursor_line_nr(wp: &mut win_T, wlv: &winlinevars_T) -> bool {
                     && (wp.w_p_culopt_flags & kOptCuloptFlagLine) != 0))
 }
 
-fn get_line_number_attr(wp: &mut win_T, wlv: &mut winlinevars_T) -> c_int {
+fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> c_int {
      {
         let mut numhl_attr = wlv.sign_num_attr;
 
@@ -826,7 +826,7 @@ fn get_line_number_attr(wp: &mut win_T, wlv: &mut winlinevars_T) -> c_int {
     }
 }
 
-fn draw_lnum_col(wp: &mut win_T, wlv: &mut winlinevars_T) {
+fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     unsafe {
         let has_cpo_n = !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null();
 
@@ -873,10 +873,10 @@ fn draw_lnum_col(wp: &mut win_T, wlv: &mut winlinevars_T) {
     }
 }
 
-fn draw_statuscol(wp: &mut win_T,
-    wlv: &mut winlinevars_T,
+fn draw_statuscol(wp: &mut WinInfoInfo,
+    wlv: &mut Winlinevars,
     col_rows: c_int,
-    stcp: &mut statuscol_T,
+    stcp: &mut Statuscol,
 ) {
     unsafe {
         let lnum = wlv.lnum - c_int::from((wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below);
@@ -907,7 +907,7 @@ fn draw_statuscol(wp: &mut win_T,
         } else {
             wlv.row - wlv.startrow - wlv.filler_lines
         };
-        let relnum: linenr_T = if virtnum == -reset_virt - 1 || virtnum == 0 {
+        let relnum: Linenr = if virtnum == -reset_virt - 1 || virtnum == 0 {
             get_cursor_rel_lnum(wp, lnum).abs()
         } else {
             -1
@@ -977,7 +977,7 @@ fn draw_statuscol(wp: &mut win_T,
         let mut p = buf_ptr;
         let mut transbuf = [0 as c_char; MAXPATHL];
         let transbuf_ptr = (&raw mut transbuf).cast::<c_char>();
-        let mut fold_vcol: *const colnr_T = ptr::null();
+        let mut fold_vcol: *const Colnr = ptr::null();
         let len = crate::memory::cstr_len(buf_ptr);
         let hlf = if use_cursor_line_highlight(wp, wlv.lnum) {
             HLF_CLS
@@ -1008,7 +1008,7 @@ fn draw_statuscol(wp: &mut win_T,
                 },
             );
             fold_vcol = if sp.item == c_int::from(STL_FOLDCOL as u8) {
-                (&raw const stcp.fold_vcol).cast::<colnr_T>()
+                (&raw const stcp.fold_vcol).cast::<Colnr>()
             } else {
                 ptr::null()
             };
@@ -1032,7 +1032,7 @@ fn attr_has_line_deco(attr: c_int) -> bool {
         (ae.rgb_ae_attr & mask) != 0 || (ae.cterm_ae_attr & mask) != 0
 }
 
-fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c_int) {
+fn handle_breakindent(wp: &mut WinInfoInfo, wlv: &mut Winlinevars, gap_decor_attr: c_int) {
     if wp.w_onebuf_opt.wo_bri != 0
             && (wlv.row > wlv.startrow + wlv.filler_lines || wlv.need_showbreak)
         {
@@ -1083,8 +1083,8 @@ fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c
 }
 
 fn handle_showbreak_and_filler(
-    wp: &mut win_T,
-    wlv: &mut winlinevars_T,
+    wp: &mut WinInfoInfo,
+    wlv: &mut Winlinevars,
     gap_decor_attr: c_int,
 ) {
      {
@@ -1131,7 +1131,7 @@ fn handle_showbreak_and_filler(
     }
 }
 
-fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
+fn apply_cursorline_highlight(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     wlv.cul_attr = win_hl_attr(&mut *wp, HLF_CUL);
         let ae = syn_attr2entry(wlv.cul_attr);
         if ae.rgb_fg_color == -1 && ae.cterm_fg_color == 0 {
@@ -1146,7 +1146,7 @@ fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
         }
 }
 
-fn set_line_attr_for_diff(wp: &mut win_T, wlv: &mut winlinevars_T) {
+fn set_line_attr_for_diff(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     wlv.line_attr = win_hl_attr( &mut *wp, wlv.diff_hlf);
         if wlv.cul_attr != 0 {
             wlv.line_attr = if wlv.line_attr_lowprio != 0 {
@@ -1160,7 +1160,7 @@ fn set_line_attr_for_diff(wp: &mut win_T, wlv: &mut winlinevars_T) {
         }
 }
 
-fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
+fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
     unsafe {
         if wlv.virt_inline_i < wlv.virt_inline.len() {
             return true;
@@ -1194,7 +1194,7 @@ fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
 }
 
 fn handle_inline_virtual_text(
-    wlv: &mut winlinevars_T,
+    wlv: &mut Winlinevars,
     v: isize,
     selected: bool,
 ) {
@@ -1281,7 +1281,7 @@ fn handle_inline_virtual_text(
     }
 }
 
-fn win_line_start(wp: &mut win_T, wlv: &mut winlinevars_T) {
+fn win_line_start(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     wlv.col = 0;
         wlv.off = 0;
         wlv.need_lbr = false;
@@ -1292,7 +1292,7 @@ fn win_line_start(wp: &mut win_T, wlv: &mut winlinevars_T) {
         }
 }
 
-fn fix_for_boguscols(wlv: &mut winlinevars_T) {
+fn fix_for_boguscols(wlv: &mut Winlinevars) {
     wlv.n_extra += wlv.vcol_off_co;
     wlv.vcol -= wlv.vcol_off_co;
     wlv.vcol_off_co = 0;
@@ -1301,7 +1301,7 @@ fn fix_for_boguscols(wlv: &mut winlinevars_T) {
     wlv.boguscols = 0;
 }
 
-fn get_rightmost_vcol(wp: &mut win_T, color_cols: &[c_int]) -> c_int {
+fn get_rightmost_vcol(wp: &mut WinInfoInfo, color_cols: &[c_int]) -> c_int {
     let mut ret: c_int = 0;
 
         if wp.w_onebuf_opt.wo_cuc != 0 {
@@ -1319,7 +1319,7 @@ fn get_rightmost_vcol(wp: &mut win_T, color_cols: &[c_int]) -> c_int {
 }
 
 #[inline]
-fn schar_get_single_width(mb_schar: schar_T) -> c_int {
+fn schar_get_single_width(mb_schar: Schar) -> c_int {
     #[cfg(debug_assertions)]
     {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
@@ -1332,14 +1332,14 @@ fn schar_get_single_width(mb_schar: schar_T) -> c_int {
 
 /// Display line "lnum" of window "wp" on the screen.
 pub fn win_line(
-    wp: &mut win_T,
-    lnum: linenr_T,
+    wp: &mut WinInfoInfo,
+    lnum: Linenr,
     startrow: c_int,
     endrow: c_int,
     col_rows: c_int,
     concealed: bool,
-    spv: &mut spellvars_T,
-    foldinfo: foldinfo_T,
+    spv: &mut Spellvars,
+    foldinfo: Foldinfo,
 ) -> c_int {
     unsafe {
         let grid: *mut GridView = &raw mut wp.w_grid;
@@ -1380,7 +1380,7 @@ pub fn win_line(
         let mut cur_checked_col: c_int = 0;
         let mut extra_check = false;
         let mut multi_attr: c_int = 0;
-        let mut mb_schar: schar_T;
+        let mut mb_schar: Schar;
         let mut mb_schar_width: c_int = 0;
         let mut change_start: c_int = MAXCOL;
         let mut change_end: c_int = -1;
@@ -1420,7 +1420,7 @@ pub fn win_line(
 
         debug_assert!(startrow < endrow);
 
-        let mut wlv = winlinevars_T {
+        let mut wlv = Winlinevars {
             lnum,
             foldinfo,
             startrow,
@@ -1593,7 +1593,7 @@ pub fn win_line(
                     wlv.fromcol = 0;
                 }
                 if lnum == curwin_mut().w_cursor.lnum + g_st().Search.match_lines {
-                    let mut pos = pos_T {
+                    let mut pos = CursorPos {
                         lnum,
                         col: g_st().Search.match_endcol,
                         coladd: 0,
@@ -1619,7 +1619,7 @@ pub fn win_line(
 
         let mut linestatus: c_int = 0;
         wlv.filler_lines = diff_check_with_linestatus(&mut *wp, lnum, Some(&mut linestatus));
-        let mut line_changes = diffline_T::default();
+        let mut line_changes = Diffline::default();
         let mut change_index: c_int = -1;
         if linestatus < 0 {
             if linestatus == -1 {
@@ -1696,7 +1696,7 @@ pub fn win_line(
             Some(&mut wlv.sign_num_attr),
         );
 
-        let mut statuscol = statuscol_T::new();
+        let mut statuscol = Statuscol::new();
         if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
             statuscol.draw = true;
             statuscol.sattrs = wlv.sattrs;
@@ -1789,8 +1789,8 @@ pub fn win_line(
         };
         let mut ptr: *const c_char = line;
 
-        let mut trailcol: colnr_T = MAXCOL;
-        let mut leadcol: colnr_T = 0;
+        let mut trailcol: Colnr = MAXCOL;
+        let mut leadcol: Colnr = 0;
 
         let mut lcs_eol_todo = true;
         let lcs_eol = wp.w_p_lcs_chars.eol;
@@ -1811,7 +1811,7 @@ pub fn win_line(
                 while trailcol > 0 && ascii_iswhite(*ptr.add((trailcol - 1) as usize)) {
                     trailcol -= 1;
                 }
-                trailcol += ptr.offset_from(line) as colnr_T;
+                trailcol += ptr.offset_from(line) as Colnr;
             }
             if wp.w_p_lcs_chars.lead != 0
                 || !wp.w_p_lcs_chars.leadmultispace.is_empty()
@@ -1824,7 +1824,7 @@ pub fn win_line(
                 if crate::memory::cstr_byte_at(ptr, leadcol as usize) == 0 {
                     leadcol = 0;
                 } else {
-                    leadcol += ptr.offset_from(line) as colnr_T + 1;
+                    leadcol += ptr.offset_from(line) as Colnr + 1;
                 }
             }
         }
@@ -1920,8 +1920,8 @@ pub fn win_line(
                 wlv.need_showbreak = true;
             }
             if spv.spv_has_spell {
-                let linecol = ptr.offset_from(line) as colnr_T;
-                let mut spell_hlf: hlf_T = HLF_COUNT;
+                let linecol = ptr.offset_from(line) as Colnr;
+                let mut spell_hlf: Hlf = HLF_COUNT;
 
                 let pos = wp.w_cursor;
                 wp.w_cursor.lnum = lnum;
@@ -2131,7 +2131,7 @@ pub fn win_line(
                 if has_decor && wlv.row == startrow + wlv.filler_lines {
                     decor_redraw_col(
                         &mut *wp,
-                        (ptr.offset_from(line) as colnr_T) - 1,
+                        (ptr.offset_from(line) as Colnr) - 1,
                         wlv.off,
                         true,
                         &mut g_st().decor_state,
@@ -2199,7 +2199,7 @@ pub fn win_line(
                         }
                         extmark_attr = decor_redraw_col(
                             &mut *wp,
-                            ptr.offset_from(line) as colnr_T,
+                            ptr.offset_from(line) as Colnr,
                             if may_have_inline_virt { -3 } else { wlv.off },
                             selected,
                             &mut g_st().decor_state,
@@ -2588,7 +2588,7 @@ pub fn win_line(
                         if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                             spell_attr = 0;
                             if mb_schar != 0 && *skipwhite(prev_ptr) != NUL && can_spell {
-                                let mut spell_hlf: hlf_T = HLF_COUNT;
+                                let mut spell_hlf: Hlf = HLF_COUNT;
                                 v1 -= mb_l - 1;
 
                                 let p: *mut c_char =
@@ -2615,7 +2615,7 @@ pub fn win_line(
                                 if spell_hlf != HLF_COUNT
                                     && (g_st().State & MODE_INSERT) != 0
                                     && wp.w_cursor.lnum == lnum
-                                    && wp.w_cursor.col >= (prev_ptr.offset_from(line) as colnr_T)
+                                    && wp.w_cursor.col >= (prev_ptr.offset_from(line) as Colnr)
                                     && wp.w_cursor.col < word_end
                                 {
                                     spell_hlf = HLF_COUNT;
@@ -2761,8 +2761,8 @@ pub fn win_line(
                                     && (wp.w_p_lcs_chars.space != 0
                                         || (in_multispace
                                             && !wp.w_p_lcs_chars.multispace.is_empty()))
-                                    && (ptr.offset_from(line) as colnr_T) >= leadcol
-                                    && (ptr.offset_from(line) as colnr_T) <= trailcol))
+                                    && (ptr.offset_from(line) as Colnr) >= leadcol
+                                    && (ptr.offset_from(line) as Colnr) <= trailcol))
                         {
                             if in_multispace && !wp.w_p_lcs_chars.multispace.is_empty() {
                                 mb_schar =
@@ -3142,7 +3142,7 @@ pub fn win_line(
                     let prevcol_hl_flag = get_prevcol_hl_flag(
                         wp,
                         &mut g_st().screen_search_hl,
-                        (ptr.offset_from(line) as colnr_T) - 1,
+                        (ptr.offset_from(line) as Colnr) - 1,
                     );
 
                     if lcs_eol_todo
@@ -3164,7 +3164,7 @@ pub fn win_line(
                             get_search_match_hl(
                                 wp,
                                 &mut g_st().screen_search_hl,
-                                ptr.offset_from(line) as colnr_T,
+                                ptr.offset_from(line) as Colnr,
                                 &mut wlv.char_attr,
                             );
                         }
@@ -3319,7 +3319,7 @@ pub fn win_line(
                     if has_decor && crate::memory::cstr_is_empty(ptr) && lcs_eol == 0 && lcs_eol_todo {
                         decor_redraw_col(
                             &mut *wp,
-                            ptr.offset_from(line) as colnr_T,
+                            ptr.offset_from(line) as Colnr,
                             -1,
                             false,
                             &mut g_st().decor_state,
@@ -3488,7 +3488,7 @@ pub fn win_line(
                     if is_wrapped && wlv.n_extra == 0 {
                         decor_redraw_col(
                             &mut *wp,
-                            ptr.offset_from(line) as colnr_T,
+                            ptr.offset_from(line) as Colnr,
                             -3,
                             false,
                             &mut g_st().decor_state,
@@ -3645,8 +3645,8 @@ pub fn win_line(
 }
 
 fn wlv_put_linebuf(
-    wp: &mut win_T,
-    wlv: &winlinevars_T,
+    wp: &mut WinInfoInfo,
+    wlv: &Winlinevars,
     mut endcol: c_int,
     clear_end: bool,
     bg_attr: c_int,
@@ -3721,9 +3721,9 @@ fn wlv_put_linebuf(
 fn decor_providers_setup(
     rows_to_draw: c_int,
     draw_from_line_start: bool,
-    lnum: linenr_T,
-    col: colnr_T,
-    wp: &mut win_T,
+    lnum: Linenr,
+    col: Colnr,
+    wp: &mut WinInfoInfo,
 ) -> c_int {
     unsafe {
         let rem_vcols = if wp.w_onebuf_opt.wo_wrap != 0 {
@@ -3744,10 +3744,10 @@ fn decor_providers_setup(
 }
 
 fn invoke_range_next(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     lnum: c_int,
-    begin_col: colnr_T,
-    mut col_off: colnr_T,
+    begin_col: Colnr,
+    mut col_off: Colnr,
 ) -> c_int {
     unsafe {
         let line = ml_get_buf(wp.buf_mut(), lnum);

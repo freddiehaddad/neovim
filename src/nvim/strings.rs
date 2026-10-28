@@ -7,10 +7,10 @@ use crate::charset::{
 use crate::errors::*;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{
-    EvalFuncData, VarType, float_T, tv_check_for_number_arg, tv_check_for_opt_bool_arg,
+    EvalFuncData, VarType, TvFloat, tv_check_for_number_arg, tv_check_for_opt_bool_arg,
     tv_check_for_opt_number_arg, tv_check_for_opt_string_arg, tv_check_for_string_arg, tv_get_bool,
     tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_list_alloc_ret, tv_list_append_number, typval_T, varnumber_T,
+    tv_get_string_chk, tv_list_alloc_ret, tv_list_append_number, TypVal, Varnumber,
 };
 use crate::ex_docmd::find_cmdline_var;
 use crate::math::{xisinf, xisnan};
@@ -663,10 +663,10 @@ pub fn concat_str<S1: IntoCCharPtr, S2: IntoCCharPtr>(str1: S1, str2: S2) -> std
     crate::memory::cstr_from_bytes(&dest)
 }
 
-pub fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
+pub fn tv_nr(tvs: *mut TypVal, idxp: &mut c_int) -> Varnumber {
     unsafe {
         let idx = (*idxp - 1) as usize;
-        let mut n: varnumber_T = 0;
+        let mut n: Varnumber = 0;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
             emsg(gettext(E_PRINTF));
         } else {
@@ -682,7 +682,7 @@ pub fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
 }
 
 pub fn tv_str(
-    tvs: *mut typval_T,
+    tvs: *mut TypVal,
     idxp: &mut c_int,
     tofree: &mut Option<std::ffi::CString>,
 ) -> *const c_char {
@@ -707,7 +707,7 @@ pub fn tv_str(
     }
 }
 
-pub fn tv_ptr(tvs: *const typval_T, idxp: &mut c_int) -> *const c_void {
+pub fn tv_ptr(tvs: *const TypVal, idxp: &mut c_int) -> *const c_void {
     unsafe {
         let idx = (*idxp - 1) as usize;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
@@ -719,10 +719,10 @@ pub fn tv_ptr(tvs: *const typval_T, idxp: &mut c_int) -> *const c_void {
     }
 }
 
-pub fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
+pub fn tv_float(tvs: *mut TypVal, idxp: &mut c_int) -> TvFloat {
     unsafe {
         let idx = (*idxp - 1) as usize;
-        let mut f: float_T = 0.0;
+        let mut f: TvFloat = 0.0;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
             emsg(gettext(E_PRINTF));
         } else {
@@ -731,7 +731,7 @@ pub fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
             if (*tv).v_type == VarType::VAR_FLOAT {
                 f = (*tv).vval.v_float();
             } else if (*tv).v_type == VarType::VAR_NUMBER {
-                f = (*tv).vval.v_number() as float_T;
+                f = (*tv).vval.v_number() as TvFloat;
             } else {
                 emsg(gettext(
                     c"E807: Expected Float argument for printf()",
@@ -933,7 +933,7 @@ pub fn get_unsigned_int(
 pub fn parse_fmt_types(
     num_posarg: &mut c_int,
     fmt: *const c_char,
-    tvs: *mut typval_T,
+    tvs: *mut TypVal,
 ) -> bool {
     unsafe {
         if fmt.is_null() {
@@ -1323,7 +1323,7 @@ fn vim_vsnprintf_typval_inner(
     str_out: *mut c_char,
     str_m: usize,
     fmt: *const c_char,
-    tvs: *mut typval_T,
+    tvs: *mut TypVal,
     fmt_args: &[FmtVal],
 ) -> c_int {
     unsafe {
@@ -2223,7 +2223,7 @@ pub fn vim_snprintf_typval_only(
     str_out: *mut c_char,
     str_m: usize,
     fmt: impl crate::strings::IntoCCharPtr,
-    tvs: *mut typval_T,
+    tvs: *mut TypVal,
 ) -> c_int {
     let fmt = fmt.into_c_char_ptr();
     vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[])
@@ -2297,7 +2297,7 @@ pub fn strrep<S1: IntoCCharPtr, S2: IntoCCharPtr, S3: IntoCCharPtr>(
     Some(crate::memory::cstr_from_bytes(&ret))
 }
 
-fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
+fn byteidx_common(argvars: &mut [TypVal], rettv: &mut TypVal, comp: bool) {
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -2307,7 +2307,7 @@ fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
             return;
         }
 
-        let mut utf16idx: varnumber_T = 0;
+        let mut utf16idx: Varnumber = 0;
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
             utf16idx = tv_get_bool_chk(&argvars[2], Some(&mut error));
@@ -2349,19 +2349,19 @@ fn byteidx_common(argvars: &mut [typval_T], rettv: &mut typval_T, comp: bool) {
             }
             idx -= 1;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(t.offset_from(str_) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(t.offset_from(str_) as Varnumber);
     }
 }
 
-pub fn f_byteidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_byteidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     byteidx_common(argvars, rettv, false);
 }
 
-pub fn f_byteidxcomp(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_byteidxcomp(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     byteidx_common(argvars, rettv, true);
 }
 
-pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -2381,8 +2381,8 @@ pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             return;
         }
 
-        let mut countcc: varnumber_T = 0;
-        let mut utf16idx: varnumber_T = 0;
+        let mut countcc: Varnumber = 0;
+        let mut utf16idx: Varnumber = 0;
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             countcc = tv_get_bool(&argvars[2]);
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
@@ -2409,7 +2409,7 @@ pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 } else {
                     p == str_.add(idx as usize)
                 } {
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(len));
+                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(len));
                 }
                 return;
             }
@@ -2430,26 +2430,26 @@ pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(if len > 0 {
-            varnumber_T::from(len - 1)
+            Varnumber::from(len - 1)
         } else {
             0
         });
     }
 }
 
-pub fn f_str2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         tv_list_alloc_ret(rettv, kListLenUnknown);
         let mut p = tv_get_string(&argvars[0]);
         while *p != NUL {
-            tv_list_append_number( &mut *rettv.vval.v_list(), varnumber_T::from(utf_ptr2char(p)));
+            tv_list_append_number( &mut *rettv.vval.v_list(), Varnumber::from(utf_ptr2char(p)));
             p = p.add(utf_ptr2len(p) as usize);
         }
     }
 }
 
-pub fn f_str2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         let mut base: c_int = 10;
@@ -2478,7 +2478,7 @@ pub fn f_str2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             16 => what |= STR2NR_HEX | STR2NR_FORCE,
             _ => {}
         }
-        let mut n: varnumber_T = 0;
+        let mut n: Varnumber = 0;
         vim_str2nr(
             p,
             None,
@@ -2494,7 +2494,7 @@ pub fn f_str2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     }
 }
 
-pub fn f_strgetchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strgetchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -2513,7 +2513,7 @@ pub fn f_strgetchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         let mut byteidx: usize = 0;
         while charidx >= 0 && byteidx < len {
             if charidx == 0 {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(utf_ptr2char(str_.add(byteidx))));
+                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(utf_ptr2char(str_.add(byteidx))));
                 break;
             }
             charidx -= 1;
@@ -2522,7 +2522,7 @@ pub fn f_strgetchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     }
 }
 
-pub fn f_stridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_stridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -2550,17 +2550,17 @@ pub fn f_stridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         let hay_bytes = crate::memory::cstr_as_bytes(haystack);
         let needle_bytes = crate::memory::cstr_as_bytes(needle);
         if needle_bytes.is_empty() {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(haystack.offset_from(haystack_start) as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(haystack.offset_from(haystack_start) as Varnumber);
         } else if let Some(pos) = hay_bytes
             .windows(needle_bytes.len())
             .position(|w| w == needle_bytes)
         {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(haystack.add(pos).offset_from(haystack_start) as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(haystack.add(pos).offset_from(haystack_start) as Varnumber);
         }
     }
 }
 
-pub fn f_string(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_string(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     crate::eval::typval::tv_set_string(
             rettv,
@@ -2568,17 +2568,17 @@ pub fn f_string(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         );
 }
 
-pub fn f_strlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strlen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::cstr_len(tv_get_string(&argvars[0])) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::cstr_len(tv_get_string(&argvars[0])) as Varnumber);
     }
 }
 
-fn strchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, skipcc: bool) {
+fn strchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, skipcc: bool) {
     unsafe {
         let mut s = tv_get_string(&argvars[0]);
-        let mut len: varnumber_T = 0;
+        let mut len: Varnumber = 0;
         let func_mb_ptr2char_adv: fn(*mut *const c_char) -> c_int = if skipcc {
             mb_ptr2char_adv
         } else {
@@ -2592,14 +2592,14 @@ fn strchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, skipcc: bool) 
     }
 }
 
-pub fn f_strcharlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strcharlen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     strchar_common(argvars, rettv, true);
 }
 
-pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        let mut skipcc: varnumber_T = 0;
+        let mut skipcc: Varnumber = 0;
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
             skipcc = tv_get_bool_chk(&argvars[1], Some(&mut error));
@@ -2618,7 +2618,7 @@ pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
     }
 }
 
-pub fn f_strutf16len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strutf16len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -2629,13 +2629,13 @@ pub fn f_strutf16len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             return;
         }
 
-        let mut countcc: varnumber_T = 0;
+        let mut countcc: Varnumber = 0;
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             countcc = tv_get_bool(&argvars[1]);
         }
 
         let mut s = tv_get_string(&argvars[0]);
-        let mut len: varnumber_T = 0;
+        let mut len: Varnumber = 0;
         let func_mb_ptr2char_adv: fn(*mut *const c_char) -> c_int = if countcc != 0 {
             mb_cptr2char_adv
         } else {
@@ -2652,7 +2652,7 @@ pub fn f_strutf16len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-pub fn f_strdisplaywidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strdisplaywidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let s = tv_get_string(&argvars[0]);
@@ -2660,24 +2660,24 @@ pub fn f_strdisplaywidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
         if argvars[1].v_type != VarType::VAR_UNKNOWN {
             col = tv_get_number(&argvars[1]) as c_int;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(linetabsize_col(col, s.cast_mut()) - col));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(linetabsize_col(col, s.cast_mut()) - col));
     }
 }
 
-pub fn f_strwidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     let s = tv_get_string(&argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(mb_string2cells(s) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(mb_string2cells(s) as Varnumber);
 }
 
-pub fn f_strcharpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         let p = tv_get_string(&argvars[0]);
         let slen = crate::memory::cstr_len(p);
 
         let mut nbyte: c_int = 0;
-        let mut skipcc: varnumber_T = 0;
+        let mut skipcc: Varnumber = 0;
         let mut error = false;
         let mut nchar = tv_get_number_chk(&argvars[1], Some(&mut error));
         if !error {
@@ -2744,12 +2744,12 @@ pub fn f_strcharpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-pub fn f_strpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         let mut error = false;
         let p = tv_get_string(&argvars[0]);
-        let slen = crate::memory::cstr_len(p) as varnumber_T;
+        let slen = crate::memory::cstr_len(p) as Varnumber;
 
         let mut n = tv_get_number_chk(&argvars[1], Some(&mut error));
         let mut len = if error {
@@ -2777,7 +2777,7 @@ pub fn f_strpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         {
             let mut off = n;
             while off < slen && len > 0 {
-                off += varnumber_T::from(utfc_ptr2len(p.add(off as usize)));
+                off += Varnumber::from(utfc_ptr2len(p.add(off as usize)));
                 len -= 1;
             }
             len = off - n;
@@ -2787,7 +2787,7 @@ pub fn f_strpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     }
 }
 
-pub fn f_strridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         let mut buf = [0 as c_char; NUMBUFLEN];
@@ -2813,7 +2813,7 @@ pub fn f_strridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         };
 
         if needle_bytes.is_empty() {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(end_idx.min(haystack_len as isize) as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(end_idx.min(haystack_len as isize) as Varnumber);
             return;
         }
 
@@ -2837,12 +2837,12 @@ pub fn f_strridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         }
 
         if let Some(pos) = lastmatch {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(pos as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(pos as Varnumber);
         }
     }
 }
 
-pub fn f_strtrans(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_strtrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     crate::eval::typval::tv_set_string(
             rettv,
@@ -2850,7 +2850,7 @@ pub fn f_strtrans(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         );
 }
 
-pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -2870,8 +2870,8 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             return;
         }
 
-        let mut countcc: varnumber_T = 0;
-        let mut charidx: varnumber_T = 0;
+        let mut countcc: Varnumber = 0;
+        let mut charidx: Varnumber = 0;
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             countcc = tv_get_bool(&argvars[2]);
             if argvars[3].v_type != VarType::VAR_UNKNOWN {
@@ -2899,7 +2899,7 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 } else {
                     p == str_.add(idx as usize)
                 } {
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(len));
+                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(len));
                 }
                 return;
             }
@@ -2920,11 +2920,11 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             len += 1;
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(utf16idx));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(utf16idx));
     }
 }
 
-pub fn f_tolower(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_tolower(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         crate::eval::typval::tv_set_string(
@@ -2934,7 +2934,7 @@ pub fn f_tolower(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     }
 }
 
-pub fn f_toupper(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_toupper(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         crate::eval::typval::tv_set_string(
@@ -2944,7 +2944,7 @@ pub fn f_toupper(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     }
 }
 
-pub fn f_tr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         let mut buf = [0 as c_char; NUMBUFLEN];
@@ -3018,7 +3018,7 @@ pub fn f_tr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData)
     }
 }
 
-pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];

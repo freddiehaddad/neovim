@@ -4,13 +4,13 @@ use crate::arabic::arabic_combine;
 use crate::charset::{
     ascii_iswhite, ascii2cells, tolower_asc, toupper_asc, vim_isprintc, vim_iswordc_tab,
 };
-use crate::cursor::{colnr_T, get_cursor_pos_ptr, pos_T};
+use crate::cursor::{Colnr, get_cursor_pos_ptr, CursorPos};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, VarType, list_T, listitem_T, tv_check_for_string_arg, tv_get_string,
+    EvalFuncData, VarType, TvList, Listitem, tv_check_for_string_arg, tv_get_string,
     tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
-    tv_list_append_number, tv_list_first, tv_list_len, typval_T, varnumber_T,
+    tv_list_append_number, tv_list_first, tv_list_len, TypVal, Varnumber,
 };
 #[cfg(windows)]
 use crate::event::r#loop::uv_translate_sys_error;
@@ -24,7 +24,7 @@ use crate::message::{emsg, msg, semsg};
 use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
-use crate::os::env::{expand_T, os_getenv_buf};
+use crate::os::env::{ExpandCtx, os_getenv_buf};
 use crate::os::fs::os_errno;
 #[cfg(unix)]
 use crate::os::lang::nl_langinfo;
@@ -39,7 +39,7 @@ use crate::utf8proc::{
     utf8proc_grapheme_break, utf8proc_grapheme_break_stateful, utf8proc_property_t,
     utf8proc_tolower, utf8proc_toupper,
 };
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -96,14 +96,14 @@ pub(crate) const CP_UTF8: u32 = 65001;
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct vimconv_T {
+pub struct Vimconv {
     pub vc_type: c_int,
     pub vc_factor: c_int,
     pub vc_fd: Option<usize>,
     pub vc_fail: bool,
 }
 
-impl vimconv_T {
+impl Vimconv {
     pub const fn new() -> Self {
         Self {
             vc_type: 0,
@@ -114,13 +114,13 @@ impl vimconv_T {
     }
 }
 
-impl Default for vimconv_T {
+impl Default for Vimconv {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for vimconv_T {
+impl Drop for Vimconv {
     fn drop(&mut self) {
         if self.vc_type == CONV_ICONV
             && let Some(fd) = self.vc_fd.take()
@@ -147,7 +147,7 @@ struct ClInterval {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct cw_interval_T {
+struct CwInterval {
     first: i64,
     last: i64,
     width: c_char,
@@ -818,7 +818,7 @@ static ENC_ALIAS_TABLE: &[EncAliasEntry] = &[
 ];
 
 struct MbyteModuleState {
-    CW_TABLE: Vec<cw_interval_T>,
+    CW_TABLE: Vec<CwInterval>,
     mb_unescape_buf: [c_char; 6],
     iconv_working: WorkingStatus,
 }
@@ -2675,8 +2675,8 @@ pub fn utf_cp_bounds(base: impl crate::strings::IntoCCharPtr, p_in: impl crate::
 
 pub fn utf_find_illegal() {
     unsafe {
-        let pos: pos_T = curwin_mut().w_cursor;
-        let mut vimconv = vimconv_T {
+        let pos: CursorPos = curwin_mut().w_cursor;
+        let mut vimconv = Vimconv {
             vc_type: CONV_NONE,
             vc_factor: 1,
             vc_fd: None,
@@ -2703,7 +2703,7 @@ pub fn utf_find_illegal() {
                 let mut len = utf_ptr2len(p);
                 if *p.cast::<u8>() >= 0x80 && (len == 1 || utf_char2len(utf_ptr2char(p)) != len) {
                     if vimconv.vc_type == CONV_NONE {
-                        curwin_mut().w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as colnr_T;
+                        curwin_mut().w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as Colnr;
                     } else {
                         len = p.offset_from(
                             tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
@@ -2774,13 +2774,13 @@ pub fn mb_adjust_cursor() {
     }
 }
 
-pub fn mb_check_adjust_col(win: &mut win_T) {
+pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
     unsafe {
         let oldcol = win.w_cursor.col;
 
         if oldcol != 0 {
             let p = ml_get_buf(win.buf_mut(), win.w_cursor.lnum);
-            let len = crate::memory::cstr_len(p) as colnr_T;
+            let len = crate::memory::cstr_len(p) as Colnr;
 
             if len == 0 || oldcol < 0 {
                 win.w_cursor.col = 0;
@@ -3064,7 +3064,7 @@ pub fn my_iconv_open(to: impl crate::strings::IntoCCharPtr, from: impl crate::st
 }
 
 fn iconv_string(
-    vcp: &vimconv_T,
+    vcp: &Vimconv,
     str_: impl crate::strings::IntoCCharPtr,
     slen: usize,mut unconvlenp: Option<&mut usize>,mut resultlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> { let str_ = str_.into_c_char_ptr();
@@ -3130,7 +3130,7 @@ fn iconv_string(
     }
 }
 
-pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VAR_STRING;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
@@ -3143,7 +3143,7 @@ pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     let to = enc_canonize(enc_skip(
         tv_get_string_buf(&argvars[2], buf2.as_mut_ptr()).cast_mut(),
     ));
-    let mut vimconv = vimconv_T {
+    let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
         vc_factor: 1,
         vc_fd: None,
@@ -3162,21 +3162,21 @@ pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     }
 }
 
-pub fn convert_setup(vcp: &mut vimconv_T, from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> bool {
+pub fn convert_setup(vcp: &mut Vimconv, from: impl crate::strings::IntoCCharPtr, to: impl crate::strings::IntoCCharPtr) -> bool {
     let to = to.into_c_char_ptr().cast_mut();
     let from = from.into_c_char_ptr().cast_mut();
     convert_setup_ext(vcp, from, true, to, true)
 }
 
 pub fn convert_setup_ext(
-    vcp: &mut vimconv_T,
+    vcp: &mut Vimconv,
     from: impl crate::strings::IntoCCharPtr,
     from_unicode_is_utf8: bool,
     to: impl crate::strings::IntoCCharPtr,
     to_unicode_is_utf8: bool,
 ) -> bool { let from = from.into_c_char_ptr(); let to = to.into_c_char_ptr();
      {
-        *vcp = vimconv_T {
+        *vcp = Vimconv {
             vc_type: CONV_NONE,
             vc_factor: 1,
             vc_fd: None,
@@ -3236,14 +3236,14 @@ pub fn convert_setup_ext(
 }
 
 pub fn string_convert(
-    vcp: &vimconv_T,
+    vcp: &Vimconv,
     ptr: impl crate::strings::IntoCCharPtr,lenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> { let ptr = ptr.into_c_char_ptr();
     string_convert_ext(vcp, ptr, lenp, None)
 }
 
 pub fn string_convert_ext(
-    vcp: &vimconv_T,
+    vcp: &Vimconv,
     ptr: impl crate::strings::IntoCCharPtr,mut lenp: Option<&mut usize>,
     mut unconvlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> { let ptr = ptr.into_c_char_ptr();
@@ -3382,14 +3382,14 @@ fn cw_value(c: c_int) -> c_int {
         .map_or(0, |idx| c_int::from(table[idx].width))
 }
 
-fn first_list_number(l: &list_T) -> varnumber_T {
+fn first_list_number(l: &TvList) -> Varnumber {
     unsafe {
         let li = tv_list_first(Some(l));
         (*li).li_tv.vval.v_number()
     }
 }
 
-pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         if argvars[0].v_type != VarType::VAR_LIST || argvars[0].vval.v_list().is_null() {
@@ -3399,9 +3399,9 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
 
         let l = argvars[0].vval.v_list();
         let table_size = tv_list_len(l.as_ref()) as usize;
-        let mut table: Vec<cw_interval_T> = Vec::with_capacity(table_size);
+        let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
         if table_size != 0 {
-            let mut ptrs: Vec<*const list_T> = Vec::with_capacity(table_size);
+            let mut ptrs: Vec<*const TvList> = Vec::with_capacity(table_size);
             for (item, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut((*l).lv_first)) {
                 let li_tv = &li.li_tv;
                 if li_tv.v_type != VarType::VAR_LIST || li_tv.vval.v_list().is_null() {
@@ -3411,9 +3411,9 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
 
                 let li_l = li_tv.vval.v_list();
                 ptrs.push(li_l);
-                let mut lili: *const listitem_T = tv_list_first(li_l.as_ref());
+                let mut lili: *const Listitem = tv_list_first(li_l.as_ref());
                 let mut i = 0;
-                let mut n1: varnumber_T = 0;
+                let mut n1: Varnumber = 0;
                 while !lili.is_null() {
                     let lili_tv = &(*lili).li_tv;
                     if lili_tv.v_type != VarType::VAR_NUMBER {
@@ -3453,7 +3453,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
                 }
                 let lili1 = (*lili0).li_next;
                 let lili2 = (*lili1).li_next;
-                table.push(cw_interval_T {
+                table.push(CwInterval {
                     first: n1,
                     last: (*lili1).li_tv.vval.v_number(),
                     width: (*lili2).li_tv.vval.v_number() as c_char,
@@ -3475,7 +3475,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
     }
 }
 
-pub fn f_getcellwidths(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
         let table = mbyte_st().CW_TABLE.as_slice();
         tv_list_alloc_ret(rettv, table.len() as isize);
@@ -3483,23 +3483,23 @@ pub fn f_getcellwidths(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
             let entry = tv_list_alloc(3);
             tv_list_append_number( &mut *entry, entry_data.first);
             tv_list_append_number( &mut *entry, entry_data.last);
-            tv_list_append_number( &mut *entry, varnumber_T::from(entry_data.width));
+            tv_list_append_number( &mut *entry, Varnumber::from(entry_data.width));
             tv_list_append_list( &mut *rettv.vval.v_list(), entry);
         }
     }
 }
 
-pub fn f_charclass(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_charclass(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string().is_null() {
             return;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class(argvars[0].vval.v_string())));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(mb_get_class(argvars[0].vval.v_string())));
     }
 }
 
-pub fn get_encoding_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_encoding_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ENC_CANON_TABLE.len() {
         return ptr::null_mut();
     }

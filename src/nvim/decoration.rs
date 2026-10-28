@@ -7,15 +7,15 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Dict, Object};
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::buffer::{buf_T, buf_meta_total};
+use crate::buffer::{FileBuf, buf_meta_total};
 use crate::change::{TAB, changed_lines_invalidate_buf};
-use crate::cursor::{colnr_T, lpos_T};
+use crate::cursor::{Colnr, Lpos};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 use crate::extmark::{TriState, extmark_set, kFalse, kNone, kTrue};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
-use crate::grid::{schar_T, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
+use crate::grid::{Schar, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
 use crate::highlight::{hl_add_url, hl_combine_attr};
 use crate::highlight_group::{syn_id2attr, syn_id2name};
 use crate::indent::tabstop_padding;
@@ -34,12 +34,12 @@ use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::MAXCOL;
 use crate::sign::{buf_has_signs, describe_sign_text};
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::cmp::Ordering;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-pub type NS = crate::msgpack_rpc::packer::handle_T;
+pub type NS = crate::msgpack_rpc::packer::ObjHandle;
 pub type HLGroupID = Integer;
 pub type DecorPriority = u16;
 pub type DecorPriorityInternal = u32;
@@ -230,7 +230,7 @@ pub struct DecorState {
     pub future_begin: c_int,
     pub free_slot_i: c_int,
     pub new_range_ordering: c_int,
-    pub win: *mut win_T,
+    pub win: *mut WinInfoInfo,
     pub top_row: c_int,
     pub row: c_int,
     pub col_last: c_int,
@@ -448,7 +448,7 @@ static LINES_FILTER: [u32; kMTMetaCount] = [0, kMTFilterSelect, 0, 0, 0];
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SignTextAttrs {
-    pub text: [schar_T; SIGN_WIDTH],
+    pub text: [Schar; SIGN_WIDTH],
     pub hl_id: c_int,
 }
 
@@ -498,16 +498,16 @@ const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
 }
 
 pub fn bufhl_add_hl_pos_offset(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     src_id: c_int,
     hl_id: c_int,
-    pos_start: lpos_T,
-    pos_end: lpos_T,
-    offset: colnr_T,
+    pos_start: Lpos,
+    pos_end: Lpos,
+    offset: Colnr,
 ) {
      {
-        let mut hl_start: colnr_T = 0;
-        let mut hl_end: colnr_T = 0;
+        let mut hl_start: Colnr = 0;
+        let mut hl_end: Colnr = 0;
         let decor = DecorInline {
             data: DecorInlineData::Hl(DecorHighlightInline {
                 hl_id,
@@ -552,7 +552,7 @@ pub fn bufhl_add_hl_pos_offset(
     }
 }
 
-pub fn decor_redraw(buf: &mut buf_T,
+pub fn decor_redraw(buf: &mut FileBuf,
     row1: c_int,
     row2: c_int,
     col1: c_int,
@@ -587,7 +587,7 @@ pub fn decor_redraw(buf: &mut buf_T,
     }
 }
 
-pub fn decor_redraw_sh(buf: &mut buf_T, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
+pub fn decor_redraw_sh(buf: &mut FileBuf, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
      {
         if (sh.hl_id != 0
             || sh.url.is_some()
@@ -647,7 +647,7 @@ pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
     }
 }
 
-pub fn buf_put_decor(buf: &mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
+pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: c_int, mut row2: c_int) {
      {
         if decor.is_ext() && row < buf.b_ml.ml_line_count {
             let mut idx = decor.data.ext().sh_idx;
@@ -662,7 +662,7 @@ pub fn buf_put_decor(buf: &mut buf_T, decor: DecorInline, row: c_int, mut row2: 
     }
 }
 
-fn may_force_numberwidth_recompute(buf: &mut buf_T, unplace: bool) {
+fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
     unsafe {
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
@@ -683,7 +683,7 @@ fn may_force_numberwidth_recompute(buf: &mut buf_T, unplace: bool) {
 }
 
 pub fn buf_put_decor_sh(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     sh: &mut DecorSignHighlight,
     row1: c_int,
     row2: c_int,
@@ -699,7 +699,7 @@ pub fn buf_put_decor_sh(
 }
 
 pub fn buf_decor_remove(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     row1: c_int,
     mut row2: c_int,
     col1: c_int,
@@ -725,7 +725,7 @@ pub fn buf_decor_remove(
 }
 
 pub fn buf_remove_decor_sh(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     row1: c_int,
     row2: c_int,
     sh: &DecorSignHighlight,
@@ -792,7 +792,7 @@ fn decor_free_sh(first_idx: u32) {
     }
 }
 
-pub fn decor_state_invalidate(buf: &mut buf_T) {
+pub fn decor_state_invalidate(buf: &mut FileBuf) {
     unsafe {
         if !g_st().decor_state.win.is_null() && std::ptr::eq((*g_st().decor_state.win).w_buffer, buf) {
             g_st().decor_state.itr_valid = false;
@@ -853,7 +853,7 @@ pub fn next_virt_text_chunk(
         text
 }
 
-pub fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText {
+pub fn decor_find_virttext(buf: &mut FileBuf, row: c_int, ns_id: u64) -> *mut DecorVirtText {
     unsafe {
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
@@ -876,7 +876,7 @@ pub fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut Deco
     }
 }
 
-pub fn decor_redraw_reset(wp: &mut win_T, state: &mut DecorState) -> bool {
+pub fn decor_redraw_reset(wp: &mut WinInfoInfo, state: &mut DecorState) -> bool {
      {
         state.row = -1;
         state.win = wp;
@@ -906,7 +906,7 @@ pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     }
 }
 
-pub fn decor_redraw_start(wp: &mut win_T, top_row: c_int, state: &mut DecorState) -> bool {
+pub fn decor_redraw_start(wp: &mut WinInfoInfo, top_row: c_int, state: &mut DecorState) -> bool {
     unsafe {
         let buf = wp.w_buffer;
         state.top_row = top_row;
@@ -960,7 +960,7 @@ fn decor_state_pack(state: &mut DecorState) {
         state.future_begin = fut_beg;
 }
 
-pub fn decor_redraw_line(wp: &mut win_T, row: c_int, state: &mut DecorState) {
+pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: c_int, state: &mut DecorState) {
      {
         decor_state_pack(state);
 
@@ -1212,7 +1212,7 @@ pub fn decor_recheck_draw_col(win_col: c_int, hidden: bool, state: &mut DecorSta
 }
 
 pub fn decor_redraw_col_impl(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     col: c_int,
     win_col: c_int,
     hidden: bool,
@@ -1300,7 +1300,7 @@ pub fn decor_redraw_col_impl(
         let mut attr: c_int = 0;
         let mut hl_eol_attr: c_int = 0;
         let mut conceal: c_int = 0;
-        let mut conceal_char: schar_T = 0;
+        let mut conceal_char: Schar = 0;
         let mut conceal_attr: c_int = 0;
         let mut spell: TriState = kNone;
 
@@ -1391,7 +1391,7 @@ pub fn decor_redraw_col_impl(
     }
 }
 
-pub fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> bool {
+pub fn decor_conceal_line(wp: *mut WinInfoInfo, row: c_int, check_cursor: bool) -> bool {
     unsafe {
         if row < 0
             || (*wp).w_onebuf_opt.wo_cole < 2
@@ -1434,7 +1434,7 @@ pub fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> boo
     }
 }
 
-pub fn win_lines_concealed(wp: &mut win_T) -> bool {
+pub fn win_lines_concealed(wp: &mut WinInfoInfo) -> bool {
     hasAnyFolding(wp) != 0 || wp.w_onebuf_opt.wo_cole >= 2
 }
 
@@ -1468,8 +1468,8 @@ pub fn sign_item_cmp(s1: &SignItem<'_>, s2: &SignItem<'_>) -> Ordering {
 }
 
 pub fn decor_redraw_signs(
-    wp: *mut win_T,
-    buf: *mut buf_T,
+    wp: *mut WinInfoInfo,
+    buf: *mut FileBuf,
     row: c_int,
     sattrs: *mut SignTextAttrs,mut line_id: Option<&mut c_int>,mut cul_id: Option<&mut c_int>,mut num_id: Option<&mut c_int>,
 ) {
@@ -1564,7 +1564,7 @@ pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight
 }
 
 pub fn buf_signcols_count_range(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     row1: c_int,
     row2: c_int,
     add: c_int,
@@ -1623,7 +1623,7 @@ pub fn buf_signcols_count_range(
 }
 
 #[inline]
-pub fn decor_redraw_col(wp: &mut win_T,
+pub fn decor_redraw_col(wp: &mut WinInfoInfo,
     col: c_int,
     win_col: c_int,
     hidden: bool,
@@ -1638,7 +1638,7 @@ pub fn decor_redraw_col(wp: &mut win_T,
     }
 }
 
-pub fn decor_redraw_eol(wp: &mut win_T,
+pub fn decor_redraw_eol(wp: &mut WinInfoInfo,
     state: &mut DecorState,
     eol_attr: &mut c_int,
     eol_col: c_int,
@@ -1664,12 +1664,12 @@ pub fn decor_redraw_eol(wp: &mut win_T,
 }
 
 #[inline]
-fn decor_virt_line_wrap(wp: &mut win_T, overflow: VirtLineOverflow) -> bool {
+fn decor_virt_line_wrap(wp: &mut WinInfoInfo, overflow: VirtLineOverflow) -> bool {
     overflow == kVLOverflowWrap
             || (overflow == kVLOverflowAuto && wp.w_onebuf_opt.wo_wrap != 0)
 }
 
-pub fn decor_virt_line_rows(wp: &mut win_T,
+pub fn decor_virt_line_rows(wp: &mut WinInfoInfo,
     vl: &VirtLine,
     target_row: c_int,mut skip_cells: Option<&mut c_int>,
 ) -> c_int {
@@ -1724,7 +1724,7 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
 }
 
 pub fn decor_virt_lines(
-    wp: &mut win_T,
+    wp: &mut WinInfoInfo,
     start_row: c_int,
     end_row: c_int,mut num_below: Option<&mut c_int>,mut lines: Option<&mut VirtLines>,
     apply_folds: bool,

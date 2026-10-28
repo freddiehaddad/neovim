@@ -5,7 +5,7 @@ use crate::charset::{
     ascii_isalpha, ascii_isdigit, is_special, transchar, vim_isprintc, vim_str2nr,
 };
 use crate::errors::{e_invarg, e_usingsid};
-use crate::eval::vars::{get_var_value, scid_T};
+use crate::eval::vars::{get_var_value, Scid};
 use crate::globals::*;
 use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
@@ -2670,7 +2670,7 @@ pub fn replace_termcodes(
     from: impl crate::strings::IntoCCharPtr,
     from_len: usize,
     buf_limit: bool,
-    sid_arg: scid_T,
+    sid_arg: Scid,
     flags: c_int,mut did_simplify: Option<&mut bool>,
     cpo_val: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> { let from = from.into_c_char_ptr(); let cpo_val = cpo_val.into_c_char_ptr();
@@ -2708,7 +2708,7 @@ pub fn replace_termcodes(
                     if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
                         emsg(e_usingsid);
                     } else {
-                        let sid: scid_T = if sid_arg != 0 {
+                        let sid: Scid = if sid_arg != 0 {
                             sid_arg
                         } else {
                             g_st().current_sctx.sc_sid

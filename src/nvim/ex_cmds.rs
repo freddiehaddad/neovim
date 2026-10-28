@@ -14,9 +14,9 @@ use crate::buffer::{
     BCO_ENTER, BF_CHECK_RO, BF_NEVERLOADED, BF_NEW, BF_NOTEDITED, BF_READERR, BFA_KEEP_UNDO,
     BLN_CURBUF, BLN_LISTED, BLN_NOCURWIN, DOBUF_UNLOAD, GETFILE_ERROR, GETFILE_NOT_WRITTEN,
     GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, KEYMAP_INIT, MAXLNUM, SEA_DIALOG, SEA_QUIT,
-    bt_dontwrite, bt_nofilename, buf_T, buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide,
+    bt_dontwrite, bt_nofilename, FileBuf, buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide,
     buf_name_changed, buflist_altfpos, buflist_findfmark, buflist_findname, buflist_findnr,
-    buflist_new, bufref_T, bufref_valid, close_buffer, do_autochdir, do_modelines, fileinfo,
+    buflist_new, Bufref, bufref_valid, close_buffer, do_autochdir, do_modelines, fileinfo,
     fname_expand, get_winopts, handle_swap_exists, kCdCauseBuffer, kShmFileinfo, kUIMessages,
     maketitle, modifiable, no_write_message, no_write_message_buf, open_buffer, otherfile,
     set_buflisted, set_bufref, setaltfname, setfname,
@@ -33,11 +33,11 @@ use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, skiptobin, skiptodigit, skiptohex, skiptowhite,
     skipwhite, transchar, transchar_nonprint, vim_isIDc, vim_isprintc, vim_str2nr,
 };
-use crate::cmdexpand::{RE_LAST, cmdidx_T};
+use crate::cmdexpand::{RE_LAST, Cmdidx};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
-    check_cursor, check_cursor_col, check_cursor_lnum, check_pos, coladvance, colnr_T, equalpos,
-    get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T, lpos_T, pos_T,
+    check_cursor, check_cursor_col, check_cursor_lnum, check_pos, coladvance, Colnr, equalpos,
+    get_cursor_line_ptr, get_cursor_pos_ptr, Linenr, Lpos, CursorPos,
 };
 use crate::decoration::bufhl_add_hl_pos_offset;
 use crate::dialog::{VIM_YES, prompt_for_input, vim_dialog_yesno};
@@ -48,16 +48,16 @@ use crate::drawscreen::{
     show_cursor_info_later, update_screen,
 };
 use crate::errors::*;
-use crate::eval::typval::{float_T, varnumber_T};
+use crate::eval::typval::{TvFloat, Varnumber};
 use crate::eval::vars::{VV_SWAPCOMMAND, get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds2::{
     autowrite, autowrite_all, buf_write_all, check_changed, check_fname, dialog_changed,
 };
 use crate::ex_docmd::{
     CMOD_CONFIRM, CMOD_KEEPALT, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, before_quit_all,
-    check_nextcmd, do_cmdline, ex_may_print, exarg_T, not_exiting,
+    check_nextcmd, do_cmdline, ex_may_print, Exarg, not_exiting,
 };
-use crate::ex_eval::{aborting, cstack_T, should_abort};
+use crate::ex_eval::{aborting, Cstack, should_abort};
 use crate::ex_getln::{curbuf_locked, gotocmdline, text_locked};
 use crate::extmark::{bcount_t, extmark_move_region, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
 use crate::fileio::{
@@ -77,13 +77,13 @@ use crate::lua::executor::nlua_call_excmd;
 use crate::main_init::getout;
 use crate::mark::{mark_adjust, mark_adjust_nofold, set_last_cursor, setpcmark};
 use crate::regexp::{
-    MAXCOL, RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC, re_multiline, regmatch_T,
-    regmmatch_T, regtilde, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec,
+    MAXCOL, RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC, re_multiline, Regmatch,
+    Regmmatch, regtilde, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec,
     vim_regexec_multi, vim_regfree, vim_regsub_multi,
 };
 use crate::runtime::SID_NONE;
 use crate::window::{
-    check_can_set_curbuf_forceit, check_lnums, curwin_init, update_cwd, win_T, win_enter,
+    check_can_set_curbuf_forceit, check_lnums, curwin_init, update_cwd, WinInfoInfo, win_enter,
     win_split, win_valid,
 };
 
@@ -107,7 +107,7 @@ use crate::r#move::{
     changed_line_abv_curs, changed_window_setting, do_check_cursorbind, invalidate_botline_win,
     scrolldown_clamp, scrollup_clamp, update_topline, validate_cursor,
 };
-use crate::msgpack_rpc::packer::handle_T;
+use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::reset_VIsual;
 use crate::ops::do_join;
 use crate::option::{
@@ -124,7 +124,7 @@ use crate::os::shell::call_shell;
 use crate::os::time::{os_time, time_t};
 use crate::path::{fix_fname, invocation_path_tail, path_fix_case};
 use crate::plines::{linetabsize_col, plines_m_win_fill};
-use crate::profile::{profile_passed_limit, profile_setlimit, profile_zero, proftime_T};
+use crate::profile::{profile_passed_limit, profile_setlimit, profile_zero, Proftime};
 use crate::search::{get_search_pat, last_search_pat, save_re_pat, search_regcomp};
 use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
@@ -197,9 +197,9 @@ pub const ECMD_ADDBUF: c_int = 0x10;
 pub const ECMD_ALTBUF: c_int = 0x20;
 pub const ECMD_NOWINENTER: c_int = 0x40;
 
-pub const ECMD_LASTL: linenr_T = 0;
-pub const ECMD_LAST: linenr_T = -1;
-pub const ECMD_ONE: linenr_T = 1;
+pub const ECMD_LASTL: Linenr = 0;
+pub const ECMD_LAST: Linenr = -1;
+pub const ECMD_ONE: Linenr = 1;
 
 pub const VGR_GLOBAL: c_int = 1;
 pub const VGR_NOJUMP: c_int = 2;
@@ -219,7 +219,7 @@ enum SubIgnoreType {
 /// Flags kept between calls to `:substitute`.
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct subflags_T {
+struct Subflags {
     do_all: bool,
     do_ask: bool,
     do_count: bool,
@@ -234,33 +234,33 @@ struct subflags_T {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct SubResult {
-    start: lpos_T,
-    end: lpos_T,
-    pre_match: linenr_T,
+    start: Lpos,
+    end: Lpos,
+    pre_match: Linenr,
 }
 
 /// Collected results of a substitution for showing them in the preview window.
 struct PreviewLines {
     subresults: Vec<SubResult>,
-    lines_needed: linenr_T,
+    lines_needed: Linenr,
 }
 
 #[derive(Clone, Copy)]
 enum SortKey {
     Line {
-        start_col_nr: varnumber_T,
-        end_col_nr: varnumber_T,
+        start_col_nr: Varnumber,
+        end_col_nr: Varnumber,
     },
     Num {
-        value: varnumber_T,
+        value: Varnumber,
         is_number: bool,
     },
-    Float(float_T),
+    Float(TvFloat),
 }
 
 #[derive(Clone, Copy)]
-struct sorti_T {
-    lnum: linenr_T,
+struct Sorti {
+    lnum: Linenr,
     st_u: SortKey,
 }
 
@@ -268,14 +268,14 @@ struct sorti_T {
 #[derive(Clone, Copy)]
 struct LineData {
     start_col: c_int,
-    start: lpos_T,
-    end: lpos_T,
+    start: Lpos,
+    end: Lpos,
     matchcols: c_int,
     matchbytes: bcount_t,
     subcols: c_int,
     subbytes: bcount_t,
-    lnum_before: linenr_T,
-    lnum_after: linenr_T,
+    lnum_before: Linenr,
+    lnum_after: Linenr,
 }
 
 struct ExCmdsState {
@@ -290,7 +290,7 @@ struct ExCmdsState {
     append_indent: c_int,
     old_sub: SubReplacementString,
     global_need_beginline: bool,
-    subflags: subflags_T,
+    subflags: Subflags,
     pre_hl_id: c_int,
 }
 
@@ -308,7 +308,7 @@ impl ExCmdsState {
             append_indent: 0,
             old_sub: SubReplacementString { sub: None, timestamp: 0, additional_data: None },
             global_need_beginline: false,
-            subflags: subflags_T { do_all: false, do_ask: false, do_count: false, do_error: true, do_print: false, do_list: false, do_number: false, do_ic: SubIgnoreType::kSubHonorOptions },
+            subflags: Subflags { do_all: false, do_ask: false, do_count: false, do_error: true, do_print: false, do_list: false, do_number: false, do_ic: SubIgnoreType::kSubHonorOptions },
             pre_hl_id: 0,
         }
     }
@@ -325,7 +325,7 @@ use crate::buffer::bt_dontwrite_msg;
 use crate::undo::{bufIsChanged, curbufIsChanged};
 
 /// `":ascii"` and `"ga"` implementation.
-pub fn do_ascii(_eap: &mut exarg_T) {
+pub fn do_ascii(_eap: &mut Exarg) {
     unsafe {
         let data = get_cursor_pos_ptr();
         let len = utfc_ptr2len(data) as usize;
@@ -468,22 +468,22 @@ pub fn do_ascii(_eap: &mut exarg_T) {
 }
 
 /// `":left"`, `":center"` and `":right"`: align text.
-pub fn ex_align(eap: &mut exarg_T) {
+pub fn ex_align(eap: &mut Exarg) {
      {
         let mut indent: c_int = 0;
         let mut new_indent: c_int;
 
         if curwin_mut().w_onebuf_opt.wo_rl != 0 {
-            if eap.cmdidx == cmdidx_T::CMD_right as c_int {
-                eap.cmdidx = cmdidx_T::CMD_left as c_int;
-            } else if eap.cmdidx == cmdidx_T::CMD_left as c_int {
-                eap.cmdidx = cmdidx_T::CMD_right as c_int;
+            if eap.cmdidx == Cmdidx::CMD_right as c_int {
+                eap.cmdidx = Cmdidx::CMD_left as c_int;
+            } else if eap.cmdidx == Cmdidx::CMD_left as c_int {
+                eap.cmdidx = Cmdidx::CMD_right as c_int;
             }
         }
 
         let mut width = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int;
         let save_curpos = curwin_mut().w_cursor;
-        if eap.cmdidx == cmdidx_T::CMD_left as c_int {
+        if eap.cmdidx == Cmdidx::CMD_left as c_int {
             if width >= 0 {
                 indent = width;
             }
@@ -505,11 +505,11 @@ pub fn ex_align(eap: &mut exarg_T) {
 
         curwin_mut().w_cursor.lnum = eap.line1;
         while curwin_mut().w_cursor.lnum <= eap.line2 {
-            if eap.cmdidx == cmdidx_T::CMD_left as c_int {
+            if eap.cmdidx == Cmdidx::CMD_left as c_int {
                 new_indent = indent;
             } else {
                 let mut has_tab: c_int = 0;
-                let len = linelen(if eap.cmdidx == cmdidx_T::CMD_right as c_int {
+                let len = linelen(if eap.cmdidx == Cmdidx::CMD_right as c_int {
                     &raw mut has_tab
                 } else {
                     ptr::null_mut()
@@ -520,7 +520,7 @@ pub fn ex_align(eap: &mut exarg_T) {
                     continue;
                 }
 
-                if eap.cmdidx == cmdidx_T::CMD_center as c_int {
+                if eap.cmdidx == Cmdidx::CMD_center as c_int {
                     new_indent = (width - len) / 2;
                 } else {
                     new_indent = width - len;
@@ -593,8 +593,8 @@ fn string_compare(s1: impl crate::strings::IntoCCharPtr, s2: impl crate::strings
 }
 
 fn sort_compare(
-    l1: &sorti_T,
-    l2: &sorti_T,
+    l1: &Sorti,
+    l2: &Sorti,
     sortbuf1: *mut c_char,
     sortbuf2: *mut c_char,
 ) -> c_int {
@@ -672,9 +672,9 @@ fn sort_compare(
 }
 
 /// `":sort"`.
-pub fn ex_sort(eap: &mut exarg_T) {
+pub fn ex_sort(eap: &mut Exarg) {
     unsafe {
-        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
         let mut maxlen: c_int = 0;
         let mut count = (eap.line2 - eap.line1) as usize + 1;
         let mut i: usize = 0;
@@ -689,7 +689,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
             return;
         }
         regmatch.regprog = ptr::null_mut();
-        let mut nrs_vec: Vec<sorti_T> = Vec::with_capacity(count);
+        let mut nrs_vec: Vec<Sorti> = Vec::with_capacity(count);
 
         excmds_st().sort_abort = false;
         excmds_st().sort_ic = false;
@@ -772,14 +772,14 @@ pub fn ex_sort(eap: &mut exarg_T) {
                 let len = ml_get_len(lnum);
                 maxlen = maxlen.max(len);
 
-                let mut start_col: colnr_T = 0;
-                let mut end_col: colnr_T = len;
+                let mut start_col: Colnr = 0;
+                let mut end_col: Colnr = len;
                 if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                     if excmds_st().sort_rx {
-                        start_col = regmatch.startp[0].offset_from(s) as colnr_T;
-                        end_col = regmatch.endp[0].offset_from(s) as colnr_T;
+                        start_col = regmatch.startp[0].offset_from(s) as Colnr;
+                        end_col = regmatch.endp[0].offset_from(s) as Colnr;
                     } else {
-                        start_col = regmatch.endp[0].offset_from(s) as colnr_T;
+                        start_col = regmatch.endp[0].offset_from(s) as Colnr;
                     }
                 } else if !regmatch.regprog.is_null() {
                     end_col = 0;
@@ -807,7 +807,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                                 value: 0,
                             }
                         } else {
-                            let mut val: varnumber_T = 0;
+                            let mut val: Varnumber = 0;
                             vim_str2nr(
                                 s,
                                 None,
@@ -840,12 +840,12 @@ pub fn ex_sort(eap: &mut exarg_T) {
                     key
                 } else {
                     SortKey::Line {
-                        start_col_nr: start_col as varnumber_T,
-                        end_col_nr: end_col as varnumber_T,
+                        start_col_nr: start_col as Varnumber,
+                        end_col_nr: end_col as Varnumber,
                     }
                 };
 
-                nrs_vec.push(sorti_T { lnum, st_u });
+                nrs_vec.push(Sorti { lnum, st_u });
 
                 if !regmatch.regprog.is_null() {
                     fast_breakcheck();
@@ -878,12 +878,12 @@ pub fn ex_sort(eap: &mut exarg_T) {
                 }]
                 .lnum;
 
-                if get_lnum + (count as linenr_T - 1) != lnum {
+                if get_lnum + (count as Linenr - 1) != lnum {
                     change_occurred = true;
                 }
 
                 let s = ml_get(get_lnum);
-                let bytelen: colnr_T = ml_get_len(get_lnum) + 1;
+                let bytelen: Colnr = ml_get_len(get_lnum) + 1;
                 old_count += bytelen as bcount_t;
                 if !unique || i == 0 || string_compare(s, sortbuf1) != 0 {
                     crate::memory::cstr_cpy(sortbuf1, s);
@@ -908,7 +908,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                 count = 0;
             }
 
-            let deleted = count as linenr_T - (lnum - eap.line2);
+            let deleted = count as Linenr - (lnum - eap.line2);
             if deleted > 0 {
                 mark_adjust(
                     eap.line2 - deleted,
@@ -951,14 +951,14 @@ pub fn ex_sort(eap: &mut exarg_T) {
 }
 
 /// `":uniq"`.
-pub fn ex_uniq(eap: &mut exarg_T) {
+pub fn ex_uniq(eap: &mut Exarg) {
     unsafe {
-        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
         let mut maxlen: c_int = 0;
         let mut count = eap.line2 - eap.line1 + 1;
         let mut keep_only_unique = false;
         let keep_only_not_unique = eap.forceit != 0;
-        let mut deleted: linenr_T = 0;
+        let mut deleted: Linenr = 0;
 
         if count <= 1 {
             return;
@@ -1041,21 +1041,21 @@ pub fn ex_uniq(eap: &mut exarg_T) {
             let mut match_continue = false;
             let mut next_is_unmatch = false;
             let mut done_lnum = eap.line1 - 1;
-            let mut i: linenr_T = 0;
+            let mut i: Linenr = 0;
             while i < count {
                 let get_lnum = eap.line1 + i;
 
                 let s = ml_get(get_lnum);
                 let len = ml_get_len(get_lnum);
 
-                let mut start_col: colnr_T = 0;
-                let mut end_col: colnr_T = len;
+                let mut start_col: Colnr = 0;
+                let mut end_col: Colnr = len;
                 if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
                     if excmds_st().sort_rx {
-                        start_col = regmatch.startp[0].offset_from(s) as colnr_T;
-                        end_col = regmatch.endp[0].offset_from(s) as colnr_T;
+                        start_col = regmatch.startp[0].offset_from(s) as Colnr;
+                        end_col = regmatch.endp[0].offset_from(s) as Colnr;
                     } else {
-                        start_col = regmatch.endp[0].offset_from(s) as colnr_T;
+                        start_col = regmatch.endp[0].offset_from(s) as Colnr;
                     }
                 } else if !regmatch.regprog.is_null() {
                     end_col = 0;
@@ -1071,7 +1071,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
                 } else {
                     false
                 };
-                let mut delete_lnum: linenr_T = 0;
+                let mut delete_lnum: Linenr = 0;
                 if next_is_unmatch {
                     is_match = false;
                     next_is_unmatch = false;
@@ -1162,7 +1162,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
 }
 
 /// `:move` command - move lines `line1`-`line2` to line `dest`.
-pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
+pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
     unsafe {
         if dest >= line1 && dest < line2 {
             emsg(gettext(
@@ -1191,7 +1191,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
             return false;
         }
 
-        let mut extra: linenr_T = 0;
+        let mut extra: Linenr = 0;
         for l in line1..=line2 {
             let str_cstr = cstr_from_bytes(std::slice::from_raw_parts(
                 ml_get(l + extra).cast::<u8>(),
@@ -1328,7 +1328,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
 }
 
 /// `":copy"`.
-pub fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
+pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
     unsafe {
         let count = line2 - line1 + 1;
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -1388,7 +1388,7 @@ fn prevcmd_is_set() -> bool {
 /// Handle the `":!cmd"` command.
 pub fn do_bang(
     addr_count: c_int,
-    eap: &mut exarg_T,
+    eap: &mut Exarg,
     forceit: bool,
     do_in: bool,
     do_out: bool,
@@ -1535,9 +1535,9 @@ pub fn do_bang(
 
 /// `do_filter`: filter lines through a command given by the user.
 fn do_filter(
-    line1: linenr_T,
-    line2: linenr_T,
-    eap: &mut exarg_T,
+    line1: Linenr,
+    line2: Linenr,
+    eap: &mut Exarg,
     cmd: impl crate::strings::IntoCCharPtr,
     do_in: bool,
     do_out: bool,
@@ -2003,7 +2003,7 @@ pub fn append_redir(
     }
 }
 
-pub fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
+pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
      {
         let mut numbuf: [c_char; 30] = [0; 30];
 
@@ -2022,7 +2022,7 @@ pub fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
 }
 
 /// Print a text line. Also in silent mode (`"ex -s"`).
-pub fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
+pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
     let save_silent = g_st().silent_mode;
 
         if message_filtered(ml_get(lnum)) {
@@ -2094,7 +2094,7 @@ pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 /// `":file[!] [fname]"`.
-pub fn ex_file(eap: &mut exarg_T) {
+pub fn ex_file(eap: &mut Exarg) {
      {
         if eap.addr_count > 0
             && (!crate::memory::cstr_is_empty(eap.arg) || eap.line2 > 0 || eap.addr_count > 1)
@@ -2117,7 +2117,7 @@ pub fn ex_file(eap: &mut exarg_T) {
 }
 
 /// `":update"`.
-pub fn ex_update(eap: &mut exarg_T) {
+pub fn ex_update(eap: &mut Exarg) {
      {
         if curbufIsChanged()
             || (!bt_nofilename(Some(crate::globals::curbuf_mut()))
@@ -2130,9 +2130,9 @@ pub fn ex_update(eap: &mut exarg_T) {
 }
 
 /// `":write"` and `":saveas"`.
-pub fn ex_write(eap: &mut exarg_T) {
+pub fn ex_write(eap: &mut Exarg) {
      {
-        if eap.cmdidx == cmdidx_T::CMD_saveas as c_int {
+        if eap.cmdidx == Cmdidx::CMD_saveas as c_int {
             eap.line1 = 1;
             eap.line2 = curbuf_mut().b_ml.ml_line_count;
         }
@@ -2157,7 +2157,7 @@ fn check_writable(fname: impl crate::strings::IntoCCharPtr) -> bool { let fname 
     true
 }
 
-fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> bool {
+fn handle_mkdir_p_arg(eap: &mut Exarg, fname: *mut c_char) -> bool {
     if eap.mkdir_p != 0 && os_file_mkdir(fname, 0o755) < 0 {
             return false;
         }
@@ -2165,12 +2165,12 @@ fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> bool {
 }
 
 /// Write current buffer to file `eap->arg`.
-pub fn do_write(eap: &mut exarg_T) -> bool {
+pub fn do_write(eap: &mut Exarg) -> bool {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
         let mut retval = false;
         let mut free_fname: Option<std::ffi::CString> = None;
-        let mut alt_buf: *mut buf_T = ptr::null_mut();
+        let mut alt_buf: *mut FileBuf = ptr::null_mut();
 
         if not_writing() {
             return false;
@@ -2181,7 +2181,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
 
         'theend: {
             if crate::memory::cstr_is_empty(ffname) {
-                if eap.cmdidx == cmdidx_T::CMD_saveas as c_int {
+                if eap.cmdidx == Cmdidx::CMD_saveas as c_int {
                     emsg(gettext(e_argreq));
                     break 'theend;
                 }
@@ -2197,7 +2197,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
 
             if other {
                 if !vim_strchr(opt_vars().p_cpo, kCpoAltwrite).is_null()
-                    || eap.cmdidx == cmdidx_T::CMD_saveas as c_int
+                    || eap.cmdidx == Cmdidx::CMD_saveas as c_int
                 {
                     alt_buf = setaltfname(ffname, fname, 1);
                 } else {
@@ -2249,7 +2249,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
             }
 
             if check_overwrite(eap, curbuf_mut(), fname, ffname, other) {
-                if eap.cmdidx == cmdidx_T::CMD_saveas as c_int && !alt_buf.is_null() {
+                if eap.cmdidx == Cmdidx::CMD_saveas as c_int && !alt_buf.is_null() {
                     let was_curbuf = g_st().curbuf;
 
                     apply_autocmds(
@@ -2335,12 +2335,12 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
                     false,
                 ) == OK;
 
-                if eap.cmdidx == cmdidx_T::CMD_saveas as c_int && retval {
+                if eap.cmdidx == Cmdidx::CMD_saveas as c_int && retval {
                     curbuf_mut().b_p_ro = 0;
                     g_st().redraw_tabline = true;
                 }
 
-                if eap.cmdidx == cmdidx_T::CMD_saveas as c_int || name_was_missing {
+                if eap.cmdidx == Cmdidx::CMD_saveas as c_int || name_was_missing {
                     do_autochdir();
                 }
             }
@@ -2353,8 +2353,8 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
 
 /// Check if it is allowed to overwrite a file.
 pub fn check_overwrite(
-    eap: &mut exarg_T,
-    buf: &mut buf_T,
+    eap: &mut Exarg,
+    buf: &mut FileBuf,
     fname: impl crate::strings::IntoCCharPtr,
     ffname: impl crate::strings::IntoCCharPtr,
     other: bool,
@@ -2435,7 +2435,7 @@ pub fn check_overwrite(
 }
 
 /// Handle `":wnext"`, `":wNext"` and `":wprevious"` commands.
-pub fn ex_wnext(eap: &mut exarg_T) {
+pub fn ex_wnext(eap: &mut Exarg) {
      {
         let i = if crate::memory::cstr_byte_at(eap.cmd, 1) == b'n' {
             curwin_mut().w_arg_idx + eap.line2 as c_int
@@ -2451,14 +2451,14 @@ pub fn ex_wnext(eap: &mut exarg_T) {
 }
 
 /// `":wall"`, `":wqall"` and `":xall"`: Write all changed files (and exit).
-pub fn do_wqall(eap: &mut exarg_T) {
+pub fn do_wqall(eap: &mut Exarg) {
     unsafe {
         let mut error: c_int = 0;
         let save_forceit = eap.forceit;
         let save_exiting = g_st().exiting;
 
-        if eap.cmdidx == cmdidx_T::CMD_xall as c_int
-            || eap.cmdidx == cmdidx_T::CMD_wqall as c_int
+        if eap.cmdidx == Cmdidx::CMD_xall as c_int
+            || eap.cmdidx == Cmdidx::CMD_wqall as c_int
         {
             if !before_quit_all(eap) {
                 return;
@@ -2497,7 +2497,7 @@ pub fn do_wqall(eap: &mut exarg_T) {
             {
                 error += 1;
             } else {
-                let mut bufref: bufref_T = bufref_T::new();
+                let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
                 if !handle_mkdir_p_arg(eap, (*buf).b_fname)
                     || buf_write_all(&mut *buf, eap.forceit != 0) == FAIL
@@ -2537,7 +2537,7 @@ fn not_writing() -> bool {
 }
 
 /// Check if a buffer is read-only.
-fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
+fn check_readonly(forceit: &mut c_int, buf: &mut FileBuf) -> bool {
     if *forceit == 0
             && (buf.b_p_ro != 0
                 || (os_path_exists(buf.b_ffname) && os_file_is_writable(buf.b_ffname) == 0))
@@ -2597,7 +2597,7 @@ pub fn getfile(
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
     setpm: bool,
-    lnum: linenr_T,
+    lnum: Linenr,
     forceit: bool,
 ) -> c_int {
      {
@@ -2682,7 +2682,7 @@ pub fn getfile(
 }
 
 /// Set `v:swapcommand` for the `SwapExists` autocommands.
-pub fn set_swapcommand(command: impl crate::strings::IntoCCharPtr, newlnum: linenr_T) -> bool { let command = command.into_c_char_ptr();
+pub fn set_swapcommand(command: impl crate::strings::IntoCCharPtr, newlnum: Linenr) -> bool { let command = command.into_c_char_ptr();
     unsafe {
         if (command.is_null() && newlnum <= 0) || *get_vim_var_str(VV_SWAPCOMMAND) != NUL {
             return false;
@@ -2708,10 +2708,10 @@ pub fn set_swapcommand(command: impl crate::strings::IntoCCharPtr, newlnum: line
 pub fn do_ecmd(
     fnum: c_int,
     mut ffname: *mut c_char,
-    mut sfname: *mut c_char,eap: Option<&exarg_T>,
-    mut newlnum: linenr_T,
+    mut sfname: *mut c_char,eap: Option<&Exarg>,
+    mut newlnum: Linenr,
     flags: c_int,
-    mut oldwin: *mut win_T,
+    mut oldwin: *mut WinInfoInfo,
 ) -> bool {
     unsafe {
         let other_file: bool;
@@ -2719,12 +2719,12 @@ pub fn do_ecmd(
         let mut auto_buf = false;
         let mut new_name: Option<std::ffi::CString> = None;
         let mut did_set_swapcommand = false;
-        let mut buf: *mut buf_T;
-        let mut bufref: bufref_T = bufref_T::new();
-        let mut old_curbuf: bufref_T = bufref_T::new();
+        let mut buf: *mut FileBuf;
+        let mut bufref: Bufref = Bufref::new();
+        let mut old_curbuf: Bufref = Bufref::new();
         let mut free_fname: Option<std::ffi::CString> = None;
         let mut retval = false;
-        let mut topline: linenr_T = 0;
+        let mut topline: Linenr = 0;
         let mut newcol: c_int = -1;
         let mut solcol: c_int = -1;
         let mut command: *mut c_char = ptr::null_mut();
@@ -2832,10 +2832,10 @@ pub fn do_ecmd(
                     buf = buflist_findnr(fnum);
                 } else {
                     if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 {
-                        let mut tlnum: linenr_T = 0;
+                        let mut tlnum: Linenr = 0;
 
                         if !command.is_null() {
-                            tlnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(command)) as std::ffi::c_long as linenr_T;
+                            tlnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(command)) as std::ffi::c_long as Linenr;
                             if tlnum <= 0 {
                                 tlnum = 1;
                             }
@@ -3263,7 +3263,7 @@ fn delbuf_msg(name: Option<std::ffi::CString>) {
 }
 
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
-fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
+fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
     unsafe {
         if crate::memory::cstr_first_byte(eap.arg) == b'|' {
             let theline = cstr_to_cstring(eap.arg.add(1))
@@ -3296,7 +3296,7 @@ fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
         } else {
             let getline_State = g_st().State;
             g_st().State = MODE_CMDLINE;
-            let cstack = eap.cstack.cast::<cstack_T>();
+            let cstack = eap.cstack.cast::<Cstack>();
             let raw_line = eap.ea_getline.call(
                 if (*cstack).cs_looplevel > 0 {
                     -1
@@ -3318,7 +3318,7 @@ fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
 }
 
 /// `":insert"` and `":append"`, also used by `":change"`.
-pub fn ex_append(eap: &mut exarg_T) {
+pub fn ex_append(eap: &mut Exarg) {
     unsafe {
         let mut did_undo = false;
         let mut lnum = eap.line2;
@@ -3338,11 +3338,11 @@ pub fn ex_append(eap: &mut exarg_T) {
             curbuf_mut().b_p_ai = if curbuf_mut().b_p_ai != 0 { 0 } else { 1 };
         }
 
-        if eap.cmdidx != cmdidx_T::CMD_change as c_int && curbuf_mut().b_p_ai != 0 && lnum > 0 {
+        if eap.cmdidx != Cmdidx::CMD_change as c_int && curbuf_mut().b_p_ai != 0 && lnum > 0 {
             excmds_st().append_indent = get_indent_lnum(lnum);
         }
 
-        if eap.cmdidx != cmdidx_T::CMD_append as c_int {
+        if eap.cmdidx != Cmdidx::CMD_append as c_int {
             lnum -= 1;
         }
 
@@ -3424,7 +3424,7 @@ pub fn ex_append(eap: &mut exarg_T) {
             } else {
                 curbuf_mut().b_ml.ml_line_count
             };
-            if eap.cmdidx != cmdidx_T::CMD_append as c_int {
+            if eap.cmdidx != Cmdidx::CMD_append as c_int {
                 curbuf_mut().b_op_start.lnum -= 1;
             }
             curbuf_mut().b_op_end.lnum = if eap.line2 < lnum {
@@ -3445,7 +3445,7 @@ pub fn ex_append(eap: &mut exarg_T) {
 }
 
 /// `":change"`.
-pub fn ex_change(eap: &mut exarg_T) {
+pub fn ex_change(eap: &mut Exarg) {
      {
         if eap.skip != 0 {
             ex_append(eap);
@@ -3480,13 +3480,13 @@ pub fn ex_change(eap: &mut exarg_T) {
     }
 }
 
-pub fn ex_z(eap: &mut exarg_T) {
+pub fn ex_z(eap: &mut Exarg) {
     unsafe {
         let mut bigness: i64;
         let mut minus: c_int = 0;
-        let mut start: linenr_T;
-        let mut end: linenr_T;
-        let mut curs: linenr_T;
+        let mut start: Linenr;
+        let mut end: Linenr;
+        let mut curs: Linenr;
         let lnum = eap.line2;
 
         if eap.forceit != 0 {
@@ -3538,38 +3538,38 @@ pub fn ex_z(eap: &mut exarg_T) {
 
         match crate::memory::cstr_first_byte(kind) {
             b'-' => {
-                start = lnum - (bigness as linenr_T) * (x.offset_from(kind) as linenr_T) + 1;
-                end = start + (bigness as linenr_T) - 1;
+                start = lnum - (bigness as Linenr) * (x.offset_from(kind) as Linenr) + 1;
+                end = start + (bigness as Linenr) - 1;
                 curs = end;
             }
 
             b'=' => {
-                start = lnum - ((bigness as linenr_T) + 1) / 2 + 1;
-                end = lnum + ((bigness as linenr_T) + 1) / 2 - 1;
+                start = lnum - ((bigness as Linenr) + 1) / 2 + 1;
+                end = lnum + ((bigness as Linenr) + 1) / 2 - 1;
                 curs = lnum;
                 minus = 1;
             }
 
             b'^' => {
-                start = lnum - (bigness as linenr_T) * 2;
-                end = lnum - (bigness as linenr_T);
-                curs = lnum - (bigness as linenr_T);
+                start = lnum - (bigness as Linenr) * 2;
+                end = lnum - (bigness as Linenr);
+                curs = lnum - (bigness as Linenr);
             }
 
             b'.' => {
-                start = lnum - ((bigness as linenr_T) + 1) / 2 + 1;
-                end = lnum + ((bigness as linenr_T) + 1) / 2 - 1;
+                start = lnum - ((bigness as Linenr) + 1) / 2 + 1;
+                end = lnum + ((bigness as Linenr) + 1) / 2 - 1;
                 curs = end;
             }
 
             _ => {
                 start = lnum;
                 if crate::memory::cstr_first_byte(kind) == b'+' {
-                    start += (bigness as linenr_T) * (x.offset_from(kind) as linenr_T - 1) + 1;
+                    start += (bigness as Linenr) * (x.offset_from(kind) as Linenr - 1) + 1;
                 } else if eap.addr_count == 0 {
                     start += 1;
                 }
-                end = start + (bigness as linenr_T) - 1;
+                end = start + (bigness as Linenr) - 1;
                 curs = end;
             }
         }
@@ -3637,7 +3637,7 @@ pub fn sub_set_replacement(sub: SubReplacementString) {
 
 /// Recognize `":%s/\n//"` and turn it into a join command.
 fn sub_joining_lines(
-    eap: &mut exarg_T,
+    eap: &mut Exarg,
     pat: NvimString,
     sub: impl crate::strings::IntoCCharPtr,
     cmd: impl crate::strings::IntoCCharPtr,
@@ -3770,7 +3770,7 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 /// Parse `cmd` string for `:substitute`'s `{flags}` and update `subflags_arg` accordingly.
 fn sub_parse_flags(
     mut cmd: *mut c_char,
-    subflags_arg: &mut subflags_T,
+    subflags_arg: &mut Subflags,
     which_pat: &mut c_int,
 ) -> *mut c_char {
     unsafe {
@@ -3874,14 +3874,14 @@ fn push_preview_lines(
 
 /// Perform a substitution from line `eap->line1` to line `eap->line2`.
 fn do_sub(
-    eap: &mut exarg_T,
-    tm: proftime_T,
+    eap: &mut Exarg,
+    tm: Proftime,
     cmdpreview_ns: c_int,
-    cmdpreview_bufnr: handle_T,
+    cmdpreview_bufnr: ObjHandle,
 ) -> c_int {
     unsafe {
         let mut i: c_int;
-        let mut regmatch: regmmatch_T = regmmatch_T::new();
+        let mut regmatch: Regmmatch = Regmmatch::new();
         let mut sub: *mut c_char = ptr::null_mut();
         let mut sub_owned: Option<std::ffi::CString> = None;
         let mut pat = NvimString {
@@ -3894,8 +3894,8 @@ fn do_sub(
         let mut got_match = false;
         let mut which_pat: c_int;
         let mut cmd = eap.arg;
-        let mut first_line: linenr_T = 0;
-        let mut last_line: linenr_T = 0;
+        let mut first_line: Linenr = 0;
+        let mut last_line: Linenr = 0;
         let old_line_count = curbuf_mut().b_ml.ml_line_count;
         let mut sub_firstline: SubBuf;
         let mut endcolumn = false;
@@ -3914,7 +3914,7 @@ fn do_sub(
         }
         let start_nsubs = g_st().sub_nsubs;
 
-        if eap.cmdidx == cmdidx_T::CMD_tilde as c_int {
+        if eap.cmdidx == Cmdidx::CMD_tilde as c_int {
             which_pat = RE_LAST;
         } else {
             which_pat = RE_SUBST;
@@ -4043,9 +4043,9 @@ fn do_sub(
             return 0;
         }
 
-        let magic = if eap.cmdidx == cmdidx_T::CMD_smagic as c_int {
+        let magic = if eap.cmdidx == Cmdidx::CMD_smagic as c_int {
             true
-        } else if eap.cmdidx == cmdidx_T::CMD_snomagic as c_int {
+        } else if eap.cmdidx == Cmdidx::CMD_snomagic as c_int {
             false
         } else {
             opt_vars().p_magic != 0
@@ -4093,7 +4093,7 @@ fn do_sub(
             && timed_out == 0
             && !aborting()
             && (cmdpreview_ns <= 0
-                || preview_lines.lines_needed <= opt_vars().p_cwh as linenr_T
+                || preview_lines.lines_needed <= opt_vars().p_cwh as Linenr
                 || lnum <= curwin_mut().w_botline)
         {
             let mut nmatch = vim_regexec_multi(
@@ -4106,18 +4106,18 @@ fn do_sub(
                 Some(&mut timed_out),
             );
             if nmatch != 0 {
-                let mut copycol: colnr_T = 0;
-                let mut matchcol: colnr_T = 0;
-                let mut prev_matchcol: colnr_T = MAXCOL;
+                let mut copycol: Colnr = 0;
+                let mut matchcol: Colnr = 0;
+                let mut prev_matchcol: Colnr = MAXCOL;
                 let mut new_start = SubBuf::new();
                 let mut new_start_size: usize = 0;
                 let mut new_end: *mut c_char;
                 let mut did_sub = false;
-                let mut nmatch_tl: linenr_T = 0;
+                let mut nmatch_tl: Linenr = 0;
                 let mut do_again: bool;
                 let mut skip_match = false;
-                let mut sub_firstlnum: linenr_T = lnum;
-                let mut lnum_start: linenr_T;
+                let mut sub_firstlnum: Linenr = lnum;
+                let mut lnum_start: Linenr;
 
                 let mut line_matches: Vec<LineData> = Vec::new();
 
@@ -4128,8 +4128,8 @@ fn do_sub(
 
                 loop {
                     let mut current_match = SubResult {
-                        start: lpos_T { lnum: 0, col: 0 },
-                        end: lpos_T { lnum: 0, col: 0 },
+                        start: Lpos { lnum: 0, col: 0 },
+                        end: Lpos { lnum: 0, col: 0 },
                         pre_match: 0,
                     };
 
@@ -4178,7 +4178,7 @@ fn do_sub(
 
                         if excmds_st().subflags.do_count {
                             if nmatch > 1 {
-                                matchcol = sub_firstline.size as colnr_T;
+                                matchcol = sub_firstline.size as Colnr;
                                 nmatch = 1;
                                 skip_match = true;
                             }
@@ -4314,7 +4314,7 @@ fn do_sub(
 
                             if typed == b'n' as c_int {
                                 if nmatch > 1 {
-                                    matchcol = sub_firstline.size as colnr_T;
+                                    matchcol = sub_firstline.size as Colnr;
                                     skip_match = true;
                                 }
                                 break 'skip;
@@ -4435,7 +4435,7 @@ fn do_sub(
                                 rel_lnum,
                                 sub,
                                 new_end,
-                                sublen as colnr_T,
+                                sublen as Colnr,
                                 REGSUB_COPY
                                     | REGSUB_BACKSLASH
                                     | if opt_vars().p_magic != 0 { REGSUB_MAGIC } else { 0 },
@@ -4489,7 +4489,7 @@ fn do_sub(
                                 } else if *p1 == CAR as c_char {
                                     if u_inssub(lnum) {
                                         let plen =
-                                            (p1.offset_from(new_start.data()) + 1) as colnr_T;
+                                            (p1.offset_from(new_start.data()) + 1) as Colnr;
                                         *p1 = NUL;
                                         ml_append(lnum - 1, new_start.data(), plen, false);
                                         mark_adjust(lnum + 1, MAXLNUM, 1, 0, kExtmarkNOOP);
@@ -4517,7 +4517,7 @@ fn do_sub(
                                     p1 = p1.add(utfc_ptr2len(p1) as usize);
                                 }
                             }
-                            let new_endcol = new_start.size as colnr_T;
+                            let new_endcol = new_start.size as Colnr;
                             current_match.end.col = new_endcol;
                             current_match.end.lnum = lnum;
 
@@ -4537,7 +4537,7 @@ fn do_sub(
                                 matchcols,
                                 matchbytes: replaced_bytes,
                                 subcols,
-                                subbytes: (sublen as colnr_T - 1) as bcount_t,
+                                subbytes: (sublen as Colnr - 1) as bcount_t,
                                 lnum_before: lnum_before_newlines,
                                 lnum_after: lnum,
                             });
@@ -4574,8 +4574,8 @@ fn do_sub(
                         if !new_start.is_null() {
                             crate::memory::cstr_cpy(new_start.data().add(new_start.size), sub_firstline.data().add(copycol as usize));
                             new_start.size += sub_firstline.size - copycol as usize;
-                            matchcol = sub_firstline.size as colnr_T - matchcol;
-                            prev_matchcol = sub_firstline.size as colnr_T - prev_matchcol;
+                            matchcol = sub_firstline.size as Colnr - matchcol;
+                            prev_matchcol = sub_firstline.size as Colnr - prev_matchcol;
 
                             if !u_savesub(lnum) {
                                 break;
@@ -4631,8 +4631,8 @@ fn do_sub(
 
                             sub_firstlnum = lnum;
                             sub_firstline = std::mem::take(&mut new_start);
-                            matchcol = sub_firstline.size as colnr_T - matchcol;
-                            prev_matchcol = sub_firstline.size as colnr_T - prev_matchcol;
+                            matchcol = sub_firstline.size as Colnr - matchcol;
+                            prev_matchcol = sub_firstline.size as Colnr - prev_matchcol;
                             copycol = 0;
                         }
                         if nmatch == -1 && !lastone {
@@ -4832,7 +4832,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
     }
 }
 
-fn global_exe_one(cmd: impl crate::strings::IntoCCharPtr, lnum: linenr_T) { let cmd = cmd.into_c_char_ptr();
+fn global_exe_one(cmd: impl crate::strings::IntoCCharPtr, lnum: Linenr) { let cmd = cmd.into_c_char_ptr();
      {
         curwin_mut().w_cursor.lnum = lnum;
         curwin_mut().w_cursor.col = 0;
@@ -4849,14 +4849,14 @@ fn global_exe_one(cmd: impl crate::strings::IntoCCharPtr, lnum: linenr_T) { let 
 }
 
 /// Execute a global command (`:g` / `:v`).
-pub fn ex_global(eap: &mut exarg_T) {
+pub fn ex_global(eap: &mut Exarg) {
     unsafe {
-        let mut lnum: linenr_T;
+        let mut lnum: Linenr;
         let mut cmd: *mut c_char;
         let delim: c_char;
         let pat: *mut c_char;
         let patlen: usize;
-        let mut regmatch: regmmatch_T = regmmatch_T::new();
+        let mut regmatch: Regmmatch = Regmmatch::new();
 
         if g_st().global_busy != 0 && (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count) {
             emsg(gettext(
@@ -5102,18 +5102,18 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
 
 /// Shows the effects of the `:substitute` command being typed (`'inccommand'`).
 fn show_sub(
-    eap: &mut exarg_T,
-    old_cusr: pos_T,
+    eap: &mut Exarg,
+    old_cusr: CursorPos,
     preview_lines: &mut PreviewLines,
     hl_id: c_int,
     cmdpreview_ns: c_int,
-    cmdpreview_bufnr: handle_T,
+    cmdpreview_bufnr: ObjHandle,
 ) -> c_int {
     unsafe {
         let save_shm_p = cstr_to_cstring(opt_vars().p_shm);
         let subresults = &preview_lines.subresults;
         let orig_buf = g_st().curbuf;
-        let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
+        let mut cmdpreview_buf: *mut FileBuf = ptr::null_mut();
 
         set_option_direct(kOptShortmess, cstr_as_obj(c"F"), 0, SID_NONE);
 
@@ -5143,18 +5143,18 @@ fn show_sub(
         }
 
         let mut str_buf: Vec<c_char> = Vec::new();
-        let mut line_size: colnr_T = 0;
-        let mut linenr_preview: linenr_T = 0;
-        let mut linenr_origbuf: linenr_T = 0;
-        let mut next_linenr: linenr_T;
+        let mut line_size: Colnr = 0;
+        let mut linenr_preview: Linenr = 0;
+        let mut linenr_origbuf: Linenr = 0;
+        let mut next_linenr: Linenr;
 
         for &m in subresults {
             if !cmdpreview_buf.is_null() {
-                let mut p_start = lpos_T {
+                let mut p_start = Lpos {
                     lnum: 0,
                     col: m.start.col,
                 };
-                let mut p_end = lpos_T {
+                let mut p_end = Lpos {
                     lnum: 0,
                     col: m.end.col,
                 };
@@ -5228,15 +5228,15 @@ fn show_sub(
 }
 
 /// `:substitute` command.
-pub fn ex_substitute(eap: &mut exarg_T) {
+pub fn ex_substitute(eap: &mut Exarg) {
     do_sub(eap, profile_zero(), 0, 0);
 }
 
 /// `:substitute` command preview callback.
 pub fn ex_substitute_preview(
-    eap: &mut exarg_T,
+    eap: &mut Exarg,
     cmdpreview_ns: c_int,
-    cmdpreview_bufnr: handle_T,
+    cmdpreview_bufnr: ObjHandle,
 ) -> c_int {
      {
         if !crate::memory::cstr_is_empty(eap.arg) && !ascii_isalnum(crate::memory::cstr_first_char(eap.arg)) {
@@ -5304,7 +5304,7 @@ pub fn skip_vimgrep_pat(
 }
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).
-pub fn ex_oldfiles(eap: &mut exarg_T) {
+pub fn ex_oldfiles(eap: &mut Exarg) {
     nlua_call_excmd(
             c"vim._core.ex_cmd",
             c"ex_oldfiles",

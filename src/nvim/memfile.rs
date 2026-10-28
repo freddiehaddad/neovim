@@ -1,9 +1,9 @@
 //! Memory file block cache and swap file backing store (`src/nvim/memfile.c`).
 
-use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, buf_T};
+use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, FileBuf};
 use crate::errors::*;
 use crate::event::r#loop::loop_recursive_ptr;
-use crate::fileio::{SEEK_END, SEEK_SET, close, off_T, read_eintr, vim_lseek, write_eintr};
+use crate::fileio::{SEEK_END, SEEK_SET, close, Off, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
 
@@ -18,8 +18,8 @@ use crate::strings::{gettext, strerror};
 use std::ffi::{c_int, c_uint};
 use std::ptr;
 
-pub type blocknr_T = i64;
-pub type mfdirty_T = c_int;
+pub type Blocknr = i64;
+pub type Mfdirty = c_int;
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;
 pub(crate) const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
@@ -28,7 +28,7 @@ const MAX_SWAP_PAGE_SIZE: u64 = 50000;
 pub(crate) const BH_DIRTY: c_uint = 1;
 const BH_LOCKED: c_uint = 2;
 
-const MF_DIRTY_NO: mfdirty_T = 0;
+const MF_DIRTY_NO: Mfdirty = 0;
 
 pub(crate) const MFS_ALL: c_int = 1;
 pub(crate) const MFS_STOP: c_int = 2;
@@ -47,14 +47,14 @@ const S_IREAD: c_int = 0o400;
 const S_IWRITE: c_int = 0o200;
 
 #[repr(C)]
-pub struct bhdr_T {
-    pub bh_bnum: blocknr_T,
+pub struct Bhdr {
+    pub bh_bnum: Blocknr,
     pub bh_data: Vec<u8>,
     pub bh_page_count: c_uint,
     pub bh_flags: c_uint,
 }
 
-impl bhdr_T {
+impl Bhdr {
     #[inline]
     pub fn data_ptr(&mut self) -> *mut u8 {
         self.bh_data.as_mut_ptr()
@@ -62,21 +62,21 @@ impl bhdr_T {
 }
 
 #[repr(C)]
-pub struct memfile_T {
+pub struct Memfile {
     pub mf_fname: Option<std::ffi::CString>,
     pub mf_ffname: Option<std::ffi::CString>,
     pub mf_fd: c_int,
     pub mf_flags: c_int,
     pub mf_reopen: bool,
-    pub mf_free_list: Vec<bhdr_T>,
-    pub mf_hash: std::collections::HashMap<i64, Box<bhdr_T>>,
+    pub mf_free_list: Vec<Bhdr>,
+    pub mf_hash: std::collections::HashMap<i64, Box<Bhdr>>,
     pub mf_trans: std::collections::HashMap<i64, i64>,
-    pub mf_blocknr_max: blocknr_T,
-    pub mf_blocknr_min: blocknr_T,
-    pub mf_neg_count: blocknr_T,
-    pub mf_infile_count: blocknr_T,
+    pub mf_blocknr_max: Blocknr,
+    pub mf_blocknr_min: Blocknr,
+    pub mf_neg_count: Blocknr,
+    pub mf_infile_count: Blocknr,
     pub mf_page_size: c_uint,
-    pub mf_dirty: mfdirty_T,
+    pub mf_dirty: Mfdirty,
 }
 
 #[inline]
@@ -88,15 +88,15 @@ fn perror_msg(msg: &std::ffi::CStr) {
 }
 
 #[inline]
-pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<bhdr_T>>, key: i64) -> *mut bhdr_T {
+pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<Bhdr>>, key: i64) -> *mut Bhdr {
     map.get(&key)
         .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
 }
 
 /// Open a new or existing memory block file.
-pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<memfile_T>> {
+pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<Memfile>> {
     unsafe {
-        let mut mfp = Box::new(memfile_T {
+        let mut mfp = Box::new(Memfile {
             mf_fname: None,
             mf_ffname: None,
             mf_fd: -1,
@@ -129,7 +129,7 @@ pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<mem
             }
         }
 
-        let size: off_T;
+        let size: Off;
         if mfp.mf_fd < 0 || (flags & (O_TRUNC | O_EXCL)) != 0 || {
             size = vim_lseek(mfp.mf_fd, 0, SEEK_END);
             size <= 0
@@ -149,7 +149,7 @@ pub fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<Box<mem
 }
 
 /// Open a file for an existing memfile.
-pub fn mf_open_file(mfp: &mut memfile_T, fname: std::ffi::CString) -> bool {
+pub fn mf_open_file(mfp: &mut Memfile, fname: std::ffi::CString) -> bool {
     if mf_do_open(mfp, fname, O_RDWR | O_CREAT | O_EXCL) {
         mfp.mf_dirty = MF_DIRTY_YES;
         true
@@ -159,7 +159,7 @@ pub fn mf_open_file(mfp: &mut memfile_T, fname: std::ffi::CString) -> bool {
 }
 
 /// Close a memory file and optionally delete the associated file.
-pub fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
+pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
     let Some(mfp) = mfp else {
         return;
     };
@@ -176,7 +176,7 @@ pub fn mf_close(mfp: Option<Box<memfile_T>>, del_file: bool) {
 }
 
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
-pub fn mf_close_file(buf: &mut buf_T, getlines: bool) {
+pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
     unsafe {
         let mfp = buf.b_ml.mfp_ptr();
         if mfp.is_null() || (*mfp).mf_fd < 0 {
@@ -202,13 +202,13 @@ pub fn mf_close_file(buf: &mut buf_T, getlines: bool) {
 }
 
 /// Set new size for a memfile.
-pub fn mf_new_page_size(mfp: &mut memfile_T, new_size: c_uint) {
+pub fn mf_new_page_size(mfp: &mut Memfile, new_size: c_uint) {
     mfp.mf_page_size = new_size;
 }
 
 /// Get a new block.
-pub fn mf_new(mfp: &mut memfile_T, negative: bool, page_count: c_uint) -> *mut bhdr_T {
-    let bnum: blocknr_T = if !negative
+pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: c_uint) -> *mut Bhdr {
+    let bnum: Blocknr = if !negative
             && let Some(freep) = mfp.mf_free_list.last_mut()
             && freep.bh_page_count >= page_count
         {
@@ -233,14 +233,14 @@ pub fn mf_new(mfp: &mut memfile_T, negative: bool, page_count: c_uint) -> *mut b
         };
 
         let mut boxed = mf_alloc_bhdr(mfp, bnum, page_count, BH_LOCKED | BH_DIRTY);
-        let hp: *mut bhdr_T = &raw mut *boxed;
+        let hp: *mut Bhdr = &raw mut *boxed;
         mfp.mf_dirty = MF_DIRTY_YES;
         mfp.mf_hash.insert(bnum, boxed);
         hp
 }
 
 /// Get existing block `nr` with `page_count` pages.
-pub fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bhdr_T {
+pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: c_uint) -> *mut Bhdr {
     unsafe {
         if nr >= mfp.mf_blocknr_max || nr <= mfp.mf_blocknr_min {
             return ptr::null_mut();
@@ -267,7 +267,7 @@ pub fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bh
 }
 
 /// Release the block `*hp`.
-pub fn mf_put(mfp: &mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
+pub fn mf_put(mfp: &mut Memfile, hp: *mut Bhdr, dirty: bool, infile: bool) {
     unsafe {
         let mut flags = (*hp).bh_flags;
 
@@ -289,14 +289,14 @@ pub fn mf_put(mfp: &mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
 }
 
 /// Signal block as no longer used (may put it in the free list).
-pub fn mf_free(mfp: &mut memfile_T, hp: &mut bhdr_T) {
+pub fn mf_free(mfp: &mut Memfile, hp: &mut Bhdr) {
     let bnum = hp.bh_bnum;
         let page_count = hp.bh_page_count;
         let _ = mfp.mf_hash.remove(&bnum);
         if bnum < 0 {
             mfp.mf_neg_count -= 1;
         } else {
-            mfp.mf_free_list.push(bhdr_T {
+            mfp.mf_free_list.push(Bhdr {
                 bh_bnum: bnum,
                 bh_data: Vec::new(),
                 bh_page_count: page_count,
@@ -306,7 +306,7 @@ pub fn mf_free(mfp: &mut memfile_T, hp: &mut bhdr_T) {
 }
 
 /// Sync memory file to disk.
-pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> bool {
+pub fn mf_sync(mfp: &mut Memfile, flags: c_int) -> bool {
     unsafe {
         let got_int_save = g_st().got_int;
 
@@ -321,7 +321,7 @@ pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> bool {
 
         let mut status = true;
         let mut completed_all = true;
-        let blocks: Vec<*mut bhdr_T> = mfp
+        let blocks: Vec<*mut Bhdr> = mfp
             .mf_hash
             .values()
             .map(|b| (&raw const **b).cast_mut())
@@ -376,7 +376,7 @@ pub fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> bool {
 }
 
 /// Set dirty flag for all blocks in memory file with a positive block number.
-pub fn mf_set_dirty(mfp: &mut memfile_T) {
+pub fn mf_set_dirty(mfp: &mut Memfile) {
     for hp in mfp.mf_hash.values_mut() {
             if hp.bh_bnum > 0 {
                 hp.bh_flags |= BH_DIRTY;
@@ -397,7 +397,7 @@ pub fn mf_release_all() -> bool {
                 }
 
                 if (*mfp).mf_fd >= 0 {
-                    let blocks: Vec<*mut bhdr_T> = (*mfp)
+                    let blocks: Vec<*mut Bhdr> = (*mfp)
                         .mf_hash
                         .values()
                         .map(|b| (&raw const **b).cast_mut())
@@ -418,13 +418,13 @@ pub fn mf_release_all() -> bool {
 }
 
 fn mf_alloc_bhdr(
-    mfp: &mut memfile_T,
-    bnum: blocknr_T,
+    mfp: &mut Memfile,
+    bnum: Blocknr,
     page_count: c_uint,
     flags: c_uint,
-) -> Box<bhdr_T> {
+) -> Box<Bhdr> {
     let len = (mfp.mf_page_size as usize) * (page_count as usize);
-    Box::new(bhdr_T {
+    Box::new(Bhdr {
         bh_bnum: bnum,
         bh_data: vec![0u8; len],
         bh_page_count: page_count,
@@ -432,7 +432,7 @@ fn mf_alloc_bhdr(
     })
 }
 
-fn mf_read(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
+fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
     unsafe {
         if mfp.mf_fd < 0 {
             return false;
@@ -456,7 +456,7 @@ fn mf_read(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
     }
 }
 
-fn mf_write(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
+fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
     unsafe {
         if mfp.mf_fd < 0 && !mfp.mf_reopen {
             return false;
@@ -470,7 +470,7 @@ fn mf_write(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
 
         loop {
             let mut nr = hp.bh_bnum;
-            let hp2: *mut bhdr_T = if nr > mfp.mf_infile_count {
+            let hp2: *mut Bhdr = if nr > mfp.mf_infile_count {
                 nr = mfp.mf_infile_count;
                 pmap_get_bhdr(&mfp.mf_hash, nr)
             } else {
@@ -543,14 +543,14 @@ fn mf_write(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
     }
 }
 
-fn mf_trans_add(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
+fn mf_trans_add(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
      {
         if hp.bh_bnum >= 0 {
             return true;
         }
 
         let page_count = hp.bh_page_count;
-        let new_bnum: blocknr_T = if let Some(freep) = mfp.mf_free_list.last_mut()
+        let new_bnum: Blocknr = if let Some(freep) = mfp.mf_free_list.last_mut()
             && freep.bh_page_count >= page_count
         {
             let bnum = freep.bh_bnum;
@@ -580,7 +580,7 @@ fn mf_trans_add(mfp: &mut memfile_T, hp: &mut bhdr_T) -> bool {
 }
 
 /// Lookup translation from trans list and delete the entry.
-pub fn mf_trans_del(mfp: &mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
+pub fn mf_trans_del(mfp: &mut Memfile, old_nr: Blocknr) -> Blocknr {
     let Some(new_bnum) = mfp.mf_trans.remove(&old_nr) else {
             return old_nr;
         };
@@ -591,19 +591,19 @@ pub fn mf_trans_del(mfp: &mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
 }
 
 /// Frees `mf_fname` and `mf_ffname`.
-pub fn mf_free_fnames(mfp: &mut memfile_T) {
+pub fn mf_free_fnames(mfp: &mut Memfile) {
     mfp.mf_fname = None;
         mfp.mf_ffname = None;
 }
 
 /// Set the simple file name and the full file name of memfile's swapfile.
-pub fn mf_set_fnames(mfp: &mut memfile_T, fname: std::ffi::CString) {
+pub fn mf_set_fnames(mfp: &mut Memfile, fname: std::ffi::CString) {
     mfp.mf_ffname = FullName_save(fname.as_ptr(), false);
         mfp.mf_fname = Some(fname);
 }
 
 /// Make name of memfile's swapfile a full path.
-pub fn mf_fullname(mut mfp: Option<&mut memfile_T>) {
+pub fn mf_fullname(mut mfp: Option<&mut Memfile>) {
     if mfp.is_none() {
         return;
     }
@@ -617,11 +617,11 @@ pub fn mf_fullname(mut mfp: Option<&mut memfile_T>) {
 }
 
 /// Return true if there are any translations pending for memfile.
-pub fn mf_need_trans(mfp: &mut memfile_T) -> bool {
+pub fn mf_need_trans(mfp: &mut Memfile) -> bool {
     mfp.mf_fname.is_some() && mfp.mf_neg_count > 0
 }
 
-fn mf_do_open(mfp: &mut memfile_T, fname: std::ffi::CString, mut flags: c_int) -> bool {
+fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: c_int) -> bool {
     mf_set_fnames(mfp, fname);
         let fname_ptr = mfp.mf_fname.as_ref().unwrap().as_ptr();
 
@@ -678,27 +678,27 @@ mod tests {
     #[test]
     fn mf_hash_inserts_expands_removes_and_frees_50000_items() {
         const TEST_COUNT: usize = 50_000;
-        const fn index_to_key(i: usize) -> blocknr_T {
-            (i as blocknr_T) ^ 15167
+        const fn index_to_key(i: usize) -> Blocknr {
+            (i as Blocknr) ^ 15167
         }
 
         unsafe {
-            let mut ht: std::collections::HashMap<i64, Box<bhdr_T>> =
+            let mut ht: std::collections::HashMap<i64, Box<Bhdr>> =
                 std::collections::HashMap::new();
-            let mut items: Vec<*mut bhdr_T> = Vec::with_capacity(TEST_COUNT);
+            let mut items: Vec<*mut Bhdr> = Vec::with_capacity(TEST_COUNT);
 
             for i in 0..TEST_COUNT {
                 assert_eq!(ht.len(), i);
                 let key = index_to_key(i);
                 assert!(pmap_get_bhdr(&ht, key).is_null());
 
-                let mut boxed = Box::new(bhdr_T {
+                let mut boxed = Box::new(Bhdr {
                     bh_bnum: key,
                     bh_data: Vec::new(),
                     bh_page_count: 1,
                     bh_flags: 0,
                 });
-                let item: *mut bhdr_T = &raw mut *boxed;
+                let item: *mut Bhdr = &raw mut *boxed;
                 ht.insert(key, boxed);
                 assert_eq!(pmap_get_bhdr(&ht, key), item);
                 items.push(item);

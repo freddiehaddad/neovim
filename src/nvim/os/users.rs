@@ -263,7 +263,7 @@ fn init_users() {
 ///
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
-pub fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
+pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return std::ptr::null_mut();
     }

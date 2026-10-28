@@ -1,13 +1,13 @@
-//! JSON and MessagePack decoding into Vimscript `typval_T` values (`src/nvim/eval/decode.c`).
+//! JSON and MessagePack decoding into Vimscript `TypVal` values (`src/nvim/eval/decode.c`).
 
 use crate::charset::vim_str2nr;
 use crate::eval::encode::encode_list_write;
 use crate::eval::string2float;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, list_T, tv_blob_alloc_ret, tv_clear, tv_dict_add,
+    TypvalVval, VAR_UNLOCKED, VarType, TvList, tv_blob_alloc_ret, tv_clear, tv_dict_add,
     tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len, tv_list_alloc,
     tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
-    typval_T,
+    TypVal,
 };
 use crate::eval::vars::eval_msgpack_type_lists_mut;
 use crate::hashtab::hashitem_empty;
@@ -41,9 +41,9 @@ use crate::mpack::conv::{
 #[derive(Clone, Copy)]
 struct JsonContainerStackItem {
     stack_index: usize,
-    special_val: *mut list_T,
+    special_val: *mut TvList,
     s: *const c_char,
-    container: typval_T,
+    container: TypVal,
 }
 
 #[derive(Clone, Copy)]
@@ -51,10 +51,10 @@ struct ValuesStackItem {
     is_special_string: bool,
     didcomma: bool,
     didcolon: bool,
-    val: typval_T,
+    val: TypVal,
 }
 
-fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
+fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     unsafe {
         let dict = tv_dict_alloc();
         let type_di = tv_dict_item_alloc_len(c"_TYPE", 5);
@@ -68,7 +68,7 @@ fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
         (*val_di).di_tv = val;
         tv_dict_add(&mut *dict, val_di);
         (*dict).dv_refcount += 1;
-        *rettv = typval_T {
+        *rettv = TypVal {
             v_type: VarType::VAR_DICT,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Dict(dict),
@@ -77,14 +77,14 @@ fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
 }
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
-pub fn decode_create_map_special_dict(ret_tv: &mut typval_T, len: isize) -> *mut list_T {
+pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> *mut TvList {
     unsafe {
         let list = tv_list_alloc(len);
         tv_list_ref(list.as_mut());
         create_special_dict(
             ret_tv,
             K_MP_MAP,
-            typval_T {
+            TypVal {
                 v_type: VarType::VAR_LIST,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::List(list),
@@ -94,13 +94,13 @@ pub fn decode_create_map_special_dict(ret_tv: &mut typval_T, len: isize) -> *mut
     }
 }
 
-/// Convert `s[..len]` into a `VAR_STRING` or `VAR_BLOB` `typval_T` (`decode_string`).
+/// Convert `s[..len]` into a `VAR_STRING` or `VAR_BLOB` `TypVal` (`decode_string`).
 pub fn decode_string(
     s: impl crate::strings::IntoCCharPtr,
     len: usize,
     force_blob: bool,
     _s_allocated: bool,
-) -> typval_T {
+) -> TypVal {
     let s = s.into_c_char_ptr();
     assert!(!s.is_null() || len == 0);
     let has_nul = if !s.is_null() && len > 0 {
@@ -112,7 +112,7 @@ pub fn decode_string(
     let use_blob = force_blob || has_nul;
 
     if use_blob {
-        let mut tv = typval_T {
+        let mut tv = TypVal {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
@@ -128,7 +128,7 @@ pub fn decode_string(
     }
 
     let _ = use_blob;
-    let mut tv = typval_T {
+    let mut tv = TypVal {
         v_type: VarType::VAR_STRING,
         v_lock: VAR_UNLOCKED,
         vval: TypvalVval::String(std::ptr::null_mut()),
@@ -563,7 +563,7 @@ fn parse_json_number(
             return false;
         }
 
-        let mut tv = typval_T {
+        let mut tv = TypVal {
             v_type: VarType::VAR_NUMBER,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
@@ -635,11 +635,11 @@ fn parse_json_number(
     }
 }
 
-/// Convert JSON string `buf[..buf_len]` into a Vimscript `typval_T` (`json_decode_string`).
+/// Convert JSON string `buf[..buf_len]` into a Vimscript `TypVal` (`json_decode_string`).
 pub fn json_decode_string(
     buf: impl crate::strings::IntoCCharPtr,
     buf_len: usize,
-    rettv: &mut typval_T,
+    rettv: &mut TypVal,
 ) -> bool {
     let buf = buf.into_c_char_ptr();
     unsafe {
@@ -816,7 +816,7 @@ pub fn json_decode_string(
                             return fail_cleanup(stack);
                         }
                         p = p.add(3);
-                        let tv = typval_T {
+                        let tv = TypVal {
                             v_type: VarType::VAR_SPECIAL,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
@@ -850,7 +850,7 @@ pub fn json_decode_string(
                             return fail_cleanup(stack);
                         }
                         p = p.add(3);
-                        let tv = typval_T {
+                        let tv = TypVal {
                             v_type: VarType::VAR_BOOL,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(K_BOOL_VAR_TRUE),
@@ -884,7 +884,7 @@ pub fn json_decode_string(
                             return fail_cleanup(stack);
                         }
                         p = p.add(4);
-                        let tv = typval_T {
+                        let tv = TypVal {
                             v_type: VarType::VAR_BOOL,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(K_BOOL_VAR_FALSE),
@@ -949,7 +949,7 @@ pub fn json_decode_string(
                     b'[' => {
                         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
                         tv_list_ref(list.as_mut());
-                        let tv = typval_T {
+                        let tv = TypVal {
                             v_type: VarType::VAR_LIST,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::List(list),
@@ -968,19 +968,19 @@ pub fn json_decode_string(
                         });
                     }
                     b'{' => {
-                        let mut tv = typval_T {
+                        let mut tv = TypVal {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval::Number(0),
                         };
-                        let mut val_list: *mut list_T = std::ptr::null_mut();
+                        let mut val_list: *mut TvList = std::ptr::null_mut();
                         if next_map_special {
                             next_map_special = false;
                             val_list = decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW);
                         } else {
                             let dict = tv_dict_alloc();
                             (*dict).dv_refcount += 1;
-                            tv = typval_T {
+                            tv = TypVal {
                                 v_type: VarType::VAR_DICT,
                                 v_lock: VAR_UNLOCKED,
                                 vval: TypvalVval::Dict(dict),
@@ -1039,10 +1039,10 @@ pub fn json_decode_string(
     }
 }
 
-fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
+fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
     unsafe {
         if val <= (i64::MAX as u64) {
-            *rettv = typval_T {
+            *rettv = TypVal {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(val as i64),
@@ -1053,7 +1053,7 @@ fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
             create_special_dict(
                 rettv,
                 K_MP_INTEGER,
-                typval_T {
+                TypVal {
                     v_type: VarType::VAR_LIST,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::List(list),
@@ -1071,7 +1071,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
         let parser = &mut *parser;
         let node = &mut *node;
-        let mut result: *mut typval_T = std::ptr::null_mut();
+        let mut result: *mut TypVal = std::ptr::null_mut();
         let parent = mpack_parent_node(&raw mut *node);
         if !parent.is_null() {
             match (*parent).tok.r#type {
@@ -1079,7 +1079,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                     let list = (*parent).data[1].list();
                     result = tv_list_append_owned_tv(
                          &mut *list,
-                        typval_T {
+                        TypVal {
                             v_type: VarType::VAR_UNKNOWN,
                             v_lock: 0,
                             vval: TypvalVval::Number(0),
@@ -1108,7 +1108,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
 
         match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_NIL => {
-                *result = typval_T {
+                *result = TypVal {
                     v_type: VarType::VAR_SPECIAL,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
@@ -1116,14 +1116,14 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
             }
             mpack_token_type_t::MPACK_TOKEN_BOOLEAN => {
                 let b = mpack_unpack_boolean(node.tok);
-                *result = typval_T {
+                *result = TypVal {
                     v_type: VarType::VAR_BOOL,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
                 };
             }
             mpack_token_type_t::MPACK_TOKEN_SINT => {
-                *result = typval_T {
+                *result = TypVal {
                     v_type: VarType::VAR_NUMBER,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Number(mpack_unpack_sint(node.tok)),
@@ -1133,7 +1133,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                 positive_integer_to_special_typval(&mut *result, mpack_unpack_uint(node.tok));
             }
             mpack_token_type_t::MPACK_TOKEN_FLOAT => {
-                *result = typval_T {
+                *result = TypVal {
                     v_type: VarType::VAR_FLOAT,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::Float(mpack_unpack_float_fast(node.tok)),
@@ -1156,7 +1156,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
             mpack_token_type_t::MPACK_TOKEN_ARRAY => {
                 let list = tv_list_alloc(node.tok.length as isize);
                 tv_list_ref(list.as_mut());
-                *result = typval_T {
+                *result = TypVal {
                     v_type: VarType::VAR_LIST,
                     v_lock: VAR_UNLOCKED,
                     vval: TypvalVval::List(list),
@@ -1165,7 +1165,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
             }
             mpack_token_type_t::MPACK_TOKEN_MAP => {
                 node.data[1] =
-                    mpack_data_t::MapPairs(vec![[typval_T::new(); 2]; node.tok.length as usize]);
+                    mpack_data_t::MapPairs(vec![[TypVal::new(); 2]; node.tok.length as usize]);
             }
             mpack_token_type_t::MPACK_TOKEN_NONE => std::process::abort(),
         }
@@ -1212,7 +1212,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                 create_special_dict(
                     &mut *result,
                     K_MP_EXT,
-                    typval_T {
+                    TypVal {
                         v_type: VarType::VAR_LIST,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::List(list),
@@ -1237,7 +1237,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
                 if can_be_dict {
                     let dict = tv_dict_alloc();
                     (*dict).dv_refcount += 1;
-                    *result = typval_T {
+                    *result = TypVal {
                         v_type: VarType::VAR_DICT,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Dict(dict),
@@ -1286,7 +1286,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     }
 }
 
-/// Parse msgpack data into a `typval_T` using `parser` (`mpack_parse_typval`).
+/// Parse msgpack data into a `TypVal` using `parser` (`mpack_parse_typval`).
 pub fn mpack_parse_typval(
     parser: &mut mpack_parser_t,
     data: &mut *const c_char,
@@ -1305,7 +1305,7 @@ pub fn mpack_parse_typval(
 pub fn unpack_typval(
     data: &mut *const c_char,
     size: &mut usize,
-    ret: &mut typval_T,
+    ret: &mut TypVal,
 ) -> c_int {
     ret.v_type = VarType::VAR_UNKNOWN;
     let mut parser = mpack_parser_t::new(0);
@@ -1340,7 +1340,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         crate::globals::g_st().emsg_skip += 1;
-            let mut rettv = typval_T {
+            let mut rettv = TypVal {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),

@@ -14,25 +14,25 @@ use crate::charset::{
     Ctrl_V, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
 };
 use crate::cmdexpand::{EXPAND_RUNTIME, LineGetter, WILD_ADD_SLASH, globpath};
-use crate::cursor::linenr_T;
+use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, ScopeDictDictItem, TypvalVval, VAR_LOCKED, VarType, dict_T, list_T,
+    EvalFuncData, ScopeDictDictItem, TypvalVval, VAR_LOCKED, VarType, TvDict, TvList,
     tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_copy, tv_dict_find, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_string,
-    tv_list_append_tv, typval_T, varnumber_T,
+    tv_list_append_tv, TypVal, Varnumber,
 };
-use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal, ufunc_T};
-use crate::eval::vars::{SID_STR, new_script_vars, scid_T};
+use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal, UserFunc};
+use crate::eval::vars::{SID_STR, new_script_vars, Scid};
 use crate::eval::{eval_to_number, get_copyID};
 #[cfg(windows)]
 use crate::ex_docmd::Ctrl_Z;
-use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, exarg_T};
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, Exarg};
 use crate::ex_eval::{
-    CSTP_FINISH, PendingVal, aborting, cleanup_conditionals, cstack_T, report_make_pending,
+    CSTP_FINISH, PendingVal, aborting, cleanup_conditionals, Cstack, report_make_pending,
 };
 use crate::fileio::{EINTR, FILE, O_RDONLY, fdopen, fgets};
 #[cfg(windows)]
@@ -44,7 +44,7 @@ use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
 use crate::mbyte::{
-    convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, vimconv_T,
+    convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, Vimconv,
 };
 use crate::memline::ml_get;
 use crate::memory::{
@@ -59,9 +59,9 @@ use crate::message::{
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{copy_option_part, kOptRuntimepath, set_option_value_give_err, vimrc_found};
 use crate::option_vars::*;
-use crate::optionstr::optset_T;
+use crate::optionstr::Optset;
 use crate::os::env::{
-    expand_T, expand_env, expand_env_save, home_replace, home_replace_save, os_setenv,
+    ExpandCtx, expand_env, expand_env_save, home_replace, home_replace_save, os_setenv,
     vim_env_iter, vim_env_iter_rev, vim_get_prefix_from_exepath, vim_getenv,
 };
 #[cfg(windows)]
@@ -75,11 +75,11 @@ use crate::path::{
     path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::profile::{
-    estack_T, prof_child_enter, prof_child_exit, profile_add, profile_end, profile_init,
-    profile_reset, profile_self, profile_start, profile_sub_wait, profile_zero, proftime_T,
-    script_line_end, script_line_start, scriptitem_T, time_msg, time_pop, time_push,
+    Estack, prof_child_enter, prof_child_exit, profile_add, profile_end, profile_init,
+    profile_reset, profile_self, profile_start, profile_sub_wait, profile_zero, Proftime,
+    script_line_end, script_line_start, Scriptitem, time_msg, time_pop, time_push,
 };
-use crate::regexp::{RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::usercmd::add_win_cmd_modifiers;
 use crate::viml::parser::expressions::AUTOLOAD_CHAR;
@@ -87,20 +87,20 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::Mutex;
 
-pub type etype_T = c_int;
-pub type estack_arg_T = c_int;
-pub(crate) const SID_NONE: scid_T = -6;
+pub type Etype = c_int;
+pub type EstackArg = c_int;
+pub(crate) const SID_NONE: Scid = -6;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub struct sctx_T {
+pub struct Sctx {
     pub sc_sid: c_int,
     pub sc_seq: c_int,
     pub sc_lnum: i32,
     pub sc_chan: u64,
 }
 
-impl sctx_T {
+impl Sctx {
     pub const fn new() -> Self {
         Self {
             sc_sid: 0,
@@ -125,7 +125,7 @@ pub enum RuntimeCallback<'a> {
     AddPackStartDir,
     AddPackPlugins { opt: bool, action: PackAddAction },
     FindRuntime(&'a mut Vec<std::ffi::CString>),
-    SpellLoad(&'a mut crate::spell::spelload_T),
+    SpellLoad(&'a mut crate::spell::Spelload),
     FoundTagfile,
 }
 
@@ -168,20 +168,20 @@ impl RuntimeCallback<'_> {
     }
 }
 
-pub const ETYPE_TOP: etype_T = 0;
-pub const ETYPE_SCRIPT: etype_T = 1;
-pub const ETYPE_UFUNC: etype_T = 2;
-pub const ETYPE_AUCMD: etype_T = 3;
-pub const ETYPE_MODELINE: etype_T = 4;
-pub const ETYPE_EXCEPT: etype_T = 5;
-pub const ETYPE_ARGS: etype_T = 6;
-pub const ETYPE_ENV: etype_T = 7;
-pub const ETYPE_SPELL: etype_T = 9;
+pub const ETYPE_TOP: Etype = 0;
+pub const ETYPE_SCRIPT: Etype = 1;
+pub const ETYPE_UFUNC: Etype = 2;
+pub const ETYPE_AUCMD: Etype = 3;
+pub const ETYPE_MODELINE: Etype = 4;
+pub const ETYPE_EXCEPT: Etype = 5;
+pub const ETYPE_ARGS: Etype = 6;
+pub const ETYPE_ENV: Etype = 7;
+pub const ETYPE_SPELL: Etype = 9;
 
-pub const ESTACK_NONE: estack_arg_T = 0;
-pub const ESTACK_SFILE: estack_arg_T = 1;
-pub const ESTACK_STACK: estack_arg_T = 2;
-pub const ESTACK_SCRIPT: estack_arg_T = 3;
+pub const ESTACK_NONE: EstackArg = 0;
+pub const ESTACK_SFILE: EstackArg = 1;
+pub const ESTACK_STACK: EstackArg = 2;
+pub const ESTACK_SCRIPT: EstackArg = 3;
 
 pub const DOSO_NONE: c_int = 0;
 pub const DOSO_VIMRC: c_int = 1;
@@ -198,11 +198,11 @@ pub const DIP_DIRFILE: c_int = 0x200;
 
 const kCpoConcat: c_int = b'C' as c_int;
 
-pub(crate) const SID_CMDARG: scid_T = -2;
-pub(crate) const SID_CARG: scid_T = -3;
-pub(crate) const SID_ENV: scid_T = -4;
-pub(crate) const SID_ERROR: scid_T = -5;
-pub(crate) const SID_WINLAYOUT: scid_T = -7;
+pub(crate) const SID_CMDARG: Scid = -2;
+pub(crate) const SID_CARG: Scid = -3;
+pub(crate) const SID_ENV: Scid = -4;
+pub(crate) const SID_ERROR: Scid = -5;
+pub(crate) const SID_WINLAYOUT: Scid = -7;
 
 #[cfg(windows)]
 const HLF_W: usize = 26;
@@ -211,24 +211,24 @@ const HLF_W: usize = 26;
 const O_NOINHERIT: c_int = 0x0080;
 
 #[repr(C)]
-pub struct scriptvar_T {
+pub struct Scriptvar {
     pub sv_var: ScopeDictDictItem,
-    pub sv_dict: dict_T,
+    pub sv_dict: TvDict,
 }
 
-impl scriptvar_T {
+impl Scriptvar {
     pub const fn new() -> Self {
         Self {
             sv_var: ScopeDictDictItem::new(),
-            sv_dict: dict_T::new(),
+            sv_dict: TvDict::new(),
         }
     }
 }
 
-pub struct source_cookie_T {
+pub struct SourceCookie {
     fp: Option<crate::os::fs::CFile>,
     nextline: Option<Vec<c_char>>,
-    sourcing_lnum: linenr_T,
+    sourcing_lnum: Linenr,
     finished: bool,
     source_from_buf_or_str: bool,
     buf_lnum: c_int,
@@ -237,14 +237,14 @@ pub struct source_cookie_T {
     fileformat: c_int,
     #[cfg(windows)]
     error: bool,
-    breakpoint: linenr_T,
+    breakpoint: Linenr,
     fname: Option<std::ffi::CString>,
     dbg_tick: c_int,
     level: c_int,
-    conv: vimconv_T,
+    conv: Vimconv,
 }
 
-impl source_cookie_T {
+impl SourceCookie {
     const fn new() -> Self {
         Self {
             fp: None,
@@ -262,7 +262,7 @@ impl source_cookie_T {
             fname: None,
             dbg_tick: 0,
             level: 0,
-            conv: vimconv_T {
+            conv: Vimconv {
                 vc_type: 0,
                 vc_factor: 0,
                 vc_fd: None,
@@ -287,11 +287,11 @@ type RuntimeSearchPath = Vec<SearchPathItem>;
 static RUNTIME_SEARCH_PATH_MUTEX: Mutex<()> = Mutex::new(());
 
 pub(crate) struct RuntimeModuleState {
-    pub(crate) exestack: Vec<estack_T>,
-    pub(crate) script_items: Vec<scriptitem_T>,
+    pub(crate) exestack: Vec<Estack>,
+    pub(crate) script_items: Vec<Scriptitem>,
     ga_loaded: Vec<std::ffi::CString>,
     last_current_SID_seq: c_int,
-    last_current_SID: scid_T,
+    last_current_SID: Scid,
     runtime_search_path_valid: bool,
     runtime_search_path_valid_thread: bool,
     runtime_search_path_refcount: usize,
@@ -345,21 +345,21 @@ use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
-pub fn script_item(id: scid_T) -> *mut scriptitem_T {
+pub fn script_item(id: Scid) -> *mut Scriptitem {
      {
         &raw mut rt_st().script_items.as_mut_slice()[(id - 1) as usize]
     }
 }
 
 #[inline]
-pub fn script_items_len() -> scid_T {
+pub fn script_items_len() -> Scid {
      {
-        rt_st().script_items.len() as scid_T
+        rt_st().script_items.len() as Scid
     }
 }
 
 #[inline]
-pub fn script_id_valid(id: scid_T) -> bool {
+pub fn script_id_valid(id: Scid) -> bool {
     id > 0 && id <= script_items_len()
 }
 
@@ -371,14 +371,14 @@ pub fn sourcing_name() -> *mut c_char {
 }
 
 #[inline]
-pub fn sourcing_lnum() -> linenr_T {
+pub fn sourcing_lnum() -> Linenr {
      {
         rt_st().exestack.last().unwrap().es_lnum
     }
 }
 
 #[inline]
-pub fn set_sourcing_lnum(lnum: linenr_T) {
+pub fn set_sourcing_lnum(lnum: Linenr) {
      {
         rt_st().exestack.last_mut().unwrap().es_lnum = lnum;
     }
@@ -388,7 +388,7 @@ pub fn set_sourcing_lnum(lnum: linenr_T) {
 pub fn estack_init() {
      {
         rt_st().exestack.reserve(10);
-        rt_st().exestack.push(estack_T {
+        rt_st().exestack.push(Estack {
             es_type: ETYPE_TOP,
             es_name: None,
             es_lnum: 0,
@@ -398,10 +398,10 @@ pub fn estack_init() {
 }
 
 /// Add an item to the execution stack.
-pub fn estack_push(type_: etype_T, name: impl crate::strings::IntoCCharPtr, lnum: linenr_T) -> *mut estack_T {
+pub fn estack_push(type_: Etype, name: impl crate::strings::IntoCCharPtr, lnum: Linenr) -> *mut Estack {
     let name = name.into_c_char_ptr();
      {
-        rt_st().exestack.push(estack_T {
+        rt_st().exestack.push(Estack {
             es_type: type_,
             es_name: if name.is_null() {
                 None
@@ -416,7 +416,7 @@ pub fn estack_push(type_: etype_T, name: impl crate::strings::IntoCCharPtr, lnum
 }
 
 /// Add a user function to the execution stack.
-pub fn estack_push_ufunc(ufunc: &mut ufunc_T, lnum: linenr_T) {
+pub fn estack_push_ufunc(ufunc: &mut UserFunc, lnum: Linenr) {
     unsafe {
         let name = if let Some(ref exp) = ufunc.uf_name_exp {
             exp.as_ptr()
@@ -440,7 +440,7 @@ pub fn estack_pop() {
 }
 
 /// Get the current value for <sfile> as an owned `CString`.
-pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
+pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
     unsafe {
         let last_entry = rt_st().exestack.last().unwrap();
         if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
@@ -527,14 +527,14 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
 }
 
 fn stacktrace_push_item(
-    l: &mut list_T,
-    fp: Option<&mut ufunc_T>,
+    l: &mut TvList,
+    fp: Option<&mut UserFunc>,
     event: impl crate::strings::IntoCCharPtr,
-    lnum: linenr_T,
+    lnum: Linenr,
     filepath: impl crate::strings::IntoCCharPtr,
 ) { let event = event.into_c_char_ptr(); let filepath = filepath.into_c_char_ptr();
     let d = tv_dict_alloc_lock(VAR_FIXED);
-        let mut tv = typval_T {
+        let mut tv = TypVal {
             v_type: VarType::VAR_DICT,
             v_lock: VAR_LOCKED,
             vval: TypvalVval::Dict(d),
@@ -546,14 +546,14 @@ fn stacktrace_push_item(
         if !event.is_null() {
             tv_dict_add_str(unsafe { &mut *d }, c"event", event);
         }
-        tv_dict_add_nr(unsafe { &mut *d }, c"lnum", varnumber_T::from(lnum));
+        tv_dict_add_nr(unsafe { &mut *d }, c"lnum", Varnumber::from(lnum));
         tv_dict_add_str(unsafe { &mut *d }, c"filepath", filepath);
 
         tv_list_append_tv(l, &mut tv);
 }
 
 /// Create the stacktrace from rt_st().exestack.
-pub fn stacktrace_create() -> *mut list_T {
+pub fn stacktrace_create() -> *mut TvList {
     unsafe {
         let l = tv_list_alloc(rt_st().exestack.len() as isize);
 
@@ -594,7 +594,7 @@ pub fn stacktrace_create() -> *mut list_T {
 }
 
 /// getstacktrace() function
-pub fn f_getstacktrace(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
         let l = stacktrace_create();
         rettv.v_type = VarType::VAR_LIST;
@@ -633,7 +633,7 @@ fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
 }
 
 /// ":runtime [where] {name}"
-pub fn ex_runtime(eap: &mut exarg_T) {
+pub fn ex_runtime(eap: &mut Exarg) {
     let mut arg = eap.arg;
         let mut flags = if eap.forceit != 0 { DIP_ALL } else { 0 };
         let p = skiptowhite(arg);
@@ -643,7 +643,7 @@ pub fn ex_runtime(eap: &mut exarg_T) {
 }
 
 /// Set the completion context for the :runtime command.
-pub fn set_context_in_runtime_cmd(xp: &mut expand_T, arg: impl crate::strings::IntoCCharPtr) { let mut arg = arg.into_c_char_ptr();
+pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) { let mut arg = arg.into_c_char_ptr();
      {
         let mut p = skiptowhite(arg);
         let mut arg_mut = arg as *mut c_char;
@@ -1306,7 +1306,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     }
 }
 
-pub fn did_set_runtimepackpath(_args: &mut optset_T) -> *const c_char {
+pub fn did_set_runtimepackpath(_args: &mut Optset) -> *const c_char {
     rt_st().runtime_search_path_valid = false;
         ptr::null()
 }
@@ -1790,7 +1790,7 @@ pub fn load_start_packages() {
 }
 
 /// ":packloadall"
-pub fn ex_packloadall(eap: &mut exarg_T) {
+pub fn ex_packloadall(eap: &mut Exarg) {
     if !g_st().did_source_packages || eap.forceit != 0 {
             add_pack_start_dirs();
             load_start_packages();
@@ -1832,7 +1832,7 @@ pub fn load_plugins() {
 }
 
 /// ":packadd[!] {name}"
-pub fn ex_packadd(eap: &mut exarg_T) {
+pub fn ex_packadd(eap: &mut Exarg) {
      {
         let mut res = true;
         let len = 11 + crate::memory::cstr_len(eap.arg) + 5;
@@ -2491,7 +2491,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     }
 }
 
-fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut exarg_T>) {
+fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut Exarg>) {
     let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         if !crate::memory::cstr_is_empty(fname) && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
@@ -2511,7 +2511,7 @@ fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut exar
                 g_st().global_busy != 0
                     || g_st().listcmd_busy
                     || !eap.nextcmd.is_null()
-                    || (*eap.cstack.cast::<cstack_T>()).cs_idx >= 0,
+                    || (*eap.cstack.cast::<Cstack>()).cs_idx >= 0,
             );
         } else if !do_source(fname, false, DOSO_NONE, ptr::null_mut()) {
             semsg!(gettext(e_notopen), fname);
@@ -2520,12 +2520,12 @@ fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut exar
 }
 
 /// ":source [{fname}]"
-pub fn ex_source(eap: &mut exarg_T) {
+pub fn ex_source(eap: &mut Exarg) {
     cmd_source(eap.arg, Some(&mut *eap));
 }
 
 /// ":options"
-pub fn ex_options(_eap: &mut exarg_T) {
+pub fn ex_options(_eap: &mut Exarg) {
     let mut buf = [0 as c_char; 500];
         let mut multi_mods = false;
 
@@ -2538,15 +2538,15 @@ pub fn ex_options(_eap: &mut exarg_T) {
         );
 }
 
-pub fn source_breakpoint(sp: &mut source_cookie_T) -> *mut linenr_T {
+pub fn source_breakpoint(sp: &mut SourceCookie) -> *mut Linenr {
     &raw mut sp.breakpoint
 }
 
-pub fn source_dbg_tick(sp: &mut source_cookie_T) -> *mut c_int {
+pub fn source_dbg_tick(sp: &mut SourceCookie) -> *mut c_int {
     &raw mut sp.dbg_tick
 }
 
-pub fn source_level(sp: &mut source_cookie_T) -> c_int {
+pub fn source_level(sp: &mut SourceCookie) -> c_int {
     sp.level
 }
 
@@ -2588,16 +2588,16 @@ fn concat_continued_line(ga: &mut Vec<c_char>, p: impl crate::strings::IntoCChar
 /// Create a new script item and allocate script-local vars.
 pub fn new_script_item(
     name: Option<std::ffi::CString>,
-    sid_out: &mut scid_T,
-) -> *mut scriptitem_T {
+    sid_out: &mut Scid,
+) -> *mut Scriptitem {
     unsafe {
         rt_st().last_current_SID += 1;
         let sid = rt_st().last_current_SID;
         {
             *sid_out = sid;
         }
-        while (rt_st().script_items.len() as scid_T) < sid {
-            rt_st().script_items.push(scriptitem_T {
+        while (rt_st().script_items.len() as Scid) < sid {
+            rt_st().script_items.push(Scriptitem {
                 sn_vars: new_script_vars(),
                 sn_name: None,
                 sn_lua: false,
@@ -2625,7 +2625,7 @@ pub fn new_script_item(
 }
 
 fn do_source_buffer_init(
-    sp: &mut source_cookie_T,eap: Option<&exarg_T>,
+    sp: &mut SourceCookie,eap: Option<&Exarg>,
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
      {
@@ -2669,7 +2669,7 @@ fn do_source_buffer_init(
     }
 }
 
-fn do_source_str_init(sp: &mut source_cookie_T, str_ptr: impl crate::strings::IntoCCharPtr) { let mut str_ptr = str_ptr.into_c_char_ptr();
+fn do_source_str_init(sp: &mut SourceCookie, str_ptr: impl crate::strings::IntoCCharPtr) { let mut str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
         sp.buflines.clear();
         while !crate::memory::cstr_is_empty(str_ptr) {
@@ -2686,7 +2686,7 @@ fn do_source_str_init(sp: &mut source_cookie_T, str_ptr: impl crate::strings::In
     }
 }
 
-pub fn cmd_source_buffer(eap: Option<&exarg_T>, ex_lua: bool) {
+pub fn cmd_source_buffer(eap: Option<&Exarg>, ex_lua: bool) {
     do_source_ext(
         ptr::null_mut(),
         false,
@@ -2730,17 +2730,17 @@ fn do_source_ext(
     fname: impl crate::strings::IntoCCharPtr,
     check_other: bool,
     is_vimrc: c_int,
-    ret_sid: *mut c_int,eap: Option<&exarg_T>,
+    ret_sid: *mut c_int,eap: Option<&Exarg>,
     ex_lua: bool,
     str_ptr: impl crate::strings::IntoCCharPtr,
 ) -> bool { let fname = fname.into_c_char_ptr(); let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
-        let mut cookie = source_cookie_T::new();
+        let mut cookie = SourceCookie::new();
         let mut firstline: Option<std::ffi::CString> = None;
         let mut retval = false;
         let save_debug_break_level = g_st().debug_break_level;
-        let mut si: *mut scriptitem_T = ptr::null_mut();
-        let mut wait_start: proftime_T = 0;
+        let mut si: *mut Scriptitem = ptr::null_mut();
+        let mut wait_start: Proftime = 0;
         let mut trigger_source_post = false;
 
         let fname_exp_owned: std::ffi::CString = if fname.is_null() {
@@ -2872,8 +2872,8 @@ fn do_source_ext(
             cookie.dbg_tick = g_st().debug_tick;
             cookie.level = g_st().ex_nesting_level;
 
-            let mut rel_time: proftime_T = 0;
-            let mut start_time: proftime_T = 0;
+            let mut rel_time: Proftime = 0;
+            let mut start_time: Proftime = 0;
             let l_has_time_fd = has_time_fd();
             if l_has_time_fd {
                 time_push(&mut rel_time, &mut start_time);
@@ -3079,7 +3079,7 @@ pub fn do_source(
 }
 
 /// Checks if the script with the given script ID is a Lua script.
-pub fn script_is_lua(sid: scid_T) -> bool {
+pub fn script_is_lua(sid: Scid) -> bool {
     unsafe {
         if sid == SID_LUA {
             return true;
@@ -3109,7 +3109,7 @@ pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> c_int { l
 }
 
 /// ":scriptnames"
-pub fn ex_scriptnames(eap: &mut exarg_T) {
+pub fn ex_scriptnames(eap: &mut Exarg) {
     unsafe {
         let namebuff = g_st().NameBuff.as_mut_ptr();
         let iobuff = g_st().IObuff.as_mut_ptr();
@@ -3151,7 +3151,7 @@ pub fn ex_scriptnames(eap: &mut exarg_T) {
 
 /// Get a script name (`get_scriptname`).
 pub fn get_scriptname(
-    script_ctx: sctx_T,
+    script_ctx: Sctx,
     home_replace: bool,
 ) -> std::borrow::Cow<'static, CStr> {
     use std::borrow::Cow;
@@ -3207,7 +3207,7 @@ pub fn free_autoload_scriptnames() {
     }
 }
 
-pub fn get_sourced_lnum(fgetline: LineGetter) -> linenr_T {
+pub fn get_sourced_lnum(fgetline: LineGetter) -> Linenr {
     unsafe {
         if let LineGetter::Source(sp) = fgetline {
             (*sp).sourcing_lnum
@@ -3217,7 +3217,7 @@ pub fn get_sourced_lnum(fgetline: LineGetter) -> linenr_T {
     }
 }
 
-fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
+fn get_script_local_funcs(sid: Scid) -> *mut TvList {
     unsafe {
         let functbl = func_tbl_get();
         let l = tv_list_alloc(functbl.len() as isize);
@@ -3238,7 +3238,7 @@ fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
 }
 
 /// "getscriptinfo()" function
-pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
         tv_list_alloc_ret(rettv, script_items_len() as isize);
@@ -3249,10 +3249,10 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
         let l = rettv.vval.v_list();
 
-        let mut regmatch: regmatch_T = regmatch_T::new();
+        let mut regmatch: Regmatch = Regmatch::new();
         regmatch.rm_ic = opt_vars().p_ic != 0;
         let mut filterpat = false;
-        let mut sid: varnumber_T = -1;
+        let mut sid: Varnumber = -1;
 
         let mut pat_owned: Option<std::ffi::CString> = None;
         if argvars[0].v_type == VarType::VAR_DICT {
@@ -3284,8 +3284,8 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         }
 
         let mut i = if sid > 0 { sid } else { 1 };
-        while (i == sid || sid <= 0) && i <= varnumber_T::from(script_items_len()) {
-            let si = script_item(i as scid_T);
+        while (i == sid || sid <= 0) && i <= Varnumber::from(script_items_len()) {
+            let si = script_item(i as Scid);
 
             if let Some(ref sn) = (*si).sn_name
                 && (!filterpat || vim_regexec(&mut regmatch, sn.as_ptr(), 0))
@@ -3304,7 +3304,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                     tv_dict_add_list(
                         &mut *d,
                         c"functions",
-                        get_script_local_funcs(sid as scid_T),
+                        get_script_local_funcs(sid as Scid),
                     );
                 }
             }
@@ -3320,7 +3320,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 /// Get one full line from a sourced file.
 pub fn getsourceline(
     _c: c_int,
-    sp: &mut source_cookie_T,
+    sp: &mut SourceCookie,
     _indent: c_int,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
@@ -3413,7 +3413,7 @@ pub fn getsourceline(
     }
 }
 
-fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
+fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<c_char>> {
     unsafe {
         let mut buf: Vec<c_char> = Vec::with_capacity(250);
         let mut have_read = false;
@@ -3533,12 +3533,12 @@ fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
 }
 
 /// Returns true if sourcing a script either from a file or a buffer or a string.
-pub fn sourcing_a_script(eap: &mut exarg_T) -> c_int {
+pub fn sourcing_a_script(eap: &mut Exarg) -> c_int {
     c_int::from(eap.ea_getline.is_source())
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
-pub fn ex_scriptencoding(eap: &mut exarg_T) {
+pub fn ex_scriptencoding(eap: &mut Exarg) {
     unsafe {
         let Some(sp) = eap.ea_getline.as_source() else {
             emsg(gettext(
@@ -3560,7 +3560,7 @@ pub fn ex_scriptencoding(eap: &mut exarg_T) {
 }
 
 /// ":finish": Mark a sourced file as finished.
-pub fn ex_finish(eap: &mut exarg_T) {
+pub fn ex_finish(eap: &mut Exarg) {
     if sourcing_a_script(eap) != 0 {
             do_finish(eap, false);
         } else {
@@ -3571,14 +3571,14 @@ pub fn ex_finish(eap: &mut exarg_T) {
 }
 
 /// Mark a sourced file as finished.
-pub fn do_finish(eap: &mut exarg_T, reanimate: bool) {
+pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
     unsafe {
         let sp = eap.ea_getline.as_source().unwrap();
         if reanimate {
             (*sp).finished = false;
         }
 
-        let cstack = eap.cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<Cstack>();
         let idx = cleanup_conditionals(&mut *cstack, 0, 1);
         if idx >= 0 {
             (*cstack).cs_pending[idx as usize] = CSTP_FINISH as c_char;

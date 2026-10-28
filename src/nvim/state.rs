@@ -8,7 +8,7 @@ use crate::event::r#loop::main_loop_events;
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_get};
 use crate::ex_getln::{K_EVENT, cmdline_overstrike, get_cmdline_info};
 use crate::globals::*;
-use crate::hashtab::hashtab_T;
+use crate::hashtab::Hashtab;
 use crate::input::{
     check_end_reg_executing, may_sync_undo, safe_vgetc, stuff_empty, using_script, vpeekc,
 };
@@ -19,7 +19,7 @@ use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::{vim_snprintf};
 use crate::ui::ui_flush;
-use crate::window::win_T;
+use crate::window::WinInfoInfo;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -58,22 +58,22 @@ use crate::extmark::kNone;
 use crate::regexp::Ctrl_V;
 
 #[repr(C)]
-pub struct save_v_event_T {
+pub struct SaveVEvent {
     pub sve_did_save: bool,
-    pub sve_hashtab: hashtab_T,
+    pub sve_hashtab: Hashtab,
 }
 
-impl save_v_event_T {
+impl SaveVEvent {
     #[inline]
     pub const fn new() -> Self {
         Self {
             sve_did_save: false,
-            sve_hashtab: hashtab_T::new(),
+            sve_hashtab: Hashtab::new(),
         }
     }
 }
 
-impl Default for save_v_event_T {
+impl Default for SaveVEvent {
     #[inline]
     fn default() -> Self {
         Self::new()
@@ -181,7 +181,7 @@ pub fn state_handle_k_event() {
     }
 }
 
-pub fn virtual_active(wp: &mut win_T) -> bool {
+pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
     if (g_st().State & MODE_TERMINAL) != 0 {
             return true;
         }
@@ -325,7 +325,7 @@ pub fn may_trigger_modechanged() {
             return;
         }
 
-        let mut save_v_event: save_v_event_T = save_v_event_T::new();
+        let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
         tv_dict_add_str(&mut *v_event, c"new_mode", curr_mode.as_ptr());
         tv_dict_add_str(

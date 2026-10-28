@@ -13,13 +13,13 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::Buffer;
 use crate::buffer::{
-    BufUpdateCallbacks, DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, buf_T, buf_ensure_loaded, do_buffer,
+    BufUpdateCallbacks, DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, FileBuf, buf_ensure_loaded, do_buffer,
 };
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::change::changed_lines;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
-    check_cursor_col, check_cursor_lnum, check_visual_pos, colnr_T, linenr_T, pos_T,
+    check_cursor_col, check_cursor_lnum, check_visual_pos, Colnr, Linenr, CursorPos,
 };
 use crate::eval::vars::MAXCOL;
 use crate::ex_cmds::rename_buffer;
@@ -43,7 +43,7 @@ use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::undo::{u_save_buf, uhp_ref};
-use crate::window::{VALID_BOTLINE_AP, win_T};
+use crate::window::{VALID_BOTLINE_AP, WinInfoInfo};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -123,8 +123,8 @@ use crate::state::MODE_INSERT;
 // </pre>
 
 /// Ensures that a buffer is loaded.
-// DLLEXPORT buf_T *api_buf_ensure_loaded(Buffer buf, Error *err);
-pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T {
+// DLLEXPORT FileBuf *api_buf_ensure_loaded(Buffer buf, Error *err);
+pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut FileBuf {
      {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return ptr::null_mut();
@@ -377,7 +377,7 @@ pub fn nvim_buf_get_lines(
         buf_collect_lines(
             &mut *b,
             size,
-            start as linenr_T,
+            start as Linenr,
             0,
             channel_id != VIML_INTERNAL_CALL,
             &mut rv,
@@ -491,7 +491,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            if !u_save_buf(&mut *b, (start - 1) as linenr_T, end as linenr_T) {
+            if !u_save_buf(&mut *b, (start - 1) as Linenr, end as Linenr) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -500,11 +500,11 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let deleted_bytes = get_region_bytecount(&mut *b, start as linenr_T, end as linenr_T, 0, 0);
+            let deleted_bytes = get_region_bytecount(&mut *b, start as Linenr, end as Linenr, 0, 0);
 
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
-                if !ml_delete_buf(&mut *b, start as linenr_T, false) {
+                if !ml_delete_buf(&mut *b, start as Linenr, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -533,7 +533,7 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if !ml_replace_buf( &mut *b, lnum as linenr_T, line_ptr, false, true) {
+                if !ml_replace_buf( &mut *b, lnum as Linenr, line_ptr, false, true) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -558,7 +558,7 @@ pub fn nvim_buf_set_lines(
                 }
 
                 let line_ptr = *lines.add(i);
-                if !ml_append_buf( &mut *b, lnum as linenr_T, line_ptr, 0, false) {
+                if !ml_append_buf( &mut *b, lnum as Linenr, line_ptr, 0, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -571,21 +571,21 @@ pub fn nvim_buf_set_lines(
                 extra += 1;
             }
 
-            let adjust = if end > start { MAXLNUM as linenr_T } else { 0 };
+            let adjust = if end > start { MAXLNUM as Linenr } else { 0 };
             mark_adjust_buf(
                 &mut *b,
-                start as linenr_T,
-                (end - 1) as linenr_T,
+                start as Linenr,
+                (end - 1) as Linenr,
                 adjust,
-                extra as linenr_T,
+                extra as Linenr,
                 true,
                 kMarkAdjustApi,
                 kExtmarkNOOP,
             );
 
-            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.start.lnum >= (start as linenr_T) {
-                if g_st().Visual.start.lnum >= (end as linenr_T) {
-                    g_st().Visual.start.lnum += extra as linenr_T;
+            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.start.lnum >= (start as Linenr) {
+                if g_st().Visual.start.lnum >= (end as Linenr) {
+                    g_st().Visual.start.lnum += extra as Linenr;
                 }
                 check_visual_pos();
             }
@@ -605,17 +605,17 @@ pub fn nvim_buf_set_lines(
 
             changed_lines(
                  &mut *b,
-                start as linenr_T,
+                start as Linenr,
                 0,
-                end as linenr_T,
-                extra as linenr_T,
+                end as Linenr,
+                extra as Linenr,
                 true,
             );
 
             for tp in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut( &*tp) {
                     if win.w_buffer == b {
-                        fix_cursor(win, start as linenr_T, end as linenr_T, extra as linenr_T);
+                        fix_cursor(win, start as Linenr, end as Linenr, extra as Linenr);
                     }
                 }
             }
@@ -691,8 +691,8 @@ pub fn nvim_buf_set_text(
             return;
         }
 
-        let str_at_start_raw = ml_get_buf(&mut *b, start_row as linenr_T);
-        let len_at_start = ml_get_buf_len(&mut *b, start_row as linenr_T);
+        let str_at_start_raw = ml_get_buf(&mut *b, start_row as Linenr);
+        let len_at_start = ml_get_buf_len(&mut *b, start_row as Linenr);
         let str_at_start = arena_memdupz(arena, str_at_start_raw, len_at_start as usize);
         if start_col < 0 {
             start_col = i64::from(len_at_start) + start_col + 1;
@@ -702,8 +702,8 @@ pub fn nvim_buf_set_text(
             return;
         }
 
-        let str_at_end_raw = ml_get_buf(&mut *b, end_row as linenr_T);
-        let len_at_end = ml_get_buf_len(&mut *b, end_row as linenr_T);
+        let str_at_end_raw = ml_get_buf(&mut *b, end_row as Linenr);
+        let len_at_end = ml_get_buf_len(&mut *b, end_row as Linenr);
         let str_at_end = arena_memdupz(arena, str_at_end_raw, len_at_end as usize);
         if end_col < 0 {
             end_col = i64::from(len_at_end) + end_col + 1;
@@ -743,7 +743,7 @@ pub fn nvim_buf_set_text(
             old_byte += (i64::from(len_at_start) - start_col) as bcount_t;
             for i in 1..(end_row - start_row) {
                 let lnum = start_row + i;
-                old_byte += (ml_get_buf_len(&mut *b, lnum as linenr_T) as bcount_t) + 1;
+                old_byte += (ml_get_buf_len(&mut *b, lnum as Linenr) as bcount_t) + 1;
             }
             old_byte += (end_col as bcount_t) + 1;
         }
@@ -812,7 +812,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !u_save_buf(&mut *b, (start_row as linenr_T) - 1, (end_row as linenr_T) + 1) {
+            if !u_save_buf(&mut *b, (start_row as Linenr) - 1, (end_row as Linenr) + 1) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -826,7 +826,7 @@ pub fn nvim_buf_set_text(
 
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
-                if !ml_delete_buf(&mut *b, start_row as linenr_T, false) {
+                if !ml_delete_buf(&mut *b, start_row as Linenr, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -853,7 +853,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_replace_buf( &mut *b, lnum as linenr_T, *lines.add(i), false, true) {
+                if !ml_replace_buf( &mut *b, lnum as Linenr, *lines.add(i), false, true) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -875,7 +875,7 @@ pub fn nvim_buf_set_text(
                     break 'end;
                 }
 
-                if !ml_append_buf( &mut *b, lnum as linenr_T, *lines.add(i), 0, false) {
+                if !ml_append_buf( &mut *b, lnum as Linenr, *lines.add(i), 0, false) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -888,19 +888,19 @@ pub fn nvim_buf_set_text(
             }
 
             let col_extent =
-                (end_col - if end_row == start_row { start_col } else { 0 }) as colnr_T;
+                (end_col - if end_row == start_row { start_col } else { 0 }) as Colnr;
 
             let adjust = if end_row >= start_row {
-                MAXLNUM as linenr_T
+                MAXLNUM as Linenr
             } else {
                 0
             };
             mark_adjust_buf(
                 &mut *b,
-                start_row as linenr_T,
-                (end_row as linenr_T) - 1,
+                start_row as Linenr,
+                (end_row as Linenr) - 1,
                 adjust,
-                extra as linenr_T,
+                extra as Linenr,
                 true,
                 kMarkAdjustApi,
                 kExtmarkNOOP,
@@ -910,12 +910,12 @@ pub fn nvim_buf_set_text(
                 fix_pos_col(
                     &mut *b,
                     &mut g_st().Visual.start,
-                    start_row as linenr_T,
-                    start_col as colnr_T,
-                    end_row as linenr_T,
-                    end_col as colnr_T,
-                    new_len as linenr_T,
-                    last_item.size as colnr_T,
+                    start_row as Linenr,
+                    start_col as Colnr,
+                    end_row as Linenr,
+                    end_col as Colnr,
+                    new_len as Linenr,
+                    last_item.size as Colnr,
                     1,
                 );
                 check_visual_pos();
@@ -924,22 +924,22 @@ pub fn nvim_buf_set_text(
             extmark_splice(
                  &mut *b,
                 (start_row as c_int) - 1,
-                start_col as colnr_T,
+                start_col as Colnr,
                 (end_row - start_row) as c_int,
                 col_extent,
                 old_byte,
                 (new_len as c_int) - 1,
-                last_item.size as colnr_T,
+                last_item.size as Colnr,
                 new_byte,
                 kExtmarkUndo,
             );
 
             changed_lines(
                  &mut *b,
-                start_row as linenr_T,
-                start_col as colnr_T,
-                (end_row as linenr_T) + 1,
-                extra as linenr_T,
+                start_row as Linenr,
+                start_col as Colnr,
+                (end_row as Linenr) + 1,
+                extra as Linenr,
                 true,
             );
 
@@ -951,19 +951,19 @@ pub fn nvim_buf_set_text(
                         {
                             fix_cursor_cols(
                                 win,
-                                start_row as linenr_T,
-                                start_col as colnr_T,
-                                end_row as linenr_T,
-                                end_col as colnr_T,
-                                new_len as linenr_T,
-                                last_item.size as colnr_T,
+                                start_row as Linenr,
+                                start_col as Colnr,
+                                end_row as Linenr,
+                                end_col as Colnr,
+                                new_len as Linenr,
+                                last_item.size as Colnr,
                             );
                         } else {
                             fix_cursor(
                                 win,
-                                start_row as linenr_T,
-                                end_row as linenr_T,
-                                extra as linenr_T,
+                                start_row as Linenr,
+                                end_row as Linenr,
+                                extra as Linenr,
                             );
                         }
                     }
@@ -1074,7 +1074,7 @@ pub fn nvim_buf_get_text(
             buf_collect_lines(
                 &mut *b,
                 size - 2,
-                (start_row as linenr_T) + 1,
+                (start_row as Linenr) + 1,
                 1,
                 replace_nl,
                 &mut rv,
@@ -1148,7 +1148,7 @@ pub fn nvim_buf_get_offset(
 
         i64::from(ml_find_line_or_offset(
             b,
-            (index as linenr_T) + 1,
+            (index as Linenr) + 1,
             None,
             true,
         ))
@@ -1731,7 +1731,7 @@ pub fn nvim__buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict 
     }
 }
 
-fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
+fn fix_cursor(win: &mut WinInfoInfo, lo: Linenr, hi: Linenr, extra: Linenr) {
     if win.w_cursor.lnum >= lo {
             if win.w_cursor.lnum >= hi {
                 win.w_cursor.lnum += extra;
@@ -1748,15 +1748,15 @@ fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
 }
 
 fn fix_pos_col(
-    buf: &mut buf_T,
-    pos: &mut pos_T,
-    start_row: linenr_T,
-    start_col: colnr_T,
-    end_row: linenr_T,
-    end_col: colnr_T,
-    new_rows: linenr_T,
-    new_cols_at_end_row: colnr_T,
-    mode_col_adj: colnr_T,
+    buf: &mut FileBuf,
+    pos: &mut CursorPos,
+    start_row: Linenr,
+    start_col: Colnr,
+    end_row: Linenr,
+    end_col: Colnr,
+    new_rows: Linenr,
+    new_cols_at_end_row: Colnr,
+    mode_col_adj: Colnr,
 ) {
     if pos.lnum < start_row {
             return;
@@ -1802,13 +1802,13 @@ fn fix_pos_col(
 }
 
 fn fix_cursor_cols(
-    win: &mut win_T,
-    start_row: linenr_T,
-    start_col: colnr_T,
-    end_row: linenr_T,
-    end_col: colnr_T,
-    new_rows: linenr_T,
-    new_cols_at_end_row: colnr_T,
+    win: &mut WinInfoInfo,
+    start_row: Linenr,
+    start_col: Colnr,
+    end_row: Linenr,
+    end_col: Colnr,
+    new_rows: Linenr,
+    new_cols_at_end_row: Colnr,
 ) {
      {
         let mode_col_adj = if ptr::eq(win, curwin_ptr()) && (g_st().State & MODE_INSERT) != 0 {
@@ -1893,12 +1893,12 @@ fn push_linestr(
 /// @param[out] lstate If not NULL, Lines are pushed into a table onto the stack
 /// @param err[out] Error, if any
 /// @return true unless `err` was set
-// DLLEXPORT void buf_collect_lines(buf_T *buf, size_t n, linenr_T start, int start_idx,
+// DLLEXPORT void buf_collect_lines(FileBuf *buf, size_t n, Linenr start, int start_idx,
 //                                  bool replace_nl, Array *l, lua_State *lstate, Arena *arena);
 pub fn buf_collect_lines(
-    buf: &mut buf_T,
+    buf: &mut FileBuf,
     n: usize,
-    start: linenr_T,
+    start: Linenr,
     start_idx: c_int,
     replace_nl: bool,
     l: &mut Array,
@@ -1906,7 +1906,7 @@ pub fn buf_collect_lines(
     arena: &mut Arena,
 ) {
     for i in 0..n {
-            let lnum = start + (i as linenr_T);
+            let lnum = start + (i as Linenr);
             let bufstr = ml_get_buf(buf, lnum);
             let bufstrlen = ml_get_buf_len(buf, lnum) as usize;
             push_linestr(
