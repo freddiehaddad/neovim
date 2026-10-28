@@ -945,17 +945,15 @@ pub fn getout(mut exitval: c_int) -> ! {
             let mut tp: *const tabpage_T = g_st().first_tabpage;
             while !tp.is_null() {
                 next_tp = (*tp).tp_next;
-                let mut wp = if ptr::eq(tp, g_st().curtab) {
+                for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                     g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
-                    if (*wp).w_buffer.is_null() || !buf_valid((*wp).w_buffer) {
-                        wp = (*wp).w_next;
+                }) {
+                    if wp.w_buffer.is_null() || !buf_valid(wp.w_buffer) {
                         continue;
                     }
-                    let buf = (*wp).w_buffer;
+                    let buf = wp.w_buffer;
                     if buf_get_changedtick(&*buf) != -1 {
                         let mut bufref: bufref_T = bufref_T::new();
                         set_bufref(&mut bufref, buf);
@@ -972,7 +970,6 @@ pub fn getout(mut exitval: c_int) -> ! {
                         next_tp = g_st().first_tabpage;
                         break;
                     }
-                    wp = (*wp).w_next;
                 }
                 tp = next_tp;
             }
@@ -1098,9 +1095,8 @@ pub fn preserve_exit(errmsg: impl crate::strings::IntoCCharPtr) -> ! {
 
         ml_close_notmod();
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            let mfp = (*buf).b_ml.mfp_ptr();
+        for buf in for_all_buffers_mut() {
+            let mfp = buf.b_ml.mfp_ptr();
             if !mfp.is_null() && (*mfp).mf_fname.is_some() {
                 if !errmsg.is_null() {
                     fprintf!(stderr, c"Nvim: preserving files...\n");
@@ -1108,7 +1104,6 @@ pub fn preserve_exit(errmsg: impl crate::strings::IntoCCharPtr) -> ! {
                 ml_sync_all(0, 0, true);
                 break;
             }
-            buf = (*buf).b_next;
         }
 
         ml_close_all(false);

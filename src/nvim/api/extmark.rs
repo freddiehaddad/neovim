@@ -1762,16 +1762,10 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
         {
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
-                    if (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32)) {
-                        changed_window_setting(&mut *wp);
+                for wp in for_all_windows_in_tab_mut(tp) {
+                    if (*wp.w_buffer).b_extmark_ns.contains_key(&(ns_id as u32)) {
+                        changed_window_setting(wp);
                     }
-                    wp = (*wp).w_next;
                 }
                 tp = (*tp).tp_next;
             }
@@ -1808,16 +1802,10 @@ pub fn nvim__ns_get(
         let mut count = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                if (*wp).w_ns_set.contains(&(ns_id as u32)) {
+            for wp in for_all_windows_in_tab_mut(tp) {
+                if wp.w_ns_set.contains(&(ns_id as u32)) {
                     count += 1;
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
@@ -1826,16 +1814,10 @@ pub fn nvim__ns_get(
 
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                if (*wp).w_ns_set.contains(&(ns_id as u32)) {
-                    windows.push(integer_obj(i64::from((*wp).handle)));
+            for wp in for_all_windows_in_tab_mut(tp) {
+                if wp.w_ns_set.contains(&(ns_id as u32)) {
+                    windows.push(integer_obj(i64::from(wp.handle)));
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }

@@ -1059,14 +1059,8 @@ fn set_options_default(opt_flags: c_int) {
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                win_comp_scroll(&mut *wp);
-                wp = (*wp).w_next;
+            for wp in for_all_windows_in_tab_mut(tp) {
+                win_comp_scroll(wp);
             }
             tp = (*tp).tp_next;
         }
@@ -3082,20 +3076,18 @@ pub fn did_set_paste(_args: &mut optset_T) -> *const c_char {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if opt_vars().p_paste != 0 {
             if opt_st().OLD_P_PASTE == 0 {
-                let mut buf = g_st().firstbuf;
-                while !buf.is_null() {
-                    (*buf).b_p_tw_nopaste = (*buf).b_p_tw;
-                    (*buf).b_p_wm_nopaste = (*buf).b_p_wm;
-                    (*buf).b_p_sts_nopaste = (*buf).b_p_sts;
-                    (*buf).b_p_ai_nopaste = (*buf).b_p_ai;
-                    (*buf).b_p_et_nopaste = (*buf).b_p_et;
-                    (*buf).b_p_vsts_nopaste =
-                        if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
-                            Some(crate::memory::cstr_to_cstring((*buf).b_p_vsts))
+                for buf in for_all_buffers_mut() {
+                    buf.b_p_tw_nopaste = buf.b_p_tw;
+                    buf.b_p_wm_nopaste = buf.b_p_wm;
+                    buf.b_p_sts_nopaste = buf.b_p_sts;
+                    buf.b_p_ai_nopaste = buf.b_p_ai;
+                    buf.b_p_et_nopaste = buf.b_p_et;
+                    buf.b_p_vsts_nopaste =
+                        if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
+                            Some(crate::memory::cstr_to_cstring(buf.b_p_vsts))
                         } else {
                             None
                         };
-                    buf = (*buf).b_next;
                 }
 
                 opt_st().SAVE_SM = opt_vars().p_sm;
@@ -3114,19 +3106,17 @@ pub fn did_set_paste(_args: &mut optset_T) -> *const c_char {
                 };
             }
 
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
-                (*buf).b_p_tw = 0;
-                (*buf).b_p_wm = 0;
-                (*buf).b_p_sts = 0;
-                (*buf).b_p_ai = 0;
-                (*buf).b_p_et = 0;
-                if !(*buf).b_p_vsts.is_null() {
-                    free_string_option((*buf).b_p_vsts);
+            for buf in for_all_buffers_mut() {
+                buf.b_p_tw = 0;
+                buf.b_p_wm = 0;
+                buf.b_p_sts = 0;
+                buf.b_p_ai = 0;
+                buf.b_p_et = 0;
+                if !buf.b_p_vsts.is_null() {
+                    free_string_option(buf.b_p_vsts);
                 }
-                (*buf).b_p_vsts = empty_opt;
-                (*buf).b_p_vsts_array.clear();
-                buf = (*buf).b_next;
+                buf.b_p_vsts = empty_opt;
+                buf.b_p_vsts_array.clear();
             }
 
             opt_vars().p_sm = 0;
@@ -3146,26 +3136,24 @@ pub fn did_set_paste(_args: &mut optset_T) -> *const c_char {
             }
             opt_vars().p_vsts = empty_opt;
         } else if opt_st().OLD_P_PASTE != 0 {
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
-                (*buf).b_p_tw = (*buf).b_p_tw_nopaste;
-                (*buf).b_p_wm = (*buf).b_p_wm_nopaste;
-                (*buf).b_p_sts = (*buf).b_p_sts_nopaste;
-                (*buf).b_p_ai = (*buf).b_p_ai_nopaste;
-                (*buf).b_p_et = (*buf).b_p_et_nopaste;
-                if !(*buf).b_p_vsts.is_null() {
-                    free_string_option((*buf).b_p_vsts);
+            for buf in for_all_buffers_mut() {
+                buf.b_p_tw = buf.b_p_tw_nopaste;
+                buf.b_p_wm = buf.b_p_wm_nopaste;
+                buf.b_p_sts = buf.b_p_sts_nopaste;
+                buf.b_p_ai = buf.b_p_ai_nopaste;
+                buf.b_p_et = buf.b_p_et_nopaste;
+                if !buf.b_p_vsts.is_null() {
+                    free_string_option(buf.b_p_vsts);
                 }
-                (*buf).b_p_vsts = (*buf)
+                buf.b_p_vsts = buf
                     .b_p_vsts_nopaste
                     .as_ref()
                     .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
-                if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
-                    tabstop_set((*buf).b_p_vsts, &mut (*buf).b_p_vsts_array, None);
+                if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
+                    tabstop_set(buf.b_p_vsts, &mut buf.b_p_vsts_array, None);
                 } else {
-                    (*buf).b_p_vsts_array.clear();
+                    buf.b_p_vsts_array.clear();
                 }
-                buf = (*buf).b_next;
             }
 
             opt_vars().p_sm = opt_st().SAVE_SM;

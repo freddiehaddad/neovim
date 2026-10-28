@@ -606,12 +606,10 @@ fn sign_define_by_name(
                     sh.number_hl_id = (*sp).sn_num_hl;
                     sh.cursorline_hl_id = (*sp).sn_cul_hl;
                     if !did_redraw {
-                        let mut wp = g_st().firstwin;
-                        while !wp.is_null() {
-                            if buf_has_signs((*wp).w_buffer) {
-                                redraw_buf_later((*wp).w_buffer, UPD_NOT_VALID);
+                        for wp in for_all_windows_mut() {
+                            if buf_has_signs(wp.w_buffer) {
+                                redraw_buf_later(wp.w_buffer, UPD_NOT_VALID);
                             }
-                            wp = (*wp).w_next;
                         }
                         did_redraw = true;
                     }
@@ -1437,19 +1435,17 @@ fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
         if l.is_null() {
             return;
         }
-        let mut li = (*l).lv_first;
-        while !li.is_null() {
+        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
             let mut retval: c_int = -1;
-            if (*li).li_tv.v_type == VarType::VAR_DICT {
+            if li.li_tv.v_type == VarType::VAR_DICT {
                 retval = sign_define_from_dict(
                     ptr::null_mut(),
-                    (*li).li_tv.vval.v_dict().cast::<dict_T>(),
+                    li.li_tv.vval.v_dict().cast::<dict_T>(),
                 );
             } else {
                 emsg(gettext(e_dictreq));
             }
             tv_list_append_number(retlist, i64::from(retval));
-            li = (*li).li_next;
         }
     }
 }
@@ -1725,22 +1721,20 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
 
         let l = argvars[0].vval.v_list();
         if !l.is_null() {
-            let mut li = (*l).lv_first;
-            while !li.is_null() {
+            for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
                 let mut sign_id: c_int = -1;
-                if (*li).li_tv.v_type == VarType::VAR_DICT {
+                if li.li_tv.v_type == VarType::VAR_DICT {
                     sign_id = sign_place_from_dict(
                         None,
                         None,
                         None,
                         None,
-                        (*li).li_tv.vval.v_dict().cast::<dict_T>(),
+                        li.li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {
                     emsg(gettext(e_dictreq));
                 }
                 tv_list_append_number(rettv.vval.v_list(), i64::from(sign_id));
-                li = (*li).li_next;
             }
         }
     }
@@ -1751,15 +1745,13 @@ fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
         if l.is_null() {
             return;
         }
-        let mut li = (*l).lv_first;
-        while !li.is_null() {
+        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
             let mut retval: c_int = -1;
-            let name = tv_get_string_chk(&(*li).li_tv);
+            let name = tv_get_string_chk(&li.li_tv);
             if !name.is_null() && sign_undefine_by_name(name) {
                 retval = 0;
             }
             tv_list_append_number(retlist, i64::from(retval));
-            li = (*li).li_next;
         }
     }
 }
@@ -1860,19 +1852,17 @@ pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
 
         let l = argvars[0].vval.v_list();
         if !l.is_null() {
-            let mut li = (*l).lv_first;
-            while !li.is_null() {
+            for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
                 let mut retval: c_int = -1;
-                if (*li).li_tv.v_type == VarType::VAR_DICT {
+                if li.li_tv.v_type == VarType::VAR_DICT {
                     retval = sign_unplace_from_dict(
                         None,
-                        (*li).li_tv.vval.v_dict().cast::<dict_T>(),
+                        li.li_tv.vval.v_dict().cast::<dict_T>(),
                     );
                 } else {
                     emsg(gettext(e_dictreq));
                 }
                 tv_list_append_number(rettv.vval.v_list(), i64::from(retval));
-                li = (*li).li_next;
             }
         }
     }

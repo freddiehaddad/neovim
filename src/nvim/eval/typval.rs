@@ -808,6 +808,30 @@ pub fn tv_list_ref(l: *mut list_T) {
     }
 }
 
+pub struct ListMutIter(*mut listitem_T);
+
+impl Iterator for ListMutIter {
+    type Item = &'static mut listitem_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).li_next;
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn list_iter_mut(start: *mut listitem_T) -> ListMutIter {
+    ListMutIter(start)
+}
+
 #[inline]
 pub fn tv_list_set_lock(l: *mut list_T, lock: VarLockStatus) {
     tv_list_set_lock_inline(l, lock)
@@ -1322,8 +1346,7 @@ pub fn tv_list_copy(
             (*orig).lv_copyID = copyID;
             (*orig).lv_copylist = copy;
         }
-        let mut item = (*orig).lv_first;
-        while !item.is_null() {
+        for item in crate::eval::typval::list_iter_mut((*orig).lv_first) {
             if g_st().got_int {
                 break;
             }
@@ -1331,7 +1354,7 @@ pub fn tv_list_copy(
             if deep {
                 if !var_item_copy(
                     conv,
-                    &mut (*item).li_tv,
+                    &mut item.li_tv,
                     &mut (*ni).li_tv,
                     deep,
                     copyID,
@@ -1342,10 +1365,9 @@ pub fn tv_list_copy(
                     return ptr::null_mut();
                 }
             } else {
-                tv_copy(&(*item).li_tv, &mut (*ni).li_tv);
+                tv_copy(&item.li_tv, &mut (*ni).li_tv);
             }
             tv_list_append(copy, ni);
-            item = (*item).li_next;
         }
 
         copy
@@ -1550,15 +1572,11 @@ fn tv_list2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
             return;
         }
 
-        let mut idx: varnumber_T = 0;
-        let mut li = (*l).lv_first;
-        while !li.is_null() {
+        for (idx, li) in (0 as varnumber_T..).zip(crate::eval::typval::list_iter_mut((*l).lv_first)) {
             let l2 = tv_list_alloc(2);
             tv_list_append_list(rettv.vval.v_list(), l2);
             tv_list_append_number(l2, idx);
-            tv_list_append_tv(l2, &mut (*li).li_tv);
-            idx += 1;
-            li = (*li).li_next;
+            tv_list_append_tv(l2, &mut li.li_tv);
         }
     }
 }
@@ -1717,19 +1735,17 @@ fn list_join_inner(
         let mut sumlen: usize = 0;
         let mut first = true;
 
-        let mut item = l.lv_first;
-        while !item.is_null() {
+        for item in crate::eval::typval::list_iter_mut(l.lv_first) {
             if g_st().got_int {
                 break;
             }
             let mut size: usize = 0;
-            let s = encode_tv2echo(&mut (*item).li_tv, Some(&mut size));
+            let s = encode_tv2echo(&mut item.li_tv, Some(&mut size));
 
             sumlen += size;
             join_vec.push(s);
 
             line_breakcheck();
-            item = (*item).li_next;
         }
 
         let seplen = crate::memory::cstr_len(sep);
@@ -1820,13 +1836,11 @@ pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         let mut out: Vec<c_char> = Vec::with_capacity(80);
         let mut buf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
 
-        let mut li = (*l).lv_first;
-        while !li.is_null() {
-            let n = tv_get_number(&(*li).li_tv);
+        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
+            let n = tv_get_number(&li.li_tv);
             let buflen = utf_char2bytes(n as c_int, buf.as_mut_ptr()) as usize;
             buf[buflen] = NUL;
             out.extend_from_slice(&buf[..buflen]);
-            li = (*li).li_next;
         }
 
         tv_set_string_len(rettv, out.as_ptr(), out.len());
@@ -3791,10 +3805,9 @@ pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             bv.reserve(list_len as usize);
         }
 
-        let mut li = (*l).lv_first;
-        while !li.is_null() {
+        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
             let mut error = false;
-            let n = tv_get_number_chk(&(*li).li_tv, Some(&mut error));
+            let n = tv_get_number_chk(&li.li_tv, Some(&mut error));
             if error || !(0..=255).contains(&n) {
                 if !error {
                     semsg!(tr(e_invalid_value_for_blob_nr), n as c_int);
@@ -3803,7 +3816,6 @@ pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 return;
             }
             bv.push(n as u8);
-            li = (*li).li_next;
         }
     }
 }
@@ -4449,10 +4461,8 @@ pub fn tv_item_lock(tv: &mut typval_T, deep: c_int, lock: bool, check_refcount: 
                 if !l.is_null() && !(check_refcount && (*l).lv_refcount > 1) {
                     (*l).lv_lock = change_lock(lock, (*l).lv_lock);
                     if !(0..=1).contains(&deep) {
-                        let mut li = (*l).lv_first;
-                        while !li.is_null() {
-                            tv_item_lock(&mut (*li).li_tv, deep - 1, lock, check_refcount);
-                            li = (*li).li_next;
+                        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
+                            tv_item_lock(&mut li.li_tv, deep - 1, lock, check_refcount);
                         }
                     }
                 }

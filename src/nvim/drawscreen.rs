@@ -260,7 +260,7 @@ pub fn default_grid_alloc() -> bool {
 }
 
 pub fn screenclear() {
-    unsafe {
+     {
         msg_check_for_delay(false);
 
         if starting_val() == NO_SCREEN || !grid_allocated(&g_st().default_grid) {
@@ -291,12 +291,10 @@ pub fn screenclear() {
         ds_st().redraw_popupmenu = true;
         pum_invalidate();
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
-            if (*wp).w_floating {
-                (*wp).w_redr_type = UPD_CLEAR;
+        for wp in for_all_windows_mut() {
+            if wp.w_floating {
+                wp.w_redr_type = UPD_CLEAR;
             }
-            wp = (*wp).w_next;
         }
 
         if g_st().must_redraw == UPD_CLEAR {
@@ -547,17 +545,15 @@ pub fn update_screen() -> bool {
                     );
                     i += 1;
                 }
-                let mut wp = g_st().firstwin;
-                while !wp.is_null() {
-                    if !(*wp).w_floating {
-                        if w_endrow(&*wp) > valid {
-                            (*wp).w_redr_type = (*wp).w_redr_type.max(UPD_NOT_VALID);
+                for wp in for_all_windows_mut() {
+                    if !wp.w_floating {
+                        if w_endrow(wp) > valid {
+                            wp.w_redr_type = wp.w_redr_type.max(UPD_NOT_VALID);
                         }
-                        if !is_stl_global && w_endrow(&*wp) + (*wp).w_status_height > valid {
-                            (*wp).w_redr_status = true;
+                        if !is_stl_global && w_endrow(wp) + wp.w_status_height > valid {
+                            wp.w_redr_status = true;
                         }
                     }
-                    wp = (*wp).w_next;
                 }
                 if is_stl_global && g_st().Rows - (opt_vars().p_ch as c_int) - 1 > valid {
                     curwin_mut().w_redr_status = true;

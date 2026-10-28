@@ -166,7 +166,7 @@ pub fn autowrite_all() {
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
 pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
-    unsafe {
+     {
         let forceit = (flags & CCGD_FORCEIT) != 0;
         let mut bufref: bufref_T = bufref_T::new();
         set_bufref(&mut bufref, &raw mut *buf);
@@ -180,12 +180,10 @@ pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
                 let mut count: c_int = 0;
 
                 if (flags & CCGD_ALLBUF) != 0 {
-                    let mut buf2 = g_st().firstbuf;
-                    while !buf2.is_null() {
-                        if bufIsChanged(&mut *buf2) && !(*buf2).b_ffname.is_null() {
+                    for buf2 in for_all_buffers_mut() {
+                        if bufIsChanged(buf2) && !buf2.b_ffname.is_null() {
                             count += 1;
                         }
-                        buf2 = (*buf2).b_next;
                     }
                 }
                 if !bufref_valid(Some(&bufref)) {
@@ -322,10 +320,8 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let mut ret = false;
         let mut bufcount: usize = 0;
 
-        let mut b = g_st().firstbuf;
-        while !b.is_null() {
+        for _b in for_all_buffers_mut() {
             bufcount += 1;
-            b = (*b).b_next;
         }
         if bufcount == 0 {
             return false;
@@ -334,30 +330,24 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let mut bufnrs = Vec::with_capacity(bufcount);
         bufnrs.push(curbuf_mut().b_fnum);
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
-            if (*wp).w_buffer != g_st().curbuf {
-                add_bufnum(&mut bufnrs, (*(*wp).w_buffer).b_fnum);
+        for wp in for_all_windows_mut() {
+            if wp.w_buffer != g_st().curbuf {
+                add_bufnum(&mut bufnrs, (*wp.w_buffer).b_fnum);
             }
-            wp = (*wp).w_next;
         }
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             if tp != g_st().curtab {
-                let mut wp2 = first_win_in_tab(tp);
-                while !wp2.is_null() {
-                    add_bufnum(&mut bufnrs, (*(*wp2).w_buffer).b_fnum);
-                    wp2 = (*wp2).w_next;
+                for wp2 in win_iter_mut(first_win_in_tab(tp)) {
+                    add_bufnum(&mut bufnrs, (*wp2.w_buffer).b_fnum);
                 }
             }
             tp = (*tp).tp_next;
         }
 
-        let mut b = g_st().firstbuf;
-        while !b.is_null() {
-            add_bufnum(&mut bufnrs, (*b).b_fnum);
-            b = (*b).b_next;
+        for b in for_all_buffers_mut() {
+            add_bufnum(&mut bufnrs, b.b_fnum);
         }
 
         let mut buf: *mut buf_T = ptr::null_mut();
@@ -513,10 +503,8 @@ pub fn ex_listdo(eap: &mut exarg_T) {
         if eap.cmdidx != CMD_windo && eap.cmdidx != CMD_tabdo {
             save_ei = Some(au_event_disable(c",Syntax"));
 
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
-                (*buf).b_flags &= !BF_SYN_SET;
-                buf = (*buf).b_next;
+            for buf in for_all_buffers_mut() {
+                buf.b_flags &= !BF_SYN_SET;
             }
         }
 
@@ -625,13 +613,11 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                     tp = (*tp).tp_next;
                 } else if eap.cmdidx == CMD_bufdo {
                     next_fnum = -1;
-                    let mut bp = curbuf_mut().b_next;
-                    while !bp.is_null() {
-                        if (*bp).b_p_bl != 0 {
-                            next_fnum = (*bp).b_fnum;
+                    for bp in buf_iter_mut(curbuf_mut().b_next) {
+                        if bp.b_p_bl != 0 {
+                            next_fnum = bp.b_fnum;
                             break;
                         }
-                        bp = (*bp).b_next;
                     }
                 }
 
@@ -646,13 +632,11 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                     }
 
                     let mut buf_still_exists = false;
-                    let mut bp = g_st().firstbuf;
-                    while !bp.is_null() {
-                        if (*bp).b_fnum == next_fnum {
+                    for bp in for_all_buffers_mut() {
+                        if bp.b_fnum == next_fnum {
                             buf_still_exists = true;
                             break;
                         }
-                        bp = (*bp).b_next;
                     }
                     if !buf_still_exists {
                         break;

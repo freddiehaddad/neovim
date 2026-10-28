@@ -197,19 +197,17 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) 
         reg.additional_data = None;
         reg.timestamp = 0;
 
-        let mut li = if lines.is_null() {
+        for li in crate::eval::typval::list_iter_mut(if lines.is_null() {
             std::ptr::null_mut()
         } else {
             (*lines).lv_first
-        };
-        while !li.is_null() {
-            if (*li).li_tv.v_type != VarType::VAR_STRING {
+        }) {
+            if li.li_tv.v_type != VarType::VAR_STRING {
                 return fail_cleanup(reg, errmsg, target);
             }
-            let s = (*li).li_tv.vval.v_string();
+            let s = li.li_tv.vval.v_string();
             reg.y_array
                 .push(cstr_to_string(if s.is_null() { c"".as_ptr() } else { s }));
-            li = (*li).li_next;
         }
 
         if reg.y_array.last().is_some_and(|last| last.size == 0) {

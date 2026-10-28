@@ -1480,12 +1480,10 @@ pub fn did_set_background(args: &mut optset_T) -> *const c_char {
             init_highlight(false, false);
         }
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            if !(*buf).terminal.is_null() {
-                terminal_notify_theme(&mut *(*buf).terminal.cast(), dark);
+        for buf in for_all_buffers_mut() {
+            if !buf.terminal.is_null() {
+                terminal_notify_theme(&mut *buf.terminal.cast(), dark);
             }
-            buf = (*buf).b_next;
         }
 
         ptr::null()
@@ -3003,15 +3001,9 @@ pub fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                (*wp).w_prev_height = (*wp).w_height;
-                (*wp).w_prev_winrow = (*wp).w_winrow;
-                wp = (*wp).w_next;
+            for wp in for_all_windows_in_tab_mut(tp) {
+                wp.w_prev_height = wp.w_height;
+                wp.w_prev_winrow = wp.w_winrow;
             }
             tp = (*tp).tp_next;
         }

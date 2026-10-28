@@ -6,7 +6,7 @@ use crate::errors::{e_api_spawn_failed, e_invarg, e_invarg2};
 use crate::eval::find_job;
 use crate::eval::funcs::{f_jobstart, f_jobstop};
 use crate::eval::typval::{
-    Callback, EvalFuncData, VarType, list_T, listitem_T, tv_dict_add_bool, tv_dict_alloc,
+    Callback, EvalFuncData, VarType, list_T, tv_dict_add_bool, tv_dict_alloc,
     tv_dict_free, tv_get_string, typval_T,
 };
 use crate::ex_cmds::check_secure;
@@ -52,22 +52,18 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         if arg1.v_type == VarType::VAR_LIST {
             args = arg1.vval.v_list();
             argsl = if args.is_null() { 0 } else { (*args).lv_len };
-            let mut i = 0 as c_int;
-            let mut li: *const listitem_T = if args.is_null() {
-                std::ptr::null()
+            for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
+                std::ptr::null_mut()
             } else {
                 (*args).lv_first
-            };
-            while !li.is_null() {
-                if (*li).li_tv.v_type != VarType::VAR_STRING {
+            })) {
+                if li.li_tv.v_type != VarType::VAR_STRING {
                     semsg!(
                         c"E5010: List item %d of the second argument is not a string",
                         i,
                     );
                     return;
                 }
-                i += 1;
-                li = (*li).li_next;
             }
         }
 
@@ -81,10 +77,8 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         argv.push(crate::memory::cstr_to_cstring(prog));
 
         if argsl > 0 && !args.is_null() {
-            let mut li: *const listitem_T = (*args).lv_first;
-            while !li.is_null() {
-                argv.push(crate::memory::cstr_to_cstring(tv_get_string(&(*li).li_tv)));
-                li = (*li).li_next;
+            for li in crate::eval::typval::list_iter_mut((*args).lv_first) {
+                argv.push(crate::memory::cstr_to_cstring(tv_get_string(&li.li_tv)));
             }
         }
 
@@ -141,14 +135,12 @@ pub fn f_rpcstop(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncD
 
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
 pub fn f_last_buffer_nr(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
+     {
         let mut n: c_int = 0;
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            if n < (*buf).b_fnum {
-                n = (*buf).b_fnum;
+        for buf in for_all_buffers_mut() {
+            if n < buf.b_fnum {
+                n = buf.b_fnum;
             }
-            buf = (*buf).b_next;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
     }

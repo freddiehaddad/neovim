@@ -2007,11 +2007,9 @@ pub fn spell_delete_wordlist() {
         spell_priv_st().int_wordlist = None;
 }
 pub fn spell_free_all() {
-    unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            (*buf).b_s.b_langp = Vec::new();
-            buf = (*buf).b_next;
+     {
+        for buf in for_all_buffers_mut() {
+            buf.b_s.b_langp = Vec::new();
         }
         spell_priv_st().first_lang = Vec::new();
         spell_delete_wordlist();

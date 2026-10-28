@@ -2933,13 +2933,11 @@ pub fn bufIsChanged(buf: &mut buf_T) -> bool {
 
 /// Return true if any buffer has changes. Also buffers that are not written.
 pub fn anyBufIsChanged() -> bool {
-    unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            if bufIsChanged(&mut *buf) {
+     {
+        for buf in for_all_buffers_mut() {
+            if bufIsChanged(buf) {
                 return true;
             }
-            buf = (*buf).b_next;
         }
         false
     }

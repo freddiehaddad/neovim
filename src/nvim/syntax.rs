@@ -1128,16 +1128,14 @@ fn syn_stack_free_block(block: *mut synblock_T) {
 
 /// Free b_sst_array[] for buffer "buf".
 pub fn syn_stack_free_all(block: *mut synblock_T) {
-    unsafe {
+     {
         syn_stack_free_block(block);
 
         if !g_st().curtab.is_null() {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if win_s(&mut *wp) == block && foldmethodIsSyntax(&mut *wp) {
-                    foldUpdateAll(&mut *wp);
+            for wp in for_all_windows_mut() {
+                if win_s(wp) == block && foldmethodIsSyntax(wp) {
+                    foldUpdateAll(wp);
                 }
-                wp = (*wp).w_next;
             }
         }
     }
@@ -1171,12 +1169,10 @@ pub fn syn_stack_apply_changes(buf: &mut buf_T) {
         syn_stack_apply_changes_block(&mut buf.b_s, &mut *buf_ptr);
 
         if !g_st().curtab.is_null() {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if (*wp).w_buffer == buf && win_s(&mut *wp) != &raw mut buf.b_s {
-                    syn_stack_apply_changes_block(&mut *win_s(&mut *wp), buf);
+            for wp in for_all_windows_mut() {
+                if wp.w_buffer == buf && win_s(wp) != &raw mut buf.b_s {
+                    syn_stack_apply_changes_block(&mut *win_s(wp), buf);
                 }
-                wp = (*wp).w_next;
             }
         }
     }

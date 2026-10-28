@@ -326,22 +326,20 @@ fn map_luaid_scan(mappings: &[Vec<mapblock_T>], id: c_int) -> Option<&mapblock_T
 
 /// Resolves a Lua-mapping id to its callback.
 pub fn map_luaid_get(n: c_int) -> LuaRef {
-    unsafe {
+     {
         let maphash_ref = &map_st().maphash;
         let first_abbr_ref = &map_st().first_abbr;
         let mut mp = map_luaid_scan(maphash_ref, n);
         if mp.is_none() {
             mp = map_luaid_scan(std::slice::from_ref(first_abbr_ref), n);
         }
-        let mut fb = g_st().firstbuf;
-        while !fb.is_null() {
+        for fb in for_all_buffers_mut() {
             if mp.is_none() {
-                mp = map_luaid_scan(&(*fb).b_maphash, n);
+                mp = map_luaid_scan(&fb.b_maphash, n);
             }
             if mp.is_none() {
-                mp = map_luaid_scan(std::slice::from_ref(&(*fb).b_first_abbr), n);
+                mp = map_luaid_scan(std::slice::from_ref(&fb.b_first_abbr), n);
             }
-            fb = (*fb).b_next;
         }
         mp.map_or(LUA_NOREF, |m| m.m_luaref)
     }

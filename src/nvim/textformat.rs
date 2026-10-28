@@ -832,7 +832,7 @@ pub fn comp_textwidth(ff: bool) -> c_int {
 
 /// Implementation of the format operator `gq` (`op_format`).
 pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
-    unsafe {
+     {
         let mut old_line_count = curbuf_mut().b_ml.ml_line_count;
 
         curwin_mut().w_cursor = oap.cursor_start;
@@ -874,16 +874,14 @@ pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
         }
 
         if oap.is_VIsual {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if (*wp).w_old_cursor_lnum != 0 {
-                    if (*wp).w_old_cursor_lnum > (*wp).w_old_visual_lnum {
-                        (*wp).w_old_cursor_lnum += old_line_count;
+            for wp in for_all_windows_mut() {
+                if wp.w_old_cursor_lnum != 0 {
+                    if wp.w_old_cursor_lnum > wp.w_old_visual_lnum {
+                        wp.w_old_cursor_lnum += old_line_count;
                     } else {
-                        (*wp).w_old_visual_lnum += old_line_count;
+                        wp.w_old_visual_lnum += old_line_count;
                     }
                 }
-                wp = (*wp).w_next;
             }
         }
     }

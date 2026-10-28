@@ -544,7 +544,7 @@ pub fn decor_redraw(buf: &mut buf_T,
 }
 
 pub fn decor_redraw_sh(buf: &mut buf_T, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
-    unsafe {
+     {
         if (sh.hl_id != 0
             || sh.url.is_some()
             || (sh.flags & (kSHIsSign | kSHSpellOn | kSHSpellOff | kSHConceal | kSHConcealOff))
@@ -554,12 +554,10 @@ pub fn decor_redraw_sh(buf: &mut buf_T, row1: c_int, row2: c_int, sh: DecorSignH
             redraw_buf_range_later(buf, row1 + 1, row2 + 1);
         }
         if (sh.flags & kSHConcealLines) != 0 {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if (*wp).w_buffer == buf {
-                    changed_window_setting(&mut *wp);
+            for wp in for_all_windows_mut() {
+                if wp.w_buffer == buf {
+                    changed_window_setting(wp);
                 }
-                wp = (*wp).w_next;
             }
         }
         if (sh.flags & kSHUIWatched) != 0 {
@@ -626,20 +624,18 @@ fn may_force_numberwidth_recompute(buf: &mut buf_T, unplace: bool) {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+            for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                if (*wp).w_buffer == buf
-                    && (*wp).w_minscwidth == SCL_NUM
-                    && ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
-                    && (unplace || (*wp).w_nrwidth_width < 2)
+            }) {
+                if wp.w_buffer == buf
+                    && wp.w_minscwidth == SCL_NUM
+                    && (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+                    && (unplace || wp.w_nrwidth_width < 2)
                 {
-                    (*wp).w_nrwidth_line_count = 0;
+                    wp.w_nrwidth_line_count = 0;
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }

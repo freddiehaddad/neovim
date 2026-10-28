@@ -2012,12 +2012,10 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
 
         if argvars[0].v_type == VarType::VAR_LIST {
-            let mut li = tv_list_first(argvars[0].vval.v_list());
-            while !li.is_null() {
-                if !tv_check_str_or_nr(&(*li).li_tv) {
+            for li in crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list())) {
+                if !tv_check_str_or_nr(&li.li_tv) {
                     return;
                 }
-                li = (*li).li_next;
             }
         } else if argvars[0].v_type != VarType::VAR_BLOB
             && !(argvars[0].v_type == VarType::VAR_STRING

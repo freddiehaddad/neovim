@@ -389,13 +389,11 @@ pub fn win_float_update_statusline() {
 }
 
 pub fn win_float_anchor_laststatus() {
-    unsafe {
-        let mut win = g_st().firstwin;
-        while !win.is_null() {
-            if (*win).w_config.relative == kFloatRelativeLaststatus {
-                (*win).w_pos_changed = true;
+     {
+        for win in for_all_windows_mut() {
+            if win.w_config.relative == kFloatRelativeLaststatus {
+                win.w_pos_changed = true;
             }
-            win = (*win).w_next;
         }
     }
 }

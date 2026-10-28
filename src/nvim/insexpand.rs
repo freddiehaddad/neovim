@@ -31,7 +31,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    Callback, EvalFuncData, VarType, callback_copy, callback_free, dict_T, list_T, listitem_T,
+    Callback, EvalFuncData, VarType, callback_copy, callback_free, dict_T, list_T,
     tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
     tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_alloc_ret, tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv,
@@ -3468,14 +3468,12 @@ fn ins_compl_add_list(list: *mut list_T) {
         if list.is_null() {
             return;
         }
-        let mut li = (*list).lv_first;
-        while !li.is_null() {
-            if ins_compl_add_tv(&mut (*li).li_tv, dir, true) != FAIL {
+        for li in crate::eval::typval::list_iter_mut((*list).lv_first) {
+            if ins_compl_add_tv(&mut li.li_tv, dir, true) != FAIL {
                 dir = FORWARD;
             } else if g_st().did_emsg != 0 {
                 break;
             }
-            li = (*li).li_next;
         }
     }
 }
@@ -3806,9 +3804,8 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
             what_flag = CI_WHAT_ALL & !(CI_WHAT_MATCHES | CI_WHAT_COMPLETED | CI_WHAT_AUTO);
         } else {
             what_flag = 0;
-            let mut item: *mut listitem_T = (*what_list).lv_first;
-            while !item.is_null() {
-                let what = tv_get_string(&(*item).li_tv);
+            for item in crate::eval::typval::list_iter_mut((*what_list).lv_first) {
+                let what = tv_get_string(&item.li_tv);
                 if crate::memory::cstr_as_bytes(what) == b"mode" {
                     what_flag |= CI_WHAT_MODE;
                 } else if crate::memory::cstr_as_bytes(what) == b"pum_visible" {
@@ -3826,7 +3823,6 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                 } else if crate::memory::cstr_as_bytes(what) == b"auto" {
                     what_flag |= CI_WHAT_AUTO;
                 }
-                item = (*item).li_next;
             }
         }
 
@@ -4953,11 +4949,10 @@ fn get_next_completion_match(
 }
 
 fn get_next_bufname_token() {
-    unsafe {
-        let mut b = g_st().firstbuf;
-        while !b.is_null() {
-            if (*b).b_p_bl != 0 && !(*b).b_sfname.is_null() {
-                let tail = path_tail((*b).b_sfname);
+     {
+        for b in for_all_buffers_mut() {
+            if b.b_p_bl != 0 && !b.b_sfname.is_null() {
+                let tail = path_tail(b.b_sfname);
                 if crate::memory::cstr_prefix_bytes(tail, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size) {
                     ins_compl_add(
                         tail,
@@ -4975,7 +4970,6 @@ fn get_next_bufname_token() {
                     );
                 }
             }
-            b = (*b).b_next;
         }
     }
 }
@@ -5087,10 +5081,8 @@ fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
         debug_assert!(!g_st().curbuf.is_null());
 
         if !insexp().compl_started {
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
-                (*buf).b_scanned = false;
-                buf = (*buf).b_next;
+            for buf in for_all_buffers_mut() {
+                buf.b_scanned = false;
             }
             if !insexp().next_state_cleared {
                 *st = ins_compl_next_state_T::new();

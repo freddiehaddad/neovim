@@ -3300,16 +3300,14 @@ pub fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_int) ->
 
 /// Shortens filenames for all buffers.
 pub fn shorten_fnames(force: c_int) {
-    unsafe {
+     {
         let mut dirname: [c_char; MAXPATHL] = [0; MAXPATHL];
         let mut changed = false;
 
         os_dirname(dirname.as_mut_ptr(), MAXPATHL);
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            changed |= shorten_buf_fname(&mut *buf, dirname.as_mut_ptr(), force);
-            mf_fullname((*buf).b_ml.mfp_ptr());
-            buf = (*buf).b_next;
+        for buf in for_all_buffers_mut() {
+            changed |= shorten_buf_fname(buf, dirname.as_mut_ptr(), force);
+            mf_fullname(buf.b_ml.mfp_ptr());
         }
         if changed {
             status_redraw_all();
@@ -4096,16 +4094,10 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                if (*wp).w_buffer == curwin_mut().w_buffer && !foldmethodIsManual(&mut *wp) {
-                    foldUpdateAll(&mut *wp);
+            for wp in for_all_windows_in_tab_mut(tp) {
+                if wp.w_buffer == curwin_mut().w_buffer && !foldmethodIsManual(wp) {
+                    foldUpdateAll(wp);
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }

@@ -9581,14 +9581,12 @@ fn ex_close(eap: &mut exarg_T) {
 }
 
 fn ex_pclose(eap: &mut exarg_T) {
-    unsafe {
-        let mut win = g_st().firstwin;
-        while !win.is_null() {
-            if (*win).w_onebuf_opt.wo_pvw != 0 {
-                ex_win_close(eap.forceit, &mut *win, ptr::null_mut());
+     {
+        for win in for_all_windows_mut() {
+            if win.w_onebuf_opt.wo_pvw != 0 {
+                ex_win_close(eap.forceit, win, ptr::null_mut());
                 break;
             }
-            win = (*win).w_next;
         }
         win_float_close(kWinPreview);
     }

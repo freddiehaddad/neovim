@@ -325,19 +325,17 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = first_win_in_tab(tp);
-            while !wp.is_null() {
-                if (*wp).w_buffer == buf {
-                    (*wp).w_cursor.lnum = if (*wp).w_cursor.lnum <= to_delete {
+            for wp in win_iter_mut(first_win_in_tab(tp)) {
+                if wp.w_buffer == buf {
+                    wp.w_cursor.lnum = if wp.w_cursor.lnum <= to_delete {
                         1
                     } else {
-                        (*wp).w_cursor.lnum - to_delete
+                        wp.w_cursor.lnum - to_delete
                     };
-                    if (*wp).w_cursor.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
-                        (*wp).w_cursor.lnum = (*(*wp).w_buffer).b_ml.ml_line_count;
+                    if wp.w_cursor.lnum > (*wp.w_buffer).b_ml.ml_line_count {
+                        wp.w_cursor.lnum = (*wp.w_buffer).b_ml.ml_line_count;
                     }
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
@@ -609,7 +607,7 @@ pub fn f_bufnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 }
 
 fn buf_win_common(argvars: &mut [typval_T], rettv: &mut typval_T, get_nr: bool) {
-    unsafe {
+     {
         let buf: *const buf_T = tv_get_buf_from_arg(&mut argvars[0]);
         if buf.is_null() {
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -619,15 +617,13 @@ fn buf_win_common(argvars: &mut [typval_T], rettv: &mut typval_T, get_nr: bool) 
         let mut winnr: c_int = 0;
         let mut winid: c_int = 0;
         let mut found_buf = false;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
-            winnr += c_int::from(win_has_winnr(&mut *wp, g_st().curtab));
-            if ptr::eq((*wp).w_buffer, buf) && (!get_nr || win_has_winnr(&mut *wp, g_st().curtab)) {
+        for wp in for_all_windows_mut() {
+            winnr += c_int::from(win_has_winnr(wp, g_st().curtab));
+            if ptr::eq(wp.w_buffer, buf) && (!get_nr || win_has_winnr(wp, g_st().curtab)) {
                 found_buf = true;
-                winid = (*wp).handle;
+                winid = wp.handle;
                 break;
             }
-            wp = (*wp).w_next;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(if found_buf {
             (if get_nr { winnr } else { winid }) as varnumber_T
@@ -699,19 +695,17 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = first_win_in_tab(tp);
-                while !wp.is_null() {
-                    if (*wp).w_buffer == buf {
-                        if (*wp).w_cursor.lnum > last {
-                            (*wp).w_cursor.lnum -= count as linenr_T;
-                        } else if (*wp).w_cursor.lnum > first {
-                            (*wp).w_cursor.lnum = first;
+                for wp in win_iter_mut(first_win_in_tab(tp)) {
+                    if wp.w_buffer == buf {
+                        if wp.w_cursor.lnum > last {
+                            wp.w_cursor.lnum -= count as linenr_T;
+                        } else if wp.w_cursor.lnum > first {
+                            wp.w_cursor.lnum = first;
                         }
-                        if (*wp).w_cursor.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
-                            (*wp).w_cursor.lnum = (*(*wp).w_buffer).b_ml.ml_line_count;
+                        if wp.w_cursor.lnum > (*wp.w_buffer).b_ml.ml_line_count {
+                            wp.w_cursor.lnum = (*wp.w_buffer).b_ml.ml_line_count;
                         }
                     }
-                    wp = (*wp).w_next;
                 }
                 tp = (*tp).tp_next;
             }
@@ -780,12 +774,10 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         let windows = tv_list_alloc(kListLenMayKnow);
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = first_win_in_tab(tp);
-            while !wp.is_null() {
-                if (*wp).w_buffer == buf {
-                    tv_list_append_number(windows, (*wp).handle as varnumber_T);
+            for wp in win_iter_mut(first_win_in_tab(tp)) {
+                if wp.w_buffer == buf {
+                    tv_list_append_number(windows, wp.handle as varnumber_T);
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }

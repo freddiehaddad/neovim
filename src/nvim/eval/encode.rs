@@ -315,12 +315,10 @@ pub fn encode_check_json_key(tv: &typval_T) -> bool {
         if val_list.is_null() {
             return true;
         }
-        let mut li = tv_list_first(val_list);
-        while !li.is_null() {
-            if (*li).li_tv.v_type != VarType::VAR_STRING {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(val_list)) {
+            if li.li_tv.v_type != VarType::VAR_STRING {
                 return false;
             }
-            li = (*li).li_next;
         }
         true
     }

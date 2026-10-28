@@ -1223,16 +1223,10 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
             mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, kExtmarkNOOP);
             let mut tab = g_st().first_tabpage;
             while !tab.is_null() {
-                let mut win = if tab == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tab).tp_firstwin
-                };
-                while !win.is_null() {
-                    if (*win).w_buffer == g_st().curbuf {
-                        foldMoveRange(&mut (*win).w_folds, line1, line2, dest);
+                for win in for_all_windows_in_tab_mut(tab) {
+                    if win.w_buffer == g_st().curbuf {
+                        foldMoveRange(&mut win.w_folds, line1, line2, dest);
                     }
-                    win = (*win).w_next;
                 }
                 tab = (*tab).tp_next;
             }
@@ -1246,16 +1240,10 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
             mark_adjust_nofold(dest + 1, line1 - 1, num_lines, 0, kExtmarkNOOP);
             let mut tab = g_st().first_tabpage;
             while !tab.is_null() {
-                let mut win = if tab == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tab).tp_firstwin
-                };
-                while !win.is_null() {
-                    if (*win).w_buffer == g_st().curbuf {
-                        foldMoveRange(&mut (*win).w_folds, dest + 1, line1 - 1, line2);
+                for win in for_all_windows_in_tab_mut(tab) {
+                    if win.w_buffer == g_st().curbuf {
+                        foldMoveRange(&mut win.w_folds, dest + 1, line1 - 1, line2);
                     }
-                    win = (*win).w_next;
                 }
                 tab = (*tab).tp_next;
             }
@@ -1808,7 +1796,7 @@ fn do_filter(
 
 /// Call a shell to execute a command.
 pub fn do_shell(cmd: *mut c_char, flags: c_int) {
-    unsafe {
+     {
         if check_secure() {
             msg_end();
             return;
@@ -1818,13 +1806,11 @@ pub fn do_shell(cmd: *mut c_char, flags: c_int) {
         msg_putchar(b'\n' as c_int);
 
         if opt_vars().p_warn != 0 && !g_st().autocmd_busy && g_st().msg_silent == 0 {
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
-                if bufIsChanged(&mut *buf) {
+            for buf in for_all_buffers_mut() {
+                if bufIsChanged(buf) {
                     msg_puts(gettext(c"[No write since last change]\n"));
                     break;
                 }
-                buf = (*buf).b_next;
             }
         }
 
@@ -3092,16 +3078,10 @@ pub fn do_ecmd(
 
                 let mut tp = g_st().first_tabpage;
                 while !tp.is_null() {
-                    let mut win = if tp == g_st().curtab {
-                        g_st().firstwin
-                    } else {
-                        (*tp).tp_firstwin
-                    };
-                    while !win.is_null() {
-                        if (*win).w_buffer == g_st().curbuf {
-                            foldUpdateAll(&mut *win);
+                    for win in for_all_windows_in_tab_mut(tp) {
+                        if win.w_buffer == g_st().curbuf {
+                            foldUpdateAll(win);
                         }
-                        win = (*win).w_next;
                     }
                     tp = (*tp).tp_next;
                 }

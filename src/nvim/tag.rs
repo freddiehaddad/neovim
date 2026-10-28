@@ -1350,8 +1350,7 @@ fn find_tagfunc_tags(
         }
         let taglist = rettv.vval.v_list();
 
-        let mut li = (*taglist).lv_first;
-        while !li.is_null() {
+        for li in crate::eval::typval::list_iter_mut((*taglist).lv_first) {
             let mut res_name: *mut c_char = ptr::null_mut();
             let mut res_fname: *mut c_char = ptr::null_mut();
             let mut res_cmd: *mut c_char = ptr::null_mut();
@@ -1359,13 +1358,13 @@ fn find_tagfunc_tags(
             let mut has_extra = false;
             let name_only = (flags & TAG_NAMES) != 0;
 
-            if (*li).li_tv.v_type != VarType::VAR_DICT {
+            if li.li_tv.v_type != VarType::VAR_DICT {
                 emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
                 break;
             }
 
             let mut len: usize = 2;
-            let item_dict = (*li).li_tv.vval.v_dict();
+            let item_dict = li.li_tv.vval.v_dict();
             if !item_dict.is_null() {
                 let mut todo = (*item_dict).dv_hashtab.ht_used;
                 let mut hi = (*item_dict).dv_hashtab.array_ptr();
@@ -1498,7 +1497,6 @@ fn find_tagfunc_tags(
             ntags += 1;
             result = OK;
 
-            li = (*li).li_next;
         }
 
         tv_clear(&raw mut rettv);
@@ -3451,14 +3449,13 @@ fn tagstack_push_item(
 
 fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
     unsafe {
-        let mut li = if l.is_null() {
+        for li in crate::eval::typval::list_iter_mut(if l.is_null() {
             ptr::null_mut()
         } else {
             (*l).lv_first
-        };
-        while !li.is_null() {
-            if (*li).li_tv.v_type == VarType::VAR_DICT && !(*li).li_tv.vval.v_dict().is_null() {
-                let itemdict = (*li).li_tv.vval.v_dict();
+        }) {
+            if li.li_tv.v_type == VarType::VAR_DICT && !li.li_tv.vval.v_dict().is_null() {
+                let itemdict = li.li_tv.vval.v_dict();
                 let di = tv_dict_find(itemdict, c"from", -1);
                 if !di.is_null() {
                     let mut mark = pos_T {
@@ -3494,7 +3491,6 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
                     }
                 }
             }
-            li = (*li).li_next;
         }
     }
 }

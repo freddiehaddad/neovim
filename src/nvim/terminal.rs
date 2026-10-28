@@ -975,12 +975,10 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 channel_term_close(&mut *term.opts.data);
             }
         } else if !only_destroy {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if (*wp).w_buffer == buf {
-                    (*wp).w_redr_status = true;
+            for wp in for_all_windows_mut() {
+                if wp.w_buffer == buf {
+                    wp.w_redr_status = true;
                 }
-                wp = (*wp).w_next;
             }
             pos = row_to_linenr(term, term.cursor.row).min(pos);
         }

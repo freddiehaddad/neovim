@@ -3404,10 +3404,8 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
         let mut table: Vec<cw_interval_T> = Vec::with_capacity(table_size);
         if table_size != 0 {
             let mut ptrs: Vec<*const list_T> = Vec::with_capacity(table_size);
-            let mut item: c_int = 0;
-            let mut li: *const listitem_T = (*l).lv_first;
-            while !li.is_null() {
-                let li_tv = &(*li).li_tv;
+            for (item, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut((*l).lv_first)) {
+                let li_tv = &li.li_tv;
                 if li_tv.v_type != VarType::VAR_LIST || li_tv.vval.v_list().is_null() {
                     semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);
                     return;
@@ -3444,9 +3442,6 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
                     semsg!(E_LIST_ITEM_NR_DOES_NOT_CONTAIN_3_NUMBERS, item);
                     return;
                 }
-
-                item += 1;
-                li = (*li).li_next;
             }
 
             ptrs.sort_by_key(|&a| first_list_number(&*a));

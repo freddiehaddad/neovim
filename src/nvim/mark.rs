@@ -930,12 +930,10 @@ pub fn fmarks_check_names(buf: &mut buf_T) {
             fmarks_check_one(&mut *(&raw mut g_st().namedfm).cast::<xfmark_T>().add(i), name, buf);
         }
 
-        let mut wp = first_win_in_tab(g_st().curtab);
-        while !wp.is_null() {
-            for i in 0..((*wp).w_jumplistlen as usize) {
-                fmarks_check_one(&mut (*wp).w_jumplist[i], name, buf);
+        for wp in win_iter_mut(first_win_in_tab(g_st().curtab)) {
+            for i in 0..(wp.w_jumplistlen as usize) {
+                fmarks_check_one(&mut wp.w_jumplist[i], name, buf);
             }
-            wp = (*wp).w_next;
         }
     }
 }

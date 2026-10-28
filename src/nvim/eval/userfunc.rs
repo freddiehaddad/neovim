@@ -1051,20 +1051,17 @@ fn cleanup_function_call(fc: &mut funccall_T) {
         }
 
         if may_free_fc && fc.fc_l_varlist.lv_refcount == DO_NOT_FREE_CNT {
-            let mut li = fc.fc_l_varlist.lv_first;
-            while !li.is_null() {
-                (*li).li_tv.v_type = VarType::VAR_UNKNOWN;
-                li = (*li).li_next;
+            for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.lv_first) {
+                li.li_tv.v_type = VarType::VAR_UNKNOWN;
             }
             fc.fc_l_varlist.lv_first = ptr::null_mut();
         } else {
             free_fc = false;
 
             {
-                let mut li = fc.fc_l_varlist.lv_first;
-                while !li.is_null() {
-                    tv_copy(&(*li).li_tv, &mut (*li).li_tv);
-                    li = (*li).li_next;
+                for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.lv_first) {
+                    let src_tv = li.li_tv;
+                    tv_copy(&src_tv, &mut li.li_tv);
                 }
             }
         }
@@ -1753,16 +1750,14 @@ pub fn func_call(
             };
         let mut skip_call = false;
         if !list.is_null() {
-            let mut item = (*list).lv_first;
-            while !item.is_null() {
+            for item in crate::eval::typval::list_iter_mut((*list).lv_first) {
                 if argc == max_argc {
                     emsg(gettext(c"E699: Too many arguments"));
                     skip_call = true;
                     break;
                 }
-                tv_copy(&(*item).li_tv, &mut argv[argc as usize]);
+                tv_copy(&item.li_tv, &mut argv[argc as usize]);
                 argc += 1;
-                item = (*item).li_next;
             }
         }
 

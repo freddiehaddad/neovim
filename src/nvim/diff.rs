@@ -294,15 +294,13 @@ pub fn diff_buf_delete(buf: *mut buf_T) {
     }
 }
 pub fn diff_buf_adjust(win: &mut win_T) {
-    unsafe {
+     {
         if win.w_onebuf_opt.wo_diff == 0 {
             let mut found_win = false;
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if (*wp).w_buffer == win.w_buffer && (*wp).w_onebuf_opt.wo_diff != 0 {
+            for wp in for_all_windows_mut() {
+                if wp.w_buffer == win.w_buffer && wp.w_onebuf_opt.wo_diff != 0 {
                     found_win = true;
                 }
-                wp = (*wp).w_next;
             }
             if !found_win {
                 let i = diff_buf_idx(win.w_buffer, curtab_mut());
@@ -379,14 +377,12 @@ pub fn diff_mark_adjust(
     amount: linenr_T,
     amount_after: linenr_T,
 ) {
-    unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let idx = diff_buf_idx(buf, &mut *tp);
+     {
+        for tp in for_all_tabpages_mut() {
+            let idx = diff_buf_idx(buf, tp);
             if idx != DB_COUNT as c_int {
-                diff_mark_adjust_tp(&mut *tp, idx as usize, line1, line2, amount, amount_after);
+                diff_mark_adjust_tp(tp, idx as usize, line1, line2, amount, amount_after);
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -2401,22 +2397,20 @@ fn parse_diffanchors(
     }
 }
 pub fn diffanchors_changed(buflocal: bool) -> bool {
-    unsafe {
+     {
         let result = parse_diffanchors(true, g_st().curbuf, ptr::null_mut(), None);
         if result && (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_mut() {
                 if !buflocal {
-                    (*tp).tp_diff_invalid = 1;
+                    tp.tp_diff_invalid = 1;
                 } else {
                     for idx in 0..DB_COUNT {
-                        if (*tp).tp_diffbuf[idx] == g_st().curbuf {
-                            (*tp).tp_diff_invalid = 1;
+                        if tp.tp_diffbuf[idx] == g_st().curbuf {
+                            tp.tp_diff_invalid = 1;
                             break;
                         }
                     }
                 }
-                tp = (*tp).tp_next;
             }
         }
         result
@@ -2474,10 +2468,8 @@ pub fn diffopt_changed() -> bool {
             ret = false;
         } else {
             if diff_st().diff_flags != flags || diff_st().diff_algorithm != algorithm {
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
-                    (*tp).tp_diff_invalid = 1;
-                    tp = (*tp).tp_next;
+                for tp in for_all_tabpages_mut() {
+                    tp.tp_diff_invalid = 1;
                 }
             }
             let context = if has_dip_key(&*v, KEYSET_OPTIDX_dip__context) {
@@ -3385,15 +3377,13 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         check_cursor(curwin_ptr());
         changed_line_abv_curs();
         if curtab_mut().tp_diffs.is_empty() {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if (*wp).w_onebuf_opt.wo_diff != 0
-                    && *(*wp).w_onebuf_opt.wo_fdm == b'd' as c_char
-                    && (*wp).w_onebuf_opt.wo_fen != 0
+            for wp in for_all_windows_mut() {
+                if wp.w_onebuf_opt.wo_diff != 0
+                    && *wp.w_onebuf_opt.wo_fdm == b'd' as c_char
+                    && wp.w_onebuf_opt.wo_fen != 0
                 {
-                    foldUpdateAll(&mut *wp);
+                    foldUpdateAll(wp);
                 }
-                wp = (*wp).w_next;
             }
         }
         if diff_st().diff_need_update {
@@ -3591,13 +3581,11 @@ fn diff_fold_update(
     }
 }
 pub fn diff_mode_buf(buf: *mut buf_T) -> bool {
-    unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            if diff_buf_idx(buf, &mut *tp) != DB_COUNT as c_int {
+     {
+        for tp in for_all_tabpages_mut() {
+            if diff_buf_idx(buf, tp) != DB_COUNT as c_int {
                 return true;
             }
-            tp = (*tp).tp_next;
         }
         false
     }

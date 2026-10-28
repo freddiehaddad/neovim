@@ -923,6 +923,97 @@ pub fn lastwin_mut() -> &'static mut win_T {
     unsafe { &mut *g_st().lastwin }
 }
 
+pub struct BufMutIter(*mut buf_T);
+
+impl Iterator for BufMutIter {
+    type Item = &'static mut buf_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).b_next;
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn for_all_buffers_mut() -> BufMutIter {
+    BufMutIter(g_st().firstbuf)
+}
+
+#[inline]
+pub fn buf_iter_mut(start: *mut buf_T) -> BufMutIter {
+    BufMutIter(start)
+}
+
+pub struct WinMutIter(*mut win_T);
+
+impl Iterator for WinMutIter {
+    type Item = &'static mut win_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).w_next;
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn for_all_windows_mut() -> WinMutIter {
+    WinMutIter(g_st().firstwin)
+}
+
+#[inline]
+pub fn win_iter_mut(start: *mut win_T) -> WinMutIter {
+    WinMutIter(start)
+}
+
+#[inline]
+pub fn for_all_windows_in_tab_mut(tp: *mut tabpage_T) -> WinMutIter {
+    WinMutIter(if tp == g_st().curtab {
+        g_st().firstwin
+    } else {
+        unsafe { (*tp).tp_firstwin }
+    })
+}
+
+pub struct TabMutIter(*mut tabpage_T);
+
+impl Iterator for TabMutIter {
+    type Item = &'static mut tabpage_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).tp_next;
+                Some(&mut *cur)
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn for_all_tabpages_mut() -> TabMutIter {
+    TabMutIter(g_st().first_tabpage)
+}
+
 #[unsafe(no_mangle)]
 pub static starting: GlobalState<c_int> = GlobalState::new(NO_SCREEN);
 

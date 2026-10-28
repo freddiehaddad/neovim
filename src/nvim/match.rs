@@ -1034,10 +1034,8 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         }
 
         let l = argvars[0].vval.v_list();
-        let mut li_idx: c_int = 0;
-        let mut li = tv_list_first(l);
-        while !li.is_null() {
-            if (*li).li_tv.v_type != VarType::VAR_DICT || (*li).li_tv.vval.v_dict().is_null() {
+        for (li_idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(tv_list_first(l))) {
+            if li.li_tv.v_type != VarType::VAR_DICT || li.li_tv.vval.v_dict().is_null() {
                 semsg!(
                     gettext(
                         c"E474: List item %d is either not a dictionary or an empty one",
@@ -1046,7 +1044,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 );
                 return;
             }
-            let d = (*li).li_tv.vval.v_dict();
+            let d = li.li_tv.vval.v_dict();
             if tv_dict_find(d, c"group", 5).is_null()
                 || (tv_dict_find(d, c"pattern", 7).is_null()
                     && tv_dict_find(d, c"pos1", 4).is_null())
@@ -1059,16 +1057,13 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 );
                 return;
             }
-            li_idx += 1;
-            li = (*li).li_next;
         }
 
         clear_matches(&mut *win);
         let mut match_add_failed = false;
-        let mut li = tv_list_first(l);
-        while !li.is_null() {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(l)) {
             let mut i: c_int = 0;
-            let d = (*li).li_tv.vval.v_dict();
+            let d = li.li_tv.vval.v_dict();
             let di = tv_dict_find(d, c"pattern", 7);
             if di.is_null() {
                 if s.is_null() {
@@ -1116,7 +1111,6 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 tv_list_unref(s);
                 s = ptr::null_mut();
             }
-            li = (*li).li_next;
         }
         if !match_add_failed {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);

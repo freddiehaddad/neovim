@@ -4254,68 +4254,66 @@ pub fn garbage_collect(testing: bool) -> bool {
         abort = abort || garbage_collect_scriptvars(copyID);
 
         {
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
+            for buf in for_all_buffers_mut() {
                 abort = abort
                     || set_ref_in_item(
-                        &mut (*buf).b_bufvar.di_tv,
+                        &mut buf.b_bufvar.di_tv,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &mut (*buf).b_prompt_callback,
+                        &mut buf.b_prompt_callback,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &mut (*buf).b_prompt_interrupt,
+                        &mut buf.b_prompt_interrupt,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &mut (*buf).b_p_cfu,
+                        &mut buf.b_p_cfu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &mut (*buf).b_p_ofu,
+                        &mut buf.b_p_ofu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &mut (*buf).b_p_tsrfu,
+                        &mut buf.b_p_tsrfu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &mut (*buf).b_p_tfu,
+                        &mut buf.b_p_tfu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &mut (*buf).b_p_ffu,
+                        &mut buf.b_p_ffu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
-                if !abort && !(*buf).b_p_cpt_cb.is_empty() {
-                    abort = abort || set_ref_in_cpt_callbacks(&mut (*buf).b_p_cpt_cb, copyID);
+                if !abort && !buf.b_p_cpt_cb.is_empty() {
+                    abort = abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb, copyID);
                 }
-                buf = (*buf).b_next;
             }
         }
 
@@ -4329,20 +4327,14 @@ pub fn garbage_collect(testing: bool) -> bool {
         {
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
+                for wp in for_all_windows_in_tab_mut(tp) {
                     abort = abort
                         || set_ref_in_item(
-                            &mut (*wp).w_winvar.di_tv,
+                            &mut wp.w_winvar.di_tv,
                             copyID,
                             ptr::null_mut(),
                             ptr::null_mut(),
                         );
-                    wp = (*wp).w_next;
                 }
                 tp = (*tp).tp_next;
             }
@@ -4363,16 +4355,14 @@ pub fn garbage_collect(testing: bool) -> bool {
         }
 
         {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_mut() {
                 abort = abort
                     || set_ref_in_item(
-                        &mut (*tp).tp_winvar.di_tv,
+                        &mut tp.tp_winvar.di_tv,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
-                tp = (*tp).tp_next;
             }
         }
 
@@ -4538,14 +4528,12 @@ pub fn set_ref_in_list_items(
         let mut cur_l = l;
         loop {
             if !cur_l.is_null() {
-                let mut li = (*cur_l).lv_first;
-                while !li.is_null() {
+                for li in crate::eval::typval::list_iter_mut((*cur_l).lv_first) {
                     if abort {
                         break;
                     }
                     abort =
-                        set_ref_in_item(&mut *tv_list_item_tv(&mut *li), copyID, ht_stack, &raw mut list_stack);
-                    li = (*li).li_next;
+                        set_ref_in_item(&mut *tv_list_item_tv(li), copyID, ht_stack, &raw mut list_stack);
                 }
             }
 
@@ -4962,14 +4950,14 @@ pub fn tv_to_argv(
         let exe_cstr = exe_resolved.unwrap();
 
         let mut argv = Vec::with_capacity(argc as usize);
-        let mut i: usize = 0;
-        let mut arg = if argl.is_null() {
+        for (i, arg) in crate::eval::typval::list_iter_mut(if argl.is_null() {
             ptr::null_mut()
         } else {
             (*argl).lv_first
-        };
-        while !arg.is_null() {
-            let a = tv_get_string_chk(&*tv_list_item_tv(&mut *arg));
+        })
+        .enumerate()
+        {
+            let a = tv_get_string_chk(&*tv_list_item_tv(arg));
             if a.is_null() {
                 return Vec::new();
             }
@@ -4978,8 +4966,6 @@ pub fn tv_to_argv(
             } else {
                 crate::memory::cstr_to_cstring(a)
             });
-            i += 1;
-            arg = (*arg).li_next;
         }
         if let Some(cmd_out) = cmd {
             *cmd_out = exe_cstr;

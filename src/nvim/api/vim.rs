@@ -1453,14 +1453,8 @@ pub fn nvim_list_wins(arena: &mut Arena) -> Array {
         let mut n = 0usize;
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+            for _wp in for_all_windows_in_tab_mut(tp) {
                 n += 1;
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
@@ -1468,14 +1462,8 @@ pub fn nvim_list_wins(arena: &mut Arena) -> Array {
         let mut rv = arena_array(arena, n);
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                add_c(&mut rv, window_obj((*wp).handle));
-                wp = (*wp).w_next;
+            for wp in for_all_windows_in_tab_mut(tp) {
+                add_c(&mut rv, window_obj(wp.handle));
             }
             tp = (*tp).tp_next;
         }
@@ -3349,12 +3337,10 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         opt_vars().p_lz = 0;
         if opts.statuscolumn || opts.statusline || opts.winbar {
             if win.is_null() {
-                let mut wp = g_st().firstwin;
-                while !wp.is_null() {
-                    if buf.is_null() || (*wp).w_buffer == buf {
-                        redraw_status(&mut *wp, opts);
+                for wp in for_all_windows_mut() {
+                    if buf.is_null() || wp.w_buffer == buf {
+                        redraw_status(wp, opts);
                     }
-                    wp = (*wp).w_next;
                 }
             } else {
                 redraw_status(&mut *win, opts);

@@ -4222,10 +4222,8 @@ fn nv_clear(cap: &mut cmdarg_T) {
         }
 
         syn_stack_free_all(curwin_mut().w_s_ptr());
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
-            (*(*wp).w_s_ptr()).b_syn_slow = false;
-            wp = (*wp).w_next;
+        for wp in for_all_windows_mut() {
+            (*wp.w_s_ptr()).b_syn_slow = false;
         }
         redraw_later(curwin_ptr(), UPD_CLEAR);
     }

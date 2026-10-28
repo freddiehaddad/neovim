@@ -1303,17 +1303,15 @@ pub fn buf_valid(buf: *mut buf_T) -> bool {
 }
 
 fn can_unload_buffer(buf: &mut buf_T) -> bool {
-    unsafe {
+     {
         let mut can_unload = buf.b_locked == 0;
 
         if can_unload && g_st().updating_screen {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if (*wp).w_buffer == buf {
+            for wp in for_all_windows_mut() {
+                if wp.w_buffer == buf {
                     can_unload = false;
                     break;
                 }
-                wp = (*wp).w_next;
             }
         }
         if can_unload && buf.b_saving {
@@ -1502,14 +1500,8 @@ pub fn close_buffer(
             }
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
-                    mark_forget_file(&mut *wp, (*buf).b_fnum);
-                    wp = (*wp).w_next;
+                for wp in for_all_windows_in_tab_mut(tp) {
+                    mark_forget_file(wp, (*buf).b_fnum);
                 }
                 tp = (*tp).tp_next;
             }
@@ -1640,16 +1632,10 @@ pub fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut win = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !win.is_null() {
-                if (*win).w_buffer == buf {
-                    clearFolding(&mut *win);
+            for win in for_all_windows_in_tab_mut(tp) {
+                if win.w_buffer == buf {
+                    clearFolding(win);
                 }
-                win = (*win).w_next;
             }
             tp = (*tp).tp_next;
         }
@@ -3229,13 +3215,11 @@ pub fn buflist_findpat(
                         {
                             if curtab_only {
                                 let mut found_window = false;
-                                let mut wp = g_st().firstwin;
-                                while !wp.is_null() {
-                                    if (*wp).w_buffer == buf {
+                                for wp in for_all_windows_mut() {
+                                    if wp.w_buffer == buf {
                                         found_window = true;
                                         break;
                                     }
-                                    wp = (*wp).w_next;
                                 }
                                 if !found_window {
                                     buf = (*buf).b_prev;
@@ -3841,16 +3825,10 @@ pub fn setfname(
 
                 let mut tab = g_st().first_tabpage;
                 while !tab.is_null() {
-                    let mut win = if tab == g_st().curtab {
-                        g_st().firstwin
-                    } else {
-                        (*tab).tp_firstwin
-                    };
-                    while !win.is_null() {
-                        if (*win).w_buffer == obuf {
+                    for win in for_all_windows_in_tab_mut(tab) {
+                        if win.w_buffer == obuf {
                             in_use = true;
                         }
-                        win = (*win).w_next;
                     }
                     tab = (*tab).tp_next;
                 }

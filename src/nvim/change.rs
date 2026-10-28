@@ -303,19 +303,17 @@ fn changed_common(
     unsafe {
         changed(buf);
 
-        let mut win = g_st().firstwin;
-        while !win.is_null() {
-            if (*win).w_buffer == buf {
-                if (*win).w_onebuf_opt.wo_diff != 0 && diff_internal() != 0 {
+        for win in for_all_windows_mut() {
+            if win.w_buffer == buf {
+                if win.w_onebuf_opt.wo_diff != 0 && diff_internal() != 0 {
                     curtab_mut().tp_diff_update = 1;
                     diff_update_line(lnum);
                 }
 
                 if xtra != 0 {
-                    (*win).w_redr_status = true;
+                    win.w_redr_status = true;
                 }
             }
-            win = (*win).w_next;
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {

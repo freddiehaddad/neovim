@@ -1682,16 +1682,10 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
         if !cl_bufs.is_empty() {
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
-                    if cl_bufs.contains(&(*wp).w_buffer) {
-                        (*wp).w_changelistidx = (*(*wp).w_buffer).b_changelistlen;
+                for wp in for_all_windows_in_tab_mut(tp) {
+                    if cl_bufs.contains(&wp.w_buffer) {
+                        wp.w_changelistidx = (*wp.w_buffer).b_changelistlen;
                     }
-                    wp = (*wp).w_next;
                 }
                 tp = (*tp).tp_next;
             }
@@ -2313,14 +2307,13 @@ fn shada_read_when_writing(
                                     shada_free_shada_entry(wms_entry);
                                 }
                             } else {
-                                let mut buf = g_st().firstbuf;
-                                while !buf.is_null() {
-                                    if !(*buf).b_ffname.is_null()
-                                        && path_equal(fname_ptr, (*buf).b_ffname, kPathCmpLiteral)
+                                for buf in for_all_buffers_mut() {
+                                    if !buf.b_ffname.is_null()
+                                        && path_equal(fname_ptr, buf.b_ffname, kPathCmpLiteral)
                                     {
                                         let mut fm = fmark_T::new();
                                         mark_get(
-                                            &mut *buf,
+                                            buf,
                                             curwin_ptr(),
                                             Some(&mut fm),
                                             kMarkBufLocal,
@@ -2332,7 +2325,6 @@ fn shada_read_when_writing(
                                             break;
                                         }
                                     }
-                                    buf = (*buf).b_next;
                                 }
                             }
                             if set_wms {

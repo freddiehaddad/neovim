@@ -618,16 +618,10 @@ pub fn nvim_buf_set_lines(
 
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut win = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !win.is_null() {
-                    if (*win).w_buffer == b {
-                        fix_cursor(&mut *win, start as linenr_T, end as linenr_T, extra as linenr_T);
+                for win in for_all_windows_in_tab_mut(tp) {
+                    if win.w_buffer == b {
+                        fix_cursor(win, start as linenr_T, end as linenr_T, extra as linenr_T);
                     }
-                    win = (*win).w_next;
                 }
                 tp = (*tp).tp_next;
             }
@@ -957,18 +951,13 @@ pub fn nvim_buf_set_text(
 
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut win = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !win.is_null() {
-                    if (*win).w_buffer == b {
-                        if i64::from((*win).w_cursor.lnum) >= start_row
-                            && i64::from((*win).w_cursor.lnum) <= end_row
+                for win in for_all_windows_in_tab_mut(tp) {
+                    if win.w_buffer == b {
+                        if i64::from(win.w_cursor.lnum) >= start_row
+                            && i64::from(win.w_cursor.lnum) <= end_row
                         {
                             fix_cursor_cols(
-                                &mut *win,
+                                win,
                                 start_row as linenr_T,
                                 start_col as colnr_T,
                                 end_row as linenr_T,
@@ -978,14 +967,13 @@ pub fn nvim_buf_set_text(
                             );
                         } else {
                             fix_cursor(
-                                &mut *win,
+                                win,
                                 start_row as linenr_T,
                                 end_row as linenr_T,
                                 extra as linenr_T,
                             );
                         }
                     }
-                    win = (*win).w_next;
                 }
                 tp = (*tp).tp_next;
             }

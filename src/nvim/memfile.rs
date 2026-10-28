@@ -389,12 +389,11 @@ pub fn mf_set_dirty(mfp: &mut memfile_T) {
 pub fn mf_release_all() -> bool {
     let mut retval = false;
     unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            let mfp = (*buf).b_ml.mfp_ptr();
+        for buf in for_all_buffers_mut() {
+            let mfp = buf.b_ml.mfp_ptr();
             if !mfp.is_null() {
-                if (*mfp).mf_fd < 0 && (*buf).b_may_swap {
-                    ml_open_file(&mut *buf);
+                if (*mfp).mf_fd < 0 && buf.b_may_swap {
+                    ml_open_file(buf);
                 }
 
                 if (*mfp).mf_fd >= 0 {
@@ -413,7 +412,6 @@ pub fn mf_release_all() -> bool {
                     }
                 }
             }
-            buf = (*buf).b_next;
         }
     }
     retval

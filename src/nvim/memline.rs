@@ -574,13 +574,11 @@ pub fn ml_setname(buf: &mut buf_T) {
 
 /// Open a file for the memfile for all buffers that are not readonly or have been modified.
 pub fn ml_open_files() {
-    unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            if (*buf).b_p_ro == 0 || (*buf).b_changed != 0 {
-                ml_open_file(&mut *buf);
+     {
+        for buf in for_all_buffers_mut() {
+            if buf.b_p_ro == 0 || buf.b_changed != 0 {
+                ml_open_file(buf);
             }
-            buf = (*buf).b_next;
         }
     }
 }

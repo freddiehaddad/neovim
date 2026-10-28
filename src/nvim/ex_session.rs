@@ -109,21 +109,19 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win_T) -> 
     unsafe {
         if restore_size && (opt_vars().ssop_flags & kOptSsopFlagWinsize) != 0 {
             let mut n: c_int = 0;
-            let mut wp = tab_firstwin;
-            while !wp.is_null() {
-                if ses_do_win(&mut *wp) == 0 {
-                    wp = (*wp).w_next;
+            for wp in win_iter_mut(tab_firstwin) {
+                if ses_do_win(wp) == 0 {
                     continue;
                 }
                 n += 1;
 
-                if (*wp).w_height + (*wp).w_hsep_height + (*wp).w_status_height
+                if wp.w_height + wp.w_hsep_height + wp.w_status_height
                     < (*g_st().topframe).fr_height
                     && !write_fmt(
                         fd,
                         format!(
                             "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
-                            i64::from((*wp).w_height),
+                            i64::from(wp.w_height),
                             i64::from(g_st().Rows) / 2,
                             i64::from(g_st().Rows)
                         ),
@@ -132,12 +130,12 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win_T) -> 
                     return false;
                 }
 
-                if (*wp).w_width < g_st().Columns
+                if wp.w_width < g_st().Columns
                     && !write_fmt(
                         fd,
                         format!(
                             "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
-                            i64::from((*wp).w_width),
+                            i64::from(wp.w_width),
                             i64::from(g_st().Columns) / 2,
                             i64::from(g_st().Columns)
                         ),
@@ -145,7 +143,6 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win_T) -> 
                 {
                     return false;
                 }
-                wp = (*wp).w_next;
             }
         } else if !put_line(fd, c"wincmd =") {
             return false;
@@ -776,14 +773,12 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
         }
 
         if (opt_vars().ssop_flags & kOptSsopFlagTabpages) != 0 {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
-                if !(*tp).tp_next.is_null()
+            for tp in for_all_tabpages_mut() {
+                if !tp.tp_next.is_null()
                     && !put_line(fd, c"tabnew +setlocal\\ bufhidden=wipe")
                 {
                     return false;
                 }
-                tp = (*tp).tp_next;
             }
 
             if !(*g_st().first_tabpage).tp_next.is_null()

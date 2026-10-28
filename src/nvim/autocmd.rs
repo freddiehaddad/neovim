@@ -2852,18 +2852,12 @@ pub fn apply_autocmds_group(
                 win_ignore = true;
                 let mut tp = g_st().first_tabpage;
                 while !tp.is_null() {
-                    let mut wp = if tp == g_st().curtab {
-                        g_st().firstwin
-                    } else {
-                        (*tp).tp_firstwin
-                    };
-                    while !wp.is_null() {
-                        if (*wp).w_buffer == buf && !event_ignored(event, (*wp).w_onebuf_opt.wo_eiw)
+                    for wp in for_all_windows_in_tab_mut(tp) {
+                        if wp.w_buffer == buf && !event_ignored(event, wp.w_onebuf_opt.wo_eiw)
                         {
                             win_ignore = false;
                             break;
                         }
-                        wp = (*wp).w_next;
                     }
                     tp = (*tp).tp_next;
                 }

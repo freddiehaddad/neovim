@@ -179,17 +179,15 @@ pub fn win_id2wp_tp(id: c_int, tpp: *mut *mut tabpage_T) -> *mut win_T {
 }
 
 fn win_id2win(argvars: &mut [typval_T]) -> c_int {
-    unsafe {
+     {
         let mut nr: c_int = 1;
         let id = tv_get_number(&argvars[0]) as c_int;
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
-            if (*wp).handle == id {
-                return if win_has_winnr(&mut *wp, g_st().curtab) { nr } else { 0 };
+        for wp in for_all_windows_mut() {
+            if wp.handle == id {
+                return if win_has_winnr(wp, g_st().curtab) { nr } else { 0 };
             }
-            nr += c_int::from(win_has_winnr(&mut *wp, g_st().curtab));
-            wp = (*wp).w_next;
+            nr += c_int::from(win_has_winnr(wp, g_st().curtab));
         }
         0
     }
@@ -201,12 +199,10 @@ pub fn win_findbuf(argvars: &mut [typval_T], list: *mut list_T) {
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = first_win_in_tab(tp);
-            while !wp.is_null() {
-                if (*(*wp).w_buffer).b_fnum == bufnr {
-                    tv_list_append_number(list, (*wp).handle as varnumber_T);
+            for wp in win_iter_mut(first_win_in_tab(tp)) {
+                if (*wp.w_buffer).b_fnum == bufnr {
+                    tv_list_append_number(list, wp.handle as varnumber_T);
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
@@ -490,10 +486,8 @@ fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
         tv_dict_add_nr(dict, c"tabnr", tp_idx as varnumber_T);
 
         let l = tv_list_alloc(kListLenMayKnow);
-        let mut wp = first_win_in_tab(&raw mut *tp);
-        while !wp.is_null() {
-            tv_list_append_number(l, (*wp).handle as varnumber_T);
-            wp = (*wp).w_next;
+        for wp in win_iter_mut(first_win_in_tab(&raw mut *tp)) {
+            tv_list_append_number(l, wp.handle as varnumber_T);
         }
         tv_dict_add_list(dict, c"windows", l);
 
@@ -970,24 +964,21 @@ pub fn f_winnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
 /// `winrestcmd()` function (`f_winrestcmd`).
 pub fn f_winrestcmd(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
+     {
         let mut buf = String::with_capacity(70);
         for _ in 0..2 {
             let mut winnr: c_int = 1;
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
-                if !win_has_winnr(&mut *wp, g_st().curtab) {
-                    wp = (*wp).w_next;
+            for wp in for_all_windows_mut() {
+                if !win_has_winnr(wp, g_st().curtab) {
                     continue;
                 }
                 let _ = write!(
                     &mut buf,
                     ":{winnr}resize {}|vert :{winnr}resize {}|",
-                    (*wp).w_height,
-                    (*wp).w_width
+                    wp.w_height,
+                    wp.w_width
                 );
                 winnr += 1;
-                wp = (*wp).w_next;
             }
         }
 

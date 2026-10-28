@@ -5,7 +5,7 @@ use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhi
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, listitem_T, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
+    TypvalVval, VarType, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv, tv_list_unref,
     tv_set_string, typval_T,
 };
@@ -995,10 +995,9 @@ fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
         let mut p: *const c_char = ptr::null();
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
         if !list.is_null() {
-            let mut li: *mut listitem_T = (*list).lv_first;
-            while !li.is_null() {
-                if (*li).li_tv.v_type == VarType::VAR_LIST {
-                    let score = get_spellword(&mut *(*li).li_tv.vval.v_list(), &raw mut p);
+            for li in crate::eval::typval::list_iter_mut((*list).lv_first) {
+                if li.li_tv.v_type == VarType::VAR_LIST {
+                    let score = get_spellword(&mut *li.li_tv.vval.v_list(), &raw mut p);
                     if score >= 0 && score <= su.su_maxscore {
                         add_suggestion(
                             su,
@@ -1013,7 +1012,6 @@ fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
                         );
                     }
                 }
-                li = (*li).li_next;
             }
             tv_list_unref(list);
         }

@@ -1162,17 +1162,15 @@ fn command_line_enter(
             if !g_st().cmd_silent {
                 let mut found_one = false;
 
-                let mut wp = g_st().firstwin;
-                while !wp.is_null() {
+                for wp in for_all_windows_mut() {
                     if *opt_vars().p_stl != NUL
-                        || *(*wp).w_onebuf_opt.wo_stl != NUL
+                        || *wp.w_onebuf_opt.wo_stl != NUL
                         || *opt_vars().p_wbr != NUL
-                        || *(*wp).w_onebuf_opt.wo_wbr != NUL
+                        || *wp.w_onebuf_opt.wo_wbr != NUL
                     {
-                        (*wp).w_redr_status = true;
+                        wp.w_redr_status = true;
                         found_one = true;
                     }
-                    wp = (*wp).w_next;
                 }
 
                 if *opt_vars().p_tal != NUL {
@@ -5189,16 +5187,14 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
             Vec::new()
         };
 
-        let mut li = tv_list_first(l);
-        while !li.is_null() {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(l)) {
             if eap.skip == 0 {
-                let s = tv_get_string(&(*li).li_tv);
+                let s = tv_get_string(&li.li_tv);
                 if !s.is_null() {
                     buf.extend_from_slice(crate::memory::cstr_as_bytes(s));
                 }
                 buf.push(b'\n');
             }
-            li = (*li).li_next;
         }
         *lenp = buf.len();
         tv_list_free(l);

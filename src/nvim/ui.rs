@@ -276,10 +276,8 @@ pub fn ui_refresh() {
                     true,
                     None,
                 );
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
-                    (*tp).tp_ch_used = i64::from(had_message);
-                    tp = (*tp).tp_next;
+                for tp in for_all_tabpages_mut() {
+                    tp.tp_ch_used = i64::from(had_message);
                 }
             }
             msg_scroll_flush();

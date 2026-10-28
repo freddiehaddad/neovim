@@ -2631,12 +2631,10 @@ pub fn win_valid_any_tab(win: *mut win_T) -> bool {
 }
 
 pub fn win_count() -> c_int {
-    unsafe {
+     {
         let mut count: c_int = 0;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for _wp in for_all_windows_mut() {
             count += 1;
-            wp = (*wp).w_next;
         }
         count
     }
@@ -3839,12 +3837,10 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
 
         if diffopt_closeoff() && had_diffmode && ptr::eq(g_st().curtab, prev_curtab) {
             let mut diffcount: c_int = 0;
-            let mut dwin = g_st().firstwin;
-            while !dwin.is_null() {
-                if (*dwin).w_onebuf_opt.wo_diff != 0 {
+            for dwin in for_all_windows_mut() {
+                if dwin.w_onebuf_opt.wo_diff != 0 {
                     diffcount += 1;
                 }
-                dwin = (*dwin).w_next;
             }
             if diffcount == 1 {
                 do_cmdline_cmd(c"diffoff!");
@@ -5553,13 +5549,11 @@ fn tabpage_check_windows(old_curtab: &mut tabpage_T) {
             wp = next_wp;
         }
 
-        let mut wp2 = g_st().firstwin;
-        while !wp2.is_null() {
-            if (*wp2).w_floating && !(*wp2).w_config.external {
-                win_config_float(&mut *wp2, (*wp2).w_config.clone());
+        for wp2 in for_all_windows_mut() {
+            if wp2.w_floating && !wp2.w_config.external {
+                win_config_float(wp2, wp2.w_config.clone());
             }
-            (*wp2).w_pos_changed = true;
-            wp2 = (*wp2).w_next;
+            wp2.w_pos_changed = true;
         }
     }
 }
@@ -6264,12 +6258,10 @@ pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         if ptr::eq(g_st().prevwin, wp) {
             g_st().prevwin = ptr::null_mut();
         }
-        let mut ttp = g_st().first_tabpage;
-        while !ttp.is_null() {
-            if ptr::eq((*ttp).tp_prevwin, wp) {
-                (*ttp).tp_prevwin = ptr::null_mut();
+        for ttp in for_all_tabpages_mut() {
+            if ptr::eq(ttp.tp_prevwin, wp) {
+                ttp.tp_prevwin = ptr::null_mut();
             }
-            ttp = (*ttp).tp_next;
         }
 
         (*wp).w_lines.clear();
@@ -6291,11 +6283,10 @@ pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             }
         }
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_mut() {
             let mut pos_wip = None;
             let mut pos_null = None;
-            for (i, wip) in (*buf).b_wininfo.iter().enumerate() {
+            for (i, wip) in buf.b_wininfo.iter().enumerate() {
                 if ptr::eq(wip.wi_win, wp) {
                     pos_wip = Some(i);
                 } else if wip.wi_win.is_null() {
@@ -6304,7 +6295,7 @@ pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
             }
 
             if let Some(pw) = pos_wip {
-                let wip_wp = &mut (&mut (*buf).b_wininfo)[pw];
+                let wip_wp = &mut (&mut buf.b_wininfo)[pw];
                 wip_wp.wi_win = ptr::null_mut();
                 if (*wp).w_config.style == kWinStyleMinimal && wip_wp.wi_optset {
                     clear_winopt(&mut wip_wp.wi_opt);
@@ -6313,10 +6304,9 @@ pub fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
                 }
                 if let Some(pn) = pos_null {
                     let pos_delete = pn.max(pw);
-                    (*buf).b_wininfo.remove(pos_delete);
+                    buf.b_wininfo.remove(pos_delete);
                 }
             }
-            buf = (*buf).b_next;
         }
 
         (*wp).w_config.title_chunks.clear();
@@ -6522,16 +6512,14 @@ pub fn win_new_screen_cols() {
 }
 
 pub fn snapshot_windows_scroll_size() {
-    unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
-            (*wp).w_last_topline = (*wp).w_topline;
-            (*wp).w_last_topfill = (*wp).w_topfill;
-            (*wp).w_last_leftcol = (*wp).w_leftcol;
-            (*wp).w_last_skipcol = (*wp).w_skipcol;
-            (*wp).w_last_width = (*wp).w_width;
-            (*wp).w_last_height = (*wp).w_height;
-            wp = (*wp).w_next;
+     {
+        for wp in for_all_windows_mut() {
+            wp.w_last_topline = wp.w_topline;
+            wp.w_last_topfill = wp.w_topfill;
+            wp.w_last_leftcol = wp.w_leftcol;
+            wp.w_last_skipcol = wp.w_skipcol;
+            wp.w_last_width = wp.w_width;
+            wp.w_last_height = wp.w_height;
         }
     }
 }
@@ -6843,16 +6831,14 @@ pub fn may_trigger_win_scrolled_resized() {
 }
 
 pub fn win_size_save(gap: &mut Vec<c_int>) {
-    unsafe {
+     {
         gap.clear();
         gap.reserve((win_count() * 2 + 1) as usize);
         gap.push(rows_avail() as c_int + global_stl_height() - last_stl_height(false));
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
-            gap.push((*wp).w_width + (*wp).w_vsep_width);
-            gap.push((*wp).w_height);
-            wp = (*wp).w_next;
+        for wp in for_all_windows_mut() {
+            gap.push(wp.w_width + wp.w_vsep_width);
+            gap.push(wp.w_height);
         }
     }
 }
@@ -8142,28 +8128,26 @@ pub fn reset_lnums() {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+            for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                if ptr::eq((*wp).w_buffer, g_st().curbuf) {
-                    if equalpos((*wp).w_save_cursor.w_cursor_corr, (*wp).w_cursor)
-                        && (*wp).w_save_cursor.w_cursor_save.lnum != 0
+            }) {
+                if ptr::eq(wp.w_buffer, g_st().curbuf) {
+                    if equalpos(wp.w_save_cursor.w_cursor_corr, wp.w_cursor)
+                        && wp.w_save_cursor.w_cursor_save.lnum != 0
                     {
-                        (*wp).w_cursor = (*wp).w_save_cursor.w_cursor_save;
+                        wp.w_cursor = wp.w_save_cursor.w_cursor_save;
                     }
-                    if (*wp).w_save_cursor.w_topline_corr == (*wp).w_topline
-                        && (*wp).w_save_cursor.w_topline_save != 0
+                    if wp.w_save_cursor.w_topline_corr == wp.w_topline
+                        && wp.w_save_cursor.w_topline_save != 0
                     {
-                        (*wp).w_topline = (*wp).w_save_cursor.w_topline_save;
+                        wp.w_topline = wp.w_save_cursor.w_topline_save;
                     }
-                    if (*wp).w_save_cursor.w_topline_save > (*(*wp).w_buffer).b_ml.ml_line_count {
-                        (*wp).w_valid &= !VALID_TOPLINE;
+                    if wp.w_save_cursor.w_topline_save > (*wp.w_buffer).b_ml.ml_line_count {
+                        wp.w_valid &= !VALID_TOPLINE;
                     }
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
@@ -8408,21 +8392,19 @@ pub fn win_get_tabwin(id: handle_T, tabnr: &mut c_int, winnr: &mut c_int) {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut wnum: c_int = 1;
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+            for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                if (*wp).handle == id {
-                    if win_has_winnr(&mut *wp, tp) {
+            }) {
+                if wp.handle == id {
+                    if win_has_winnr(wp, tp) {
                         *winnr = wnum;
                         *tabnr = tnum;
                     }
                     return;
                 }
-                wnum += c_int::from(win_has_winnr(&mut *wp, tp));
-                wp = (*wp).w_next;
+                wnum += c_int::from(win_has_winnr(wp, tp));
             }
             tnum += 1;
             tp = (*tp).tp_next;
@@ -8434,27 +8416,25 @@ pub fn win_ui_flush(validate: bool) {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+            for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                if ((*wp).w_pos_changed || (*wp).w_grid_alloc.pending_comp_index_update)
-                    && !(*wp).w_grid_alloc.chars.is_empty()
+            }) {
+                if (wp.w_pos_changed || wp.w_grid_alloc.pending_comp_index_update)
+                    && !wp.w_grid_alloc.chars.is_empty()
                 {
                     if ptr::eq(tp, g_st().curtab) {
-                        ui_ext_win_position(&mut *wp, validate);
+                        ui_ext_win_position(wp, validate);
                     } else {
-                        ui_call_win_hide(Integer::from((*wp).w_grid_alloc.handle));
-                        (*wp).w_pos_changed = false;
+                        ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle));
+                        wp.w_pos_changed = false;
                     }
-                    (*wp).w_grid_alloc.pending_comp_index_update = false;
+                    wp.w_grid_alloc.pending_comp_index_update = false;
                 }
                 if ptr::eq(tp, g_st().curtab) {
-                    ui_ext_win_viewport(&mut *wp);
+                    ui_ext_win_viewport(wp);
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }

@@ -333,12 +333,10 @@ fn alist_check_arg_idx() {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut win = first_win_in_tab(tp);
-            while !win.is_null() {
-                if win_alist(&*win) == win_alist(curwin_mut()) {
-                    check_arg_idx(&mut *win);
+            for win in win_iter_mut(first_win_in_tab(tp)) {
+                if win_alist(win) == win_alist(curwin_mut()) {
+                    check_arg_idx(win);
                 }
-                win = (*win).w_next;
             }
             tp = (*tp).tp_next;
         }

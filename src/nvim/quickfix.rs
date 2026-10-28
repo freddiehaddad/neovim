@@ -2384,16 +2384,14 @@ fn qf_sync_llw_to_win(llw: &mut win_T) {
 }
 
 fn qf_sync_win_to_llw(pwp: &mut win_T) {
-    unsafe {
+     {
         let llw = pwp.w_llist;
         if !llw.is_null() {
-            let mut wp = tab_firstwin(curtab_mut());
-            while !wp.is_null() {
-                if (*wp).w_llist_ref == llw && bt_quickfix((*wp).w_buffer) {
-                    (*wp).w_onebuf_opt.wo_lhi = pwp.w_onebuf_opt.wo_lhi;
+            for wp in win_iter_mut(tab_firstwin(curtab_mut())) {
+                if wp.w_llist_ref == llw && bt_quickfix(wp.w_buffer) {
+                    wp.w_onebuf_opt.wo_lhi = pwp.w_onebuf_opt.wo_lhi;
                     return;
                 }
-                wp = (*wp).w_next;
             }
         }
     }
@@ -2940,17 +2938,15 @@ fn qf_find_win_with_normal_buf() -> *mut win_T {
 
 fn qf_goto_tabwin_with_file(fnum: c_int) -> bool {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = tab_firstwin(&*tp);
+        for tp in for_all_tabpages_mut() {
+            let mut wp = tab_firstwin(tp);
             while !wp.is_null() {
                 if (*(*wp).w_buffer).b_fnum == fnum {
-                    goto_tabpage_win(&mut *tp, wp);
+                    goto_tabpage_win(tp, wp);
                     return true;
                 }
                 wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
         false
     }
@@ -4256,7 +4252,7 @@ fn qf_find_win(qi: &qf_info_T) -> *mut win_T {
 }
 
 fn qf_find_buf(qi: &mut qf_info_T) -> *mut buf_T {
-    unsafe {
+     {
         if qi.qf_bufnr != INVALID_QFBUFNR {
             let qfbuf = buflist_findnr(qi.qf_bufnr);
             if !qfbuf.is_null() {
@@ -4265,16 +4261,12 @@ fn qf_find_buf(qi: &mut qf_info_T) -> *mut buf_T {
             qi.qf_bufnr = INVALID_QFBUFNR;
         }
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut win = tab_firstwin(&*tp);
-            while !win.is_null() {
-                if is_qf_win(&*win, &*qi) {
-                    return (*win).w_buffer;
+        for tp in for_all_tabpages_mut() {
+            for win in win_iter_mut(tab_firstwin(tp)) {
+                if is_qf_win(win, &*qi) {
+                    return win.w_buffer;
                 }
-                win = (*win).w_next;
             }
-            tp = (*tp).tp_next;
         }
 
         ptr::null_mut()
@@ -4286,9 +4278,8 @@ fn qf_update_win_titlevar(qi: &mut qf_info_T) {
         let qfl = qf_get_curlist(&mut *qi);
         let save_curwin = curwin_ptr();
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut win = tab_firstwin(&*tp);
+        for tp in for_all_tabpages_mut() {
+            let mut win = tab_firstwin(tp);
             while !win.is_null() {
                 if is_qf_win(&*win, &*qi) {
                     set_curwin(win);
@@ -4296,7 +4287,6 @@ fn qf_update_win_titlevar(qi: &mut qf_info_T) {
                 }
                 win = (*win).w_next;
             }
-            tp = (*tp).tp_next;
         }
         set_curwin(save_curwin);
     }
@@ -4545,16 +4535,12 @@ fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize, qf_win
                 }
             }
 
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
-                let mut wp = tab_firstwin(&*tp);
-                while !wp.is_null() {
-                    if (*wp).w_buffer == g_st().curbuf {
-                        (*wp).w_skipcol = 0;
+            for tp in for_all_tabpages_mut() {
+                for wp in win_iter_mut(tab_firstwin(tp)) {
+                    if wp.w_buffer == g_st().curbuf {
+                        wp.w_skipcol = 0;
                     }
-                    wp = (*wp).w_next;
                 }
-                tp = (*tp).tp_next;
             }
 
             u_clearallandblockfree(curbuf_mut());
@@ -7265,19 +7251,17 @@ pub fn set_ref_in_quickfix(copyID: c_int) -> bool {
             return true;
         }
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut win = tab_firstwin(&*tp);
-            while !win.is_null() {
-                if !(*win).w_llist.is_null() {
-                    let ll = (*win).w_llist;
+        for tp in for_all_tabpages_mut() {
+            for win in win_iter_mut(tab_firstwin(tp)) {
+                if !win.w_llist.is_null() {
+                    let ll = win.w_llist;
                     if mark_quickfix_ctx(&mut *ll, copyID) || mark_quickfix_user_data(&mut *ll, copyID) {
                         return true;
                     }
                 }
 
-                if is_ll_window(&*win) {
-                    let ll_ref = (*win).w_llist_ref;
+                if is_ll_window(win) {
+                    let ll_ref = win.w_llist_ref;
                     if (*ll_ref).qf_refcount == 1
                         && (mark_quickfix_ctx(&mut *ll_ref, copyID)
                             || mark_quickfix_user_data(&mut *ll_ref, copyID))
@@ -7285,9 +7269,7 @@ pub fn set_ref_in_quickfix(copyID: c_int) -> bool {
                         return true;
                     }
                 }
-                win = (*win).w_next;
             }
-            tp = (*tp).tp_next;
         }
 
         false
@@ -7756,14 +7738,12 @@ pub fn ex_helpgrep(eap: &mut exarg_T) {
 pub fn free_quickfix() {
     unsafe {
         qf_free_all(ptr::null_mut());
-        let mut tab = g_st().first_tabpage;
-        while !tab.is_null() {
-            let mut win = tab_firstwin(&*tab);
+        for tab in for_all_tabpages_mut() {
+            let mut win = tab_firstwin(tab);
             while !win.is_null() {
                 qf_free_all(win);
                 win = (*win).w_next;
             }
-            tab = (*tab).tp_next;
         }
 
         callback_free(&mut opt_vars().p_qftf);

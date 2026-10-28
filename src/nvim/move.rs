@@ -604,14 +604,8 @@ pub fn changed_window_setting_all() {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
-                changed_window_setting(&mut *wp);
-                wp = (*wp).w_next;
+            for wp in for_all_windows_in_tab_mut(tp) {
+                changed_window_setting(wp);
             }
             tp = (*tp).tp_next;
         }
