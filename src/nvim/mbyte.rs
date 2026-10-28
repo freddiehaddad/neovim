@@ -1385,9 +1385,8 @@ pub fn utf_composinglike(
     }
 }
 
-pub fn utf_iscomposing(c1: c_int, c2: c_int,state: &mut GraphemeState) -> bool {
-    let state: *mut GraphemeState = &raw mut *state;
-    unsafe { !utf8proc_grapheme_break_stateful(c1, c2, state.as_mut()) || arabic_combine(c1, c2) }
+pub fn utf_iscomposing(c1: c_int, c2: c_int, state: &mut GraphemeState) -> bool {
+    !utf8proc_grapheme_break_stateful(c1, c2, Some(state)) || arabic_combine(c1, c2)
 }
 
 pub fn utf_ptr2len(p_in: *const c_char) -> c_int {

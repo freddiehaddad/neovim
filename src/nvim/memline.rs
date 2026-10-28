@@ -755,16 +755,15 @@ fn ml_upd_block0(buf: &mut buf_T, what: upd_block0_T) {
 }
 
 fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
-        if (*buf).b_ffname.is_null() {
+        if buf.b_ffname.is_null() {
             b0p.b0_fname[0] = NUL;
         } else {
             let mut uname = [0 as c_char; B0_UNAME_SIZE];
             let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
             let flen = home_replace(
                 ptr::null_mut(),
-                (*buf).b_ffname,
+                buf.b_ffname,
                 fname_ptr,
                 B0_FNAME_SIZE_CRYPT,
                 true,
@@ -773,14 +772,14 @@ fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
                 let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
                 let ulen = std::ffi::CStr::from_ptr((&raw const uname).cast()).to_bytes().len();
                 if retval == FAIL || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
-                    xstrlcpy(fname_ptr, (*buf).b_ffname, B0_FNAME_SIZE_CRYPT);
+                    xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
                 } else {
                     ptr::copy(fname_ptr.add(1), fname_ptr.add(ulen + 1), flen);
                     ptr::copy_nonoverlapping((&raw const uname).cast(), fname_ptr.add(1), ulen);
                 }
             }
             let mut file_info = FileInfo::new();
-            if os_fileinfo((*buf).b_ffname, &mut file_info) {
+            if os_fileinfo(buf.b_ffname, &mut file_info) {
                 long_to_char(
                     file_info.stat.st_mtim.tv_sec as c_long,
                     (&raw mut b0p.b0_mtime).cast(),
@@ -789,18 +788,18 @@ fn set_b0_fname(b0p: &mut ZeroBlock,buf: &mut buf_T) {
                     os_fileinfo_inode(&file_info) as c_long,
                     (&raw mut b0p.b0_ino).cast(),
                 );
-                buf_store_file_info(&mut *buf, &mut file_info);
-                (*buf).b_mtime_read = (*buf).b_mtime;
-                (*buf).b_mtime_read_ns = (*buf).b_mtime_ns;
+                buf_store_file_info(buf, &mut file_info);
+                buf.b_mtime_read = buf.b_mtime;
+                buf.b_mtime_read_ns = buf.b_mtime_ns;
             } else {
                 long_to_char(0, (&raw mut b0p.b0_mtime).cast());
                 long_to_char(0, (&raw mut b0p.b0_ino).cast());
-                (*buf).b_mtime = 0;
-                (*buf).b_mtime_ns = 0;
-                (*buf).b_mtime_read = 0;
-                (*buf).b_mtime_read_ns = 0;
-                (*buf).b_orig_size = 0;
-                (*buf).b_orig_mode = 0;
+                buf.b_mtime = 0;
+                buf.b_mtime_ns = 0;
+                buf.b_mtime_read = 0;
+                buf.b_mtime_read_ns = 0;
+                buf.b_orig_size = 0;
+                buf.b_orig_mode = 0;
             }
         }
 

@@ -904,7 +904,6 @@ pub fn get_spellword(list: &mut list_T, ret_word: *mut *const c_char) -> c_int {
 
 /// Prepare v: variable "idx" to be used.
 pub fn prepare_vimvar(idx: c_int,save_tv: &mut typval_T) {
-    let save_tv: *mut typval_T = &raw mut *save_tv;
     unsafe {
         let p = (&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize);
         *save_tv = (*p).vv_di.di_tv;
@@ -917,7 +916,6 @@ pub fn prepare_vimvar(idx: c_int,save_tv: &mut typval_T) {
 
 /// Restore v: variable "idx" to typeval "save_tv".
 pub fn restore_vimvar(idx: c_int,save_tv: &mut typval_T) {
-    let save_tv: *mut typval_T = &raw mut *save_tv;
     unsafe {
         let p = (&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize);
         (*p).vv_di.di_tv = *save_tv;
@@ -1418,8 +1416,6 @@ pub fn skip_var_list(
     arg: *const c_char,var_count: &mut c_int,semicolon: &mut c_int,
     silent: bool,
 ) -> *const c_char {
-    let var_count: *mut c_int = &raw mut *var_count;
-    let semicolon: *mut c_int = &raw mut *semicolon;
     unsafe {
         if *arg == b'[' as c_char {
             let mut p = arg;
@@ -1483,7 +1479,6 @@ pub fn list_hashtable_vars(
     prefix: *const c_char,
     empty: c_int,first: &mut c_int,
 ) {
-    let first: *mut c_int = &raw mut *first;
     unsafe {
         let mut todo = ht.ht_used as c_int;
         let mut hi = (*ht).array_ptr();
@@ -1504,7 +1499,7 @@ pub fn list_hashtable_vars(
                     || (*di).di_tv.v_type != VarType::VAR_STRING
                     || !(*di).di_tv.vval.v_string().is_null()
                 {
-                    list_one_var(&mut *di, prefix, &mut *first);
+                    list_one_var(&mut *di, prefix, first);
                 }
             }
             hi = hi.add(1);
@@ -1665,7 +1660,6 @@ fn ex_let_env(
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if is_const {
             emsg(gettext(
@@ -1722,7 +1716,6 @@ fn ex_let_option(
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if is_const {
             emsg(gettext(c"E996: Cannot lock an option".as_ptr()));
@@ -1777,7 +1770,7 @@ fn ex_let_option(
         }
 
         let mut error = false;
-        newval = opt_from_tv(&mut *tv, opt_idx, arg_name, &mut error);
+        newval = opt_from_tv(tv, opt_idx, arg_name, &mut error);
         if error {
             *p = c1;
             optval_free(curval);
@@ -1851,7 +1844,6 @@ fn ex_let_register(
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if is_const {
             emsg(gettext(c"E996: Cannot lock a register".as_ptr()));
@@ -1906,26 +1898,25 @@ fn ex_let_one(
     endchars: *const c_char,
     op: *const c_char,
 ) -> *mut c_char {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut arg_end: *mut c_char = ptr::null_mut();
 
         if *arg == b'$' as c_char {
-            return ex_let_env(arg, &mut *tv, is_const, endchars, op);
+            return ex_let_env(arg, tv, is_const, endchars, op);
         } else if *arg == b'&' as c_char {
-            return ex_let_option(arg, &mut *tv, is_const, endchars, op);
+            return ex_let_option(arg, tv, is_const, endchars, op);
         } else if *arg == b'@' as c_char {
-            return ex_let_register(arg, &mut *tv, is_const, endchars, op);
+            return ex_let_register(arg, tv, is_const, endchars, op);
         } else if eval_isnamec1(*arg as u8 as c_int) || *arg == b'{' as c_char {
             let mut lv: lval_T = lval_T::new();
-            let p = get_lval(arg, Some(&mut *tv), &mut lv, false, false, 0, FNE_CHECK_START);
+            let p = get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
                 if !endchars.is_null()
                     && vim_strchr(endchars, *skipwhite(p) as u8 as c_int).is_null()
                 {
                     emsg(gettext(E_LETUNEXP.as_ptr()));
                 } else {
-                    set_var_lval(&mut lv, p, &mut *tv, copy, is_const, op);
+                    set_var_lval(&mut lv, p, tv, copy, is_const, op);
                     arg_end = p;
                 }
             }
@@ -2925,7 +2916,6 @@ fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
 
 /// List the value of one internal variable.
 fn list_one_var(v: &mut dictitem_T, prefix: *const c_char,first: &mut c_int) {
-    let first: *mut c_int = &raw mut *first;
     unsafe {
         let s = encode_tv2echo(&mut v.di_tv, None);
         list_one_var_a(
@@ -2934,7 +2924,7 @@ fn list_one_var(v: &mut dictitem_T, prefix: *const c_char,first: &mut c_int) {
             std::ffi::CStr::from_ptr(v.di_key.as_ptr()).to_bytes().len() as isize,
             v.di_tv.v_type,
             s.as_ptr(),
-            &mut *first,
+            first,
         );
     }
 }
@@ -3000,7 +2990,6 @@ pub fn before_set_vvar(
     watched: bool,
     type_error: &mut bool,
 ) -> bool {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         if di.di_tv.v_type == VarType::VAR_STRING {
             let mut oldtv: typval_T = typval_T::new();
@@ -3008,13 +2997,13 @@ pub fn before_set_vvar(
                 tv_copy(&di.di_tv, &mut oldtv);
             }
             tv_clear(&raw mut di.di_tv);
-            if copy || (*tv).v_type != VarType::VAR_STRING {
+            if copy || tv.v_type != VarType::VAR_STRING {
                 let val = tv_get_string(&*tv);
                 crate::eval::typval::tv_set_string(&mut di.di_tv, val);
             } else {
                 di.di_tv.v_type = VarType::VAR_STRING;
-                di.di_tv.vval = crate::eval::typval::TypvalVval::String((*tv).vval.v_string());
-                (*tv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                di.di_tv.vval = crate::eval::typval::TypvalVval::String(tv.vval.v_string());
+                tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
             }
             if watched {
                 tv_dict_watcher_notify(
@@ -3052,7 +3041,7 @@ pub fn before_set_vvar(
                 tv_clear(&raw mut oldtv);
             }
             return false;
-        } else if di.di_tv.v_type != (*tv).v_type {
+        } else if di.di_tv.v_type != tv.v_type {
             *type_error = true;
             return false;
         }
@@ -3072,7 +3061,6 @@ pub fn set_var_const(
     copy: bool,
     is_const: bool,
 ) {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut varname: *const c_char = ptr::null();
         let mut dict: *mut dict_T = ptr::null_mut();
@@ -3110,7 +3098,7 @@ pub fn set_var_const(
 
             let mut type_error = false;
             if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab)
-                && !before_set_vvar(varname, &mut *di, &mut *tv, copy, watched, &mut type_error)
+                && !before_set_vvar(varname, &mut *di, tv, copy, watched, &mut type_error)
             {
                 if type_error {
                     semsg!(
@@ -3147,12 +3135,12 @@ pub fn set_var_const(
             }
         }
 
-        if copy || (*tv).v_type == VarType::VAR_NUMBER || (*tv).v_type == VarType::VAR_FLOAT {
+        if copy || tv.v_type == VarType::VAR_NUMBER || tv.v_type == VarType::VAR_FLOAT {
             tv_copy(&*tv, &mut (*di).di_tv);
         } else {
             (*di).di_tv = *tv;
             (*di).di_tv.v_lock = VAR_UNLOCKED;
-            tv_init(Some(&mut *tv));
+            tv_init(Some(tv));
         }
 
         if watched {
@@ -3297,16 +3285,14 @@ fn get_var_from(
     win: *mut win_T,
     buf: *mut buf_T,
 ) {
-    let rettv: *mut typval_T = &raw mut *rettv;
-    let deftv: *mut typval_T = &raw mut *deftv;
     unsafe {
         let mut done = false;
         let do_change_curbuf = !buf.is_null() && htname == b'b' as c_int;
 
         g_st().emsg_off += 1;
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if !varname.is_null()
             && !tp.is_null()
@@ -3334,10 +3320,10 @@ fn get_var_from(
                     if *varname.add(1) == NUL {
                         let opts = get_winbuf_options(c_int::from(htname == b'b' as c_int));
                         if !opts.is_null() {
-                            tv_dict_set_ret(&mut *rettv, opts);
+                            tv_dict_set_ret(rettv, opts);
                             done = true;
                         }
-                    } else if eval_option(&raw mut varname, Some(&mut *rettv), true) == OK {
+                    } else if eval_option(&raw mut varname, Some(rettv), true) == OK {
                         done = true;
                     }
 
@@ -3350,7 +3336,7 @@ fn get_var_from(
                     } else {
                         (&raw const (*tp).tp_winvar).cast()
                     };
-                    tv_copy(&(*v).di_tv, &mut *rettv);
+                    tv_copy(&(*v).di_tv, rettv);
                     done = true;
                 } else {
                     let ht = if htname == b'b' as c_int {
@@ -3363,7 +3349,7 @@ fn get_var_from(
 
                     let v = find_var_in_ht(ht, htname, varname, std::ffi::CStr::from_ptr(varname).to_bytes().len(), 0);
                     if !v.is_null() {
-                        tv_copy(&(*v).di_tv, &mut *rettv);
+                        tv_copy(&(*v).di_tv, rettv);
                         done = true;
                     }
                 }
@@ -3374,8 +3360,8 @@ fn get_var_from(
             }
         }
 
-        if !done && (*deftv).v_type != VarType::VAR_UNKNOWN {
-            tv_copy(&*deftv, &mut *rettv);
+        if !done && deftv.v_type != VarType::VAR_UNKNOWN {
+            tv_copy(&*deftv, rettv);
         }
 
         g_st().emsg_off -= 1;
@@ -3384,8 +3370,7 @@ fn get_var_from(
 
 /// getwinvar() and gettabwinvar().
 fn getwinvar(argvars: &mut [typval_T],rettv: &mut typval_T, off: usize) {
-    let rettv: *mut typval_T = &raw mut *rettv;
-    unsafe {
+     {
         let tp = if off == 1 {
             find_tabpage(tv_get_number_chk(&argvars[0], None) as c_int)
         } else {
@@ -3396,7 +3381,7 @@ fn getwinvar(argvars: &mut [typval_T],rettv: &mut typval_T, off: usize) {
 
         get_var_from(
             varname,
-            &mut *rettv,
+            rettv,
             &mut argvars[off + 2],
             b'w' as c_int,
             tp,
@@ -3412,7 +3397,6 @@ fn opt_from_tv(tv: &mut typval_T,
     option: *const c_char,
     error: &mut bool,
 ) -> Object {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
         let mut value = nil_obj();
         let mut nbuf = [0 as c_char; NUMBUFLEN];
@@ -3425,7 +3409,7 @@ fn opt_from_tv(tv: &mut typval_T,
         let option_has_str = is_tty_opt || option_has_type(opt_idx, ObjectType::kObjectTypeString);
 
         if !is_tty_opt && ((*get_option(opt_idx)).flags & kOptFlagFunc) != 0 && tv_is_func(*tv) {
-            let strval = encode_tv2string(&mut *tv, None);
+            let strval = encode_tv2string(tv, None);
             value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {
             let n = if option_has_num {
@@ -3433,22 +3417,22 @@ fn opt_from_tv(tv: &mut typval_T,
             } else {
                 tv_get_bool_chk(&*tv, Some(&mut err))
             };
-            if !err && (*tv).v_type == VarType::VAR_STRING && n == 0 {
+            if !err && tv.v_type == VarType::VAR_STRING && n == 0 {
                 let mut idx: usize = 0;
-                while !(*tv).vval.v_string().is_null()
-                    && *(*tv).vval.v_string().add(idx) == b'0' as c_char
+                while !tv.vval.v_string().is_null()
+                    && *tv.vval.v_string().add(idx) == b'0' as c_char
                 {
                     idx += 1;
                 }
-                if idx == 0 || *(*tv).vval.v_string().add(idx) != NUL {
+                if idx == 0 || *tv.vval.v_string().add(idx) != NUL {
                     err = true;
                     semsg!(
                         gettext(c"E521: Number required: &%s = '%s'".as_ptr()),
                         option,
-                        if (*tv).vval.v_string().is_null() {
+                        if tv.vval.v_string().is_null() {
                             c"".as_ptr()
                         } else {
-                            (*tv).vval.v_string()
+                            tv.vval.v_string()
                         },
                     );
                 }
@@ -3459,7 +3443,7 @@ fn opt_from_tv(tv: &mut typval_T,
                 opt_from_tristate(tristate_from_int(n as OptInt))
             };
         } else if option_has_str {
-            if (*tv).v_type != VarType::VAR_BOOL && (*tv).v_type != VarType::VAR_SPECIAL {
+            if tv.v_type != VarType::VAR_BOOL && tv.v_type != VarType::VAR_SPECIAL {
                 let strval = tv_get_string_buf_chk(&*tv, nbuf.as_mut_ptr());
                 err = strval.is_null();
                 value = string_obj(cstr_to_string(strval));

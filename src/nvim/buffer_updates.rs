@@ -333,20 +333,19 @@ pub fn buf_updates_send_splice(buf: &mut buf_T,
     new_col: colnr_T,
     new_byte: bcount_t,
 ) {
-    let buf: *mut buf_T = &raw mut *buf;
-    unsafe {
-        if !buf_updates_active(&mut *buf) || (old_byte == 0 && new_byte == 0) {
+     {
+        if !buf_updates_active(buf) || (old_byte == 0 && new_byte == 0) {
             return;
         }
 
         let mut i = 0usize;
-        while i < (*buf).update_callbacks.len() {
-            let on_bytes = (*buf).update_callbacks.as_slice()[i].on_bytes;
-            let preview = (*buf).update_callbacks.as_slice()[i].preview;
+        while i < buf.update_callbacks.len() {
+            let on_bytes = buf.update_callbacks.as_slice()[i].on_bytes;
+            let preview = buf.update_callbacks.as_slice()[i].preview;
             let mut keep = true;
             if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview) {
                 let mut items = [
-                    buffer_obj((*buf).b_fnum),
+                    buffer_obj(buf.b_fnum),
                     integer_obj(buf_get_changedtick(&*buf)),
                     integer_obj(i64::from(start_row)),
                     integer_obj(i64::from(start_col)),
@@ -383,7 +382,7 @@ pub fn buf_updates_send_splice(buf: &mut buf_T,
             if keep {
                 i += 1;
             } else {
-                (*buf).update_callbacks.remove(i);
+                buf.update_callbacks.remove(i);
             }
         }
     }

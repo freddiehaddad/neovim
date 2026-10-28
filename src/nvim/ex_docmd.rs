@@ -8425,13 +8425,12 @@ fn repl_cmdline(
 }
 
 pub fn separate_nextcmd(eap: &mut exarg_T) {
-    let eap: *mut exarg_T = &raw mut *eap;
     unsafe {
-        let mut p = skip_grep_pat(&mut *eap);
+        let mut p = skip_grep_pat(eap);
 
         while *p != NUL {
             if *p == Ctrl_V {
-                if ((*eap).argt & (EX_CTRLV | EX_XFILE)) != 0 {
+                if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                     p = p.add(1);
                 } else {
                     ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes_with_nul().len());
@@ -8441,7 +8440,7 @@ pub fn separate_nextcmd(eap: &mut exarg_T) {
                 }
             } else if *p == b'`' as c_char
                 && *p.add(1) == b'=' as c_char
-                && ((*eap).argt & EX_XFILE) != 0
+                && (eap.argt & EX_XFILE) != 0
             {
                 p = p.add(2);
                 skip_expr(&raw mut p, None);
@@ -8449,24 +8448,24 @@ pub fn separate_nextcmd(eap: &mut exarg_T) {
                     break;
                 }
             } else if (*p == b'"' as c_char
-                && ((*eap).argt & EX_NOTRLCOM) == 0
-                && ((*eap).cmdidx != cmdidx_T::CMD_at as c_int || p != (*eap).arg)
-                && ((*eap).cmdidx != cmdidx_T::CMD_redir as c_int
-                    || p != (*eap).arg.add(1)
+                && (eap.argt & EX_NOTRLCOM) == 0
+                && (eap.cmdidx != cmdidx_T::CMD_at as c_int || p != eap.arg)
+                && (eap.cmdidx != cmdidx_T::CMD_redir as c_int
+                    || p != eap.arg.add(1)
                     || *p.sub(1) != b'@' as c_char))
                 || (*p == b'|' as c_char
-                    && (*eap).cmdidx != cmdidx_T::CMD_append as c_int
-                    && (*eap).cmdidx != cmdidx_T::CMD_change as c_int
-                    && (*eap).cmdidx != cmdidx_T::CMD_insert as c_int)
+                    && eap.cmdidx != cmdidx_T::CMD_append as c_int
+                    && eap.cmdidx != cmdidx_T::CMD_change as c_int
+                    && eap.cmdidx != cmdidx_T::CMD_insert as c_int)
                 || *p == b'\n' as c_char
             {
-                if (vim_strchr(opt_vars().p_cpo, kCpoBar).is_null() || ((*eap).argt & EX_CTRLV) == 0)
+                if (vim_strchr(opt_vars().p_cpo, kCpoBar).is_null() || (eap.argt & EX_CTRLV) == 0)
                     && *p.sub(1) == b'\\' as c_char
                 {
                     ptr::copy(p, p.sub(1), CStr::from_ptr(p).to_bytes_with_nul().len());
                     p = p.sub(1);
                 } else {
-                    (*eap).nextcmd = check_nextcmd(p);
+                    eap.nextcmd = check_nextcmd(p);
                     *p = NUL;
                     break;
                 }
@@ -8474,8 +8473,8 @@ pub fn separate_nextcmd(eap: &mut exarg_T) {
             p = p.add(utfc_ptr2len(p) as usize);
         }
 
-        if ((*eap).argt & EX_NOTRLCOM) == 0 {
-            del_trailing_spaces((*eap).arg);
+        if (eap.argt & EX_NOTRLCOM) == 0 {
+            del_trailing_spaces(eap.arg);
         }
     }
 }

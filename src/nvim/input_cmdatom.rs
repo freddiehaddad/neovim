@@ -730,32 +730,31 @@ fn atom_dict(atom: *const CmdAtom) -> Dict {
 }
 
 fn atom_emit(atom: &CmdAtom) {
-    let atom: *const CmdAtom = &raw const *atom;
     unsafe {
         if !has_event(EVENT_CMDATOM) {
             return;
         }
         let mut data = atom_dict(atom);
-        if !(*atom).atoms.is_empty() {
+        if !atom.atoms.is_empty() {
             let mut atoms = Array {
                 items: ptr::null_mut(),
                 size: 0,
                 capacity: 0,
             };
-            for sub in &(*atom).atoms {
+            for sub in &atom.atoms {
                 array_add(&mut atoms, dict_obj(atom_dict(sub)));
             }
             dict_put(&mut data, c"atoms", array_obj(atoms));
         }
-        let buf = if !(*atom).origin.buf.br_buf.is_null() {
-            (*atom).origin.buf.br_buf
+        let buf = if !atom.origin.buf.br_buf.is_null() {
+            atom.origin.buf.br_buf
         } else {
             g_st().curbuf
         };
         let mut obj = dict_obj(data);
         aucmd_defer(
             EVENT_CMDATOM,
-            TYPE_NAMES[(*atom).r#type as usize].as_ptr().cast_mut(),
+            TYPE_NAMES[atom.r#type as usize].as_ptr().cast_mut(),
             ptr::null_mut(),
             AUGROUP_ALL,
             &mut *buf,
@@ -766,13 +765,12 @@ fn atom_emit(atom: &CmdAtom) {
 }
 
 pub fn atom_push_raw(cascade: bool,atom: &mut CmdAtom) {
-    let atom: *mut CmdAtom = &raw mut *atom;
     unsafe {
-        assert!((*atom).keys.is_some());
-        if !(*atom).origin.buf.br_buf.is_null() {
-            (*atom).changed = atom_origin_changed((*atom).origin);
-            (*atom).moved = atom_origin_moved((*atom).origin);
-            (*atom).undoseq = atom_origin_undoseq((*atom).origin);
+        assert!(atom.keys.is_some());
+        if !atom.origin.buf.br_buf.is_null() {
+            atom.changed = atom_origin_changed(atom.origin);
+            atom.moved = atom_origin_moved(atom.origin);
+            atom.undoseq = atom_origin_undoseq(atom.origin);
         }
         let cur_frame = cur_frame_ptr();
         let collect =
@@ -785,7 +783,7 @@ pub fn atom_push_raw(cascade: bool,atom: &mut CmdAtom) {
                 atom_st().composite.queued = true;
             }
             let v_atoms = &raw mut atom_st().vatom.atoms;
-            (*v_atoms).push(std::mem::take(&mut *atom));
+            (*v_atoms).push(std::mem::take(atom));
             atom_st().vatom.frame = if !cur_frame.is_null() {
                 (*cur_frame).id
             } else {
@@ -794,26 +792,26 @@ pub fn atom_push_raw(cascade: bool,atom: &mut CmdAtom) {
             return;
         }
         atom_st().atom_captures += 1;
-        if (*atom).r#type == kAVisual
-            && let Some(last) = (*atom).atoms.last_mut()
+        if atom.r#type == kAVisual
+            && let Some(last) = atom.atoms.last_mut()
             && last.r#type == kAOperator
         {
-            last.changed = (*atom).changed;
+            last.changed = atom.changed;
         }
         if cascade {
             let copy = CmdAtom {
-                r#type: (*atom).r#type,
-                spec: (*atom).spec.without_body(),
-                origin: (*atom).origin,
+                r#type: atom.r#type,
+                spec: atom.spec.without_body(),
+                origin: atom.origin,
                 atoms: Vec::new(),
-                keys: (*atom).keys.clone(),
+                keys: atom.keys.clone(),
                 text: None,
                 lhs: None,
-                undoseq: (*atom).undoseq,
-                changed: (*atom).changed,
-                moved: (*atom).moved,
-                remap: (*atom).remap,
-                cascaded: (*atom).cascaded,
+                undoseq: atom.undoseq,
+                changed: atom.changed,
+                moved: atom.moved,
+                remap: atom.remap,
+                cascaded: atom.cascaded,
             };
             let ga = &raw mut atom_st().g_atoms;
             (*ga).push(copy);
@@ -823,9 +821,9 @@ pub fn atom_push_raw(cascade: bool,atom: &mut CmdAtom) {
         }
         if collect {
             let comp_atoms = &raw mut atom_st().composite.atoms;
-            (*comp_atoms).push(std::mem::take(&mut *atom));
+            (*comp_atoms).push(std::mem::take(atom));
         } else {
-            if (*atom).r#type != kAInsertSpan {
+            if atom.r#type != kAInsertSpan {
                 atom_emit(&*atom);
             }
             *atom = CmdAtom::new();

@@ -74,16 +74,15 @@ impl Default for cob_T {
 
 /// Find a buffer by number or exact name (`find_buffer`).
 pub fn find_buffer(avar: &mut typval_T) -> *mut buf_T {
-    let avar: *mut typval_T = &raw mut *avar;
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
 
-        if (*avar).v_type == VarType::VAR_NUMBER {
-            buf = buflist_findnr((*avar).vval.v_number() as c_int);
-        } else if (*avar).v_type == VarType::VAR_STRING && !(*avar).vval.v_string().is_null() {
-            buf = buflist_findname_exp((*avar).vval.v_string());
+        if avar.v_type == VarType::VAR_NUMBER {
+            buf = buflist_findnr(avar.vval.v_number() as c_int);
+        } else if avar.v_type == VarType::VAR_STRING && !avar.vval.v_string().is_null() {
+            buf = buflist_findname_exp(avar.vval.v_string());
             if buf.is_null() {
-                let target = CStr::from_ptr((*avar).vval.v_string()).to_bytes();
+                let target = CStr::from_ptr(avar.vval.v_string()).to_bytes();
                 let mut bp = g_st().firstbuf;
                 while !bp.is_null() {
                     if !(*bp).b_fname.is_null()
@@ -156,7 +155,6 @@ fn set_buffer_lines(
     lnum_arg: linenr_T,
     append: bool,lines: &mut typval_T,rettv: &mut typval_T,
 ) {
-    let lines: *mut typval_T = &raw mut *lines;
     unsafe {
         let mut lnum = lnum_arg + if append { 1 } else { 0 };
         let mut added: c_int = 0;
@@ -181,8 +179,8 @@ fn set_buffer_lines(
         let mut l: *mut list_T = ptr::null_mut();
         let mut li: *mut listitem_T = ptr::null_mut();
         let mut line: Option<std::ffi::CString> = None;
-        if (*lines).v_type == VarType::VAR_LIST {
-            l = (*lines).vval.v_list();
+        if lines.v_type == VarType::VAR_LIST {
+            l = lines.vval.v_list();
             if l.is_null() || tv_list_len(l) == 0 {
                 if !is_curbuf {
                     change_other_buffer_restore(&mut cob);
@@ -191,11 +189,11 @@ fn set_buffer_lines(
             }
             li = tv_list_first(l);
         } else {
-            line = Some(typval_tostring(Some(&mut *lines), false));
+            line = Some(typval_tostring(Some(lines), false));
         }
 
         loop {
-            if (*lines).v_type == VarType::VAR_LIST {
+            if lines.v_type == VarType::VAR_LIST {
                 if li.is_null() {
                     break;
                 }

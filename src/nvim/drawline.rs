@@ -280,13 +280,12 @@ fn advance_color_col(wlv: &mut winlinevars_T<'_>, vcol: c_int) {
 /// Used when 'cursorlineopt' contains "screenline": compute the margins between
 /// which the highlighting is used.
 fn margin_columns_win(wp: &mut win_T, left_col: &mut c_int, right_col: &mut c_int) {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let cur_col_off = win_col_off(wp);
-        let width1 = (*wp).w_view_width - cur_col_off;
+        let width1 = wp.w_view_width - cur_col_off;
         let width2 = width1 + win_col_off2(wp);
 
-        if dl_st().saved_w_virtcol == (*wp).w_virtcol
+        if dl_st().saved_w_virtcol == wp.w_virtcol
             && dl_st().margin_prev_wp == wp
             && dl_st().prev_width1 == width1
             && dl_st().prev_width2 == width2
@@ -299,11 +298,11 @@ fn margin_columns_win(wp: &mut win_T, left_col: &mut c_int, right_col: &mut c_in
         *left_col = 0;
         *right_col = width1;
 
-        if (*wp).w_virtcol >= width1 && width2 > 0 {
-            *right_col = width1 + (((*wp).w_virtcol - width1) / width2 + 1) * width2;
+        if wp.w_virtcol >= width1 && width2 > 0 {
+            *right_col = width1 + ((wp.w_virtcol - width1) / width2 + 1) * width2;
         }
-        if (*wp).w_virtcol >= width1 && width2 > 0 {
-            *left_col = ((*wp).w_virtcol - width1) / width2 * width2 + width1;
+        if wp.w_virtcol >= width1 && width2 > 0 {
+            *left_col = (wp.w_virtcol - width1) / width2 * width2 + width1;
         }
 
         dl_st().prev_left_col = *left_col;
@@ -311,7 +310,7 @@ fn margin_columns_win(wp: &mut win_T, left_col: &mut c_int, right_col: &mut c_in
         dl_st().margin_prev_wp = wp;
         dl_st().prev_width1 = width1;
         dl_st().prev_width2 = width2;
-        dl_st().saved_w_virtcol = (*wp).w_virtcol;
+        dl_st().saved_w_virtcol = wp.w_virtcol;
     }
 }
 
@@ -563,13 +562,12 @@ fn draw_col_buf(wp: &mut win_T,
     mut fold_vcol: *const colnr_T,
     inc_vcol: bool,
 ) {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let mut ci = utf_ptr2StrCharInfo(text);
         let end = text.add(len);
-        while ci.ptr < end && wlv.off < (*wp).w_view_width {
+        while ci.ptr < end && wlv.off < wp.w_view_width {
             let cli = utf_ClusterInfo(ci);
-            let maxcells = (*wp).w_view_width - wlv.off;
+            let maxcells = wp.w_view_width - wlv.off;
             debug_assert!(cli.cells <= 2 && ci.chr.value >= 0x20);
             let mut cells = cli.cells;
             if cli.cells > maxcells {
@@ -625,13 +623,12 @@ pub fn use_cursor_line_highlight(wp: &mut win_T, lnum: linenr_T) -> bool {
 
 /// Setup for drawing the 'foldcolumn', if there is one.
 fn draw_foldcolumn(wp: &mut win_T, wlv: &mut winlinevars_T) {
-    let wp: *mut win_T = &raw mut *wp;
-    unsafe {
+     {
         let fdc = compute_foldcolumn(wp, 0);
         if fdc > 0 {
             let attr = win_hl_attr(
                 wp,
-                if use_cursor_line_highlight(&mut *wp, wlv.lnum) {
+                if use_cursor_line_highlight(wp, wlv.lnum) {
                     HLF_CLF
                 } else {
                     HLF_FC
@@ -731,12 +728,11 @@ pub fn fill_foldcolumn(
 }
 
 fn draw_sign(nrcol: bool,wp: &mut win_T, wlv: &mut winlinevars_T, sign_idx: c_int) {
-    let wp: *mut win_T = &raw mut *wp;
-    unsafe {
+     {
         let sattr = wlv.sattrs[sign_idx as usize];
         let scl_attr = win_hl_attr(
             wp,
-            if use_cursor_line_highlight(&mut *wp, wlv.lnum) {
+            if use_cursor_line_highlight(wp, wlv.lnum) {
                 HLF_CLS
             } else {
                 HLF_SC
@@ -798,15 +794,14 @@ fn use_cursor_line_nr(wp: &mut win_T, wlv: &winlinevars_T) -> bool {
 }
 
 fn get_line_number_attr(wp: &mut win_T, wlv: &mut winlinevars_T) -> c_int {
-    let wp: *mut win_T = &raw mut *wp;
-    unsafe {
+     {
         let mut numhl_attr = wlv.sign_num_attr;
 
         if (wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below {
             if wlv.prev_num_attr == -1 {
                 decor_redraw_signs(
                     wp,
-                    (*wp).w_buffer,
+                    wp.w_buffer,
                     wlv.lnum - 2,
                     ptr::null_mut(),
                     None,
@@ -820,15 +815,15 @@ fn get_line_number_attr(wp: &mut win_T, wlv: &mut winlinevars_T) -> c_int {
             numhl_attr = wlv.prev_num_attr;
         }
 
-        if use_cursor_line_nr(&mut *wp, wlv) {
+        if use_cursor_line_nr(wp, wlv) {
             return hl_combine_attr(win_hl_attr(wp, HLF_CLN), numhl_attr);
         }
 
-        if (*wp).w_onebuf_opt.wo_rnu != 0 {
-            if wlv.lnum < (*wp).w_cursor.lnum {
+        if wp.w_onebuf_opt.wo_rnu != 0 {
+            if wlv.lnum < wp.w_cursor.lnum {
                 return hl_combine_attr(win_hl_attr(wp, HLF_LNA), numhl_attr);
             }
-            if wlv.lnum > (*wp).w_cursor.lnum {
+            if wlv.lnum > wp.w_cursor.lnum {
                 return hl_combine_attr(win_hl_attr(wp, HLF_LNB), numhl_attr);
             }
         }
@@ -889,7 +884,6 @@ fn draw_statuscol(wp: &mut win_T,
     col_rows: c_int,
     stcp: &mut statuscol_T,
 ) {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let lnum = wlv.lnum - c_int::from((wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below);
 
@@ -899,10 +893,10 @@ fn draw_statuscol(wp: &mut win_T,
         } else {
             wlv.virt_below_skip
         };
-        if reset && lnum < (*wp).w_topline {
+        if reset && lnum < wp.w_topline {
             let mut virt_below_prev: c_int = 0;
             let virt_lines_prev = decor_virt_lines(
-                &mut *wp,
+                wp,
                 lnum - 1,
                 lnum,
                 Some(&mut virt_below_prev),
@@ -920,7 +914,7 @@ fn draw_statuscol(wp: &mut win_T,
             wlv.row - wlv.startrow - wlv.filler_lines
         };
         let relnum: linenr_T = if virtnum == -reset_virt - 1 || virtnum == 0 {
-            get_cursor_rel_lnum(&mut *wp, lnum).abs()
+            get_cursor_rel_lnum(wp, lnum).abs()
         } else {
             -1
         };
@@ -931,12 +925,12 @@ fn draw_statuscol(wp: &mut win_T,
 
         let mut buf = [0 as c_char; MAXPATHL];
         let buf_ptr = (&raw mut buf).cast::<c_char>();
-        if (*wp).w_statuscol_line_count != (*wp).w_nrwidth_line_count {
-            (*wp).w_statuscol_line_count = (*wp).w_nrwidth_line_count;
+        if wp.w_statuscol_line_count != wp.w_nrwidth_line_count {
+            wp.w_statuscol_line_count = wp.w_nrwidth_line_count;
             let width = build_statuscol_str(
-                &mut *wp,
-                (*wp).w_nrwidth_line_count,
-                (*wp).w_nrwidth_line_count,
+                wp,
+                wp.w_nrwidth_line_count,
+                wp.w_nrwidth_line_count,
                 0,
                 CharBuf {
                     data: buf_ptr,
@@ -946,20 +940,20 @@ fn draw_statuscol(wp: &mut win_T,
             );
             if width > stcp.width {
                 let addwidth = (width - stcp.width).min(MAX_STCWIDTH - stcp.width);
-                (*wp).w_nrwidth += addwidth;
-                (*wp).w_nrwidth_width = (*wp).w_nrwidth;
+                wp.w_nrwidth += addwidth;
+                wp.w_nrwidth_width = wp.w_nrwidth;
                 if col_rows > 0 {
-                    (*wp).w_redr_statuscol = true;
+                    wp.w_redr_statuscol = true;
                     dl_st().stc_prev_lnum = 0;
                     return;
                 }
                 stcp.width += addwidth;
-                (*wp).w_valid &= !VALID_WCOL;
+                wp.w_valid &= !VALID_WCOL;
             }
         }
 
         let width = build_statuscol_str(
-            &mut *wp,
+            wp,
             lnum,
             relnum,
             virtnum,
@@ -969,19 +963,19 @@ fn draw_statuscol(wp: &mut win_T,
             },
             stcp,
         );
-        if *(*wp).w_onebuf_opt.wo_stc == NUL
+        if *wp.w_onebuf_opt.wo_stc == NUL
             || (width > stcp.width && stcp.width < MAX_STCWIDTH)
         {
-            if *(*wp).w_onebuf_opt.wo_stc == NUL {
-                (*wp).w_nrwidth_line_count = 0;
-                (*wp).w_nrwidth =
-                    c_int::from((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
+            if *wp.w_onebuf_opt.wo_stc == NUL {
+                wp.w_nrwidth_line_count = 0;
+                wp.w_nrwidth =
+                    c_int::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
                         * number_width(wp);
             } else {
-                (*wp).w_nrwidth += (width - stcp.width).min(MAX_STCWIDTH - stcp.width);
-                (*wp).w_nrwidth_width = (*wp).w_nrwidth;
+                wp.w_nrwidth += (width - stcp.width).min(MAX_STCWIDTH - stcp.width);
+                wp.w_nrwidth_width = wp.w_nrwidth;
             }
-            (*wp).w_redr_statuscol = true;
+            wp.w_redr_statuscol = true;
             dl_st().stc_prev_lnum = 0;
             return;
         }
@@ -993,19 +987,19 @@ fn draw_statuscol(wp: &mut win_T,
         let len = CStr::from_ptr(buf_ptr).to_bytes().len();
         let scl_attr = win_hl_attr(
             wp,
-            if use_cursor_line_highlight(&mut *wp, wlv.lnum) {
+            if use_cursor_line_highlight(wp, wlv.lnum) {
                 HLF_CLS
             } else {
                 HLF_SC
             },
         );
-        let num_attr = get_line_number_attr(&mut *wp, wlv);
+        let num_attr = get_line_number_attr(wp, wlv);
         let mut cur_attr = num_attr;
 
         for sp in &stcp.hlrec {
             let textlen = sp.start.offset_from(p);
             let translen = transstr_buf(p, textlen, transbuf_ptr, MAXPATHL, true);
-            draw_col_buf(&mut *wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
+            draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
             let attr = if sp.item == c_int::from(STL_SIGNCOL as u8) {
                 scl_attr
             } else if sp.item == c_int::from(STL_FOLDCOL as u8) {
@@ -1035,7 +1029,7 @@ fn draw_statuscol(wp: &mut win_T,
             MAXPATHL,
             true,
         );
-        draw_col_buf(&mut *wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
+        draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
         draw_col_fill(wlv, schar_from_ascii(b' '), stcp.width - width, cur_attr);
     }
 }

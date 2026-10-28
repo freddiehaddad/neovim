@@ -3459,7 +3459,6 @@ fn tagstack_push_item(
 }
 
 fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let mut li = if l.is_null() {
             ptr::null_mut()
@@ -3492,7 +3491,7 @@ fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
                             }
                             let ud_ptr = tv_dict_get_string(itemdict, c"user_data".as_ptr());
                             tagstack_push_item(
-                                &mut *wp,
+                                wp,
                                 Some(CStr::from_ptr(tagname).to_owned()),
                                 tv_dict_get_number(itemdict, c"bufnr".as_ptr()) as c_int,
                                 tv_dict_get_number(itemdict, c"matchnr".as_ptr()) as c_int - 1,

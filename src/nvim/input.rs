@@ -463,7 +463,6 @@ pub fn redo_spec() -> CmdSpec {
 }
 
 fn add_buff(buf: &mut StuffBuf, s: *const c_char, mut slen: isize) {
-    let buf: *mut StuffBuf = &raw mut *buf;
     unsafe {
         if slen < 0 {
             slen = std::ffi::CStr::from_ptr(s).to_bytes().len() as isize;
@@ -473,9 +472,9 @@ fn add_buff(buf: &mut StuffBuf, s: *const c_char, mut slen: isize) {
         }
         let slen_u = slen as usize;
         let slice = std::slice::from_raw_parts(s, slen_u);
-        let insert = (*buf).insert;
-        (*buf).keys.splice(insert..insert, slice.iter().copied());
-        (*buf).insert += slen_u;
+        let insert = buf.insert;
+        buf.keys.splice(insert..insert, slice.iter().copied());
+        buf.insert += slen_u;
     }
 }
 

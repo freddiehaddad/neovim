@@ -192,7 +192,6 @@ pub fn decor_providers_invoke_spell(wp: &mut win_T,
     end_row: c_int,
     end_col: c_int,
 ) {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -200,8 +199,8 @@ pub fn decor_providers_invoke_spell(wp: &mut win_T,
             if p.state != kDecorProviderDisabled && p.spell_nav != LUA_NOREF {
                 let spell_nav = p.spell_nav;
                 let mut args_buf = [
-                    integer_obj((*wp).handle as Integer),
-                    integer_obj((*(*wp).w_buffer).b_fnum as Integer),
+                    integer_obj(wp.handle as Integer),
+                    integer_obj((*wp.w_buffer).b_fnum as Integer),
                     integer_obj(start_row as Integer),
                     integer_obj(start_col as Integer),
                     integer_obj(end_row as Integer),

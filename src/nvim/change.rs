@@ -284,7 +284,6 @@ pub fn changed_lines_invalidate_buf(buf: &mut buf_T,
     lnume: linenr_T,
     xtra: linenr_T,
 ) {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         for_all_tab_windows(|wp| {
             if (*wp).w_buffer == buf {

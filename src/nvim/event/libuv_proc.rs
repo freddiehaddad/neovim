@@ -127,21 +127,20 @@ fn libuv_proc_stdio(uvproc: &mut LibuvProc,
     win_create_pipe: bool,
     to_close: &mut [c_int; 3],
 ) {
-    let uvproc: *mut LibuvProc = &raw mut *uvproc;
     unsafe {
         let ltail = uvproc;
         #[cfg(windows)]
         if win_create_pipe {
-            (*ltail).uvstdio[idx].flags = UV_CREATE_PIPE
+            ltail.uvstdio[idx].flags = UV_CREATE_PIPE
                 | if child_readable {
                     UV_READABLE_PIPE
                 } else {
                     UV_WRITABLE_PIPE
                 };
             if overlapped {
-                (*ltail).uvstdio[idx].flags |= UV_OVERLAPPED_PIPE | UV_READABLE_PIPE;
+                ltail.uvstdio[idx].flags |= UV_OVERLAPPED_PIPE | UV_READABLE_PIPE;
             }
-            (*ltail).uvstdio[idx].data.stream = parent_pipe.cast();
+            ltail.uvstdio[idx].data.stream = parent_pipe.cast();
             return;
         }
         #[cfg(not(windows))]
@@ -181,8 +180,8 @@ fn libuv_proc_stdio(uvproc: &mut LibuvProc,
         } else {
             pipe_pair[0]
         };
-        (*ltail).uvstdio[idx].flags = UV_INHERIT_FD;
-        (*ltail).uvstdio[idx].data.fd = child_fd;
+        ltail.uvstdio[idx].flags = UV_INHERIT_FD;
+        ltail.uvstdio[idx].data.fd = child_fd;
         to_close[idx] = child_fd;
         uv_pipe_open(parent_pipe, parent_fd);
     }

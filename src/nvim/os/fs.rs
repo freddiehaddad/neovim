@@ -1490,13 +1490,12 @@ pub fn os_rmdir(path: *const c_char) -> c_int {
 
 /// Opens a directory.
 pub fn os_scandir(dir: &mut Directory, path: *const c_char) -> bool {
-    let dir: *mut Directory = &raw mut *dir;
     unsafe {
         debug_assert!(uv_req_size(UV_FS) + size_of::<uv_dirent_t>() <= size_of::<Directory>());
-        let req = dir.cast::<uv_fs_buf_t>();
+        let req = (&raw mut *dir).cast::<uv_fs_buf_t>();
         let r = uv_fs_scandir(ptr::null_mut(), req, path, 0, ptr::null());
         if r < 0 {
-            os_closedir(&mut *dir);
+            os_closedir(dir);
         }
         r >= 0
     }
@@ -1521,9 +1520,8 @@ pub fn os_scandir_next(dir: *mut Directory) -> *const c_char {
 
 /// Frees memory associated with `os_scandir()`.
 pub fn os_closedir(dir: &mut Directory) {
-    let dir: *mut Directory = &raw mut *dir;
     unsafe {
-        uv_fs_req_cleanup(dir.cast());
+        uv_fs_req_cleanup((&raw mut *dir).cast());
     }
 }
 

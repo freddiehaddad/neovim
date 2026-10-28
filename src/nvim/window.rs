@@ -4163,10 +4163,9 @@ pub fn winframe_remove(
     tp: *mut tabpage_T,
     unflat_altfr: *mut *mut frame_T,
 ) -> *mut win_T {
-    let dirp: *mut c_int = &raw mut *dirp;
     unsafe {
         let mut altfr: *mut frame_T = ptr::null_mut();
-        let wp = winframe_find_altwin(win, &mut *dirp, tp, &raw mut altfr);
+        let wp = winframe_find_altwin(win, dirp, tp, &raw mut altfr);
         if wp.is_null() {
             return ptr::null_mut();
         }
@@ -4227,7 +4226,6 @@ pub fn winframe_find_altwin(
     tp: *mut tabpage_T,
     altfr: *mut *mut frame_T,
 ) -> *mut win_T {
-    let dirp: *mut c_int = &raw mut *dirp;
     unsafe {
         debug_assert!(tp.is_null() || !ptr::eq(tp, g_st().curtab));
 

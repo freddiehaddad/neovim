@@ -2026,7 +2026,6 @@ pub fn nlua_exec_typval_callable(
     argcount: c_int,
     argvars: *mut typval_T,rettv: &mut typval_T,
 ) -> c_int {
-    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         nlua_pushref(lstate, lua_cb);

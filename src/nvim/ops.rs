@@ -2310,7 +2310,6 @@ pub fn getregionpos_prep(
     block_width: c_int,inclusive: &mut bool,
     oap: &mut oparg_T,
 ) {
-    let inclusive: *mut bool = &raw mut *inclusive;
     unsafe {
         *inclusive = true;
         if !lt(*p1, *p2) {

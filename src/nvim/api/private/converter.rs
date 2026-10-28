@@ -374,8 +374,7 @@ pub fn object_to_vim_take_luaref(
     take_luaref: bool,
     _err: &mut Error,
 ) {
-    let tv: *mut typval_T = &raw mut *tv;
-    let tv_ref = unsafe { &mut *tv };
+    let tv_ref =  { tv };
     tv_ref.v_type = VarType::VAR_UNKNOWN;
     tv_ref.v_lock = VAR_UNLOCKED;
 

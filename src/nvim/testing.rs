@@ -153,8 +153,6 @@ fn fill_assert_error(
     exp_tv_arg: *mut typval_T,got_tv_arg: &mut typval_T,
     atype: AssertType,
 ) {
-    let opt_msg_tv: *mut typval_T = &raw mut *opt_msg_tv;
-    let got_tv_arg: *mut typval_T = &raw mut *got_tv_arg;
     unsafe {
         let exp_tv = exp_tv_arg;
         let got_tv = got_tv_arg;
@@ -166,7 +164,7 @@ fn fill_assert_error(
             && !(opt_msg.v_type == VarType::VAR_STRING
                 && (opt_msg.vval.v_string().is_null() || *opt_msg.vval.v_string() == 0))
         {
-            let tofree = encode_tv2echo(&mut *opt_msg_tv, None);
+            let tofree = encode_tv2echo(opt_msg_tv, None);
             buf_concat_cstr(gap, tofree.as_ptr());
             ga_concat_literal(gap, b": ");
         }
@@ -182,18 +180,18 @@ fn fill_assert_error(
         if exp_str.is_null() {
             if atype != AssertType::NotEqual
                 && (*exp_tv).v_type == VarType::VAR_DICT
-                && (*got_tv).v_type == VarType::VAR_DICT
+                && got_tv.v_type == VarType::VAR_DICT
                 && !(*exp_tv).vval.v_dict().is_null()
-                && !(*got_tv).vval.v_dict().is_null()
+                && !got_tv.vval.v_dict().is_null()
             {
                 let exp_d = (*exp_tv).vval.v_dict();
-                let got_d = (*got_tv).vval.v_dict();
+                let got_d = got_tv.vval.v_dict();
 
                 did_copy = true;
                 let new_exp_d = tv_dict_alloc();
                 let new_got_d = tv_dict_alloc();
                 (*exp_tv).vval = crate::eval::typval::TypvalVval::Dict(new_exp_d);
-                (*got_tv).vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
+                got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
 
                 let mut todo = (*exp_d).dv_hashtab.ht_used as c_int;
                 let mut hi = (*exp_d).dv_hashtab.array_ptr();

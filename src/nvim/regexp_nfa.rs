@@ -3549,7 +3549,6 @@ fn nfa_did_time_out() -> bool {
 fn nfa_regmatch(prog: &mut nfa_regprog_T,
     start: Option<usize>,submatch: &mut regsubs_T,m: &mut regsubs_T,
 ) -> c_int {
-    let m: *mut regsubs_T = &raw mut *m;
     unsafe {
         let Some(start_idx) = start else {
             return 0;
@@ -3604,19 +3603,19 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
         let r = if toplevel {
             if REG_MULTI() {
                 let start_col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
-                (*m).norm.list.multi_mut()[0].start_lnum = re_st().rex.lnum;
-                (*m).norm.list.multi_mut()[0].start_col = start_col;
-                (*m).norm.orig_start_col = start_col;
+                m.norm.list.multi_mut()[0].start_lnum = re_st().rex.lnum;
+                m.norm.list.multi_mut()[0].start_col = start_col;
+                m.norm.orig_start_col = start_col;
             } else {
-                (*m).norm.list.line_mut()[0].start = re_st().rex.input;
+                m.norm.list.line_mut()[0].start = re_st().rex.input;
             }
-            (*m).norm.in_use = 1;
+            m.norm.in_use = 1;
             let start_out = (&prog.state)[start_idx].out;
             addstate(
                 &mut prog.state,
                 &raw mut list[0],
                 start_out,
-                Some(&mut *m),
+                Some(m),
                 ptr::null_mut(),
                 0,
                 0,
@@ -3626,7 +3625,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                 &mut prog.state,
                 &raw mut list[0],
                 start,
-                Some(&mut *m),
+                Some(m),
                 ptr::null_mut(),
                 0,
                 0,
@@ -3731,9 +3730,9 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             continue;
                         }
                         if t_st.c != NFA_END_INVISIBLE_NEG {
-                            copy_sub(&mut (*m).norm, &mut (*t).subs.norm);
+                            copy_sub(&mut m.norm, &mut (*t).subs.norm);
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                copy_sub(&mut (*m).synt, &mut (*t).subs.synt);
+                                copy_sub(&mut m.synt, &mut (*t).subs.synt);
                             }
                         }
                         nfa_st().nfa_match = 1;
@@ -3759,17 +3758,17 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             || st_c == NFA_START_INVISIBLE_BEFORE_FIRST
                             || st_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST
                         {
-                            let in_use = (*m).norm.in_use;
-                            copy_sub_off(&mut (*m).norm, &mut (*t).subs.norm);
+                            let in_use = m.norm.in_use;
+                            copy_sub_off(&mut m.norm, &mut (*t).subs.norm);
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                copy_sub_off(&mut (*m).synt, &mut (*t).subs.synt);
+                                copy_sub_off(&mut m.synt, &mut (*t).subs.synt);
                             }
                             let res = recursive_regmatch(
                                 t_state_idx,
                                 ptr::null_mut(),
                                 &mut *prog,
                                 &mut *submatch,
-                                &mut *m,
+                                m,
                                 &mut listids,
                             );
                             if res == NFA_TOO_EXPENSIVE {
@@ -3781,15 +3780,15 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 || st_c == NFA_START_INVISIBLE_BEFORE_NEG
                                 || st_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST;
                             if (res != 0) != is_neg {
-                                copy_sub_off(&mut (*t).subs.norm, &mut (*m).norm);
+                                copy_sub_off(&mut (*t).subs.norm, &mut m.norm);
                                 if re_st().rex.nfa_has_zsubexpr != 0 {
-                                    copy_sub_off(&mut (*t).subs.synt, &mut (*m).synt);
+                                    copy_sub_off(&mut (*t).subs.synt, &mut m.synt);
                                 }
-                                copy_ze_off(&mut (*t).subs.norm, &mut (*m).norm);
+                                copy_ze_off(&mut (*t).subs.norm, &mut m.norm);
                                 add_here = true;
                                 add_state = out1_out;
                             }
-                            (*m).norm.in_use = in_use;
+                            m.norm.in_use = in_use;
                         } else {
                             let mut pim = nfa_pim_T::new();
                             pim.state = Some(t_state_idx);
@@ -3845,16 +3844,16 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             None
                         };
                         if skip.is_none() {
-                            copy_sub_off(&mut (*m).norm, &mut (*t).subs.norm);
+                            copy_sub_off(&mut m.norm, &mut (*t).subs.norm);
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                copy_sub_off(&mut (*m).synt, &mut (*t).subs.synt);
+                                copy_sub_off(&mut m.synt, &mut (*t).subs.synt);
                             }
                             let res = recursive_regmatch(
                                 t_state_idx,
                                 ptr::null_mut(),
                                 &mut *prog,
                                 &mut *submatch,
-                                &mut *m,
+                                m,
                                 &mut listids,
                             );
                             if res == NFA_TOO_EXPENSIVE {
@@ -3862,15 +3861,15 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
                             }
                             if res != 0 {
-                                copy_sub_off(&mut (*t).subs.norm, &mut (*m).norm);
+                                copy_sub_off(&mut (*t).subs.norm, &mut m.norm);
                                 if re_st().rex.nfa_has_zsubexpr != 0 {
-                                    copy_sub_off(&mut (*t).subs.synt, &mut (*m).synt);
+                                    copy_sub_off(&mut (*t).subs.synt, &mut m.synt);
                                 }
                                 let bytelen = if REG_MULTI() {
-                                    (*m).norm.list.multi()[0].end_col
+                                    m.norm.list.multi()[0].end_col
                                         - (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T)
                                 } else {
-                                    (*m).norm.list.line()[0].end.offset_from(re_st().rex.input) as c_int
+                                    m.norm.list.line()[0].end.offset_from(re_st().rex.input) as c_int
                                 };
                                 if bytelen == 0 {
                                     add_here = true;
@@ -4429,7 +4428,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 pim,
                                 &mut *prog,
                                 &mut *submatch,
-                                &mut *m,
+                                m,
                                 &mut listids,
                             );
                             (*pim).result = if r != 0 {
@@ -4438,9 +4437,9 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 NFA_PIM_NOMATCH
                             };
                             if (r != 0) != is_neg {
-                                copy_sub_off(&mut (*pim).subs.norm, &mut (*m).norm);
+                                copy_sub_off(&mut (*pim).subs.norm, &mut m.norm);
                                 if re_st().rex.nfa_has_zsubexpr != 0 {
-                                    copy_sub_off(&mut (*pim).subs.synt, &mut (*m).synt);
+                                    copy_sub_off(&mut (*pim).subs.synt, &mut m.synt);
                                 }
                             }
                             r != 0
@@ -4538,17 +4537,17 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                     if add {
                         if REG_MULTI() {
                             let start_col = (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + clen;
-                            (*m).norm.list.multi_mut()[0].start_col = start_col;
-                            (*m).norm.orig_start_col = start_col;
+                            m.norm.list.multi_mut()[0].start_col = start_col;
+                            m.norm.orig_start_col = start_col;
                         } else {
-                            (*m).norm.list.line_mut()[0].start = re_st().rex.input.add(clen as usize);
+                            m.norm.list.line_mut()[0].start = re_st().rex.input.add(clen as usize);
                         }
                         let start_out = (&prog.state)[start_idx].out;
                         if addstate(
                             &mut prog.state,
                             nextlist,
                             start_out,
-                            Some(&mut *m),
+                            Some(m),
                             ptr::null_mut(),
                             clen,
                             0,
@@ -4631,15 +4630,14 @@ fn finish_nfa_regmatch(prog: &mut nfa_regprog_T,
     toplevel: bool,
     list: &mut [nfa_list_T; 2],
 ) -> c_int {
-    let prog: *mut nfa_regprog_T = &raw mut *prog;
-    unsafe {
+     {
         if toplevel
-            && (*prog).listbuf[0].capacity() == 0
+            && prog.listbuf[0].capacity() == 0
             && list[0].t.capacity() > 0
             && list[1].t.capacity() > 0
         {
-            (*prog).listbuf[0] = std::mem::take(&mut list[0].t);
-            (*prog).listbuf[1] = std::mem::take(&mut list[1].t);
+            prog.listbuf[0] = std::mem::take(&mut list[0].t);
+            prog.listbuf[1] = std::mem::take(&mut list[1].t);
         } else if !toplevel && nfa_st().rec_listbuf.len() < 8 {
             nfa_st()
                 .rec_listbuf

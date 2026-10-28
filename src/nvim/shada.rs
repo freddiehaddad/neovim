@@ -2462,8 +2462,7 @@ fn add_search_pattern(ret_pse: &mut ShadaEntry,
     search_last_used: bool,
     search_highlighted: bool,
 ) {
-    let ret_pse: *mut ShadaEntry = &raw mut *ret_pse;
-    unsafe {
+     {
         let mut pat = SearchPattern::new();
         get_pattern(&mut pat);
         if pat.pat.is_some() {

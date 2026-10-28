@@ -1100,23 +1100,22 @@ pub fn terminal_check_size(term: &mut Terminal) {
 }
 
 fn set_terminal_winopts(s: &mut TerminalState) {
-    let s: *mut TerminalState = &raw mut *s;
     unsafe {
-        debug_assert!((*s).save_curwin_handle == 0);
+        debug_assert!(s.save_curwin_handle == 0);
 
-        (*s).save_curwin_handle = (**curwin.as_ptr()).handle;
-        (*s).save_w_p_cul = (**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0;
-        (*s).save_w_p_culopt = None;
-        (*s).save_w_p_culopt_flags = (**curwin.as_ptr()).w_p_culopt_flags;
-        (*s).save_w_p_cuc = (**curwin.as_ptr()).w_onebuf_opt.wo_cuc;
-        (*s).save_w_p_so = (**curwin.as_ptr()).w_onebuf_opt.wo_so;
-        (*s).save_w_p_siso = (**curwin.as_ptr()).w_onebuf_opt.wo_siso;
+        s.save_curwin_handle = (**curwin.as_ptr()).handle;
+        s.save_w_p_cul = (**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0;
+        s.save_w_p_culopt = None;
+        s.save_w_p_culopt_flags = (**curwin.as_ptr()).w_p_culopt_flags;
+        s.save_w_p_cuc = (**curwin.as_ptr()).w_onebuf_opt.wo_cuc;
+        s.save_w_p_so = (**curwin.as_ptr()).w_onebuf_opt.wo_so;
+        s.save_w_p_siso = (**curwin.as_ptr()).w_onebuf_opt.wo_siso;
 
         if (**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0
             && ((**curwin.as_ptr()).w_p_culopt_flags & kOptCuloptFlagNumber) != 0
         {
             if !(crate::memory::cstr_as_opt_bytes((**curwin.as_ptr()).w_onebuf_opt.wo_culopt) == Some(b"number")) {
-                (*s).save_w_p_culopt =
+                s.save_w_p_culopt =
                     Some(CStr::from_ptr((**curwin.as_ptr()).w_onebuf_opt.wo_culopt).to_owned());
                 free_string_option((**curwin.as_ptr()).w_onebuf_opt.wo_culopt);
                 (**curwin.as_ptr()).w_onebuf_opt.wo_culopt = alloc_string_option(c"number".as_ptr());
@@ -1129,11 +1128,11 @@ fn set_terminal_winopts(s: &mut TerminalState) {
         (**curwin.as_ptr()).w_onebuf_opt.wo_so = 0;
         (**curwin.as_ptr()).w_onebuf_opt.wo_siso = 0;
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_cuc != (*s).save_w_p_cuc {
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_cuc != s.save_w_p_cuc {
             redraw_later(*curwin.as_ptr(), UPD_SOME_VALID);
-        } else if ((**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0) != (*s).save_w_p_cul
+        } else if ((**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0) != s.save_w_p_cul
             || ((**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0
-                && (**curwin.as_ptr()).w_p_culopt_flags != (*s).save_w_p_culopt_flags)
+                && (**curwin.as_ptr()).w_p_culopt_flags != s.save_w_p_culopt_flags)
         {
             redraw_later(*curwin.as_ptr(), UPD_VALID);
         }
@@ -1141,15 +1140,14 @@ fn set_terminal_winopts(s: &mut TerminalState) {
 }
 
 fn unset_terminal_winopts(s: &mut TerminalState) {
-    let s: *mut TerminalState = &raw mut *s;
     unsafe {
-        debug_assert!((*s).save_curwin_handle != 0);
+        debug_assert!(s.save_curwin_handle != 0);
 
-        let wp = handle_get_window((*s).save_curwin_handle);
+        let wp = handle_get_window(s.save_curwin_handle);
         if !wp.is_null() {
             let mut winopts: *mut winopt_T = ptr::null_mut();
-            if (*(*wp).w_buffer).b_fnum != (*(*s).term).buf_handle {
-                let buf = handle_get_buffer((*(*s).term).buf_handle);
+            if (*(*wp).w_buffer).b_fnum != (*s.term).buf_handle {
+                let buf = handle_get_buffer((*s.term).buf_handle);
                 if !buf.is_null() {
                     for wip in &mut (*buf).b_wininfo {
                         if wip.wi_win == wp && wip.wi_optset {
@@ -1161,32 +1159,32 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
             } else {
                 winopts = &raw mut (*wp).w_onebuf_opt;
                 if win_valid(wp) {
-                    if (*s).save_w_p_cuc != (*wp).w_onebuf_opt.wo_cuc {
+                    if s.save_w_p_cuc != (*wp).w_onebuf_opt.wo_cuc {
                         redraw_later(wp, UPD_SOME_VALID);
-                    } else if (*s).save_w_p_cul != ((*wp).w_onebuf_opt.wo_cul != 0)
-                        || ((*s).save_w_p_cul
-                            && (*s).save_w_p_culopt_flags != (*wp).w_p_culopt_flags)
+                    } else if s.save_w_p_cul != ((*wp).w_onebuf_opt.wo_cul != 0)
+                        || (s.save_w_p_cul
+                            && s.save_w_p_culopt_flags != (*wp).w_p_culopt_flags)
                     {
                         redraw_later(wp, UPD_VALID);
                     }
                 }
-                (*wp).w_p_culopt_flags = (*s).save_w_p_culopt_flags;
+                (*wp).w_p_culopt_flags = s.save_w_p_culopt_flags;
             }
 
             if !winopts.is_null() {
-                if let Some(saved) = (*s).save_w_p_culopt.take() {
+                if let Some(saved) = s.save_w_p_culopt.take() {
                     free_string_option((*winopts).wo_culopt);
                     (*winopts).wo_culopt = alloc_string_option(saved.as_ptr());
                 }
-                (*winopts).wo_cul = c_int::from((*s).save_w_p_cul);
-                (*winopts).wo_cuc = (*s).save_w_p_cuc;
-                (*winopts).wo_so = (*s).save_w_p_so;
-                (*winopts).wo_siso = (*s).save_w_p_siso;
+                (*winopts).wo_cul = c_int::from(s.save_w_p_cul);
+                (*winopts).wo_cuc = s.save_w_p_cuc;
+                (*winopts).wo_so = s.save_w_p_so;
+                (*winopts).wo_siso = s.save_w_p_siso;
             }
         }
 
-        (*s).save_w_p_culopt = None;
-        (*s).save_curwin_handle = 0;
+        s.save_w_p_culopt = None;
+        s.save_curwin_handle = 0;
     }
 }
 
@@ -1315,29 +1313,28 @@ fn terminal_check_cursor() {
 }
 
 fn terminal_check_focus(s: &mut TerminalState) -> bool {
-    let s: *mut TerminalState = &raw mut *s;
     unsafe {
         if (*g_st().curbuf).terminal.is_null() {
             return false;
         }
 
-        if (*s).save_curwin_handle != (**curwin.as_ptr()).handle {
-            unset_terminal_winopts(&mut *s);
-            set_terminal_winopts(&mut *s);
+        if s.save_curwin_handle != (**curwin.as_ptr()).handle {
+            unset_terminal_winopts(s);
+            set_terminal_winopts(s);
         }
         let cur_term = &mut *(*g_st().curbuf).terminal;
-        if !std::ptr::eq((*s).term, cur_term) {
-            terminal_focus(&mut *(*s).term, false);
-            if (*s).close {
-                (*(*s).term).destroy = true;
-                channel_term_close(&mut *(*(*s).term).opts.data);
-                (*s).close = false;
+        if !std::ptr::eq(s.term, cur_term) {
+            terminal_focus(&mut *s.term, false);
+            if s.close {
+                (*s.term).destroy = true;
+                channel_term_close(&mut *(*s.term).opts.data);
+                s.close = false;
             }
 
-            (*s).term = &raw mut *cur_term;
-            (*(*s).term).pending.cursor = true;
-            invalidate_terminal(&mut *(*s).term, -1, -1);
-            terminal_focus(&mut *(*s).term, true);
+            s.term = &raw mut *cur_term;
+            (*s.term).pending.cursor = true;
+            invalidate_terminal(&mut *s.term, -1, -1);
+            terminal_focus(&mut *s.term, true);
         }
         true
     }

@@ -511,7 +511,6 @@ pub fn decor_redraw(buf: &mut buf_T,
     col1: c_int,
     decor: DecorInline,
 ) {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         if decor.is_ext() {
             let mut vt = decor.data.ext().vt;
@@ -525,7 +524,7 @@ pub fn decor_redraw(buf: &mut buf_T,
                     } else {
                         col1
                     };
-                    changed_lines_invalidate_buf(&mut *buf, vt_lnum, vt_col, vt_lnum + 1, 0);
+                    changed_lines_invalidate_buf(buf, vt_lnum, vt_col, vt_lnum + 1, 0);
                 }
                 vt = (*vt).next_ptr();
             }
@@ -535,17 +534,16 @@ pub fn decor_redraw(buf: &mut buf_T,
             while idx != DECOR_ID_INVALID {
                 let sh = &(*items).as_slice()[idx as usize];
                 let next = sh.next;
-                decor_redraw_sh(&mut *buf, row1, row2, sh.clone());
+                decor_redraw_sh(buf, row1, row2, sh.clone());
                 idx = next;
             }
         } else {
-            decor_redraw_sh(&mut *buf, row1, row2, decor_sh_from_inline(decor.data.hl()));
+            decor_redraw_sh(buf, row1, row2, decor_sh_from_inline(decor.data.hl()));
         }
     }
 }
 
 pub fn decor_redraw_sh(buf: &mut buf_T, row1: c_int, row2: c_int, sh: DecorSignHighlight) {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         if (sh.hl_id != 0
             || sh.url.is_some()
@@ -609,16 +607,15 @@ pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
 }
 
 pub fn buf_put_decor(buf: &mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
-        if decor.is_ext() && row < (*buf).b_ml.ml_line_count {
+        if decor.is_ext() && row < buf.b_ml.ml_line_count {
             let items = &raw mut g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
-            row2 = row2.min((*buf).b_ml.ml_line_count - 1);
+            row2 = row2.min(buf.b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
                 let sh = &mut (&mut *items)[idx as usize];
                 let next = sh.next;
-                buf_put_decor_sh(&mut *buf, sh, row, row2);
+                buf_put_decor_sh(buf, sh, row, row2);
                 idx = next;
             }
         }
@@ -626,7 +623,6 @@ pub fn buf_put_decor(buf: &mut buf_T, decor: DecorInline, row: c_int, mut row2: 
 }
 
 fn may_force_numberwidth_recompute(buf: &mut buf_T, unplace: bool) {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -851,7 +847,6 @@ pub fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut Deco
 }
 
 pub fn decor_redraw_reset(wp: &mut win_T, state: &mut DecorState) -> bool {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         state.row = -1;
         state.win = wp;
@@ -863,7 +858,7 @@ pub fn decor_redraw_reset(wp: &mut win_T, state: &mut DecorState) -> bool {
         state.future_begin = 0;
         state.new_range_ordering = 0;
 
-        (*(*wp).w_buffer).b_marktree.n_keys != 0
+        (*wp.w_buffer).b_marktree.n_keys != 0
     }
 }
 
@@ -936,14 +931,13 @@ fn decor_state_pack(state: &mut DecorState) {
 }
 
 pub fn decor_redraw_line(wp: &mut win_T, row: c_int, state: &mut DecorState) {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         decor_state_pack(state);
 
         if state.row == -1 {
-            decor_redraw_start(&mut *wp, row, state);
+            decor_redraw_start(wp, row, state);
         } else if !state.itr_valid {
-            marktree_itr_get(&(*(*wp).w_buffer).b_marktree, row, 0, &mut state.itr);
+            marktree_itr_get(&(*wp.w_buffer).b_marktree, row, 0, &mut state.itr);
             state.itr_valid = true;
         }
 
@@ -1613,12 +1607,11 @@ pub fn decor_redraw_col(wp: &mut win_T,
     state: &mut DecorState,
     max_col_last: c_int,
 ) -> c_int {
-    let wp: *mut win_T = &raw mut *wp;
-    unsafe {
+     {
         if col <= state.col_last {
             return state.current;
         }
-        decor_redraw_col_impl(&mut *wp, col, win_col, hidden, state, max_col_last)
+        decor_redraw_col_impl(wp, col, win_col, hidden, state, max_col_last)
     }
 }
 
@@ -1627,9 +1620,8 @@ pub fn decor_redraw_eol(wp: &mut win_T,
     eol_attr: &mut c_int,
     eol_col: c_int,
 ) -> bool {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
-        decor_redraw_col(&mut *wp, MAXCOL, MAXCOL, false, state, MAXCOL);
+        decor_redraw_col(wp, MAXCOL, MAXCOL, false, state, MAXCOL);
         state.eol_col = eol_col;
 
         let count = state.current_end;
@@ -1659,15 +1651,14 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
     target_row: c_int,skip_cells: Option<&mut c_int>,
 ) -> c_int {
     let skip_cells: *mut c_int = skip_cells.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
         if !skip_cells.is_null() {
             *skip_cells = 0;
         }
-        if !decor_virt_line_wrap(&mut *wp, vl.overflow) {
+        if !decor_virt_line_wrap(wp, vl.overflow) {
             return 1;
         }
-        let row_width = (*wp).w_view_width
+        let row_width = wp.w_view_width
             - if (vl.flags & kVLLeftcol) != 0 {
                 0
             } else {
@@ -1677,7 +1668,7 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
             return 1;
         }
         let vt = &vl.line;
-        let buf = (*wp).w_buffer;
+        let buf = wp.w_buffer;
         let mut vcol: c_int = 0;
         let mut row_cells: c_int = 0;
         let mut row: c_int = 0;
@@ -1799,7 +1790,6 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
     hl_name: bool,
     arena: &mut Arena,
 ) {
-    let dict: *mut Dict = &raw mut *dict;
     unsafe {
         let inline_sh;
         let mut sh_hl = &DECOR_SIGN_HIGHLIGHT_INIT;
@@ -1838,12 +1828,12 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 
         if sh_hl.hl_id != 0 {
             put_c(
-                &mut *dict,
+                dict,
                 c"hl_group".as_ptr(),
                 hl_group_name(sh_hl.hl_id, hl_name),
             );
             put_c(
-                &mut *dict,
+                dict,
                 c"hl_eol".as_ptr(),
                 boolean_obj((sh_hl.flags & kSHHlEol) != 0),
             );
@@ -1851,12 +1841,12 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
         }
 
         if (sh_hl.flags & kSHConcealOff) != 0 {
-            put_c(&mut *dict, c"conceal".as_ptr(), boolean_obj(false));
+            put_c(dict, c"conceal".as_ptr(), boolean_obj(false));
         } else if (sh_hl.flags & kSHConceal) != 0 {
             let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
             schar_get(buf.as_mut_ptr(), sh_hl.text[0]);
             put_c(
-                &mut *dict,
+                dict,
                 c"conceal".as_ptr(),
                 cstr_to_arena_obj(arena, buf.as_ptr()),
             );
@@ -1864,53 +1854,53 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 
         if (sh_hl.flags & kSHConcealLines) != 0 {
             put_c(
-                &mut *dict,
+                dict,
                 c"conceal_lines".as_ptr(),
                 cstr_as_obj(c"".as_ptr()),
             );
         }
 
         if (sh_hl.flags & kSHSpellOn) != 0 {
-            put_c(&mut *dict, c"spell".as_ptr(), boolean_obj(true));
+            put_c(dict, c"spell".as_ptr(), boolean_obj(true));
         } else if (sh_hl.flags & kSHSpellOff) != 0 {
-            put_c(&mut *dict, c"spell".as_ptr(), boolean_obj(false));
+            put_c(dict, c"spell".as_ptr(), boolean_obj(false));
         }
 
         if (sh_hl.flags & kSHUIWatched) != 0 {
-            put_c(&mut *dict, c"ui_watched".as_ptr(), boolean_obj(true));
+            put_c(dict, c"ui_watched".as_ptr(), boolean_obj(true));
         }
 
         if let Some(ref url) = sh_hl.url {
-            put_c(&mut *dict, c"url".as_ptr(), cstr_as_obj(url.as_ptr()));
+            put_c(dict, c"url".as_ptr(), cstr_as_obj(url.as_ptr()));
         }
 
         if !virt_text.is_null() {
             if (*virt_text).hl_mode != 0 {
                 let mode_str = hl_mode_str[(*virt_text).hl_mode as usize].as_ptr();
-                put_c(&mut *dict, c"hl_mode".as_ptr(), cstr_as_obj(mode_str));
+                put_c(dict, c"hl_mode".as_ptr(), cstr_as_obj(mode_str));
             }
 
             let chunks = virt_text_to_array((*virt_text).data.virt_text(), hl_name, arena);
-            put_c(&mut *dict, c"virt_text".as_ptr(), array_obj(chunks));
+            put_c(dict, c"virt_text".as_ptr(), array_obj(chunks));
             put_c(
-                &mut *dict,
+                dict,
                 c"virt_text_hide".as_ptr(),
                 boolean_obj(((*virt_text).flags & kVTHide) != 0),
             );
             put_c(
-                &mut *dict,
+                dict,
                 c"virt_text_repeat_linebreak".as_ptr(),
                 boolean_obj(((*virt_text).flags & kVTRepeatLinebreak) != 0),
             );
             if (*virt_text).pos == kVPosWinCol {
                 put_c(
-                    &mut *dict,
+                    dict,
                     c"virt_text_win_col".as_ptr(),
                     integer_obj(Integer::from((*virt_text).col)),
                 );
             }
             let pos_str = virt_text_pos_str[(*virt_text).pos as usize].as_ptr();
-            put_c(&mut *dict, c"virt_text_pos".as_ptr(), cstr_as_obj(pos_str));
+            put_c(dict, c"virt_text_pos".as_ptr(), cstr_as_obj(pos_str));
             priority = i32::from((*virt_text).priority);
         }
 
@@ -1925,14 +1915,14 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
                 let chunks = virt_text_to_array(&vl.line, hl_name, arena);
                 all_chunks.push(array_obj(chunks));
             }
-            put_c(&mut *dict, c"virt_lines".as_ptr(), array_obj(all_chunks));
+            put_c(dict, c"virt_lines".as_ptr(), array_obj(all_chunks));
             put_c(
-                &mut *dict,
+                dict,
                 c"virt_lines_above".as_ptr(),
                 boolean_obj(((*virt_lines).flags & kVTLinesAbove) != 0),
             );
             put_c(
-                &mut *dict,
+                dict,
                 c"virt_lines_leftcol".as_ptr(),
                 boolean_obj((virt_lines_flags & kVLLeftcol) != 0),
             );
@@ -1944,7 +1934,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
                 _ => c"trunc".as_ptr(),
             };
             put_c(
-                &mut *dict,
+                dict,
                 c"virt_lines_overflow".as_ptr(),
                 cstr_as_obj(overflow),
             );
@@ -1956,7 +1946,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
                 let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
                 describe_sign_text(buf.as_mut_ptr(), sh_sign.text.as_ptr().cast_mut());
                 put_c(
-                    &mut *dict,
+                    dict,
                     c"sign_text".as_ptr(),
                     cstr_to_arena_obj(arena, buf.as_ptr()),
                 );
@@ -1964,7 +1954,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 
             if let Some(ref sign_name) = sh_sign.sign_name {
                 put_c(
-                    &mut *dict,
+                    dict,
                     c"sign_name".as_ptr(),
                     cstr_as_obj(sign_name.as_ptr()),
                 );
@@ -1978,7 +1968,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             ];
             for (name, val) in hls {
                 if val != 0 {
-                    put_c(&mut *dict, name, hl_group_name(val, hl_name));
+                    put_c(dict, name, hl_group_name(val, hl_name));
                 }
             }
             priority = i32::from(sh_sign.priority);
@@ -1986,7 +1976,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 
         if priority != -1 {
             put_c(
-                &mut *dict,
+                dict,
                 c"priority".as_ptr(),
                 integer_obj(Integer::from(priority)),
             );

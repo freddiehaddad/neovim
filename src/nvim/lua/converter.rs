@@ -941,9 +941,9 @@ fn lua_convert_one_value(
     mpstack: &mut Vec<MPConvStackVal>,tv: &mut typval_T,
     copy_id: c_int,
 ) -> c_int {
-    let tv: *mut typval_T = &raw mut *tv;
+    let tv_ptr: *mut typval_T = &raw mut *tv;
     unsafe {
-        let tv_ref = &mut *tv;
+        let tv_ref = tv;
         match tv_ref.v_type {
             VarType::VAR_STRING => {
                 let s = tv_ref.vval.v_string();
@@ -1021,7 +1021,7 @@ fn lua_convert_one_value(
                         return FAIL;
                     }
                     mpstack.push(MPConvStackVal {
-                        tv,
+                        tv: tv_ptr,
                         saved_copy_id,
                         data: MPConvStackData::List {
                             list,
@@ -1154,7 +1154,7 @@ fn lua_convert_one_value(
                                                 return FAIL;
                                             }
                                             mpstack.push(MPConvStackVal {
-                                                tv,
+                                                tv: tv_ptr,
                                                 saved_copy_id,
                                                 data: MPConvStackData::List {
                                                     list: val_list,
@@ -1202,7 +1202,7 @@ fn lua_convert_one_value(
                                                         return FAIL;
                                                     }
                                                     mpstack.push(MPConvStackVal {
-                                                        tv,
+                                                        tv: tv_ptr,
                                                         saved_copy_id,
                                                         data: MPConvStackData::Pairs {
                                                             list: val_list,
@@ -1253,7 +1253,7 @@ fn lua_convert_one_value(
                         return FAIL;
                     }
                     mpstack.push(MPConvStackVal {
-                        tv,
+                        tv: tv_ptr,
                         saved_copy_id,
                         data: MPConvStackData::Dict {
                             dict,
@@ -1274,12 +1274,11 @@ fn lua_convert_one_value(
 }
 
 fn encode_vim_to_lua(lstate: *mut lua_State,top_tv: &mut typval_T) -> c_int {
-    let top_tv: *mut typval_T = &raw mut *top_tv;
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
 
-        if lua_convert_one_value(lstate, &mut mpstack, &mut *top_tv, copy_id) == FAIL {
+        if lua_convert_one_value(lstate, &mut mpstack, top_tv, copy_id) == FAIL {
             return FAIL;
         }
 

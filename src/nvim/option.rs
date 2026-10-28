@@ -1820,7 +1820,6 @@ fn find_tty_option_end(arg: *const c_char) -> *const c_char {
 
 /// Skip over the name of an option.
 pub fn find_option_end(arg: *const c_char,opt_idxp: &mut OptIndex) -> *const c_char {
-    let opt_idxp: *mut OptIndex = &raw mut *opt_idxp;
     unsafe {
         let mut p = find_tty_option_end(arg);
         if !p.is_null() {
@@ -5379,7 +5378,6 @@ pub fn optval_from_obj(
     o: Object,
     op: set_op_T,error: &mut bool,
 ) -> Object {
-    let error: *mut bool = &raw mut *error;
     unsafe {
         if o.obj_type == ObjectType::kObjectTypeNil {
             return nil_obj();
@@ -8518,8 +8516,6 @@ pub fn option_next_keyval(
     key: *mut *const c_char,keylen: &mut usize,
     val: *mut *const c_char,vallen: &mut usize,
 ) -> bool {
-    let keylen: *mut usize = &raw mut *keylen;
-    let vallen: *mut usize = &raw mut *vallen;
     unsafe {
         let s = *p;
         if *s == NUL {

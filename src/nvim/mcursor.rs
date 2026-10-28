@@ -774,9 +774,7 @@ fn mc_ins_region_first() -> MTPair {
 
 #[inline]
 fn mc_region_range(p: MTPair,start: &mut pos_T,end: &mut pos_T) {
-    let start: *mut pos_T = &raw mut *start;
-    let end: *mut pos_T = &raw mut *end;
-    unsafe {
+     {
         *start = pos_T {
             lnum: p.start.pos.row + 1,
             col: p.start.pos.col,

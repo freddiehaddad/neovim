@@ -384,8 +384,7 @@ fn filter_map_list(
 }
 
 fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMap) {
-    let rettv: *mut typval_T = &raw mut *rettv;
-    unsafe {
+     {
         let (func_name, arg_errmsg) = match filtermap {
             FilterMap::Map => (c"map()".as_ptr(), c"map() argument".as_ptr()),
             FilterMap::MapNew => (c"mapnew()".as_ptr(), c"mapnew() argument".as_ptr()),
@@ -396,7 +395,7 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
         let (first, rest) = argvars.split_at_mut(1);
         let arg0 = &first[0];
         if filtermap != FilterMap::MapNew && arg0.v_type != VarType::VAR_STRING {
-            tv_copy(arg0, &mut *rettv);
+            tv_copy(arg0, rettv);
         }
 
         if !matches!(
@@ -433,16 +432,16 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
 
         match arg0.v_type {
             VarType::VAR_DICT => {
-                filter_map_dict(arg0.vval.v_dict(), filtermap, arg_errmsg, expr, &mut *rettv);
+                filter_map_dict(arg0.vval.v_dict(), filtermap, arg_errmsg, expr, rettv);
             }
             VarType::VAR_BLOB => {
-                filter_map_blob(arg0.vval.v_blob(), filtermap, expr, arg_errmsg, &mut *rettv);
+                filter_map_blob(arg0.vval.v_blob(), filtermap, expr, arg_errmsg, rettv);
             }
             VarType::VAR_STRING => {
-                filter_map_string(tv_get_string(arg0), filtermap, expr, &mut *rettv);
+                filter_map_string(tv_get_string(arg0), filtermap, expr, rettv);
             }
             VarType::VAR_LIST => {
-                filter_map_list(arg0.vval.v_list(), filtermap, arg_errmsg, expr, &mut *rettv);
+                filter_map_list(arg0.vval.v_list(), filtermap, arg_errmsg, expr, rettv);
             }
             _ => unreachable!(),
         }

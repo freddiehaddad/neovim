@@ -537,7 +537,6 @@ pub fn msg_multiline(
     check_int: bool,
     hist: bool,need_clear: &mut bool,
 ) {
-    let need_clear: *mut bool = &raw mut *need_clear;
     unsafe {
         let mut s = str_.data.cast_const();
         let mut chunk = s;

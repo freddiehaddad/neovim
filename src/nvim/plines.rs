@@ -687,14 +687,13 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> 
 }
 
 fn virt_text_cursor_off(csarg: &CharsizeArg, on_nul: bool) -> c_int {
-    let csarg: *const CharsizeArg = &raw const *csarg;
-    unsafe {
+     {
         let mut off = 0;
         if !on_nul || (g_st().State & MODE_NORMAL) == 0 {
-            off += (*csarg).cur_text_width_left;
+            off += csarg.cur_text_width_left;
         }
         if !on_nul && (g_st().State & MODE_NORMAL) != 0 {
-            off += (*csarg).cur_text_width_right;
+            off += csarg.cur_text_width_right;
         }
         off
     }
@@ -1167,12 +1166,11 @@ pub fn win_max_displaywidth(wp: &mut win_T,
     last: linenr_T,
     max: c_int,
 ) -> c_int {
-    let wp: *mut win_T = &raw mut *wp;
-    unsafe {
+     {
         let mut width = 0;
         let mut lnum = first;
         while lnum <= last && width < max {
-            width = width.max(linetabsize(&mut *wp, lnum));
+            width = width.max(linetabsize(wp, lnum));
             lnum += 1;
         }
         max.min(width)

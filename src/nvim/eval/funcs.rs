@@ -1205,7 +1205,6 @@ pub fn call_internal_func(
     argcount: c_int,
     argvars: *mut typval_T,rettv: &mut typval_T,
 ) -> c_int {
-    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let fdef = find_internal_func(fname);
         if fdef.is_null() {
@@ -1218,7 +1217,7 @@ pub fn call_internal_func(
         (*argvars.add(argcount as usize)).v_type = VarType::VAR_UNKNOWN;
         if let Some(func) = (*fdef).func {
             let slice_len = (argcount as usize + 1).max(usize::from((*fdef).max_argc) + 1);
-            func(std::slice::from_raw_parts_mut(argvars, slice_len), &mut *rettv, (*fdef).data);
+            func(std::slice::from_raw_parts_mut(argvars, slice_len), rettv, (*fdef).data);
         }
         FCERR_NONE
     }
@@ -1231,7 +1230,6 @@ pub fn call_internal_method(
     argvars: *mut typval_T,rettv: &mut typval_T,
     basetv: *mut typval_T,
 ) -> c_int {
-    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let fdef = find_internal_func(fname);
         if fdef.is_null() {
@@ -1263,7 +1261,7 @@ pub fn call_internal_method(
         argv[(argcount + 1) as usize].v_type = VarType::VAR_UNKNOWN;
 
         if let Some(func) = (*fdef).func {
-            func(&mut argv, &mut *rettv, (*fdef).data);
+            func(&mut argv, rettv, (*fdef).data);
         }
         FCERR_NONE
     }
@@ -1272,14 +1270,13 @@ pub fn call_internal_method(
 /// Returns true for a non-zero Number and a non-empty String.
 #[inline]
 fn non_zero_arg(argvars: &typval_T) -> bool {
-    let argvars: *const typval_T = &raw const *argvars;
     unsafe {
-        ((*argvars).v_type == VarType::VAR_NUMBER && (*argvars).vval.v_number() != 0)
-            || ((*argvars).v_type == VarType::VAR_BOOL
-                && (*argvars).vval.v_bool() as c_int == kBoolVarTrue)
-            || ((*argvars).v_type == VarType::VAR_STRING
-                && !(*argvars).vval.v_string().is_null()
-                && *(*argvars).vval.v_string() != NUL)
+        (argvars.v_type == VarType::VAR_NUMBER && argvars.vval.v_number() != 0)
+            || (argvars.v_type == VarType::VAR_BOOL
+                && argvars.vval.v_bool() as c_int == kBoolVarTrue)
+            || (argvars.v_type == VarType::VAR_STRING
+                && !argvars.vval.v_string().is_null()
+                && *argvars.vval.v_string() != NUL)
     }
 }
 
@@ -1456,16 +1453,15 @@ pub fn f_atan2(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
 /// Get buffer by number or pattern.
 pub fn tv_get_buf(tv: &mut typval_T, curtab_only: c_int) -> *mut buf_T {
-    let tv: *mut typval_T = &raw mut *tv;
     unsafe {
-        if (*tv).v_type == VarType::VAR_NUMBER {
-            return buflist_findnr((*tv).vval.v_number() as c_int);
+        if tv.v_type == VarType::VAR_NUMBER {
+            return buflist_findnr(tv.vval.v_number() as c_int);
         }
-        if (*tv).v_type != VarType::VAR_STRING {
+        if tv.v_type != VarType::VAR_STRING {
             return ptr::null_mut();
         }
 
-        let name = (*tv).vval.v_string();
+        let name = tv.vval.v_string();
         if name.is_null() || *name == NUL {
             return g_st().curbuf;
         }
@@ -1490,7 +1486,7 @@ pub fn tv_get_buf(tv: &mut typval_T, curtab_only: c_int) -> *mut buf_T {
         opt_vars().p_cpo = save_cpo;
 
         if buf.is_null() {
-            return find_buffer(&mut *tv);
+            return find_buffer(tv);
         }
 
         buf
@@ -1499,13 +1495,12 @@ pub fn tv_get_buf(tv: &mut typval_T, curtab_only: c_int) -> *mut buf_T {
 
 /// Like `tv_get_buf()` but give an error message if the type is wrong.
 pub fn tv_get_buf_from_arg(tv: &mut typval_T) -> *mut buf_T {
-    let tv: *mut typval_T = &raw mut *tv;
-    unsafe {
+     {
         if !tv_check_str_or_nr(&*tv) {
             return ptr::null_mut();
         }
         g_st().emsg_off += 1;
-        let buf = tv_get_buf(&mut *tv, 0);
+        let buf = tv_get_buf(tv, 0);
         g_st().emsg_off -= 1;
         buf
     }
@@ -1513,10 +1508,9 @@ pub fn tv_get_buf_from_arg(tv: &mut typval_T) -> *mut buf_T {
 
 /// Get the buffer from "arg" and give an error and return NULL if it is not valid.
 pub fn get_buf_arg(arg: &mut typval_T) -> *mut buf_T {
-    let arg: *mut typval_T = &raw mut *arg;
-    unsafe {
+     {
         g_st().emsg_off += 1;
-        let buf = tv_get_buf(&mut *arg, 0);
+        let buf = tv_get_buf(arg, 0);
         g_st().emsg_off -= 1;
         if buf.is_null() {
             semsg!(
@@ -4112,7 +4106,6 @@ pub fn f_index(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 }
 
 fn indexof_eval_expr(expr: &mut typval_T) -> varnumber_T {
-    let expr: *mut typval_T = &raw mut *expr;
     unsafe {
         let mut argv = [tv_initial_value(); 3];
         argv[0] = *get_vim_var_tv(VV_KEY);
@@ -4166,7 +4159,6 @@ fn indexof_blob(
 }
 
 fn indexof_list(l: *mut list_T, startidx: varnumber_T,expr: &mut typval_T) -> varnumber_T {
-    let expr: *mut typval_T = &raw mut *expr;
     unsafe {
         if l.is_null() {
             return -1;
@@ -4192,7 +4184,7 @@ fn indexof_list(l: *mut list_T, startidx: varnumber_T,expr: &mut typval_T) -> va
             set_vim_var_nr(VV_KEY, idx);
             tv_copy(&(*item).li_tv, &mut *get_vim_var_tv(VV_VAL));
 
-            let found = indexof_eval_expr(&mut *expr) != 0;
+            let found = indexof_eval_expr(expr) != 0;
             tv_clear(get_vim_var_tv(VV_VAL));
 
             if found {
@@ -6594,7 +6586,6 @@ fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
 }
 
 fn repeat_string(str_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
-    let str_tv: *mut typval_T = &raw mut *str_tv;
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -7937,7 +7928,6 @@ fn get_yank_type(
     pp: *mut *mut c_char,yank_type: &mut crate::register::MotionType,
     block_len: &mut c_int,
 ) -> c_int {
-    let yank_type: *mut crate::register::MotionType = &raw mut *yank_type;
     unsafe {
         let mut stropt = *pp;
         match *stropt {

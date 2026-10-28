@@ -4980,7 +4980,6 @@ pub fn set_buflisted(on: c_int) {
 
 /// Read the file for `buf` again and check if the contents changed.
 pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let mut differ = true;
 
@@ -4999,8 +4998,8 @@ pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
 
         if ml_open(&mut *g_st().curbuf) == OK
             && readfile(
-                (*buf).b_ffname,
-                (*buf).b_fname,
+                buf.b_ffname,
+                buf.b_fname,
                 0,
                 0,
                 MAXLNUM,
@@ -5008,7 +5007,7 @@ pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
                 READ_NEW | READ_DUMMY,
                 false,
             ) == OK
-            && (*buf).b_ml.ml_line_count == (*g_st().curbuf).b_ml.ml_line_count
+            && buf.b_ml.ml_line_count == (*g_st().curbuf).b_ml.ml_line_count
         {
             differ = false;
             for lnum in 1..=(*g_st().curbuf).b_ml.ml_line_count {

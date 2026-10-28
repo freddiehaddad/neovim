@@ -56,7 +56,6 @@ struct ValuesStackItem {
 }
 
 fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
-    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         let dict = tv_dict_alloc();
         let type_di = tv_dict_item_alloc_len(c"_TYPE".as_ptr(), 5);
@@ -80,12 +79,11 @@ fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
 pub fn decode_create_map_special_dict(ret_tv: &mut typval_T, len: isize) -> *mut list_T {
-    let ret_tv: *mut typval_T = &raw mut *ret_tv;
     unsafe {
         let list = tv_list_alloc(len);
         tv_list_ref(list);
         create_special_dict(
-            &mut *ret_tv,
+            ret_tv,
             K_MP_MAP,
             typval_T {
                 v_type: VarType::VAR_LIST,
@@ -1043,7 +1041,6 @@ pub fn json_decode_string(
 }
 
 fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
-    let rettv: *mut typval_T = &raw mut *rettv;
     unsafe {
         if val <= (i64::MAX as u64) {
             *rettv = typval_T {
@@ -1055,7 +1052,7 @@ fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
             let list = tv_list_alloc(4);
             tv_list_ref(list);
             create_special_dict(
-                &mut *rettv,
+                rettv,
                 K_MP_INTEGER,
                 typval_T {
                     v_type: VarType::VAR_LIST,

@@ -2255,14 +2255,11 @@ pub(super) fn match_with_backref(
     end_lnum: linenr_T,
     end_col: colnr_T,bytelen: &mut c_int,
 ) -> c_int {
-    let bytelen: *mut c_int = &raw mut *bytelen;
     unsafe {
         let mut clnum = start_lnum;
         let mut ccol = start_col;
 
-        if !bytelen.is_null() {
-            *bytelen = 0;
-        }
+        *bytelen = 0;
         loop {
             let tf = &raw mut re_st().reg_tofree;
             if (*tf).is_empty() || re_st().rex.line != (*tf).as_mut_ptr() {
@@ -2291,9 +2288,7 @@ pub(super) fn match_with_backref(
             {
                 return RA_NOMATCH;
             }
-            if !bytelen.is_null() {
-                *bytelen += len;
-            }
+            *bytelen += len;
             if clnum == end_lnum {
                 break;
             }
@@ -2302,9 +2297,7 @@ pub(super) fn match_with_backref(
             }
 
             reg_nextline();
-            if !bytelen.is_null() {
-                *bytelen = 0;
-            }
+            *bytelen = 0;
             clnum += 1;
             ccol = 0;
             if g_st().got_int {

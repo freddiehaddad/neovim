@@ -1947,10 +1947,9 @@ fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
 fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
-    let arg: *const typval_T = &raw const *arg;
     unsafe {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
-        let chars = tv_get_string_buf_chk(&*arg, buf_chars.as_mut_ptr());
+        let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
         let mut p = chars;
 
         if !p.is_null() && *p != NUL {
@@ -1974,17 +1973,15 @@ fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> c_
 }
 
 fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
-    let argchars: *const typval_T = &raw const *argchars;
-    let argdigraph: *const typval_T = &raw const *argdigraph;
     unsafe {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
-        if get_digraph_chars(&*argchars, &mut char1, &mut char2) == FAIL {
+        if get_digraph_chars(argchars, &mut char1, &mut char2) == FAIL {
             return false;
         }
 
         let mut buf_digraph = [0 as c_char; NUMBUFLEN];
-        let digraph = tv_get_string_buf_chk(&*argdigraph, buf_digraph.as_mut_ptr());
+        let digraph = tv_get_string_buf_chk(argdigraph, buf_digraph.as_mut_ptr());
         if digraph.is_null() {
             return false;
         }

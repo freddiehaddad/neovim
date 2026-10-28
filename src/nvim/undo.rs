@@ -2630,15 +2630,14 @@ pub fn u_update_save_nr(buf: &mut buf_T) {
 }
 
 fn u_unch_branch(buf: &mut buf_T, uhp: Option<usize>) {
-    let buf: *mut buf_T = &raw mut *buf;
-    unsafe {
+     {
         let mut uh = uhp;
         while let Some(u) = uh {
-            uhp_mut(&mut *buf, u).uh_flags |= UH_CHANGED;
+            uhp_mut(buf, u).uh_flags |= UH_CHANGED;
             let alt_next = uhp_ref(&*buf, u).uh_alt_next;
             let prev = uhp_ref(&*buf, u).uh_prev;
             if alt_next.is_some() {
-                u_unch_branch(&mut *buf, alt_next);
+                u_unch_branch(buf, alt_next);
             }
             uh = prev;
         }

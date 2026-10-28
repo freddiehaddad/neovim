@@ -497,10 +497,6 @@ fn set_search_match(t: &mut pos_T) {
 pub fn parse_pattern_and_range(
     incsearch_start: &mut pos_T,search_delim: &mut c_int,skiplen: &mut c_int,patlen: &mut c_int,is_magic: &mut bool,
 ) -> bool {
-    let search_delim: *mut c_int = &raw mut *search_delim;
-    let skiplen: *mut c_int = &raw mut *skiplen;
-    let patlen: *mut c_int = &raw mut *patlen;
-    let is_magic: *mut bool = &raw mut *is_magic;
     unsafe {
         let mut delim_optional = false;
         let mut dummy: *const c_char = ptr::null();
@@ -946,24 +942,23 @@ fn finish_incsearch_highlighting(
     gotesc: bool,s: &mut incsearch_state_T,
     call_update_screen: bool,
 ) {
-    let s: *mut incsearch_state_T = &raw mut *s;
     unsafe {
-        if !(*s).did_incsearch {
+        if !s.did_incsearch {
             return;
         }
 
-        (*s).did_incsearch = false;
+        s.did_incsearch = false;
         if gotesc {
-            (**curwin.as_ptr()).w_cursor = (*s).save_cursor;
+            (**curwin.as_ptr()).w_cursor = s.save_cursor;
         } else {
-            if !equalpos((*s).save_cursor, (*s).search_start) {
+            if !equalpos(s.save_cursor, s.search_start) {
                 // put the '" mark at the original position
-                (**curwin.as_ptr()).w_cursor = (*s).save_cursor;
+                (**curwin.as_ptr()).w_cursor = s.save_cursor;
                 setpcmark();
             }
-            (**curwin.as_ptr()).w_cursor = (*s).search_start;
+            (**curwin.as_ptr()).w_cursor = s.search_start;
         }
-        restore_viewstate(&mut **curwin.as_ptr(), &(*s).old_viewstate);
+        restore_viewstate(&mut **curwin.as_ptr(), &s.old_viewstate);
         g_st().Search.hl_match = false;
 
         // by default search all lines

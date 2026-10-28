@@ -4403,7 +4403,6 @@ fn qf_buf_add_line(
     qftf_str: *mut c_char,
     first_bufline: bool,
 ) -> c_int {
-    let buf: *mut buf_T = &raw mut *buf;
     unsafe {
         let gap = qfga_get();
 

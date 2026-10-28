@@ -203,7 +203,6 @@ pub fn findpar(pincl: &mut bool,
     what: c_int,
     both: bool,
 ) -> bool {
-    let pincl: *mut bool = &raw mut *pincl;
     unsafe {
         let mut fold_first: linenr_T = 0;
         let mut fold_last: linenr_T = 0;

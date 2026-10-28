@@ -1469,9 +1469,8 @@ fn syn_stack_equal(sp: &synstate_T) -> bool {
 
 /// We stop parsing syntax above line "lnum".
 pub fn syntax_end_parsing(wp: &mut win_T, lnum: linenr_T) {
-    let wp: *mut win_T = &raw mut *wp;
     unsafe {
-        if syn_st().syn_block != win_s(&mut *wp) {
+        if syn_st().syn_block != win_s(wp) {
             return;
         }
         if let Some(mut sp_idx) = syn_stack_find_entry(lnum) {
@@ -2656,7 +2655,6 @@ fn syn_regexec(
     lnum: linenr_T,
     col: colnr_T,st: &mut syn_time_T,
 ) -> bool {
-    let st: *mut syn_time_T = &raw mut *st;
     unsafe {
         let mut timed_out: c_int = 0;
         let mut pt: proftime_T = 0;
@@ -2675,13 +2673,13 @@ fn syn_regexec(
 
         if l_syn_time_on {
             pt = profile_end(pt);
-            (*st).total = profile_add((*st).total, pt);
-            if profile_cmp(pt, (*st).slowest) < 0 {
-                (*st).slowest = pt;
+            st.total = profile_add(st.total, pt);
+            if profile_cmp(pt, st.slowest) < 0 {
+                st.slowest = pt;
             }
-            (*st).count += 1;
+            st.count += 1;
             if r > 0 {
-                (*st).match_ += 1;
+                st.match_ += 1;
             }
         }
         if timed_out != 0 && !(*win_s(&mut *syn_st().syn_win)).b_syn_slow {

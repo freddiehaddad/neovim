@@ -339,7 +339,6 @@ use crate::mbyte::utf_byte2len;
 
 #[inline]
 fn trigger_autocomplete(s: &mut InsertState) -> bool {
-    let s: *mut InsertState = &raw mut *s;
     unsafe {
         mc_ins_cascade();
         redraw_later(*curwin.as_ptr(), UPD_VALID);
@@ -348,7 +347,7 @@ fn trigger_autocomplete(s: &mut InsertState) -> bool {
         ins_compl_enable_autocomplete();
         ins_compl_arm_autostart();
         if !ins_compl_arm_autocomplete_delay() {
-            insert_do_complete(&mut *s);
+            insert_do_complete(s);
             return true;
         }
         false
@@ -1325,12 +1324,11 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
 }
 
 fn insert_do_complete(s: &mut InsertState) {
-    let s: *mut InsertState = &raw mut *s;
-    unsafe {
+     {
         ins_compl_clear_autocomplete_delay();
         ins_st().compl_busy = true;
         g_st().disable_fold_update += 1;
-        if ins_complete((*s).c, true) == FAIL {
+        if ins_complete(s.c, true) == FAIL {
             compl_status_clear();
         }
         g_st().disable_fold_update -= 1;

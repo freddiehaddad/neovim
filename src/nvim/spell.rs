@@ -266,7 +266,6 @@ pub fn spell_check(
     docount: bool,
 ) -> usize {
     let capcol: *mut c_int = capcol.map_or(std::ptr::null_mut(), |p| &raw mut *p);
-    let attrp: *mut hlf_T = &raw mut *attrp;
     unsafe {
         if (*ptr as u8) <= b' ' {
             return 1;
@@ -3190,7 +3189,6 @@ fn dump_prefixes(
     }
 }
 pub fn spell_to_word_end(start: *mut c_char,win: &mut win_T) -> *mut c_char {
-    let win: *mut win_T = &raw mut *win;
     unsafe {
         let mut p = start;
         while *p != NUL && spell_iswordp(p, &*win) {
