@@ -1083,7 +1083,7 @@ pub fn readfile(
             if curbuf_mut().b_ffname.is_null()
                 && !filtering
                 && !fname.is_null()
-                && !vim_strchr(opt_vars().p_cpo, K_CPO_FNAMER).is_null()
+                && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMER)
                 && (flags & READ_DUMMY) == 0
                 && !set_rw_fname(fname, sfname)
             {
@@ -1408,9 +1408,12 @@ pub fn readfile(
             curbuf_mut().b_op_start.lnum = if from == 0 { 1 } else { from };
             curbuf_mut().b_op_start.col = 0;
 
-            let mut try_mac = c_int::from(!vim_strchr(opt_vars().p_ffs, b'm' as c_int).is_null());
-            let mut try_dos = c_int::from(!vim_strchr(opt_vars().p_ffs, b'd' as c_int).is_null());
-            let mut try_unix = c_int::from(!vim_strchr(opt_vars().p_ffs, b'x' as c_int).is_null());
+            let mut try_mac =
+                c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as c_int));
+            let mut try_dos =
+                c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as c_int));
+            let mut try_unix =
+                c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as c_int));
 
             if !read_buffer {
                 let m = g_st().msg_scroll;
@@ -1459,9 +1462,9 @@ pub fn readfile(
                     );
                 }
 
-                try_mac = c_int::from(!vim_strchr(opt_vars().p_ffs, b'm' as c_int).is_null());
-                try_dos = c_int::from(!vim_strchr(opt_vars().p_ffs, b'd' as c_int).is_null());
-                try_unix = c_int::from(!vim_strchr(opt_vars().p_ffs, b'x' as c_int).is_null());
+                try_mac = c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as c_int));
+                try_dos = c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as c_int));
+                try_unix = c_int::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as c_int));
                 curbuf_mut().b_op_start = orig_start;
 
                 if g_st().msg_scrolled == n {

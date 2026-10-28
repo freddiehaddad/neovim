@@ -199,8 +199,8 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 #[cfg(windows)]
 use crate::strings::mb_strup_buf;
 use crate::strings::{
-    gettext, vim_snprintf, vim_snprintf_safelen, vim_snprintf_typval_only, vim_strchr,
-    vim_strsave_escaped, vim_strsave_shellescape,
+    gettext, vim_snprintf, vim_snprintf_safelen, vim_snprintf_typval_only, vim_strsave_escaped,
+    vim_strsave_shellescape,
 };
 use crate::syntax::{
     HL_CONCEAL, get_syntax_info, syn_get_id, syn_get_stack_item, syn_get_sub_char, syntax_present,
@@ -2602,7 +2602,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             use_string = true;
         }
 
-        if (use_string && vim_strchr(s, AUTOLOAD_CHAR).is_null()) || is_funcref {
+        if (use_string && !crate::strings::vim_haschr(s, AUTOLOAD_CHAR)) || is_funcref {
             name = s;
             trans_name_owned = save_function_name(
                 &raw mut name,
@@ -5799,7 +5799,7 @@ fn may_add_state_char(
     c: u8,
 ) {
     let include = include.into_c_char_ptr();
-    if include.is_null() || !vim_strchr(include, c_int::from(c)).is_null() {
+    if include.is_null() || crate::strings::vim_haschr(include, c_int::from(c)) {
         buf[*len] = c as c_char;
         *len += 1;
     }

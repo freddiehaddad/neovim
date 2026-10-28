@@ -1086,8 +1086,10 @@ fn to_name_end(arg: impl crate::strings::IntoCCharPtr, use_namespace: bool) -> *
             if crate::memory::cstr_first_byte(p) == b':'
                 && (p != arg.add(1)
                     || !use_namespace
-                    || vim_strchr(c"bgstvw", c_int::from(crate::memory::cstr_first_byte(arg)))
-                        .is_null())
+                    || !crate::strings::vim_haschr(
+                        c"bgstvw",
+                        c_int::from(crate::memory::cstr_first_byte(arg)),
+                    ))
             {
                 break;
             }

@@ -2105,8 +2105,8 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: *mut c_char, forceit: c_int) {
                     cmd = cmd.add(1);
                 }
 
-                if !vim_strchr(pat, b'$' as c_int).is_null()
-                    || !vim_strchr(pat, b'~' as c_int).is_null()
+                if crate::strings::vim_haschr(pat, b'$' as c_int)
+                    || crate::strings::vim_haschr(pat, b'~' as c_int)
                 {
                     let ep = expand_env_save(pat);
                     pat = ep.as_ptr().cast_mut();

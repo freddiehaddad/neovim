@@ -3473,7 +3473,7 @@ fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &Synpat, hl_id: c_int) {
 
     let pat_ptr = spp.sp_pattern.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
     let mut i: usize = 0;
-    while !vim_strchr(pat_ptr, SEPCHARS[i] as c_int).is_null() {
+    while crate::strings::vim_haschr(pat_ptr, SEPCHARS[i] as c_int) {
         i += 1;
         if SEPCHARS[i] == 0 {
             i = 0;

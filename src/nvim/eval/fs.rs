@@ -1313,13 +1313,13 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 }
             }
             let arg2 = tv_get_string(&argvars[1]);
-            defer = !vim_strchr(arg2, b'D' as c_int).is_null();
-            defer_recurse = !vim_strchr(arg2, b'R' as c_int).is_null();
+            defer = crate::strings::vim_haschr(arg2, b'D' as c_int);
+            defer_recurse = crate::strings::vim_haschr(arg2, b'R' as c_int);
             if (defer || defer_recurse) && !can_add_defer() {
                 return;
             }
 
-            if !vim_strchr(arg2, b'p' as c_int).is_null() {
+            if crate::strings::vim_haschr(arg2, b'p' as c_int) {
                 let mut failed_dir: Option<std::ffi::CString> = None;
                 let ret = os_mkdir_recurse(
                     dir,

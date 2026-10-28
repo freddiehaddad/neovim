@@ -34,7 +34,7 @@ use crate::path::{
     to_slash_save, vim_ispathsep,
 };
 use crate::runtime::Sctx;
-use crate::strings::{vim_strchr, vim_strsave_escaped};
+use crate::strings::vim_strsave_escaped;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -752,8 +752,10 @@ pub fn expand_env_esc(
                     }
                 } else if crate::memory::cstr_byte_at(src, 1) == 0
                     || vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(src, 1)))
-                    || !vim_strchr(c" ,\t\n", c_int::from(crate::memory::cstr_byte_at(src, 1)))
-                        .is_null()
+                    || crate::strings::vim_haschr(
+                        c" ,\t\n",
+                        c_int::from(crate::memory::cstr_byte_at(src, 1)),
+                    )
                 {
                     var = (&raw const env_st().homedir)
                         .as_ref()
@@ -1035,7 +1037,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
             if vim_path_cstr.is_none() {
                 let mut vim_path: *mut c_char = ptr::null_mut();
                 if !opt_vars().p_hf.is_null()
-                    && vim_strchr(opt_vars().p_hf, b'$' as c_int).is_null()
+                    && !crate::strings::vim_haschr(opt_vars().p_hf, b'$' as c_int)
                 {
                     vim_path = opt_vars().p_hf;
                 }

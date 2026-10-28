@@ -66,7 +66,7 @@ use crate::path::{FullName_save, concat_fnames, path_tail, vim_ispathsep, vim_is
 use crate::sha256::ContextSha256;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
-use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_add, vim_strchr};
+use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_add};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 
@@ -1622,7 +1622,7 @@ pub fn u_undo(mut count: c_int) {
             count = 1;
         }
 
-        if vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
+        if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
             undo_st().undo_undoes = true;
         } else {
             undo_st().undo_undoes = !undo_st().undo_undoes;
@@ -1633,7 +1633,7 @@ pub fn u_undo(mut count: c_int) {
 
 /// Redo `count` times.
 pub fn u_redo(count: c_int) {
-    if vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
+    if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
         undo_st().undo_undoes = false;
     }
 

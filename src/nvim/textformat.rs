@@ -40,7 +40,6 @@ use crate::ops::do_join;
 use crate::option::{K_BUF_OPT_FORMATEXPR, K_OPT_FORMATEXPR, OPT_LOCAL, was_set_insecurely};
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
-use crate::strings::vim_strchr;
 use crate::textobject::start_ps;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
@@ -188,7 +187,7 @@ pub fn has_format_option(x: c_int) -> bool {
         if opt_vars().p_paste != 0 {
             return false;
         }
-        !vim_strchr(curbuf_mut().b_p_fo, x).is_null()
+        crate::strings::vim_haschr(curbuf_mut().b_p_fo, x)
     }
 }
 

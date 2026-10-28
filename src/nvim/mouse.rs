@@ -60,7 +60,6 @@ use crate::register::{
 use crate::search::{BACKWARD, FORWARD, findmatch};
 use crate::state::{MODE_INSERT, MODE_NORMAL, REPLACE_FLAG, virtual_active};
 use crate::statusline::stl_connected;
-use crate::strings::vim_strchr;
 use crate::textformat::Oparg;
 use crate::ui::{ui_check_mouse, ui_cursor_shape, ui_flush, ui_mouse_has};
 use crate::ui_compositor::ui_comp_mouse_focus;
@@ -223,7 +222,7 @@ fn get_mouse_class(p: impl crate::strings::IntoCCharPtr) -> c_int {
             return 2;
         }
 
-        if c != 0 && !vim_strchr(c"-+*/%<>&|^!=", c).is_null() {
+        if c != 0 && crate::strings::vim_haschr(c"-+*/%<>&|^!=", c) {
             return 1;
         }
         c

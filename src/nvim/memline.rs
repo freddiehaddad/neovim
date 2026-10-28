@@ -60,7 +60,7 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
-use crate::strings::{gettext, tr, vim_strchr};
+use crate::strings::{gettext, tr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::buf_is_changed_fn;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
@@ -873,11 +873,10 @@ pub fn ml_recover(checkext: bool) {
             && len >= 4
             && crate::memory::cstr_slice(fname, (len - 4) + (2))[len - 4..]
                 .eq_ignore_ascii_case(b".s")
-            && !vim_strchr(
+            && crate::strings::vim_haschr(
                 c"abcdefghijklmnopqrstuvw",
                 ((crate::memory::cstr_byte_at(fname, len - 2)).to_ascii_lowercase()) as c_int,
             )
-            .is_null()
             && ascii_isalpha(crate::memory::cstr_char_at(fname, len - 1))
         {
             directly = true;
@@ -3710,7 +3709,7 @@ fn findswapname(
 
                 if !differ
                     && (curbuf_mut().b_flags & BF_RECOVERED) == 0
-                    && vim_strchr(opt_vars().p_shm, K_SHM_ATTENTION).is_null()
+                    && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_ATTENTION)
                 {
                     let mut choice: SeaChoice = SEA_CHOICE_NONE;
 

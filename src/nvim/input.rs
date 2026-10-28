@@ -75,7 +75,7 @@ use crate::state::{
     MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
     state_no_longer_safe,
 };
-use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, vim_snprintf};
 use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
@@ -981,7 +981,7 @@ pub fn start_redo_ins() -> bool {
                 p = p.add(3);
                 continue;
             }
-            if !vim_strchr(c"AaIiRrOo", crate::memory::cstr_first_byte(p) as c_int).is_null() {
+            if crate::strings::vim_haschr(c"AaIiRrOo", crate::memory::cstr_first_byte(p) as c_int) {
                 if crate::memory::cstr_first_byte(p) == b'O'
                     || crate::memory::cstr_first_byte(p) == b'o'
                 {

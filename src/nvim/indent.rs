@@ -47,7 +47,7 @@ use crate::regexp::{
     vim_regfree,
 };
 use crate::search::{findmatch, linewhite};
-use crate::strings::{gettext, ngettext, vim_strchr};
+use crate::strings::{gettext, ngettext};
 use crate::textformat::{Oparg, has_format_option};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::WinInfoInfo;
@@ -1664,7 +1664,8 @@ pub fn get_expr_indent() -> c_int {
         g_st().state_global = save_state;
 
         if g_st().did_throw
-            && (vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() || g_st().trylevel == 0)
+            && (!crate::strings::vim_haschr(opt_vars().p_debug, b't' as c_int)
+                || g_st().trylevel == 0)
         {
             handle_did_throw();
             g_st().did_throw = false;

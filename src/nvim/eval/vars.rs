@@ -1267,8 +1267,10 @@ pub fn ex_let(eap: &mut Exarg) {
         let mut expr = skipwhite(argend);
         let concat = crate::memory::cstr_prefix_bytes(expr, 3) == &b"..="[..3];
         let has_assign = crate::memory::cstr_first_byte(expr) == b'='
-            || (!vim_strchr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as c_int).is_null()
-                && crate::memory::cstr_byte_at(expr, 1) == b'=');
+            || (crate::strings::vim_haschr(
+                c"+-*/%.",
+                crate::memory::cstr_first_byte(expr) as c_int,
+            ) && crate::memory::cstr_byte_at(expr, 1) == b'=');
         if !has_assign && !concat {
             if crate::memory::cstr_first_byte(arg) == b'[' {
                 emsg(gettext(E_INVARG));
@@ -1317,7 +1319,8 @@ pub fn ex_let(eap: &mut Exarg) {
         op[0] = b'=' as c_char;
         op[1] = NUL;
         if crate::memory::cstr_first_byte(expr) != b'=' {
-            if !vim_strchr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as c_int).is_null() {
+            if crate::strings::vim_haschr(c"+-*/%.", crate::memory::cstr_first_byte(expr) as c_int)
+            {
                 op[0] = *expr;
                 if crate::memory::cstr_first_byte(expr) == b'.'
                     && crate::memory::cstr_byte_at(expr, 1) == b'.'
@@ -1728,11 +1731,11 @@ fn ex_let_env(
         if len == 0 {
             semsg!(gettext(E_INVARG2), name.sub(1));
         } else if !op.is_null()
-            && !vim_strchr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int).is_null()
+            && crate::strings::vim_haschr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int)
         {
             semsg!(gettext(E_LETWRONG), op);
         } else if !endchars.is_null()
-            && vim_strchr(endchars, *skipwhite(arg) as u8 as c_int).is_null()
+            && !crate::strings::vim_haschr(endchars, *skipwhite(arg) as u8 as c_int)
         {
             emsg(gettext(E_LETUNEXP));
         } else if !check_secure() {
@@ -1788,7 +1791,8 @@ fn ex_let_option(
         let arg_name = arg_const.cast_mut();
 
         if p.is_null()
-            || (!endchars.is_null() && vim_strchr(endchars, *skipwhite(p) as u8 as c_int).is_null())
+            || (!endchars.is_null()
+                && !crate::strings::vim_haschr(endchars, *skipwhite(p) as u8 as c_int))
         {
             emsg(gettext(E_LETUNEXP));
             return ptr::null_mut();
@@ -1915,11 +1919,11 @@ fn ex_let_register(
         let mut arg_end: *mut c_char = ptr::null_mut();
         arg = arg.add(1);
         if !op.is_null()
-            && !vim_strchr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int).is_null()
+            && crate::strings::vim_haschr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int)
         {
             semsg!(gettext(E_LETWRONG), op);
         } else if !endchars.is_null()
-            && vim_strchr(endchars, *skipwhite(arg.add(1)) as u8 as c_int).is_null()
+            && !crate::strings::vim_haschr(endchars, *skipwhite(arg.add(1)) as u8 as c_int)
         {
             emsg(gettext(E_LETUNEXP));
         } else {
@@ -1987,7 +1991,7 @@ fn ex_let_one(
             let p = get_lval(arg, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if !p.is_null() && !lv.ll_name.is_null() {
                 if !endchars.is_null()
-                    && vim_strchr(endchars, *skipwhite(p) as u8 as c_int).is_null()
+                    && !crate::strings::vim_haschr(endchars, *skipwhite(p) as u8 as c_int)
                 {
                     emsg(gettext(E_LETUNEXP));
                 } else {
@@ -3336,10 +3340,10 @@ pub fn var_wrong_func_name(name: impl crate::strings::IntoCCharPtr, new_var: boo
         } else {
             *name
         };
-        if !(!vim_strchr(c"wbst", crate::memory::cstr_first_byte(name) as c_int).is_null()
+        if !(crate::strings::vim_haschr(c"wbst", crate::memory::cstr_first_byte(name) as c_int)
             && crate::memory::cstr_byte_at(name, 1) == b':')
             && !ascii_isupper(first_after_scope)
-            && vim_strchr(name, b'#' as c_int).is_null()
+            && !crate::strings::vim_haschr(name, b'#' as c_int)
         {
             semsg!(
                 gettext(c"E704: Funcref variable name must start with a capital: %s"),

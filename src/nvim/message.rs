@@ -69,7 +69,7 @@ use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
 use crate::runtime::{ESTACK_NONE, estack_sfile, rt_st, sourcing_lnum, sourcing_name};
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
-use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_safelen};
 use crate::ui::{
     ui_active, ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll,
     ui_call_msg_history_show, ui_call_msg_set_pos, ui_call_msg_show, ui_call_msg_showmode,
@@ -1084,8 +1084,8 @@ pub fn msg_source(hl_id: c_int) {
 ///            If "emsg_skip" is set: never do error messages.
 pub fn emsg_not_now() -> bool {
     (g_st().emsg_off > 0
-        && vim_strchr(opt_vars().p_debug, b'm' as c_int).is_null()
-        && vim_strchr(opt_vars().p_debug, b't' as c_int).is_null())
+        && !crate::strings::vim_haschr(opt_vars().p_debug, b'm' as c_int)
+        && !crate::strings::vim_haschr(opt_vars().p_debug, b't' as c_int))
         || g_st().emsg_skip > 0
 }
 
@@ -1112,7 +1112,7 @@ pub fn emsg_multiline(
         let severe = g_st().emsg_severe;
         g_st().emsg_severe = false;
 
-        if g_st().emsg_off == 0 || !vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() {
+        if g_st().emsg_off == 0 || crate::strings::vim_haschr(opt_vars().p_debug, b't' as c_int) {
             if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &mut ignore) {
                 if !ignore {
                     g_st().did_emsg += 1;
@@ -1951,7 +1951,7 @@ pub fn wait_return(redraw: c_int) {
                 {
                     jump_to_mouse(MOUSE_SETPOS, ptr::null_mut(), 0);
                 } else if !g_st().key_typed
-                    || (vim_strchr(c"\r\n ", c).is_null()
+                    || (!crate::strings::vim_haschr(c"\r\n ", c)
                         && c != CTRL_C_CONST
                         && c != b'q' as c_int)
                 {

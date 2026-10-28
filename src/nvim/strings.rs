@@ -620,6 +620,11 @@ pub fn del_trailing_spaces(ptr: *mut c_char) {
     }
 }
 
+#[inline]
+pub fn vim_haschr<S: IntoCCharPtr>(string: S, c: c_int) -> bool {
+    !vim_strchr(string, c).is_null()
+}
+
 pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: c_int) -> *mut c_char {
     let string = string.into_c_char_ptr();
     unsafe {
@@ -3184,8 +3189,8 @@ mod tests {
             }
 
             let s_abc = c"abc";
-            assert!(vim_strchr(s_abc.as_ptr(), 0).is_null());
-            assert!(vim_strchr(s_abc.as_ptr(), -1).is_null());
+            assert!(!crate::strings::vim_haschr(s_abc.as_ptr(), 0));
+            assert!(!crate::strings::vim_haschr(s_abc.as_ptr(), -1));
             assert_eq!(
                 vim_strchr(s_abc.as_ptr(), b'b' as c_int).offset_from(s_abc.as_ptr()),
                 1
@@ -3199,7 +3204,7 @@ mod tests {
                 vim_strchr(s_utf.as_ptr(), 0x201C).offset_from(s_utf.as_ptr()),
                 7
             );
-            assert!(vim_strchr(s_utf.as_ptr(), 0x201D).is_null());
+            assert!(!crate::strings::vim_haschr(s_utf.as_ptr(), 0x201D));
 
             let overlong = c"\xc1\x81";
             let up = strcase_save(overlong, true);

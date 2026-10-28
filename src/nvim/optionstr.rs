@@ -1172,7 +1172,7 @@ fn check_stl_str_adv_scope(
                     return err;
                 }
             }
-            if vim_strchr(STL_ALL, **s as u8 as c_int).is_null() {
+            if !crate::strings::vim_haschr(STL_ALL, **s as u8 as c_int) {
                 return illegal_char(errbuf, **s as u8 as c_int);
             }
             if **s == b'{' as c_char {
@@ -1298,7 +1298,7 @@ fn check_option_listflag(
     {
         let s = val;
         for &s_byte in crate::memory::cstr_as_bytes(s) {
-            if vim_strchr(flags, s_byte as c_int).is_null() {
+            if !crate::strings::vim_haschr(flags, s_byte as c_int) {
                 return illegal_char(errbuf, s_byte as c_int);
             }
         }
@@ -1411,13 +1411,19 @@ fn expand_set_opt_listflag(
         let mut flag = flags;
         while !crate::memory::cstr_is_empty(flag) {
             if append
-                && !vim_strchr(option_val, crate::memory::cstr_first_byte(flag) as c_int).is_null()
+                && crate::strings::vim_haschr(
+                    option_val,
+                    crate::memory::cstr_first_byte(flag) as c_int,
+                )
             {
                 flag = flag.add(1);
                 continue;
             }
 
-            if vim_strchr(cmdline_val, crate::memory::cstr_first_byte(flag) as c_int).is_null() {
+            if !crate::strings::vim_haschr(
+                cmdline_val,
+                crate::memory::cstr_first_byte(flag) as c_int,
+            ) {
                 if include_orig_val
                     && crate::memory::cstr_byte_at(option_val, 1) == 0
                     && *flag == *option_val
@@ -1859,7 +1865,7 @@ pub fn validate_comments(args: &mut Optset) -> *const c_char {
         let mut s = args.os_newval.data.string().data;
         while !crate::memory::cstr_is_empty(s) {
             while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b':' {
-                if vim_strchr(COM_ALL, crate::memory::cstr_first_byte(s) as c_int).is_null()
+                if !crate::strings::vim_haschr(COM_ALL, crate::memory::cstr_first_byte(s) as c_int)
                     && !ascii_isdigit(crate::memory::cstr_first_char(s))
                     && crate::memory::cstr_first_byte(s) != b'-'
                 {
@@ -1939,11 +1945,11 @@ pub fn validate_complete(args: &mut Optset) -> *const c_char {
             }
             buffer[buf_idx] = NUL;
 
-            if vim_strchr(c".wbuksid]tUfFo", buffer[0] as u8 as c_int).is_null() {
+            if !crate::strings::vim_haschr(c".wbuksid]tUfFo", buffer[0] as u8 as c_int) {
                 return illegal_char(args.os_errbuf, buffer[0] as u8 as c_int);
             }
 
-            if vim_strchr(c"ksF", buffer[0] as u8 as c_int).is_null()
+            if !crate::strings::vim_haschr(c"ksF", buffer[0] as u8 as c_int)
                 && buffer[1] != NUL
                 && buffer[1] != b'^' as c_char
             {
@@ -2184,7 +2190,7 @@ pub fn validate_encoding(args: &mut Optset) -> *const c_char {
                 return E_MODIFIABLE.as_ptr();
             }
 
-            if !vim_strchr(args.os_newval.data.string().data, b',' as c_int).is_null() {
+            if crate::strings::vim_haschr(args.os_newval.data.string().data, b',' as c_int) {
                 return E_INVARG.as_ptr();
             }
         }
@@ -2544,8 +2550,8 @@ pub fn did_set_keymap(args: &mut Optset) -> *const c_char {
 
 /// The 'keymodel' option is changed.
 pub fn did_set_keymodel(_args: &mut Optset) -> *const c_char {
-    g_st().km_stopsel = !vim_strchr(opt_vars().p_km, b'o' as c_int).is_null();
-    g_st().km_startsel = !vim_strchr(opt_vars().p_km, b'a' as c_int).is_null();
+    g_st().km_stopsel = crate::strings::vim_haschr(opt_vars().p_km, b'o' as c_int);
+    g_st().km_startsel = crate::strings::vim_haschr(opt_vars().p_km, b'a' as c_int);
     ptr::null()
 }
 
@@ -2700,12 +2706,10 @@ pub fn validate_shada(args: &mut Optset) -> *const c_char {
             if crate::memory::cstr_first_byte(s) == b'\'' && marks.is_null() {
                 marks = s.add(1);
             }
-            if vim_strchr(
+            if !crate::strings::vim_haschr(
                 c"!\"%'/:<@cfhnrs",
                 crate::memory::cstr_first_byte(s) as c_int,
-            )
-            .is_null()
-            {
+            ) {
                 return illegal_char(errbuf, crate::memory::cstr_first_byte(s) as c_int);
             }
             if crate::memory::cstr_first_byte(s) == b'n' {
@@ -3113,7 +3117,9 @@ fn did_set_titleiconstring(args: &mut Optset, flagval: c_int) -> *const c_char {
     unsafe {
         let varp = args.os_varp.cast::<*mut c_char>();
 
-        if !vim_strchr(*varp, b'%' as c_int).is_null() && check_stl_option(*varp, None).is_null() {
+        if crate::strings::vim_haschr(*varp, b'%' as c_int)
+            && check_stl_option(*varp, None).is_null()
+        {
             g_st().stl_syntax |= flagval;
         } else {
             g_st().stl_syntax &= !flagval;

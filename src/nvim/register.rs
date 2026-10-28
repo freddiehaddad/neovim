@@ -346,7 +346,7 @@ pub fn get_expr_line_src() -> Option<std::ffi::CString> {
 
 pub fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
     (regname > 0 && regname <= 0x7f && (regname as u8).is_ascii_alphanumeric())
-        || (!writing && !vim_strchr(c"/#.%:=", regname).is_null())
+        || (!writing && crate::strings::vim_haschr(c"/#.%:=", regname))
         || regname == c_int::from(b'"')
         || regname == c_int::from(b'-')
         || regname == c_int::from(b'_')
@@ -1204,7 +1204,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
             }
 
             if curr_reg.y_type == MotionType::MtCharWise
-                && vim_strchr(opt_vars().p_cpo, K_CPO_REGAPPEND).is_null()
+                && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_REGAPPEND)
                 && !curr_reg.y_array.is_empty()
                 && !new_reg.y_array.is_empty()
             {
@@ -2478,7 +2478,7 @@ pub fn ex_display(eap: &mut Exarg) {
         let mut i: c_int = -1;
         while i < (NUM_REGISTERS as c_int) && !g_st().got_int {
             let name = get_register_name(i);
-            if !arg.is_null() && vim_strchr(arg, name).is_null() {
+            if !arg.is_null() && !crate::strings::vim_haschr(arg, name) {
                 i += 1;
                 continue;
             }
@@ -2559,7 +2559,7 @@ pub fn ex_display(eap: &mut Exarg) {
         let insert = get_last_insert();
         let p = insert.data;
         if !p.is_null()
-            && (arg.is_null() || !vim_strchr(arg, c_int::from(b'.')).is_null())
+            && (arg.is_null() || crate::strings::vim_haschr(arg, c_int::from(b'.')))
             && !g_st().got_int
             && !message_filtered(p)
         {
@@ -2568,7 +2568,7 @@ pub fn ex_display(eap: &mut Exarg) {
         }
 
         if let Some(last_cmd) = g_st().last_cmdline.as_ref()
-            && (arg.is_null() || !vim_strchr(arg, c_int::from(b':')).is_null())
+            && (arg.is_null() || crate::strings::vim_haschr(arg, c_int::from(b':')))
             && !g_st().got_int
             && !message_filtered(last_cmd.as_ptr())
         {
@@ -2577,7 +2577,7 @@ pub fn ex_display(eap: &mut Exarg) {
         }
 
         if !curbuf_mut().b_fname.is_null()
-            && (arg.is_null() || !vim_strchr(arg, c_int::from(b'%')).is_null())
+            && (arg.is_null() || crate::strings::vim_haschr(arg, c_int::from(b'%')))
             && !g_st().got_int
             && !message_filtered(curbuf_mut().b_fname)
         {
@@ -2585,7 +2585,8 @@ pub fn ex_display(eap: &mut Exarg) {
             dis_msg(curbuf_mut().b_fname, false);
         }
 
-        if (arg.is_null() || !vim_strchr(arg, c_int::from(b'#')).is_null()) && !g_st().got_int {
+        if (arg.is_null() || crate::strings::vim_haschr(arg, c_int::from(b'#'))) && !g_st().got_int
+        {
             let mut fname: *mut c_char = ptr::null_mut();
             let mut dummy: Linenr = 0;
             if buflist_name_nr(0, &raw mut fname, &mut dummy) && !message_filtered(fname) {
@@ -2595,7 +2596,7 @@ pub fn ex_display(eap: &mut Exarg) {
         }
 
         if !last_search_pat().is_null()
-            && (arg.is_null() || !vim_strchr(arg, c_int::from(b'/')).is_null())
+            && (arg.is_null() || crate::strings::vim_haschr(arg, c_int::from(b'/')))
             && !g_st().got_int
             && !message_filtered(last_search_pat())
         {
@@ -2604,7 +2605,7 @@ pub fn ex_display(eap: &mut Exarg) {
         }
 
         if let Some(el) = &reg_st().expr_line
-            && (arg.is_null() || !vim_strchr(arg, c_int::from(b'=')).is_null())
+            && (arg.is_null() || crate::strings::vim_haschr(arg, c_int::from(b'=')))
             && !g_st().got_int
             && !message_filtered(el.as_ptr())
         {

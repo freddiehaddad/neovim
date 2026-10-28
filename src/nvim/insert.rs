@@ -144,7 +144,7 @@ use crate::state::{
     REPLACE_FLAG, VREPLACE_FLAG, may_trigger_modechanged, may_trigger_safestate, state_enter,
     state_handle_k_event, virtual_active,
 };
-use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, vim_snprintf};
 use crate::syntax::syntax_present;
 use crate::terminal::terminal_enter;
 use crate::textformat::{
@@ -1916,7 +1916,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
             let mut p: *mut c_char = ptr::null_mut();
             let line = get_cursor_line_ptr();
             let mut i = get_leader_len(line, &raw mut p, false, true);
-            if i > 0 && !vim_strchr(p, c_int::from(COM_MIDDLE as u8)).is_null() {
+            if i > 0 && crate::strings::vim_haschr(p, c_int::from(COM_MIDDLE as u8)) {
                 while !crate::memory::cstr_is_empty(p) && *p.offset(-1) != b':' as c_char {
                     p = p.add(1);
                 }
@@ -2185,7 +2185,7 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
                 && g_st().ins_global.did_ai
                 && !mc_ins_replaying()
                 && (esc != 0
-                    || (vim_strchr(opt_vars().p_cpo, K_CPO_INDENT).is_null()
+                    || (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_INDENT)
                         && curwin_mut().w_cursor.lnum != (*end_insert_pos).lnum))
                 && (*end_insert_pos).lnum <= curbuf_mut().b_ml.ml_line_count
             {
@@ -2843,7 +2843,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
             *count -= 1;
             if *count > 0 {
-                if !vim_strchr(opt_vars().p_cpo, K_CPO_REPLCNT).is_null() {
+                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_REPLCNT) {
                     g_st().state_global &= !REPLACE_FLAG;
                 }
 
@@ -3396,7 +3396,8 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             g_st().ins_global.start_orig.col = curwin_mut().w_cursor.col;
         }
 
-        if !vim_strchr(opt_vars().p_cpo, K_CPO_BACKSPACE).is_null() && g_st().dollar_vcol == -1 {
+        if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BACKSPACE) && g_st().dollar_vcol == -1
+        {
             g_st().dollar_vcol = curwin_mut().w_virtcol;
         }
 
@@ -3423,7 +3424,7 @@ fn ins_left() {
                 g_st().ins_global.revins_legal += 1;
             }
             g_st().ins_global.revins_chars += 1;
-        } else if !vim_strchr(opt_vars().p_ww, b'[' as c_int).is_null()
+        } else if crate::strings::vim_haschr(opt_vars().p_ww, b'[' as c_int)
             && curwin_mut().w_cursor.lnum > 1
         {
             start_arrow(&raw mut tpos, true, K_LEFT);
@@ -3516,7 +3517,7 @@ fn ins_right() {
             if g_st().ins_global.revins_chars != 0 {
                 g_st().ins_global.revins_chars -= 1;
             }
-        } else if !vim_strchr(opt_vars().p_ww, b']' as c_int).is_null()
+        } else if crate::strings::vim_haschr(opt_vars().p_ww, b']' as c_int)
             && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
         {
             start_arrow(&raw mut curwin_mut().w_cursor, true, K_RIGHT);
@@ -3748,7 +3749,7 @@ fn ins_tab() -> bool {
                 cursor = &raw mut curwin_mut().w_cursor;
             }
 
-            if vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null() {
+            if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LISTWM) {
                 curwin_mut().w_onebuf_opt.wo_list = 0;
             }
 
@@ -4041,7 +4042,7 @@ pub fn get_nolist_virtcol() -> Colnr {
             return 0;
         }
         if curwin_mut().w_onebuf_opt.wo_list != 0
-            && vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null()
+            && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LISTWM)
         {
             return getvcol_nolist(&mut curwin_mut().w_cursor);
         }

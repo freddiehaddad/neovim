@@ -11,7 +11,7 @@ use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::message::emsg;
-use crate::strings::{vim_snprintf, vim_strchr};
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
 pub const NUL: u8 = 0;
@@ -2690,7 +2690,7 @@ pub fn replace_termcodes(
         let end_exclusive = from.add(from_len);
 
         // backslash is a special character
-        let do_backslash = vim_strchr(cpo_val, K_CPO_BSLASH).is_null();
+        let do_backslash = !crate::strings::vim_haschr(cpo_val, K_CPO_BSLASH);
         let do_special = (flags & REPTERM_NO_SPECIAL) == 0;
 
         // Allocate space for the translation. Worst case a single character is

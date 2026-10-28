@@ -573,7 +573,7 @@ fn linelen(has_tab: *mut c_int) -> c_int {
         *last = NUL;
         let len = linetabsize_col(0, line);
         if !has_tab.is_null() {
-            *has_tab = c_int::from(!vim_strchr(first, TAB).is_null());
+            *has_tab = c_int::from(crate::strings::vim_haschr(first, TAB));
         }
         *last = save;
 
@@ -1706,7 +1706,7 @@ fn do_filter(
 
                     if do_in {
                         if (g_st().cmdmod.cmod_flags & CMOD_KEEPMARKS) != 0
-                            || vim_strchr(opt_vars().p_cpo, K_CPO_REMMARK).is_null()
+                            || !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_REMMARK)
                         {
                             if read_linecount >= linecount {
                                 mark_adjust(line1, line2, linecount, 0, K_EXTMARK_NOOP);
@@ -2280,7 +2280,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             }
 
             if other {
-                if !vim_strchr(opt_vars().p_cpo, K_CPO_ALTWRITE).is_null()
+                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTWRITE)
                     || eap.cmdidx == Cmdidx::CmdSaveas as c_int
                 {
                     alt_buf = setaltfname(ffname, fname, 1);
@@ -2446,7 +2446,7 @@ pub fn check_overwrite(
             || (!bt_nofilename(Some(&*buf))
                 && ((buf.b_flags & BF_NOTEDITED) != 0
                     || ((buf.b_flags & BF_NEW) != 0
-                        && vim_strchr(opt_vars().p_cpo, K_CPO_OVERNEW).is_null())
+                        && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_OVERNEW))
                     || (buf.b_flags & BF_READERR) != 0)))
             && opt_vars().p_wa == 0
             && os_path_exists(ffname)
@@ -4020,11 +4020,10 @@ fn do_sub(
         if crate::memory::cstr_first_byte(eap.cmd) == b's'
             && !crate::memory::cstr_is_empty(cmd)
             && !ascii_iswhite(crate::memory::cstr_first_char(cmd))
-            && vim_strchr(
+            && !crate::strings::vim_haschr(
                 c"0123456789cegriIp|\"",
                 (crate::memory::cstr_first_byte(cmd)) as c_int,
             )
-            .is_null()
         {
             if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as c_int) {
                 return 0;
@@ -4032,7 +4031,10 @@ fn do_sub(
 
             if crate::memory::cstr_first_byte(cmd) == b'\\' {
                 cmd = cmd.add(1);
-                if vim_strchr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as c_int).is_null() {
+                if !crate::strings::vim_haschr(
+                    c"/?&",
+                    (crate::memory::cstr_first_byte(cmd)) as c_int,
+                ) {
                     emsg(gettext(E_BACKSLASH));
                     return 0;
                 }
@@ -4295,7 +4297,7 @@ fn do_sub(
                                 do_check_cursorbind();
                             }
 
-                            if !vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
+                            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
                                 g_st().no_u_sync += 1;
                             }
 
@@ -4403,7 +4405,7 @@ fn do_sub(
                             }
                             g_st().state_global = save_state;
                             setmouse();
-                            if !vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
+                            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
                                 g_st().no_u_sync -= 1;
                             }
 
@@ -4983,7 +4985,7 @@ pub fn ex_global(eap: &mut Exarg) {
 
         if crate::memory::cstr_first_byte(cmd) == b'\\' {
             cmd = cmd.add(1);
-            if vim_strchr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as c_int).is_null() {
+            if !crate::strings::vim_haschr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as c_int) {
                 emsg(gettext(E_BACKSLASH));
                 return;
             }

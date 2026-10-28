@@ -50,7 +50,7 @@ use crate::optionstr::{
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
-use crate::strings::{gettext, vim_snprintf, vim_strchr, vim_strsave_shellescape};
+use crate::strings::{gettext, vim_snprintf, vim_strsave_shellescape};
 use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
 use crate::window::{
@@ -1496,7 +1496,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
         wp.w_onebuf_opt.wo_fdl = 0;
         fold_update_all(wp);
         changed_window_setting(wp);
-        if vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
+        if !crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as c_int) {
             do_cmdline_cmd(c"set sbo+=hor");
         }
         wp.w_onebuf_opt.wo_diff_saved = 1;
@@ -1575,7 +1575,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
             curtab_mut().tp_diff_update = 0;
             diff_clear(curtab_mut());
         }
-        if !diffwin && !vim_strchr(opt_vars().p_sbo, b'h' as c_int).is_null() {
+        if !diffwin && crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as c_int) {
             do_cmdline_cmd(c"set sbo-=hor");
         }
     }

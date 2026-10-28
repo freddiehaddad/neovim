@@ -1327,7 +1327,7 @@ pub fn spell_cat_line(buf: *mut c_char, line: impl crate::strings::IntoCCharPtr,
     let line = line.into_c_char_ptr();
     unsafe {
         let mut p = skipwhite(line);
-        while !vim_strchr(c"*#/\"\t", crate::memory::cstr_first_byte(p) as c_int).is_null() {
+        while crate::strings::vim_haschr(c"*#/\"\t", crate::memory::cstr_first_byte(p) as c_int) {
             p = skipwhite(p.add(1));
         }
         if crate::memory::cstr_is_empty(p) {
@@ -1676,7 +1676,7 @@ fn count_syllables(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) -
             } else {
                 let c = utf_ptr2char(p);
                 len = utfc_ptr2len(p);
-                if vim_strchr(sl_syllable.as_ptr(), c).is_null() {
+                if !crate::strings::vim_haschr(sl_syllable.as_ptr(), c) {
                     skip = false;
                 } else if !skip {
                     cnt += 1;
@@ -2169,7 +2169,7 @@ pub fn spell_iswordp(p: impl crate::strings::IntoCCharPtr, wp: &WinInfoInfo) -> 
             } else {
                 w_s.b_spell_ismw_mb
                     .as_ref()
-                    .is_some_and(|mb| !vim_strchr(mb.as_ptr(), c).is_null())
+                    .is_some_and(|mb| crate::strings::vim_haschr(mb.as_ptr(), c))
             } {
                 s = p.add(l as usize);
             }
@@ -2208,7 +2208,7 @@ fn spell_iswordp_w(p: *const c_int, wp: &WinInfoInfo) -> bool {
         } else {
             w_s.b_spell_ismw_mb
                 .as_ref()
-                .is_some_and(|mb| !vim_strchr(mb.as_ptr(), *p).is_null())
+                .is_some_and(|mb| crate::strings::vim_haschr(mb.as_ptr(), *p))
         } {
             p.add(1)
         } else {
@@ -2760,7 +2760,7 @@ fn spell_soundfold_wsal(
                             (*smp.add(cur_n)).sm_to_w.as_ptr()
                         };
                         sr = (*smp.add(cur_n)).sm_rules.as_ptr();
-                        p0 = c_int::from(!vim_strchr(sr, b'<' as c_int).is_null());
+                        p0 = c_int::from(crate::strings::vim_haschr(sr, b'<' as c_int));
                         if p0 == 1 && z == 0 {
                             if reslen > 0
                                 && !ws.is_null()

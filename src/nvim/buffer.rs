@@ -1183,9 +1183,9 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: c_int) -> c
             parse_cino(curbuf_mut());
         }
 
-        if (g_st().got_int && !vim_strchr(opt_vars().p_cpo, K_CPO_INTMOD).is_null())
+        if (g_st().got_int && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_INTMOD))
             || curbuf_mut().b_modified_was_set
-            || (aborting() && !vim_strchr(opt_vars().p_cpo, K_CPO_INTMOD).is_null())
+            || (aborting() && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_INTMOD))
         {
             changed(crate::globals::curbuf_mut());
         } else if retval != FAIL && !read_stdin && !read_fifo {
@@ -3634,7 +3634,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         let mut buflist_idx = 0usize;
 
         msg_ext_set_kind(c"list_cmd");
-        if !vim_strchr(eap.arg, b't' as c_int).is_null() {
+        if crate::strings::vim_haschr(eap.arg, b't' as c_int) {
             use_buflist = true;
             while !buf.is_null() {
                 buflist.push(buf);
@@ -3663,23 +3663,27 @@ pub fn buflist_list(eap: &mut Exarg) {
                 }
             };
 
-            if (buf.b_p_bl == 0 && eap.forceit == 0 && vim_strchr(eap.arg, b'u' as c_int).is_null())
-                || (!vim_strchr(eap.arg, b'u' as c_int).is_null() && buf.b_p_bl != 0)
-                || (!vim_strchr(eap.arg, b'+' as c_int).is_null()
+            if (buf.b_p_bl == 0
+                && eap.forceit == 0
+                && !crate::strings::vim_haschr(eap.arg, b'u' as c_int))
+                || (crate::strings::vim_haschr(eap.arg, b'u' as c_int) && buf.b_p_bl != 0)
+                || (crate::strings::vim_haschr(eap.arg, b'+' as c_int)
                     && ((buf.b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
-                || (!vim_strchr(eap.arg, b'a' as c_int).is_null()
+                || (crate::strings::vim_haschr(eap.arg, b'a' as c_int)
                     && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows == 0))
-                || (!vim_strchr(eap.arg, b'h' as c_int).is_null()
+                || (crate::strings::vim_haschr(eap.arg, b'h' as c_int)
                     && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows != 0))
-                || (!vim_strchr(eap.arg, b'R' as c_int).is_null() && (!is_terminal || !job_running))
-                || (!vim_strchr(eap.arg, b'F' as c_int).is_null() && (!is_terminal || job_running))
-                || (!vim_strchr(eap.arg, b'-' as c_int).is_null() && buf.b_p_ma != 0)
-                || (!vim_strchr(eap.arg, b'=' as c_int).is_null() && buf.b_p_ro == 0)
-                || (!vim_strchr(eap.arg, b'x' as c_int).is_null()
+                || (crate::strings::vim_haschr(eap.arg, b'R' as c_int)
+                    && (!is_terminal || !job_running))
+                || (crate::strings::vim_haschr(eap.arg, b'F' as c_int)
+                    && (!is_terminal || job_running))
+                || (crate::strings::vim_haschr(eap.arg, b'-' as c_int) && buf.b_p_ma != 0)
+                || (crate::strings::vim_haschr(eap.arg, b'=' as c_int) && buf.b_p_ro == 0)
+                || (crate::strings::vim_haschr(eap.arg, b'x' as c_int)
                     && (buf.b_flags & BF_READERR) == 0)
-                || (!vim_strchr(eap.arg, b'%' as c_int).is_null()
+                || (crate::strings::vim_haschr(eap.arg, b'%' as c_int)
                     && !std::ptr::eq(buf, g_st().curbuf))
-                || (!vim_strchr(eap.arg, b'#' as c_int).is_null()
+                || (crate::strings::vim_haschr(eap.arg, b'#' as c_int)
                     && (std::ptr::eq(buf, g_st().curbuf) || curwin_mut().w_alt_fnum != buf.b_fnum))
             {
                 buf_ptr = next_buf(buf_ptr);
@@ -3764,7 +3768,7 @@ pub fn buflist_list(eap: &mut Exarg) {
                     break;
                 }
             }
-            if !vim_strchr(eap.arg, b't' as c_int).is_null() && buf.b_last_used != 0 {
+            if crate::strings::vim_haschr(eap.arg, b't' as c_int) && buf.b_last_used != 0 {
                 undo_fmt_time(iobuff_ptr.add(len), IOSIZE - len, buf.b_last_used);
             } else {
                 vim_snprintf!(

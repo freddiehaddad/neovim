@@ -1397,17 +1397,14 @@ fn nfa_regatom_collection(
 
                 if crate::memory::cstr_first_byte(re_st().regparse) == b'\\'
                     && (re_st().regparse.add(1).cast::<u8>() as *const u8) <= endp
-                    && (!vim_strchr(
+                    && (crate::strings::vim_haschr(
                         REGEXP_INRANGE,
                         crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
-                    )
-                    .is_null()
-                        || (re_st().reg_cpo_lit == 0
-                            && !vim_strchr(
-                                REGEXP_ABBR,
-                                crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
-                            )
-                            .is_null()))
+                    ) || (re_st().reg_cpo_lit == 0
+                        && crate::strings::vim_haschr(
+                            REGEXP_ABBR,
+                            crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
+                        )))
                 {
                     mb_ptr_adv(&raw mut re_st().regparse);
                     if crate::memory::cstr_first_byte(re_st().regparse) == b'n' {

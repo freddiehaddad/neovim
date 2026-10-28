@@ -57,7 +57,7 @@ use crate::optionstr::Optset;
 use crate::os::env::ExpandCtx;
 use crate::regexp::{CTRL_V_CONST, NUMBUFLEN, Regmatch, vim_regexec};
 use crate::runtime::{Sctx, sourcing_lnum};
-use crate::strings::{gettext, sort_strings, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, sort_strings, vim_snprintf};
 use crate::viml::parser::expressions::CTRL_H_CONST;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
@@ -642,7 +642,7 @@ fn str_to_mapargs(
         }
 
         let mut lhs_end = to_parse;
-        let do_backslash = vim_strchr(opt_vars().p_cpo, K_CPO_BSLASH_CONST).is_null();
+        let do_backslash = !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BSLASH_CONST);
         while !crate::memory::cstr_is_empty(lhs_end)
             && (is_unmap || !ascii_iswhite(crate::memory::cstr_first_byte(lhs_end) as c_int))
         {
@@ -1343,7 +1343,7 @@ fn translate_mapping(
         let mut str_ptr = str_in.cast::<u8>();
         let mut buf: Vec<u8> = Vec::with_capacity(40);
 
-        let cpo_bslash = !vim_strchr(cpo_val, K_CPO_BSLASH_CONST).is_null();
+        let cpo_bslash = crate::strings::vim_haschr(cpo_val, K_CPO_BSLASH_CONST);
 
         while *str_ptr != 0 {
             let mut c = *str_ptr as c_int;

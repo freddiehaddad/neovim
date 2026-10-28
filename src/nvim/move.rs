@@ -36,7 +36,7 @@ use crate::plines::{
     getvcol, getvvcol, linetabsize_eol, plines_m_win, plines_win, plines_win_full,
     plines_win_nofill, win_get_fill, win_may_fill,
 };
-use crate::strings::{tr, vim_strchr};
+use crate::strings::tr;
 use crate::textformat::Oparg;
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo, win_fdccol_count};
 use crate::winfloat::win_check_anchored_floats;
@@ -899,7 +899,7 @@ pub fn win_col_off2(wp: &mut WinInfoInfo) -> c_int {
         if (wp.w_onebuf_opt.wo_nu != 0
             || wp.w_onebuf_opt.wo_rnu != 0
             || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
-            && !vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null()
+            && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
         {
             return number_width(wp)
                 + c_int::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc));

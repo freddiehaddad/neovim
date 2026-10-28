@@ -16,7 +16,7 @@ use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
 use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
-use crate::strings::{gettext, vim_strchr};
+use crate::strings::gettext;
 use crate::ui::ui_has;
 use crate::window::{LOWEST_WIN_ID, one_window};
 use std::ffi::{CStr, CString, c_char, c_int};
@@ -4139,7 +4139,7 @@ pub fn may_show_intro() -> bool {
             && curbuf_mut().b_fnum == 1
             && curwin_mut().handle == LOWEST_WIN_ID
             && one_window(curwin_mut(), ptr::null_mut())
-            && vim_strchr(opt_vars().p_shm, K_SHM_INTRO).is_null()
+            && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_INTRO)
     }
 }
 

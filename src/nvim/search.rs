@@ -758,7 +758,7 @@ pub fn searchit(
             return FAIL;
         }
 
-        let search_from_match_end = !vim_strchr(opt_vars().p_cpo, K_CPO_SEARCH).is_null();
+        let search_from_match_end = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SEARCH);
 
         loop {
             if pos.col == MAXCOL {
@@ -1290,7 +1290,7 @@ pub fn do_search(
 
         g_st().search_global.cmdlen = 0;
 
-        if srch().spats[0].off.line && !vim_strchr(opt_vars().p_cpo, K_CPO_LINEOFF).is_null() {
+        if srch().spats[0].off.line && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LINEOFF) {
             srch().spats[0].off.line = false;
             srch().spats[0].off.off = 0;
         }
@@ -1797,7 +1797,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
             t_cmd = srch().last_t_cmd;
             c = c_int::from(srch().lastc[0]);
 
-            if vim_strchr(opt_vars().p_cpo, K_CPO_SCOLON).is_null() && count == 1 && t_cmd {
+            if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SCOLON) && count == 1 && t_cmd {
                 stop = false;
             }
         }
@@ -1991,8 +1991,8 @@ pub fn findmatchlimit(
         srch().findmatch_pos.coladd = 0;
         let mut linep = ml_get(srch().findmatch_pos.lnum);
 
-        let cpo_match = !vim_strchr(opt_vars().p_cpo, K_CPO_MATCH).is_null();
-        let cpo_bsl = !vim_strchr(opt_vars().p_cpo, K_CPO_MATCHBSL).is_null();
+        let cpo_match = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCH);
+        let cpo_bsl = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCHBSL);
 
         let dir = if (flags & FM_BACKWARD) != 0 {
             BACKWARD
@@ -2160,7 +2160,7 @@ pub fn findmatchlimit(
             }
         }
 
-        if curwin_mut().w_onebuf_opt.wo_rl != 0 && !vim_strchr(c"()[]{}<>", initc).is_null() {
+        if curwin_mut().w_onebuf_opt.wo_rl != 0 && crate::strings::vim_haschr(c"()[]{}<>", initc) {
             backwards = !backwards;
         }
 

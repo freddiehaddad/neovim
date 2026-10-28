@@ -77,7 +77,7 @@ use crate::profile::{
     script_line_end, script_line_start, time_msg, time_pop, time_push,
 };
 use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
-use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen};
 use crate::usercmd::add_win_cmd_modifiers;
 use crate::viml::parser::expressions::AUTOLOAD_CHAR;
 use std::ffi::{CStr, c_char, c_int};
@@ -3355,7 +3355,7 @@ pub fn getsourceline(
 
         if let Some(ref mut buf) = line_vec
             && do_concat
-            && vim_strchr(opt_vars().p_cpo, K_CPO_CONCAT).is_null()
+            && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_CONCAT)
         {
             sp.sourcing_lnum -= 1;
 

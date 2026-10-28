@@ -73,7 +73,7 @@ use crate::statusline::{
     Foldinfo, draw_tabline, redraw_ruler, stl_alloc_click_defs, stl_clear_click_defs,
     win_redr_status, win_redr_winbar,
 };
-use crate::strings::{gettext, vim_strchr};
+use crate::strings::gettext;
 use crate::syntax::{
     syn_set_timeout, syn_stack_apply_changes, syntax_check_changed, syntax_end_parsing,
     syntax_present,
@@ -2514,7 +2514,7 @@ pub fn win_draw_end(
             }
 
             if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
-                && vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null()
+                && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
             {
                 let width = number_width(&mut *wp) + 1;
                 n = grid_line_fill(
@@ -2814,7 +2814,7 @@ pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
         } else {
             return false;
         };
-        !vim_strchr(wp.w_onebuf_opt.wo_cocu, c).is_null()
+        crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, c)
     }
 }
 

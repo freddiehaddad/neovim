@@ -27,7 +27,7 @@ use crate::os::shell::os_expand_wildcards;
 use crate::regexp::{
     RE_MAGIC, RE_NOBREAK, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
 };
-use crate::strings::{sort_strings, vim_snprintf, vim_strchr};
+use crate::strings::{sort_strings, vim_snprintf};
 use std::cmp::Ordering;
 #[cfg(test)]
 use std::ffi::CStr;
@@ -637,7 +637,7 @@ pub fn path_has_wildcard(p: impl crate::strings::IntoCCharPtr, all: bool) -> boo
                 p = p.add(2);
                 continue;
             }
-            if !vim_strchr(wildcards, crate::memory::cstr_first_byte(p) as c_int).is_null()
+            if crate::strings::vim_haschr(wildcards, crate::memory::cstr_first_byte(p) as c_int)
                 || (all
                     && crate::memory::cstr_first_byte(p) == b'~'
                     && crate::memory::cstr_byte_at(p, 1) != 0)
@@ -716,11 +716,10 @@ fn do_path_expand(
                 }
                 s = p.add(1);
             } else if path_end >= wild_start && {
-                let is_esc_wild = !vim_strchr(
+                let is_esc_wild = crate::strings::vim_haschr(
                     PATH_ESC_WILDCARDS,
                     crate::memory::cstr_first_byte(path_end) as c_int,
-                )
-                .is_null();
+                );
                 #[cfg(not(windows))]
                 let is_icase_alpha = opt_vars().p_fic == 0
                     && (flags & EW_ICASE) != 0
@@ -956,7 +955,7 @@ fn expand_path_option(
         while !crate::memory::cstr_is_empty(path_option) {
             let mut buflen = copy_option_part(&mut path_option, buf, MAXPATHL, c" ,");
 
-            if !vim_strchr(buf, b'`' as c_int).is_null() {
+            if crate::strings::vim_haschr(buf, b'`' as c_int) {
                 continue;
             }
 
@@ -1281,7 +1280,7 @@ fn has_env_var(p: impl crate::strings::IntoCCharPtr) -> bool {
                 p = p.add(2);
                 continue;
             }
-            if !vim_strchr(c"$", crate::memory::cstr_first_byte(p) as c_int).is_null() {
+            if crate::strings::vim_haschr(c"$", crate::memory::cstr_first_byte(p) as c_int) {
                 return true;
             }
             p = p.add(1);
@@ -1308,20 +1307,26 @@ fn has_special_wildchar(p: impl crate::strings::IntoCCharPtr, flags: c_int) -> b
                 p = p.add(2);
                 continue;
             }
-            if !vim_strchr(SPECIAL_WILDCHAR, crate::memory::cstr_first_byte(p) as c_int).is_null() {
+            if crate::strings::vim_haschr(
+                SPECIAL_WILDCHAR,
+                crate::memory::cstr_first_byte(p) as c_int,
+            ) {
                 if crate::memory::cstr_first_byte(p) == b'{' && (flags & EW_NOTFOUND) == 0 {
                     p = p.add(1);
                     continue;
                 }
                 if crate::memory::cstr_first_byte(p) == b'{'
-                    && vim_strchr(p, b'}' as c_int).is_null()
+                    && !crate::strings::vim_haschr(p, b'}' as c_int)
                 {
                     p = p.add(1);
                     continue;
                 }
                 if (crate::memory::cstr_first_byte(p) == b'`'
                     || crate::memory::cstr_first_byte(p) == b'\'')
-                    && vim_strchr(p.add(1), crate::memory::cstr_first_byte(p) as c_int).is_null()
+                    && !crate::strings::vim_haschr(
+                        p.add(1),
+                        crate::memory::cstr_first_byte(p) as c_int,
+                    )
                 {
                     p = p.add(1);
                     continue;
@@ -2283,7 +2288,7 @@ pub fn match_suffix(fname: impl crate::strings::IntoCCharPtr) -> bool {
             setsuflen = copy_option_part(&mut setsuf, suf_buf.as_mut_ptr(), MAXSUFLEN, c".,");
             if setsuflen == 0 {
                 let tail = path_tail(fname);
-                if vim_strchr(tail, b'.' as c_int).is_null() {
+                if !crate::strings::vim_haschr(tail, b'.' as c_int) {
                     setsuflen = 1;
                     break;
                 }

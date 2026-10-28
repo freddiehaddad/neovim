@@ -166,7 +166,7 @@ fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
 fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
     unsafe {
         for i in 0..(num as usize) {
-            if !vim_strchr(*file.add(i), b'$' as c_int).is_null() {
+            if crate::strings::vim_haschr(*file.add(i), b'$' as c_int) {
                 return true;
             }
         }
@@ -214,7 +214,7 @@ pub fn os_expand_wildcards(
 
         if g_st().secure != 0 {
             for i in 0..(num_pat as usize) {
-                if !vim_strchr(*pat.add(i), b'`' as c_int).is_null() && check_secure() {
+                if crate::strings::vim_haschr(*pat.add(i), b'`' as c_int) && check_secure() {
                     return false;
                 }
             }
@@ -264,9 +264,10 @@ pub fn os_expand_wildcards(
             let p_i = *pat.add(i);
             let mut j = 0;
             while crate::memory::cstr_byte_at(p_i, j) != 0 {
-                if !vim_strchr(SHELL_SPECIAL, crate::memory::cstr_byte_at(p_i, j) as c_int)
-                    .is_null()
-                {
+                if crate::strings::vim_haschr(
+                    SHELL_SPECIAL,
+                    crate::memory::cstr_byte_at(p_i, j) as c_int,
+                ) {
                     len += 1;
                 }
                 len += 1;
@@ -372,7 +373,7 @@ pub fn os_expand_wildcards(
                     {
                         let next_ch = *p_i.add(j + 1);
                         if intick
-                            || !vim_strchr(SHELL_SPECIAL, next_ch as u8 as c_int).is_null()
+                            || crate::strings::vim_haschr(SHELL_SPECIAL, next_ch as u8 as c_int)
                             || next_ch == b'`' as c_char
                         {
                             *p = b'\\' as c_char;
@@ -381,7 +382,7 @@ pub fn os_expand_wildcards(
                         j += 1;
                     } else if !intick
                         && ((flags & EW_KEEPDOLLAR) == 0 || ch != b'$' as c_char)
-                        && !vim_strchr(SHELL_SPECIAL, ch as u8 as c_int).is_null()
+                        && crate::strings::vim_haschr(SHELL_SPECIAL, ch as u8 as c_int)
                     {
                         *p = b'\\' as c_char;
                         p = p.add(1);

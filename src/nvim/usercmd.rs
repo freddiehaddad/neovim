@@ -1750,7 +1750,7 @@ fn uc_check_code(
         let mut quote: c_int = 0;
         let mut type_ = CodeType::None;
 
-        if !vim_strchr(c"qQfF", c_int::from(crate::memory::cstr_first_byte(p))).is_null()
+        if crate::strings::vim_haschr(c"qQfF", c_int::from(crate::memory::cstr_first_byte(p)))
             && crate::memory::cstr_byte_at(p, 1) == b'-'
         {
             quote = if crate::memory::cstr_first_byte(p) == b'q'

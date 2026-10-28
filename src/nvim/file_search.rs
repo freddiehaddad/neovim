@@ -200,7 +200,7 @@ pub fn vim_findfile_init(
         if crate::memory::cstr_first_byte(path) == b'.'
             && (vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(path, 1)))
                 || crate::memory::cstr_byte_at(path, 1) == 0)
-            && (tagfile == 0 || vim_strchr(opt_vars().p_cpo, K_CPO_DOTTAG).is_null())
+            && (tagfile == 0 || !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOTTAG))
             && !rel_fname.is_null()
         {
             let len = path_tail(rel_fname).offset_from(rel_fname) as usize;
@@ -1516,8 +1516,10 @@ pub fn file_name_in_line(
                 && crate::memory::cstr_byte_at(ptr, len + 1) == b' ')
             || ((options & FNAME_HYP) != 0 && path_is_url(ptr.add(len)) != 0)
             || (is_url
-                && !vim_strchr(c":?&=", c_int::from(crate::memory::cstr_byte_at(ptr, len)))
-                    .is_null())
+                && crate::strings::vim_haschr(
+                    c":?&=",
+                    c_int::from(crate::memory::cstr_byte_at(ptr, len)),
+                ))
         {
             let b = crate::memory::cstr_byte_at(ptr, len);
             if b.is_ascii_alphabetic() {
@@ -1537,11 +1539,10 @@ pub fn file_name_in_line(
         }
 
         if len > 2
-            && !vim_strchr(
+            && crate::strings::vim_haschr(
                 c".,:;!",
                 c_int::from(crate::memory::cstr_byte_at(ptr, len - 1)),
             )
-            .is_null()
             && crate::memory::cstr_byte_at(ptr, len - 2) != b'.'
         {
             len -= 1;

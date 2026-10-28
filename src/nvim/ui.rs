@@ -43,7 +43,7 @@ use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::option::{K_OPT_CMDHEIGHT, set_option_value, ui_refresh_options};
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_sleep};
-use crate::strings::{gettext, vim_strchr};
+use crate::strings::gettext;
 use crate::ui_compositor::{
     ui_comp_attach, ui_comp_detach, ui_comp_get_grid_at_coord, ui_comp_grid_cursor_goto,
     ui_comp_grid_resize, ui_comp_grid_scroll, ui_comp_init, ui_comp_msg_set_pos, ui_comp_raw_line,
@@ -412,7 +412,7 @@ pub fn vim_beep(val: c_uint) {
         }
     }
 
-    if !vim_strchr(opt_vars().p_debug, b'e' as c_int).is_null() {
+    if crate::strings::vim_haschr(opt_vars().p_debug, b'e' as c_int) {
         msg_source(HLF_W);
         msg(gettext(c"Beep!"), HLF_W);
     }
@@ -717,7 +717,7 @@ pub fn ui_mouse_has(mode: c_int) -> bool {
         let p = opt_vars().p_mouse;
         for &p_byte in crate::memory::cstr_as_bytes(p) {
             if p_byte == b'a' {
-                if !vim_strchr(MOUSE_A, mode).is_null() {
+                if crate::strings::vim_haschr(MOUSE_A, mode) {
                     return true;
                 }
             } else if (p_byte as c_char) == K_MOUSE_HELP {

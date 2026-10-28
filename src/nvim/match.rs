@@ -27,7 +27,7 @@ use crate::regexp::{
     MAXCOL, NUMBUFLEN, RE_MAGIC, Regmmatch, Regprog, re_multiline, skip_regexp, vim_regcomp,
     vim_regexec_multi, vim_regfree,
 };
-use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, vim_snprintf};
 use crate::window::WinInfoInfo;
 use std::ffi::{c_char, c_int};
 use std::ptr;
@@ -472,7 +472,7 @@ fn next_search_hl(
             }
             if shl.lnum == 0 {
                 matchcol = 0;
-            } else if vim_strchr(opt_vars().p_cpo, K_CPO_SEARCH).is_null()
+            } else if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SEARCH)
                 || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
                 matchcol = shl.rm.startpos[0].col;

@@ -839,9 +839,9 @@ fn efmpat_to_regpat(
         }
         if (idx != 0
             && idx < FMT_PATTERN_R
-            && !vim_strchr(c"DXOPQ", c_int::from(efminfo.prefix as u8)).is_null())
+            && crate::strings::vim_haschr(c"DXOPQ", c_int::from(efminfo.prefix as u8)))
             || (idx == FMT_PATTERN_R
-                && vim_strchr(c"OPQ", c_int::from(efminfo.prefix as u8)).is_null())
+                && !crate::strings::vim_haschr(c"OPQ", c_int::from(efminfo.prefix as u8)))
         {
             semsg!(
                 gettext(c"E373: Unexpected %%%c in format string"),
@@ -955,16 +955,14 @@ fn scanf_fmt_to_regpat(
 fn efm_analyze_prefix(efmp: impl crate::strings::IntoCCharPtr, efminfo: &mut Efm) -> *const c_char {
     let mut efmp = efmp.into_c_char_ptr();
     unsafe {
-        if !vim_strchr(c"+-", c_int::from(crate::memory::cstr_first_byte(efmp))).is_null() {
+        if crate::strings::vim_haschr(c"+-", c_int::from(crate::memory::cstr_first_byte(efmp))) {
             efminfo.flags = *efmp;
             efmp = efmp.add(1);
         }
-        if !vim_strchr(
+        if crate::strings::vim_haschr(
             c"DXAEWINCZGOPQ",
             c_int::from(crate::memory::cstr_first_byte(efmp)),
-        )
-        .is_null()
-        {
+        ) {
             efminfo.prefix = *efmp;
         } else {
             semsg!(
@@ -1014,12 +1012,10 @@ fn efm_to_regpat(
                     if ptr.is_null() {
                         return false;
                     }
-                } else if !vim_strchr(
+                } else if crate::strings::vim_haschr(
                     c"%\\.^$~[",
                     c_int::from(crate::memory::cstr_first_byte(efmp)),
-                )
-                .is_null()
-                {
+                ) {
                     *ptr = *efmp;
                     ptr = ptr.add(1);
                 } else if crate::memory::cstr_first_byte(efmp) == b'#' {
@@ -1042,9 +1038,10 @@ fn efm_to_regpat(
             } else {
                 if crate::memory::cstr_first_byte(efmp) == b'\\' && efmp.add(1) < end {
                     efmp = efmp.add(1);
-                } else if !vim_strchr(c".*^$~[", c_int::from(crate::memory::cstr_first_byte(efmp)))
-                    .is_null()
-                {
+                } else if crate::strings::vim_haschr(
+                    c".*^$~[",
+                    c_int::from(crate::memory::cstr_first_byte(efmp)),
+                ) {
                     *ptr = b'\\' as c_char;
                     ptr = ptr.add(1);
                 }
@@ -1467,15 +1464,15 @@ fn qf_parse_line(
                     qf_st().fmt_start_idx = Some(fmt_idx);
                 }
 
-                if !vim_strchr(c"AEWIN", idx).is_null() {
+                if crate::strings::vim_haschr(c"AEWIN", idx) {
                     qfl.qf_multiline = true;
                     qfl.qf_multiignore = false;
-                } else if !vim_strchr(c"CZ", idx).is_null() {
+                } else if crate::strings::vim_haschr(c"CZ", idx) {
                     status = qf_parse_multiline_pfx(idx, qfl, fields);
                     if status != QF_OK {
                         return status;
                     }
-                } else if !vim_strchr(c"OPQ", idx).is_null() {
+                } else if crate::strings::vim_haschr(c"OPQ", idx) {
                     status = qf_parse_file_pfx(idx, fields, qfl, tail);
                     if status == QF_MULTISCAN {
                         let s = skipwhite(tail);
@@ -1764,7 +1761,7 @@ fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix
         );
         *rmp.endp[midx] = c;
 
-        if !vim_strchr(c"OPQ", prefix).is_null() && !os_path_exists(fields.namebuf.as_ptr()) {
+        if crate::strings::vim_haschr(c"OPQ", prefix) && !os_path_exists(fields.namebuf.as_ptr()) {
             return QF_FAIL;
         }
 
@@ -1984,7 +1981,7 @@ fn qf_parse_match(
     if (idx == b'C' as c_char || idx == b'Z' as c_char) && qf_multiline == 0 {
         return QF_FAIL;
     }
-    if !vim_strchr(c"EWIN", c_int::from(idx as u8)).is_null() {
+    if crate::strings::vim_haschr(c"EWIN", c_int::from(idx as u8)) {
         fields.type_ = idx;
     } else {
         fields.type_ = 0;
@@ -2041,7 +2038,9 @@ fn qf_parse_get_fields(
 ) -> c_int {
     let linebuf = linebuf.into_c_char_ptr();
     unsafe {
-        if qf_multiscan != 0 && vim_strchr(c"OPQ", c_int::from(fmt_ptr.prefix as u8)).is_null() {
+        if qf_multiscan != 0
+            && !crate::strings::vim_haschr(c"OPQ", c_int::from(fmt_ptr.prefix as u8))
+        {
             return QF_FAIL;
         }
 

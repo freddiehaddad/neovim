@@ -2472,11 +2472,10 @@ fn foldlevel_indent(flp: &mut Fline) {
         let s = skipwhite(ml_get_buf(&mut *buf, lnum));
 
         if crate::memory::cstr_is_empty(s)
-            || !vim_strchr(
+            || crate::strings::vim_haschr(
                 { &mut *flp.wp }.w_onebuf_opt.wo_fdi,
                 crate::memory::cstr_first_byte(s) as c_int,
             )
-            .is_null()
         {
             flp.lvl = if lnum == 1 || lnum == (*buf).b_ml.ml_line_count {
                 0

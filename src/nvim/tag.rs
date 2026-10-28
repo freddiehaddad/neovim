@@ -1253,12 +1253,10 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
                     } else {
                         c"\\$".as_ptr()
                     };
-                    if !vim_strchr(
+                    if crate::strings::vim_haschr(
                         magic_chars,
                         crate::memory::cstr_byte_at(pats.head, pats.headlen as usize) as c_int,
-                    )
-                    .is_null()
-                    {
+                    ) {
                         break;
                     }
                     pats.headlen += 1;
@@ -2924,7 +2922,7 @@ fn jumpto_tag(
 
                 let save_no_hlsearch = g_st().search_global.no_hlsearch;
 
-                let search_options = if !vim_strchr(opt_vars().p_cpo, K_CPO_TAGPAT).is_null() {
+                let search_options = if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_TAGPAT) {
                     0
                 } else {
                     SEARCH_KEEP
@@ -3114,7 +3112,7 @@ fn expand_tag_fname(
 
         if expand
             && path_has_wildcard(fname.as_ptr(), true)
-            && vim_strchr(fname.as_ptr(), b'`' as c_int).is_null()
+            && !crate::strings::vim_haschr(fname.as_ptr(), b'`' as c_int)
         {
             xpc.xp_context = EXPAND_FILES;
             if let Some(exp) = expand_one(

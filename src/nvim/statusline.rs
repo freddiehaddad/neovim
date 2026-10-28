@@ -52,7 +52,7 @@ use crate::optionstr::{
 use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
 use crate::sign::describe_sign_text;
-use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::buf_is_changed_fn;
 use crate::window::{WinInfoInfo, global_stl_height, lastwin_nofloating, tabline_height};
@@ -1856,7 +1856,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
             }
 
-            if vim_strchr(STL_ALL, c_int::from(crate::memory::cstr_first_byte(fmt_p))).is_null() {
+            if !crate::strings::vim_haschr(
+                STL_ALL,
+                c_int::from(crate::memory::cstr_first_byte(fmt_p)),
+            ) {
                 if crate::memory::cstr_is_empty(fmt_p) {
                     break;
                 }
@@ -1973,7 +1976,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                         if reevaluate
                             && !crate::memory::cstr_is_empty(str)
-                            && !vim_strchr(str, b'%' as c_int).is_null()
+                            && crate::strings::vim_haschr(str, b'%' as c_int)
                             && evaldepth < MAX_STL_EVAL_DEPTH
                         {
                             let parsed_usefmt = block_start.offset_from(usefmt) as usize;

@@ -72,7 +72,7 @@ use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, s
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::statusline::{Foldinfo, Statuscol, build_statuscol_str};
 use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
-use crate::strings::{vim_snprintf, vim_strchr};
+use crate::strings::vim_snprintf;
 use crate::syntax::{
     HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present, syntax_start,
 };
@@ -840,7 +840,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> c_int {
 
 fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     unsafe {
-        let has_cpo_n = !vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null();
+        let has_cpo_n = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL);
 
         if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
             && (wlv.row == wlv.startrow + wlv.filler_lines || !has_cpo_n)
@@ -2986,7 +2986,7 @@ pub fn win_line(
                             || has_match_conc > 0
                             || decor_conceal > 0)
                         && !(lnum_in_visual_area
-                            && vim_strchr(wp.w_onebuf_opt.wo_cocu, b'v' as c_int).is_null())
+                            && !crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, b'v' as c_int))
                     {
                         let syntax_conceal = (syntax_flags & HL_CONCEAL) != 0;
                         wlv.char_attr = conceal_attr;
@@ -3611,7 +3611,7 @@ pub fn win_line(
                     wlv.need_showbreak = true;
                 }
                 if statuscol.draw
-                    && !vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null()
+                    && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
                     && wlv.row > startrow + wlv.filler_lines
                 {
                     statuscol.draw = false;

@@ -2964,7 +2964,8 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
         while (s as usize) < (end as usize) {
             if rem_backslash(s) {
                 s = s.add(1);
-            } else if !vim_strchr(c"*?[", crate::memory::cstr_first_byte(s) as c_int).is_null() {
+            } else if crate::strings::vim_haschr(c"*?[", crate::memory::cstr_first_byte(s) as c_int)
+            {
                 return false;
             }
             s = s.add(1);
@@ -3092,8 +3093,8 @@ pub fn addstar(
             }
             if (crate::memory::cstr_first_byte(retval) != b'~' || tail != retval)
                 && !ends_in_star
-                && vim_strchr(tail, b'$' as c_int).is_null()
-                && vim_strchr(retval, b'`' as c_int).is_null()
+                && !crate::strings::vim_haschr(tail, b'$' as c_int)
+                && !crate::strings::vim_haschr(retval, b'`' as c_int)
             {
                 *retval.add(len) = b'*' as c_char;
                 len += 1;
@@ -3191,7 +3192,10 @@ fn set_cmd_index(
                 }
             }
             if p == cmd
-                && !vim_strchr(c"@*!=><&~#", crate::memory::cstr_first_byte(p) as c_int).is_null()
+                && crate::strings::vim_haschr(
+                    c"@*!=><&~#",
+                    crate::memory::cstr_first_byte(p) as c_int,
+                )
             {
                 p = p.add(1);
             }
@@ -3223,7 +3227,10 @@ fn set_cmd_index(
 
         if eap.cmdidx == Cmdidx::CmdSize as c_int as c_int {
             if crate::memory::cstr_first_byte(cmd) == b's'
-                && !vim_strchr(c"cgriI", crate::memory::cstr_byte_at(cmd, 1) as c_int).is_null()
+                && crate::strings::vim_haschr(
+                    c"cgriI",
+                    crate::memory::cstr_byte_at(cmd, 1) as c_int,
+                )
             {
                 eap.cmdidx = Cmdidx::CmdSubstitute as c_int;
                 p = cmd.add(1);
@@ -4156,7 +4163,7 @@ fn set_one_cmd_context(
         ea.argt = 0;
 
         let mut cmd = buff;
-        while !vim_strchr(c" \t:|", crate::memory::cstr_first_byte(cmd) as c_int).is_null() {
+        while crate::strings::vim_haschr(c" \t:|", crate::memory::cstr_first_byte(cmd) as c_int) {
             cmd = cmd.add(1);
         }
         xp.xp_pattern = cmd.cast_mut();
@@ -5836,11 +5843,10 @@ fn wildmenu_process_key_filenames(
                 j -= utf_head_off(cclp.cmdbuff, cclp.cmdbuff.add(j as usize));
                 #[cfg(windows)]
                 let is_sep = vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff, j as usize))
-                    && vim_strchr(
+                    && !crate::strings::vim_haschr(
                         c" *?[{`$%#",
                         *cclp.cmdbuff.add((j + 1) as usize) as u8 as c_int,
-                    )
-                    .is_null();
+                    );
                 #[cfg(not(windows))]
                 let is_sep = vim_ispathsep(crate::memory::cstr_char_at(cclp.cmdbuff, j as usize));
 

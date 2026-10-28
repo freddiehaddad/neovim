@@ -1004,7 +1004,7 @@ pub fn ins_compl_commit_char(c: c_int) -> bool {
             && (*shown)
                 .cp_commit_chars
                 .as_ref()
-                .is_some_and(|s| !vim_strchr(s.as_ptr(), c).is_null())
+                .is_some_and(|s| crate::strings::vim_haschr(s.as_ptr(), c))
     }
 }
 
@@ -1498,7 +1498,7 @@ pub fn ins_compl_col_range_attr(lnum: Linenr, col: c_int) -> c_int {
 fn ins_compl_has_multiple() -> bool {
     unsafe {
         let shown = compl_opt(insexp().compl_shown_idx);
-        !shown.is_null() && !vim_strchr((*shown).cp_str.data, b'\n' as c_int).is_null()
+        !shown.is_null() && crate::strings::vim_haschr((*shown).cp_str.data, b'\n' as c_int)
     }
 }
 
@@ -2192,7 +2192,7 @@ fn ins_compl_dictionaries(
                 copy_option_part(&raw mut dict, buf, LSIZE, c",");
                 if !thesaurus && crate::memory::cstr_as_bytes(buf) == b"spell" {
                     count = -1;
-                } else if !vim_strchr(buf, b'`' as c_int).is_null()
+                } else if crate::strings::vim_haschr(buf, b'`' as c_int)
                     || !expand_wildcards_vec(1, &raw mut buf, &mut files, EW_FILE | EW_SILENT)
                 {
                     count = 0;
@@ -4063,7 +4063,7 @@ fn process_next_cpt_value(
             st.set_match_pos = true;
         } else if !skip_source
             && !insexp().compl_time_slice_expired
-            && !vim_strchr(c"buwU", c_int::from(st.e_cpt_char() as u8)).is_null()
+            && crate::strings::vim_haschr(c"buwU", c_int::from(st.e_cpt_char() as u8))
             && {
                 st.ins_buf = ins_compl_next_buf(st.ins_buf, c_int::from(st.e_cpt_char()));
                 !ptr::eq(st.ins_buf, g_st().curbuf)

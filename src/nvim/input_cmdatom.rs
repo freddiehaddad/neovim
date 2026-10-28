@@ -40,7 +40,7 @@ use crate::ops::{
 use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
-use crate::strings::{vim_snprintf, vim_strchr};
+use crate::strings::vim_snprintf;
 use crate::textformat::Oparg;
 use crate::viml::parser::expressions::ESC;
 use crate::window::{WinInfoInfo, win_valid};
@@ -1595,7 +1595,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                 },
             );
             if cap.cmdchar == b'/' as c_int || cap.cmdchar == b'?' as c_int {
-                if vim_strchr(opt_vars().p_cpo, K_CPO_REDO).is_null() {
+                if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_REDO) {
                     redo_append_lit(cap.searchbuf_ptr(), -1);
                 }
                 redo_append_str(c"\n", 1);

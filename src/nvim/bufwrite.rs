@@ -54,7 +54,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
 use crate::path::{K_PATH_CMP_LITERAL, after_pathsep, path_equal, path_tail};
 use crate::sha256::ContextSha256;
-use crate::strings::{gettext, vim_snprintf, vim_snprintf_add, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_snprintf_add};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbuf_is_changed_fn, u_unchanged, u_update_save_nr, u_write_undo};
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -530,7 +530,7 @@ fn buf_write_do_autocmds(
                 if reset_changed
                     && (*buf).b_changed != 0
                     && !append
-                    && (overwriting || !vim_strchr(opt_vars().p_cpo, K_CPO_PLUS).is_null())
+                    && (overwriting || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_PLUS))
                 {
                     return FAIL;
                 }
@@ -850,7 +850,7 @@ fn get_fileinfo(
             *readonly = os_file_is_writable(fname) == 0;
 
             if !forceit && *readonly {
-                if !vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null() {
+                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FWRITE) {
                     *err = set_err_num(
                         c"E504",
                         gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -1100,7 +1100,7 @@ fn buf_write_make_backup(
             }
             *err = set_err(ptr::null());
         } else {
-            if file_readonly && !vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null() {
+            if file_readonly && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FWRITE) {
                 *err = set_err_num(
                     c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -1209,8 +1209,8 @@ pub fn buf_write(
             && buf == g_st().curbuf
             && !bt_nofilename(buf.as_ref())
             && !filtering
-            && (!append || !vim_strchr(opt_vars().p_cpo, K_CPO_FNAMEAPP).is_null())
-            && !vim_strchr(opt_vars().p_cpo, K_CPO_FNAMEW).is_null()
+            && (!append || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMEAPP))
+            && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMEW)
         {
             if !set_rw_fname(fname, sfname) {
                 return FAIL;
@@ -1388,14 +1388,17 @@ pub fn buf_write(
                     && perm >= 0
                     && (perm & 0o200) == 0
                     && file_info_old.stat.st_uid == u64::from(getuid())
-                    && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null()
+                    && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FWRITE)
                 {
                     perm |= 0o200;
                     let _ = os_setperm(fname, perm);
                     made_writable = true;
                 }
 
-                if forceit && overwriting && vim_strchr(opt_vars().p_cpo, K_CPO_KEEPRO).is_null() {
+                if forceit
+                    && overwriting
+                    && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_KEEPRO)
+                {
                     buf.b_p_ro = 0;
                     g_st().need_maketitle = true;
                     status_redraw_all();
@@ -1540,8 +1543,10 @@ pub fn buf_write(
                                                 fd,
                                             );
                                             if forceit
-                                                && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE)
-                                                    .is_null()
+                                                && !crate::strings::vim_haschr(
+                                                    opt_vars().p_cpo,
+                                                    K_CPO_FWRITE,
+                                                )
                                                 && perm >= 0
                                             {
                                                 if (perm & 0o200) == 0 {
@@ -1568,7 +1573,10 @@ pub fn buf_write(
                                             fd,
                                         );
                                         if forceit
-                                            && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null()
+                                            && !crate::strings::vim_haschr(
+                                                opt_vars().p_cpo,
+                                                K_CPO_FWRITE,
+                                            )
                                             && perm >= 0
                                         {
                                             if !append {
@@ -2041,7 +2049,7 @@ pub fn buf_write(
                         && whole
                         && !append
                         && write_info.bw_conv_error == 0
-                        && (overwriting || !vim_strchr(opt_vars().p_cpo, K_CPO_PLUS).is_null())
+                        && (overwriting || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_PLUS))
                         && buf_get_changedtick(&*buf) == write_tick
                     {
                         unchanged(&mut *buf, true, false);

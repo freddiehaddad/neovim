@@ -733,7 +733,7 @@ pub fn set_init_tablocal() {
 fn set_init_default_shell() {
     if let Some(shell) = os_getenv_cstr(c"SHELL") {
         let shell_ptr = shell.as_ptr();
-        if !vim_strchr(shell_ptr, b' ' as c_int).is_null() {
+        if crate::strings::vim_haschr(shell_ptr, b' ' as c_int) {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0 as c_char; len];
             vim_snprintf!(cmd.as_mut_ptr(), len, c"\"%s\"", shell_ptr);
@@ -1572,8 +1572,8 @@ fn stropt_handle_keymatch(
 ) -> bool {
     let origval = origval.into_c_char_ptr();
     unsafe {
-        if vim_strchr(newval, b':' as c_int).is_null()
-            && vim_strchr(newval, b',' as c_int).is_null()
+        if !crate::strings::vim_haschr(newval, b':' as c_int)
+            && !crate::strings::vim_haschr(newval, b',' as c_int)
         {
             return false;
         }
@@ -1662,14 +1662,17 @@ fn stropt_remove_dupflags(newval: impl crate::strings::IntoCCharPtr, flags: u32)
             if (flags & K_OPT_FLAG_ONE_COMMA) != 0 {
                 if crate::memory::cstr_first_byte(s) != b','
                     && crate::memory::cstr_byte_at(s, 1) == b','
-                    && !vim_strchr(s.add(2), crate::memory::cstr_first_byte(s) as c_int).is_null()
+                    && crate::strings::vim_haschr(
+                        s.add(2),
+                        crate::memory::cstr_first_byte(s) as c_int,
+                    )
                 {
                     let src = s.add(2);
                     ptr::copy(src, s, crate::memory::cstr_len(src) + 1);
                     continue;
                 }
             } else if ((flags & K_OPT_FLAG_COMMA) == 0 || crate::memory::cstr_first_byte(s) != b',')
-                && !vim_strchr(s.add(1), crate::memory::cstr_first_byte(s) as c_int).is_null()
+                && crate::strings::vim_haschr(s.add(1), crate::memory::cstr_first_byte(s) as c_int)
             {
                 let src = s.add(1);
                 ptr::copy(src, s, crate::memory::cstr_len(src) + 1);
@@ -2094,7 +2097,7 @@ fn do_one_set_option(
             return errmsg;
         }
 
-        if !vim_strchr(c"?=:!&<", nextchar).is_null() {
+        if crate::strings::vim_haschr(c"?=:!&<", nextchar) {
             *argp = p;
 
             if nextchar == b'&' as c_int
@@ -2107,7 +2110,7 @@ fn do_one_set_option(
                     *argp = (*argp).add(2);
                 }
             }
-            if !vim_strchr(c"?!&<", nextchar).is_null()
+            if crate::strings::vim_haschr(c"?!&<", nextchar)
                 && crate::memory::cstr_byte_at(*argp, 1) != 0
                 && !ascii_iswhite(crate::memory::cstr_char_at(*argp, 1))
             {
@@ -2117,7 +2120,7 @@ fn do_one_set_option(
 
         if nextchar == b'?' as c_int
             || (prefix == PREFIX_NONE
-                && vim_strchr(c"=:&<", nextchar).is_null()
+                && !crate::strings::vim_haschr(c"=:&<", nextchar)
                 && !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean))
         {
             if *did_show {
@@ -2152,17 +2155,17 @@ fn do_one_set_option(
         }
 
         if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-            if !vim_strchr(c"=:", nextchar).is_null() {
+            if crate::strings::vim_haschr(c"=:", nextchar) {
                 return E_INVARG.as_ptr();
             }
 
-            if vim_strchr(c"!&<", nextchar).is_null()
+            if !crate::strings::vim_haschr(c"!&<", nextchar)
                 && nextchar != NUL as c_int
                 && !ascii_iswhite(afterchar)
             {
                 return E_TRAILING.as_ptr();
             }
-        } else if vim_strchr(c"=:&<", nextchar).is_null() {
+        } else if !crate::strings::vim_haschr(c"=:&<", nextchar) {
             return E_INVARG.as_ptr();
         }
 
@@ -2574,7 +2577,7 @@ pub fn valid_name(val: impl crate::strings::IntoCCharPtr, allowed: &std::ffi::CS
         let s = val;
         for &s_byte in crate::memory::cstr_as_bytes(s) {
             if !ascii_isalnum(s_byte as c_char as c_int)
-                && vim_strchr(allowed.as_ptr(), s_byte as c_int).is_null()
+                && !crate::strings::vim_haschr(allowed.as_ptr(), s_byte as c_int)
             {
                 return false;
             }
@@ -6712,7 +6715,7 @@ fn put_set_value(
 
                         if size >= MAXPATHL
                             && (flags & K_OPT_FLAG_COMMA) != 0
-                            && !vim_strchr(value_str, b',' as c_int).is_null()
+                            && crate::strings::vim_haschr(value_str, b',' as c_int)
                         {
                             let mut part_vec = vec![0 as c_char; size];
                             let part = part_vec.as_mut_ptr();
@@ -7455,11 +7458,11 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: c_int) {
         let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
 
         if !opt_vars().p_cpo.is_null() {
-            if (vim_strchr(opt_vars().p_cpo, K_CPO_BUFOPTGLOB).is_null()
+            if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPTGLOB)
                 || (flags & BCO_ENTER) == 0)
                 && (buf.b_p_initialized
                     || ((flags & BCO_ENTER) == 0
-                        && !vim_strchr(opt_vars().p_cpo, K_CPO_BUFOPT).is_null()))
+                        && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPT)))
             {
                 should_copy = false;
             }
@@ -8301,9 +8304,9 @@ fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> c_int {
 
 pub fn shortmess(x: c_int) -> bool {
     !opt_vars().p_shm.is_null()
-        && (!vim_strchr(opt_vars().p_shm, x).is_null()
-            || (!vim_strchr(opt_vars().p_shm, b'a' as c_int).is_null()
-                && !vim_strchr(SHM_ALL_ABBREVIATIONS, x).is_null()))
+        && (crate::strings::vim_haschr(opt_vars().p_shm, x)
+            || (crate::strings::vim_haschr(opt_vars().p_shm, b'a' as c_int)
+                && crate::strings::vim_haschr(SHM_ALL_ABBREVIATIONS, x)))
 }
 
 pub fn vimrc_found(fname: impl crate::strings::IntoCCharPtr, envname: &std::ffi::CStr) {
@@ -8433,7 +8436,7 @@ pub fn can_bs(what: c_int) -> bool {
             return what != BS_NOSTOP;
         }
 
-        !vim_strchr(opt_vars().p_bs, what).is_null()
+        crate::strings::vim_haschr(opt_vars().p_bs, what)
     }
 }
 
@@ -8589,18 +8592,16 @@ pub fn copy_option_part(
             p = p.add(1);
         }
         while !crate::memory::cstr_is_empty(p)
-            && vim_strchr(
+            && !crate::strings::vim_haschr(
                 sep_chars.as_ptr(),
                 crate::memory::cstr_first_byte(p) as c_int,
             )
-            .is_null()
         {
             if crate::memory::cstr_first_byte(p) == b'\\'
-                && !vim_strchr(
+                && crate::strings::vim_haschr(
                     sep_chars.as_ptr(),
                     crate::memory::cstr_byte_at(p, 1) as c_int,
                 )
-                .is_null()
             {
                 p = p.add(1);
             }

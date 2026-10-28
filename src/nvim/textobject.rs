@@ -105,7 +105,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                     if found_dot {
                         break;
                     }
-                    if !vim_strchr(c".!?", c).is_null() {
+                    if crate::strings::vim_haschr(c".!?", c) {
                         found_dot = true;
                     }
                     if !vim_strchr(c")]\"'", c).is_null()
@@ -118,7 +118,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
 
                 // remember the line where the search started
                 let startlnum = pos.lnum;
-                let cpo_j = !vim_strchr(opt_vars().p_cpo, K_CPO_ENDOFSENT).is_null();
+                let cpo_j = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ENDOFSENT);
 
                 loop {
                     c = gchar_pos(&mut pos);
@@ -979,7 +979,7 @@ pub fn current_block(
         }
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = if !vim_strchr(opt_vars().p_cpo, K_CPO_MATCHBSL).is_null() {
+        opt_vars().p_cpo = if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCHBSL) {
             c"%M".as_ptr().cast_mut()
         } else {
             c"%".as_ptr().cast_mut()
@@ -1523,7 +1523,7 @@ fn find_next_quote(
             let c = c_int::from(crate::memory::cstr_byte_at(line, col as usize));
             if c == c_int::from(NUL) {
                 return -1;
-            } else if !escape.is_null() && !vim_strchr(escape, c).is_null() {
+            } else if !escape.is_null() && crate::strings::vim_haschr(escape, c) {
                 col += 1;
                 if crate::memory::cstr_byte_at(line, col as usize) == 0 {
                     return -1;
@@ -1553,11 +1553,10 @@ fn find_prev_quote(
             let mut n = 0;
             if !escape.is_null() {
                 while col_start - n > 0
-                    && !vim_strchr(
+                    && crate::strings::vim_haschr(
                         escape,
                         c_int::from(*line.add((col_start - n - 1) as usize) as u8),
                     )
-                    .is_null()
                 {
                     n += 1;
                 }

@@ -99,7 +99,7 @@ pub fn check_linecomment(line: impl crate::strings::IntoCCharPtr) -> c_int {
     unsafe {
         let mut p = line;
         if curbuf_mut().b_p_lisp != 0 {
-            if !vim_strchr(p, b';' as c_int).is_null() {
+            if crate::strings::vim_haschr(p, b';' as c_int) {
                 let mut in_str = false;
                 while {
                     p = crate::memory::cstr_as_bytes(p)
@@ -833,7 +833,7 @@ fn cin_get_equal_amount(lnum: Linenr) -> c_int {
         let line: *const c_char = ml_get(lnum);
         let mut s = line;
         while !crate::memory::cstr_is_empty(s)
-            && vim_strchr(c"=;{}\"'", crate::memory::cstr_first_byte(s) as c_int).is_null()
+            && !crate::strings::vim_haschr(c"=;{}\"'", crate::memory::cstr_first_byte(s) as c_int)
         {
             if cin_iscomment(s) {
                 s = cin_skipcomment(s);
@@ -2890,8 +2890,8 @@ pub fn get_c_indent() -> c_int {
                 }
                 if cur_curpos.lnum < curbuf_mut().b_ml.ml_line_count
                     && !cin_nocode(theline)
-                    && vim_strchr(theline, b'{' as c_int).is_null()
-                    && vim_strchr(theline, b'}' as c_int).is_null()
+                    && !crate::strings::vim_haschr(theline, b'{' as c_int)
+                    && !crate::strings::vim_haschr(theline, b'}' as c_int)
                     && !cin_ends_in(theline, c":")
                     && !cin_ends_in(theline, c",")
                     && cin_isfuncdecl(ptr::null_mut(), cur_curpos.lnum + 1, cur_curpos.lnum + 1)
@@ -3193,9 +3193,10 @@ pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
                 look = look.add(1);
             } else if crate::memory::cstr_first_byte(look) == b'<' {
                 if try_match {
-                    if !vim_strchr(c"<>!*oOe0:", crate::memory::cstr_byte_at(look, 1) as c_int)
-                        .is_null()
-                        && keytyped == crate::memory::cstr_char_at(look, 1)
+                    if crate::strings::vim_haschr(
+                        c"<>!*oOe0:",
+                        crate::memory::cstr_byte_at(look, 1) as c_int,
+                    ) && keytyped == crate::memory::cstr_char_at(look, 1)
                     {
                         return true;
                     }

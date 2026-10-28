@@ -461,7 +461,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
         changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
         if spell_check_window(curwin_mut())
             && lnum < curbuf_mut().b_ml.ml_line_count
-            && vim_strchr(opt_vars().p_cpo, K_CPO_DOLLAR).is_null()
+            && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOLLAR)
         {
             redraw_winline(crate::globals::curwin_mut(), lnum + 1);
         }
@@ -727,7 +727,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
         if (g_st().state_global & REPLACE_FLAG) != 0 {
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 let old_list = curwin_mut().w_onebuf_opt.wo_list;
-                if old_list != 0 && vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null() {
+                if old_list != 0 && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LISTWM) {
                     curwin_mut().w_onebuf_opt.wo_list = 0;
                 }
                 let mut vcol: Colnr = 0;
@@ -1500,7 +1500,7 @@ pub fn open_line(
                         && lead_len > 0
                         && *leader.add((lead_len - 1) as usize) == b' ' as c_char
                     {
-                        if !vim_strchr(skipwhite(leader), b'\t' as c_int).is_null() {
+                        if crate::strings::vim_haschr(skipwhite(leader), b'\t' as c_int) {
                             break;
                         }
                         lead_len -= 1;
@@ -1933,18 +1933,20 @@ pub fn get_leader_len(
                 string = string.add(1);
 
                 if middle_match_len != 0
-                    && vim_strchr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)).is_null()
-                    && vim_strchr(part_buf.as_ptr(), c_int::from(COM_END as u8)).is_null()
+                    && !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8))
+                    && !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_END as u8))
                 {
                     break;
                 }
 
-                if got_com && vim_strchr(part_buf.as_ptr(), c_int::from(COM_NEST as u8)).is_null() {
+                if got_com
+                    && !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NEST as u8))
+                {
                     continue;
                 }
 
                 if backward
-                    && !vim_strchr(part_buf.as_ptr(), c_int::from(COM_NOBACK as u8)).is_null()
+                    && crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NOBACK as u8))
                 {
                     continue;
                 }
@@ -1967,14 +1969,14 @@ pub fn get_leader_len(
                     continue;
                 }
 
-                if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8)).is_null()
+                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8))
                     && !ascii_iswhite(crate::memory::cstr_char_at(line, i + j))
                     && crate::memory::cstr_byte_at(line, i + j) != 0
                 {
                     continue;
                 }
 
-                if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)).is_null() {
+                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)) {
                     if middle_match_len == 0 {
                         middle_match_len = j;
                         saved_flags = prev_list;
@@ -2015,7 +2017,7 @@ pub fn get_leader_len(
             }
 
             got_com = true;
-            if vim_strchr(part_buf.as_ptr(), c_int::from(COM_NEST as u8)).is_null() {
+            if !crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NEST as u8)) {
                 break;
             }
         }
@@ -2073,14 +2075,14 @@ pub fn get_last_leader_offset(
                     continue;
                 }
 
-                if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8)).is_null()
+                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_BLANK as u8))
                     && !ascii_iswhite(crate::memory::cstr_char_at(line, i as usize + j))
                     && crate::memory::cstr_byte_at(line, i as usize + j) != 0
                 {
                     continue;
                 }
 
-                if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)).is_null() {
+                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_MIDDLE as u8)) {
                     let mut k: c_int = 0;
                     while k <= i && ascii_iswhite(crate::memory::cstr_char_at(line, k as usize)) {
                         k += 1;
@@ -2102,7 +2104,7 @@ pub fn get_last_leader_offset(
                 let mut part_buf2: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
 
                 result = i;
-                if !vim_strchr(part_buf.as_ptr(), c_int::from(COM_NEST as u8)).is_null() {
+                if crate::strings::vim_haschr(part_buf.as_ptr(), c_int::from(COM_NEST as u8)) {
                     continue;
                 }
 

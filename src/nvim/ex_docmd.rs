@@ -7472,8 +7472,10 @@ pub fn find_ex_command(eap: &mut Exarg, mut full: Option<&mut c_int>) -> *mut c_
             }
 
             if p == eap.cmd
-                && !vim_strchr(c"@!=><&~#", c_int::from(crate::memory::cstr_first_byte(p)))
-                    .is_null()
+                && crate::strings::vim_haschr(
+                    c"@!=><&~#",
+                    c_int::from(crate::memory::cstr_first_byte(p)),
+                )
             {
                 p = p.add(1);
             }
@@ -7720,12 +7722,10 @@ pub fn skip_range(
 ) -> *mut c_char {
     let mut cmd = cmd.into_c_char_ptr();
     unsafe {
-        while !vim_strchr(
+        while crate::strings::vim_haschr(
             c" \t0123456789.$%'/?-+,;\\",
             c_int::from(crate::memory::cstr_first_byte(cmd)),
-        )
-        .is_null()
-        {
+        ) {
             if crate::memory::cstr_first_byte(cmd) == b'\\' {
                 let next = *cmd.add(1);
                 if next == b'?' as c_char || next == b'/' as c_char || next == b'&' as c_char {
@@ -8095,7 +8095,10 @@ pub fn get_address(
 
 fn get_flags(eap: &mut Exarg) {
     unsafe {
-        while !vim_strchr(c"lp#", c_int::from(crate::memory::cstr_first_byte(eap.arg))).is_null() {
+        while crate::strings::vim_haschr(
+            c"lp#",
+            c_int::from(crate::memory::cstr_first_byte(eap.arg)),
+        ) {
             if crate::memory::cstr_first_byte(eap.arg) == b'l' {
                 eap.flags |= EXFLAG_LIST;
             } else if crate::memory::cstr_first_byte(eap.arg) == b'p' {
@@ -8311,7 +8314,7 @@ pub fn expand_filename(
                 }
                 continue;
             }
-            if vim_strchr(c"%#<", c_int::from(crate::memory::cstr_first_byte(p))).is_null() {
+            if !crate::strings::vim_haschr(c"%#<", c_int::from(crate::memory::cstr_first_byte(p))) {
                 p = p.add(1);
                 continue;
             }
@@ -8335,8 +8338,8 @@ pub fn expand_filename(
                 continue;
             };
 
-            if !vim_strchr(repl_cstr.as_ptr(), b'$' as c_int).is_null()
-                || !vim_strchr(repl_cstr.as_ptr(), b'~' as c_int).is_null()
+            if crate::strings::vim_haschr(repl_cstr.as_ptr(), b'$' as c_int)
+                || crate::strings::vim_haschr(repl_cstr.as_ptr(), b'~' as c_int)
             {
                 repl_cstr = expand_env_save(repl_cstr.as_ptr().cast_mut());
             }
@@ -8360,9 +8363,10 @@ pub fn expand_filename(
 
                 let mut l = repl_cstr.as_ptr();
                 while !crate::memory::cstr_is_empty(l) {
-                    if !vim_strchr(esc_chars, c_int::from(crate::memory::cstr_first_byte(l)))
-                        .is_null()
-                    {
+                    if crate::strings::vim_haschr(
+                        esc_chars,
+                        c_int::from(crate::memory::cstr_first_byte(l)),
+                    ) {
                         repl_cstr = vim_strsave_escaped(&repl_cstr, esc_chars);
                         break;
                     }
@@ -8383,8 +8387,8 @@ pub fn expand_filename(
 
         if (eap.argt & EX_NOSPC) != 0 && eap.usefilter == 0 {
             if has_wildcards {
-                if !vim_strchr(eap.arg, b'$' as c_int).is_null()
-                    || !vim_strchr(eap.arg, b'~' as c_int).is_null()
+                if crate::strings::vim_haschr(eap.arg, b'$' as c_int)
+                    || crate::strings::vim_haschr(eap.arg, b'~' as c_int)
                 {
                     #[cfg(windows)]
                     let esc_wildcards = c" \t*?[".as_ptr().cast_mut();
@@ -8535,7 +8539,8 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                     && eap.cmdidx != Cmdidx::CmdInsert as c_int)
                 || crate::memory::cstr_first_byte(p) == b'\n'
             {
-                if (vim_strchr(opt_vars().p_cpo, K_CPO_BAR).is_null() || (eap.argt & EX_CTRLV) == 0)
+                if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BAR)
+                    || (eap.argt & EX_CTRLV) == 0)
                     && *p.sub(1) == b'\\' as c_char
                 {
                     crate::memory::cstr_move(p.sub(1), p);
@@ -10823,7 +10828,7 @@ fn ex_read(eap: &mut Exarg) {
                 false,
             )
         } else {
-            if !vim_strchr(opt_vars().p_cpo, K_CPO_ALTREAD).is_null() {
+            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTREAD) {
                 setaltfname(eap.arg, eap.arg, 1);
             }
             readfile(
@@ -10908,9 +10913,10 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         }
 
         g_st().last_chdir_reason = None;
-        shorten_fnames(c_int::from(
-            vim_strchr(opt_vars().p_cpo, K_CPO_NOSYMLINKS).is_null(),
-        ));
+        shorten_fnames(c_int::from(!crate::strings::vim_haschr(
+            opt_vars().p_cpo,
+            K_CPO_NOSYMLINKS,
+        )));
 
         if trigger_dirchanged {
             do_autocmd_dirchanged(cwd.as_mut_ptr(), scope, K_CD_CAUSE_MANUAL, false);
@@ -11352,7 +11358,7 @@ fn ex_at(eap: &mut Exarg) {
         if !do_execreg(
             c,
             c_int::from(true),
-            c_int::from(!vim_strchr(opt_vars().p_cpo, K_CPO_EXECBUF).is_null()),
+            c_int::from(crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EXECBUF)),
             c_int::from(true),
         ) {
             beep_flush();

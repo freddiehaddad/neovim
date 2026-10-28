@@ -1455,17 +1455,14 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             startc = -1;
                         }
                     } else if crate::memory::cstr_first_byte(re_st().regparse) == b'\\'
-                        && (!vim_strchr(
+                        && (crate::strings::vim_haschr(
                             REGEXP_INRANGE,
                             crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
-                        )
-                        .is_null()
-                            || (re_st().reg_cpo_lit == 0
-                                && !vim_strchr(
-                                    REGEXP_ABBR,
-                                    crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
-                                )
-                                .is_null()))
+                        ) || (re_st().reg_cpo_lit == 0
+                            && crate::strings::vim_haschr(
+                                REGEXP_ABBR,
+                                crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int,
+                            )))
                     {
                         re_st().regparse = re_st().regparse.add(1);
                         if crate::memory::cstr_first_byte(re_st().regparse) == b'n' {

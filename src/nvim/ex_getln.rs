@@ -136,7 +136,7 @@ use crate::state::{
     EditorState, MODE_CMDLINE, MODE_LANGMAP, SaveVEvent, may_trigger_modechanged,
     may_trigger_safestate, state_enter, state_handle_k_event,
 };
-use crate::strings::{gettext, vim_strchr, vim_strsave_escaped};
+use crate::strings::{gettext, vim_strsave_escaped};
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_call_cmdline_block_append, ui_call_cmdline_block_hide,
     ui_call_cmdline_block_show, ui_call_cmdline_hide, ui_call_cmdline_pos, ui_call_cmdline_show,
@@ -528,7 +528,7 @@ pub fn parse_pattern_and_range(
 
         // Skip over the range to find the command.
         let cmd = skip_range(ea.cmd, None);
-        if vim_strchr(c"sgvlu", (crate::memory::cstr_first_byte(cmd)) as c_int).is_null() {
+        if !crate::strings::vim_haschr(c"sgvlu", (crate::memory::cstr_first_byte(cmd)) as c_int) {
             return false;
         }
 
@@ -941,7 +941,7 @@ fn may_add_char_to_search(firstc: c_int, c: &mut c_int, s: &mut IncsearchState) 
                 } else {
                     c"\\^$".as_ptr()
                 };
-                if *c == search_delim || !vim_strchr(special_chars, *c).is_null() {
+                if *c == search_delim || crate::strings::vim_haschr(special_chars, *c) {
                     // put a backslash before special characters
                     stuffchar_readbuff(*c);
                     *c = b'\\' as c_int;
@@ -1877,7 +1877,7 @@ fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
             || s.c == b'\r' as c_int
             || s.c == K_KENTER
             || (s.c == ESC
-                && (!g_st().key_typed || !vim_strchr(opt_vars().p_cpo, K_CPO_ESC).is_null()))
+                && (!g_st().key_typed || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ESC)))
         {
             s.gotesc = false;
             if ccheck_abbr(s.c + ABBR_OFF) != 0 {
@@ -2949,11 +2949,10 @@ fn empty_pattern_magic(
     {
         while len >= 2
             && crate::memory::cstr_byte_at(p, len - 2) == b'\\'
-            && !vim_strchr(
+            && crate::strings::vim_haschr(
                 c"mMvVcCZ",
                 (crate::memory::cstr_byte_at(p, len - 1)) as c_int,
             )
-            .is_null()
         {
             len -= 2;
         }

@@ -1595,7 +1595,7 @@ pub(super) fn get_coll_element(pp: *mut *mut c_char) -> c_int {
 }
 
 pub(super) fn get_cpo_flags() {
-    re_st().reg_cpo_lit = (!vim_strchr(opt_vars().p_cpo, K_CPO_LITERAL).is_null()) as c_int;
+    re_st().reg_cpo_lit = (crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LITERAL)) as c_int;
 }
 
 /// Skip over a `[]` range.
@@ -1618,11 +1618,14 @@ pub(super) fn skip_anyof(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
                     mb_ptr_adv(&raw mut p);
                 }
             } else if crate::memory::cstr_first_byte(p) == b'\\'
-                && (!vim_strchr(REGEXP_INRANGE, crate::memory::cstr_byte_at(p, 1) as c_int)
-                    .is_null()
-                    || (re_st().reg_cpo_lit == 0
-                        && !vim_strchr(REGEXP_ABBR, crate::memory::cstr_byte_at(p, 1) as c_int)
-                            .is_null()))
+                && (crate::strings::vim_haschr(
+                    REGEXP_INRANGE,
+                    crate::memory::cstr_byte_at(p, 1) as c_int,
+                ) || (re_st().reg_cpo_lit == 0
+                    && crate::strings::vim_haschr(
+                        REGEXP_ABBR,
+                        crate::memory::cstr_byte_at(p, 1) as c_int,
+                    )))
             {
                 p = p.add(2);
             } else if crate::memory::cstr_first_byte(p) == b'[' {
@@ -1850,7 +1853,7 @@ pub(super) fn peekchr() -> c_int {
                     re_st().regparse = re_st().regparse.sub(1);
                     re_st().peekchr_after_slash -= 1;
                     re_st().curchr = toggle_magic(re_st().curchr);
-                } else if !vim_strchr(REGEXP_ABBR, c).is_null() {
+                } else if crate::strings::vim_haschr(REGEXP_ABBR, c) {
                     re_st().curchr = backslash_trans(c);
                 } else if re_st().reg_magic == MAGIC_NONE
                     && (c == b'$' as c_int || c == b'^' as c_int)
@@ -2804,9 +2807,10 @@ fn vim_regsub_both(
                     } else if (crate::memory::cstr_first_byte(src)).is_ascii_digit() {
                         no = (crate::memory::cstr_first_byte(src) - b'0') as c_int;
                         src = src.add(1);
-                    } else if !vim_strchr(c"uUlLeE", crate::memory::cstr_first_byte(src) as c_int)
-                        .is_null()
-                    {
+                    } else if crate::strings::vim_haschr(
+                        c"uUlLeE",
+                        crate::memory::cstr_first_byte(src) as c_int,
+                    ) {
                         let ch = crate::memory::cstr_first_byte(src);
                         src = src.add(1);
                         match ch {
