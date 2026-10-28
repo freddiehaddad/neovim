@@ -87,7 +87,7 @@ use crate::lua::converter::lua_isstring;
 use crate::mpack::lmpack::luaopen_mpack;
 
 fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
-    unsafe { luaL_checkudata(lstate, 1, c"nvim_regex".as_ptr()).cast::<*mut regprog_T>() }
+    unsafe { luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut regprog_T>() }
 }
 
 fn regex_match(
@@ -207,7 +207,7 @@ unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn regex_tostring(lstate: *mut lua_State) -> c_int {
     unsafe {
-        lua_pushstring(lstate, c"<regex>".as_ptr());
+        lua_pushstring(lstate, c"<regex>");
     }
     1
 }
@@ -345,7 +345,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
         let p = lua_newuserdata(lstate, size_of::<*mut regprog_T>()).cast::<*mut regprog_T>();
         *p = prog;
 
-        lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim_regex".as_ptr());
+        lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim_regex");
         let _ = lua_setmetatable(lstate, -2);
         1
     }
@@ -558,7 +558,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
 
         for i in 1..=3 {
             if lua_type(lstate, i) != LUA_TSTRING {
-                return luaL_argerror(lstate, i, c"expected string".as_ptr());
+                return luaL_argerror(lstate, i, c"expected string");
             }
         }
 
@@ -627,7 +627,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         let mut log_level: c_int = -1;
 
         if !lua_istable(lstate, 1) {
-            return luaL_argerror(lstate, 1, c"table expected".as_ptr());
+            return luaL_argerror(lstate, 1, c"table expected");
         }
         lua_pushnil(lstate);
         while lua_next(lstate, 1) != 0 {
@@ -732,7 +732,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
     unsafe {
         if lua_isstring(lstate, 1) == 0 {
-            return luaL_argerror(lstate, 1, c"string expected".as_ptr());
+            return luaL_argerror(lstate, 1, c"string expected");
         }
 
         let escaped = vim_strsave_escape_ks(lua_tostring(lstate, 1));
@@ -758,17 +758,17 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
                 }
                 i += 1;
             }
-            lua_setfield(lstate, -2, c"mod".as_ptr());
+            lua_setfield(lstate, -2, c"mod");
 
             lua_pushlstring(lstate, data.key.data, data.key.size);
-            lua_setfield(lstate, -2, c"key".as_ptr());
+            lua_setfield(lstate, -2, c"key");
 
             lua_pushstring(lstate, keys);
-            lua_setfield(lstate, -2, c"keys".as_ptr());
+            lua_setfield(lstate, -2, c"keys");
 
             if data.key_alt.size != 0 {
                 lua_pushlstring(lstate, data.key_alt.data, data.key_alt.size);
-                lua_setfield(lstate, -2, c"key_alt".as_ptr());
+                lua_setfield(lstate, -2, c"key_alt");
             }
 
             lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as c_int) + 1);
@@ -781,20 +781,20 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
 fn nlua_state_add_internal(lstate: *mut lua_State) {
     unsafe {
         lua_pushcfunction(lstate, Some(nlua_getvar));
-        lua_setfield(lstate, -2, c"_getvar".as_ptr());
+        lua_setfield(lstate, -2, c"_getvar");
 
         lua_pushcfunction(lstate, Some(nlua_setvar));
-        lua_setfield(lstate, -2, c"_setvar".as_ptr());
+        lua_setfield(lstate, -2, c"_setvar");
 
         lua_pushcfunction(lstate, Some(nlua_foldupdate));
-        lua_setfield(lstate, -2, c"_foldupdate".as_ptr());
+        lua_setfield(lstate, -2, c"_foldupdate");
 
         lua_pushcfunction(lstate, Some(nlua_with));
-        lua_setfield(lstate, -2, c"_with_c".as_ptr());
+        lua_setfield(lstate, -2, c"_with_c");
 
-        lua_getfield(lstate, -1, c"_core".as_ptr());
+        lua_getfield(lstate, -1, c"_core");
         lua_pushcfunction(lstate, Some(nlua_keyparse));
-        lua_setfield(lstate, -2, c"keyparse".as_ptr());
+        lua_setfield(lstate, -2, c"keyparse");
         lua_pop(lstate, 1);
     }
 }
@@ -803,69 +803,69 @@ pub unsafe extern "C-unwind" fn nlua_state_add_stdlib(lstate: *mut lua_State, is
     unsafe {
         if !is_thread {
             lua_pushcfunction(lstate, Some(nlua_stricmp));
-            lua_setfield(lstate, -2, c"stricmp".as_ptr());
+            lua_setfield(lstate, -2, c"stricmp");
 
             lua_pushcfunction(lstate, Some(nlua_str_utfindex));
-            lua_setfield(lstate, -2, c"_str_utfindex".as_ptr());
+            lua_setfield(lstate, -2, c"_str_utfindex");
 
             lua_pushcfunction(lstate, Some(nlua_str_byteindex));
-            lua_setfield(lstate, -2, c"_str_byteindex".as_ptr());
+            lua_setfield(lstate, -2, c"_str_byteindex");
 
             lua_pushcfunction(lstate, Some(nlua_str_utf_pos));
-            lua_setfield(lstate, -2, c"str_utf_pos".as_ptr());
+            lua_setfield(lstate, -2, c"str_utf_pos");
 
             lua_pushcfunction(lstate, Some(nlua_str_utf_start));
-            lua_setfield(lstate, -2, c"str_utf_start".as_ptr());
+            lua_setfield(lstate, -2, c"str_utf_start");
 
             lua_pushcfunction(lstate, Some(nlua_str_utf_end));
-            lua_setfield(lstate, -2, c"str_utf_end".as_ptr());
+            lua_setfield(lstate, -2, c"str_utf_end");
 
             lua_pushcfunction(lstate, Some(nlua_regex));
-            lua_setfield(lstate, -2, c"regex".as_ptr());
-            let _ = luaL_newmetatable(lstate, c"nvim_regex".as_ptr());
+            lua_setfield(lstate, -2, c"regex");
+            let _ = luaL_newmetatable(lstate, c"nvim_regex");
             luaL_register(lstate, ptr::null(), (&raw const REGEX_META).cast());
 
             lua_pushvalue(lstate, -1);
-            lua_setfield(lstate, -2, c"__index".as_ptr());
+            lua_setfield(lstate, -2, c"__index");
             lua_pop(lstate, 1);
 
             let _ = luaopen_spell(lstate);
-            lua_setfield(lstate, -2, c"spell".as_ptr());
+            lua_setfield(lstate, -2, c"spell");
 
             lua_pushcfunction(lstate, Some(nlua_iconv));
-            lua_setfield(lstate, -2, c"iconv".as_ptr());
+            lua_setfield(lstate, -2, c"iconv");
 
             let _ = luaopen_base64(lstate);
-            lua_setfield(lstate, -2, c"base64".as_ptr());
+            lua_setfield(lstate, -2, c"base64");
 
             nlua_state_add_internal(lstate);
         }
 
         let _ = luaopen_mpack(lstate);
         lua_pushvalue(lstate, -1);
-        lua_setfield(lstate, -3, c"mpack".as_ptr());
+        lua_setfield(lstate, -3, c"mpack");
 
         lua_getglobal(lstate, c"package");
-        lua_getfield(lstate, -1, c"loaded".as_ptr());
+        lua_getfield(lstate, -1, c"loaded");
         lua_pushvalue(lstate, -3);
-        lua_setfield(lstate, -2, c"mpack".as_ptr());
+        lua_setfield(lstate, -2, c"mpack");
         lua_pop(lstate, 3);
 
         let _ = luaopen_lpeg(lstate);
         lua_pushvalue(lstate, -1);
-        lua_setfield(lstate, -4, c"lpeg".as_ptr());
+        lua_setfield(lstate, -4, c"lpeg");
 
         lua_getglobal(lstate, c"package");
-        lua_getfield(lstate, -1, c"loaded".as_ptr());
+        lua_getfield(lstate, -1, c"loaded");
         lua_pushvalue(lstate, -3);
-        lua_setfield(lstate, -2, c"lpeg".as_ptr());
+        lua_setfield(lstate, -2, c"lpeg");
         lua_pop(lstate, 4);
 
         lua_pushcfunction(lstate, Some(nlua_xdl_diff));
-        lua_setfield(lstate, -2, c"diff".as_ptr());
+        lua_setfield(lstate, -2, c"diff");
 
         let _ = lua_cjson_new(lstate);
-        lua_setfield(lstate, -2, c"json".as_ptr());
+        lua_setfield(lstate, -2, c"json");
 
         #[cfg(feature = "vendor-bit")]
         {

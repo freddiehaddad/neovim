@@ -2467,8 +2467,8 @@ fn do_exrc_initialization() {
         let L = get_global_lstate();
         assert!(!L.is_null());
 
-        lua_getfield(L, LUA_GLOBALSINDEX, c"require".as_ptr());
-        lua_pushstring(L, c"vim._core.exrc".as_ptr());
+        lua_getfield(L, LUA_GLOBALSINDEX, c"require");
+        lua_pushstring(L, c"vim._core.exrc");
         if nlua_pcall(L, 1, 0) != 0 {
             fprintf!(
                 log_get_stderr(),

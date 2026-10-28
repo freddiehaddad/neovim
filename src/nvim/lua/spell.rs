@@ -26,7 +26,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
         }
 
         if lua_type(lstate, 1) != LUA_TSTRING {
-            luaL_argerror(lstate, 1, c"expected string".as_ptr());
+            luaL_argerror(lstate, 1, c"expected string");
         }
 
         let mut str_ = lua_tolstring(lstate, 1, ptr::null_mut());

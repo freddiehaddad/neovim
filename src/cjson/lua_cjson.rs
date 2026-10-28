@@ -352,7 +352,7 @@ fn json_create_config(l: *mut lua_State) {
 
         lua_newtable(l);
         lua_pushcfunction(l, Some(json_destroy_config));
-        lua_setfield(l, -2, c"__gc".as_ptr());
+        lua_setfield(l, -2, c"__gc");
         lua_setmetatable(l, -2);
 
         strbuf_init(&mut (*cfg).encode_buf, 0);
@@ -773,7 +773,7 @@ fn json_append_data(
                     } else {
                         raw = 0;
                         lua_pop(l, 2);
-                        if luaL_getmetafield(l, -1, c"__len".as_ptr()) != 0 {
+                        if luaL_getmetafield(l, -1, c"__len") != 0 {
                             lua_pushvalue(l, -2);
                             lua_call(l, 1, 1);
                             let _ = lua_tonumber(l, -1);
@@ -856,7 +856,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
             2 => {
                 luaL_checktype(l, 2, LUA_TTABLE);
 
-                lua_getfield(l, 2, c"escape_slash".as_ptr());
+                lua_getfield(l, 2, c"escape_slash");
                 if !lua_isnil(l, -1) {
                     luaL_checktype(l, -1, LUA_TBOOLEAN);
                     let escape_slash = lua_toboolean(l, -1);
@@ -867,7 +867,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
                 }
                 lua_pop(l, 1);
 
-                lua_getfield(l, 2, c"indent".as_ptr());
+                lua_getfield(l, 2, c"indent");
                 if !lua_isnil(l, -1) {
                     options.indent = luaL_checkstring(l, -1);
                     if *options.indent == 0 {
@@ -876,7 +876,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
                 }
                 lua_pop(l, 1);
 
-                lua_getfield(l, 2, c"sort_keys".as_ptr());
+                lua_getfield(l, 2, c"sort_keys");
                 if !lua_isnil(l, -1) {
                     luaL_checktype(l, -1, LUA_TBOOLEAN);
                     let sort_keys = lua_toboolean(l, -1);
@@ -1448,21 +1448,21 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
             2 => {
                 luaL_checktype(l, 2, LUA_TTABLE);
 
-                lua_getfield(l, 2, c"skip_comments".as_ptr());
+                lua_getfield(l, 2, c"skip_comments");
                 options.skip_comments = lua_toboolean(l, -1) != 0;
                 lua_pop(l, 1);
 
-                lua_getfield(l, 2, c"luanil".as_ptr());
+                lua_getfield(l, 2, c"luanil");
                 if lua_isnil(l, -1) {
                     lua_pop(l, 1);
                 } else {
                     luaL_checktype(l, -1, LUA_TTABLE);
 
-                    lua_getfield(l, -1, c"object".as_ptr());
+                    lua_getfield(l, -1, c"object");
                     options.luanil_object = lua_toboolean(l, -1) != 0;
                     lua_pop(l, 1);
 
-                    lua_getfield(l, -1, c"array".as_ptr());
+                    lua_getfield(l, -1, c"array");
                     options.luanil_array = lua_toboolean(l, -1) != 0;
                     lua_pop(l, 2);
                 }
@@ -1505,7 +1505,7 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
 
 fn compat_luaL_setfuncs(l: *mut lua_State, reg: &[luaL_Reg], nup: c_int) {
     unsafe {
-        luaL_checkstack(l, nup, c"too many upvalues".as_ptr());
+        luaL_checkstack(l, nup, c"too many upvalues");
         for entry in reg {
             if entry.name.is_null() {
                 break;
@@ -1565,13 +1565,13 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
             CJSON_MODNAME.as_ptr().cast::<c_char>(),
             CJSON_MODNAME.len(),
         );
-        lua_setfield(l, -2, c"_NAME".as_ptr());
+        lua_setfield(l, -2, c"_NAME");
         lua_pushlstring(
             l,
             CJSON_VERSION.as_ptr().cast::<c_char>(),
             CJSON_VERSION.len(),
         );
-        lua_setfield(l, -2, c"_VERSION".as_ptr());
+        lua_setfield(l, -2, c"_VERSION");
     }
 
     1

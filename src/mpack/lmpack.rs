@@ -134,15 +134,15 @@ fn lmpack_shallow_copy(l: *mut lua_State) {
 }
 
 fn lmpack_check_unpacker(l: *mut lua_State, index: c_int) -> *mut LmpackUnpacker {
-    unsafe { luaL_checkudata(l, index, UNPACKER_META_NAME.as_ptr()).cast::<LmpackUnpacker>() }
+    unsafe { luaL_checkudata(l, index, UNPACKER_META_NAME).cast::<LmpackUnpacker>() }
 }
 
 fn lmpack_check_packer(l: *mut lua_State, index: c_int) -> *mut Packer {
-    unsafe { luaL_checkudata(l, index, PACKER_META_NAME.as_ptr()).cast::<Packer>() }
+    unsafe { luaL_checkudata(l, index, PACKER_META_NAME).cast::<Packer>() }
 }
 
 fn lmpack_check_session(l: *mut lua_State, index: c_int) -> *mut Session {
-    unsafe { luaL_checkudata(l, index, SESSION_META_NAME.as_ptr()).cast::<Session>() }
+    unsafe { luaL_checkudata(l, index, SESSION_META_NAME).cast::<Session>() }
 }
 
 fn lmpack_isnil(l: *mut lua_State, index: c_int) -> bool {
@@ -150,7 +150,7 @@ fn lmpack_isnil(l: *mut lua_State, index: c_int) -> bool {
         if lua_isuserdata(l, index) == 0 {
             return false;
         }
-        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME);
         let rv = lua_rawequal(l, -1, -2) != 0;
         lua_pop(l, 1);
         rv
@@ -171,7 +171,7 @@ fn lmpack_isunpacker(l: *mut lua_State, index: c_int) -> bool {
 
 fn lmpack_pushnil(l: *mut lua_State) {
     unsafe {
-        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME);
     }
 }
 
@@ -243,11 +243,11 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
         lua_newtable(l);
         (*rv).reg = luaL_ref(l, LUA_REGISTRYINDEX);
 
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
         (*rv).mtdict = lmpack_ref(l, (*rv).reg);
 
         if lua_istable(l, 1) {
-            lua_getfield(l, 1, c"ext".as_ptr());
+            lua_getfield(l, 1, c"ext");
             if !lua_isnil(l, -1) {
                 if !lua_istable(l, -1) {
                     return luaL_error(l, c"\"ext\" option must be a table".as_ptr());
@@ -504,11 +504,11 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
         (*rv).reg = luaL_ref(l, LUA_REGISTRYINDEX);
         (*rv).ext = LUA_NOREF;
 
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
         (*rv).mtdict = lmpack_ref(l, (*rv).reg);
 
         if lua_istable(l, 1) {
-            lua_getfield(l, 1, c"ext".as_ptr());
+            lua_getfield(l, 1, c"ext");
             if !lua_isnil(l, -1) {
                 if !lua_istable(l, -1) {
                     return luaL_error(l, c"\"ext\" option must be a table".as_ptr());
@@ -517,7 +517,7 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
             }
             (*rv).ext = lmpack_ref(l, (*rv).reg);
 
-            lua_getfield(l, 1, c"is_bin".as_ptr());
+            lua_getfield(l, 1, c"is_bin");
             if !lua_isnil(l, -1) {
                 if !lua_isboolean(l, -1) && !lua_isfunction(l, -1) {
                     return luaL_error(
@@ -808,7 +808,7 @@ unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
         (*rv).reg = luaL_ref(l, LUA_REGISTRYINDEX);
 
         if lua_istable(l, 1) {
-            lua_getfield(l, 1, c"unpack".as_ptr());
+            lua_getfield(l, 1, c"unpack");
             if !lmpack_isunpacker(l, -1) {
                 return luaL_error(
                     l,
@@ -922,15 +922,15 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
         } else {
             match (*session).unpacked.r#type {
                 MPACK_RPC_REQUEST => {
-                    lua_pushstring(l, c"request".as_ptr());
+                    lua_pushstring(l, c"request");
                     lua_pushnumber(l, lua_Number::from((*session).unpacked.msg.id));
                 }
                 MPACK_RPC_RESPONSE => {
-                    lua_pushstring(l, c"response".as_ptr());
+                    lua_pushstring(l, c"response");
                     lmpack_geti(l, (*session).reg, (*session).unpacked.msg.data.i() as c_int);
                 }
                 MPACK_RPC_NOTIFICATION => {
-                    lua_pushstring(l, c"notification".as_ptr());
+                    lua_pushstring(l, c"notification");
                     lua_pushnil(l);
                 }
                 _ => {
@@ -1063,7 +1063,7 @@ unsafe extern "C-unwind" fn lmpack_unpack(l: *mut lua_State) -> c_int {
         mpack_parser_init(&mut unpacker.parser, 0);
         unpacker.parser.data = mpack_data_t::LmpackUnpacker(&raw mut unpacker);
 
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
         unpacker.mtdict = lmpack_ref(l, unpacker.reg);
 
         let result = mpack_parse(
@@ -1114,7 +1114,7 @@ unsafe extern "C-unwind" fn lmpack_pack(l: *mut lua_State) -> c_int {
         mpack_parser_init(&mut packer.parser, 0);
         packer.parser.data = mpack_data_t::LmpackPacker(&raw mut packer);
 
-        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, EMPTY_DICT_NAME);
         packer.mtdict = lmpack_ref(l, packer.reg);
 
         let mut buffer = luaL_Buffer::new();
@@ -1243,40 +1243,40 @@ const MPACK_FUNCTIONS: [luaL_Reg; 6] = [
 
 pub fn luaopen_mpack(l: *mut lua_State) -> c_int {
     unsafe {
-        luaL_newmetatable(l, UNPACKER_META_NAME.as_ptr());
+        luaL_newmetatable(l, UNPACKER_META_NAME);
         lua_pushvalue(l, -1);
-        lua_setfield(l, -2, c"__index".as_ptr());
+        lua_setfield(l, -2, c"__index");
         luaL_register(l, ptr::null(), UNPACKER_METHODS.as_ptr());
         lua_pop(l, 1);
 
-        luaL_newmetatable(l, PACKER_META_NAME.as_ptr());
+        luaL_newmetatable(l, PACKER_META_NAME);
         lua_pushvalue(l, -1);
-        lua_setfield(l, -2, c"__index".as_ptr());
+        lua_setfield(l, -2, c"__index");
         luaL_register(l, ptr::null(), PACKER_METHODS.as_ptr());
         lua_pop(l, 1);
 
-        luaL_newmetatable(l, SESSION_META_NAME.as_ptr());
+        luaL_newmetatable(l, SESSION_META_NAME);
         lua_pushvalue(l, -1);
-        lua_setfield(l, -2, c"__index".as_ptr());
+        lua_setfield(l, -2, c"__index");
         luaL_register(l, ptr::null(), SESSION_METHODS.as_ptr());
         lua_pop(l, 1);
 
-        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME);
         if lua_isnil(l, -1) {
             let _ = lua_newuserdata(l, size_of::<usize>());
             lua_createtable(l, 0, 1);
-            lua_pushstring(l, c"__tostring".as_ptr());
+            lua_pushstring(l, c"__tostring");
             lua_pushcfunction(l, Some(lmpack_nil_tostring));
             lua_settable(l, -3);
             lua_setmetatable(l, -2);
-            lua_setfield(l, LUA_REGISTRYINDEX, NIL_NAME.as_ptr());
+            lua_setfield(l, LUA_REGISTRYINDEX, NIL_NAME);
         }
         lua_pop(l, 1);
 
         lua_newtable(l);
         luaL_register(l, ptr::null(), MPACK_FUNCTIONS.as_ptr());
-        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME.as_ptr());
-        lua_setfield(l, -2, c"NIL".as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME);
+        lua_setfield(l, -2, c"NIL");
         1
     }
 }

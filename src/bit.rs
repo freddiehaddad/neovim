@@ -51,7 +51,7 @@ mod lua_c_api {
             let n = lua_tonumber(L, idx);
             let b = f64_to_ubits(n);
             if b == 0 && lua_isnumber(L, idx) == 0 {
-                luaL_typerror(L, idx, c"number".as_ptr());
+                luaL_typerror(L, idx, c"number");
             }
             b
         }
@@ -239,7 +239,7 @@ mod lua_c_api {
                 }
                 luaL_error(L, c"bit library self-test failed (%s)".as_ptr(), msg);
             }
-            luaL_register(L, c"bit".as_ptr(), BIT_FUNCS.as_ptr());
+            luaL_register(L, c"bit", BIT_FUNCS.as_ptr());
             1
         }
     }

@@ -246,7 +246,8 @@ unsafe extern "C" {
     pub fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     pub fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     pub fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
-    pub fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
+    #[link_name = "fputs"]
+    fn c_fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     pub fn fgetc(stream: *mut FILE) -> c_int;
     pub fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     pub fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
@@ -340,6 +341,11 @@ unsafe extern "C" {
     fn dirfd(dirp: *mut DIR) -> c_int;
     #[cfg(not(windows))]
     fn flock(fd: c_int, operation: c_int) -> c_int;
+}
+
+#[inline]
+pub unsafe fn fputs<S: crate::strings::IntoCCharPtr>(s: S, stream: *mut FILE) -> c_int {
+    unsafe { c_fputs(s.into_c_char_ptr(), stream) }
 }
 
 #[cfg(not(windows))]

@@ -281,7 +281,7 @@ fn testpattern(l: *mut lua_State, idx: c_int) -> bool {
 }
 
 fn getpattern(l: *mut lua_State, idx: c_int) -> &'static mut Pattern {
-    unsafe { &mut *luaL_checkudata(l, idx, PATTERN_T.as_ptr()).cast::<Pattern>() }
+    unsafe { &mut *luaL_checkudata(l, idx, PATTERN_T).cast::<Pattern>() }
 }
 
 fn getsize(l: *mut lua_State, idx: c_int) -> c_int {
@@ -908,7 +908,7 @@ fn collectrules(l: *mut lua_State, arg: c_int, totalsize: &mut c_int) -> c_int {
             if !testpattern(l, -1) {
                 luaL_error(l, c"rule '%s' is not a pattern".as_ptr(), val2str(l, -2));
             }
-            luaL_checkstack(l, LUA_MINSTACK, c"grammar has too many rules".as_ptr());
+            luaL_checkstack(l, LUA_MINSTACK, c"grammar has too many rules");
             lua_pushvalue(l, -2);
             lua_pushinteger(l, size as lua_Integer);
             lua_settable(l, postab);
@@ -1184,7 +1184,7 @@ unsafe extern "C-unwind" fn lp_setmax(l: *mut lua_State) -> c_int {
         let lim = luaL_checkinteger(l, 1);
         luaL_argcheck(l, 0 < lim && lim <= MAXLIM, 1, c"out of range");
         lua_settop(l, 1);
-        lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX.as_ptr());
+        lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
         0
     }
 }
@@ -1389,19 +1389,19 @@ const METAREG: [luaL_Reg; 10] = [
 pub fn luaopen_lpeg(l: *mut lua_State) -> c_int {
     const LPEG_VERSION: &[u8] = b"LPeg 1.1.0";
     unsafe {
-        luaL_newmetatable(l, PATTERN_T.as_ptr());
+        luaL_newmetatable(l, PATTERN_T);
         lua_pushnumber(l, lua_Number::from(MAXBACK));
-        lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX.as_ptr());
+        lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
         luaL_register(l, ptr::null(), METAREG.as_ptr());
-        luaL_register(l, c"lpeg".as_ptr(), PATTREG.as_ptr());
+        luaL_register(l, c"lpeg", PATTREG.as_ptr());
         lua_pushvalue(l, -1);
-        lua_setfield(l, -3, c"__index".as_ptr());
+        lua_setfield(l, -3, c"__index");
         lua_pushlstring(
             l,
             LPEG_VERSION.as_ptr().cast::<c_char>(),
             LPEG_VERSION.len(),
         );
-        lua_setfield(l, -2, c"version".as_ptr());
+        lua_setfield(l, -2, c"version");
         1
     }
 }

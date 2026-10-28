@@ -13,7 +13,7 @@ unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int 
             return luaL_error(lstate, c"Expected 1 argument".as_ptr());
         }
         if lua_type(lstate, 1) != LUA_TSTRING {
-            luaL_argerror(lstate, 1, c"expected string".as_ptr());
+            luaL_argerror(lstate, 1, c"expected string");
         }
 
         let mut src_len: usize = 0;
@@ -36,7 +36,7 @@ unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> c_int 
             return luaL_error(lstate, c"Expected 1 argument".as_ptr());
         }
         if lua_type(lstate, 1) != LUA_TSTRING {
-            luaL_argerror(lstate, 1, c"expected string".as_ptr());
+            luaL_argerror(lstate, 1, c"expected string");
         }
 
         let mut src_len: usize = 0;

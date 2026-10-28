@@ -17,20 +17,20 @@ fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
         let lstate = get_global_lstate();
         let top = lua_gettop(lstate);
 
-        lua_getfield(lstate, LUA_GLOBALSINDEX, c"vim".as_ptr());
-        lua_getfield(lstate, -1, c"secure".as_ptr());
-        lua_getfield(lstate, -1, c"trust".as_ptr());
+        lua_getfield(lstate, LUA_GLOBALSINDEX, c"vim");
+        lua_getfield(lstate, -1, c"secure");
+        lua_getfield(lstate, -1, c"trust");
 
         lua_createtable(lstate, 0, 0);
-        lua_pushstring(lstate, c"action".as_ptr());
+        lua_pushstring(lstate, c"action");
         lua_pushstring(lstate, action);
         lua_settable(lstate, -3);
         if path.is_null() {
-            lua_pushstring(lstate, c"bufnr".as_ptr());
+            lua_pushstring(lstate, c"bufnr");
             lua_pushnumber(lstate, 0.0);
             lua_settable(lstate, -3);
         } else {
-            lua_pushstring(lstate, c"path".as_ptr());
+            lua_pushstring(lstate, c"path");
             lua_pushstring(lstate, path);
             lua_settable(lstate, -3);
         }

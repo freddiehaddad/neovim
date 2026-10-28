@@ -279,12 +279,12 @@ pub(crate) fn call_on_hunk_cb(
 fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
     unsafe {
         if lua_type(lstate, idx) != LUA_TSTRING {
-            luaL_argerror(lstate, idx, c"expected string".as_ptr());
+            luaL_argerror(lstate, idx, c"expected string");
         }
         let mut size: usize = 0;
         let ptr = lua_tolstring(lstate, idx, &mut size).cast_mut();
         if size > (c_int::MAX as usize) {
-            luaL_argerror(lstate, idx, c"string too long".as_ptr());
+            luaL_argerror(lstate, idx, c"string too long");
         }
         mmfile_t {
             ptr,
@@ -442,7 +442,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
 
         if lua_gettop(lstate) == 3 {
             if lua_type(lstate, 3) != LUA_TTABLE {
-                return luaL_argerror(lstate, 3, c"expected table".as_ptr());
+                return luaL_argerror(lstate, 3, c"expected table");
             }
             mode = process_xdl_diff_opts(lstate, &mut cfg, &mut params, &mut linematch, &mut err);
         }

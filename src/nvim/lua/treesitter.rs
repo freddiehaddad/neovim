@@ -916,7 +916,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
                 }
             }
 
-            lua_setfield(L, -2, c"symbols".as_ptr());
+            lua_setfield(L, -2, c"symbols");
         }
 
         {
@@ -927,14 +927,14 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
                 lua_rawseti(L, -2, i as c_int);
             }
 
-            lua_setfield(L, -2, c"fields".as_ptr());
+            lua_setfield(L, -2, c"fields");
         }
 
         lua_pushboolean(L, c_int::from(ts_language_is_wasm(lang)));
-        lua_setfield(L, -2, c"_wasm".as_ptr());
+        lua_setfield(L, -2, c"_wasm");
 
         lua_pushinteger(L, ts_language_abi_version(lang) as lua_Integer);
-        lua_setfield(L, -2, c"abi_version".as_ptr());
+        lua_setfield(L, -2, c"abi_version");
 
         {
             let meta = ts_language_metadata(lang);
@@ -942,18 +942,18 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
                 lua_createtable(L, 0, 3);
 
                 lua_pushinteger(L, (*meta).major_version as lua_Integer);
-                lua_setfield(L, -2, c"major_version".as_ptr());
+                lua_setfield(L, -2, c"major_version");
                 lua_pushinteger(L, (*meta).minor_version as lua_Integer);
-                lua_setfield(L, -2, c"minor_version".as_ptr());
+                lua_setfield(L, -2, c"minor_version");
                 lua_pushinteger(L, (*meta).patch_version as lua_Integer);
-                lua_setfield(L, -2, c"patch_version".as_ptr());
+                lua_setfield(L, -2, c"patch_version");
 
-                lua_setfield(L, -2, c"metadata".as_ptr());
+                lua_setfield(L, -2, c"metadata");
             }
         }
 
         lua_pushinteger(L, ts_language_state_count(lang) as lua_Integer);
-        lua_setfield(L, -2, c"state_count".as_ptr());
+        lua_setfield(L, -2, c"state_count");
 
         {
             let mut nsupertypes: u32 = 0;
@@ -975,7 +975,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
                 lua_setfield(L, -2, ts_language_symbol_name(lang, supertype));
             }
 
-            lua_setfield(L, -2, c"supertypes".as_ptr());
+            lua_setfield(L, -2, c"supertypes");
         }
 
         1
@@ -1039,7 +1039,7 @@ unsafe extern "C-unwind" fn parser_gc(L: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn parser_tostring(L: *mut lua_State) -> c_int {
     unsafe {
-        lua_pushstring(L, c"<parser>".as_ptr());
+        lua_pushstring(L, c"<parser>");
         1
     }
 }
@@ -1213,7 +1213,7 @@ unsafe extern "C-unwind" fn parser_parse(L: *mut lua_State) -> c_int {
                 nts_parser_parse_buf(p, old_tree, bufnr, timeout_ns)
             }
             _ => {
-                return luaL_argerror(L, 3, c"expected either string or buffer handle".as_ptr());
+                return luaL_argerror(L, 3, c"expected either string or buffer handle");
             }
         };
 
@@ -1468,7 +1468,7 @@ unsafe extern "C-unwind" fn tree_copy(L: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn tree_edit(L: *mut lua_State) -> c_int {
     unsafe {
         if lua_gettop(L) < 10 {
-            lua_pushstring(L, c"not enough args to tree:edit()".as_ptr());
+            lua_pushstring(L, c"not enough args to tree:edit()");
             return lua_error(L);
         }
 
@@ -1532,7 +1532,7 @@ unsafe extern "C-unwind" fn tree_gc(L: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn tree_tostring(L: *mut lua_State) -> c_int {
     unsafe {
-        lua_pushstring(L, c"<tree>".as_ptr());
+        lua_pushstring(L, c"<tree>");
         1
     }
 }
@@ -1595,9 +1595,9 @@ fn node_check(L: *mut lua_State, index: c_int) -> TSNode {
 unsafe extern "C-unwind" fn node_tostring(L: *mut lua_State) -> c_int {
     unsafe {
         let node = node_check(L, 1);
-        lua_pushstring(L, c"<node ".as_ptr());
+        lua_pushstring(L, c"<node ");
         lua_pushstring(L, ts_node_type(node));
-        lua_pushstring(L, c">".as_ptr());
+        lua_pushstring(L, c">");
         lua_concat(L, 3);
         1
     }
@@ -2033,19 +2033,19 @@ unsafe extern "C-unwind" fn tslua_push_querycursor(L: *mut lua_State) -> c_int {
             luaL_argcheck(L, lua_istable(L, 3), 3, c"table expected");
         }
 
-        lua_getfield(L, 3, c"start_row".as_ptr());
+        lua_getfield(L, 3, c"start_row");
         let start_row = luaL_checkinteger(L, -1) as u32;
         lua_pop(L, 1);
 
-        lua_getfield(L, 3, c"start_col".as_ptr());
+        lua_getfield(L, 3, c"start_col");
         let start_col = luaL_checkinteger(L, -1) as u32;
         lua_pop(L, 1);
 
-        lua_getfield(L, 3, c"end_row".as_ptr());
+        lua_getfield(L, 3, c"end_row");
         let end_row = luaL_checkinteger(L, -1) as u32;
         lua_pop(L, 1);
 
-        lua_getfield(L, 3, c"end_col".as_ptr());
+        lua_getfield(L, 3, c"end_col");
         let end_col = luaL_checkinteger(L, -1) as u32;
         lua_pop(L, 1);
 
@@ -2061,14 +2061,14 @@ unsafe extern "C-unwind" fn tslua_push_querycursor(L: *mut lua_State) -> c_int {
             },
         );
 
-        lua_getfield(L, 3, c"max_start_depth".as_ptr());
+        lua_getfield(L, 3, c"max_start_depth");
         if !lua_isnil(L, -1) {
             let max_start_depth = luaL_checkinteger(L, -1) as u32;
             ts_query_cursor_set_max_start_depth(cursor, max_start_depth);
         }
         lua_pop(L, 1);
 
-        lua_getfield(L, 3, c"match_limit".as_ptr());
+        lua_getfield(L, 3, c"match_limit");
         if !lua_isnil(L, -1) {
             let match_limit = luaL_checkinteger(L, -1) as u32;
             ts_query_cursor_set_match_limit(cursor, match_limit);
@@ -2368,7 +2368,7 @@ unsafe extern "C-unwind" fn query_gc(L: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn query_tostring(L: *mut lua_State) -> c_int {
     unsafe {
-        lua_pushstring(L, c"<query>".as_ptr());
+        lua_pushstring(L, c"<query>");
         1
     }
 }
@@ -2416,7 +2416,7 @@ unsafe extern "C-unwind" fn query_inspect(L: *mut lua_State) -> c_int {
             lua_pop(L, 1);
             lua_rawseti(L, -2, (i + 1) as c_int);
         }
-        lua_setfield(L, -2, c"patterns".as_ptr());
+        lua_setfield(L, -2, c"patterns");
 
         let n_captures = ts_query_capture_count(query);
         lua_createtable(L, n_captures as c_int, 0);
@@ -2426,7 +2426,7 @@ unsafe extern "C-unwind" fn query_inspect(L: *mut lua_State) -> c_int {
             lua_pushlstring(L, str_ptr, strlen as usize);
             lua_rawseti(L, -2, (i + 1) as c_int);
         }
-        lua_setfield(L, -2, c"captures".as_ptr());
+        lua_setfield(L, -2, c"captures");
 
         1
     }
@@ -2456,7 +2456,7 @@ fn build_meta(L: *mut lua_State, tname: *const c_char, meta: *const luaL_Reg) {
         if luaL_newmetatable(L, tname) != 0 {
             luaL_register(L, ptr::null(), meta);
             lua_pushvalue(L, -1);
-            lua_setfield(L, -2, c"__index".as_ptr());
+            lua_setfield(L, -2, c"__index");
         }
         lua_pop(L, 1);
     }
@@ -2515,30 +2515,30 @@ pub unsafe extern "C-unwind" fn nlua_treesitter_init(lstate: *mut lua_State) {
         tslua_init(lstate);
 
         lua_pushcfunction(lstate, Some(tslua_push_parser));
-        lua_setfield(lstate, -2, c"_create_ts_parser".as_ptr());
+        lua_setfield(lstate, -2, c"_create_ts_parser");
 
         lua_pushcfunction(lstate, Some(tslua_push_querycursor));
-        lua_setfield(lstate, -2, c"_create_ts_querycursor".as_ptr());
+        lua_setfield(lstate, -2, c"_create_ts_querycursor");
 
         lua_pushcfunction(lstate, Some(tslua_add_language_from_object));
-        lua_setfield(lstate, -2, c"_ts_add_language_from_object".as_ptr());
+        lua_setfield(lstate, -2, c"_ts_add_language_from_object");
 
         lua_pushcfunction(lstate, Some(tslua_has_language));
-        lua_setfield(lstate, -2, c"_ts_has_language".as_ptr());
+        lua_setfield(lstate, -2, c"_ts_has_language");
 
         lua_pushcfunction(lstate, Some(tslua_remove_lang));
-        lua_setfield(lstate, -2, c"_ts_remove_language".as_ptr());
+        lua_setfield(lstate, -2, c"_ts_remove_language");
 
         lua_pushcfunction(lstate, Some(tslua_inspect_lang));
-        lua_setfield(lstate, -2, c"_ts_inspect_language".as_ptr());
+        lua_setfield(lstate, -2, c"_ts_inspect_language");
 
         lua_pushcfunction(lstate, Some(tslua_parse_query));
-        lua_setfield(lstate, -2, c"_ts_parse_query".as_ptr());
+        lua_setfield(lstate, -2, c"_ts_parse_query");
 
         lua_pushcfunction(lstate, Some(tslua_get_language_version));
-        lua_setfield(lstate, -2, c"_ts_get_language_version".as_ptr());
+        lua_setfield(lstate, -2, c"_ts_get_language_version");
 
         lua_pushcfunction(lstate, Some(tslua_get_minimum_language_version));
-        lua_setfield(lstate, -2, c"_ts_get_minimum_language_version".as_ptr());
+        lua_setfield(lstate, -2, c"_ts_get_minimum_language_version");
     }
 }

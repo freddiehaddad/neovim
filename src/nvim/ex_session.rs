@@ -428,7 +428,7 @@ fn put_view(
                 && *(*alt).b_fname != NUL
                 && (*alt).b_p_bl != 0
                 && !(bt_terminal(alt) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
-                && (fputs(c"balt ".as_ptr(), fd) < 0 || !ses_fname(fd, alt, &mut *flagp, true))
+                && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, alt, &mut *flagp, true))
             {
                 return false;
             }
@@ -523,7 +523,7 @@ fn put_view(
         if let Some(ref w_localdir) = (*wp).w_localdir
             && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags) || (*flagp & kOptSsopFlagCurdir) != 0)
         {
-            if fputs(c"lcd ".as_ptr(), fd) < 0
+            if fputs(c"lcd ", fd) < 0
                 || !ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp)
                 || !write_bytes(fd, b"\n")
             {
@@ -733,18 +733,17 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     continue;
                 }
                 if fputs(
-                    c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==["
-                        .as_ptr(),
+                    c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                     fd,
                 ) < 0
                     || fputs(ses_get_fname(b, &opt_vars().ssop_flags), fd) < 0
                     || fputs(
-                        c"]==]), callback = function() vim.cmd.bcd({ [==[".as_ptr(),
+                        c"]==]), callback = function() vim.cmd.bcd({ [==[",
                         fd,
                     ) < 0
                     || fputs(b_localdir.as_ptr(), fd) < 0
                     || fputs(
-                        c"]==], magic = { file = false, bar = false } }) end })\n".as_ptr(),
+                        c"]==], magic = { file = false, bar = false } }) end })\n",
                         fd,
                     ) < 0
                 {
@@ -827,7 +826,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     return false;
                 }
                 need_tabnext = false;
-                if fputs(c"tcd ".as_ptr(), fd) < 0
+                if fputs(c"tcd ", fd) < 0
                     || !ses_put_fname(fd, tp_localdir.as_ptr().cast_mut(), &mut opt_vars().ssop_flags)
                     || !put_eol(fd)
                 {
@@ -848,7 +847,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     }
                     need_tabnext = false;
 
-                    if fputs(c"edit ".as_ptr(), fd) < 0
+                    if fputs(c"edit ", fd) < 0
                         || !ses_fname(fd, (*wp).w_buffer, &mut opt_vars().ssop_flags, true)
                     {
                         return false;

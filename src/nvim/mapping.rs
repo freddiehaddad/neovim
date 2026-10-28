@@ -1872,9 +1872,9 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
                                 }
                             }
                             if did_cpo
-                                && (fputs(c"let s:cpo_save=&cpo".as_ptr(), fd) < 0
+                                && (fputs(c"let s:cpo_save=&cpo", fd) < 0
                                     || !put_eol(fd)
-                                    || fputs(c"set cpo&vim".as_ptr(), fd) < 0
+                                    || fputs(c"set cpo&vim", fd) < 0
                                     || !put_eol(fd))
                             {
                                 return false;
@@ -1883,22 +1883,22 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
                         if c1 != NUL && fputc(c1 as u8 as c_int, fd) < 0 {
                             return false;
                         }
-                        if mp.m_noremap != REMAP_YES && fputs(c"nore".as_ptr(), fd) < 0 {
+                        if mp.m_noremap != REMAP_YES && fputs(c"nore", fd) < 0 {
                             return false;
                         }
                         if fputs(cmd, fd) < 0 {
                             return false;
                         }
-                        if !buf.is_null() && fputs(c" <buffer>".as_ptr(), fd) < 0 {
+                        if !buf.is_null() && fputs(c" <buffer>", fd) < 0 {
                             return false;
                         }
-                        if mp.m_nowait != 0 && fputs(c" <nowait>".as_ptr(), fd) < 0 {
+                        if mp.m_nowait != 0 && fputs(c" <nowait>", fd) < 0 {
                             return false;
                         }
-                        if mp.m_silent != 0 && fputs(c" <silent>".as_ptr(), fd) < 0 {
+                        if mp.m_silent != 0 && fputs(c" <silent>", fd) < 0 {
                             return false;
                         }
-                        if mp.m_expr != 0 && fputs(c" <expr>".as_ptr(), fd) < 0 {
+                        if mp.m_expr != 0 && fputs(c" <expr>", fd) < 0 {
                             return false;
                         }
 
@@ -1921,9 +1921,9 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
             }
         }
         if did_cpo
-            && (fputs(c"let &cpo=s:cpo_save".as_ptr(), fd) < 0
+            && (fputs(c"let &cpo=s:cpo_save", fd) < 0
                 || !put_eol(fd)
-                || fputs(c"unlet s:cpo_save".as_ptr(), fd) < 0
+                || fputs(c"unlet s:cpo_save", fd) < 0
                 || !put_eol(fd))
         {
             return false;
@@ -1938,7 +1938,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> bool {
         let mut str_ptr = strstart.cast::<u8>();
 
         if *str_ptr == 0 && what == 1 {
-            if fputs(c"<Nop>".as_ptr(), fd) < 0 {
+            if fputs(c"<Nop>", fd) < 0 {
                 return false;
             }
             return true;
@@ -1991,10 +1991,10 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> bool {
 
             if c == NL {
                 if what == 2 {
-                    if fputs(c"\\\x16\n".as_ptr(), fd) < 0 {
+                    if fputs(c"\\\x16\n", fd) < 0 {
                         return false;
                     }
-                } else if fputs(c"<NL>".as_ptr(), fd) < 0 {
+                } else if fputs(c"<NL>", fd) < 0 {
                     return false;
                 }
                 str_ptr = str_ptr.add(1);

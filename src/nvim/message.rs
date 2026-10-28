@@ -3886,10 +3886,10 @@ fn redir_write(str_: *const c_char, maxlen: isize) {
                     } else if g_st().redir_vname {
                         var_redir_str(c" ".as_ptr(), -1);
                     } else if let Some(ref rf) = g_st().redir_fd {
-                        fputs(c" ".as_ptr(), rf.as_ptr());
+                        fputs(c" ", rf.as_ptr());
                     }
                     if let Some(ref vf) = msg_st().verbose_fd {
-                        fputs(c" ".as_ptr(), vf.as_ptr());
+                        fputs(c" ", vf.as_ptr());
                     }
                     msg_st().redir_col += 1;
                 }

@@ -237,14 +237,17 @@ unsafe extern "C-unwind" {
     pub fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
     pub fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
     pub fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    pub fn lua_pushstring(L: *mut lua_State, s: *const c_char);
+    #[link_name = "lua_pushstring"]
+    fn c_lua_pushstring(L: *mut lua_State, s: *const c_char);
     pub fn lua_pushfstring(L: *mut lua_State, fmt: *const c_char, ...) -> *const c_char;
     pub fn lua_pushboolean(L: *mut lua_State, b: c_int);
     pub fn lua_pushlightuserdata(L: *mut lua_State, p: *mut c_void);
     pub fn lua_gettable(L: *mut lua_State, idx: c_int);
-    pub fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
+    #[link_name = "lua_getfield"]
+    fn c_lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
     pub fn lua_settable(L: *mut lua_State, idx: c_int);
-    pub fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
+    #[link_name = "lua_setfield"]
+    fn c_lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
     pub fn lua_rawget(L: *mut lua_State, idx: c_int);
     pub fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
     pub fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
@@ -272,11 +275,16 @@ unsafe extern "C-unwind" {
     pub fn lua_close(L: *mut lua_State);
     pub fn luaL_ref(L: *mut lua_State, t: c_int) -> c_int;
     pub fn luaL_unref(L: *mut lua_State, t: c_int, ref_: c_int);
-    pub fn luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int;
-    pub fn luaL_getmetafield(L: *mut lua_State, obj: c_int, e: *const c_char) -> c_int;
-    pub fn luaL_checkudata(L: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
-    pub fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-    pub fn luaL_checkstack(L: *mut lua_State, sz: c_int, msg: *const c_char);
+    #[link_name = "luaL_newmetatable"]
+    fn c_luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int;
+    #[link_name = "luaL_getmetafield"]
+    fn c_luaL_getmetafield(L: *mut lua_State, obj: c_int, e: *const c_char) -> c_int;
+    #[link_name = "luaL_checkudata"]
+    fn c_luaL_checkudata(L: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
+    #[link_name = "luaL_register"]
+    fn c_luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
+    #[link_name = "luaL_checkstack"]
+    fn c_luaL_checkstack(L: *mut lua_State, sz: c_int, msg: *const c_char);
     pub fn luaL_checktype(L: *mut lua_State, narg: c_int, t: c_int);
     pub fn luaL_checkany(L: *mut lua_State, narg: c_int);
     pub fn luaL_checklstring(L: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
@@ -284,11 +292,14 @@ unsafe extern "C-unwind" {
     pub fn luaL_checkinteger(L: *mut lua_State, numArg: c_int) -> lua_Integer;
     pub fn luaL_optinteger(L: *mut lua_State, nArg: c_int, def: lua_Integer) -> lua_Integer;
     #[cfg(feature = "vendor-bit")]
-    pub fn luaL_typerror(L: *mut lua_State, narg: c_int, tname: *const c_char) -> c_int;
-    pub fn luaL_argerror(L: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
+    #[link_name = "luaL_typerror"]
+    fn c_luaL_typerror(L: *mut lua_State, narg: c_int, tname: *const c_char) -> c_int;
+    #[link_name = "luaL_argerror"]
+    fn c_luaL_argerror(L: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
     pub fn luaL_where(L: *mut lua_State, lvl: c_int);
     pub fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    pub fn luaL_loadbuffer(
+    #[link_name = "luaL_loadbuffer"]
+    fn c_luaL_loadbuffer(
         L: *mut lua_State,
         buff: *const c_char,
         sz: usize,
@@ -300,7 +311,105 @@ unsafe extern "C-unwind" {
     pub fn luaL_addvalue(B: *mut luaL_Buffer);
     pub fn luaL_pushresult(B: *mut luaL_Buffer);
     pub fn lua_getstack(L: *mut lua_State, level: c_int, ar: *mut lua_Debug) -> c_int;
-    pub fn lua_getinfo(L: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> c_int;
+    #[link_name = "lua_getinfo"]
+    fn c_lua_getinfo(L: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> c_int;
+}
+
+#[inline]
+pub unsafe fn lua_pushstring<S: crate::strings::IntoCCharPtr>(L: *mut lua_State, s: S) {
+    unsafe { c_lua_pushstring(L, s.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn lua_getfield<S: crate::strings::IntoCCharPtr>(L: *mut lua_State, idx: c_int, k: S) {
+    unsafe { c_lua_getfield(L, idx, k.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn lua_setfield<S: crate::strings::IntoCCharPtr>(L: *mut lua_State, idx: c_int, k: S) {
+    unsafe { c_lua_setfield(L, idx, k.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn luaL_newmetatable<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    tname: S,
+) -> c_int {
+    unsafe { c_luaL_newmetatable(L, tname.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn luaL_getmetafield<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    obj: c_int,
+    e: S,
+) -> c_int {
+    unsafe { c_luaL_getmetafield(L, obj, e.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn luaL_checkudata<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    ud: c_int,
+    tname: S,
+) -> *mut c_void {
+    unsafe { c_luaL_checkudata(L, ud, tname.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn luaL_register<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    libname: S,
+    l: *const luaL_Reg,
+) {
+    unsafe { c_luaL_register(L, libname.into_c_char_ptr(), l) }
+}
+
+#[inline]
+pub unsafe fn luaL_checkstack<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    sz: c_int,
+    msg: S,
+) {
+    unsafe { c_luaL_checkstack(L, sz, msg.into_c_char_ptr()) }
+}
+
+#[cfg(feature = "vendor-bit")]
+#[inline]
+pub unsafe fn luaL_typerror<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    narg: c_int,
+    tname: S,
+) -> c_int {
+    unsafe { c_luaL_typerror(L, narg, tname.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn luaL_argerror<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    numarg: c_int,
+    extramsg: S,
+) -> c_int {
+    unsafe { c_luaL_argerror(L, numarg, extramsg.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn luaL_loadbuffer<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    buff: S1,
+    sz: usize,
+    name: S2,
+) -> c_int {
+    unsafe { c_luaL_loadbuffer(L, buff.into_c_char_ptr(), sz, name.into_c_char_ptr()) }
+}
+
+#[inline]
+pub unsafe fn lua_getinfo<S: crate::strings::IntoCCharPtr>(
+    L: *mut lua_State,
+    what: S,
+    ar: *mut lua_Debug,
+) -> c_int {
+    unsafe { c_lua_getinfo(L, what.into_c_char_ptr(), ar) }
 }
 
 #[inline]
@@ -332,7 +441,7 @@ pub fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
 #[inline]
 pub fn lua_setglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
     unsafe {
-        lua_setfield(lstate, LUA_GLOBALSINDEX, s.as_ptr());
+        lua_setfield(lstate, LUA_GLOBALSINDEX, s);
     }
 }
 

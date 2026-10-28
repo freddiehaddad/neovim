@@ -132,7 +132,7 @@ fn doublestack(l: *mut lua_State, stacklimit: &mut *mut Stack, ptop: c_int) -> *
     unsafe {
         let stack = getstackbase(l, ptop);
         let n = (*stacklimit).offset_from(stack) as c_int;
-        lua_getfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX.as_ptr());
+        lua_getfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
         let max = lua_tointeger(l, -1) as c_int;
         lua_pop(l, 1);
         if n >= max {

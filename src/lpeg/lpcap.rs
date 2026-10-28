@@ -357,7 +357,7 @@ pub fn runtimecap(
         (*close).index = s.offset_from(cs.s) as Index_t;
         cs.cap = open;
         cs.valuecached = 0;
-        luaL_checkstack(l, 4, c"too many runtime captures".as_ptr());
+        luaL_checkstack(l, 4, c"too many runtime captures");
         pushluaval(cs);
         lua_pushvalue(l, SUBJIDX);
         lua_pushinteger(l, (s.offset_from(cs.s) + 1) as lua_Integer);
@@ -530,7 +530,7 @@ fn addonestring(b: &mut luaL_Buffer, cs: &mut CapState, what: &std::ffi::CStr) -
 fn pushcapture(cs: &mut CapState) -> c_int {
     unsafe {
         let l = cs.L;
-        luaL_checkstack(l, 4, c"too many captures".as_ptr());
+        luaL_checkstack(l, 4, c"too many captures");
         let old_rec = cs.reclevel;
         cs.reclevel += 1;
         if old_rec > MAXRECLEVEL {
