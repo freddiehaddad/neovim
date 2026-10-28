@@ -1057,12 +1057,10 @@ fn set_options_default(opt_flags: c_int) {
             }
         }
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(tp) {
                 win_comp_scroll(wp);
             }
-            tp = (*tp).tp_next;
         }
 
         parse_cino(curbuf_mut());
@@ -2867,13 +2865,11 @@ pub fn did_set_foldenable(args: &mut optset_T) -> *const c_char {
             && foldmethodIsDiff(&mut *win)
             && (*win).w_onebuf_opt.wo_scb != 0
         {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
+            for wp in for_all_windows_ptr() {
                 if wp != win && foldmethodIsDiff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
                     (*wp).w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
                     changed_window_setting(&mut *wp);
                 }
-                wp = (*wp).w_next;
             }
         }
         ptr::null()
@@ -3197,16 +3193,10 @@ pub fn validate_previewwindow(args: &mut optset_T) -> *const c_char {
         } else {
             win_find_tabpage(win)
         };
-        let mut wp = if tab == g_st().curtab {
-            g_st().firstwin
-        } else {
-            (*tab).tp_firstwin
-        };
-        while !wp.is_null() {
+        for wp in for_all_windows_in_tab_ptr(tab) {
             if wp != win && (*wp).w_onebuf_opt.wo_pvw != 0 {
                 return E_PREVIEW_WINDOW_ALREADY_EXISTS;
             }
-            wp = (*wp).w_next;
         }
         ptr::null()
     }
@@ -3327,19 +3317,11 @@ pub fn did_set_swapfile(args: &mut optset_T) -> *const c_char {
 
 /// Process the new 'textwidth' option value.
 pub fn did_set_textwidth(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+     {
+        for tp in for_all_tabpages_ptr() {
+            for wp in for_all_windows_in_tab_ptr(tp) {
                 check_colorcolumn(ptr::null_mut(), wp);
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
         ptr::null()
     }
@@ -3373,8 +3355,7 @@ pub fn did_set_undofile(args: &mut optset_T) -> *const c_char {
 
         let mut hash = [0u8; UNDO_HASH_SIZE];
 
-        let mut bp = g_st().firstbuf;
-        while !bp.is_null() {
+        for bp in for_all_buffers_ptr() {
             if (buf == bp || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
                 && !bufIsChanged(&mut *bp)
                 && (*bp).b_ml.ml_mfp.is_some()
@@ -3382,7 +3363,6 @@ pub fn did_set_undofile(args: &mut optset_T) -> *const c_char {
                 u_compute_hash(&mut *bp, hash.as_mut_ptr());
                 u_read_undo(ptr::null_mut(), hash.as_ptr(), (*bp).b_fname);
             }
-            bp = (*bp).b_next;
         }
 
         ptr::null()

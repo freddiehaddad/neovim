@@ -942,6 +942,25 @@ impl Iterator for BufMutIter {
     }
 }
 
+pub struct BufPtrIter(*mut buf_T);
+
+impl Iterator for BufPtrIter {
+    type Item = *mut buf_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).b_next;
+                Some(cur)
+            }
+        }
+    }
+}
+
 #[inline]
 pub fn for_all_buffers_mut() -> BufMutIter {
     BufMutIter(g_st().firstbuf)
@@ -950,6 +969,11 @@ pub fn for_all_buffers_mut() -> BufMutIter {
 #[inline]
 pub fn buf_iter_mut(start: *mut buf_T) -> BufMutIter {
     BufMutIter(start)
+}
+
+#[inline]
+pub fn for_all_buffers_ptr() -> BufPtrIter {
+    BufPtrIter(g_st().firstbuf)
 }
 
 pub struct WinMutIter(*mut win_T);
@@ -971,6 +995,25 @@ impl Iterator for WinMutIter {
     }
 }
 
+pub struct WinPtrIter(*mut win_T);
+
+impl Iterator for WinPtrIter {
+    type Item = *mut win_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).w_next;
+                Some(cur)
+            }
+        }
+    }
+}
+
 #[inline]
 pub fn for_all_windows_mut() -> WinMutIter {
     WinMutIter(g_st().firstwin)
@@ -984,6 +1027,25 @@ pub fn win_iter_mut(start: *mut win_T) -> WinMutIter {
 #[inline]
 pub fn for_all_windows_in_tab_mut(tp: *mut tabpage_T) -> WinMutIter {
     WinMutIter(if tp == g_st().curtab {
+        g_st().firstwin
+    } else {
+        unsafe { (*tp).tp_firstwin }
+    })
+}
+
+#[inline]
+pub fn for_all_windows_ptr() -> WinPtrIter {
+    WinPtrIter(g_st().firstwin)
+}
+
+#[inline]
+pub fn win_iter_ptr(start: *mut win_T) -> WinPtrIter {
+    WinPtrIter(start)
+}
+
+#[inline]
+pub fn for_all_windows_in_tab_ptr(tp: *mut tabpage_T) -> WinPtrIter {
+    WinPtrIter(if tp == g_st().curtab {
         g_st().firstwin
     } else {
         unsafe { (*tp).tp_firstwin }
@@ -1009,9 +1071,33 @@ impl Iterator for TabMutIter {
     }
 }
 
+pub struct TabPtrIter(*mut tabpage_T);
+
+impl Iterator for TabPtrIter {
+    type Item = *mut tabpage_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).tp_next;
+                Some(cur)
+            }
+        }
+    }
+}
+
 #[inline]
 pub fn for_all_tabpages_mut() -> TabMutIter {
     TabMutIter(g_st().first_tabpage)
+}
+
+#[inline]
+pub fn for_all_tabpages_ptr() -> TabPtrIter {
+    TabPtrIter(g_st().first_tabpage)
 }
 
 #[unsafe(no_mangle)]

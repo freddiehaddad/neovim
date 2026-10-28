@@ -4325,8 +4325,7 @@ pub fn garbage_collect(testing: bool) -> bool {
         }
 
         {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_mut(tp) {
                     abort = abort
                         || set_ref_in_item(
@@ -4336,7 +4335,6 @@ pub fn garbage_collect(testing: bool) -> bool {
                             ptr::null_mut(),
                         );
                 }
-                tp = (*tp).tp_next;
             }
 
             let vec = &raw const g_st().ctx_win_vec;

@@ -1044,13 +1044,11 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             close_buffer(curwin_ptr(), g_st().curbuf, 0, false, false, false);
 
             g_st().curbuf = ptr::null_mut();
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
+            for buf in for_all_buffers_ptr() {
                 if (*buf).b_ml.ml_mfp.is_some() {
                     g_st().curbuf = buf;
                     break;
                 }
-                buf = (*buf).b_next;
             }
 
             if g_st().curbuf.is_null() {
@@ -1498,12 +1496,10 @@ pub fn close_buffer(
             if clear_w_buf {
                 (*win).w_buffer = ptr::null_mut();
             }
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_mut(tp) {
                     mark_forget_file(wp, (*buf).b_fnum);
                 }
-                tp = (*tp).tp_next;
             }
             (*buf).clear_fnames();
             if (*buf).b_prev.is_null() {
@@ -1630,14 +1626,12 @@ pub fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
             reset_synblock(curwin_mut());
         }
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(tp) {
                 if win.w_buffer == buf {
                     clearFolding(win);
                 }
             }
-            tp = (*tp).tp_next;
         }
 
         if !(*buf).terminal.is_null() {
@@ -2253,13 +2247,11 @@ fn do_buffer_ext(
             }
 
             bp = ptr::null_mut();
-            let mut bp2 = g_st().firstbuf;
-            while !bp2.is_null() {
+            for bp2 in for_all_buffers_ptr() {
                 if (*bp2).b_p_bl != 0 && bp2 != buf {
                     bp = bp2;
                     break;
                 }
-                bp2 = (*bp2).b_next;
             }
             if bp.is_null() && buf == g_st().curbuf {
                 return empty_curbuf(true, flags & DOBUF_FORCEIT, action);
@@ -2407,8 +2399,7 @@ fn do_buffer_ext(
                 buf = bp;
             }
             if buf.is_null() {
-                let mut buf2 = g_st().firstbuf;
-                while !buf2.is_null() {
+                for buf2 in for_all_buffers_ptr() {
                     if (*buf2).b_p_bl != 0
                         && buf2 != g_st().curbuf
                         && !bt_quickfix(buf2)
@@ -2417,7 +2408,6 @@ fn do_buffer_ext(
                         buf = buf2;
                         break;
                     }
-                    buf2 = (*buf2).b_next;
                 }
             }
             if buf.is_null() {
@@ -3304,14 +3294,11 @@ pub fn ExpandBufnames(
         }
 
         let mut score = 0;
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if (*buf).b_p_bl == 0 {
-                buf = (*buf).b_next;
                 continue;
             }
             if (options & BUF_DIFF_FILTER) != 0 && (buf == g_st().curbuf || !diff_mode_buf(buf)) {
-                buf = (*buf).b_next;
                 continue;
             }
 
@@ -3332,7 +3319,6 @@ pub fn ExpandBufnames(
             }
 
             if p.is_null() {
-                buf = (*buf).b_next;
                 continue;
             }
 
@@ -3359,7 +3345,6 @@ pub fn ExpandBufnames(
                     score,
                 });
             }
-            buf = (*buf).b_next;
         }
 
         if !fuzzy {
@@ -3502,17 +3487,15 @@ pub fn buflist_setfpos(
 }
 
 fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
-    unsafe {
+     {
         if wip.wi_opt.wo_diff == 0 {
             return false;
         }
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if wip.wi_win == wp {
                 return false;
             }
-            wp = (*wp).w_next;
         }
         true
     }
@@ -3823,14 +3806,12 @@ pub fn setfname(
             if !obuf.is_null() && obuf != buf {
                 let mut in_use = false;
 
-                let mut tab = g_st().first_tabpage;
-                while !tab.is_null() {
+                for tab in for_all_tabpages_ptr() {
                     for win in for_all_windows_in_tab_mut(tab) {
                         if win.w_buffer == obuf {
                             in_use = true;
                         }
                     }
-                    tab = (*tab).tp_next;
                 }
 
                 if (*obuf).b_ml.ml_mfp.is_some() || in_use {

@@ -171,12 +171,10 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
         if tab == g_st().curtab {
             return nvim_get_current_win();
         }
-        let mut wp = (*tab).tp_firstwin;
-        while !wp.is_null() {
+        for wp in win_iter_ptr((*tab).tp_firstwin) {
             if wp == (*tab).tp_curwin {
                 return (*wp).handle;
             }
-            wp = (*wp).w_next;
         }
         std::process::abort();
     }

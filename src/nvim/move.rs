@@ -601,13 +601,11 @@ pub fn changed_window_setting(wp: &mut win_T) {
 
 /// Call `changed_window_setting()` for every window.
 pub fn changed_window_setting_all() {
-    unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+     {
+        for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(tp) {
                 changed_window_setting(wp);
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -2628,7 +2626,7 @@ pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> bool {
 }
 
 pub fn do_check_cursorbind() {
-    unsafe {
+     {
 struct MoveCursorbindState {
     prev_curwin: *mut win_T,
     prev_curbuf: *mut buf_T,
@@ -2679,8 +2677,7 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
 
         g_st().Visual.select = false;
         g_st().Visual.active = false;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             set_curwin(wp);
             g_st().curbuf = curwin_mut().w_buffer;
             if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_crb != 0 {
@@ -2713,7 +2710,6 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
                 }
                 curwin_mut().w_redr_status = true;
             }
-            wp = (*wp).w_next;
         }
 
         g_st().Visual.select = old_VIsual_select;

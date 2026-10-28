@@ -544,13 +544,11 @@ pub fn pum_display(
             }
 
             let mut pvwin: *mut win_T = ptr::null_mut();
-            let mut wp = first_win_in_tab(g_st().curtab);
-            while !wp.is_null() {
+            for wp in win_iter_ptr(first_win_in_tab(g_st().curtab)) {
                 if (*wp).w_onebuf_opt.wo_pvw != 0 {
                     pvwin = wp;
                     break;
                 }
-                wp = (*wp).w_next;
             }
 
             if !pvwin.is_null() {

@@ -1062,14 +1062,8 @@ pub fn terminal_check_size(term: &mut Terminal) {
         let mut width: u16 = 0;
         let mut height: u16 = 0;
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+        for tp in for_all_tabpages_ptr() {
+            for wp in for_all_windows_in_tab_ptr(tp) {
                 if !is_ctx_win(wp)
                     && !(*wp).w_buffer.is_null()
                     && (*(*wp).w_buffer).terminal == term
@@ -1078,9 +1072,7 @@ pub fn terminal_check_size(term: &mut Terminal) {
                     width = width.max(win_width);
                     height = height.max((*wp).w_view_height as u16);
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
 
         if (curheight == c_int::from(height) && curwidth == c_int::from(width))
@@ -2428,21 +2420,13 @@ fn refresh_terminal(term: &mut Terminal) {
         adjust_topline_cursor(term, &mut *buf, ml_added);
 
         if resized {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
-                let mut wp = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
+            for tp in for_all_tabpages_ptr() {
+                for wp in for_all_windows_in_tab_ptr(tp) {
                     if (*wp).w_buffer == buf && (*wp).w_leftcol != 0 {
                         (*wp).w_leftcol = 0;
                         curs_columns(wp, 1);
                     }
-                    wp = (*wp).w_next;
                 }
-                tp = (*tp).tp_next;
             }
         }
 
@@ -2675,16 +2659,10 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+            for wp in for_all_windows_in_tab_ptr(tp) {
                 if (*wp).w_buffer == buf {
                     if wp == curwin_ptr() && is_focused(term) {
                         terminal_check_cursor();
-                        wp = (*wp).w_next;
                         continue;
                     }
 
@@ -2697,7 +2675,6 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {
                     }
                     mb_check_adjust_col(&mut *wp);
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }

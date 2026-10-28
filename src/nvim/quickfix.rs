@@ -2850,12 +2850,10 @@ fn qf_get_entry(
 
 fn qf_find_help_win() -> *mut win_T {
     unsafe {
-        let mut wp = tab_firstwin(curtab_mut());
-        while !wp.is_null() {
+        for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if bt_help((*wp).w_buffer) && !(*wp).w_config.hide && (*wp).w_config.focusable {
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }
@@ -2911,13 +2909,11 @@ fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut boo
 
 fn qf_find_win_with_loclist(ll: &qf_info_T) -> *mut win_T {
     unsafe {
-        let mut wp = tab_firstwin(curtab_mut());
-        while !wp.is_null() {
+        for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if (*wp).w_llist.cast_const() == ll && !bt_quickfix((*wp).w_buffer)
             {
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }
@@ -2925,12 +2921,10 @@ fn qf_find_win_with_loclist(ll: &qf_info_T) -> *mut win_T {
 
 fn qf_find_win_with_normal_buf() -> *mut win_T {
     unsafe {
-        let mut wp = tab_firstwin(curtab_mut());
-        while !wp.is_null() {
+        for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if bt_normal((*wp).w_buffer) {
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }
@@ -2939,13 +2933,11 @@ fn qf_find_win_with_normal_buf() -> *mut win_T {
 fn qf_goto_tabwin_with_file(fnum: c_int) -> bool {
     unsafe {
         for tp in for_all_tabpages_mut() {
-            let mut wp = tab_firstwin(tp);
-            while !wp.is_null() {
+            for wp in win_iter_ptr(tab_firstwin(tp)) {
                 if (*(*wp).w_buffer).b_fnum == fnum {
                     goto_tabpage_win(tp, wp);
                     return true;
                 }
-                wp = (*wp).w_next;
             }
         }
         false
@@ -2976,13 +2968,11 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: *mut qf
         let mut win = use_win;
 
         if win.is_null() {
-            let mut win2 = tab_firstwin(curtab_mut());
-            while !win2.is_null() {
+            for win2 in win_iter_ptr(tab_firstwin(curtab_mut())) {
                 if (*(*win2).w_buffer).b_fnum == qf_fnum {
                     win = win2;
                     break;
                 }
-                win2 = (*win2).w_next;
             }
             if win.is_null() {
                 win = curwin_ptr();
@@ -4240,12 +4230,10 @@ fn is_qf_win(win: &win_T, qi: &qf_info_T) -> bool {
 
 fn qf_find_win(qi: &qf_info_T) -> *mut win_T {
     unsafe {
-        let mut win = tab_firstwin(curtab_mut());
-        while !win.is_null() {
+        for win in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if is_qf_win(&*win, qi) {
                 return win;
             }
-            win = (*win).w_next;
         }
         ptr::null_mut()
     }
@@ -4279,13 +4267,11 @@ fn qf_update_win_titlevar(qi: &mut qf_info_T) {
         let save_curwin = curwin_ptr();
 
         for tp in for_all_tabpages_mut() {
-            let mut win = tab_firstwin(tp);
-            while !win.is_null() {
+            for win in win_iter_ptr(tab_firstwin(tp)) {
                 if is_qf_win(&*win, &*qi) {
                     set_curwin(win);
                     qf_set_title_var(qfl);
                 }
-                win = (*win).w_next;
             }
         }
         set_curwin(save_curwin);
@@ -6803,8 +6789,7 @@ fn qf_add_entries(
         let mut entry_to_select_index: c_int = 0;
 
         let first_li = tv_list_first(list);
-        let mut li = first_li;
-        while !li.is_null() {
+        for li in crate::eval::typval::list_iter_ptr(first_li) {
             if (*li).li_tv.v_type == VarType::VAR_DICT {
                 let d = (*li).li_tv.vval.v_dict();
                 if !d.is_null() {
@@ -6830,7 +6815,6 @@ fn qf_add_entries(
                     }
                 }
             }
-            li = (*li).li_next;
         }
 
         if valid_entry {
@@ -7739,10 +7723,8 @@ pub fn free_quickfix() {
     unsafe {
         qf_free_all(ptr::null_mut());
         for tab in for_all_tabpages_mut() {
-            let mut win = tab_firstwin(tab);
-            while !win.is_null() {
+            for win in win_iter_ptr(tab_firstwin(tab)) {
                 qf_free_all(win);
-                win = (*win).w_next;
             }
         }
 

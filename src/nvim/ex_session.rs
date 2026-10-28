@@ -680,8 +680,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
             return false;
         }
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if !(only_save_windows && (*buf).b_nwindows == 0)
                 && !((*buf).b_help && (opt_vars().ssop_flags & kOptSsopFlagHelp) == 0)
                 && !(bt_terminal(buf) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
@@ -698,7 +697,6 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     return false;
                 }
             }
-            buf = (*buf).b_next;
         }
 
         let ga_ptr = &raw const g_st().global_alist;
@@ -714,10 +712,8 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
         }
 
         if (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0 {
-            let mut b = g_st().firstbuf;
-            while !b.is_null() {
+            for b in for_all_buffers_ptr() {
                 let Some(ref b_localdir) = (*b).b_localdir else {
-                    b = (*b).b_next;
                     continue;
                 };
                 if (*b).b_fname.is_null()
@@ -726,7 +722,6 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     || ((*b).b_help && (opt_vars().ssop_flags & kOptSsopFlagHelp) == 0)
                     || (bt_terminal(b) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
                 {
-                    b = (*b).b_next;
                     continue;
                 }
                 if fputs(
@@ -747,7 +742,6 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     return false;
                 }
                 exses_st().did_lcd = true;
-                b = (*b).b_next;
             }
         }
 

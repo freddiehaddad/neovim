@@ -1729,14 +1729,8 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
                 windows.insert(wp);
             }
 
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
-                let mut wp = if tp == g_st().curtab {
-                    g_st().firstwin
-                } else {
-                    (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
+            for tp in for_all_tabpages_ptr() {
+                for wp in for_all_windows_in_tab_ptr(tp) {
                     if windows.contains(&wp)
                         && (*wp).w_ns_set.insert(ns_id as u32)
                         && (*(*wp).w_buffer).b_extmark_ns.contains_key(&(ns_id as u32))
@@ -1750,9 +1744,7 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
                     {
                         changed_window_setting(&mut *wp);
                     }
-                    wp = (*wp).w_next;
                 }
-                tp = (*tp).tp_next;
             }
         }
 
@@ -1760,14 +1752,12 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
         if (set_scoped && (*local_ptr).insert(ns_id as u32))
             || (!set_scoped && (*local_ptr).remove(&(ns_id as u32)))
         {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_mut(tp) {
                     if (*wp.w_buffer).b_extmark_ns.contains_key(&(ns_id as u32)) {
                         changed_window_setting(wp);
                     }
                 }
-                tp = (*tp).tp_next;
             }
         }
     }

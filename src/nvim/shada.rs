@@ -1253,13 +1253,11 @@ fn find_buffer(
             return buf;
         }
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if !(*buf).b_ffname.is_null() && path_equal(fname, (*buf).b_ffname, kPathCmpLiteral) {
                 fname_bufs.insert(key.to_vec(), buf);
                 return buf;
             }
-            buf = (*buf).b_next;
         }
         fname_bufs.insert(key.to_vec(), ptr::null_mut());
         ptr::null_mut()
@@ -1680,14 +1678,12 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
             }
         }
         if !cl_bufs.is_empty() {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_mut(tp) {
                     if cl_bufs.contains(&wp.w_buffer) {
                         wp.w_changelistidx = (*wp.w_buffer).b_changelistlen;
                     }
                 }
-                tp = (*tp).tp_next;
             }
         }
     }
@@ -2416,8 +2412,7 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> 
     unsafe {
         let max_bufs = get_shada_parameter(b'%' as c_int);
         let mut buffers = Vec::new();
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if !ignore_buf(buf, removable_bufs) && (*buf).b_p_bl != 0 {
                 if max_bufs >= 0 && buffers.len() >= (max_bufs as usize) {
                     break;
@@ -2428,7 +2423,6 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> 
                     additional_data: (*buf).additional_data.clone(),
                 });
             }
-            buf = (*buf).b_next;
         }
 
         ShadaEntry {
@@ -2561,12 +2555,10 @@ fn replace_numbered_mark(wms: *mut WriteMergerState, idx: usize, entry: ShadaEnt
 #[inline]
 fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut buf_T>) {
     unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if !(*buf).b_ffname.is_null() && shada_removable((*buf).b_ffname) {
                 removable_bufs.insert(buf);
             }
-            buf = (*buf).b_next;
         }
     }
 }
@@ -2681,18 +2673,10 @@ fn shada_write(
 
         let mut packer = packer_buffer_for_file(&mut *sd_writer);
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+        for tp in for_all_tabpages_ptr() {
+            for wp in for_all_windows_in_tab_ptr(tp) {
                 set_last_cursor(wp);
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
 
         find_removable_bufs(&mut removable_bufs);
@@ -2939,8 +2923,7 @@ fn shada_write(
             }
 
             if num_marked_files > 0 {
-                let mut buf = g_st().firstbuf;
-                while !buf.is_null() {
+                for buf in for_all_buffers_ptr() {
                     if !ignore_buf(buf, &removable_bufs) {
                         let mut local_marks_iter: Option<c_char> = None;
                         let fname = (*buf).b_ffname;
@@ -2995,7 +2978,6 @@ fn shada_write(
                         }
                         (*filemarks).changes_size = (*buf).b_changelistlen as usize;
                     }
-                    buf = (*buf).b_next;
                 }
             }
 

@@ -1731,14 +1731,8 @@ fn did_set_global_chars_option(
             clear_string_option(local_ptr);
         }
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+        for tp in for_all_tabpages_ptr() {
+            for wp in for_all_windows_in_tab_ptr(tp) {
                 let opt = if what == CharsOption::kListchars {
                     (*wp).w_onebuf_opt.wo_lcs
                 } else {
@@ -1747,9 +1741,7 @@ fn did_set_global_chars_option(
                 if *opt == NUL {
                     set_chars_option(wp, opt, what, true, errbuf);
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
 
         redraw_all_later(UPD_NOT_VALID);
@@ -2998,14 +2990,12 @@ pub fn did_set_spellsuggest(args: &mut optset_T) -> *const c_char {
 }
 
 pub fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+     {
+        for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(tp) {
                 wp.w_prev_height = wp.w_height;
                 wp.w_prev_winrow = wp.w_winrow;
             }
-            tp = (*tp).tp_next;
         }
         ptr::null()
     }
@@ -4211,14 +4201,8 @@ pub fn check_chars_options() -> *const c_char {
         if !set_chars_option(curwin_ptr(), opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+        for tp in for_all_tabpages_ptr() {
+            for wp in for_all_windows_in_tab_ptr(tp) {
                 if !set_chars_option(
                     wp,
                     (*wp).w_onebuf_opt.wo_lcs,
@@ -4241,9 +4225,7 @@ pub fn check_chars_options() -> *const c_char {
                 {
                     return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
         ptr::null()
     }

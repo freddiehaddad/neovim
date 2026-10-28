@@ -1262,13 +1262,11 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             }
             c if c == b'P' as c_int => {
                 let mut wp: *mut win_T = ptr::null_mut();
-                let mut wp2 = g_st().firstwin;
-                while !wp2.is_null() {
+                for wp2 in for_all_windows_ptr() {
                     if (*wp2).w_onebuf_opt.wo_pvw != 0 {
                         wp = wp2;
                         break;
                     }
-                    wp2 = (*wp2).w_next;
                 }
                 if wp.is_null() {
                     emsg(gettext(c"E441: There is no preview window"));
@@ -2229,12 +2227,10 @@ pub fn win_split_ins(
             }
 
             if (*wp).w_config.external {
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
+                for tp in for_all_tabpages_ptr() {
                     if !ptr::eq(tp, g_st().curtab) && ptr::eq((*tp).tp_curwin, wp) {
                         (*tp).tp_curwin = (*tp).tp_firstwin;
                     }
-                    tp = (*tp).tp_next;
                 }
             }
 
@@ -2594,12 +2590,10 @@ pub fn tabpage_win_valid(tp: *const tabpage_T, win: *const win_T) -> bool {
 
 pub fn win_find_by_handle(handle: handle_T) -> *mut win_T {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).handle == handle {
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }
@@ -2611,20 +2605,16 @@ pub fn win_valid_any_tab(win: *mut win_T) -> bool {
             return false;
         }
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+        for tp in for_all_tabpages_ptr() {
+            for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+            }) {
                 if ptr::eq(wp, win) {
                     return true;
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
         false
     }
@@ -3706,12 +3696,10 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             ui_comp_remove_grid(&mut (*win).w_grid_alloc);
             debug_assert!(!g_st().first_tabpage.is_null());
             if (*win).w_config.external {
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
+                for tp in for_all_tabpages_ptr() {
                     if !ptr::eq(tp, g_st().curtab) && ptr::eq((*tp).tp_curwin, win) {
                         (*tp).tp_curwin = (*tp).tp_firstwin;
                     }
-                    tp = (*tp).tp_next;
                 }
             }
         }
@@ -4970,13 +4958,11 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
 
         if message != 0 && !one_window_macro() {
             let mut has_non_pinned = false;
-            let mut wp2 = g_st().firstwin;
-            while !wp2.is_null() {
+            for wp2 in for_all_windows_ptr() {
                 if !ptr::eq(wp2, curwin_ptr()) && (*wp2).w_onebuf_opt.wo_wp == 0 {
                     has_non_pinned = true;
                     break;
                 }
-                wp2 = (*wp2).w_next;
             }
             if has_non_pinned {
                 emsg(gettext(c"E445: Other window contains changes"));
@@ -5307,13 +5293,11 @@ pub fn make_tabpages(maxcount: c_int) -> c_int {
 }
 
 pub fn valid_tabpage(tpc: *mut tabpage_T) -> bool {
-    unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+     {
+        for tp in for_all_tabpages_ptr() {
             if ptr::eq(tp, tpc) {
                 return true;
             }
-            tp = (*tp).tp_next;
         }
         false
     }
@@ -5321,23 +5305,19 @@ pub fn valid_tabpage(tpc: *mut tabpage_T) -> bool {
 
 pub fn valid_tabpage_win(tpc: &mut tabpage_T) -> c_int {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             if ptr::eq(tp, tpc) {
-                let mut wp = if ptr::eq(tp, g_st().curtab) {
+                for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
                     g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
-                };
-                while !wp.is_null() {
+                }) {
                     if win_valid_any_tab(wp) {
                         return 1;
                     }
-                    wp = (*wp).w_next;
                 }
                 return 0;
             }
-            tp = (*tp).tp_next;
         }
         0
     }
@@ -5768,20 +5748,16 @@ pub fn win_goto(wp: *mut win_T) {
 
 pub fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+        for tp in for_all_tabpages_ptr() {
+            for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+            }) {
                 if ptr::eq(wp, win) {
                     return tp;
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
         ptr::null_mut()
     }
@@ -6141,13 +6117,11 @@ pub fn buf_jump_open_win(buf: *mut buf_T) -> *mut win_T {
             win_enter(curwin_ptr(), false);
             return curwin_ptr();
         }
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
                 win_enter(wp, false);
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }
@@ -6160,10 +6134,8 @@ pub fn buf_jump_open_tab(buf: *mut buf_T) -> *mut win_T {
             return wp;
         }
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             if ptr::eq(tp, g_st().curtab) {
-                tp = (*tp).tp_next;
                 continue;
             }
             let mut wp2 = (*tp).tp_firstwin;
@@ -6177,7 +6149,6 @@ pub fn buf_jump_open_tab(buf: *mut buf_T) -> *mut win_T {
                 }
                 wp2 = (*wp2).w_next;
             }
-            tp = (*tp).tp_next;
         }
 
         ptr::null_mut()
@@ -6582,8 +6553,7 @@ fn check_window_scroll_resize(
         let mut tot_leftcol: c_int = 0;
         let mut tot_skipcol: c_int = 0;
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).w_floating && (*wp).w_last_topline == 0 {
                 (*wp).w_last_topline = (*wp).w_topline;
                 (*wp).w_last_topfill = (*wp).w_topfill;
@@ -6591,7 +6561,6 @@ fn check_window_scroll_resize(
                 (*wp).w_last_skipcol = (*wp).w_skipcol;
                 (*wp).w_last_width = (*wp).w_width;
                 (*wp).w_last_height = (*wp).w_height;
-                wp = (*wp).w_next;
                 continue;
             }
 
@@ -6660,7 +6629,6 @@ fn check_window_scroll_resize(
                 tot_skipcol += skipcol.abs();
             }
 
-            wp = (*wp).w_next;
         }
 
         if !v_event.is_null() {
@@ -6850,8 +6818,7 @@ pub fn win_size_restore(gap: &[c_int]) {
         {
             for _ in 0..2 {
                 let mut i: usize = 1;
-                let mut wp = g_st().firstwin;
-                while !wp.is_null() {
+                for wp in for_all_windows_ptr() {
                     let width = gap[i];
                     let height = gap[i + 1];
                     i += 2;
@@ -6859,7 +6826,6 @@ pub fn win_size_restore(gap: &[c_int]) {
                         frame_setwidth(&mut *(*wp).w_frame, width, true);
                         win_setheight_win(height, wp, true);
                     }
-                    wp = (*wp).w_next;
                 }
             }
             win_comp_pos();
@@ -7440,8 +7406,7 @@ pub fn win_fix_scroll(resize: bool) {
         }
 
         g_st().skip_update_topline = true;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if !(*wp).w_floating && (*wp).w_height != (*wp).w_prev_height {
                 (*wp).w_do_win_fix_cursor = true;
 
@@ -7473,7 +7438,6 @@ pub fn win_fix_scroll(resize: bool) {
             }
             (*wp).w_prev_height = (*wp).w_height;
             (*wp).w_prev_winrow = (*wp).w_winrow;
-            wp = (*wp).w_next;
         }
         g_st().skip_update_topline = false;
         if (get_real_state() & (MODE_NORMAL | MODE_CMDLINE | MODE_TERMINAL)) == 0 {
@@ -7937,13 +7901,11 @@ pub fn set_winbar_win(wp: *mut win_T, make_room: bool, valid_cursor: bool) -> c_
 }
 
 fn set_winbar_curtab(make_room: bool, valid_cursor: bool) -> bool {
-    unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+     {
+        for wp in for_all_windows_ptr() {
             if set_winbar_win(wp, make_room, valid_cursor) == FAIL {
                 return false;
             }
-            wp = (*wp).w_next;
         }
         true
     }
@@ -7957,8 +7919,7 @@ pub fn set_winbar_all(make_room: bool) {
     unsafe {
         let _ = set_winbar_curtab(make_room, true);
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             if !ptr::eq(tp, g_st().curtab) {
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
                 if ctx_switch(
@@ -7972,7 +7933,6 @@ pub fn set_winbar_all(make_room: bool) {
                 }
                 ctx_restore(&mut switchwin);
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -8034,8 +7994,7 @@ pub fn min_rows_for_all_tabpages() -> c_int {
         }
 
         let mut total: c_int = 0;
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             let mut n = frame_minheight(&mut *(*tp).tp_topframe, ptr::null_mut());
             if (if ptr::eq(tp, g_st().curtab) {
                 opt_vars().p_ch
@@ -8046,7 +8005,6 @@ pub fn min_rows_for_all_tabpages() -> c_int {
                 n += 1;
             }
             total = total.max(n);
-            tp = (*tp).tp_next;
         }
         total += tabline_height() + global_stl_height();
         total
@@ -8060,8 +8018,7 @@ pub fn only_one_window() -> bool {
         }
 
         let mut count: c_int = 0;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if !(*wp).w_buffer.is_null()
                 && (!((bt_help((*wp).w_buffer) && !bt_help(g_st().curbuf))
                     || (*wp).w_floating
@@ -8071,7 +8028,6 @@ pub fn only_one_window() -> bool {
             {
                 count += 1;
             }
-            wp = (*wp).w_next;
         }
         count <= 1
     }
@@ -8079,14 +8035,12 @@ pub fn only_one_window() -> bool {
 
 fn check_lnums_both(do_curwin: bool, nested: bool) {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+        for tp in for_all_tabpages_ptr() {
+            for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+            }) {
                 if (do_curwin || !ptr::eq(wp, curwin_ptr())) && ptr::eq((*wp).w_buffer, g_st().curbuf) {
                     if !nested {
                         (*wp).w_save_cursor.w_cursor_save = (*wp).w_cursor;
@@ -8109,9 +8063,7 @@ fn check_lnums_both(do_curwin: bool, nested: bool) {
                         (*wp).w_save_cursor.w_topline_corr = (*wp).w_topline;
                     }
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -8126,8 +8078,7 @@ pub fn check_lnums_nested(do_curwin: bool) {
 
 pub fn reset_lnums() {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
@@ -8149,7 +8100,6 @@ pub fn reset_lnums() {
                     }
                 }
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -8384,19 +8334,13 @@ pub fn win_locked(wp: &mut win_T) -> c_int {
 }
 
 pub fn win_get_tabwin(id: handle_T, tabnr: &mut c_int, winnr: &mut c_int) {
-    unsafe {
+     {
         *tabnr = 0;
         *winnr = 0;
 
-        let mut tnum: c_int = 1;
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for (tnum, tp) in (1 as c_int..).zip(for_all_tabpages_ptr()) {
             let mut wnum: c_int = 1;
-            for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
-                g_st().firstwin
-            } else {
-                (*tp).tp_firstwin
-            }) {
+            for wp in for_all_windows_in_tab_mut(tp) {
                 if wp.handle == id {
                     if win_has_winnr(wp, tp) {
                         *winnr = wnum;
@@ -8406,16 +8350,13 @@ pub fn win_get_tabwin(id: handle_T, tabnr: &mut c_int, winnr: &mut c_int) {
                 }
                 wnum += c_int::from(win_has_winnr(wp, tp));
             }
-            tnum += 1;
-            tp = (*tp).tp_next;
         }
     }
 }
 
 pub fn win_ui_flush(validate: bool) {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
@@ -8436,7 +8377,6 @@ pub fn win_ui_flush(validate: bool) {
                     ui_ext_win_viewport(wp);
                 }
             }
-            tp = (*tp).tp_next;
         }
         pum_pos_ui_flush(false);
         msg_ui_flush();

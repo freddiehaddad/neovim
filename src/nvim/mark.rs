@@ -1547,14 +1547,10 @@ pub fn mark_adjust_buf(
                 buf.b_has_qf_entry &= !BUF_HAS_QF_ENTRY;
             }
             let mut found_one = false;
-            let mut tab = g_st().first_tabpage;
-            while !tab.is_null() {
-                let mut win = first_win_in_tab(tab);
-                while !win.is_null() {
+            for tab in for_all_tabpages_ptr() {
+                for win in win_iter_ptr(first_win_in_tab(tab)) {
                     found_one |= qf_mark_adjust(buf, win, line1, line2, amount, amount_after);
-                    win = (*win).w_next;
                 }
-                tab = (*tab).tp_next;
             }
             if !found_one {
                 buf.b_has_qf_entry &= !BUF_HAS_LL_ENTRY;
@@ -1592,10 +1588,8 @@ pub fn mark_adjust_buf(
             }
         }
 
-        let mut tab = g_st().first_tabpage;
-        while !tab.is_null() {
-            let mut win = first_win_in_tab(tab);
-            while !win.is_null() {
+        for tab in for_all_tabpages_ptr() {
+            for win in win_iter_ptr(first_win_in_tab(tab)) {
                 if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                     for i in 0..((*win).w_jumplistlen as usize) {
                         if (*win).w_jumplist[i].fmark.fnum == fnum {
@@ -1686,9 +1680,7 @@ pub fn mark_adjust_buf(
                         foldMarkAdjust(&mut *win, line1, line2, amount, amount_after);
                     }
                 }
-                win = (*win).w_next;
             }
-            tab = (*tab).tp_next;
         }
 
         diff_mark_adjust(buf, line1, line2, amount, amount_after);
@@ -1860,8 +1852,7 @@ pub fn mark_col_adjust(
             spaces_removed,
         );
 
-        let mut win = first_win_in_tab(g_st().curtab);
-        while !win.is_null() {
+        for win in win_iter_ptr(first_win_in_tab(g_st().curtab)) {
             for i in 0..((*win).w_jumplistlen as usize) {
                 if (*win).w_jumplist[i].fmark.fnum == fnum {
                     col_adjust(
@@ -1900,7 +1891,6 @@ pub fn mark_col_adjust(
                     );
                 }
             }
-            win = (*win).w_next;
         }
     }
 }

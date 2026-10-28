@@ -436,12 +436,11 @@ fn fuzzy_match_in_list(
         let mut match_count: c_int = 0;
         let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
-        let mut li = if l.is_null() {
+        for li in crate::eval::typval::list_iter_ptr(if l.is_null() {
             std::ptr::null_mut()
         } else {
             (*l).lv_first
-        };
-        while !li.is_null() {
+        }) {
             if max_matches > 0 && match_count >= max_matches {
                 break;
             }
@@ -523,7 +522,6 @@ fn fuzzy_match_in_list(
                 match_count += 1;
             }
             tv_clear(&mut rettv);
-            li = (*li).li_next;
         }
 
         if !items.is_empty() {

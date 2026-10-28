@@ -421,13 +421,11 @@ pub fn newFoldLevel() {
         newFoldLevelWin(curwin_mut());
 
         if foldmethodIsDiff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
+            for wp in for_all_windows_ptr() {
                 if !ptr::eq(wp, curwin_ptr()) && foldmethodIsDiff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
                     (*wp).w_onebuf_opt.wo_fdl = curwin_mut().w_onebuf_opt.wo_fdl;
                     newFoldLevelWin(&mut *wp);
                 }
-                wp = (*wp).w_next;
             }
         }
     }
@@ -963,15 +961,13 @@ fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
 fn setManualFold(pos: pos_T, opening: bool, recurse: bool,donep: Option<&mut c_int>) -> linenr_T {
     unsafe {
         if foldmethodIsDiff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
+            for wp in for_all_windows_ptr() {
                 if !ptr::eq(wp, curwin_ptr()) && foldmethodIsDiff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
                     let dlnum = diff_lnum_win(curwin_mut().w_cursor.lnum, &mut *wp);
                     if dlnum != 0 {
                         setManualFoldWin(&mut *wp, dlnum, opening, recurse, None);
                     }
                 }
-                wp = (*wp).w_next;
             }
         }
 

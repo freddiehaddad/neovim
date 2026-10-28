@@ -4945,9 +4945,7 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let main_loop_ptr: *mut Loop = &raw mut g_st().main_loop;
         let waiting_jobs = multiqueue_new(main_loop_ptr);
 
-        let mut i: usize = 0;
-        let mut arg = tv_list_first(args);
-        while !arg.is_null() {
+        for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args)).enumerate() {
             let tv = &raw const (*arg).li_tv;
             let chan = if (*tv).v_type == VarType::VAR_NUMBER {
                 find_channel((*tv).vval.v_number() as u64)
@@ -4971,8 +4969,6 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                     }
                 }
             }
-            i += 1;
-            arg = (*arg).li_next;
         }
 
         let mut remaining: c_int = -1;
@@ -5699,9 +5695,7 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                     }
                 }
 
-                let mut idx: c_int = 0;
-                let mut li = tv_list_first(l);
-                while !li.is_null() {
+                for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(l))) {
                     let li_tv = &raw const (*li).li_tv;
                     if (*li_tv).v_type == VarType::VAR_STRING && !(*li_tv).vval.v_string().is_null() {
                         get_matches_in_str(
@@ -5713,8 +5707,6 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                             false,
                         );
                     }
-                    idx += 1;
-                    li = (*li).li_next;
                 }
             }
 

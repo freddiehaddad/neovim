@@ -4092,14 +4092,12 @@ pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
         update_topline(curwin_ptr());
         curbuf_mut().b_keep_filetype = false;
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(tp) {
                 if wp.w_buffer == curwin_mut().w_buffer && !foldmethodIsManual(wp) {
                     foldUpdateAll(wp);
                 }
             }
-            tp = (*tp).tp_next;
         }
 
         if orig_mode == curbuf_mut().b_orig_mode {

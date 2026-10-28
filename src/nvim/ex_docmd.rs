@@ -5607,8 +5607,7 @@ fn current_win_nr(win: *const win_T,cmdarg: Option<&exarg_T>) -> c_int {
         let nonnr = cmdarg.is_some() && cmdarg.unwrap().cmdidx != cmdidx_T::CMD_quit as c_int;
         let mut nr = 0;
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             let include_this = nonnr || win_has_winnr(&mut *wp, g_st().curtab);
             nr += c_int::from(include_this);
             if ptr::eq(wp, win) {
@@ -5617,22 +5616,19 @@ fn current_win_nr(win: *const win_T,cmdarg: Option<&exarg_T>) -> c_int {
                 }
                 break;
             }
-            wp = (*wp).w_next;
         }
         nr
     }
 }
 
 fn current_tab_nr(tab: *mut tabpage_T) -> c_int {
-    unsafe {
+     {
         let mut nr = 0;
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             nr += 1;
             if tp == tab {
                 break;
             }
-            tp = (*tp).tp_next;
         }
         nr
     }
@@ -9683,8 +9679,7 @@ fn ex_tabonly(eap: &mut exarg_T) {
         goto_tabpage(tab_number);
         let mut done: c_int = 0;
         while done < 1000 {
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 if (*tp).tp_topframe != g_st().topframe.cast() {
                     tabpage_close_other(&mut *tp, eap.forceit);
                     if valid_tabpage(tp) {
@@ -9692,7 +9687,6 @@ fn ex_tabonly(eap: &mut exarg_T) {
                     }
                     break;
                 }
-                tp = (*tp).tp_next;
             }
             if (*g_st().first_tabpage).tp_next.is_null() {
                 break;
@@ -10265,17 +10259,15 @@ fn ex_tabs(_eap: &mut exarg_T) {
             let _ = msg_outtrans((&raw const g_st().IObuff).cast(), HLF_T, false);
             os_breakcheck();
 
-            let mut wp = if ptr::eq(tp, g_st().curtab) {
+            for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
                 (*tp).tp_firstwin
-            };
-            while !wp.is_null() {
+            }) {
                 if g_st().got_int {
                     break;
                 }
                 if !(*wp).w_config.focusable || (*wp).w_config.hide {
-                    wp = (*wp).w_next;
                     continue;
                 }
 
@@ -10309,7 +10301,6 @@ fn ex_tabs(_eap: &mut exarg_T) {
                 let _ = msg_outtrans((&raw const g_st().IObuff).cast(), 0, false);
                 os_breakcheck();
 
-                wp = (*wp).w_next;
             }
 
             tp = (*tp).tp_next;
@@ -10678,22 +10669,19 @@ fn ex_syncbind(_eap: &mut exarg_T) {
 
         let vtopline = if curwin_mut().w_onebuf_opt.wo_scb != 0 {
             let mut vt = get_vtopline(curwin_mut());
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
+            for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_scb != 0 && !(*wp).w_buffer.is_null() {
                     let y = plines_m_win_fill(wp, 1, (*(*wp).w_buffer).b_ml.ml_line_count)
                         - (get_scrolloff_value(curwin_ptr()) as c_int);
                     vt = vt.min(y);
                 }
-                wp = (*wp).w_next;
             }
             vt.max(1)
         } else {
             1
         };
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).w_onebuf_opt.wo_scb != 0 {
                 let y = vtopline - get_vtopline(&mut *wp);
                 if y > 0 {
@@ -10706,7 +10694,6 @@ fn ex_syncbind(_eap: &mut exarg_T) {
                 cursor_correct(&mut *wp);
                 (*wp).w_redr_status = true;
             }
-            wp = (*wp).w_next;
         }
 
         if curwin_mut().w_onebuf_opt.wo_scb != 0 {

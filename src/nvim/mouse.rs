@@ -1964,13 +1964,11 @@ pub fn mouse_find_win_inner(
             }
         }
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if wp == (*fp).fr_win {
                 *rowp -= (*wp).w_winbar_height;
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }

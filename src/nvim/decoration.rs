@@ -622,8 +622,7 @@ pub fn buf_put_decor(buf: &mut buf_T, decor: DecorInline, row: c_int, mut row2: 
 
 fn may_force_numberwidth_recompute(buf: &mut buf_T, unplace: bool) {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
@@ -637,7 +636,6 @@ fn may_force_numberwidth_recompute(buf: &mut buf_T, unplace: bool) {
                     wp.w_nrwidth_line_count = 0;
                 }
             }
-            tp = (*tp).tp_next;
         }
     }
 }

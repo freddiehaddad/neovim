@@ -2021,14 +2021,12 @@ pub fn spell_reload() {
     unsafe {
         init_spell_chartab();
         spell_free_all();
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             let w_s = (*wp).w_s_ptr();
             if *(*w_s).b_p_spl != NUL && (*wp).w_onebuf_opt.wo_spell != 0 {
                 let _ = parse_spelllang(wp);
                 break;
             }
-            wp = (*wp).w_next;
         }
     }
 }
@@ -3268,13 +3266,11 @@ pub fn valid_spellfile(val: *const c_char) -> bool {
 pub fn did_set_spell_option() -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = std::ptr::null();
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).w_buffer == g_st().curbuf && (*wp).w_onebuf_opt.wo_spell != 0 {
                 errmsg = parse_spelllang(wp);
                 break;
             }
-            wp = (*wp).w_next;
         }
         errmsg
     }

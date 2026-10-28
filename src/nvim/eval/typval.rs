@@ -827,9 +827,33 @@ impl Iterator for ListMutIter {
     }
 }
 
+pub struct ListPtrIter(*mut listitem_T);
+
+impl Iterator for ListPtrIter {
+    type Item = *mut listitem_T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.0;
+        if cur.is_null() {
+            None
+        } else {
+            unsafe {
+                self.0 = (*cur).li_next;
+                Some(cur)
+            }
+        }
+    }
+}
+
 #[inline]
 pub fn list_iter_mut(start: *mut listitem_T) -> ListMutIter {
     ListMutIter(start)
+}
+
+#[inline]
+pub fn list_iter_ptr(start: *mut listitem_T) -> ListPtrIter {
+    ListPtrIter(start)
 }
 
 #[inline]
@@ -2145,16 +2169,12 @@ fn do_sort(l: *mut list_T, info: &mut sortinfo_T) {
         let len = tv_list_len_inline(l);
         let mut ptrs = Vec::with_capacity(len.max(0) as usize);
 
-        let mut i: c_int = 0;
-        let mut li = (*l).lv_first;
-        while !li.is_null() {
+        for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr((*l).lv_first)) {
             ptrs.push(ListSortItem {
                 item: li,
                 idx: i,
                 key: ListSortKey::Int(0),
             });
-            i += 1;
-            li = (*li).li_next;
         }
 
         info.item_compare_func_err = false;

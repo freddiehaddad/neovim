@@ -87,13 +87,11 @@ pub fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
             debug_assert!(!g_st().curtab.is_null());
             tp = g_st().curtab;
         }
-        let mut wp = first_win_in_tab(tp);
-        while !wp.is_null() {
+        for wp in win_iter_ptr(first_win_in_tab(tp)) {
             nr -= c_int::from(win_has_winnr(&mut *wp, tp));
             if nr <= 0 {
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }
@@ -116,14 +114,12 @@ fn win_getid(argvars: &mut [typval_T]) -> c_int {
             wp = g_st().firstwin;
         } else {
             let mut tabnr = tv_get_number(&argvars[1]) as c_int;
-            let mut tp2 = g_st().first_tabpage;
-            while !tp2.is_null() {
+            for tp2 in for_all_tabpages_ptr() {
                 tabnr -= 1;
                 if tabnr == 0 {
                     tp = tp2;
                     break;
                 }
-                tp2 = (*tp2).tp_next;
             }
             if tp.is_null() {
                 return -1;
@@ -160,19 +156,15 @@ pub fn win_id2wp(id: c_int) -> *mut win_T {
 /// Return the window and tab pointer of window `id` (`win_id2wp_tp`).
 pub fn win_id2wp_tp(id: c_int, tpp: *mut *mut tabpage_T) -> *mut win_T {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = first_win_in_tab(tp);
-            while !wp.is_null() {
+        for tp in for_all_tabpages_ptr() {
+            for wp in win_iter_ptr(first_win_in_tab(tp)) {
                 if (*wp).handle == id {
                     if !tpp.is_null() {
                         *tpp = tp;
                     }
                     return wp;
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
         ptr::null_mut()
     }
@@ -197,14 +189,12 @@ pub fn win_findbuf(argvars: &mut [typval_T], list: *mut list_T) {
     unsafe {
         let bufnr = tv_get_number(&argvars[0]) as c_int;
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(first_win_in_tab(tp)) {
                 if (*wp.w_buffer).b_fnum == bufnr {
                     tv_list_append_number(list, wp.handle as varnumber_T);
                 }
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -227,12 +217,10 @@ pub fn find_win_by_nr(vp: &typval_T, mut tp: *mut tabpage_T) -> *mut win_T {
         }
 
         if nr >= LOWEST_WIN_ID {
-            let mut wp = first_win_in_tab(tp);
-            while !wp.is_null() {
+            for wp in win_iter_ptr(first_win_in_tab(tp)) {
                 if (*wp).handle == nr {
                     return wp;
                 }
-                wp = (*wp).w_next;
             }
             return ptr::null_mut();
         }
@@ -520,11 +508,9 @@ pub fn f_gettabinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         }
 
         let mut tpnr: c_int = 0;
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             tpnr += 1;
             if !tparg.is_null() && tp != tparg {
-                tp = (*tp).tp_next;
                 continue;
             }
             let d = get_tabpage_info(&mut *tp, tpnr);
@@ -532,7 +518,6 @@ pub fn f_gettabinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             if !tparg.is_null() {
                 return;
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -557,12 +542,10 @@ pub fn f_getwininfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         while !tp.is_null() {
             tabnr = tabnr.wrapping_add(1);
             let mut winnr: i16 = 0;
-            let mut wp = first_win_in_tab(tp);
-            while !wp.is_null() {
+            for wp in win_iter_ptr(first_win_in_tab(tp)) {
                 let has_winnr = win_has_winnr(&mut *wp, tp);
                 winnr = winnr.wrapping_add(i16::from(has_winnr));
                 if !wparg.is_null() && wp != wparg {
-                    wp = (*wp).w_next;
                     continue;
                 }
                 let d = get_win_info(&mut *wp, tabnr, if has_winnr { winnr } else { 0 });
@@ -570,7 +553,6 @@ pub fn f_getwininfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 if !wparg.is_null() {
                     return;
                 }
-                wp = (*wp).w_next;
             }
             tp = (*tp).tp_next;
         }
@@ -687,10 +669,8 @@ pub fn f_win_gotoid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         if text_or_buf_locked() {
             return;
         }
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            let mut wp = first_win_in_tab(tp);
-            while !wp.is_null() {
+        for tp in for_all_tabpages_ptr() {
+            for wp in win_iter_ptr(first_win_in_tab(tp)) {
                 if (*wp).handle == id {
                     if g_st().Visual.active && (*wp).w_buffer != g_st().curbuf {
                         end_visual_mode();
@@ -699,9 +679,7 @@ pub fn f_win_gotoid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
                     return;
                 }
-                wp = (*wp).w_next;
             }
-            tp = (*tp).tp_next;
         }
     }
 }

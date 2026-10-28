@@ -330,15 +330,13 @@ pub fn get_arglist_exp(
 
 /// Check the validity of the `arg_idx` for each other window (`alist_check_arg_idx`).
 fn alist_check_arg_idx() {
-    unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+     {
+        for tp in for_all_tabpages_ptr() {
             for win in win_iter_mut(first_win_in_tab(tp)) {
                 if win_alist(win) == win_alist(curwin_mut()) {
                     check_arg_idx(win);
                 }
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -1039,8 +1037,7 @@ fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
             }
             if aall.opened[i as usize] > 0 {
                 if curwin_mut().w_arg_idx != i {
-                    let mut wp = g_st().firstwin;
-                    while !wp.is_null() {
+                    for wp in for_all_windows_ptr() {
                         if (*wp).w_arg_idx == i {
                             if aall.keep_tabs {
                                 aall.new_curwin = wp;
@@ -1056,7 +1053,6 @@ fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
                             }
                             break;
                         }
-                        wp = (*wp).w_next;
                     }
                 }
             } else if split_ret == OK {

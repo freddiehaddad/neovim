@@ -1464,12 +1464,10 @@ fn linecopy(grid: &mut ScreenGrid, to: c_int, from: c_int, col: c_int, width: c_
 
 pub fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).w_grid_alloc.handle == handle {
                 return wp;
             }
-            wp = (*wp).w_next;
         }
         ptr::null_mut()
     }

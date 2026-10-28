@@ -678,13 +678,11 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
 
         if (cs.cs_flags & kCtxKeepDirs) != 0 {
             let mut dirs_tab: *mut tabpage_T = ptr::null_mut();
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 if (*tp).handle == cs.cs_dirs_tab {
                     dirs_tab = tp;
                     break;
                 }
-                tp = (*tp).tp_next;
             }
             ctx_localdirs_restore(&mut *cs, ptr::null_mut(), dirs_tab, false);
         } else if cs.cs_cwd.is_some() && !ctx_st().CTX_DID_CHDIR {
@@ -764,14 +762,8 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
         block_autocmds();
         if curwin_ptr() != cwp {
             'win_found: {
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
-                    let mut wp = if tp == g_st().curtab {
-                        g_st().firstwin
-                    } else {
-                        (*tp).tp_firstwin
-                    };
-                    while !wp.is_null() {
+                for tp in for_all_tabpages_ptr() {
+                    for wp in for_all_windows_in_tab_ptr(tp) {
                         if wp == cwp {
                             if tp != g_st().curtab {
                                 goto_tabpage_tp(tp, true, true);
@@ -779,9 +771,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut win_T {
                             win_goto(cwp);
                             break 'win_found;
                         }
-                        wp = (*wp).w_next;
                     }
-                    tp = (*tp).tp_next;
                 }
             }
         }
@@ -839,13 +829,11 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             if buf == g_st().curbuf {
                 wp = curwin_ptr();
             } else {
-                let mut wp2 = g_st().firstwin;
-                while !wp2.is_null() {
+                for wp2 in for_all_windows_ptr() {
                     if (*wp2).w_buffer == buf {
                         wp = wp2;
                         break;
                     }
-                    wp2 = (*wp2).w_next;
                 }
             }
         }

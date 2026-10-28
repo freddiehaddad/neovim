@@ -2371,12 +2371,10 @@ pub fn autocmd_register(
                 && !(has_event(EVENT_WINSCROLLED) || has_event(EVENT_WINRESIZED))
             {
                 let save_curtab = g_st().curtab;
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
+                for tp in for_all_tabpages_ptr() {
                     unuse_tabpage(curtab_mut());
                     use_tabpage(tp);
                     snapshot_windows_scroll_size();
-                    tp = (*tp).tp_next;
                 }
                 unuse_tabpage(curtab_mut());
                 use_tabpage(save_curtab);
@@ -2514,10 +2512,8 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
         let mut bufref: bufref_T = bufref_T::new();
         let mut did_aucmd = false;
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if (*buf).b_ml.ml_mfp.is_none() || buf == g_st().curbuf {
-                buf = (*buf).b_next;
                 continue;
             }
 
@@ -2537,7 +2533,6 @@ pub fn ex_doautoall(eap: &mut exarg_T) {
                 retval = FAIL;
                 break;
             }
-            buf = (*buf).b_next;
         }
 
         if retval == OK {
@@ -2850,8 +2845,7 @@ pub fn apply_autocmds_group(
                 && (*buf).b_nwindows > 0
             {
                 win_ignore = true;
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
+                for tp in for_all_tabpages_ptr() {
                     for wp in for_all_windows_in_tab_mut(tp) {
                         if wp.w_buffer == buf && !event_ignored(event, wp.w_onebuf_opt.wo_eiw)
                         {
@@ -2859,7 +2853,6 @@ pub fn apply_autocmds_group(
                             break;
                         }
                     }
-                    tp = (*tp).tp_next;
                 }
             }
             if win_ignore {

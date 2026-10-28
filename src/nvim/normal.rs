@@ -3164,8 +3164,7 @@ pub fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
 
         g_st().Visual.select = false;
         g_st().Visual.active = false;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             set_curwin(wp);
             g_st().curbuf = curwin_mut().w_buffer;
             if !ptr::eq(curwin_ptr(), old_curwin) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
@@ -3202,7 +3201,6 @@ pub fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
                     set_leftcol(tgt_leftcol);
                 }
             }
-            wp = (*wp).w_next;
         }
 
         g_st().Visual.select = old_VIsual_select;

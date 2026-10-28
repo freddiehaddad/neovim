@@ -1221,14 +1221,12 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
         let mut byte_off: bcount_t = 0;
         if dest >= line2 {
             mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, kExtmarkNOOP);
-            let mut tab = g_st().first_tabpage;
-            while !tab.is_null() {
+            for tab in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut(tab) {
                     if win.w_buffer == g_st().curbuf {
                         foldMoveRange(&mut win.w_folds, line1, line2, dest);
                     }
                 }
-                tab = (*tab).tp_next;
             }
             if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 curbuf_mut().b_op_start.lnum = dest - num_lines + 1;
@@ -1238,14 +1236,12 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
             byte_off = -extent_byte;
         } else {
             mark_adjust_nofold(dest + 1, line1 - 1, num_lines, 0, kExtmarkNOOP);
-            let mut tab = g_st().first_tabpage;
-            while !tab.is_null() {
+            for tab in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut(tab) {
                     if win.w_buffer == g_st().curbuf {
                         foldMoveRange(&mut win.w_folds, dest + 1, line1 - 1, line2);
                     }
                 }
-                tab = (*tab).tp_next;
             }
             if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
                 curbuf_mut().b_op_start.lnum = dest + 1;
@@ -3076,14 +3072,12 @@ pub fn do_ecmd(
             if !auto_buf {
                 curwin_init();
 
-                let mut tp = g_st().first_tabpage;
-                while !tp.is_null() {
+                for tp in for_all_tabpages_ptr() {
                     for win in for_all_windows_in_tab_mut(tp) {
                         if win.w_buffer == g_st().curbuf {
                             foldUpdateAll(win);
                         }
                     }
-                    tp = (*tp).tp_next;
                 }
 
                 do_autochdir();
@@ -5058,16 +5052,13 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
             return false;
         }
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).w_onebuf_opt.wo_pvw != 0 {
                 if use_previewpopup {
                     if (*wp).w_kind != kWinPreview {
-                        wp = (*wp).w_next;
                         continue;
                     }
                 } else if (*wp).w_floating {
-                    wp = (*wp).w_next;
                     continue;
                 }
                 if use_previewpopup {
@@ -5076,7 +5067,6 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
                 win_enter(wp, undo_sync);
                 return false;
             }
-            wp = (*wp).w_next;
         }
 
         if use_previewpopup {

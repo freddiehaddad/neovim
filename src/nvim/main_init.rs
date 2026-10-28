@@ -740,12 +740,10 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         edit_buffers(&mut params);
 
         if params.diff_mode != 0 {
-            let mut wp = curtab_mut().tp_firstwin;
-            while !wp.is_null() {
+            for wp in win_iter_ptr(curtab_mut().tp_firstwin) {
                 if !(*wp).w_arg_idx_invalid {
                     diff_win_options(wp, true);
                 }
-                wp = (*wp).w_next;
             }
         }
 
@@ -974,8 +972,7 @@ pub fn getout(mut exitval: c_int) -> ! {
                 tp = next_tp;
             }
 
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
+            for buf in for_all_buffers_ptr() {
                 if (*buf).b_ml.ml_mfp.is_some() {
                     let mut bufref: bufref_T = bufref_T::new();
                     set_bufref(&mut bufref, buf);
@@ -984,7 +981,6 @@ pub fn getout(mut exitval: c_int) -> ! {
                         break;
                     }
                 }
-                buf = (*buf).b_next;
             }
 
             let mut unblock = 0;

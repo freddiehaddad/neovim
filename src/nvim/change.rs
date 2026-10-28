@@ -117,8 +117,7 @@ pub const fn replace_normal(s: c_int) -> bool {
 #[inline]
 fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             let mut wp = if tp == g_st().curtab {
                 g_st().firstwin
             } else {
@@ -129,7 +128,6 @@ fn for_all_tab_windows(mut f: impl FnMut(*mut win_T)) {
                 f(wp);
                 wp = next_wp;
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -486,8 +484,7 @@ pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
         buf_updates_send_changes(g_st().curbuf, lnum, 1, 1);
 
         if curwin_mut().w_onebuf_opt.wo_diff != 0 {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
+            for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_diff != 0 && wp != curwin_ptr() {
                     redraw_later(wp, UPD_VALID);
                     let wlnum = diff_lnum_win(lnum, &mut *wp);
@@ -495,7 +492,6 @@ pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
                         changed_lines_redraw_buf((*wp).w_buffer, wlnum, wlnum + 1, 0);
                     }
                 }
-                wp = (*wp).w_next;
             }
         }
     }
@@ -600,8 +596,7 @@ pub fn changed_lines(
             && curwin_mut().w_buffer == buf
             && diff_internal() == 0
         {
-            let mut wp = g_st().firstwin;
-            while !wp.is_null() {
+            for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_diff != 0 && wp != curwin_ptr() {
                     redraw_later(wp, UPD_VALID);
                     let wlnum = diff_lnum_win(lnum, &mut *wp);
@@ -609,7 +604,6 @@ pub fn changed_lines(
                         changed_lines_redraw_buf((*wp).w_buffer, wlnum, lnume - lnum + wlnum, 0);
                     }
                 }
-                wp = (*wp).w_next;
             }
         }
 

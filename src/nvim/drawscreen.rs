@@ -352,15 +352,13 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
                 opt_vars().p_ch = max_p_ch.max(1);
                 curtab_mut().tp_ch_used = opt_vars().p_ch;
             }
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 if !ptr::eq(tp, g_st().curtab) {
                     let max_tp_ch = OptInt::from(g_st().Rows - min_rows(&mut *tp) + 1);
                     if (*tp).tp_ch_used > 0 && (*tp).tp_ch_used > max_tp_ch {
                         (*tp).tp_ch_used = max_tp_ch.max(1);
                     }
                 }
-                tp = (*tp).tp_next;
             }
         }
         height = g_st().Rows;
@@ -636,12 +634,10 @@ pub fn update_screen() -> bool {
 
         if g_st().redraw_tabline || type_ >= UPD_NOT_VALID {
             update_window_hl(curwin_mut(), type_ >= UPD_NOT_VALID);
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 if !ptr::eq(tp, g_st().curtab) {
                     update_window_hl(&mut *(*tp).tp_curwin, type_ >= UPD_NOT_VALID);
                 }
-                tp = (*tp).tp_next;
             }
             draw_tabline();
         }
@@ -1445,13 +1441,11 @@ fn win_update(wp: &mut win_T) {
             );
         }
 
-        let mut win = g_st().firstwin;
-        while !win.is_null() {
+        for win in for_all_windows_ptr() {
             if ptr::eq((*win).w_buffer, wp.w_buffer) && win_redraw_signcols(&mut *win) {
                 changed_line_abv_curs_win(&mut *win);
                 redraw_later(win, UPD_NOT_VALID);
             }
-            win = (*win).w_next;
         }
         (*buf).b_signcols.last_max = (*buf).b_signcols.max;
 
@@ -2609,11 +2603,9 @@ pub fn redraw_later(wp: *mut win_T, type_: c_int) {
 }
 
 pub fn redraw_all_later(type_: c_int) {
-    unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+     {
+        for wp in for_all_windows_ptr() {
             redraw_later(wp, type_);
-            wp = (*wp).w_next;
         }
         set_must_redraw(type_);
     }
@@ -2627,11 +2619,9 @@ pub fn set_must_redraw(type_: c_int) {
 
 pub fn screen_invalidate_highlights() {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             redraw_later(wp, UPD_NOT_VALID);
             (*wp).w_grid_alloc.valid = false;
-            wp = (*wp).w_next;
         }
     }
 }
@@ -2642,27 +2632,23 @@ pub fn redraw_curbuf_later(type_: c_int) {
 
 pub fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
                 redraw_later(wp, type_);
             }
-            wp = (*wp).w_next;
         }
     }
 }
 
 pub fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
                 redrawWinline(wp, line.min((*buf).b_ml.ml_line_count));
                 if force && line > (*buf).b_ml.ml_line_count {
                     (*wp).w_redraw_bot = line;
                 }
             }
-            wp = (*wp).w_next;
         }
     }
 }
@@ -2687,20 +2673,17 @@ pub fn redrawWinline(wp: *mut win_T, lnum: linenr_T) {
 
 pub fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf) {
                 redraw_win_range_later(wp, first, last);
             }
-            wp = (*wp).w_next;
         }
     }
 }
 
 pub fn redraw_buf_status_later(buf: *mut buf_T) {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf)
                 && ((*wp).w_status_height != 0
                     || (ptr::eq(wp, curwin_ptr()) && global_stl_height() != 0)
@@ -2709,7 +2692,6 @@ pub fn redraw_buf_status_later(buf: *mut buf_T) {
                 (*wp).w_redr_status = true;
                 set_must_redraw(UPD_VALID);
             }
-            wp = (*wp).w_next;
         }
         if opt_vars().p_ru != 0
             && ptr::eq(curwin_mut().w_buffer, buf)
@@ -2725,8 +2707,7 @@ pub fn status_redraw_all() {
     unsafe {
         let is_stl_global = global_stl_height() != 0;
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (!is_stl_global && (*wp).w_status_height != 0)
                 || ptr::eq(wp, curwin_ptr())
                 || (*wp).w_winbar_height != 0
@@ -2734,7 +2715,6 @@ pub fn status_redraw_all() {
                 (*wp).w_redr_status = true;
                 redraw_later(wp, UPD_VALID);
             }
-            wp = (*wp).w_next;
         }
     }
 }
@@ -2747,8 +2727,7 @@ pub fn status_redraw_buf(buf: *mut buf_T) {
     unsafe {
         let is_stl_global = global_stl_height() != 0;
 
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if ptr::eq((*wp).w_buffer, buf)
                 && ((!is_stl_global && (*wp).w_status_height != 0)
                     || (is_stl_global && ptr::eq(wp, curwin_ptr()))
@@ -2757,7 +2736,6 @@ pub fn status_redraw_buf(buf: *mut buf_T) {
                 (*wp).w_redr_status = true;
                 redraw_later(wp, UPD_VALID);
             }
-            wp = (*wp).w_next;
         }
         if opt_vars().p_ru != 0 && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status {
             g_st().redraw_cmdline = true;
@@ -2768,14 +2746,12 @@ pub fn status_redraw_buf(buf: *mut buf_T) {
 
 pub fn redraw_statuslines() {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).w_redr_status {
                 win_check_ns_hl(wp);
                 win_redr_winbar(&mut *wp);
                 win_redr_status(&mut *wp);
             }
-            wp = (*wp).w_next;
         }
 
         win_check_ns_hl(ptr::null_mut());

@@ -761,17 +761,15 @@ fn sign_unplace_inner(
 }
 
 fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T) -> bool {
-    unsafe {
+     {
         if !buf.is_null() {
             sign_unplace_inner(buf, id, group, atlnum)
         } else {
             let mut retval = true;
-            let mut cbuf = g_st().firstbuf;
-            while !cbuf.is_null() {
+            for cbuf in for_all_buffers_ptr() {
                 if !sign_unplace_inner(cbuf, id, group, atlnum) {
                     retval = false;
                 }
-                cbuf = (*cbuf).b_next;
             }
             retval
         }
@@ -1233,12 +1231,10 @@ fn sign_get_placed(
         if !buf.is_null() {
             sign_get_placed_in_buf(buf, lnum, id, group, &mut *retlist);
         } else {
-            let mut cbuf = g_st().firstbuf;
-            while !cbuf.is_null() {
+            for cbuf in for_all_buffers_ptr() {
                 if buf_has_signs(cbuf) {
                     sign_get_placed_in_buf(cbuf, 0, id, group, &mut *retlist);
                 }
-                cbuf = (*cbuf).b_next;
             }
         }
     }

@@ -3032,8 +3032,7 @@ fn cmdpreview_prepare() -> CpInfo {
             save_view: Vec::new(),
         };
 
-        let mut win = g_st().firstwin;
-        while !win.is_null() {
+        for win in for_all_windows_ptr() {
             let buf = (*win).w_buffer;
 
             if (*buf).b_fnum != getln_st().cmdpreview_bufnr {
@@ -3061,7 +3060,6 @@ fn cmdpreview_prepare() -> CpInfo {
                 (*win).w_onebuf_opt.wo_cuc = 0;
             }
 
-            win = (*win).w_next;
         }
 
         cpinfo.save_hls = opt_vars().p_hls != 0;
@@ -3814,9 +3812,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     break 'color_cmdline_end;
                 }
                 let mut prev_end: varnumber_T = 0;
-                let mut i: c_int = 0;
-                let mut li = tv_list_first(v_list);
-                while !li.is_null() {
+                for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(v_list))) {
                     let li_tv = &raw mut (*li).li_tv;
                     if (*li_tv).v_type != VarType::VAR_LIST {
                         g_st().msg_scroll = 1;
@@ -3932,8 +3928,6 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         end: end as c_int,
                         hl_id: syn_name2id(group),
                     });
-                    i += 1;
-                    li = (*li).li_next;
                 }
                 if prev_end < colored_ccline.cmdlen as varnumber_T {
                     (*ccline_colors).colors.push(CmdlineColorChunk {

@@ -171,8 +171,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 wp = ptr::null_mut();
             } else {
                 wp = ptr::null_mut();
-                let mut wp2 = g_st().firstwin;
-                while !wp2.is_null() {
+                for wp2 in for_all_windows_ptr() {
                     if bt_help((*wp2).w_buffer)
                         && !(*wp2).w_config.hide
                         && (*wp2).w_config.focusable
@@ -180,7 +179,6 @@ pub fn ex_help(eap: &mut exarg_T) {
                         wp = wp2;
                         break;
                     }
-                    wp2 = (*wp2).w_next;
                 }
             }
             if !wp.is_null() && (*(*wp).w_buffer).b_nwindows > 0 {

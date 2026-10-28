@@ -215,8 +215,7 @@ fn match_add(
             let mut i: usize = 0;
             let mut failed = false;
 
-            let mut li = tv_list_first(pos_list);
-            while !li.is_null() {
+            for li in crate::eval::typval::list_iter_ptr(tv_list_first(pos_list)) {
                 let mut lnum: linenr_T = 0;
                 let mut col: colnr_T = 0;
                 let mut len: c_int = 1;
@@ -239,7 +238,6 @@ fn match_add(
                         break;
                     }
                     if lnum <= 0 {
-                        li = (*li).li_next;
                         continue;
                     }
                     m.mit_pos[i].lnum = lnum;
@@ -252,7 +250,6 @@ fn match_add(
                             break;
                         }
                         if col < 0 {
-                            li = (*li).li_next;
                             continue;
                         }
                         subli = (*subli).li_next;
@@ -260,7 +257,6 @@ fn match_add(
                             len = tv_get_number_chk(&(*subli).li_tv, Some(&mut error))
                                 as colnr_T;
                             if len < 0 {
-                                li = (*li).li_next;
                                 continue;
                             }
                             if error {
@@ -273,7 +269,6 @@ fn match_add(
                     m.mit_pos[i].len = len;
                 } else if (*li).li_tv.v_type == VarType::VAR_NUMBER {
                     if (*li).li_tv.vval.v_number() <= 0 {
-                        li = (*li).li_next;
                         continue;
                     }
                     m.mit_pos[i].lnum = (*li).li_tv.vval.v_number() as linenr_T;
@@ -294,7 +289,6 @@ fn match_add(
                     botlnum = lnum + 1;
                 }
                 i += 1;
-                li = (*li).li_next;
             }
 
             if failed {

@@ -278,8 +278,7 @@ fn diff_scan_remember(
 }
 pub fn diff_buf_delete(buf: *mut buf_T) {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
             if i != DB_COUNT as c_int {
                 (*tp).tp_diffbuf[i as usize] = ptr::null_mut();
@@ -289,7 +288,6 @@ pub fn diff_buf_delete(buf: *mut buf_T) {
                     redraw_later(curwin_ptr(), UPD_VALID);
                 }
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -357,8 +355,7 @@ fn diff_buf_idx(buf: *mut buf_T, tp: &mut tabpage_T) -> c_int {
 }
 pub fn diff_invalidate(buf: *mut buf_T) {
     unsafe {
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             let i = diff_buf_idx(buf, &mut *tp);
             if i != DB_COUNT as c_int {
                 (*tp).tp_diff_invalid = 1;
@@ -366,7 +363,6 @@ pub fn diff_invalidate(buf: *mut buf_T) {
                     diff_redraw(true);
                 }
             }
-            tp = (*tp).tp_next;
         }
     }
 }
@@ -686,10 +682,8 @@ pub fn diff_redraw(dofold: bool) {
         let mut used_max_fill_other = false;
         let mut used_max_fill_curwin = false;
         g_st().need_diff_redraw = false;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             if (*wp).w_onebuf_opt.wo_diff == 0 || !buf_valid((*wp).w_buffer) {
-                wp = (*wp).w_next;
                 continue;
             }
             redraw_later(wp, UPD_SOME_VALID);
@@ -713,7 +707,6 @@ pub fn diff_redraw(dofold: bool) {
                 }
                 check_topfill(wp, false);
             }
-            wp = (*wp).w_next;
         }
         if !wp_other.is_null() && curwin_mut().w_onebuf_opt.wo_scb != 0 {
             if used_max_fill_curwin {
@@ -1529,8 +1522,7 @@ pub fn diff_win_options(wp: *mut win_T, addbuf: bool) {
 pub fn ex_diffoff(eap: &mut exarg_T) {
     unsafe {
         let mut diffwin = false;
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             let cond = if eap.forceit != 0 {
                 (*wp).w_onebuf_opt.wo_diff != 0
             } else {
@@ -1583,7 +1575,6 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
                 diff_buf_adjust(&mut *wp);
             }
             diffwin |= (*wp).w_onebuf_opt.wo_diff != 0;
-            wp = (*wp).w_next;
         }
         if eap.forceit != 0 {
             diff_buf_clear();
@@ -3569,14 +3560,12 @@ fn diff_fold_update(
     skip_idx: usize,
 ) {
     unsafe {
-        let mut wp = g_st().firstwin;
-        while !wp.is_null() {
+        for wp in for_all_windows_ptr() {
             for i in 0..DB_COUNT {
                 if curtab_mut().tp_diffbuf[i] == (*wp).w_buffer && i != skip_idx {
                     foldUpdate(wp, df_lnum[i], df_lnum[i] + df_count[i]);
                 }
             }
-            wp = (*wp).w_next;
         }
     }
 }

@@ -5415,8 +5415,7 @@ pub fn expand_process_user_list(
         let mut have_extra = false;
 
         if !retlist.is_null() {
-            let mut li = (*retlist).lv_first;
-            while !li.is_null() {
+            for li in crate::eval::typval::list_iter_ptr((*retlist).lv_first) {
                 let tv = &raw const (*li).li_tv;
                 let p: CString;
                 let mut abbr: Option<std::ffi::CString> = None;
@@ -5426,7 +5425,6 @@ pub fn expand_process_user_list(
 
                 if (*tv).v_type == VarType::VAR_STRING {
                     if (*tv).vval.v_string().is_null() {
-                        li = (*li).li_next;
                         continue;
                     }
                     p = cstr_to_cstring((*tv).vval.v_string());
@@ -5434,7 +5432,6 @@ pub fn expand_process_user_list(
                     let d = (*tv).vval.v_dict();
                     let word = tv_dict_get_string(d, c"word");
                     if word.is_null() {
-                        li = (*li).li_next;
                         continue;
                     }
                     p = cstr_to_cstring(word);
@@ -5446,7 +5443,6 @@ pub fn expand_process_user_list(
                         have_extra = true;
                     }
                 } else {
-                    li = (*li).li_next;
                     continue;
                 }
 
@@ -5456,7 +5452,6 @@ pub fn expand_process_user_list(
                 ga_menu.push(menu);
                 ga_info.push(info);
 
-                li = (*li).li_next;
             }
         }
 

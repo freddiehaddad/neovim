@@ -82,8 +82,7 @@ pub fn find_buffer(avar: &mut typval_T) -> *mut buf_T {
             buf = buflist_findname_exp(avar.vval.v_string());
             if buf.is_null() {
                 let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
-                let mut bp = g_st().firstbuf;
-                while !bp.is_null() {
+                for bp in for_all_buffers_ptr() {
                     if !(*bp).b_fname.is_null()
                         && (path_with_url((*bp).b_fname) != 0 || bt_nofilename(bp))
                         && crate::memory::cstr_as_bytes((*bp).b_fname) == target
@@ -91,7 +90,6 @@ pub fn find_buffer(avar: &mut typval_T) -> *mut buf_T {
                         buf = bp;
                         break;
                     }
-                    bp = (*bp).b_next;
                 }
             }
         }
@@ -242,19 +240,15 @@ fn set_buffer_lines(
         if added > 0 {
             appended_lines_mark(append_lnum, added);
 
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
-                let mut wp = first_win_in_tab(tp);
-                while !wp.is_null() {
+            for tp in for_all_tabpages_ptr() {
+                for wp in win_iter_ptr(first_win_in_tab(tp)) {
                     if (*wp).w_buffer == buf
                         && ((*wp).w_buffer != g_st().curbuf || wp == curwin_ptr())
                         && (*wp).w_cursor.lnum > append_lnum
                     {
                         (*wp).w_cursor.lnum += added as linenr_T;
                     }
-                    wp = (*wp).w_next;
                 }
-                tp = (*tp).tp_next;
             }
             check_cursor_col(curwin_mut());
             update_topline(curwin_ptr());
@@ -323,8 +317,7 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
         );
         deleted_lines_buf(&raw mut *buf, 1, to_delete);
 
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(first_win_in_tab(tp)) {
                 if wp.w_buffer == buf {
                     wp.w_cursor.lnum = if wp.w_cursor.lnum <= to_delete {
@@ -337,7 +330,6 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
                     }
                 }
             }
-            tp = (*tp).tp_next;
         }
         check_cursor_col(curwin_mut());
     }
@@ -693,8 +685,7 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                 ml_delete_flags(first, ML_DEL_MESSAGE);
             }
 
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 for wp in win_iter_mut(first_win_in_tab(tp)) {
                     if wp.w_buffer == buf {
                         if wp.w_cursor.lnum > last {
@@ -707,7 +698,6 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                         }
                     }
                 }
-                tp = (*tp).tp_next;
             }
             check_cursor_col(curwin_mut());
             deleted_lines_mark(first, count);
@@ -772,14 +762,12 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         tv_dict_add_dict(dict, c"variables", buf.b_vars());
 
         let windows = tv_list_alloc(kListLenMayKnow);
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
+        for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(first_win_in_tab(tp)) {
                 if wp.w_buffer == buf {
                     tv_list_append_number(windows, wp.handle as varnumber_T);
                 }
             }
-            tp = (*tp).tp_next;
         }
         tv_dict_add_list(dict, c"windows", windows);
 
@@ -820,10 +808,8 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             }
         }
 
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if !argbuf.is_null() && argbuf != buf {
-                buf = (*buf).b_next;
                 continue;
             }
             if filtered
@@ -831,7 +817,6 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                     || (sel_buflisted && (*buf).b_p_bl == 0)
                     || (sel_bufmodified && (*buf).b_changed == 0))
             {
-                buf = (*buf).b_next;
                 continue;
             }
 
@@ -840,7 +825,6 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             if !argbuf.is_null() {
                 return;
             }
-            buf = (*buf).b_next;
         }
     }
 }

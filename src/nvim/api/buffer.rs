@@ -616,14 +616,12 @@ pub fn nvim_buf_set_lines(
                 true,
             );
 
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut(tp) {
                     if win.w_buffer == b {
                         fix_cursor(win, start as linenr_T, end as linenr_T, extra as linenr_T);
                     }
                 }
-                tp = (*tp).tp_next;
             }
         });
     }
@@ -949,8 +947,7 @@ pub fn nvim_buf_set_text(
                 true,
             );
 
-            let mut tp = g_st().first_tabpage;
-            while !tp.is_null() {
+            for tp in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut(tp) {
                     if win.w_buffer == b {
                         if i64::from(win.w_cursor.lnum) >= start_row
@@ -975,7 +972,6 @@ pub fn nvim_buf_set_text(
                         }
                     }
                 }
-                tp = (*tp).tp_next;
             }
         });
     }

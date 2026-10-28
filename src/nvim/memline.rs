@@ -683,11 +683,9 @@ pub fn ml_close(buf: *mut buf_T, del_file: c_int) {
 
 /// Close all existing memlines and memfiles.
 pub fn ml_close_all(del_file: bool) {
-    unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+     {
+        for buf in for_all_buffers_ptr() {
             ml_close(buf, c_int::from(del_file));
-            buf = (*buf).b_next;
         }
         spell_delete_wordlist();
         vim_deltempdir();
@@ -697,12 +695,10 @@ pub fn ml_close_all(del_file: bool) {
 /// Close all memfiles for not modified buffers.
 pub fn ml_close_notmod() {
     unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             if !bufIsChanged(&mut *buf) {
                 ml_close(buf, 1);
             }
-            buf = (*buf).b_next;
         }
     }
 }
@@ -1933,11 +1929,9 @@ fn recov_file_names(
 /// Sync all memlines.
 pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
     unsafe {
-        let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
+        for buf in for_all_buffers_ptr() {
             let mfp = (*buf).b_ml.mfp_ptr();
             if mfp.is_null() || (*mfp).mf_fname.is_none() {
-                buf = (*buf).b_next;
                 continue;
             }
             ml_flush_line(buf, false);
@@ -1972,7 +1966,6 @@ pub fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) {
                     break;
                 }
             }
-            buf = (*buf).b_next;
         }
     }
 }
