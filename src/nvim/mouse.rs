@@ -290,7 +290,7 @@ fn mouse_tab_close(c1: i32) {
             tabpage_close(0);
         }
     } else if !tp.is_null() {
-        tabpage_close_other(unsafe { &mut *tp }, 0);
+        tabpage_close_other(tp, 0);
     }
 }
 

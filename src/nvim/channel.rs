@@ -431,9 +431,9 @@ pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr)
     reader.reader_type = Some(r#type);
 }
 
-pub fn free_channel_event(chan: &mut Channel) {
+pub fn free_channel_event(chan: *mut Channel) {
     unsafe {
-        let _ = g_st().channels.remove(&chan.id);
+        let _ = g_st().channels.remove(&(*chan).id);
         drop(Box::from_raw(chan));
     }
 }

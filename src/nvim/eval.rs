@@ -5434,49 +5434,49 @@ pub fn add_timer_info_all(rettv: &mut TypVal) {
 }
 
 /// Invoked on the main loop.
-pub fn timer_due_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
-    let save_did_emsg = g_st().did_emsg;
-    let called_emsg_before = g_st().called_emsg;
+pub fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut VimTimer) {
+    unsafe {
+        let save_did_emsg = g_st().did_emsg;
+        let called_emsg_before = g_st().called_emsg;
 
-    if timer.stopped || timer.paused {
-        return;
-    }
-
-    timer.refcount += 1;
-    if timer.repeat_count >= 0 {
-        timer.repeat_count -= 1;
-        if timer.repeat_count == 0 {
-            timer_stop(timer);
+        if (*timer).stopped || (*timer).paused {
+            return;
         }
-    }
 
-    let mut argv = [tv_initial_value(), tv_initial_value()];
-    argv[0].v_type = VarType::VarNumber;
-    argv[0].vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(timer.timer_id));
-    let mut rettv = tv_initial_value();
+        (*timer).refcount += 1;
+        if (*timer).repeat_count >= 0 {
+            (*timer).repeat_count -= 1;
+            if (*timer).repeat_count == 0 {
+                timer_stop(&mut *timer);
+            }
+        }
 
-    callback_call(&mut timer.callback, 1, argv.as_mut_ptr(), &mut rettv);
+        let mut argv = [tv_initial_value(), tv_initial_value()];
+        argv[0].v_type = VarType::VarNumber;
+        argv[0].vval = crate::eval::typval::TypvalVval::Number(Varnumber::from((*timer).timer_id));
+        let mut rettv = tv_initial_value();
 
-    {
+        callback_call(&mut (*timer).callback, 1, argv.as_mut_ptr(), &mut rettv);
+
         if g_st().called_emsg > called_emsg_before && g_st().did_emsg != 0 {
-            timer.emsg_count += 1;
+            (*timer).emsg_count += 1;
             if g_st().did_throw {
                 discard_current_exception();
             }
         }
         g_st().did_emsg = save_did_emsg;
-    }
 
-    if timer.emsg_count >= 3 {
-        timer_stop(timer);
-    }
+        if (*timer).emsg_count >= 3 {
+            timer_stop(&mut *timer);
+        }
 
-    tv_clear(&mut rettv);
+        tv_clear(&mut rettv);
 
-    if !timer.stopped && timer.timeout == 0 {
-        time_watcher_start(&mut timer.watcher, 0, 0);
+        if !(*timer).stopped && (*timer).timeout == 0 {
+            time_watcher_start(&mut (*timer).watcher, 0, 0);
+        }
+        timer_decref(timer);
     }
-    timer_decref(timer);
 }
 
 pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
@@ -5523,15 +5523,19 @@ pub fn timer_stop(timer: &mut VimTimer) {
     }
 }
 
-pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
-    let _ = eval_st().timers.remove(&(timer.timer_id as u64));
-    timer_decref(timer);
+pub(crate) fn timer_close_cb(_tw: *mut TimeWatcher, timer: *mut VimTimer) {
+    unsafe {
+        let _ = eval_st().timers.remove(&((*timer).timer_id as u64));
+        timer_decref(timer);
+    }
 }
 
-fn timer_decref(timer: &mut VimTimer) {
-    timer.refcount -= 1;
-    if timer.refcount == 0 {
-        drop(unsafe { Box::from_raw(&raw mut *timer) });
+fn timer_decref(timer: *mut VimTimer) {
+    unsafe {
+        (*timer).refcount -= 1;
+        if (*timer).refcount == 0 {
+            drop(Box::from_raw(timer));
+        }
     }
 }
 

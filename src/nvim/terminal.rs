@@ -1422,29 +1422,30 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
 }
 
 pub fn terminal_destroy(termpp: *mut *mut Terminal) {
-    let term = unsafe { &mut **termpp };
-    let buf = handle_get_buffer(term.buf_handle);
-    if !buf.is_null() {
-        term.buf_handle = 0;
-        unsafe {
+    unsafe {
+        let term = *termpp;
+        if term.is_null() {
+            return;
+        }
+        let buf = handle_get_buffer((*term).buf_handle);
+        if !buf.is_null() {
+            (*term).buf_handle = 0;
             (*buf).terminal = ptr::null_mut();
         }
-    }
 
-    if term.refcount == 0 {
-        if let Some(pos) = term_st()
-            .invalidated_terminals
-            .iter()
-            .position(|&t| std::ptr::eq(t, term))
-        {
-            block_autocmds();
-            refresh_terminal(term);
-            unblock_autocmds();
-            term_st().invalidated_terminals.swap_remove(pos);
-        }
-        drop(unsafe { Box::from_raw(&raw mut *term) });
-        unsafe {
+        if (*term).refcount == 0 {
+            if let Some(pos) = term_st()
+                .invalidated_terminals
+                .iter()
+                .position(|&t| t == term)
+            {
+                block_autocmds();
+                refresh_terminal(&mut *term);
+                unblock_autocmds();
+                term_st().invalidated_terminals.swap_remove(pos);
+            }
             *termpp = ptr::null_mut();
+            drop(Box::from_raw(term));
         }
     }
 }

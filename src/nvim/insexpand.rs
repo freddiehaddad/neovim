@@ -5509,65 +5509,64 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut c_char 
 }
 
 pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
-    let compl_len = get_compl_len();
-    let preinsert = ins_compl_has_preinsert();
-    let shown = compl_opt(insexp().compl_shown_idx);
-    let shown = { unsafe { &mut *shown } };
-    let mut cp_str = shown.cp_str.data;
-    let mut cp_str_len = shown.cp_str.size;
-    let leader_len = ins_compl_leader_len();
-    let has_multiple = crate::memory::cstr_as_bytes(cp_str).contains(&b'\n');
+    unsafe {
+        let compl_len = get_compl_len();
+        let preinsert = ins_compl_has_preinsert();
+        let shown = compl_opt(insexp().compl_shown_idx);
+        let mut cp_str = (*shown).cp_str.data;
+        let mut cp_str_len = (*shown).cp_str.size;
+        let leader_len = ins_compl_leader_len();
+        let has_multiple = crate::memory::cstr_as_bytes(cp_str).contains(&b'\n');
 
-    let cpt_sources = &insexp().cpt_sources_array;
-    if insert_prefix {
-        cp_str = find_common_prefix(&mut cp_str_len, false);
-        if cp_str.is_null() {
-            cp_str = find_common_prefix(&mut cp_str_len, true);
+        if insert_prefix {
+            cp_str = find_common_prefix(&mut cp_str_len, false);
             if cp_str.is_null() {
-                let shown = compl_opt(insexp().compl_shown_idx);
-                let shown = { unsafe { &mut *shown } };
-                cp_str = shown.cp_str.data;
-                cp_str_len = shown.cp_str.size;
+                cp_str = find_common_prefix(&mut cp_str_len, true);
+                if cp_str.is_null() {
+                    let shown = compl_opt(insexp().compl_shown_idx);
+                    cp_str = (*shown).cp_str.data;
+                    cp_str_len = (*shown).cp_str.size;
+                }
             }
-        }
-    } else if !cpt_sources.is_empty() {
-        let cpt_idx = shown.cp_cpt_source_idx;
-        if cpt_idx >= 0 && insexp().compl_col >= 0 {
-            let startcol = insexp().cpt_sources_array[cpt_idx as usize].cs_startcol;
-            if startcol >= 0 && startcol < insexp().compl_col {
-                let skip = insexp().compl_col - startcol;
-                if (skip as usize) <= cp_str_len {
-                    cp_str_len -= skip as usize;
-                    cp_str = cp_str.wrapping_add(skip as usize);
+        } else if !insexp().cpt_sources_array.is_empty() {
+            let cpt_idx = (*shown).cp_cpt_source_idx;
+            if cpt_idx >= 0 && insexp().compl_col >= 0 {
+                let startcol = insexp().cpt_sources_array[cpt_idx as usize].cs_startcol;
+                if startcol >= 0 && startcol < insexp().compl_col {
+                    let skip = insexp().compl_col - startcol;
+                    if (skip as usize) <= cp_str_len {
+                        cp_str_len -= skip as usize;
+                        cp_str = cp_str.wrapping_add(skip as usize);
+                    }
                 }
             }
         }
-    }
 
-    if compl_len < cp_str_len as i32 {
-        if has_multiple {
-            ins_compl_expand_multiple(cp_str.wrapping_add(compl_len as usize));
-        } else {
-            ins_compl_insert_bytes(
-                cp_str.wrapping_add(compl_len as usize),
-                if insert_prefix {
-                    (cp_str_len as i32) - compl_len
-                } else {
-                    -1
-                },
-            );
-            if (preinsert || insert_prefix) && move_cursor {
-                curwin_mut().w_cursor.col -= (cp_str_len - leader_len) as Colnr;
+        if compl_len < cp_str_len as i32 {
+            if has_multiple {
+                ins_compl_expand_multiple(cp_str.wrapping_add(compl_len as usize));
+            } else {
+                ins_compl_insert_bytes(
+                    cp_str.wrapping_add(compl_len as usize),
+                    if insert_prefix {
+                        (cp_str_len as i32) - compl_len
+                    } else {
+                        -1
+                    },
+                );
+                if (preinsert || insert_prefix) && move_cursor {
+                    curwin_mut().w_cursor.col -= (cp_str_len - leader_len) as Colnr;
+                }
             }
         }
-    }
-    let shown = compl_opt(insexp().compl_shown_idx);
-    insexp().compl_used_match =
-        !(match_at_original_text(unsafe { &*shown }) || (preinsert && !insert_prefix));
+        let shown = compl_opt(insexp().compl_shown_idx);
+        insexp().compl_used_match =
+            !(match_at_original_text(&*shown) || (preinsert && !insert_prefix));
 
-    let dict = ins_compl_dict_alloc(shown);
-    set_vim_var_dict(VV_COMPLETED_ITEM, dict);
-    insexp().compl_hi_on_autocompl_longest = insert_prefix && move_cursor;
+        let dict = ins_compl_dict_alloc(shown);
+        set_vim_var_dict(VV_COMPLETED_ITEM, dict);
+        insexp().compl_hi_on_autocompl_longest = insert_prefix && move_cursor;
+    }
 }
 
 fn ins_compl_show_filename() {
@@ -5726,11 +5725,13 @@ fn find_next_completion_match(
 
         let shown = compl_opt(insexp().compl_shown_idx);
         let leader = get_leader_for_startcol(unsafe { shown.as_ref() }, false);
-        let leader = { unsafe { &mut *leader } };
 
         if !match_at_original_text(unsafe { &*shown })
-            && !leader.data.is_null()
-            && !ins_compl_equal(unsafe { &mut *shown }, leader.data, leader.size)
+            && !leader.is_null()
+            && !unsafe { (*leader).data.is_null() }
+            && !ins_compl_equal(unsafe { &mut *shown }, unsafe { (*leader).data }, unsafe {
+                (*leader).size
+            })
             && !(cot_fuzzy() && unsafe { (*shown).cp_score } != FUZZY_SCORE_NONE)
         {
             todo += 1;

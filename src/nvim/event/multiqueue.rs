@@ -95,10 +95,8 @@ impl Event {
             Self::LoopDeferred { loop_, event } => {
                 crate::event::r#loop::loop_deferred_event(unsafe { &mut *loop_ }, *event);
             }
-            Self::TimeWatcher(watcher) => crate::event::time::time_event(unsafe { &mut *watcher }),
-            Self::TimeWatcherClose(watcher) => {
-                crate::event::time::close_event(unsafe { &mut *watcher })
-            }
+            Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher),
+            Self::TimeWatcherClose(watcher) => crate::event::time::close_event(watcher),
             Self::Signal(watcher) => crate::event::signal::signal_event(unsafe { &mut *watcher }),
             Self::RStreamRead(stream) => crate::event::rstream::read_event(unsafe { &mut *stream }),
             Self::SocketConnection { watcher, status } => {
@@ -114,7 +112,7 @@ impl Event {
                 crate::autocmd::deferred_optionset_modified(bufnr, new_val);
             }
             Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
-            Self::ChannelFree(chan) => crate::channel::free_channel_event(unsafe { &mut *chan }),
+            Self::ChannelFree(chan) => crate::channel::free_channel_event(chan),
             Self::ChannelCallback(chan) => crate::channel::on_channel_event(unsafe { &mut *chan }),
             Self::ChannelTermDelayedFree(chan) => {
                 crate::channel::term_delayed_free(unsafe { &mut *chan })

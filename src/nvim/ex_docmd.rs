@@ -9049,45 +9049,47 @@ pub fn not_exiting(save_exiting: bool) {
     set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
 }
 
-pub fn before_quit_autocmds(wp: &mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
-    if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
-        set_vim_var_string(VV_EXITREASON, c"quit", 4);
-    }
-    apply_autocmds_win(
-        EVENT_QUITPRE,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        wp.w_buffer,
-        Some(wp),
-    );
-
-    if !win_valid(&raw mut *wp)
-        || curbuf_locked()
-        || (wp.buf_mut().b_nwindows == 1 && wp.buf_mut().b_locked > 0)
-    {
-        set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
-        return true;
-    }
-
-    if quit_all || (check_more(false, forceit) && only_one_window()) {
-        apply_autocmds(
-            EVENT_EXITPRE,
+pub fn before_quit_autocmds(wp: *mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
+    unsafe {
+        if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
+            set_vim_var_string(VV_EXITREASON, c"quit", 4);
+        }
+        apply_autocmds_win(
+            EVENT_QUITPRE,
             ptr::null_mut(),
             ptr::null_mut(),
             false,
-            g_st().curbuf,
+            (*wp).w_buffer,
+            wp.as_ref(),
         );
-        if !win_valid(&raw mut *wp)
+
+        if !win_valid(wp)
             || curbuf_locked()
-            || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
+            || ((*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0)
         {
             set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
             return true;
         }
-    }
 
-    false
+        if quit_all || (check_more(false, forceit) && only_one_window()) {
+            apply_autocmds(
+                EVENT_EXITPRE,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                g_st().curbuf,
+            );
+            if !win_valid(wp)
+                || curbuf_locked()
+                || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
+            {
+                set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+                return true;
+            }
+        }
+
+        false
+    }
 }
 
 fn ex_quit(eap: &mut Exarg) {
@@ -9116,7 +9118,7 @@ fn ex_quit(eap: &mut Exarg) {
             return;
         }
 
-        if before_quit_autocmds(&mut *wp, false, eap.forceit != 0) {
+        if before_quit_autocmds(wp, false, eap.forceit != 0) {
             return;
         }
 
@@ -9160,7 +9162,7 @@ pub fn before_quit_all(eap: &mut Exarg) -> bool {
         text_locked_msg();
         return false;
     }
-    if before_quit_autocmds(curwin_mut(), true, eap.forceit != 0) {
+    if before_quit_autocmds(curwin_ptr(), true, eap.forceit != 0) {
         return false;
     }
     true
@@ -9704,7 +9706,7 @@ fn ex_tabclose(eap: &mut Exarg) {
         return;
     }
     if tp != g_st().curtab {
-        tabpage_close_other(unsafe { &mut *tp }, eap.forceit);
+        tabpage_close_other(tp, eap.forceit);
     } else if !text_locked() && !curbuf_locked() {
         tabpage_close(eap.forceit);
     }
@@ -9730,7 +9732,7 @@ fn ex_tabonly(eap: &mut Exarg) {
     while done < 1000 {
         for tp in for_all_tabpages_ptr() {
             if tp.tp_topframe != g_st().topframe.cast() {
-                tabpage_close_other(&mut *tp, eap.forceit);
+                tabpage_close_other(tp, eap.forceit);
                 if valid_tabpage(tp) {
                     done = 1000;
                 }
@@ -9776,49 +9778,45 @@ pub fn tabpage_close(forceit: i32) {
     }
 }
 
-pub fn tabpage_close_other(tp: &mut TabPageInfo, forceit: i32) {
-    let mut done: i32 = 0;
-    let mut prev_idx = [0 as c_char; NUMBUFLEN];
+pub fn tabpage_close_other(tp: *mut TabPageInfo, forceit: i32) {
+    unsafe {
+        let mut done: i32 = 0;
+        let mut prev_idx = [0 as c_char; NUMBUFLEN];
 
-    debug_assert!(!ptr::eq(tp, g_st().curtab));
+        debug_assert!(!ptr::eq(tp, g_st().curtab));
 
-    if window_layout_locked(Cmdidx::CmdSize) {
-        return;
-    }
-
-    trigger_tabclosedpre(&raw mut *tp);
-    tp.tp_did_tabclosedpre = true;
-
-    while {
-        done += 1;
-        done < 1000
-    } {
-        let _ = vim_snprintf!(
-            prev_idx.as_mut_ptr(),
-            NUMBUFLEN,
-            c"%i",
-            tabpage_index(&raw mut *tp),
-        );
-        let wp = tp.tp_lastwin;
-        let wp = unsafe { &mut *wp };
-
-        if ptr::eq(tp, g_st().curtab) {
-            done = 1000;
-            break;
-        }
-        ex_win_close(forceit, &mut *wp, &raw mut *tp);
-
-        if !valid_tabpage(&raw mut *tp) {
-            break;
+        if window_layout_locked(Cmdidx::CmdSize) {
+            return;
         }
 
-        if tp.tp_lastwin == wp {
-            done = 1000;
-            break;
+        trigger_tabclosedpre(&mut *tp);
+        (*tp).tp_did_tabclosedpre = true;
+
+        while {
+            done += 1;
+            done < 1000
+        } {
+            let _ = vim_snprintf!(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i", tabpage_index(tp),);
+            let wp = (*tp).tp_lastwin;
+
+            if ptr::eq(tp, g_st().curtab) {
+                done = 1000;
+                break;
+            }
+            ex_win_close(forceit, &mut *wp, tp);
+
+            if !valid_tabpage(tp) {
+                break;
+            }
+
+            if (*tp).tp_lastwin == wp {
+                done = 1000;
+                break;
+            }
         }
-    }
-    if done >= 1000 {
-        tp.tp_did_tabclosedpre = false;
+        if done >= 1000 && valid_tabpage(tp) {
+            (*tp).tp_did_tabclosedpre = false;
+        }
     }
 }
 
@@ -9887,7 +9885,7 @@ fn ex_exit(eap: &mut Exarg) {
         g_st().exiting = true;
     }
     if ((eap.cmdidx == Cmdidx::CmdWq as i32 || curbuf_is_changed_fn()) && !do_write(eap))
-        || before_quit_autocmds(curwin_mut(), false, eap.forceit != 0)
+        || before_quit_autocmds(curwin_ptr(), false, eap.forceit != 0)
         || !check_more(true, eap.forceit != 0)
         || (only_one_window() && check_changed_any(eap.forceit != 0, false))
     {

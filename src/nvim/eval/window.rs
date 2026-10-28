@@ -744,7 +744,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
 
     if curwin_ptr() == targetwin && win_valid(wp) {
-        if win_splitmove(unsafe { &mut *wp }, size, flags) {
+        if win_splitmove(wp, size, flags) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     } else {

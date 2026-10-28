@@ -1042,7 +1042,8 @@ impl Drop for Funccall {
 
 /// Handle the last part of returning from a function: free the local hashtable.
 /// Unless it is still in use by a closure.
-fn cleanup_function_call(fc: &mut Funccall) {
+fn cleanup_function_call(fc_ptr: *mut Funccall) {
+    let fc = unsafe { &mut *fc_ptr };
     let may_free_fc = fc.fc_refcount <= 0;
     let mut free_fc = true;
 
@@ -1091,12 +1092,12 @@ fn cleanup_function_call(fc: &mut Funccall) {
     }
 
     if free_fc {
-        drop(unsafe { Box::from_raw(fc) });
+        drop(unsafe { Box::from_raw(fc_ptr) });
     } else {
         fc.fc_caller = ptr::null_mut();
         uf_st()
             .previous_funccal
-            .push(RetainedFunccall(unsafe { Box::from_raw(fc) }));
+            .push(RetainedFunccall(unsafe { Box::from_raw(fc_ptr) }));
 
         if g_st().want_garbage_collect {
             uf_st().made_copy = 0;
@@ -1555,7 +1556,7 @@ pub fn call_user_func(
         for &tv in tv_to_free.iter().take(tv_to_free_len) {
             tv_clear(&mut *tv);
         }
-        cleanup_function_call(&mut *fc);
+        cleanup_function_call(fc);
 
         fp.uf_calls -= 1;
         if fp.uf_calls <= 0 && fp.uf_refcount <= 0 {
@@ -1654,7 +1655,7 @@ pub fn set_current_funccal(fc: *mut Funccall) {
 pub fn free_all_functions() {
     while !uf_st().current_funccal.is_null() {
         tv_clear(unsafe { &mut *cur_funccal_mut().fc_rettv });
-        cleanup_function_call(unsafe { &mut *uf_st().current_funccal });
+        cleanup_function_call(uf_st().current_funccal);
         if uf_st().current_funccal.is_null() && !uf_st().funccal_stack.is_empty() {
             restore_funccal();
         }
