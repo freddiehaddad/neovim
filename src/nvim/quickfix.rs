@@ -7788,7 +7788,7 @@ fn get_qf_loc_list(
                 get_errorlist(None, wp, -1, 0, rettv.vval.v_list());
             }
         } else {
-            tv_dict_alloc_ret(&raw mut *rettv);
+            tv_dict_alloc_ret(rettv);
             if is_qf || !wp.is_null() {
                 if what_arg.v_type == VarType::VAR_DICT {
                     let d = what_arg.vval.v_dict();

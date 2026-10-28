@@ -5797,7 +5797,8 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
 
 /// "getcompletion()" function.
 pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut xpc: expand_T = expand_T::new();
@@ -5805,7 +5806,7 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut options =
             WILD_SILENT | WILD_USE_NL | WILD_ADD_SLASH | WILD_NO_BEEP | WILD_HOME_REPLACE;
 
-        if tv_check_for_string_arg(argvars, 1) == FAIL {
+        if tv_check_for_string_arg(argvars_slice, 1) == FAIL {
             return;
         }
         let type_str = tv_get_string(argvars.add(1));
@@ -5937,13 +5938,14 @@ pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 /// "getcompletiontype()" function.
 pub fn f_getcompletiontype(argvars: &mut [typval_T], rettv: &mut typval_T,
     _fptr: EvalFuncData,){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL {
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL {
             return;
         }
 

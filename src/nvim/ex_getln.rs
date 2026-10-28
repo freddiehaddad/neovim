@@ -4946,8 +4946,8 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_opt_number_arg(argvars_slice, 1) == FAIL
         {
             return;
         }

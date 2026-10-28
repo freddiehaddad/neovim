@@ -708,7 +708,7 @@ pub fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
 }
 
 #[inline]
-pub fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
+pub fn tv_list_set_ret(tv: &mut typval_T, l: *mut list_T) {
     tv_list_set_ret_inline(tv, l)
 }
 
@@ -782,12 +782,10 @@ fn tv_list_ref_inline(l: *mut list_T) {
 }
 
 #[inline]
-fn tv_list_set_ret_inline(tv: *mut typval_T, l: *mut list_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_LIST;
-        (*tv).vval = crate::eval::typval::TypvalVval::List(l);
-        tv_list_ref_inline(l);
-    }
+fn tv_list_set_ret_inline(tv: &mut typval_T, l: *mut list_T) {
+    tv.v_type = VarType::VAR_LIST;
+    tv.vval = crate::eval::typval::TypvalVval::List(l);
+    tv_list_ref_inline(l);
 }
 
 #[inline]
@@ -894,11 +892,11 @@ fn tv_list_last_inline(l: *const list_T) -> *mut listitem_T {
 }
 
 #[inline]
-fn tv_dict_set_ret_inline(tv: *mut typval_T, d: *mut dict_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_DICT;
-        (*tv).vval = crate::eval::typval::TypvalVval::Dict(d);
-        if !d.is_null() {
+fn tv_dict_set_ret_inline(tv: &mut typval_T, d: *mut dict_T) {
+    tv.v_type = VarType::VAR_DICT;
+    tv.vval = crate::eval::typval::TypvalVval::Dict(d);
+    if !d.is_null() {
+        unsafe {
             (*d).dv_refcount += 1;
         }
     }
@@ -919,11 +917,11 @@ fn tv_dict_is_watched_inline(d: *const dict_T) -> bool {
 }
 
 #[inline]
-fn tv_blob_set_ret_inline(tv: *mut typval_T, b: *mut blob_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_BLOB;
-        (*tv).vval = crate::eval::typval::TypvalVval::Blob(b);
-        if !b.is_null() {
+fn tv_blob_set_ret_inline(tv: &mut typval_T, b: *mut blob_T) {
+    tv.v_type = VarType::VAR_BLOB;
+    tv.vval = crate::eval::typval::TypvalVval::Blob(b);
+    if !b.is_null() {
+        unsafe {
             (*b).bv_refcount += 1;
         }
     }
@@ -1696,7 +1694,7 @@ pub fn tv_list_slice_or_index(
             }
             let l = tv_list_slice(rettv.vval.v_list(), n1, n2);
             tv_clear(&raw mut *rettv);
-            tv_list_set_ret_inline(&raw mut *rettv, l);
+            tv_list_set_ret_inline(rettv, l);
         } else {
             let found = tv_list_find(rettv.vval.v_list(), n1 as c_int);
             let mut var1 = tv_initial_value();
@@ -2222,7 +2220,8 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
 }
 
 fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         info.item_compare_ic = 0;
         info.item_compare_lc = false;
@@ -2291,7 +2290,7 @@ fn parse_sort_uniq_args(argvars: &mut [typval_T], info: &mut sortinfo_T) -> c_in
         }
 
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_dict_arg(argvars, 2) == FAIL {
+            if tv_check_for_dict_arg(argvars_slice, 2) == FAIL {
                 return FAIL;
             }
             info.item_compare_selfdict = (*argvars.add(2)).vval.v_dict();
@@ -3598,7 +3597,7 @@ fn tv_blob_slice(
             let new_bv = &mut (*new_blob).bv_ga;
             new_bv.extend_from_slice(&(&(*src_blob).bv_ga)[(n1 as usize)..=(n2 as usize)]);
             tv_clear(&raw mut *rettv);
-            tv_blob_set_ret_inline(&raw mut *rettv, new_blob);
+            tv_blob_set_ret_inline(rettv, new_blob);
         }
 
         OK
@@ -3748,7 +3747,7 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
                 let src_bv = &mut (*b).bv_ga;
                 let dst_bv = &mut (*blob).bv_ga;
                 dst_bv.extend(src_bv.drain((idx as usize)..=(end as usize)));
-                tv_blob_set_ret_inline(&raw mut *rettv, blob);
+                tv_blob_set_ret_inline(rettv, blob);
             }
         }
     }
@@ -3756,12 +3755,13 @@ pub fn tv_blob_remove(argvars: &mut [typval_T],
 
 /// blob2list() function.
 pub fn f_blob2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
-        if tv_check_for_blob_arg(argvars, 0) == FAIL {
+        if tv_check_for_blob_arg(argvars_slice, 0) == FAIL {
             return;
         }
 
@@ -3775,12 +3775,13 @@ pub fn f_blob2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// list2blob() function.
 pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let blob = tv_blob_alloc_ret(rettv);
 
-        if tv_check_for_list_arg(argvars, 0) == FAIL {
+        if tv_check_for_list_arg(argvars_slice, 0) == FAIL {
             return;
         }
 
@@ -3831,15 +3832,16 @@ pub fn tv_dict_alloc_lock(lock: VarLockStatus) -> *mut dict_T {
 }
 
 /// Allocate an empty dictionary for a return value.
-pub fn tv_dict_alloc_ret(ret_tv: *mut typval_T) {
+pub fn tv_dict_alloc_ret(ret_tv: &mut typval_T) {
     let d = tv_dict_alloc_lock(VAR_UNLOCKED);
-        tv_dict_set_ret_inline(ret_tv, d);
+    tv_dict_set_ret_inline(ret_tv, d);
 }
 
 fn tv_dict2list(argvars: &mut [typval_T], rettv: &mut typval_T, what: DictListType) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        if tv_check_for_dict_arg(argvars, 0) == FAIL {
+        if tv_check_for_dict_arg(argvars_slice, 0) == FAIL {
             tv_list_alloc_ret(&mut *rettv, 0);
             return;
         }
@@ -3916,10 +3918,11 @@ pub fn f_values(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// "has_key()" function.
 pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_dict_arg(argvars, 0) == FAIL {
+        if tv_check_for_dict_arg(argvars_slice, 0) == FAIL {
             return;
         }
 
@@ -3973,10 +3976,10 @@ pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
 }
 
 /// Allocate an empty blob for a return value.
-pub fn tv_blob_alloc_ret(ret_tv: *mut typval_T) -> *mut blob_T {
+pub fn tv_blob_alloc_ret(ret_tv: &mut typval_T) -> *mut blob_T {
     let b = tv_blob_alloc();
-        tv_blob_set_ret_inline(ret_tv, b);
-        b
+    tv_blob_set_ret_inline(ret_tv, b);
+    b
 }
 
 /// Copy a blob typval to a different typval.
@@ -3987,7 +3990,7 @@ pub fn tv_blob_copy(from: *mut blob_T, to: &mut typval_T) {
         if from.is_null() {
             to.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
         } else {
-            let dst_blob = &mut *tv_blob_alloc_ret(&raw mut *to);
+            let dst_blob = &mut *tv_blob_alloc_ret(to);
             dst_blob.bv_ga.extend_from_slice(&(*from).bv_ga);
         }
     }
@@ -4905,270 +4908,232 @@ pub fn tv_get_float(tv: *const typval_T) -> float_T {
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string.
-pub fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type != VarType::VAR_STRING {
-            semsg!(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_string_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type != VarType::VAR_STRING {
+        semsg!(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a non-empty string.
-pub fn tv_check_for_nonempty_string_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if tv_check_for_string_arg(args, idx) == FAIL {
-            return FAIL;
-        }
-        let s = (*args.offset(idx as isize)).vval.v_string();
-        if s.is_null() || *s == NUL {
-            semsg!(
-                tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_nonempty_string_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if tv_check_for_string_arg(args, idx) == FAIL {
+        return FAIL;
     }
+    let s = args[idx as usize].vval.v_string();
+    if s.is_null() || unsafe { *s == NUL } {
+        semsg!(
+            tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
+    }
+    OK
 }
 
 /// Check for an optional string argument at "idx".
-pub fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
-            || tv_check_for_string_arg(args, idx) != FAIL
-        {
-            OK
-        } else {
-            FAIL
-        }
+pub fn tv_check_for_opt_string_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+        || tv_check_for_string_arg(args, idx) != FAIL
+    {
+        OK
+    } else {
+        FAIL
     }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a number.
-pub fn tv_check_for_number_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type != VarType::VAR_NUMBER {
-            semsg!(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_number_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type != VarType::VAR_NUMBER {
+        semsg!(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        return FAIL;
     }
+    OK
 }
 
 /// Check for an optional number argument at "idx".
-pub fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
-            || tv_check_for_number_arg(args, idx) != FAIL
-        {
-            OK
-        } else {
-            FAIL
-        }
+pub fn tv_check_for_opt_number_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+        || tv_check_for_number_arg(args, idx) != FAIL
+    {
+        OK
+    } else {
+        FAIL
     }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a float or a number.
-pub fn tv_check_for_float_or_nr_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        let vt = (*args.offset(idx as isize)).v_type;
-        if vt != VarType::VAR_FLOAT && vt != VarType::VAR_NUMBER {
-            semsg!(
-                tr(E_FLOAT_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_float_or_nr_arg(args: &[typval_T], idx: c_int) -> c_int {
+    let vt = args[idx as usize].v_type;
+    if vt != VarType::VAR_FLOAT && vt != VarType::VAR_NUMBER {
+        semsg!(
+            tr(E_FLOAT_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a bool.
-pub fn tv_check_for_bool_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        let arg = &*args.offset(idx as isize);
-        if arg.v_type != VarType::VAR_BOOL
-            && !(arg.v_type == VarType::VAR_NUMBER
-                && (arg.vval.v_number() == 0 || arg.vval.v_number() == 1))
-        {
-            semsg!(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_bool_arg(args: &[typval_T], idx: c_int) -> c_int {
+    let arg = &args[idx as usize];
+    if arg.v_type != VarType::VAR_BOOL
+        && !(arg.v_type == VarType::VAR_NUMBER
+            && (arg.vval.v_number() == 0 || arg.vval.v_number() == 1))
+    {
+        semsg!(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        return FAIL;
     }
+    OK
 }
 
 /// Check for an optional bool argument at "idx".
-pub fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN {
-            return OK;
-        }
-        tv_check_for_bool_arg(args, idx)
+pub fn tv_check_for_opt_bool_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type == VarType::VAR_UNKNOWN {
+        return OK;
     }
+    tv_check_for_bool_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a blob.
-pub fn tv_check_for_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type != VarType::VAR_BLOB {
-            semsg!(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_blob_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type != VarType::VAR_BLOB {
+        semsg!(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a list.
-pub fn tv_check_for_list_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type != VarType::VAR_LIST {
-            semsg!(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_list_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type != VarType::VAR_LIST {
+        semsg!(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a dict.
-pub fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type != VarType::VAR_DICT {
-            semsg!(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_dict_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type != VarType::VAR_DICT {
+        semsg!(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a non-NULL dict.
-pub fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if tv_check_for_dict_arg(args, idx) == FAIL {
-            return FAIL;
-        }
-        if (*args.offset(idx as isize)).vval.v_dict().is_null() {
-            semsg!(
-                tr(E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_nonnull_dict_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if tv_check_for_dict_arg(args, idx) == FAIL {
+        return FAIL;
     }
+    if args[idx as usize].vval.v_dict().is_null() {
+        semsg!(
+            tr(E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
+    }
+    OK
 }
 
 /// Check for an optional dict argument at "idx".
-pub fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
-            || tv_check_for_dict_arg(args, idx) != FAIL
-        {
-            OK
-        } else {
-            FAIL
-        }
+pub fn tv_check_for_opt_dict_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+        || tv_check_for_dict_arg(args, idx) != FAIL
+    {
+        OK
+    } else {
+        FAIL
     }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a number.
-pub fn tv_check_for_string_or_number_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        let vt = (*args.offset(idx as isize)).v_type;
-        if vt != VarType::VAR_STRING && vt != VarType::VAR_NUMBER {
-            semsg!(
-                tr(E_STRING_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_string_or_number_arg(args: &[typval_T], idx: c_int) -> c_int {
+    let vt = args[idx as usize].v_type;
+    if vt != VarType::VAR_STRING && vt != VarType::VAR_NUMBER {
+        semsg!(
+            tr(E_STRING_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a buffer number.
-pub fn tv_check_for_buffer_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub fn tv_check_for_buffer_arg(args: &[typval_T], idx: c_int) -> c_int {
     tv_check_for_string_or_number_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a line number.
-pub fn tv_check_for_lnum_arg(args: *const typval_T, idx: c_int) -> c_int {
+pub fn tv_check_for_lnum_arg(args: &[typval_T], idx: c_int) -> c_int {
     tv_check_for_string_or_number_arg(args, idx)
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a list.
-pub fn tv_check_for_string_or_list_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        let vt = (*args.offset(idx as isize)).v_type;
-        if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST {
-            semsg!(
-                tr(E_STRING_OR_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_string_or_list_arg(args: &[typval_T], idx: c_int) -> c_int {
+    let vt = args[idx as usize].v_type;
+    if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST {
+        semsg!(
+            tr(E_STRING_OR_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string, a list or a blob.
-pub fn tv_check_for_string_or_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        let vt = (*args.offset(idx as isize)).v_type;
-        if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
-            semsg!(
-                tr(E_STRING_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_string_or_list_or_blob_arg(args: &[typval_T], idx: c_int) -> c_int {
+    let vt = args[idx as usize].v_type;
+    if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
+        semsg!(
+            tr(E_STRING_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
     }
+    OK
 }
 
 /// Check for an optional string or list argument at "idx".
-pub fn tv_check_for_opt_string_or_list_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        if (*args.offset(idx as isize)).v_type == VarType::VAR_UNKNOWN
-            || tv_check_for_string_or_list_arg(args, idx) != FAIL
-        {
-            OK
-        } else {
-            FAIL
-        }
+pub fn tv_check_for_opt_string_or_list_arg(args: &[typval_T], idx: c_int) -> c_int {
+    if args[idx as usize].v_type == VarType::VAR_UNKNOWN
+        || tv_check_for_string_or_list_arg(args, idx) != FAIL
+    {
+        OK
+    } else {
+        FAIL
     }
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a string or a function reference.
-pub fn tv_check_for_string_or_func_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        let vt = (*args.offset(idx as isize)).v_type;
-        if vt != VarType::VAR_PARTIAL && vt != VarType::VAR_FUNC && vt != VarType::VAR_STRING {
-            semsg!(
-                tr(E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_string_or_func_arg(args: &[typval_T], idx: c_int) -> c_int {
+    let vt = args[idx as usize].v_type;
+    if vt != VarType::VAR_PARTIAL && vt != VarType::VAR_FUNC && vt != VarType::VAR_STRING {
+        semsg!(
+            tr(E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
     }
+    OK
 }
 
 /// Give an error and return FAIL unless "args[idx]" is a list or a blob.
-pub fn tv_check_for_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
-    unsafe {
-        let vt = (*args.offset(idx as isize)).v_type;
-        if vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
-            semsg!(
-                tr(E_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
-                idx + 1,
-            );
-            return FAIL;
-        }
-        OK
+pub fn tv_check_for_list_or_blob_arg(args: &[typval_T], idx: c_int) -> c_int {
+    let vt = args[idx as usize].v_type;
+    if vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
+        semsg!(
+            tr(E_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
+            idx + 1,
+        );
+        return FAIL;
     }
+    OK
 }
 
 /// Get the string value of a "stringish" Vimscript object.
@@ -5512,7 +5477,7 @@ mod tests {
             assert!(!tv_islocked(&tv_l));
 
             let mut tv_d = tv_initial_value();
-            tv_dict_alloc_ret(&raw mut tv_d);
+            tv_dict_alloc_ret(&mut tv_d);
             assert_eq!(tv_d.v_type, VarType::VAR_DICT);
 
             tv_clear(&raw mut tv_str);

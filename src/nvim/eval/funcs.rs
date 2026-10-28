@@ -1544,10 +1544,11 @@ pub fn f_byte2line(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// "call(func, arglist [, dict])" function
 pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_list_arg(argvars, 1) == FAIL {
+        if tv_check_for_list_arg(argvars_slice, 1) == FAIL {
             return;
         }
         if (*argvars.add(1)).vval.v_list().is_null() {
@@ -1592,7 +1593,7 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
         'done: {
             let mut selfdict: *mut dict_T = ptr::null_mut();
             if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-                if tv_check_for_dict_arg(argvars, 2) == FAIL {
+                if tv_check_for_dict_arg(argvars_slice, 2) == FAIL {
                     break 'done;
                 }
                 selfdict = (*argvars.add(2)).vval.v_dict().cast();
@@ -1730,10 +1731,11 @@ pub fn f_char2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// Get the current cursor column and store it in `rettv`.
 fn get_col(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
-        if tv_check_for_string_or_list_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
+        if tv_check_for_string_or_list_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_opt_number_arg(argvars_slice, 1) == FAIL
         {
             return;
         }
@@ -1989,10 +1991,11 @@ pub fn f_debugbreak(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// "deepcopy()" function
 pub fn f_deepcopy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_opt_bool_arg(argvars, 1) == FAIL {
+        if tv_check_for_opt_bool_arg(argvars_slice, 1) == FAIL {
             return;
         }
         let mut noref: varnumber_T = 0;
@@ -2657,7 +2660,8 @@ pub fn f_foreground(_argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
 
 /// "function()" and "funcref()" common implementation
 fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: bool) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut s: *mut c_char;
         let mut name: *mut c_char;
@@ -2735,7 +2739,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                         arg_idx = 1;
                     }
                     if dict_idx > 0 {
-                        if tv_check_for_dict_arg(argvars, dict_idx as c_int) == FAIL {
+                        if tv_check_for_dict_arg(argvars_slice, dict_idx as c_int) == FAIL {
                             break 'theend;
                         }
                         if (*argvars.add(dict_idx)).vval.v_dict().is_null() {
@@ -3283,13 +3287,14 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
     p2: &mut pos_T,inclusive: &mut bool,region_type: &mut c_int,
     oap: &mut oparg_T,
 ) -> c_int {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
 
-        if tv_check_for_list_arg(argvars, 0) == FAIL
-            || tv_check_for_list_arg(argvars, 1) == FAIL
-            || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
+        if tv_check_for_list_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_list_arg(argvars_slice, 1) == FAIL
+            || tv_check_for_opt_dict_arg(argvars_slice, 2) == FAIL
         {
             return FAIL;
         }
@@ -3820,10 +3825,11 @@ pub fn f_wait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
 /// "gettext()" function
 pub fn f_gettext(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
+        if tv_check_for_nonempty_string_arg(argvars_slice, 0) == FAIL {
             return;
         }
         crate::eval::typval::tv_set_string(rettv, gettext((*argvars).vval.v_string()));
@@ -4266,14 +4272,15 @@ fn indexof_list(l: *mut list_T, startidx: varnumber_T, expr: *mut typval_T) -> v
 
 /// "indexof()" function
 pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_list_or_blob_arg(argvars, 0) == FAIL
-            || tv_check_for_string_or_func_arg(argvars, 1) == FAIL
-            || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
+        if tv_check_for_list_or_blob_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_string_or_func_arg(argvars_slice, 1) == FAIL
+            || tv_check_for_opt_dict_arg(argvars_slice, 2) == FAIL
         {
             return;
         }
@@ -5179,11 +5186,12 @@ pub fn f_json_encode(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// "keytrans()" function
 pub fn f_keytrans(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
-        if tv_check_for_string_arg(argvars, 0) == FAIL || (*argvars).vval.v_string().is_null() {
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL || (*argvars).vval.v_string().is_null() {
             return;
         }
         let escaped = vim_strsave_escape_ks((*argvars).vval.v_string());
@@ -5643,18 +5651,19 @@ fn get_matches_in_str(
 
 /// "matchbufline()" function
 pub fn f_matchbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         tv_list_alloc_ret(rettv, kListLenUnknown);
         let retlist = rettv.vval.v_list();
 
-        if tv_check_for_buffer_arg(argvars, 0) == FAIL
-            || tv_check_for_string_arg(argvars, 1) == FAIL
-            || tv_check_for_lnum_arg(argvars, 2) == FAIL
-            || tv_check_for_lnum_arg(argvars, 3) == FAIL
-            || tv_check_for_opt_dict_arg(argvars, 4) == FAIL
+        if tv_check_for_buffer_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_string_arg(argvars_slice, 1) == FAIL
+            || tv_check_for_lnum_arg(argvars_slice, 2) == FAIL
+            || tv_check_for_lnum_arg(argvars_slice, 3) == FAIL
+            || tv_check_for_opt_dict_arg(argvars_slice, 4) == FAIL
         {
             return;
         }
@@ -5759,16 +5768,17 @@ pub fn f_matchstr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// "matchstrlist()" function
 pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         tv_list_alloc_ret(rettv, kListLenUnknown);
         let retlist = rettv.vval.v_list();
 
-        if tv_check_for_list_arg(argvars, 0) == FAIL
-            || tv_check_for_string_arg(argvars, 1) == FAIL
-            || tv_check_for_opt_dict_arg(argvars, 2) == FAIL
+        if tv_check_for_list_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_string_arg(argvars_slice, 1) == FAIL
+            || tv_check_for_opt_dict_arg(argvars_slice, 2) == FAIL
         {
             return;
         }
@@ -6667,7 +6677,7 @@ fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
 fn repeat_blob(blob_tv: &mut typval_T, n: varnumber_T, rettv: &mut typval_T) {
     unsafe {
         let blob = blob_tv.vval.v_blob().cast::<blob_T>();
-        tv_blob_alloc_ret(&raw mut *rettv);
+        tv_blob_alloc_ret(rettv);
         if blob.is_null() || n <= 0 {
             return;
         }
@@ -6798,7 +6808,8 @@ fn reduce_list(argvars: &mut [typval_T], expr: *mut typval_T, rettv: &mut typval
 }
 
 fn reduce_string(argvars: &mut [typval_T], expr: *mut typval_T, rettv: &mut typval_T) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut p = tv_get_string(argvars);
         let mut len: c_int;
@@ -6820,7 +6831,7 @@ fn reduce_string(argvars: &mut [typval_T], expr: *mut typval_T, rettv: &mut typv
             };
             crate::eval::typval::tv_set_string_len(&mut *rettv, p, len as usize);
             p = p.add(len as usize);
-        } else if tv_check_for_string_arg(argvars, 2) == FAIL {
+        } else if tv_check_for_string_arg(argvars_slice, 2) == FAIL {
             return;
         } else {
             tv_copy(&*argvars.add(2), &mut *rettv);
@@ -6845,7 +6856,8 @@ fn reduce_string(argvars: &mut [typval_T], expr: *mut typval_T, rettv: &mut typv
 }
 
 fn reduce_blob(argvars: &mut [typval_T], expr: *mut typval_T, rettv: &mut typval_T) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let b = (*argvars).vval.v_blob().cast::<blob_T>();
         let called_emsg_start = g_st().called_emsg;
@@ -6866,7 +6878,7 @@ fn reduce_blob(argvars: &mut [typval_T], expr: *mut typval_T, rettv: &mut typval
                 vval: TypvalVval::Number(varnumber_T::from(tv_blob_get(b, 0))),
             };
             i = 1;
-        } else if tv_check_for_number_arg(argvars, 2) == FAIL {
+        } else if tv_check_for_number_arg(argvars_slice, 2) == FAIL {
             return;
         } else {
             initial = *argvars.add(2);
@@ -7963,10 +7975,11 @@ pub fn f_setcharpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 }
 
 pub fn f_setcharsearch(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_dict_arg(argvars, 0) == FAIL {
+        if tv_check_for_dict_arg(argvars_slice, 0) == FAIL {
             return;
         }
         let d = (*argvars).vval.v_dict().cast::<dict_T>();
@@ -8240,7 +8253,8 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// "settagstack()" function
 pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut action: c_char = b'r' as c_char;
@@ -8250,7 +8264,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         if wp.is_null() {
             return;
         }
-        if tv_check_for_dict_arg(argvars, 1) == FAIL {
+        if tv_check_for_dict_arg(argvars_slice, 1) == FAIL {
             return;
         }
         let d = (*argvars.add(1)).vval.v_dict().cast::<dict_T>();
@@ -8260,7 +8274,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
             // default 'r'
-        } else if tv_check_for_string_arg(argvars, 2) == FAIL {
+        } else if tv_check_for_string_arg(argvars_slice, 2) == FAIL {
             return;
         } else {
             let actstr = tv_get_string_chk(argvars.add(2));
@@ -9222,11 +9236,12 @@ pub fn f_taglist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// "timer_info([timer])" function
 pub fn f_timer_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         tv_list_alloc_ret(rettv, kListLenUnknown);
-        if tv_check_for_opt_number_arg(argvars, 0) == FAIL {
+        if tv_check_for_opt_number_arg(argvars_slice, 0) == FAIL {
             return;
         }
         if (*argvars).v_type != VarType::VAR_UNKNOWN {
@@ -9268,7 +9283,8 @@ pub fn f_timer_pause(argvars: &mut [typval_T], _unused: &mut typval_T, _fptr: Ev
 
 /// "timer_start(timeout, callback, opts)" function
 pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut repeat: c_int = 1;
@@ -9278,7 +9294,7 @@ pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         }
 
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 2) == FAIL {
+            if tv_check_for_nonnull_dict_arg(argvars_slice, 2) == FAIL {
                 return;
             }
             let dict = (*argvars.add(2)).vval.v_dict().cast::<dict_T>();
@@ -9301,10 +9317,11 @@ pub fn f_timer_start(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// "timer_stop(timerid)" function
 pub fn f_timer_stop(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_number_arg(argvars, 0) == FAIL {
+        if tv_check_for_number_arg(argvars_slice, 0) == FAIL {
             return;
         }
         let timer = find_timer_by_nr(tv_get_number(argvars));

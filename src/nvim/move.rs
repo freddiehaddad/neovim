@@ -1289,14 +1289,15 @@ fn virtcol2col(wp: &mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.
 pub fn f_virtcol2col(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_number_arg(argvars, 0) == FAIL
-            || tv_check_for_number_arg(argvars, 1) == FAIL
-            || tv_check_for_number_arg(argvars, 2) == FAIL
+        if tv_check_for_number_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_number_arg(argvars_slice, 1) == FAIL
+            || tv_check_for_number_arg(argvars_slice, 2) == FAIL
         {
             return;
         }

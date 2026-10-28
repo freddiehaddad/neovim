@@ -596,13 +596,13 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let mut wrong_arg_msg: *const c_char = std::ptr::null();
         let mut tofree: Option<std::ffi::CString> = None;
 
-        if tv_check_for_string_or_number_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_string_or_list_arg(argvars, 1) == FAIL
+        if tv_check_for_string_or_number_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_opt_string_or_list_arg(argvars_slice, 1) == FAIL
             || ((*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
                 && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
-                && (tv_check_for_opt_number_arg(argvars, 3) == FAIL
+                && (tv_check_for_opt_number_arg(argvars_slice, 3) == FAIL
                     || ((*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
-                        && tv_check_for_opt_string_arg(argvars, 4) == FAIL)))
+                        && tv_check_for_opt_string_arg(argvars_slice, 4) == FAIL)))
         {
             return;
         }
@@ -859,18 +859,15 @@ fn assert_inrange(argvars: &mut [typval_T]) -> c_int {
 }
 
 /// `"assert_inrange(lower, upper, actual[, msg])"` function (`f_assert_inrange`).
-pub fn f_assert_inrange(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars_slice = argvars;
-    let argvars = argvars_slice.as_mut_ptr();
-
+pub fn f_assert_inrange(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData) {
     if tv_check_for_float_or_nr_arg(argvars, 0) == FAIL
-            || tv_check_for_float_or_nr_arg(argvars, 1) == FAIL
-            || tv_check_for_float_or_nr_arg(argvars, 2) == FAIL
-            || tv_check_for_opt_string_arg(argvars, 3) == FAIL
-        {
-            return;
-        }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(assert_inrange(argvars_slice) as i64);
+        || tv_check_for_float_or_nr_arg(argvars, 1) == FAIL
+        || tv_check_for_float_or_nr_arg(argvars, 2) == FAIL
+        || tv_check_for_opt_string_arg(argvars, 3) == FAIL
+    {
+        return;
+    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(assert_inrange(argvars) as i64);
 }
 
 /// `"assert_match(pattern, actual[, msg])"` function (`f_assert_match`).

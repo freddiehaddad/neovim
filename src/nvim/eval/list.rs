@@ -892,10 +892,11 @@ pub fn f_remove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// `"reverse({list})"` function (`f_reverse`).
 pub fn f_reverse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_string_or_list_or_blob_arg(argvars, 0) == FAIL {
+        if tv_check_for_string_or_list_or_blob_arg(argvars_slice, 0) == FAIL {
             return;
         }
 

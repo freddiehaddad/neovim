@@ -339,22 +339,22 @@ fn tv_set_partial(tv: &mut typval_T, pt: *mut partial_T) {
 }
 
 #[inline]
-pub fn tv_blob_set_ret(tv: *mut typval_T, b: *mut blob_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_BLOB;
-        (*tv).vval = crate::eval::typval::TypvalVval::Blob(b);
-        if !b.is_null() {
+pub fn tv_blob_set_ret(tv: &mut typval_T, b: *mut blob_T) {
+    tv.v_type = VarType::VAR_BLOB;
+    tv.vval = crate::eval::typval::TypvalVval::Blob(b);
+    if !b.is_null() {
+        unsafe {
             (*b).bv_refcount += 1;
         }
     }
 }
 
 #[inline]
-pub fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_DICT;
-        (*tv).vval = crate::eval::typval::TypvalVval::Dict(d);
-        if !d.is_null() {
+pub fn tv_dict_set_ret(tv: &mut typval_T, d: *mut dict_T) {
+    tv.v_type = VarType::VAR_DICT;
+    tv.vval = crate::eval::typval::TypvalVval::Dict(d);
+    if !d.is_null() {
+        unsafe {
             (*d).dv_refcount += 1;
         }
     }
@@ -1304,7 +1304,7 @@ fn get_lval_subscript(lp: &mut lval_T,
             } else if (*lp.ll_tv).v_type == VarType::VAR_BLOB
                 && (*lp.ll_tv).vval.v_blob().is_null()
             {
-                tv_blob_alloc_ret(lp.ll_tv);
+                tv_blob_alloc_ret(&mut *lp.ll_tv);
             }
 
             if lp.ll_range {
@@ -2550,7 +2550,7 @@ fn eval_addblob(tv1: &mut typval_T, tv2: &mut typval_T) {
         }
 
         tv_clear(tv1);
-        tv_blob_set_ret(tv1, b);
+        tv_blob_set_ret(&mut *tv1, b);
     }
 }
 
@@ -3753,7 +3753,7 @@ fn eval_number(
             if evaluate {
                 let blob = tv_blob_alloc();
                 (*blob).bv_ga = bytes;
-                tv_blob_set_ret(rettv, blob);
+                tv_blob_set_ret(&mut *rettv, blob);
             }
             *arg = bp;
         } else {
@@ -4203,7 +4203,7 @@ fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_
 
         *arg = skipwhite((*arg).add(1));
         if evaluate {
-            tv_list_set_ret(rettv, l);
+            tv_list_set_ret(&mut *rettv, l);
         }
 
         OK
@@ -4876,7 +4876,7 @@ fn eval_dict(
 
         *arg = skipwhite((*arg).add(1));
         if evaluate {
-            tv_dict_set_ret(rettv, d);
+            tv_dict_set_ret(&mut *rettv, d);
         }
 
         OK

@@ -1884,7 +1884,8 @@ pub fn char_avail() -> bool {
 }
 
 fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_number: bool) {
-    let argvars: *mut typval_T = argvars.as_mut_ptr();
+    let argvars_slice: &mut [typval_T] = argvars;
+    let argvars: *mut typval_T = argvars_slice.as_mut_ptr();
     unsafe {
         let mut n: varnumber_T;
         let called_emsg_start = g_st().called_emsg;
@@ -1893,7 +1894,7 @@ fn getchar_common(argvars: &mut [typval_T], rettv: &mut typval_T, mut allow_numb
         let mut cursor_flag: c_char = NUL as c_char;
 
         if (*argvars).v_type != VarType::VAR_UNKNOWN
-            && tv_check_for_opt_dict_arg(argvars, 1) == FAIL
+            && tv_check_for_opt_dict_arg(argvars_slice, 1) == FAIL
         {
             return;
         }

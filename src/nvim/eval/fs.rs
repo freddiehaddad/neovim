@@ -559,9 +559,10 @@ pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
 /// "executable()" function
 pub fn f_executable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
-    if tv_check_for_string_arg(argvars, 0) == FAIL {
+    if tv_check_for_string_arg(argvars_slice, 0) == FAIL {
             return;
         }
 
@@ -571,9 +572,10 @@ pub fn f_executable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// "exepath()" function
 pub fn f_exepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
-    if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
+    if tv_check_for_nonempty_string_arg(argvars_slice, 0) == FAIL {
         return;
     }
 
@@ -600,14 +602,15 @@ pub fn f_exepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// "filecopy()" function
 pub fn f_filecopy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure()
-            || tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_string_arg(argvars, 1) == FAIL
+            || tv_check_for_string_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_string_arg(argvars_slice, 1) == FAIL
         {
             return;
         }
@@ -1541,7 +1544,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
         }
 
         if blob {
-            tv_blob_alloc_ret(&raw mut *rettv);
+            tv_blob_alloc_ret(rettv);
         } else {
             tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
         }

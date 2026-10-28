@@ -2327,7 +2327,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
             object_to_vim_take_luaref(&mut dobj, &raw mut *rettv, true, &mut crate::api::private::validate::Error::new());
             arena_mem_free(arena_finish(&mut arena));
         } else {
-            tv_dict_alloc_ret(&raw mut *rettv);
+            tv_dict_alloc_ret(rettv);
         }
     }
 }
@@ -2377,7 +2377,8 @@ fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
 
 /// "mapset()" function
 pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if check_secure() {
@@ -2402,7 +2403,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
                 return;
             }
             let is_abbr = tv_get_bool(argvars.add(1)) as c_int;
-            if tv_check_for_dict_arg(argvars, 2) == FAIL {
+            if tv_check_for_dict_arg(argvars_slice, 2) == FAIL {
                 return;
             }
             let d = (*argvars.add(2)).vval.v_dict();

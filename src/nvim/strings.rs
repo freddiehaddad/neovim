@@ -2341,16 +2341,17 @@ pub fn f_byteidxcomp(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 }
 
 pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_number_arg(argvars, 1) == FAIL
-            || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_number_arg(argvars_slice, 1) == FAIL
+            || tv_check_for_opt_bool_arg(argvars_slice, 2) == FAIL
             || ((*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
-                && tv_check_for_opt_bool_arg(argvars, 3) == FAIL)
+                && tv_check_for_opt_bool_arg(argvars_slice, 3) == FAIL)
         {
             return;
         }
@@ -2608,13 +2609,14 @@ pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 }
 
 pub fn f_strutf16len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_bool_arg(argvars, 1) == FAIL
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_opt_bool_arg(argvars_slice, 1) == FAIL
         {
             return;
         }
@@ -2847,16 +2849,17 @@ pub fn f_strtrans(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 }
 
 pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
-            || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_opt_number_arg(argvars_slice, 1) == FAIL
+            || tv_check_for_opt_bool_arg(argvars_slice, 2) == FAIL
             || ((*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
-                && tv_check_for_opt_bool_arg(argvars, 3) == FAIL)
+                && tv_check_for_opt_bool_arg(argvars_slice, 3) == FAIL)
         {
             return;
         }
@@ -3019,7 +3022,8 @@ pub fn f_tr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData)
 }
 
 pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut buf1 = [0 as c_char; NUMBUFLEN];
@@ -3034,7 +3038,7 @@ pub fn f_trim(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             return;
         }
 
-        if tv_check_for_opt_string_arg(argvars, 1) == FAIL {
+        if tv_check_for_opt_string_arg(argvars_slice, 1) == FAIL {
             return;
         }
 

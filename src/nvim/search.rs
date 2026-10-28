@@ -3023,7 +3023,8 @@ fn update_search_stat(
 }
 
 pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut pos = (**curwin.as_ptr()).w_cursor;
@@ -3042,7 +3043,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         if (*argvars.add(0)).v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
 
-            if tv_check_for_nonnull_dict_arg(argvars, 0) == FAIL {
+            if tv_check_for_nonnull_dict_arg(argvars_slice, 0) == FAIL {
                 return;
             }
             let dict: *mut dict_T = (*argvars.add(0)).vval.v_dict();

@@ -1457,7 +1457,8 @@ fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
 }
 
 pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         if (*argvars).v_type == VarType::VAR_LIST
@@ -1475,7 +1476,7 @@ pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             return;
         }
 
-        if tv_check_for_opt_dict_arg(argvars, 1) == FAIL {
+        if tv_check_for_opt_dict_arg(argvars_slice, 1) == FAIL {
             return;
         }
 
@@ -1509,7 +1510,8 @@ pub fn f_sign_getdefined(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 }
 
 pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
@@ -1527,7 +1529,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
             }
 
             if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
-                if tv_check_for_nonnull_dict_arg(argvars, 1) == FAIL {
+                if tv_check_for_nonnull_dict_arg(argvars_slice, 1) == FAIL {
                     return;
                 }
                 let dict = (*argvars.add(1)).vval.v_dict().cast::<dict_T>();
@@ -1697,7 +1699,8 @@ fn sign_place_from_dict(
 }
 
 pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
@@ -1705,7 +1708,7 @@ pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 4) == FAIL {
+            if tv_check_for_nonnull_dict_arg(argvars_slice, 4) == FAIL {
                 return;
             }
             dict = (*argvars.add(4)).vval.v_dict().cast::<dict_T>();
@@ -1837,15 +1840,16 @@ fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> c_int {
 }
 
 pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if tv_check_for_string_arg(argvars, 0) == FAIL
-            || tv_check_for_opt_dict_arg(argvars, 1) == FAIL
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL
+            || tv_check_for_opt_dict_arg(argvars_slice, 1) == FAIL
         {
             return;
         }

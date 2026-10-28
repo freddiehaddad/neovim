@@ -1254,7 +1254,7 @@ pub fn ex_let(eap: &mut exarg_T) {
         {
             let l = heredoc_get(eap, expr.add(3), false);
             if !l.is_null() {
-                tv_list_set_ret(&raw mut rettv, l);
+                tv_list_set_ret(&mut rettv, l);
                 if eap.skip == 0 {
                     op[0] = b'=' as c_char;
                     op[1] = NUL;
@@ -3330,7 +3330,7 @@ fn get_var_from(
                     if *varname.add(1) == NUL {
                         let opts = get_winbuf_options(c_int::from(htname == b'b' as c_int));
                         if !opts.is_null() {
-                            tv_dict_set_ret(rettv, opts);
+                            tv_dict_set_ret(&mut *rettv, opts);
                             done = true;
                         }
                     } else if eval_option(&raw mut varname, rettv, true) == OK {

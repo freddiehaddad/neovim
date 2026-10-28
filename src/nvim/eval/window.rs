@@ -819,7 +819,8 @@ pub fn f_win_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// `win_splitmove()` function (`f_win_splitmove`).
 pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
@@ -843,7 +844,7 @@ pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut size: c_int = 0;
 
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 2) == FAIL {
+            if tv_check_for_nonnull_dict_arg(argvars_slice, 2) == FAIL {
                 return;
             }
 
@@ -1029,10 +1030,11 @@ pub fn f_winrestcmd(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `winrestview()` function (`f_winrestview`).
 pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_nonnull_dict_arg(argvars, 0) == FAIL {
+        if tv_check_for_nonnull_dict_arg(argvars_slice, 0) == FAIL {
             return;
         }
 

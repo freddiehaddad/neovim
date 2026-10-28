@@ -3501,10 +3501,11 @@ pub fn f_getcellwidths(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
 }
 
 pub fn f_charclass(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    let argvars = argvars.as_mut_ptr();
+    let argvars_slice = argvars;
+    let argvars = argvars_slice.as_mut_ptr();
 
     unsafe {
-        if tv_check_for_string_arg(argvars, 0) == FAIL || (*argvars).vval.v_string().is_null() {
+        if tv_check_for_string_arg(argvars_slice, 0) == FAIL || (*argvars).vval.v_string().is_null() {
             return;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(mb_get_class((*argvars).vval.v_string())));

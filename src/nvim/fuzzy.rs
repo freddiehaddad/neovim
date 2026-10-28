@@ -569,7 +569,8 @@ fn fuzzy_match_in_list(
 }
 
 fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) {
-    let argvars: *const typval_T = argvars.as_ptr();
+    let argvars_slice: &[typval_T] = argvars;
+    let argvars: *const typval_T = argvars_slice.as_ptr();
     unsafe {
         let arg0 = &*argvars;
         let arg1 = &*argvars.add(1);
@@ -597,7 +598,7 @@ fn do_fuzzymatch(argvars: &[typval_T], rettv: &mut typval_T, retmatchpos: bool) 
         let mut max_matches: c_int = 0;
 
         if arg2.v_type != VarType::VAR_UNKNOWN {
-            if tv_check_for_nonnull_dict_arg(argvars, 2) == FAIL {
+            if tv_check_for_nonnull_dict_arg(argvars_slice, 2) == FAIL {
                 return;
             }
 
