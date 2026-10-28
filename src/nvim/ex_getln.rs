@@ -2022,7 +2022,7 @@ fn may_do_command_line_next_incsearch(
             *curwin.as_ptr(),
             g_st().curbuf,
             &raw mut t,
-            ptr::null_mut(),
+            None,
             if next_match { FORWARD } else { BACKWARD },
             searchstr,
             searchstrlen,
@@ -4996,14 +4996,14 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
         if **str == b'-' as c_char || ascii_isdigit(**str as c_int) {
             vim_str2nr(
                 *str,
-                ptr::null_mut(),
-                &raw mut len,
+                None,
+                Some(&mut len),
                 0,
-                &raw mut num,
-                ptr::null_mut(),
+                Some(&mut num),
+                None,
                 0,
                 false,
-                ptr::null_mut(),
+                None,
             );
             *str = (*str).add(len as usize);
             if num > c_int::MAX as varnumber_T {
@@ -5018,14 +5018,14 @@ pub fn get_list_range(str: *mut *mut c_char, num1: &mut c_int, num2: &mut c_int)
             *str = skipwhite((*str).add(1));
             vim_str2nr(
                 *str,
-                ptr::null_mut(),
-                &raw mut len,
+                None,
+                Some(&mut len),
                 0,
-                &raw mut num,
-                ptr::null_mut(),
+                Some(&mut num),
+                None,
                 0,
                 false,
-                ptr::null_mut(),
+                None,
             );
             if len > 0 {
                 *str = skipwhite((*str).add(len as usize));

@@ -494,25 +494,21 @@ fn handle_csi_m(
 pub fn termkey_interpret_mouse(
     _tk: &TermKey,
     key: &TermKeyKey,
-    event: *mut TermKeyMouseEvent,
-    button: *mut c_int,
+    event: &mut TermKeyMouseEvent,
+    button: &mut c_int,
     line: &mut c_int,
     col: &mut c_int,
 ) -> TermKeyResult {
-    unsafe {
+    {
         if key.r#type != TERMKEY_TYPE_MOUSE {
             return TERMKEY_RES_NONE;
         }
 
-        if !button.is_null() {
+        {
             *button = 0;
         }
 
         termkey_key_get_linecol(key, line, col);
-
-        if event.is_null() {
-            return TERMKEY_RES_KEY;
-        }
 
         let mut btn: c_int = 0;
         let mut code = c_int::from(key.code.mouse[0] as u8);
@@ -552,7 +548,7 @@ pub fn termkey_interpret_mouse(
             }
         }
 
-        if !button.is_null() {
+        {
             *button = btn;
         }
 
@@ -662,22 +658,22 @@ fn handle_csi_y(
 pub fn termkey_interpret_modereport(
     _tk: &TermKey,
     key: &TermKeyKey,
-    initial: *mut c_int,
-    mode: *mut c_int,
-    value: *mut c_int,
+    initial: &mut c_int,
+    mode: &mut c_int,
+    value: &mut c_int,
 ) -> TermKeyResult {
-    unsafe {
+    {
         if key.r#type != TERMKEY_TYPE_MODEREPORT {
             return TERMKEY_RES_NONE;
         }
-        if !initial.is_null() {
+        {
             *initial = c_int::from(key.code.mouse[0] as u8);
         }
-        if !mode.is_null() {
+        {
             *mode = (c_int::from(key.code.mouse[1] as u8) << 8)
                 | c_int::from(key.code.mouse[2] as u8);
         }
-        if !value.is_null() {
+        {
             *value = c_int::from(key.code.mouse[3] as u8);
         }
         TERMKEY_RES_KEY

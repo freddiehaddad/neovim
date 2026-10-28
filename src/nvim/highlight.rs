@@ -624,13 +624,13 @@ pub fn win_check_ns_hl(wp: *mut win_T) -> bool {
 pub fn hl_ns_get_attrs(
     ns_id: c_int,
     hl_id: c_int,
-    optional: *mut bool,
+    mut optional: Option<&mut bool>,
     attrs: &mut HlAttrs,
 ) -> bool {
-    unsafe {
-        let mut opt = if !optional.is_null() { *optional } else { true };
+    {
+        let mut opt = if let Some(optional) = optional.as_deref_mut() { *optional } else { true };
         let syn_attr = syn_ns_id2attr(ns_id, hl_id, &mut opt);
-        if !optional.is_null() {
+        if let Some(optional) = optional {
             *optional = opt;
         }
         if syn_attr <= 0 {
@@ -651,7 +651,7 @@ pub fn hl_get_ui_attr(
         let mut available = false;
 
         if final_id > 0 {
-            available = hl_ns_get_attrs(ns_id, final_id, &raw mut optional, &mut attrs);
+            available = hl_ns_get_attrs(ns_id, final_id, Some(&mut optional), &mut attrs);
         }
 
         if (HLF_PNI..=HLF_PST).contains(&idx) {

@@ -423,7 +423,7 @@ fn changed_common(
                     &raw mut lnum,
                     ptr::null_mut(),
                     false,
-                    ptr::null_mut(),
+                    None,
                 );
                 if (*wp).w_cursor.lnum == lnum {
                     (*wp).w_cline_folded = folded;
@@ -434,7 +434,7 @@ fn changed_common(
                     ptr::null_mut(),
                     &raw mut last,
                     false,
-                    ptr::null_mut(),
+                    None,
                 );
                 if (*wp).w_cursor.lnum == last {
                     (*wp).w_cline_folded = folded;

@@ -1828,7 +1828,7 @@ pub fn load_plugins() {
 
             source_in_path_vim_lua(rtp_copy, plugin_pattern, DIP_ALL | DIP_NOAFTER);
             if has_time_fd() {
-                time_msg(c"loading rtp plugins".as_ptr(), ptr::null());
+                time_msg(c"loading rtp plugins".as_ptr(), None);
             }
 
             if !g_st().did_source_packages {
@@ -1836,12 +1836,12 @@ pub fn load_plugins() {
                 load_start_packages();
             }
             if has_time_fd() {
-                time_msg(c"loading packages".as_ptr(), ptr::null());
+                time_msg(c"loading packages".as_ptr(), None);
             }
 
             source_runtime_vim_lua(plugin_pattern, DIP_ALL | DIP_AFTER);
             if has_time_fd() {
-                time_msg(c"loading after plugins".as_ptr(), ptr::null());
+                time_msg(c"loading after plugins".as_ptr(), None);
             }
         }
 }
@@ -2598,12 +2598,12 @@ fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len: usize)
 /// Create a new script item and allocate script-local vars.
 pub fn new_script_item(
     name: Option<std::ffi::CString>,
-    sid_out: *mut scid_T,
+    sid_out: &mut scid_T,
 ) -> *mut scriptitem_T {
     unsafe {
         rt_st().last_current_SID += 1;
         let sid = rt_st().last_current_SID;
-        if !sid_out.is_null() {
+        {
             *sid_out = sid;
         }
         let items = &raw mut rt_st().script_items;
@@ -3044,7 +3044,7 @@ fn do_source_ext(
             if l_has_time_fd {
                 let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
                 vim_snprintf!(iobuff, IOSIZE, c"sourcing %s".as_ptr(), fname);
-                time_msg(iobuff, &start_time);
+                time_msg(iobuff, Some(&start_time));
                 time_pop(rel_time);
             }
 

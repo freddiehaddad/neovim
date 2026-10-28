@@ -896,7 +896,7 @@ fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
                         false,
                         (*g_st().curtab).tp_diffbuf[idx],
                         (&raw mut anchors[idx]).cast(),
-                        &raw mut buf_num_anchors,
+                        Some(&mut buf_num_anchors),
                     ) != OK
                     {
                         emsg(gettext(
@@ -2043,11 +2043,11 @@ fn run_linematch_algorithm(dp_idx: usize) {
 pub fn diff_check_with_linestatus(
     wp: &mut win_T,
     lnum: linenr_T,
-    linestatus: *mut c_int,
+    mut linestatus: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
         let buf = wp.w_buffer;
-        if !linestatus.is_null() {
+        if let Some(linestatus) = linestatus.as_deref_mut() {
             *linestatus = 0;
         }
         if (*g_st().curtab).tp_diff_invalid != 0 {
@@ -2126,7 +2126,7 @@ pub fn diff_check_with_linestatus(
                         zero = true;
                     } else {
                         if dp.df_count[i] != dp.df_count[u_idx] {
-                            if !linestatus.is_null() {
+                            if let Some(linestatus) = linestatus.as_deref_mut() {
                                 *linestatus = -1;
                             }
                             return num_fill;
@@ -2142,7 +2142,7 @@ pub fn diff_check_with_linestatus(
                         && dp.df_count[i] != 0
                         && !diff_equal_entry(dp, u_idx, i)
                     {
-                        if !linestatus.is_null() {
+                        if let Some(linestatus) = linestatus.as_deref_mut() {
                             *linestatus = -1;
                         }
                         return num_fill;
@@ -2152,7 +2152,7 @@ pub fn diff_check_with_linestatus(
             if !zero {
                 return num_fill;
             }
-            if !linestatus.is_null() {
+            if let Some(linestatus) = linestatus {
                 *linestatus = -2;
             }
             return num_fill;
@@ -2165,7 +2165,7 @@ pub fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
         if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
         }
-        let n = diff_check_with_linestatus(&mut *wp, lnum, ptr::null_mut());
+        let n = diff_check_with_linestatus(&mut *wp, lnum, None);
         n.max(0)
     }
 }
@@ -2319,7 +2319,7 @@ fn parse_diffanchors(
     check_only: bool,
     buf: *mut buf_T,
     anchors: *mut linenr_T,
-    num_anchors: *mut c_int,
+    num_anchors: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
         let mut dia = if *(*buf).b_p_dia == NUL {
@@ -2396,7 +2396,7 @@ fn parse_diffanchors(
             );
             return FAIL;
         }
-        if !num_anchors.is_null() {
+        if let Some(num_anchors) = num_anchors {
             *num_anchors = i as c_int;
         }
         OK
@@ -2404,7 +2404,7 @@ fn parse_diffanchors(
 }
 pub fn diffanchors_changed(buflocal: bool) -> c_int {
     unsafe {
-        let result = parse_diffanchors(true, g_st().curbuf, ptr::null_mut(), ptr::null_mut());
+        let result = parse_diffanchors(true, g_st().curbuf, ptr::null_mut(), None);
         if result == OK && (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
@@ -3325,10 +3325,10 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         if eap.addr_count == 0 {
             let mut linestatus: c_int = 0;
             if eap.line1 == (*g_st().curbuf).b_ml.ml_line_count
-                && diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1, &raw mut linestatus) == 0
+                && diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1, Some(&mut linestatus)) == 0
                 && linestatus == 0
                 && (eap.line1 == 1
-                    || (diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1 - 1, &raw mut linestatus)
+                    || (diff_check_with_linestatus(&mut **curwin.as_ptr(), eap.line1 - 1, Some(&mut linestatus))
                         >= 0
                         && linestatus == 0))
             {
@@ -3844,7 +3844,7 @@ pub fn f_diff_hlID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             || diff_st().diff_flags != diff_st().f_diff_hlid_prev_diff_flags
         {
             let mut linestatus: c_int = 0;
-            diff_check_with_linestatus(&mut **curwin.as_ptr(), lnum, &raw mut linestatus);
+            diff_check_with_linestatus(&mut **curwin.as_ptr(), lnum, Some(&mut linestatus));
             if linestatus < 0 {
                 if linestatus == -1 {
                     diff_st().f_diff_hlid_change_start = MAXCOL;

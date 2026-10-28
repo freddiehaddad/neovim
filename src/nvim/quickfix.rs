@@ -5697,7 +5697,7 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> c_int {
         };
 
         let mut spat: *mut c_char = ptr::null_mut();
-        let mut p = skip_vimgrep_pat(eap.arg, &raw mut spat, &raw mut args.flags);
+        let mut p = skip_vimgrep_pat(eap.arg, &raw mut spat, Some(&mut args.flags));
         if p.is_null() {
             emsg(gettext((&raw const e_invalpat).cast()));
             return FAIL;

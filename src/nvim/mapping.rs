@@ -2034,7 +2034,7 @@ pub fn check_map(
     ign_mod: c_int,
     abbr: c_int,
     mut mp_out: Option<&mut Option<&'static mapblock_T>>,
-    local_ptr: *mut c_int,
+    local_ptr: &mut c_int,
     rhs_lua: &mut c_int,
 ) -> *mut c_char {
     unsafe {
@@ -2063,7 +2063,7 @@ pub fn check_map(
                             if let Some(ref mut out) = mp_out {
                                 **out = Some(mp);
                             }
-                            if !local_ptr.is_null() {
+                            {
                                 *local_ptr = local;
                             }
                             *rhs_lua = mp.m_luaref;

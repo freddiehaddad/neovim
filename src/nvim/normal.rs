@@ -2488,7 +2488,7 @@ fn normal_check(s: &mut NormalState) -> c_int {
             g_st().do_redraw = false;
 
             if has_time_fd() {
-                time_msg(c"first screen update".as_ptr(), ptr::null());
+                time_msg(c"first screen update".as_ptr(), None);
                 time_finish();
             }
             may_make_initial_scroll_size_snapshot();
@@ -2604,7 +2604,7 @@ fn find_is_eval_item(
 pub fn find_ident_under_cursor(
     text: *mut *mut c_char,
     find_type: c_int,
-    offset: *mut c_int,
+    offset: Option<&mut c_int>,
 ) -> usize {
     unsafe {
         let mut textcol: c_int = 0;
@@ -2613,14 +2613,14 @@ pub fn find_ident_under_cursor(
             (**curwin.as_ptr()).w_cursor.lnum,
             (**curwin.as_ptr()).w_cursor.col,
             text,
-            if !offset.is_null() {
+            if offset.is_some() {
                 &raw mut textcol
             } else {
                 ptr::null_mut()
             },
             find_type,
         );
-        if !offset.is_null() {
+        if let Some(offset) = offset {
             *offset = (**curwin.as_ptr()).w_cursor.col - textcol;
         }
         len
@@ -3273,7 +3273,7 @@ fn nv_page(cap: &mut cmdarg_T) {
 
 fn nv_gd(oap: &mut oparg_T, nchar: c_int, thisblock: c_int) {
     let mut ptr: *mut c_char = ptr::null_mut();
-        let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, ptr::null_mut());
+        let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
         if len == 0
             || !find_decl(
                 ptr,
@@ -3388,7 +3388,7 @@ pub fn find_decl(
                 *curwin.as_ptr(),
                 g_st().curbuf,
                 &raw mut (**curwin.as_ptr()).w_cursor,
-                ptr::null_mut(),
+                None,
                 FORWARD,
                 pat,
                 patlen,
@@ -3711,7 +3711,7 @@ fn nv_zg_zw(cap: &mut cmdarg_T, mut nchar: c_int) -> c_int {
         }
 
         if ptr.is_null() {
-            len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, ptr::null_mut());
+            len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
             if len == 0 {
                 return FAIL;
             }
@@ -4409,7 +4409,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
                 } else {
                     FIND_IDENT
                 },
-                &raw mut ident_offset,
+                Some(&mut ident_offset),
             );
             if n == 0 {
                 clearop(&mut *cap.oap);
@@ -4573,7 +4573,7 @@ fn nv_ident(cap: &mut cmdarg_T) {
                 buf,
                 buflen,
                 0,
-                ptr::null_mut(),
+                None,
             );
         } else {
             g_st().g_tag_at_cursor = true;
@@ -4909,7 +4909,7 @@ fn nv_gotofile(cap: &mut cmdarg_T) {
             return;
         }
 
-        if let Some(fname_cstr) = grab_file_name(cap.count1, &raw mut lnum) {
+        if let Some(fname_cstr) = grab_file_name(cap.count1, &mut lnum) {
             let ptr = fname_cstr.as_ptr().cast_mut();
             if curbufIsChanged() && (*g_st().curbuf).b_nwindows <= 1 && !buf_hide(&*g_st().curbuf) {
                 autowrite(&mut *g_st().curbuf, false);
@@ -4995,7 +4995,7 @@ fn nv_search(cap: &mut cmdarg_T) {
             } else {
                 SEARCH_MARK
             },
-            ptr::null_mut(),
+            None,
         );
     }
 }
@@ -5010,7 +5010,7 @@ fn nv_next(cap: &mut cmdarg_T) {
             ptr::null_mut(),
             0,
             SEARCH_MARK | cap.arg,
-            &raw mut wrapped,
+            Some(&mut wrapped),
         );
 
         if i == 1 && wrapped == 0 && equalpos(old, (**curwin.as_ptr()).w_cursor) {
@@ -5021,7 +5021,7 @@ fn nv_next(cap: &mut cmdarg_T) {
                 ptr::null_mut(),
                 0,
                 SEARCH_MARK | cap.arg,
-                ptr::null_mut(),
+                None,
             );
             cap.count1 -= 1;
         }
@@ -5042,7 +5042,7 @@ fn normal_search(
     pat: *mut c_char,
     patlen: usize,
     opt: c_int,
-    wrapped: *mut c_int,
+    wrapped: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
         let mut sia = searchit_arg_T::new();
@@ -5064,7 +5064,7 @@ fn normal_search(
             opt_vars().p_magic != 0,
             &raw mut sia,
         );
-        if !wrapped.is_null() {
+        if let Some(wrapped) = wrapped {
             *wrapped = sia.sa_wrapped;
         }
         if i == 0 {
@@ -5285,7 +5285,7 @@ fn nv_brackets(cap: &mut cmdarg_T) {
             nv_gotofile(cap);
         } else if !vim_strchr(c"iI\t\x04dD".as_ptr(), cap.nchar).is_null() {
             let mut ptr: *mut c_char = ptr::null_mut();
-            let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, ptr::null_mut());
+            let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
             if len == 0 {
                 clearop(&mut *cap.oap);
             } else {

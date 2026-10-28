@@ -485,8 +485,8 @@ fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
         termkey_interpret_mouse(
             (*p).tk(),
             key,
-            &raw mut ev,
-            &raw mut button,
+            &mut ev,
+            &mut button,
             &mut row,
             &mut col,
         );
@@ -785,9 +785,9 @@ fn handle_modereport(input: &mut TermInput, key: &TermKeyKey) {
         if termkey_interpret_modereport(
             (*p).tk(),
             key,
-            &raw mut initial,
-            &raw mut mode,
-            &raw mut value,
+            &mut initial,
+            &mut mode,
+            &mut value,
         ) == TERMKEY_RES_KEY
         {
             tui_handle_term_mode(&mut *input.tui_data, mode, value);

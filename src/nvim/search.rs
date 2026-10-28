@@ -696,7 +696,7 @@ pub fn searchit(
     win: *mut win_T,
     buf: *mut buf_T,
     pos: *mut pos_T,
-    end_pos: *mut pos_T,
+    mut end_pos: Option<&mut pos_T>,
     dir: Direction,
     pat: *mut c_char,
     patlen: usize,
@@ -996,21 +996,21 @@ pub fn searchit(
                                         utf_head_off(ptr_line, ptr_line.add((*pos).col as usize));
                                 }
                             }
-                            if !end_pos.is_null() {
-                                (*end_pos).lnum = lnum + matchpos.lnum;
-                                (*end_pos).col = matchpos.col;
+                            if let Some(end_pos) = end_pos.as_deref_mut() {
+                                end_pos.lnum = lnum + matchpos.lnum;
+                                end_pos.col = matchpos.col;
                             }
                         } else {
                             (*pos).lnum = lnum + matchpos.lnum;
                             (*pos).col = matchpos.col;
-                            if !end_pos.is_null() {
-                                (*end_pos).lnum = lnum + endpos.lnum;
-                                (*end_pos).col = endpos.col;
+                            if let Some(end_pos) = end_pos.as_deref_mut() {
+                                end_pos.lnum = lnum + endpos.lnum;
+                                end_pos.col = endpos.col;
                             }
                         }
                         (*pos).coladd = 0;
-                        if !end_pos.is_null() {
-                            (*end_pos).coladd = 0;
+                        if let Some(end_pos) = end_pos.as_deref_mut() {
+                            end_pos.coladd = 0;
                         }
                         found = 1;
                         first_match = false;
@@ -1497,7 +1497,7 @@ pub fn do_search(
                 *curwin.as_ptr(),
                 g_st().curbuf,
                 &raw mut pos,
-                ptr::null_mut(),
+                None,
                 if dirc == b'/' as c_int {
                     FORWARD
                 } else {
@@ -1802,14 +1802,14 @@ fn check_prevcol(
     linep: *mut c_char,
     mut col: c_int,
     ch: c_int,
-    prevcol: *mut c_int,
+    prevcol: Option<&mut c_int>,
 ) -> bool {
     unsafe {
         col -= 1;
         if col > 0 {
             col -= utf_head_off(linep, linep.add(col as usize));
         }
-        if !prevcol.is_null() {
+        if let Some(prevcol) = prevcol {
             *prevcol = col;
         }
         col >= 0 && c_int::from(*linep.add(col as usize) as u8) == ch
@@ -2026,7 +2026,7 @@ pub fn findmatchlimit(
                     } else if !cpo_bsl {
                         let mut bslcnt = 0;
                         let mut col = srch().findmatch_pos.col;
-                        while check_prevcol(linep, col, b'\\' as c_int, &raw mut col) {
+                        while check_prevcol(linep, col, b'\\' as c_int, Some(&mut col)) {
                             bslcnt += 1;
                         }
                         match_escaped = bslcnt & 1;
@@ -2407,12 +2407,12 @@ pub fn findmatchlimit(
                     if (*g_st().curbuf).b_p_lisp != 0
                         && !vim_strchr(c"(){}[]".as_ptr(), c).is_null()
                         && srch().findmatch_pos.col > 1
-                        && check_prevcol(linep, srch().findmatch_pos.col, b'\\' as c_int, ptr::null_mut())
+                        && check_prevcol(linep, srch().findmatch_pos.col, b'\\' as c_int, None)
                         && check_prevcol(
                             linep,
                             srch().findmatch_pos.col - 1,
                             b'#' as c_int,
-                            ptr::null_mut(),
+                            None,
                         )
                     {
                         continue;
@@ -2430,7 +2430,7 @@ pub fn findmatchlimit(
 
                         if !cpo_bsl {
                             let mut col = srch().findmatch_pos.col;
-                            while check_prevcol(linep, col, b'\\' as c_int, &raw mut col) {
+                            while check_prevcol(linep, col, b'\\' as c_int, Some(&mut col)) {
                                 bslcnt += 1;
                             }
                         }
@@ -2611,7 +2611,7 @@ pub fn current_search(count: c_int, forward: bool) -> c_int {
                 *curwin.as_ptr(),
                 g_st().curbuf,
                 &raw mut pos,
-                &raw mut end_pos,
+                Some(&mut end_pos),
                 if dir { FORWARD } else { BACKWARD },
                 srch().spats[srch().last_idx as usize].pat_ptr(),
                 srch().spats[srch().last_idx as usize].patlen(),
@@ -2728,7 +2728,7 @@ fn is_zero_width(
             *curwin.as_ptr(),
             g_st().curbuf,
             &raw mut pos,
-            ptr::null_mut(),
+            None,
             direction,
             pattern,
             patternlen,
@@ -2974,7 +2974,7 @@ fn update_search_stat(
                     *curwin.as_ptr(),
                     g_st().curbuf,
                     &raw mut srch().stat_lastpos,
-                    &raw mut endpos,
+                    Some(&mut endpos),
                     FORWARD,
                     ptr::null_mut(),
                     0,

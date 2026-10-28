@@ -134,7 +134,7 @@ fn decor_provider_invoke(
     ref_: LuaRef,
     args: Array,
     default_true: bool,
-    res: *mut Array,
+    res: Option<&mut Array>,
 ) -> bool {
     unsafe {
         let mut err = error_init();
@@ -144,7 +144,7 @@ fn decor_provider_invoke(
             ref_,
             name,
             args,
-            if !res.is_null() {
+            if res.is_some() {
                 kRetMulti
             } else {
                 kRetNilBool
@@ -157,7 +157,7 @@ fn decor_provider_invoke(
         let provider = &raw mut providers_mut()[provider_idx as usize];
         if !error_set(&err) {
             (*provider).error_count = 0;
-            if !res.is_null() {
+            if let Some(res) = res {
                 debug_assert!(matches!(ret.obj_type, ObjectType::kObjectTypeArray));
                 *res = ret.data.array();
                 return true;
@@ -218,7 +218,7 @@ pub fn decor_providers_invoke_spell(
                     spell_nav,
                     args,
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
             }
             i += 1;
@@ -251,7 +251,7 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut win_T, row: c_int) -> bool {
                     conceal_line,
                     args,
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
             }
             i += 1;
@@ -280,7 +280,7 @@ pub fn decor_providers_start() {
                     redraw_start,
                     args,
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
                 providers_mut()[i].state = if active {
                     kDecorProviderActive
@@ -337,7 +337,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
                     redraw_win,
                     args,
                     true,
-                    ptr::null_mut(),
+                    None,
                 ) {
                     providers_mut()[i].state = kDecorProviderWinDisabled;
                 }
@@ -372,7 +372,7 @@ pub fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
                     redraw_line,
                     args,
                     true,
-                    ptr::null_mut(),
+                    None,
                 ) {
                     providers_mut()[i].state = kDecorProviderWinDisabled;
                 }
@@ -426,7 +426,7 @@ pub fn decor_providers_invoke_range(
                     redraw_range,
                     args,
                     true,
-                    &raw mut res,
+                    Some(&mut res),
                 );
                 let p = &mut providers_mut()[i];
 
@@ -485,7 +485,7 @@ pub fn decor_providers_invoke_buf(buf: &mut buf_T) {
                     redraw_buf,
                     args,
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
             }
             i += 1;
@@ -513,7 +513,7 @@ pub fn decor_providers_invoke_end() {
                     redraw_end,
                     args,
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
             }
             i += 1;

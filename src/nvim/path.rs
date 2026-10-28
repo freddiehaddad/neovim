@@ -272,7 +272,7 @@ pub fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char {
     }
 }
 
-pub fn invocation_path_tail(invocation: *const c_char, len: *mut usize) -> *const c_char {
+pub fn invocation_path_tail(invocation: *const c_char, len: Option<&mut usize>) -> *const c_char {
     unsafe {
         let mut tail: *const c_char = get_past_head(invocation);
         let mut tail_end = tail;
@@ -293,7 +293,7 @@ pub fn invocation_path_tail(invocation: *const c_char, len: *mut usize) -> *cons
             p = p.add(l);
         }
 
-        if !len.is_null() {
+        if let Some(len) = len {
             *len = tail_end.offset_from(tail) as usize;
         }
 
@@ -2077,9 +2077,9 @@ pub fn expand_wildcards_eval(
                 exp_pat,
                 exp_pat,
                 &mut usedlen,
-                ptr::null_mut(),
+                None,
                 &mut ignored_msg,
-                ptr::null_mut(),
+                None,
                 true,
             );
             g_st().emsg_off -= 1;
@@ -2410,13 +2410,13 @@ mod tests {
             );
 
             let mut len = 0usize;
-            let inv = invocation_path_tail(c"directory/exe a b c".as_ptr(), &mut len);
+            let inv = invocation_path_tail(c"directory/exe a b c".as_ptr(), Some(&mut len));
             assert_eq!(len, 3);
             assert_eq!(CStr::from_ptr(inv).to_bytes(), b"exe a b c");
             assert_eq!(
                 CStr::from_ptr(invocation_path_tail(
                     c"directory/exe a b c".as_ptr(),
-                    ptr::null_mut()
+                    None
                 ))
                 .to_bytes(),
                 b"exe a b c"
@@ -2426,11 +2426,11 @@ mod tests {
             let abs_inv = c"C:\\Users\\anyone\\bin\\z a b";
             #[cfg(not(windows))]
             let abs_inv = c"/usr/bin/z a b";
-            let inv2 = invocation_path_tail(abs_inv.as_ptr(), &mut len);
+            let inv2 = invocation_path_tail(abs_inv.as_ptr(), Some(&mut len));
             assert_eq!(len, 1);
             assert_eq!(CStr::from_ptr(inv2).to_bytes(), b"z a b");
 
-            let inv3 = invocation_path_tail(c"exe a/b\\c".as_ptr(), &mut len);
+            let inv3 = invocation_path_tail(c"exe a/b\\c".as_ptr(), Some(&mut len));
             assert_eq!(len, 3);
             assert_eq!(CStr::from_ptr(inv3).to_bytes(), b"exe a/b\\c");
 

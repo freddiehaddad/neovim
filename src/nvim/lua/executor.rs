@@ -1523,7 +1523,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
 
         let mut rel_time: proftime_T = 0;
         let mut start_time: proftime_T = 0;
-        time_push(&mut rel_time, &raw mut start_time);
+        time_push(&mut rel_time, &mut start_time);
         let status = lua_pcall(lstate, 1, 1, 0);
         if status == 0 {
             vim_snprintf!(
@@ -1532,7 +1532,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
                 c"require('%s')".as_ptr(),
                 name,
             );
-            time_msg((&raw const g_st().IObuff).cast(), &raw const start_time);
+            time_msg((&raw const g_st().IObuff).cast(), Some(&start_time));
         }
         time_pop(rel_time);
 
@@ -1947,7 +1947,7 @@ pub fn nlua_call_vlua(
         );
 }
 
-pub fn nlua_call_user_expand_func(xp: &mut expand_T, ret_tv: *mut typval_T) {
+pub fn nlua_call_user_expand_func(xp: &mut expand_T, ret_tv: &mut typval_T) {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
 
@@ -2714,7 +2714,7 @@ pub fn nlua_set_sctx(current: &mut sctx_T) {
         if found && let Some(source_path) = fix_fname(info.source.add(1)) {
             let mut sid = find_script_by_name(source_path.as_ptr().cast_mut());
             if sid <= 0 {
-                let si: *mut scriptitem_T = new_script_item(Some(source_path), &raw mut sid);
+                let si: *mut scriptitem_T = new_script_item(Some(source_path), &mut sid);
                 (*si).sn_lua = true;
             }
             current.sc_sid = sid;

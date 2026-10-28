@@ -165,7 +165,7 @@ pub fn hasFolding(
     firstp: *mut linenr_T,
     lastp: *mut linenr_T,
 ) -> bool {
-    hasFoldingWin(win, lnum, firstp, lastp, true, ptr::null_mut())
+    hasFoldingWin(win, lnum, firstp, lastp, true, None)
 }
 
 /// Search folds starting at lnum.
@@ -175,14 +175,14 @@ pub fn hasFoldingWin(
     firstp: *mut linenr_T,
     lastp: *mut linenr_T,
     cache: bool,
-    infop: *mut foldinfo_T,
+    mut infop: Option<&mut foldinfo_T>,
 ) -> bool {
     unsafe {
         checkupdate(win);
 
         if hasAnyFolding(&mut *win) == 0 {
-            if !infop.is_null() {
-                (*infop).fi_level = 0;
+            if let Some(infop) = infop.as_deref_mut() {
+                infop.fi_level = 0;
             }
             return false;
         }
@@ -238,10 +238,10 @@ pub fn hasFoldingWin(
         }
 
         if !had_folded {
-            if !infop.is_null() {
-                (*infop).fi_level = level;
-                (*infop).fi_lnum = lnum - lnum_rel;
-                (*infop).fi_low_level = if low_level == 0 { level } else { low_level };
+            if let Some(infop) = infop.as_deref_mut() {
+                infop.fi_level = level;
+                infop.fi_lnum = lnum - lnum_rel;
+                infop.fi_low_level = if low_level == 0 { level } else { low_level };
             }
             return false;
         }
@@ -253,10 +253,10 @@ pub fn hasFoldingWin(
         if !firstp.is_null() {
             *firstp = first;
         }
-        if !infop.is_null() {
-            (*infop).fi_level = level + 1;
-            (*infop).fi_lnum = first;
-            (*infop).fi_low_level = if low_level == 0 { level + 1 } else { low_level };
+        if let Some(infop) = infop {
+            infop.fi_level = level + 1;
+            infop.fi_lnum = first;
+            infop.fi_low_level = if low_level == 0 { level + 1 } else { low_level };
         }
         true
     }
@@ -295,7 +295,7 @@ pub fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
         };
         let mut last: linenr_T = 0;
 
-        if hasFoldingWin(win, lnum, ptr::null_mut(), &mut last, false, &mut info) {
+        if hasFoldingWin(win, lnum, ptr::null_mut(), &mut last, false, Some(&mut info)) {
             info.fi_lines = last - lnum + 1;
         } else {
             info.fi_lines = 0;
@@ -2697,7 +2697,7 @@ fn foldclosed_both(argvars: *mut typval_T, rettv: &mut typval_T, end: bool) {
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
             let mut first: linenr_T = 0;
             let mut last: linenr_T = 0;
-            if hasFoldingWin(*curwin.as_ptr(), lnum, &mut first, &mut last, false, ptr::null_mut()) {
+            if hasFoldingWin(*curwin.as_ptr(), lnum, &mut first, &mut last, false, None) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(if end { last } else { first }));
                 return;
             }

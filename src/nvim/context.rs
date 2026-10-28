@@ -510,9 +510,9 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     }
 }
 
-pub fn ctx_to_dict(ctx: *mut Context, arena: &mut Arena) -> Dict {
-    unsafe {
-        assert!(!ctx.is_null());
+pub fn ctx_to_dict(ctx: &mut Context, arena: &mut Arena) -> Dict {
+    {
+        
         let as_str = |v: &[u8]| NvimString {
             data: v.as_ptr().cast::<c_char>().cast_mut(),
             size: v.len(),
@@ -521,35 +521,35 @@ pub fn ctx_to_dict(ctx: *mut Context, arena: &mut Arena) -> Dict {
         put_c(
             &mut rv,
             c"regs",
-            array_obj(string_to_array(as_str(&(*ctx).regs), false, arena)),
+            array_obj(string_to_array(as_str(&ctx.regs), false, arena)),
         );
         put_c(
             &mut rv,
             c"jumps",
-            array_obj(string_to_array(as_str(&(*ctx).jumps), false, arena)),
+            array_obj(string_to_array(as_str(&ctx.jumps), false, arena)),
         );
         put_c(
             &mut rv,
             c"bufs",
-            array_obj(string_to_array(as_str(&(*ctx).bufs), false, arena)),
+            array_obj(string_to_array(as_str(&ctx.bufs), false, arena)),
         );
         put_c(
             &mut rv,
             c"gvars",
-            array_obj(string_to_array(as_str(&(*ctx).gvars), false, arena)),
+            array_obj(string_to_array(as_str(&ctx.gvars), false, arena)),
         );
         put_c(
             &mut rv,
             c"funcs",
-            array_obj(copy_array((*ctx).funcs, Some(arena))),
+            array_obj(copy_array(ctx.funcs, Some(arena))),
         );
         rv
     }
 }
 
-pub fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> CtxStateFlags {
-    unsafe {
-        assert!(!ctx.is_null());
+pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxStateFlags {
+    {
+        
         let mut types: CtxStateFlags = 0;
         let mut i = 0usize;
         while i < dict.size && !error_set(err) {
@@ -560,19 +560,19 @@ pub fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> CtxState
             }
             if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"regs") {
                 types |= kCtxRegs;
-                (*ctx).regs = array_to_string(item.value.data.array(), err);
+                ctx.regs = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"jumps") {
                 types |= kCtxJumps;
-                (*ctx).jumps = array_to_string(item.value.data.array(), err);
+                ctx.jumps = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"bufs") {
                 types |= kCtxBufs;
-                (*ctx).bufs = array_to_string(item.value.data.array(), err);
+                ctx.bufs = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"gvars") {
                 types |= kCtxGVars;
-                (*ctx).gvars = array_to_string(item.value.data.array(), err);
+                ctx.gvars = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"funcs") {
                 types |= kCtxFuncs;
-                (*ctx).funcs = copy_object(item.value, None).data.array();
+                ctx.funcs = copy_object(item.value, None).data.array();
             }
         }
         types

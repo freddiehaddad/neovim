@@ -2821,7 +2821,7 @@ fn find_var_ht_dict(
         {
             nlua_set_sctx(&mut g_st().current_sctx);
             if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
-                new_script_item(None, &raw mut g_st().current_sctx.sc_sid);
+                new_script_item(None, &mut g_st().current_sctx.sc_sid);
             }
             *d = &raw mut (*script_sv(g_st().current_sctx.sc_sid)).sv_dict;
         }
@@ -3407,7 +3407,7 @@ fn opt_from_tv(
     tv: *mut typval_T,
     opt_idx: OptIndex,
     option: *const c_char,
-    error: *mut bool,
+    error: &mut bool,
 ) -> Object {
     unsafe {
         let mut value = nil_obj();
@@ -3467,7 +3467,7 @@ fn opt_from_tv(
             std::process::abort();
         }
 
-        if !error.is_null() {
+        {
             *error = err;
         }
         value

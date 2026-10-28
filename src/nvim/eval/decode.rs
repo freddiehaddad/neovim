@@ -590,14 +590,14 @@ fn parse_json_number(
             let mut num_len: c_int = 0;
             vim_str2nr(
                 s,
-                std::ptr::null_mut(),
-                &mut num_len,
+                None,
+                Some(&mut num_len),
                 0,
-                &mut nr,
-                std::ptr::null_mut(),
+                Some(&mut nr),
+                None,
                 exp_num_len as c_int,
                 true,
-                std::ptr::null_mut(),
+                None,
             );
             if (exp_num_len as c_int) != num_len {
                 semsg!(

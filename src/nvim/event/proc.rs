@@ -443,9 +443,9 @@ fn proc_close(proc_: &mut Proc) {
     }
 }
 
-fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
+fn flush_stream(proc_: *mut Proc, stream: &mut RStream) {
     unsafe {
-        if stream.is_null() || (*stream).s.closed {
+        if stream.s.closed {
             return;
         }
 
@@ -458,34 +458,34 @@ fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
         if limit_bytes {
             let mut system_buffer_size: c_int = 0;
             let err = uv_recv_buffer_size(
-                (&raw mut (*stream).s.uv).cast(),
+                (&raw mut stream.s.uv).cast(),
                 &mut system_buffer_size,
             );
             if err != 0 {
                 system_buffer_size = ARENA_BLOCK_SIZE as c_int;
             }
-            max_bytes = (*stream).num_bytes + system_buffer_size as usize;
+            max_bytes = stream.num_bytes + system_buffer_size as usize;
         }
 
-        while !ptr::read_volatile(&raw const (*stream).s.closed)
-            && ptr::read_volatile(&raw const (*stream).num_bytes) < max_bytes
+        while !ptr::read_volatile(&raw const stream.s.closed)
+            && ptr::read_volatile(&raw const stream.num_bytes) < max_bytes
         {
-            let num_bytes = (*stream).num_bytes;
+            let num_bytes = stream.num_bytes;
 
-            if (*proc_).r#type == kProcTypePty && !(*stream).did_eof {
+            if (*proc_).r#type == kProcTypePty && !stream.did_eof {
                 pty_proc_flush_master(&mut *(&raw mut *proc_).cast());
             }
             loop_poll_events(&mut *(*proc_).loop_, 0);
-            if !(*stream).s.events.is_null() {
-                multiqueue_process_events((*stream).s.events);
+            if !stream.s.events.is_null() {
+                multiqueue_process_events(stream.s.events);
             }
 
-            if num_bytes == (*stream).num_bytes {
-                if !(*stream).did_eof {
-                    let _ = (*stream)
+            if num_bytes == stream.num_bytes {
+                if !stream.did_eof {
+                    let _ = stream
                         .s
                         .cb_data
-                        .call_read_cb(stream, (*stream).buffer.as_ptr(), 0, true);
+                        .call_read_cb(stream, stream.buffer.as_ptr(), 0, true);
                 }
                 break;
             }
@@ -495,8 +495,8 @@ fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
 
 pub fn proc_close_handles(proc_: &mut Proc) {
     proc_st().exit_need_delay += 1;
-        flush_stream(&raw mut *proc_, &raw mut proc_.out);
-        flush_stream(&raw mut *proc_, &raw mut proc_.err);
+        flush_stream(&raw mut *proc_, &mut proc_.out);
+        flush_stream(&raw mut *proc_, &mut proc_.err);
 
         proc_close_streams(proc_);
         proc_close(proc_);

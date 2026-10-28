@@ -1631,7 +1631,7 @@ pub fn win_line(
         let bg_attr = win_bg_attr(wp);
 
         let mut linestatus: c_int = 0;
-        wlv.filler_lines = diff_check_with_linestatus(&mut *wp, lnum, &raw mut linestatus);
+        wlv.filler_lines = diff_check_with_linestatus(&mut *wp, lnum, Some(&mut linestatus));
         let mut line_changes = diffline_T::default();
         let mut change_index: c_int = -1;
         if linestatus < 0 {

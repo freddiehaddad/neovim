@@ -1384,7 +1384,7 @@ pub fn find_file_in_path_option(
 }
 
 /// Get the file name at the cursor.
-pub fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) -> Option<std::ffi::CString> {
+pub fn grab_file_name(count: c_int, file_lnum: &mut linenr_T) -> Option<std::ffi::CString> {
     unsafe {
         let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
         let fname = if g_st().Visual.active {
@@ -1393,8 +1393,7 @@ pub fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) -> Option<std::ffi
             if !get_visual_text(None, &mut ptr, &mut len) {
                 return None;
             }
-            if !file_lnum.is_null()
-                && *ptr.add(len) == b':' as c_char
+            if *ptr.add(len) == b':' as c_char
                 && (*ptr.add(len + 1) as u8).is_ascii_digit()
             {
                 let mut p: *mut c_char = ptr.add(len + 1);

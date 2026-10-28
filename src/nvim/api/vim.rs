@@ -470,7 +470,7 @@ pub fn nvim_set_hl(
             && val.update;
         let mut base: *mut HlAttrs = ptr::null_mut();
         let mut base_attrs = HlAttrs::default();
-        if update && hl_ns_get_attrs(ns_id as c_int, hl_id, ptr::null_mut(), &mut base_attrs) {
+        if update && hl_ns_get_attrs(ns_id as c_int, hl_id, None, &mut base_attrs) {
             base = &mut base_attrs;
         }
 

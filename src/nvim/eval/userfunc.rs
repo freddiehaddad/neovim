@@ -683,7 +683,7 @@ pub fn deref_func_name(
     lenp: &mut c_int,
     partialp: *mut *mut partial_T,
     no_autoload: bool,
-    found_var: *mut bool,
+    found_var: Option<&mut bool>,
 ) -> *mut c_char {
     unsafe {
         if !partialp.is_null() {
@@ -695,7 +695,7 @@ pub fn deref_func_name(
             return name.cast_mut();
         }
         let tv = &raw mut (*v).di_tv;
-        if !found_var.is_null() {
+        if let Some(found_var) = found_var {
             *found_var = true;
         }
 
@@ -2294,7 +2294,7 @@ pub fn trans_function_name(
                 &mut len,
                 partial,
                 (flags & TFN_NO_AUTOLOAD) != 0,
-                ptr::null_mut(),
+                None,
             );
             if name == exp_ptr {
                 name = ptr::null_mut();
@@ -2306,7 +2306,7 @@ pub fn trans_function_name(
                 &mut len,
                 partial,
                 (flags & TFN_NO_AUTOLOAD) != 0,
-                ptr::null_mut(),
+                None,
             );
             if name == *pp {
                 name = ptr::null_mut();
@@ -3848,7 +3848,7 @@ pub fn ex_call(eap: &mut exarg_T) {
                 &raw mut partial
             },
             false,
-            &raw mut found_var,
+            Some(&mut found_var),
         );
 
         let startarg = skipwhite(arg);

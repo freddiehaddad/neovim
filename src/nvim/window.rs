@@ -1133,7 +1133,7 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
         }
 
         let mut lnum: linenr_T = -1;
-        if let Some(fname_cstr) = grab_file_name(Prenum1, &raw mut lnum) {
+        if let Some(fname_cstr) = grab_file_name(Prenum1, &mut lnum) {
             let ptr = fname_cstr.as_ptr().cast_mut();
             let oldtab = g_st().curtab;
             let oldwin = *curwin.as_ptr();
@@ -1491,7 +1491,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     type_ = FIND_ANY;
                 }
                 let mut ptr: *mut c_char = ptr::null_mut();
-                let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, ptr::null_mut());
+                let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, None);
                 if len == 0 {
                     return;
                 }
@@ -1871,7 +1871,7 @@ pub fn ui_ext_win_viewport(wp: &mut win_T) {
                     i64::from(wp.w_skipcol),
                     &mut lnume,
                     &mut vcole,
-                    ptr::null_mut(),
+                    None,
                     i64::MAX,
                 );
             } else if cur_topline > last_topline
@@ -1890,7 +1890,7 @@ pub fn ui_ext_win_viewport(wp: &mut win_T) {
                     last_skipcol,
                     &mut lnume,
                     &mut vcole,
-                    ptr::null_mut(),
+                    None,
                     i64::MAX,
                 );
             }
@@ -6590,7 +6590,7 @@ fn make_win_info_dict(
 }
 
 fn check_window_scroll_resize(
-    size_count: *mut c_int,
+    mut size_count: Option<&mut c_int>,
     first_scroll_win: *mut *mut win_T,
     first_size_win: *mut *mut win_T,
     winlist: *mut list_T,
@@ -6628,9 +6628,9 @@ fn check_window_scroll_resize(
                         vval: TypvalVval::Number(i64::from((*wp).handle)),
                     };
                     tv_list_append_owned_tv(winlist, tv);
-                } else if !size_count.is_null() {
+                } else if let Some(ref mut size_count) = size_count {
                     debug_assert!(!first_size_win.is_null() && !first_scroll_win.is_null());
-                    *size_count += 1;
+                    **size_count += 1;
                     if (*first_size_win).is_null() {
                         *first_size_win = wp;
                     }
@@ -6720,7 +6720,7 @@ pub fn may_trigger_win_scrolled_resized() {
         let mut first_scroll_win: *mut win_T = ptr::null_mut();
         let mut first_size_win: *mut win_T = ptr::null_mut();
         check_window_scroll_resize(
-            &raw mut size_count,
+            Some(&mut size_count),
             &raw mut first_scroll_win,
             &raw mut first_size_win,
             ptr::null_mut(),
@@ -6736,7 +6736,7 @@ pub fn may_trigger_win_scrolled_resized() {
         if trigger_resize {
             windows_list = tv_list_alloc(size_count as isize);
             check_window_scroll_resize(
-                ptr::null_mut(),
+                None,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 windows_list,
@@ -6749,7 +6749,7 @@ pub fn may_trigger_win_scrolled_resized() {
             scroll_dict = tv_dict_alloc();
             (*scroll_dict).dv_refcount = 1;
             check_window_scroll_resize(
-                ptr::null_mut(),
+                None,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),

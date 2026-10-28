@@ -6958,9 +6958,9 @@ pub fn parse_command_modifiers(
                         }
                     }
                     if skip_only {
-                        p = skip_vimgrep_pat(p, ptr::null_mut(), ptr::null_mut());
+                        p = skip_vimgrep_pat(p, ptr::null_mut(), None);
                     } else {
-                        p = skip_vimgrep_pat(p, &raw mut reg_pat, ptr::null_mut());
+                        p = skip_vimgrep_pat(p, &raw mut reg_pat, None);
                     }
                     if p.is_null() || *p == NUL {
                         break;
@@ -7901,7 +7901,7 @@ pub fn get_address(
                                 *curwin.as_ptr(),
                                 g_st().curbuf,
                                 &raw mut pos,
-                                ptr::null_mut(),
+                                None,
                                 if *cmd == b'?' as c_char {
                                     BACKWARD
                                 } else {
@@ -8145,7 +8145,7 @@ fn skip_grep_pat(eap: &mut exarg_T) -> *mut c_char {
                 || eap.cmdidx == cmdidx_T::CMD_lvimgrepadd as c_int
                 || (eap.cmdidx >= 0 && grep_internal(eap.cmdidx) != 0))
         {
-            p = skip_vimgrep_pat(p, ptr::null_mut(), ptr::null_mut());
+            p = skip_vimgrep_pat(p, ptr::null_mut(), None);
             if p.is_null() {
                 p = eap.arg;
             }
@@ -8238,9 +8238,9 @@ pub fn expand_filename(
                 p,
                 eap.arg,
                 &mut srclen,
-                &raw mut eap.do_ecmd_lnum,
+                Some(&mut eap.do_ecmd_lnum),
                 errormsgp,
-                &raw mut escaped,
+                Some(&mut escaped),
                 true,
             );
             if !(*errormsgp).is_null() {
@@ -12099,9 +12099,9 @@ pub fn eval_vars(
     src: *mut c_char,
     srcstart: *const c_char,
     usedlen: &mut usize,
-    lnump: *mut linenr_T,
+    lnump: Option<&mut linenr_T>,
     errormsg: *mut *const c_char,
-    escaped: *mut c_int,
+    mut escaped: Option<&mut c_int>,
     empty_is_error: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
@@ -12116,7 +12116,7 @@ pub fn eval_vars(
         let arg_all_cstr: Option<std::ffi::CString>;
 
         *errormsg = ptr::null();
-        if !escaped.is_null() {
+        if let Some(escaped) = escaped.as_deref_mut() {
             *escaped = c_int::from(false);
         }
 
@@ -12140,7 +12140,7 @@ pub fn eval_vars(
             } else {
                 FIND_STRING
             };
-            resultlen = find_ident_under_cursor(&raw mut result, find_type, ptr::null_mut());
+            resultlen = find_ident_under_cursor(&raw mut result, find_type, None);
             if resultlen == 0 {
                 *errormsg = c"".as_ptr();
                 return None;
@@ -12162,7 +12162,7 @@ pub fn eval_vars(
                         arg_all_cstr = Some(arg_all());
                         result = arg_all_cstr.as_ref().unwrap().as_ptr().cast_mut();
                         *usedlen = 2;
-                        if !escaped.is_null() {
+                        if let Some(escaped) = escaped {
                             *escaped = c_int::from(true);
                         }
                         skip_mod = true;
@@ -12200,7 +12200,7 @@ pub fn eval_vars(
                                 );
                                 return None;
                             }
-                            if !lnump.is_null() {
+                            if let Some(lnump) = lnump {
                                 *lnump = ECMD_LAST;
                             }
                             if (*buf).b_fname.is_null() {
@@ -12418,9 +12418,9 @@ pub fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
                     p,
                     result_vec.as_ptr(),
                     &mut srclen,
-                    ptr::null_mut(),
+                    None,
                     &mut errormsg,
-                    ptr::null_mut(),
+                    None,
                     true,
                 );
                 if !errormsg.is_null() {

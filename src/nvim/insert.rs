@@ -2423,7 +2423,7 @@ pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
                     ptr::null_mut(),
                     &raw mut last,
                     true,
-                    ptr::null_mut(),
+                    None,
                 ) {
                     lnum = last + 1;
                 } else {
@@ -2454,7 +2454,7 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> c_int {
             ptr::null_mut(),
             &raw mut lnum,
             true,
-            ptr::null_mut(),
+            None,
         );
         if n > 0 && lnum >= (*(**curwin.as_ptr()).w_buffer).b_ml.ml_line_count {
             return FAIL;

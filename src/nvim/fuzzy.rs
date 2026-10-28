@@ -755,7 +755,7 @@ pub fn fuzzy_match_str_in_line(
     ptr: *mut *mut c_char,
     pat: *mut c_char,
     len: *mut c_int,
-    current_pos: *mut pos_T,
+    current_pos: Option<&mut pos_T>,
     score: *mut c_int,
 ) -> bool {
     unsafe {
@@ -784,8 +784,8 @@ pub fn fuzzy_match_str_in_line(
                 *len = ((end as usize) - (start as usize)) as c_int;
                 found = true;
                 *ptr = start;
-                if !current_pos.is_null() {
-                    (*current_pos).col += ((end as usize) - (str_begin as usize)) as c_int;
+                if let Some(current_pos) = current_pos {
+                    current_pos.col += ((end as usize) - (str_begin as usize)) as c_int;
                 }
                 break;
             }
@@ -855,7 +855,7 @@ pub fn search_for_fuzzy_match(
                 if !(*ptr).is_null() && **ptr != 0 {
                     if !whole_line {
                         found_new_match =
-                            fuzzy_match_str_in_line(ptr, pattern, len, &mut current_pos, score);
+                            fuzzy_match_str_in_line(ptr, pattern, len, Some(&mut current_pos), score);
                         if found_new_match {
                             *pos = current_pos;
                             break;

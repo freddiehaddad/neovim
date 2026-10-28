@@ -922,9 +922,9 @@ pub fn script_line_end() {
 }
 
 /// Saves the previous time before doing something that could nest (`time_push`).
-pub fn time_push(rel: &mut proftime_T, start: *mut proftime_T) {
+pub fn time_push(rel: &mut proftime_T, start: &mut proftime_T) {
     let now = profile_start();
-    unsafe {
+    {
         let prev = prof_st().G_PREV_TIME;
         prof_st().G_PREV_TIME = now;
         *rel = profile_sub(now, prev);
@@ -966,12 +966,12 @@ pub fn time_start(message: *const c_char) {
             c" clock   elapsed:              other lines\n\n".as_ptr(),
         );
 
-        time_msg(message, std::ptr::null());
+        time_msg(message, None);
 }
 
 /// Prints out timing info (`time_msg`).
-pub fn time_msg(mesg: *const c_char, start: *const proftime_T) {
-    unsafe {
+pub fn time_msg(mesg: *const c_char, start: Option<&proftime_T>) {
+    {
         let Some(ref tf) = g_st().time_fd else {
             return;
         };
@@ -980,7 +980,7 @@ pub fn time_msg(mesg: *const c_char, start: *const proftime_T) {
         let now = profile_start();
         time_diff(prof_st().G_START_TIME, now);
 
-        if !start.is_null() {
+        if let Some(start) = start {
             fprintf!(fp, c"  ".as_ptr());
             time_diff(*start, now);
         }
@@ -1033,7 +1033,7 @@ pub fn time_finish() {
             return;
         }
         assert!(!prof_st().STARTUPTIME_BUF.is_empty());
-        time_msg(c"--- NVIM STARTED ---\n".as_ptr(), std::ptr::null());
+        time_msg(c"--- NVIM STARTED ---\n".as_ptr(), None);
 
         g_st().time_fd = None;
 

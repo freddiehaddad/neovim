@@ -2466,14 +2466,14 @@ pub fn f_str2nr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         let mut n: varnumber_T = 0;
         vim_str2nr(
             p,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             what,
-            &raw mut n,
-            ptr::null_mut(),
+            Some(&mut n),
+            None,
             0,
             false,
-            ptr::null_mut(),
+            None,
         );
         rettv.vval = crate::eval::typval::TypvalVval::Number(if isneg { -n } else { n });
     }

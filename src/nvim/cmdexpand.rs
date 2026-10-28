@@ -3321,7 +3321,7 @@ fn set_context_in_argopt(xp: &mut expand_T, arg: *const c_char) -> *const c_char
 fn set_context_in_filter_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         if *arg != NUL {
-            arg = skip_vimgrep_pat(arg.cast_mut(), ptr::null_mut(), ptr::null_mut());
+            arg = skip_vimgrep_pat(arg.cast_mut(), ptr::null_mut(), None);
         }
         if arg.is_null() || *arg == NUL {
             xp.xp_context = EXPAND_NOTHING;
@@ -5481,7 +5481,7 @@ fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
 
 fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
     let mut rettv: typval_T = typval_T::new();
-        nlua_call_user_expand_func(xp, &raw mut rettv);
+        nlua_call_user_expand_func(xp, &mut rettv);
         if rettv.v_type != VarType::VAR_LIST {
             tv_clear(&raw mut rettv);
             return FAIL;
@@ -6212,7 +6212,7 @@ fn expand_pattern_in_buf(
                 ptr::null_mut(),
                 g_st().curbuf,
                 &raw mut cur_match_pos,
-                &raw mut end_match_pos,
+                Some(&mut end_match_pos),
                 dir,
                 pat,
                 pat_len as usize,

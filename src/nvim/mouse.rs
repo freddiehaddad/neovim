@@ -453,7 +453,7 @@ fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
             return IN_UNKNOWN;
         }
 
-        mpos.col = vcol2col(&mut *wp, mpos.lnum, col, &raw mut mpos.coladd);
+        mpos.col = vcol2col(&mut *wp, mpos.lnum, col, Some(&mut mpos.coladd));
         IN_BUFFER
     }
 }
@@ -2042,7 +2042,7 @@ pub fn vcol2col(
     wp: &mut win_T,
     lnum: linenr_T,
     vcol: colnr_T,
-    coladdp: *mut colnr_T,
+    coladdp: Option<&mut colnr_T>,
 ) -> colnr_T {
     unsafe {
         let line = ml_get_buf(wp.w_buffer, lnum);
@@ -2069,7 +2069,7 @@ pub fn vcol2col(
             ci = cli.next;
         }
 
-        if !coladdp.is_null() {
+        if let Some(coladdp) = coladdp {
             *coladdp = vcol - cur_vcol;
         }
         ci.ptr.offset_from(line.cast_const()) as colnr_T
@@ -2219,7 +2219,7 @@ pub fn f_getmousepos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 wincol = varnumber_T::from(col + 1 + (*wp).w_wincol_off);
                 if row >= 0 && row < (*wp).w_height && col >= 0 && col < (*wp).w_width {
                     mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut lnum);
-                    col = vcol2col(&mut *wp, lnum, col, &raw mut coladd);
+                    col = vcol2col(&mut *wp, lnum, col, Some(&mut coladd));
                     column = varnumber_T::from(col) + 1;
                 }
             }

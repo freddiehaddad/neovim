@@ -476,7 +476,7 @@ pub fn grid_getchar(
     grid: *mut ScreenGrid,
     row: c_int,
     col: c_int,
-    attrp: *mut c_int,
+    attrp: Option<&mut c_int>,
 ) -> schar_T {
     unsafe {
         let grid = &*grid;
@@ -485,7 +485,7 @@ pub fn grid_getchar(
         }
 
         let off = grid.line_offset[row as usize] + col as usize;
-        if !attrp.is_null() {
+        if let Some(attrp) = attrp {
             *attrp = grid.attrs[off];
         }
         grid.chars[off]

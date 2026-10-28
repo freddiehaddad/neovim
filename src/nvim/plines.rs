@@ -1021,7 +1021,7 @@ pub fn plines_win_full(
     limit_winheight: bool,
 ) -> c_int {
     unsafe {
-        let folded = hasFoldingWin(wp, lnum, &mut lnum, nextp, cache, ptr::null_mut());
+        let folded = hasFoldingWin(wp, lnum, &mut lnum, nextp, cache, None);
         if !foldedp.is_null() {
             *foldedp = folded;
         }
@@ -1087,7 +1087,7 @@ pub fn win_text_height(
     start_vcol: i64,
     end_lnum: &mut linenr_T,
     end_vcol: &mut i64,
-    fill: *mut i64,
+    fill: Option<&mut i64>,
     max: i64,
 ) -> i64 {
     unsafe {
@@ -1155,7 +1155,7 @@ pub fn win_text_height(
 
         *end_lnum = cur_lnum;
         *end_vcol = vcol_end;
-        if !fill.is_null() {
+        if let Some(fill) = fill {
             *fill = height_sum_fill;
         }
         height_sum_fill + height_sum_nofill

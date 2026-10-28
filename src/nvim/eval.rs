@@ -2074,7 +2074,7 @@ fn eval_func(
             &mut len,
             &raw mut partial,
             !evaluate,
-            &raw mut found_var,
+            Some(&mut found_var),
         );
 
         let s_cstr = cstr_from_bytes(std::slice::from_raw_parts(s.cast::<u8>(), len as usize));
@@ -3759,14 +3759,14 @@ fn eval_number(
             let mut n: varnumber_T = 0;
             vim_str2nr(
                 *arg,
-                ptr::null_mut(),
-                &raw mut len,
+                None,
+                Some(&mut len),
                 STR2NR_ALL,
-                &raw mut n,
-                ptr::null_mut(),
+                Some(&mut n),
+                None,
                 0,
                 true,
-                ptr::null_mut(),
+                None,
             );
             if len == 0 {
                 if evaluate {

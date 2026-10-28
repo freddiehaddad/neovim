@@ -21,7 +21,7 @@ pub fn os_libcall(
     argv: *const c_char,
     argi: c_int,
     str_out: Option<&mut Option<CString>>,
-    int_out: *mut c_int,
+    int_out: Option<&mut c_int>,
 ) -> bool {
     if libname.is_null() || funcname.is_null() {
         return false;
@@ -61,7 +61,7 @@ pub fn os_libcall(
             } else {
                 None
             };
-        } else if !int_out.is_null() {
+        } else if let Some(int_out) = int_out {
             *int_out = if !argv.is_null() {
                 let sfn: unsafe extern "C" fn(*const c_char) -> c_int = std::mem::transmute(fn_ptr);
                 sfn(argv)
@@ -88,7 +88,7 @@ mod tests {
                 std::ptr::null(),
                 0,
                 None,
-                std::ptr::null_mut()
+                None
             ));
             assert!(!os_libcall(
                 c"lib".as_ptr(),
@@ -96,7 +96,7 @@ mod tests {
                 std::ptr::null(),
                 0,
                 None,
-                std::ptr::null_mut()
+                None
             ));
     }
 }

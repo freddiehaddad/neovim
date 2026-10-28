@@ -1195,7 +1195,7 @@ pub fn set_init_3() {
 
         let mut len: usize = 0;
         let mut name = [0 as c_char; MAXPATHL];
-        let p = invocation_path_tail(opt_vars().p_sh, &raw mut len);
+        let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
         { let _d = (name.as_mut_ptr()).cast::<u8>(); let _n = len; if _n > 0 { std::ptr::copy_nonoverlapping((p).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
         for (i, rule) in SHELL_RULES.iter().enumerate() {
             if !c_str_contains(name.as_ptr(), rule.pat.to_bytes()) {
@@ -1932,14 +1932,14 @@ pub fn get_option_newval(
                     let mut i: c_int = 0;
                     vim_str2nr(
                         arg,
-                        ptr::null_mut(),
-                        &raw mut i,
+                        None,
+                        Some(&mut i),
                         STR2NR_ALL,
-                        &raw mut newval_num,
-                        ptr::null_mut(),
+                        Some(&mut newval_num),
+                        None,
                         0,
                         true,
-                        ptr::null_mut(),
+                        None,
                     );
                     if i == 0
                         || (*arg.add(i as usize) != NUL && !ascii_iswhite(*arg.add(i as usize)))

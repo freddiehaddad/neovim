@@ -1028,14 +1028,14 @@ pub fn vim_isblankline(lbuf: *mut c_char) -> bool {
 
 pub fn vim_str2nr(
     start: *const c_char,
-    prep: *mut c_int,
-    len: *mut c_int,
+    prep: Option<&mut c_int>,
+    mut len: Option<&mut c_int>,
     what: c_int,
-    nptr: *mut varnumber_T,
-    unptr: *mut uvarnumber_T,
+    nptr: Option<&mut varnumber_T>,
+    unptr: Option<&mut uvarnumber_T>,
     maxlen: c_int,
     strict: bool,
-    overflow: *mut bool,
+    mut overflow: Option<&mut bool>,
 ) {
     unsafe {
         let mut ptr = start;
@@ -1046,7 +1046,7 @@ pub fn vim_str2nr(
         let negative = *ptr == b'-' as c_char;
         let mut un: uvarnumber_T = 0;
 
-        if !len.is_null() {
+        if let Some(len) = len.as_deref_mut() {
             *len = 0;
         }
 
@@ -1179,7 +1179,7 @@ pub fn vim_str2nr(
                 un = base * un + digit;
             } else {
                 un = UVARNUMBER_MAX;
-                if !overflow.is_null() {
+                if let Some(overflow) = overflow.as_deref_mut() {
                     *overflow = true;
                 }
             }
@@ -1190,19 +1190,19 @@ pub fn vim_str2nr(
             return;
         }
 
-        if !prep.is_null() {
+        if let Some(prep) = prep {
             *prep = pre;
         }
 
-        if !len.is_null() {
+        if let Some(len) = len {
             *len = ptr.offset_from(start) as c_int;
         }
 
-        if !nptr.is_null() {
+        if let Some(nptr) = nptr {
             if negative {
                 if un > VARNUMBER_MAX {
                     *nptr = VARNUMBER_MIN;
-                    if !overflow.is_null() {
+                    if let Some(overflow) = overflow.as_deref_mut() {
                         *overflow = true;
                     }
                 } else {
@@ -1211,7 +1211,7 @@ pub fn vim_str2nr(
             } else {
                 if un > VARNUMBER_MAX {
                     un = VARNUMBER_MAX;
-                    if !overflow.is_null() {
+                    if let Some(overflow) = overflow {
                         *overflow = true;
                     }
                 }
@@ -1219,7 +1219,7 @@ pub fn vim_str2nr(
             }
         }
 
-        if !unptr.is_null() {
+        if let Some(unptr) = unptr {
             *unptr = un;
         }
     }
@@ -1333,14 +1333,14 @@ mod tests {
                 let mut unum: uvarnumber_T = 99;
                 vim_str2nr(
                     s.as_ptr(),
-                    &mut pre,
-                    &mut len,
+                    Some(&mut pre),
+                    Some(&mut len),
                     what,
-                    &mut num,
-                    &mut unum,
+                    Some(&mut num),
+                    Some(&mut unum),
                     maxlen,
                     strict,
-                    ptr::null_mut(),
+                    None,
                 );
                 assert_eq!(len, exp_len, "s={s:?} what={what}");
                 if let Some(en) = exp_num {

@@ -680,7 +680,7 @@ pub fn init_locale() {
         }
 
         if has_time_fd() {
-            time_msg(c"locale set".as_ptr(), ptr::null());
+            time_msg(c"locale set".as_ptr(), None);
         }
     }
 }

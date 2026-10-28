@@ -2251,7 +2251,7 @@ fn ins_compl_files(
     files: &[std::ffi::CString],
     thesaurus: bool,
     flags: c_int,
-    regmatch: *mut regmatch_T,
+    regmatch: &mut regmatch_T,
     buf: *mut c_char,
     dir: &mut Direction,
 ) {
@@ -2308,7 +2308,7 @@ fn ins_compl_files(
                             &raw mut ptr,
                             leader,
                             &raw mut len,
-                            ptr::null_mut(),
+                            None,
                             &raw mut score,
                         ) {
                             let end_ptr = if ctrl_x_mode_line_or_eval() {
@@ -2338,17 +2338,17 @@ fn ins_compl_files(
                             }
                         }
                     }
-                } else if !regmatch.is_null() {
+                } else {
                     while vim_regexec(&mut *regmatch, buf, ptr.offset_from(buf) as colnr_T) {
-                        ptr = (*regmatch).startp[0];
+                        ptr = regmatch.startp[0];
                         ptr = if ctrl_x_mode_line_or_eval() {
                             find_line_end(ptr)
                         } else {
                             find_word_end(ptr)
                         };
                         let mut add_r = ins_compl_add_infercase(
-                            (*regmatch).startp[0],
-                            ptr.offset_from((*regmatch).startp[0]) as c_int,
+                            regmatch.startp[0],
+                            ptr.offset_from(regmatch.startp[0]) as c_int,
                             opt_vars().p_ic != 0,
                             file,
                             *dir,
@@ -2361,7 +2361,7 @@ fn ins_compl_files(
                                 file,
                                 &raw mut ptr,
                                 *dir,
-                                (*regmatch).startp[0],
+                                regmatch.startp[0],
                             );
                         }
                         if add_r == OK {
@@ -4672,7 +4672,7 @@ fn get_next_default_completion(
                     ptr::null_mut(),
                     st.ins_buf,
                     st.cur_match_pos_ptr(),
-                    ptr::null_mut(),
+                    None,
                     insexp().compl_direction,
                     compl_pattern_ptr(),
                     compl_pattern_len(),
@@ -5045,7 +5045,7 @@ fn prepare_cpt_compl_funcs() {
             let cb = get_callback_if_cpt_func(p, idx).as_ptr();
             if !cb.is_null() {
                 let mut startcol: c_int = 0;
-                if get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, &raw mut startcol) == FAIL
+                if get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, Some(&mut startcol)) == FAIL
                 {
                     if startcol == -3 {
                         insexp().cpt_sources_array[idx as usize].cs_refresh_always = false;
@@ -6182,7 +6182,7 @@ fn set_compl_globals(mut startcol: c_int, curs_col: colnr_T, is_cpt_compl: bool)
 fn get_userdefined_compl_info(
     curs_col: colnr_T,
     mut cb: *mut Callback,
-    startcol: *mut c_int,
+    startcol: Option<&mut c_int>,
 ) -> c_int {
     unsafe {
         let save_State = g_st().State;
@@ -6232,7 +6232,7 @@ fn get_userdefined_compl_info(
             return FAIL;
         }
 
-        if !startcol.is_null() {
+        if let Some(startcol) = startcol {
             *startcol = col;
         }
 
@@ -6308,7 +6308,7 @@ fn compl_get_info(
             || ctrl_x_mode_omni()
             || thesaurus_func_complete(insexp().ctrl_x_mode)
         {
-            if get_userdefined_compl_info(curs_col, ptr::null_mut(), ptr::null_mut()) != OK {
+            if get_userdefined_compl_info(curs_col, ptr::null_mut(), None) != OK {
                 return FAIL;
             }
             *line_invalid = true;
@@ -6951,7 +6951,7 @@ fn cpt_compl_refresh() {
                     remove_old_matches();
                     let mut startcol: c_int = 0;
                     let ret =
-                        get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, &raw mut startcol);
+                        get_userdefined_compl_info((**curwin.as_ptr()).w_cursor.col, cb, Some(&mut startcol));
                     if ret == FAIL {
                         if startcol == -3 {
                             insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_refresh_always = false;

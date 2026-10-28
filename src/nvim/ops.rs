@@ -2830,16 +2830,16 @@ pub fn do_addsub(
             let mut overflow = false;
             vim_str2nr(
                 ptr_line.add(col as usize),
-                &raw mut pre,
-                &raw mut length,
+                Some(&mut pre),
+                Some(&mut length),
                 (if do_bin { STR2NR_BIN } else { 0 })
                     + (if do_oct { STR2NR_OCT } else { 0 })
                     + (if do_hex { STR2NR_HEX } else { 0 }),
-                ptr::null_mut(),
-                &raw mut n,
+                None,
+                Some(&mut n),
                 maxlen,
                 false,
-                &raw mut overflow,
+                Some(&mut overflow),
             );
 
             if pre != 0 && negative {

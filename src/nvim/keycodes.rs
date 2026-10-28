@@ -2494,14 +2494,14 @@ pub fn find_special_key(
                     let mut l: c_int = 0;
                     vim_str2nr(
                         bp.add(5),
-                        std::ptr::null_mut(),
-                        &mut l,
+                        None,
+                        Some(&mut l),
                         STR2NR_ALL,
-                        std::ptr::null_mut(),
-                        std::ptr::null_mut(),
+                        None,
+                        None,
                         0,
                         true,
-                        std::ptr::null_mut(),
+                        None,
                     );
                     if l == 0 {
                         emsg(e_invarg.as_ptr());
@@ -2543,14 +2543,14 @@ pub fn find_special_key(
                     let mut n: u64 = 0;
                     vim_str2nr(
                         last_dash.add(6),
-                        std::ptr::null_mut(),
-                        &mut l,
+                        None,
+                        Some(&mut l),
                         STR2NR_ALL,
-                        std::ptr::null_mut(),
-                        &mut n,
+                        None,
+                        Some(&mut n),
                         0,
                         true,
-                        std::ptr::null_mut(),
+                        None,
                     );
                     if l == 0 {
                         emsg(e_invarg.as_ptr());

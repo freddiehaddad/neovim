@@ -675,7 +675,7 @@ pub fn nvim_win_text_height(
             start_vcol,
             &mut end_lnum,
             &mut end_vcol,
-            &mut fill,
+            Some(&mut fill),
             max,
         );
         if !has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {

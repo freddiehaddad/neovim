@@ -202,7 +202,7 @@ pub fn os_expand_wildcards(
 
         #[cfg(unix)]
         let is_fish_shell = {
-            let tail = invocation_path_tail(opt_vars().p_sh, ptr::null_mut());
+            let tail = invocation_path_tail(opt_vars().p_sh, None);
             let bytes = CStr::from_ptr(tail).to_bytes();
             bytes.starts_with(b"fish")
         };

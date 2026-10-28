@@ -277,7 +277,7 @@ use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 #[inline]
 fn time_msg_if_enabled(s: *const c_char) {
     if has_time_fd() {
-            time_msg(s, ptr::null());
+            time_msg(s, None);
         }
 }
 
@@ -342,60 +342,54 @@ fn event_teardown() -> bool {
     }
 }
 
-fn early_init(paramp: *mut mparm_T) {
+fn early_init(paramp: &mut mparm_T) {
+    os_hint_priority();
+    estack_init();
+    cmdline_init();
+    eval_init();
+    set_vim_var_nr(VV_STARTTIME, os_realtime() as varnumber_T);
+    init_path(if !main_init_st().ARGV0.is_null() {
+        main_init_st().ARGV0
+    } else {
+        c"nvim".as_ptr()
+    });
+    init_normal_cmds();
+    highlight_init();
+    mc_init();
+
+    #[cfg(windows)]
     unsafe {
-        os_hint_priority();
-        estack_init();
-        cmdline_init();
-        eval_init();
-        set_vim_var_nr(VV_STARTTIME, os_realtime() as varnumber_T);
-        init_path(if !main_init_st().ARGV0.is_null() {
-            main_init_st().ARGV0
-        } else {
-            c"nvim".as_ptr()
-        });
-        init_normal_cmds();
-        highlight_init();
-        mc_init();
-
-        #[cfg(windows)]
-        {
-            let mut ovi = OsVersionInfoA::new();
-            ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
-            GetVersionExA(&mut ovi);
-            let mut buf = Vec::with_capacity(20);
-            let _ = write!(buf, "{}.{}\0", ovi.dwMajorVersion, ovi.dwMinorVersion);
-            let copy_len = buf.len().min(20);
-            ptr::copy_nonoverlapping(
-                buf.as_ptr().cast::<c_char>(),
-                (&raw mut g_st().windowsVersion).cast::<c_char>(),
-                copy_len,
-            );
-            *((&raw mut g_st().windowsVersion).cast::<c_char>().add(19)) = 0;
-        }
-
-        time_msg_if_enabled(c"early init".as_ptr());
-
-        init_locale();
-        set_init_tablocal();
-
-        win_alloc_first();
-        time_msg_if_enabled(c"init first window".as_ptr());
-
-        g_st().global_alist.id = 0;
-
-        init_homedir();
-        set_init_1(if !paramp.is_null() {
-            (*paramp).clean
-        } else {
-            false
-        });
-        log_init();
-        time_msg_if_enabled(c"inits 1".as_ptr());
-
-        set_lang_var();
-        qf_init_stack();
+        let mut ovi = OsVersionInfoA::new();
+        ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
+        GetVersionExA(&mut ovi);
+        let mut buf = Vec::with_capacity(20);
+        let _ = write!(buf, "{}.{}\0", ovi.dwMajorVersion, ovi.dwMinorVersion);
+        let copy_len = buf.len().min(20);
+        ptr::copy_nonoverlapping(
+            buf.as_ptr().cast::<c_char>(),
+            (&raw mut g_st().windowsVersion).cast::<c_char>(),
+            copy_len,
+        );
+        *((&raw mut g_st().windowsVersion).cast::<c_char>().add(19)) = 0;
     }
+
+    time_msg_if_enabled(c"early init".as_ptr());
+
+    init_locale();
+    set_init_tablocal();
+
+    win_alloc_first();
+    time_msg_if_enabled(c"init first window".as_ptr());
+
+    g_st().global_alist.id = 0;
+
+    init_homedir();
+    set_init_1(paramp.clean);
+    log_init();
+    time_msg_if_enabled(c"inits 1".as_ptr());
+
+    set_lang_var();
+    qf_init_stack();
 }
 
 pub fn nvim_main() -> c_int {
@@ -460,7 +454,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         event_init();
-        early_init(&raw mut params);
+        early_init(&mut params);
         set_argv_var(argv, argc);
         check_and_set_isatty(&mut params);
         command_line_scan(&mut params);

@@ -1007,7 +1007,7 @@ pub fn get_spec_reg(
                     } else {
                         FIND_STRING
                     },
-                    ptr::null_mut(),
+                    None,
                 );
                 if cnt != 0 {
                     let mut v: Vec<c_char> = Vec::with_capacity(cnt + 1);

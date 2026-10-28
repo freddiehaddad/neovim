@@ -230,8 +230,8 @@ pub fn ex_menu(eap: &mut exarg_T) {
         let modes = get_menu_cmd_modes(
             eap.cmd,
             eap.forceit != 0,
-            &raw mut noremap,
-            &raw mut unmenu,
+            Some(&mut noremap),
+            Some(&mut unmenu),
         );
         let mut arg = eap.arg;
 
@@ -1067,7 +1067,7 @@ pub fn set_context_in_menu_cmd(
             return ptr::null_mut();
         }
         if *p == NUL {
-            menu_st().EXPAND_MODES = get_menu_cmd_modes(cmd, forceit, ptr::null_mut(), &raw mut unmenu);
+            menu_st().EXPAND_MODES = get_menu_cmd_modes(cmd, forceit, None, Some(&mut unmenu));
             if !unmenu {
                 menu_st().EXPAND_MODES = MENU_ALL_MODES;
             }
@@ -1295,8 +1295,8 @@ fn menu_namecmp(name: *const c_char, mname: *const c_char) -> bool {
 pub fn get_menu_cmd_modes(
     mut cmd: *const c_char,
     forceit: bool,
-    noremap: *mut c_int,
-    unmenu: *mut bool,
+    noremap: Option<&mut c_int>,
+    unmenu: Option<&mut bool>,
 ) -> c_int {
     unsafe {
         let first = *cmd;
@@ -1335,14 +1335,14 @@ pub fn get_menu_cmd_modes(
             }
         };
 
-        if !noremap.is_null() {
+        if let Some(noremap) = noremap {
             *noremap = if *cmd == b'n' as c_char {
                 REMAP_NONE
             } else {
                 REMAP_YES
             };
         }
-        if !unmenu.is_null() {
+        if let Some(unmenu) = unmenu {
             *unmenu = *cmd == b'u' as c_char;
         }
         modes
@@ -2012,8 +2012,8 @@ pub fn f_menu_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let modes = get_menu_cmd_modes(
             which,
             *which == b'!' as c_char,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
         );
 
         let mut menus = (&*get_root_menu(menu_name)).as_slice();

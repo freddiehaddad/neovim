@@ -810,14 +810,14 @@ pub fn ex_sort(eap: &mut exarg_T) {
                             let mut val: varnumber_T = 0;
                             vim_str2nr(
                                 s,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
+                                None,
+                                None,
                                 sort_what,
-                                &raw mut val,
-                                ptr::null_mut(),
+                                Some(&mut val),
+                                None,
                                 0,
                                 false,
-                                ptr::null_mut(),
+                                None,
                             );
                             SortKey::Num {
                                 is_number: true,
@@ -1880,14 +1880,14 @@ pub fn make_filter_cmd(
     unsafe {
         #[cfg(unix)]
         let is_fish_shell = crate::memory::cstr_prefix_bytes(
-            invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
+            invocation_path_tail(opt_vars().p_sh, None),
             4,
         ) == &b"fish"[..4];
         #[cfg(not(unix))]
         let is_fish_shell = false;
 
-        let is_pwsh = (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, ptr::null_mut()), 4) == &b"pwsh"[..4])
-            || (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, ptr::null_mut()), 10) == &b"powershell"[..10]);
+        let is_pwsh = (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, None), 4) == &b"pwsh"[..4])
+            || (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, None), 10) == &b"powershell"[..10]);
 
         let mut len = std::ffi::CStr::from_ptr(cmd).to_bytes().len() + 1;
 
@@ -5287,7 +5287,7 @@ pub fn ex_substitute_preview(
 pub fn skip_vimgrep_pat(
     mut p: *mut c_char,
     s: *mut *mut c_char,
-    flags: *mut c_int,
+    mut flags: Option<&mut c_int>,
 ) -> *mut c_char {
     unsafe {
         if vim_isIDc((*p as u8) as c_int) {
@@ -5315,13 +5315,13 @@ pub fn skip_vimgrep_pat(
             p = p.add(1);
 
             while *p == b'g' as c_char || *p == b'j' as c_char || *p == b'f' as c_char {
-                if !flags.is_null() {
+                if let Some(ref mut flags) = flags {
                     if *p == b'g' as c_char {
-                        *flags |= VGR_GLOBAL;
+                        **flags |= VGR_GLOBAL;
                     } else if *p == b'j' as c_char {
-                        *flags |= VGR_NOJUMP;
+                        **flags |= VGR_NOJUMP;
                     } else {
-                        *flags |= VGR_FUZZY;
+                        **flags |= VGR_FUZZY;
                     }
                 }
                 p = p.add(1);

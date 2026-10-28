@@ -2386,9 +2386,9 @@ pub fn f_expand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                 s.cast_mut(),
                 s,
                 &mut len,
-                ptr::null_mut(),
+                None,
                 &mut errormsg,
-                ptr::null_mut(),
+                None,
                 false,
             );
             if opt_vars().p_verbose == 0 {
@@ -2453,7 +2453,7 @@ pub fn f_menu_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         let mut modes = MENU_ALL_MODES;
         if (*argvars.add(1)).v_type == VarType::VAR_STRING {
             let strmodes = tv_get_string(argvars.add(1));
-            modes = get_menu_cmd_modes(strmodes, false, ptr::null_mut(), ptr::null_mut());
+            modes = get_menu_cmd_modes(strmodes, false, None, None);
         }
         menu_get(
             tv_get_string(argvars).cast_mut(),
@@ -5285,7 +5285,7 @@ fn libcall_common(argvars: *mut typval_T, rettv: &mut typval_T, out_type: VarTyp
             str_in,
             int_in,
             (out_type == VarType::VAR_STRING).then_some(&mut str_out),
-            &raw mut int_out,
+            Some(&mut int_out),
         );
         if !success {
             semsg!(gettext(e_libcall.as_ptr()), funcname);
@@ -7019,7 +7019,7 @@ fn get_search_arg(varp: &mut typval_T, flagsp: *mut c_int) -> c_int {
     }
 }
 
-fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: &mut c_int) -> c_int {
+fn search_cmn(argvars: *mut typval_T, match_pos: Option<&mut pos_T>, flagsp: &mut c_int) -> c_int {
     unsafe {
         let save_p_ws = opt_vars().p_ws;
         let mut retval: c_int = 0;
@@ -7096,7 +7096,7 @@ fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: &mut c_int)
                     *curwin.as_ptr(),
                     g_st().curbuf,
                     pos.cast(),
-                    ptr::null_mut(),
+                    None,
                     dir,
                     pat.cast_mut(),
                     patlen,
@@ -7146,9 +7146,9 @@ fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: &mut c_int)
                 (**curwin.as_ptr()).w_cursor.lnum = pos.lnum;
                 (**curwin.as_ptr()).w_cursor.col = pos.col;
                 (**curwin.as_ptr()).w_cursor.coladd = pos.coladd;
-                if !match_pos.is_null() {
-                    (*match_pos).lnum = pos.lnum;
-                    (*match_pos).col = pos.col + 1;
+                if let Some(match_pos) = match_pos {
+                    match_pos.lnum = pos.lnum;
+                    match_pos.col = pos.col + 1;
                 }
                 check_cursor(*curwin.as_ptr());
             }
@@ -7417,7 +7417,7 @@ pub fn f_screenchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
                 grid,
                 row,
                 col,
-                ptr::null_mut(),
+                None,
             )))
         });
     }
@@ -7442,7 +7442,7 @@ pub fn f_screenchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
         schar_get(
             buf.as_mut_ptr(),
-            grid_getchar(grid, row, col, ptr::null_mut()),
+            grid_getchar(grid, row, col, None),
         );
 
         let mut i: usize = 0;
@@ -7487,7 +7487,7 @@ pub fn f_screenstring(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE + 1];
         schar_get(
             buf.as_mut_ptr(),
-            grid_getchar(grid, row, col, ptr::null_mut()),
+            grid_getchar(grid, row, col, None),
         );
         crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
     }
@@ -7498,7 +7498,7 @@ pub fn f_search(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     let argvars = argvars.as_mut_ptr();
 
     let mut flags: c_int = 0;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(search_cmn(argvars, ptr::null_mut(), &mut flags)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(search_cmn(argvars, None, &mut flags)));
 }
 
 /// "searchdecl()" function
@@ -7718,7 +7718,7 @@ pub fn do_searchpair(
                 *curwin.as_ptr(),
                 g_st().curbuf,
                 pos.cast(),
-                ptr::null_mut(),
+                None,
                 dir,
                 pat,
                 patlen,
@@ -7834,7 +7834,7 @@ pub fn f_searchpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         };
         let mut flags: c_int = 0;
 
-        let n = search_cmn(argvars, &raw mut match_pos, &mut flags);
+        let n = search_cmn(argvars, Some(&mut match_pos), &mut flags);
         tv_list_alloc_ret(rettv, 2 + isize::from((flags & SP_SUBPAT) != 0));
 
         let lnum = if n > 0 { match_pos.lnum } else { 0 };

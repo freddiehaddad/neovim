@@ -1429,14 +1429,14 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                     if exp_start != 0 {
                         vim_str2nr(
                             pline.data.add(exp_start),
-                            std::ptr::null_mut(),
-                            std::ptr::null_mut(),
+                            None,
+                            None,
                             0,
-                            std::ptr::null_mut(),
-                            &mut exp_part,
+                            None,
+                            Some(&mut exp_part),
                             (ret.len - exp_start) as c_int,
                             false,
-                            std::ptr::null_mut(),
+                            None,
                         );
                     }
                     if exp_negative {
@@ -1459,14 +1459,14 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: c_int) -> LexE
                     let mut int_val: uvarnumber_T = 0;
                     vim_str2nr(
                         pline.data,
-                        &mut prep,
-                        &mut len,
+                        Some(&mut prep),
+                        Some(&mut len),
                         STR2NR_ALL,
-                        std::ptr::null_mut(),
-                        &mut int_val,
+                        None,
+                        Some(&mut int_val),
                         pline.size as c_int,
                         false,
-                        std::ptr::null_mut(),
+                        None,
                     );
                     ret.data.num_mut().val = LexExprTokenNumVal::Integer(int_val);
                     ret.len = len as usize;

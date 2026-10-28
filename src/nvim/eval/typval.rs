@@ -4795,14 +4795,14 @@ pub fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber
                 if !(*tv).vval.v_string().is_null() {
                     vim_str2nr(
                         (*tv).vval.v_string(),
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        None,
+                        None,
                         STR2NR_ALL,
-                        &raw mut n,
-                        ptr::null_mut(),
+                        Some(&mut n),
+                        None,
                         0,
                         false,
-                        ptr::null_mut(),
+                        None,
                     );
                 }
                 return n;
