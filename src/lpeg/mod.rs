@@ -150,7 +150,7 @@ impl Default for Capture {
 pub struct CapState {
     pub cap: *mut Capture,
     pub ocap: *mut Capture,
-    pub L: *mut lua_State,
+    pub lstate: *mut lua_State,
     pub ptop: c_int,
     pub firstcap: c_int,
     pub s: *const c_char,

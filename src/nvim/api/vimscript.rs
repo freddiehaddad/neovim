@@ -41,15 +41,15 @@ pub struct KeyDict_exec_opts {
 use crate::eval::funcs::MAX_FUNC_ARGS;
 
 struct ApiVimscriptState {
-    EVAL_RECURSIVE: c_int,
-    CALL_FUNC_RECURSIVE: c_int,
+    eval_recursive: c_int,
+    call_func_recursive: c_int,
 }
 
 impl ApiVimscriptState {
     const fn new() -> Self {
         Self {
-            EVAL_RECURSIVE: 0,
-            CALL_FUNC_RECURSIVE: 0,
+            eval_recursive: 0,
+            call_func_recursive: 0,
         }
     }
 }
@@ -196,13 +196,13 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
     unsafe {
         let mut rv = nil_obj();
 
-        if api_vims_st().EVAL_RECURSIVE == 0 {
+        if api_vims_st().eval_recursive == 0 {
             g_st().force_abort = false;
             g_st().suppress_errthrow = false;
             g_st().did_throw = false;
             g_st().did_emsg = 0;
         }
-        api_vims_st().EVAL_RECURSIVE += 1;
+        api_vims_st().eval_recursive += 1;
 
         let mut rettv: TypVal = TypVal::new();
         let mut tstate = TryState::new();
@@ -211,7 +211,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
             expr.data,
             &mut rettv,
             None,
-            &mut g_st().EVALARG_EVALUATE,
+            &mut g_st().evalarg_evaluate,
         );
         try_leave(&tstate, err);
 
@@ -230,7 +230,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
         }
 
         tv_clear(&mut rettv);
-        api_vims_st().EVAL_RECURSIVE -= 1;
+        api_vims_st().eval_recursive -= 1;
 
         rv
     }
@@ -263,13 +263,13 @@ fn call_function_impl(
             i += 1;
         }
 
-        if api_vims_st().CALL_FUNC_RECURSIVE == 0 {
+        if api_vims_st().call_func_recursive == 0 {
             g_st().force_abort = false;
             g_st().suppress_errthrow = false;
             g_st().did_throw = false;
             g_st().did_emsg = 0;
         }
-        api_vims_st().CALL_FUNC_RECURSIVE += 1;
+        api_vims_st().call_func_recursive += 1;
 
         let mut rettv: TypVal = TypVal::new();
         let lnum = curwin_mut().w_cursor.lnum;
@@ -304,7 +304,7 @@ fn call_function_impl(
         }
 
         tv_clear(&mut rettv);
-        api_vims_st().CALL_FUNC_RECURSIVE -= 1;
+        api_vims_st().call_func_recursive -= 1;
 
         while i > 0 {
             i -= 1;
@@ -367,7 +367,7 @@ pub fn nvim_call_dict_function(
                     dict.data.string().data,
                     &mut rettv,
                     None,
-                    &mut g_st().EVALARG_EVALUATE,
+                    &mut g_st().evalarg_evaluate,
                 );
                 try_leave(&tstate, err);
                 if error_set(err) {

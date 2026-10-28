@@ -165,13 +165,13 @@ fn convert_one_value(
                 });
                 return;
             }
-            let saved_copy_id = unsafe { (*list).lv_copyID };
+            let saved_copy_id = unsafe { (*list).lv_copy_id };
             if saved_copy_id == copy_id {
                 stack.push(nil_obj());
                 return;
             }
             unsafe {
-                (*list).lv_copyID = copy_id;
+                (*list).lv_copy_id = copy_id;
                 let arr = arena_array_opt(arena, (*list).lv_len as usize);
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeArray,
@@ -208,13 +208,13 @@ fn convert_one_value(
                 });
                 return;
             }
-            let saved_copy_id = unsafe { (*dict).dv_copyID };
+            let saved_copy_id = unsafe { (*dict).dv_copy_id };
             if saved_copy_id == copy_id {
                 stack.push(nil_obj());
                 return;
             }
             unsafe {
-                (*dict).dv_copyID = copy_id;
+                (*dict).dv_copy_id = copy_id;
                 let used = (*dict).dv_hashtab.ht_used;
                 let d_obj = arena_dict_opt(arena, used);
                 stack.push(Object {
@@ -294,7 +294,7 @@ pub fn vim_to_object(
                         let list_ptr = *list;
                         let saved = *saved_copy_id;
                         mpstack.pop();
-                        (*list_ptr).lv_copyID = saved;
+                        (*list_ptr).lv_copy_id = saved;
                         pop_into_parent_list(&mut stack);
                         continue;
                     }
@@ -317,7 +317,7 @@ pub fn vim_to_object(
                         let dict_ptr = *dict;
                         let saved = *saved_copy_id;
                         mpstack.pop();
-                        (*dict_ptr).dv_copyID = saved;
+                        (*dict_ptr).dv_copy_id = saved;
                         pop_into_parent_dict(&mut stack);
                         continue;
                     }

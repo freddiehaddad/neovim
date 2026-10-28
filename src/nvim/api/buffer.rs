@@ -63,7 +63,7 @@ const KEYSET_OPTIDX_BUF_ATTACH_ON_CHANGEDTICK: u64 = 7;
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_buf_attach {
-    pub is_set__buf_attach_: OptionalKeys,
+    pub is_set_buf_attach: OptionalKeys,
     pub on_lines: LuaRef,
     pub on_bytes: LuaRef,
     pub on_changedtick: LuaRef,
@@ -76,7 +76,7 @@ pub struct KeyDict_buf_attach {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_keymap {
-    pub is_set__keymap_: OptionalKeys,
+    pub is_set_keymap: OptionalKeys,
     pub noremap: Boolean,
     pub nowait: Boolean,
     pub silent: Boolean,
@@ -91,14 +91,14 @@ pub struct KeyDict_keymap {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_keymap_del {
-    pub is_set__keymap_del_: OptionalKeys,
+    pub is_set_keymap_del: OptionalKeys,
     pub lhs: Boolean,
 }
 
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_buf_delete {
-    pub is_set__buf_delete_: OptionalKeys,
+    pub is_set_buf_delete: OptionalKeys,
     pub force: Boolean,
     pub unload: Boolean,
 }
@@ -258,7 +258,7 @@ pub fn nvim_buf_attach(
         };
 
         if channel_id == LUA_INTERNAL_CALL {
-            let mask = opts.is_set__buf_attach_;
+            let mask = opts.is_set_buf_attach;
             if has_key(mask, KEYSET_OPTIDX_BUF_ATTACH_ON_LINES) {
                 cb.on_lines = opts.on_lines;
                 opts.on_lines = LUA_NOREF;
@@ -583,9 +583,9 @@ pub fn nvim_buf_set_lines(
                 K_EXTMARK_NOOP,
             );
 
-            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.start.lnum >= (start as Linenr) {
-                if g_st().Visual.start.lnum >= (end as Linenr) {
-                    g_st().Visual.start.lnum += extra as Linenr;
+            if g_st().visual_global.active && b == g_st().curbuf && g_st().visual_global.start.lnum >= (start as Linenr) {
+                if g_st().visual_global.start.lnum >= (end as Linenr) {
+                    g_st().visual_global.start.lnum += extra as Linenr;
                 }
                 check_visual_pos();
             }
@@ -906,10 +906,10 @@ pub fn nvim_buf_set_text(
                 K_EXTMARK_NOOP,
             );
 
-            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.mode != CTRL_V_CONST {
+            if g_st().visual_global.active && b == g_st().curbuf && g_st().visual_global.mode != CTRL_V_CONST {
                 fix_pos_col(
                     &mut *b,
-                    &mut g_st().Visual.start,
+                    &mut g_st().visual_global.start,
                     start_row as Linenr,
                     start_col as Colnr,
                     end_row as Linenr,
@@ -1365,7 +1365,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
             let is_curbuf = b == g_st().curbuf;
             let save_acd = opt_vars().p_acd;
             if !is_curbuf {
-                g_st().RedrawingDisabled += 1;
+                g_st().redrawing_disabled += 1;
                 opt_vars().p_acd = 0;
             }
 
@@ -1375,7 +1375,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
             ctx_restore(&mut aco);
 
             if !is_curbuf {
-                g_st().RedrawingDisabled -= 1;
+                g_st().redrawing_disabled -= 1;
                 opt_vars().p_acd = save_acd;
             }
         });
@@ -1680,7 +1680,7 @@ pub fn nvim_buf_call(
 
 /// @nodoc
 // DLLEXPORT Dict nvim__buf_stats(Buffer buf, Arena *arena, Error *err);
-pub fn nvim__buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
+pub fn nvim_buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
      {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return Dict::new();
@@ -1811,7 +1811,7 @@ fn fix_cursor_cols(
     new_cols_at_end_row: Colnr,
 ) {
      {
-        let mode_col_adj = if ptr::eq(win, curwin_ptr()) && (g_st().State & MODE_INSERT) != 0 {
+        let mode_col_adj = if ptr::eq(win, curwin_ptr()) && (g_st().state_global & MODE_INSERT) != 0 {
             0
         } else {
             1

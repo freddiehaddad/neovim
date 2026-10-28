@@ -532,7 +532,7 @@ fn compose_line(
 
         if !(!grid.is_null()
             && (ptr::eq(grid, &raw const g_st().default_grid)
-                || ((*grid).comp_col == 0 && (*grid).cols == g_st().Columns)))
+                || ((*grid).comp_col == 0 && (*grid).cols == g_st().columns_global)))
         {
             flags &= !K_LINE_FLAG_WRAP;
         }
@@ -743,30 +743,30 @@ pub fn ui_comp_msg_set_pos(
             );
         } else if row < (comp().msg_current_row as Integer)
             && ui_comp_should_draw()
-            && (comp().msg_current_row < g_st().Rows || (scrolled && !comp().msg_was_scrolled))
+            && (comp().msg_current_row < g_st().rows_global || (scrolled && !comp().msg_was_scrolled))
         {
             let delta = comp().msg_current_row - (row as c_int);
             if g_st().msg_grid.blending {
                 let first_row = ((row as c_int) - if scrolled { 1 } else { 0 }).max(0);
                 compose_area(
                     first_row as Integer,
-                    (g_st().Rows - delta) as Integer,
+                    (g_st().rows_global - delta) as Integer,
                     0,
-                    g_st().Columns as Integer,
+                    g_st().columns_global as Integer,
                 );
             } else {
                 let first_row = ((row as c_int) - if comp().msg_was_scrolled { 1 } else { 0 }).max(0);
                 ui_composed_call_grid_scroll(
                     1,
                     first_row as Integer,
-                    g_st().Rows as Integer,
+                    g_st().rows_global as Integer,
                     0,
-                    g_st().Columns as Integer,
+                    g_st().columns_global as Integer,
                     delta as Integer,
                     0,
                 );
                 if scrolled && !comp().msg_was_scrolled && row > 0 {
-                    compose_area(row - 1, row, 0, g_st().Columns as Integer);
+                    compose_area(row - 1, row, 0, g_st().columns_global as Integer);
                 }
             }
         }

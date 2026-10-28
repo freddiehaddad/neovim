@@ -1312,7 +1312,7 @@ pub fn call_user_func(
                     if !eval1(
                         &raw mut default_expr,
                         &mut def_rettv,
-                        Some(&mut g_st().EVALARG_EVALUATE),
+                        Some(&mut g_st().evalarg_evaluate),
                     )
                     {
                         default_arg_err = true;
@@ -1360,7 +1360,7 @@ pub fn call_user_func(
             }
         }
 
-        g_st().RedrawingDisabled += 1;
+        g_st().redrawing_disabled += 1;
 
         if ((*fp).uf_flags & FC_SANDBOX) != 0 {
             using_sandbox = true;
@@ -1448,7 +1448,7 @@ pub fn call_user_func(
                 .add(7)
                 .cast_mut();
             g_st().ex_nesting_level += 1;
-            eval1(&raw mut p, rettv, Some(&mut g_st().EVALARG_EVALUATE));
+            eval1(&raw mut p, rettv, Some(&mut g_st().evalarg_evaluate));
             g_st().ex_nesting_level -= 1;
         } else {
             do_cmdline(
@@ -1460,7 +1460,7 @@ pub fn call_user_func(
 
         handle_defer_one(&mut *uf_st().current_funccal);
 
-        g_st().RedrawingDisabled -= 1;
+        g_st().redrawing_disabled -= 1;
 
         if (g_st().did_emsg != 0 && ((*fp).uf_flags & FC_ABORT) != 0)
             || rettv.v_type == VarType::VarUnknown
@@ -2583,7 +2583,7 @@ fn get_function_body(
         let mut do_concat = true;
 
         loop {
-            if g_st().KeyTyped {
+            if g_st().key_typed {
                 g_st().msg_scroll = 1;
                 saved_wait_return = false;
             }
@@ -2612,8 +2612,8 @@ fn get_function_body(
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
-            if g_st().KeyTyped {
-                g_st().lines_left = g_st().Rows - 1;
+            if g_st().key_typed {
+                g_st().lines_left = g_st().rows_global - 1;
             }
             if theline.is_null() {
                 if let Some(ref marker) = skip_until {
@@ -3020,7 +3020,7 @@ pub fn ex_function(eap: &mut Exarg) {
             errret_2!();
         }
 
-        if g_st().KeyTyped && ui_has(K_UICMDLINE) {
+        if g_st().key_typed && ui_has(K_UICMDLINE) {
             show_block = true;
             ui_ext_cmdline_block_append(0, eap.cmd);
         }
@@ -3057,7 +3057,7 @@ pub fn ex_function(eap: &mut Exarg) {
             semsg!(gettext(E_TRAILING_ARG), p);
         }
 
-        if g_st().KeyTyped {
+        if g_st().key_typed {
             if eap.skip == 0 && eap.forceit == 0 {
                 if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_none() {
                     emsg(gettext(E_FUNCDICT));
@@ -3305,7 +3305,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
                 return uf2hikey(&*fp);
             }
 
-            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
+            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             let mut len = cat_func_name(iobuff_ptr, IOSIZE, &*fp);
             if xp.xp_context != EXPAND_USER_FUNC {
                 xstrlcpy(
@@ -3473,10 +3473,10 @@ fn fc_referenced(fc: &Funccall) -> bool {
 }
 
 fn can_free_funccal(fc: &Funccall, copy_id: c_int) -> bool {
-    fc.fc_l_varlist.lv_copyID != copy_id
-            && fc.fc_l_vars.dv_copyID != copy_id
-            && fc.fc_l_avars.dv_copyID != copy_id
-            && fc.fc_copyID != copy_id
+    fc.fc_l_varlist.lv_copy_id != copy_id
+            && fc.fc_l_vars.dv_copy_id != copy_id
+            && fc.fc_l_avars.dv_copy_id != copy_id
+            && fc.fc_copy_id != copy_id
 }
 
 /// `:return [expr]`
@@ -3563,7 +3563,7 @@ fn ex_call_inner(
             if !handle_subscript(
                 arg.cast::<*const c_char>(),
                 &mut rettv,
-                Some(&mut g_st().EVALARG_EVALUATE),
+                Some(&mut g_st().evalarg_evaluate),
                 true,
             )
             {
@@ -3938,7 +3938,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
             (c"".as_ptr(), 0)
         };
 
-        let iobuff_ptr = g_st().IObuff.as_mut_ptr();
+        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         xstrlcpy(iobuff_ptr, c":return ", IOSIZE);
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
@@ -4335,7 +4335,7 @@ pub fn set_ref_in_previous_funccal(copy_id: c_int) -> bool {
      {
         for item in uf_st().previous_funccal.as_mut_slice() {
             let fc = &mut *item.0;
-            fc.fc_copyID = copy_id + 1;
+            fc.fc_copy_id = copy_id + 1;
             if set_ref_in_ht(
                 &raw mut fc.fc_l_vars.dv_hashtab,
                 copy_id + 1,
@@ -4354,8 +4354,8 @@ pub fn set_ref_in_previous_funccal(copy_id: c_int) -> bool {
 }
 
 fn set_ref_in_funccal(fc: &mut Funccall, copy_id: c_int) -> bool {
-    if fc.fc_copyID != copy_id {
-            fc.fc_copyID = copy_id;
+    if fc.fc_copy_id != copy_id {
+            fc.fc_copy_id = copy_id;
             if set_ref_in_ht(&raw mut fc.fc_l_vars.dv_hashtab, copy_id, ptr::null_mut())
                 || set_ref_in_ht(
                     &raw mut fc.fc_l_avars.dv_hashtab,

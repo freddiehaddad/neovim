@@ -335,17 +335,17 @@ impl Drop for Terminal {
 }
 
 struct TerminalModuleState {
-    REFRESH_TIMER: TimeWatcher,
-    REFRESH_PENDING: bool,
-    INVALIDATED_TERMINALS: Vec<*mut Terminal>,
+    refresh_timer: TimeWatcher,
+    refresh_pending: bool,
+    invalidated_terminals: Vec<*mut Terminal>,
 }
 
 impl TerminalModuleState {
     const fn new() -> Self {
         Self {
-            REFRESH_TIMER: TimeWatcher::new(),
-            REFRESH_PENDING: false,
-            INVALIDATED_TERMINALS: Vec::new(),
+            refresh_timer: TimeWatcher::new(),
+            refresh_pending: false,
+            invalidated_terminals: Vec::new(),
         }
     }
 }
@@ -389,8 +389,8 @@ static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
 fn invalidate_terminal_add(term: &mut Terminal) {
      {
         let term_ptr = &raw mut *term;
-        if !term_st().INVALIDATED_TERMINALS.contains(&term_ptr) {
-            term_st().INVALIDATED_TERMINALS.push(term_ptr);
+        if !term_st().invalidated_terminals.contains(&term_ptr) {
+            term_st().invalidated_terminals.push(term_ptr);
         }
     }
 }
@@ -402,7 +402,7 @@ const fn vterm_key_function(n: c_int) -> VTermKey {
 
 #[inline]
 fn refresh_timer_ptr() -> *mut TimeWatcher {
-    &raw mut term_st().REFRESH_TIMER
+    &raw mut term_st().refresh_timer
 }
 
 #[inline]
@@ -718,7 +718,7 @@ pub fn terminal_teardown() {
         time_watcher_stop(&mut *timer);
         multiqueue_free((*timer).events);
         time_watcher_close(&mut *timer);
-        term_st().INVALIDATED_TERMINALS = Vec::new();
+        term_st().invalidated_terminals = Vec::new();
     }
 }
 
@@ -1183,16 +1183,16 @@ pub fn terminal_enter() -> bool {
         let mut s = TerminalState::new();
         s.term = (*buf).terminal;
         s.cursor_visible = true;
-        g_st().Ins.stop_insert_mode = false;
+        g_st().ins_global.stop_insert_mode = false;
 
         terminal_check_size(&mut *s.term);
 
         atom_term_enter();
-        let save_state = g_st().State;
-        s.save_rd = g_st().RedrawingDisabled;
-        g_st().State = MODE_TERMINAL;
+        let save_state = g_st().state_global;
+        s.save_rd = g_st().redrawing_disabled;
+        g_st().state_global = MODE_TERMINAL;
         g_st().mapped_ctrl_c |= MODE_TERMINAL;
-        g_st().RedrawingDisabled = 0;
+        g_st().redrawing_disabled = 0;
 
         set_terminal_winopts(&mut s);
 
@@ -1223,8 +1223,8 @@ pub fn terminal_enter() -> bool {
         if !s.got_bsl_o {
             g_st().restart_edit = 0;
         }
-        g_st().State = save_state;
-        g_st().RedrawingDisabled = s.save_rd;
+        g_st().state_global = save_state;
+        g_st().redrawing_disabled = s.save_rd;
         if !s.cursor_visible {
             ui_busy_stop();
         }
@@ -1281,14 +1281,14 @@ fn terminal_check_cursor() {
         if topline != curwin_mut().w_topline {
             set_topline(curwin_mut(), topline);
         }
-        if term.suspended && (g_st().State & MODE_TERMINAL) != 0 {
+        if term.suspended && (g_st().state_global & MODE_TERMINAL) != 0 {
             curwin_mut().w_cursor = CursorPos {
                 lnum: curbuf_mut().b_ml.ml_line_count,
                 col: 0,
                 coladd: 0,
             };
         } else {
-            let off = if (g_st().State & MODE_TERMINAL) != 0 {
+            let off = if (g_st().state_global & MODE_TERMINAL) != 0 {
                 0
             } else if curwin_mut().w_onebuf_opt.wo_rl != 0 {
                 1
@@ -1336,7 +1336,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
                     && s.term != curbuf_mut().terminal)
         );
 
-        if g_st().Ins.stop_insert_mode || !terminal_check_focus(&mut *s) {
+        if g_st().ins_global.stop_insert_mode || !terminal_check_focus(&mut *s) {
             return 0;
         }
 
@@ -1464,11 +1464,11 @@ pub fn terminal_destroy(termpp: *mut *mut Terminal) {
         }
 
         if term.refcount == 0 {
-            if let Some(pos) = term_st().INVALIDATED_TERMINALS.iter().position(|&t| std::ptr::eq(t, term)) {
+            if let Some(pos) = term_st().invalidated_terminals.iter().position(|&t| std::ptr::eq(t, term)) {
                 block_autocmds();
                 refresh_terminal(term);
                 unblock_autocmds();
-                term_st().INVALIDATED_TERMINALS.swap_remove(pos);
+                term_st().invalidated_terminals.swap_remove(pos);
             }
             drop(Box::from_raw(&raw mut *term));
             *termpp = ptr::null_mut();
@@ -2384,9 +2384,9 @@ fn invalidate_terminal(term: &mut Terminal, start_row: c_int, end_row: c_int) {
         }
 
         invalidate_terminal_add(term);
-        if !term_st().REFRESH_PENDING {
+        if !term_st().refresh_pending {
             time_watcher_start(&mut *refresh_timer_ptr(), REFRESH_DELAY, 0);
-            term_st().REFRESH_PENDING = true;
+            term_st().refresh_pending = true;
         }
     }
 }
@@ -2478,13 +2478,13 @@ fn refresh_cursor(term: &mut Terminal, cursor_visible: &mut bool) {
 
 pub(crate) fn refresh_timer_cb() {
     unsafe {
-        term_st().REFRESH_PENDING = false;
+        term_st().refresh_pending = false;
         if g_st().exiting {
             return;
         }
 
         block_autocmds();
-        let to_refresh = std::mem::take(&mut term_st().INVALIDATED_TERMINALS);
+        let to_refresh = std::mem::take(&mut term_st().invalidated_terminals);
 
         for term_ptr in to_refresh {
             let term = &mut *term_ptr;
@@ -2697,7 +2697,7 @@ fn linenr_to_row(term: &mut Terminal, linenr: c_int) -> c_int {
 
 #[inline]
 fn is_focused(term: &mut Terminal) -> bool {
-     (g_st().State & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
+     (g_st().state_global & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
 }
 
 fn get_config_string(buf: &mut FileBuf, key: *mut c_char) -> *mut c_char {

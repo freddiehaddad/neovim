@@ -63,7 +63,7 @@ const KEYSET_OPTIDX_EXEC_AUTOCMDS_MODELINE: u64 = 6;
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_get_autocmds {
-    pub is_set__get_autocmds_: OptionalKeys,
+    pub is_set_get_autocmds: OptionalKeys,
     pub event: Object,
     pub group: Object,
     pub pattern: Object,
@@ -75,7 +75,7 @@ pub struct KeyDict_get_autocmds {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_create_autocmd {
-    pub is_set__create_autocmd_: OptionalKeys,
+    pub is_set_create_autocmd: OptionalKeys,
     pub buffer: Buffer,
     pub buf: Buffer,
     pub callback: Object,
@@ -90,7 +90,7 @@ pub struct KeyDict_create_autocmd {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_clear_autocmds {
-    pub is_set__clear_autocmds_: OptionalKeys,
+    pub is_set_clear_autocmds: OptionalKeys,
     pub buffer: Buffer,
     pub buf: Buffer,
     pub event: Object,
@@ -101,14 +101,14 @@ pub struct KeyDict_clear_autocmds {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_create_augroup {
-    pub is_set__create_augroup_: OptionalKeys,
+    pub is_set_create_augroup: OptionalKeys,
     pub clear: bool,
 }
 
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_exec_autocmds {
-    pub is_set__exec_autocmds_: OptionalKeys,
+    pub is_set_exec_autocmds: OptionalKeys,
     pub buffer: Buffer,
     pub buf: Buffer,
     pub group: Object,
@@ -118,13 +118,13 @@ pub struct KeyDict_exec_autocmds {
 }
 
 struct ApiAutocmdState {
-    NEXT_AUTOCMD_ID: i64,
+    next_autocmd_id: i64,
 }
 
 impl ApiAutocmdState {
     const fn new() -> Self {
         Self {
-            NEXT_AUTOCMD_ID: 1,
+            next_autocmd_id: 1,
         }
     }
 }
@@ -436,7 +436,7 @@ pub fn nvim_get_autocmds(
                 }
             }
 
-            let mask = opts.is_set__get_autocmds_;
+            let mask = opts.is_set_get_autocmds;
             let id: c_int = if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_ID) {
                 opts.id as c_int
             } else {
@@ -835,7 +835,7 @@ pub fn nvim_create_autocmd(
                 break 'body;
             }
 
-            let mask = opts.is_set__create_autocmd_;
+            let mask = opts.is_set_create_autocmd;
             let has_callback = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_CALLBACK);
             let has_command = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_COMMAND);
 
@@ -934,8 +934,8 @@ pub fn nvim_create_autocmd(
                 break 'body;
             }
 
-            autocmd_id = api_au_st().NEXT_AUTOCMD_ID;
-            api_au_st().NEXT_AUTOCMD_ID += 1;
+            autocmd_id = api_au_st().next_autocmd_id;
+            api_au_st().next_autocmd_id += 1;
 
             for i in 0..event_array.size {
                 let event_str = event_array[i];
@@ -1031,7 +1031,7 @@ pub fn nvim_clear_autocmds(
             return;
         }
 
-        let mask = opts.is_set__clear_autocmds_;
+        let mask = opts.is_set_clear_autocmds;
         let has_buf_key = has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUF);
         let has_buffer_key = has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUFFER);
         let has_buf = has_buf_key || has_buffer_key;
@@ -1122,7 +1122,7 @@ pub fn nvim_create_augroup(
     {
         let augroup_name = name.data;
         let clear_autocmds = if has_key(
-            opts.is_set__create_augroup_,
+            opts.is_set_create_augroup,
             KEYSET_OPTIDX_CREATE_AUGROUP_CLEAR,
         ) {
             opts.clear
@@ -1245,7 +1245,7 @@ pub fn nvim_exec_autocmds(
             }
         }
 
-        let mask = opts.is_set__exec_autocmds_;
+        let mask = opts.is_set_exec_autocmds;
         let has_buf_key = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_BUF);
         let has_buffer_key = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_BUFFER);
         let has_buf = has_buf_key || has_buffer_key;

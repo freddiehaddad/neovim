@@ -534,7 +534,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
 
         if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
             let save_msg_silent = g_st().msg_silent;
-            let saved_iobuff = crate::memory::cstr_to_cstring(ptr::addr_of!(g_st().IObuff).cast());
+            let saved_iobuff = crate::memory::cstr_to_cstring(ptr::addr_of!(g_st().iobuff).cast());
             if g_st().debug_break_level > 0 {
                 g_st().msg_silent = 0;
             } else {
@@ -561,7 +561,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
                 verbose_leave();
             }
             xstrlcpy(
-                ptr::addr_of_mut!(g_st().IObuff).cast(),
+                ptr::addr_of_mut!(g_st().iobuff).cast(),
                 saved_iobuff.as_ptr(),
                 IOSIZE,
             );
@@ -588,7 +588,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
         if !excp.throw_name.as_bytes().is_empty() {
             let iobufflen = if excp.throw_lnum != 0 {
                 vim_snprintf_safelen!(
-                    ptr::addr_of_mut!(g_st().IObuff).cast(),
+                    ptr::addr_of_mut!(g_st().iobuff).cast(),
                     IOSIZE,
                     gettext(c"%s, line %lld"),
                     excp.throw_name.as_ptr(),
@@ -596,7 +596,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
                 )
             } else {
                 vim_snprintf_safelen!(
-                    ptr::addr_of_mut!(g_st().IObuff).cast(),
+                    ptr::addr_of_mut!(g_st().iobuff).cast(),
                     IOSIZE,
                     c"%s",
                     excp.throw_name.as_ptr(),
@@ -604,7 +604,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
             };
             set_vim_var_string(
                 VV_THROWPOINT,
-                ptr::addr_of!(g_st().IObuff).cast(),
+                ptr::addr_of!(g_st().iobuff).cast(),
                 iobufflen as isize,
             );
         } else {
@@ -658,7 +658,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
             if !top.throw_name.as_bytes().is_empty() {
                 let iobufflen = if top.throw_lnum != 0 {
                     vim_snprintf_safelen!(
-                        ptr::addr_of_mut!(g_st().IObuff).cast(),
+                        ptr::addr_of_mut!(g_st().iobuff).cast(),
                         IOSIZE,
                         gettext(c"%s, line %lld"),
                         top.throw_name.as_ptr(),
@@ -666,7 +666,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
                     )
                 } else {
                     vim_snprintf_safelen!(
-                        ptr::addr_of_mut!(g_st().IObuff).cast(),
+                        ptr::addr_of_mut!(g_st().iobuff).cast(),
                         IOSIZE,
                         c"%s",
                         top.throw_name.as_ptr(),
@@ -674,7 +674,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
                 };
                 set_vim_var_string(
                     VV_THROWPOINT,
-                    ptr::addr_of!(g_st().IObuff).cast(),
+                    ptr::addr_of!(g_st().iobuff).cast(),
                     iobufflen as isize,
                 );
             } else {
@@ -751,12 +751,12 @@ fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                     };
                     let excp = excp_hold.as_ref().unwrap();
                     vim_snprintf!(
-                        ptr::addr_of_mut!(g_st().IObuff).cast(),
+                        ptr::addr_of_mut!(g_st().iobuff).cast(),
                         IOSIZE,
                         mesg,
                         gettext(c"Exception"),
                     );
-                    mesg_owned = Some(concat_str(ptr::addr_of!(g_st().IObuff).cast(), c": %s"));
+                    mesg_owned = Some(concat_str(ptr::addr_of!(g_st().iobuff).cast(), c": %s"));
                     mesg = mesg_owned
                         .as_ref()
                         .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());

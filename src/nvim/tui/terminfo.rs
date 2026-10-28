@@ -613,9 +613,9 @@ pub enum UnibiString {
 #[derive(Clone, Copy)]
 struct BuiltinTerminfoEntry {
     back_color_erase: bool,
-    Tc: bool,
-    RGB: bool,
-    Su: bool,
+    tc: bool,
+    rgb: bool,
+    su: bool,
     max_colors: c_int,
     lines: c_int,
     columns: c_int,
@@ -628,9 +628,9 @@ impl BuiltinTerminfoEntry {
     fn to_entry(self) -> TerminfoEntry {
         TerminfoEntry {
             back_color_erase: self.back_color_erase,
-            Tc: self.Tc,
-            RGB: self.RGB,
-            Su: self.Su,
+            tc: self.tc,
+            rgb: self.rgb,
+            su: self.su,
             max_colors: self.max_colors,
             lines: self.lines,
             columns: self.columns,
@@ -647,9 +647,9 @@ impl TerminfoEntry {
     pub const fn new() -> Self {
         Self {
             back_color_erase: false,
-            Tc: false,
-            RGB: false,
-            Su: false,
+            tc: false,
+            rgb: false,
+            su: false,
             max_colors: 0,
             lines: 0,
             columns: 0,
@@ -668,9 +668,9 @@ const fn empty_entry(
 ) -> BuiltinTerminfoEntry {
     BuiltinTerminfoEntry {
         back_color_erase,
-        Tc: false,
-        RGB: false,
-        Su: false,
+        tc: false,
+        rgb: false,
+        su: false,
         max_colors,
         lines,
         columns,
@@ -2738,20 +2738,20 @@ pub fn terminfo_from_database(ti: &mut TerminfoEntry, termname: impl crate::stri
         ti.lines = ut.get_num(UnibiNumeric::UnibiLines);
         ti.columns = ut.get_num(UnibiNumeric::UnibiColumns);
 
-        ti.Tc = false;
-        ti.RGB = false;
-        ti.Su = false;
+        ti.tc = false;
+        ti.rgb = false;
+        ti.su = false;
         let ext_bool_count = ut.count_ext_bool();
         for i in 0..ext_bool_count {
             let n = ut.get_ext_bool_name(i);
             if !n.is_null() {
                 let bytes = crate::memory::cstr_as_bytes(n);
                 if bytes == b"Tc" {
-                    ti.Tc = true;
+                    ti.tc = true;
                 } else if bytes == b"RGB" {
-                    ti.RGB = true;
+                    ti.rgb = true;
                 } else if bytes == b"Su" {
-                    ti.Su = true;
+                    ti.su = true;
                 }
             }
         }
@@ -2834,9 +2834,9 @@ pub fn terminfo_info_msg(
         let header = format!(
             "Boolean capabilities:\n  back_color_erase: {}\n  truecolor ('Tc'): {}\n  RGB: {}\n  extended underline ('Su'): {}\n\nNumeric capabilities: (-1 for unknown)\n  lines: {}\n  columns: {}\n  max_colors: {}\n\nString capabilities:\n",
             fmt_bool(ti.back_color_erase),
-            fmt_bool(ti.Tc),
-            fmt_bool(ti.RGB),
-            fmt_bool(ti.Su),
+            fmt_bool(ti.tc),
+            fmt_bool(ti.rgb),
+            fmt_bool(ti.su),
             ti.lines,
             ti.columns,
             ti.max_colors

@@ -160,7 +160,7 @@ fn parse_mouse_coords(s: impl crate::strings::IntoCCharPtr) -> Option<(c_int, c_
 use crate::event::stream::UV_TTY;
 
 pub fn cursorhold_event() {
-    let event = if (g_st().State & MODE_INSERT) != 0 {
+    let event = if (g_st().state_global & MODE_INSERT) != 0 {
             EVENT_CURSORHOLDI
         } else {
             EVENT_CURSORHOLD
@@ -528,11 +528,11 @@ fn handle_mouse_event(
 
         if let Some((mut col, mut row, advance)) = parse_mouse_coords(*ptr_p) {
             if col >= 0 && row >= 0 {
-                if col >= g_st().Columns {
-                    col = g_st().Columns - 1;
+                if col >= g_st().columns_global {
+                    col = g_st().columns_global - 1;
                 }
-                if row >= g_st().Rows {
-                    row = g_st().Rows - 1;
+                if row >= g_st().rows_global {
+                    row = g_st().rows_global - 1;
                 }
                 g_st().mouse_grid = 0;
                 g_st().mouse_row = row;

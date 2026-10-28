@@ -740,13 +740,13 @@ fn apply_termdefs(tui: &mut TUIData) {
                     tui.ti.back_color_erase = val.data.boolean();
                 }
                 TermdefFieldTarget::BoolTc => {
-                    tui.ti.Tc = val.data.boolean();
+                    tui.ti.tc = val.data.boolean();
                 }
                 TermdefFieldTarget::BoolRGB => {
-                    tui.ti.RGB = val.data.boolean();
+                    tui.ti.rgb = val.data.boolean();
                 }
                 TermdefFieldTarget::BoolSu => {
-                    tui.ti.Su = val.data.boolean();
+                    tui.ti.su = val.data.boolean();
                 }
                 TermdefFieldTarget::IntMaxColors => {
                     tui.ti.max_colors = val.data.integer() as c_int;
@@ -2705,7 +2705,7 @@ fn term_has_truecolor(tui: &mut TUIData, colorterm: impl crate::strings::IntoCCh
             return true;
         }
 
-        if tui.ti.Tc || tui.ti.RGB {
+        if tui.ti.tc || tui.ti.rgb {
             return true;
         }
 
@@ -3002,7 +3002,7 @@ fn augment_terminfo(
         if tui.ti.defs[K_TERM_SET_UNDERLINE_STYLE].is_none() {
             let wezterm_ok = !weztermv.is_null()
                 && crate::memory::cstr_as_bytes(weztermv) > &b"20210203-095643"[..];
-            if vte_version >= 5102 || konsolev >= 221170 || tui.ti.Su || wezterm_ok {
+            if vte_version >= 5102 || konsolev >= 221170 || tui.ti.su || wezterm_ok {
                 tui_enable_extended_underline(tui);
             }
         } else {

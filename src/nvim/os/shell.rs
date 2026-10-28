@@ -397,7 +397,7 @@ pub fn os_expand_wildcards(
             os_remove(tempname);
             if (flags & EW_SILENT) == 0 {
                 msg_putchar(b'\n' as c_int);
-                g_st().cmdline_row = g_st().Rows - 1;
+                g_st().cmdline_row = g_st().rows_global - 1;
                 msg(gettext(E_WILDEXPAND), 0);
                 msg_start();
             }
@@ -640,7 +640,7 @@ pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_
     let mut input: Vec<c_char> = Vec::new();
         let mut output: Vec<c_char> = Vec::new();
         let mut want_output = false;
-        let current_state = g_st().State;
+        let current_state = g_st().state_global;
         let mut forward_output = true;
 
         signal_reject_deadly();
@@ -648,7 +648,7 @@ pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_
         if (opts & (K_SHELL_OPT_HIDE_MESS | K_SHELL_OPT_EXPAND)) != 0 {
             forward_output = false;
         } else {
-            g_st().State = MODE_EXTERNCMD;
+            g_st().state_global = MODE_EXTERNCMD;
 
             if (opts & K_SHELL_OPT_WRITE) != 0 {
                 read_input(&mut input);
@@ -691,7 +691,7 @@ pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_
             msg_outnum(exitcode);
         }
 
-        g_st().State = current_state;
+        g_st().state_global = current_state;
         signal_accept_deadly();
 
         exitcode

@@ -668,7 +668,7 @@ pub fn f_win_gotoid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_ptr(first_win_in_tab( &mut *tp)) {
                 if (*wp).handle == id {
-                    if g_st().Visual.active && (*wp).w_buffer != g_st().curbuf {
+                    if g_st().visual_global.active && (*wp).w_buffer != g_st().curbuf {
                         end_visual_mode();
                     }
                     goto_tabpage_win(&mut *tp, wp);

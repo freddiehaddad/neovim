@@ -200,21 +200,21 @@ static MSG_IS_A_DIRECTORY: &CStr = c"is a directory";
 type DIR = c_void;
 
 struct FileioModuleState {
-    ALREADY_WARNED: bool,
-    VIM_TEMPDIR: Option<std::ffi::CString>,
+    already_warned: bool,
+    vim_tempdir: Option<std::ffi::CString>,
     #[cfg(unix)]
     VIM_TEMPDIR_DP: *mut DIR,
-    NOTFOUND: c_int,
+    notfound: c_int,
 }
 
 impl FileioModuleState {
     const fn new() -> Self {
         Self {
-            ALREADY_WARNED: false,
-            VIM_TEMPDIR: None,
+            already_warned: false,
+            vim_tempdir: None,
             #[cfg(unix)]
             VIM_TEMPDIR_DP: ptr::null_mut(),
-            NOTFOUND: 0,
+            notfound: 0,
         }
     }
 }
@@ -894,7 +894,7 @@ fn filemess(buf: *mut FileBuf, name: impl crate::strings::IntoCCharPtr, s: impl 
             return;
         }
 
-        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         add_quoted_fname(iobuf_ptr, IOSIZE - 100, buf, name);
 
         { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), s, _dsize - _dlen); };
@@ -2363,7 +2363,7 @@ pub fn readfile(
                         if !progress || pct != percent {
                             progress = true;
                             percent = pct;
-                            let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+                            let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                             add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname);
                             let _ = readfile_progress(
                                 iobuf_ptr,
@@ -2496,7 +2496,7 @@ pub fn readfile(
                 }
 
                 if !filtering && (flags & READ_DUMMY) == 0 && !silent {
-                    let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+                    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                     add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname);
                     let mut c = false;
 
@@ -3067,7 +3067,7 @@ pub fn fname_msg_id(
 /// Append message for text mode to IObuff.
 pub fn msg_add_fileformat(eol_type: c_int) -> bool {
     unsafe {
-        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         #[cfg(not(windows))]
         if eol_type == EOL_DOS {
             { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]"), _dsize - _dlen); };
@@ -3089,7 +3089,7 @@ pub fn msg_add_fileformat(eol_type: c_int) -> bool {
 /// Append line and character count to IObuff.
 pub fn msg_add_lines(insert_space: c_int, lnum: Linenr, nchars: Off) {
     unsafe {
-        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         let mut len = crate::memory::cstr_len(iobuf_ptr);
         let space = if insert_space != 0 {
             c" ".as_ptr()
@@ -3693,7 +3693,7 @@ pub fn check_timestamps(focus: c_int) -> c_int {
         } else {
             g_st().no_wait_return += 1;
             g_st().did_check_timestamps = true;
-            fio_st().ALREADY_WARNED = false;
+            fio_st().already_warned = false;
             let mut buf = g_st().firstbuf;
             while !buf.is_null() {
                 if (*buf).b_nwindows > 0 {
@@ -3931,7 +3931,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
                     3 => reload = RELOAD_DETECT,
                     _ => {}
                 }
-            } else if g_st().State > MODE_NORMAL_BUSY || (g_st().State & MODE_CMDLINE) != 0 || fio_st().ALREADY_WARNED {
+            } else if g_st().state_global > MODE_NORMAL_BUSY || (g_st().state_global & MODE_CMDLINE) != 0 || fio_st().already_warned {
                 if !crate::memory::cstr_is_empty(mesg2) {
                     vim_snprintf!(
                         tbuf.offset(tbuflen as isize),
@@ -3956,7 +3956,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
                         g_st().redraw_cmdline = false;
                     }
                 }
-                fio_st().ALREADY_WARNED = true;
+                fio_st().already_warned = true;
             }
 
             drop(tbuf_vec);
@@ -4337,7 +4337,7 @@ pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> c_int { let 
             let exp = crate::memory::cstr_to_cstring(name);
             let mut entries: Vec<std::ffi::CString> = Vec::new();
             if readdir_core(&mut entries, exp.as_ptr(), None) {
-                let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
+                let namebuff_ptr = g_st().name_buff.as_mut_ptr();
                 let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/", exp.as_ptr());
 
                 for entry in &entries {
@@ -4373,7 +4373,7 @@ fn vim_opentempdir() {
             return;
         }
 
-        let Some(ref td) = fio_st().VIM_TEMPDIR else {
+        let Some(ref td) = fio_st().vim_tempdir else {
             return;
         };
         let dp = opendir(td.as_ptr());
@@ -4401,7 +4401,7 @@ fn vim_closetempdir() {
 /// Delete the temp directory and all files it contains.
 pub fn vim_deltempdir() {
     unsafe {
-        let Some(td) = fio_st().VIM_TEMPDIR.take() else {
+        let Some(td) = fio_st().vim_tempdir.take() else {
             return;
         };
 
@@ -4421,15 +4421,15 @@ pub fn vim_deltempdir() {
 /// Gets path to Nvim's own temp dir (ending with slash).
 pub fn vim_gettempdir() -> *mut c_char {
     unsafe {
-        let current_td = (&raw const fio_st().VIM_TEMPDIR)
+        let current_td = (&raw const fio_st().vim_tempdir)
             .as_ref()
             .unwrap()
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr());
         if current_td.is_null() || !os_isdir(current_td) {
             if !current_td.is_null() {
-                fio_st().NOTFOUND += 1;
-                if fio_st().NOTFOUND == 1 {
+                fio_st().notfound += 1;
+                if fio_st().notfound == 1 {
                     logmsg!(
                         LOG_ERR,
                         ptr::null(),
@@ -4440,17 +4440,17 @@ pub fn vim_gettempdir() -> *mut c_char {
                         current_td,
                     );
                 }
-                if fio_st().NOTFOUND > 1 {
+                if fio_st().notfound > 1 {
                     msg_schedule_semsg!(
                         c"E5431: tempdir disappeared (%d times)",
-                        fio_st().NOTFOUND
+                        fio_st().notfound
                     );
                 }
-                fio_st().VIM_TEMPDIR = None;
+                fio_st().vim_tempdir = None;
             }
             vim_mktempdir();
         }
-        (&raw const fio_st().VIM_TEMPDIR)
+        (&raw const fio_st().vim_tempdir)
             .as_ref()
             .unwrap()
             .as_ref()
@@ -4476,7 +4476,7 @@ fn vim_settempdir(tempdir: impl crate::strings::IntoCCharPtr) -> bool { let temp
             );
             buflen += sep_bytes.len() - 1;
         }
-        fio_st().VIM_TEMPDIR = Some(
+        fio_st().vim_tempdir = Some(
             std::ffi::CString::new(crate::memory::cstr_slice(buf, buflen))
                 .unwrap_or_default(),
         );

@@ -603,7 +603,7 @@ pub fn ui_flush() {
             return;
         }
 
-        if (g_st().State & MODE_CMDLINE) == 0 && curwin_mut().w_floating && curwin_mut().w_config.hide {
+        if (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_floating && curwin_mut().w_config.hide {
             if !ui_state().ui_flush_was_busy {
                 ui_call_busy_start();
                 ui_state().ui_flush_was_busy = true;
@@ -682,15 +682,15 @@ pub fn ui_check_mouse() {
             return;
         }
 
-        let checkfor = if g_st().Visual.active {
+        let checkfor = if g_st().visual_global.active {
             K_MOUSE_VISUAL
-        } else if g_st().State == MODE_HITRETURN || g_st().State == MODE_ASKMORE || g_st().State == MODE_SETWSIZE {
+        } else if g_st().state_global == MODE_HITRETURN || g_st().state_global == MODE_ASKMORE || g_st().state_global == MODE_SETWSIZE {
             K_MOUSE_RETURN
-        } else if (g_st().State & MODE_INSERT) != 0 {
+        } else if (g_st().state_global & MODE_INSERT) != 0 {
             K_MOUSE_INSERT
-        } else if (g_st().State & MODE_CMDLINE) != 0 {
+        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
             K_MOUSE_COMMAND_CONST
-        } else if g_st().State == MODE_EXTERNCMD {
+        } else if g_st().state_global == MODE_EXTERNCMD {
             b' ' as c_int
         } else {
             K_MOUSE_NORMAL
@@ -740,7 +740,7 @@ pub fn ui_cursor_shape() {
 
 fn ui_cursor_is_behind_floatwin() -> bool {
     unsafe {
-        if (g_st().State & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
+        if (g_st().state_global & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
             return false;
         }
 

@@ -2312,7 +2312,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 
 fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     unsafe {
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().KeyTyped {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
 
@@ -2371,8 +2371,8 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             }
         }
 
-        if g_st().Visual.active {
-            check_pos(curbuf_mut(), &mut g_st().Visual.start);
+        if g_st().visual_global.active {
+            check_pos(curbuf_mut(), &mut g_st().visual_global.start);
         }
 
         smsg_keep!(
@@ -2458,7 +2458,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         let nomark = undo_st().lastmark;
         let mut lines: Vec<std::ffi::CString> = Vec::new();
 
-        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         let mut uhp = curbuf_mut().b_u_oldhead;
         while let Some(uh) = uhp {
             let uh_prev = uhp_ref(curbuf_mut(), uh).uh_prev;

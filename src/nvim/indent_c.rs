@@ -1672,7 +1672,7 @@ pub fn get_c_indent() -> c_int {
         let mut linecopy_bytes = crate::memory::cstr_to_cstring(ml_get(cur_curpos.lnum))
             .into_bytes_with_nul();
         let linecopy = linecopy_bytes.as_mut_ptr().cast::<c_char>();
-        if (g_st().State & MODE_INSERT) != 0
+        if (g_st().state_global & MODE_INSERT) != 0
             && (curwin_mut().w_cursor.col as usize) < crate::memory::cstr_len(linecopy)
             && *linecopy.add(curwin_mut().w_cursor.col as usize) == b')' as c_char
         {

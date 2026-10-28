@@ -119,13 +119,13 @@ impl TermInput {
 }
 
 struct TuiInputModuleState {
-    LAST_PRESSED_BUTTON: c_int,
+    last_pressed_button: c_int,
 }
 
 impl TuiInputModuleState {
     const fn new() -> Self {
         Self {
-            LAST_PRESSED_BUTTON: 0,
+            last_pressed_button: 0,
         }
     }
 }
@@ -490,7 +490,7 @@ fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
         );
 
         if (ev == TERMKEY_MOUSE_RELEASE || ev == TERMKEY_MOUSE_DRAG) && button == 0 {
-            button = tui_inp_st().LAST_PRESSED_BUTTON;
+            button = tui_inp_st().last_pressed_button;
         }
 
         if (button == 0 && ev != TERMKEY_MOUSE_RELEASE)
@@ -525,7 +525,7 @@ fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
                 7 => buf.push_str("ScrollWheelRight"),
                 _ => {
                     buf.push_str("Mouse");
-                    tui_inp_st().LAST_PRESSED_BUTTON = button;
+                    tui_inp_st().last_pressed_button = button;
                 }
             },
             TERMKEY_MOUSE_DRAG => {
@@ -533,7 +533,7 @@ fn forward_mouse_event(input: &mut TermInput, key: &TermKeyKey) {
             }
             TERMKEY_MOUSE_RELEASE => {
                 buf.push_str(if button != 0 { "Release" } else { "MouseMove" });
-                tui_inp_st().LAST_PRESSED_BUTTON = 0;
+                tui_inp_st().last_pressed_button = 0;
             }
             _ => std::process::abort(),
         }

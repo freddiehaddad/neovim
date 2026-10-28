@@ -913,7 +913,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 if (*buf).b_ffname.is_null()
                     || (!aall_ref.keep_tabs
                         && ((*buf).b_nwindows > 1
-                            || (*wp).w_width != g_st().Columns
+                            || (*wp).w_width != g_st().columns_global
                             || ((*wp).w_floating && !is_ctx_win(wp))))
                 {
                     i = opened_len;

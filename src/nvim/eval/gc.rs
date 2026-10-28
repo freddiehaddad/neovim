@@ -3,15 +3,15 @@
 use crate::eval::typval::{TvDict, TvList};
 
 struct GcModuleState {
-    GC_DICTS: Vec<*mut TvDict>,
-    GC_LISTS: Vec<*mut TvList>,
+    gc_dicts: Vec<*mut TvDict>,
+    gc_lists: Vec<*mut TvList>,
 }
 
 impl GcModuleState {
     const fn new() -> Self {
         Self {
-            GC_DICTS: Vec::new(),
-            GC_LISTS: Vec::new(),
+            gc_dicts: Vec::new(),
+            gc_lists: Vec::new(),
         }
     }
 }
@@ -26,8 +26,8 @@ fn gc_st() -> &'static mut GcModuleState {
 #[inline]
 pub fn gc_register_dict(d: &mut TvDict) {
      {
-        let idx = gc_st().GC_DICTS.len();
-        gc_st().GC_DICTS.push(d);
+        let idx = gc_st().gc_dicts.len();
+        gc_st().gc_dicts.push(d);
         d.dv_gc_idx = Some(idx);
     }
 }
@@ -35,9 +35,9 @@ pub fn gc_register_dict(d: &mut TvDict) {
 #[inline]
 pub fn gc_unregister_dict(idx: usize) {
     unsafe {
-        gc_st().GC_DICTS.swap_remove(idx);
-        if idx < gc_st().GC_DICTS.len() {
-            let moved = gc_st().GC_DICTS.as_slice()[idx];
+        gc_st().gc_dicts.swap_remove(idx);
+        if idx < gc_st().gc_dicts.len() {
+            let moved = gc_st().gc_dicts.as_slice()[idx];
             (*moved).dv_gc_idx = Some(idx);
         }
     }
@@ -46,8 +46,8 @@ pub fn gc_unregister_dict(idx: usize) {
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
      {
-        let idx = gc_st().GC_LISTS.len();
-        gc_st().GC_LISTS.push(l);
+        let idx = gc_st().gc_lists.len();
+        gc_st().gc_lists.push(l);
         l.lv_gc_idx = Some(idx);
     }
 }
@@ -55,9 +55,9 @@ pub fn gc_register_list(l: &mut TvList) {
 #[inline]
 pub fn gc_unregister_list(idx: usize) {
     unsafe {
-        gc_st().GC_LISTS.swap_remove(idx);
-        if idx < gc_st().GC_LISTS.len() {
-            let moved = gc_st().GC_LISTS.as_slice()[idx];
+        gc_st().gc_lists.swap_remove(idx);
+        if idx < gc_st().gc_lists.len() {
+            let moved = gc_st().gc_lists.as_slice()[idx];
             (*moved).lv_gc_idx = Some(idx);
         }
     }
@@ -66,14 +66,14 @@ pub fn gc_unregister_list(idx: usize) {
 #[inline]
 pub fn gc_dicts_slice() -> &'static [*mut TvDict] {
      {
-        gc_st().GC_DICTS.as_slice()
+        gc_st().gc_dicts.as_slice()
     }
 }
 
 #[inline]
 pub fn gc_lists_slice() -> &'static [*mut TvList] {
      {
-        gc_st().GC_LISTS.as_slice()
+        gc_st().gc_lists.as_slice()
     }
 }
 

@@ -221,7 +221,7 @@ fn msg_show_console_dialog(
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
 pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_ptr = str_ptr.into_c_char_ptr();
      {
-        let save_state = g_st().State;
+        let save_state = g_st().state_global;
         g_st().no_wait_return += 1;
 
         let s_bytes = crate::memory::cstr_as_bytes(str_ptr);
@@ -248,7 +248,7 @@ pub fn ask_yesno(str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_
 
         g_st().need_wait_return = g_st().msg_scrolled != 0;
         g_st().no_wait_return -= 1;
-        g_st().State = save_state;
+        g_st().state_global = save_state;
         setmouse();
         r
     }
@@ -346,7 +346,7 @@ pub fn do_dialog(
         }
 
         let save_msg_silent = g_st().msg_silent;
-        let old_state = g_st().State;
+        let old_state = g_st().state_global;
         g_st().msg_silent = 0;
         g_st().no_wait_return += 1;
 
@@ -411,7 +411,7 @@ pub fn do_dialog(
         dlg_st().confirm_msg = None;
 
         g_st().msg_silent = save_msg_silent;
-        g_st().State = old_state;
+        g_st().state_global = old_state;
         setmouse();
         g_st().no_wait_return -= 1;
         msg_end_prompt();

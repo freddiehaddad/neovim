@@ -144,7 +144,7 @@ pub fn change_warning(buf: &mut FileBuf, col: c_int) {
                 return;
             }
             msg_start();
-            if g_st().msg_row == g_st().Rows - 1 {
+            if g_st().msg_row == g_st().rows_global - 1 {
                 g_st().msg_col = col;
             }
             msg_source(HLF_W);
@@ -158,7 +158,7 @@ pub fn change_warning(buf: &mut FileBuf, col: c_int) {
             }
             buf.b_did_warn = true;
             g_st().redraw_cmdline = false;
-            if g_st().msg_row < g_st().Rows - 1 {
+            if g_st().msg_row < g_st().rows_global - 1 {
                 showmode();
             }
         }
@@ -193,7 +193,7 @@ pub fn changed(buf: &mut FileBuf) {
         buf_inc_changedtick( buf);
 
         if std::ptr::eq(buf, g_st().curbuf) {
-            g_st().Search.hl_match = false;
+            g_st().search_global.hl_match = false;
         }
     }
 }
@@ -375,7 +375,7 @@ fn changed_common(
             }
         }
 
-        if curwin_mut().w_buffer == (&raw mut *buf) && g_st().Visual.active {
+        if curwin_mut().w_buffer == (&raw mut *buf) && g_st().visual_global.active {
             check_visual_pos();
         }
 
@@ -727,8 +727,8 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) { 
         let mut oldlen: usize = 0;
         let mut newlen: usize = charlen;
 
-        if (g_st().State & REPLACE_FLAG) != 0 {
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+        if (g_st().state_global & REPLACE_FLAG) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 let old_list = curwin_mut().w_onebuf_opt.wo_list;
                 if old_list != 0 && vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null() {
                     curwin_mut().w_onebuf_opt.wo_list = 0;
@@ -788,11 +788,11 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) { 
         drop(newp_vec);
         inserted_bytes(lnum, col as Colnr, oldlen as c_int, newlen as c_int);
 
-        if opt_vars().p_sm != 0 && (g_st().State & MODE_INSERT) != 0 && g_st().msg_silent == 0 && !ins_compl_active() {
+        if opt_vars().p_sm != 0 && (g_st().state_global & MODE_INSERT) != 0 && g_st().msg_silent == 0 && !ins_compl_active() {
             showmatch(utf_ptr2char(buf));
         }
 
-        if opt_vars().p_ri == 0 || (g_st().State & REPLACE_FLAG) != 0 {
+        if opt_vars().p_ri == 0 || (g_st().state_global & REPLACE_FLAG) != 0 {
             curwin_mut().w_cursor.col += charlen as Colnr;
         }
     }
@@ -984,7 +984,7 @@ pub fn open_line(
                 .to_vec();
         let saved_line = saved_line_vec.as_mut_ptr();
 
-        if (g_st().State & VREPLACE_FLAG) != 0 {
+        if (g_st().state_global & VREPLACE_FLAG) != 0 {
             if curwin_mut().w_cursor.lnum < g_st().orig_line_count {
                 let next_lnum = curwin_mut().w_cursor.lnum + 1;
                 next_line_vec = std::slice::from_raw_parts(
@@ -1003,7 +1003,7 @@ pub fn open_line(
             *saved_line.add(curwin_mut().w_cursor.col as usize) = NUL;
         }
 
-        if (g_st().State & MODE_INSERT) != 0 && (g_st().State & VREPLACE_FLAG) == 0 {
+        if (g_st().state_global & MODE_INSERT) != 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
             p_extra = saved_line.add(curwin_mut().w_cursor.col as usize);
             if do_si {
                 let p = skipwhite(p_extra);
@@ -1015,10 +1015,10 @@ pub fn open_line(
         }
 
         u_clearline(curbuf_mut());
-        g_st().Ins.did_si = false;
-        g_st().Ins.ai_col = 0;
+        g_st().ins_global.did_si = false;
+        g_st().ins_global.ai_col = 0;
 
-        if dir == FORWARD && g_st().Ins.did_ai {
+        if dir == FORWARD && g_st().ins_global.did_ai {
             trunc_line = true;
         }
 
@@ -1102,13 +1102,13 @@ pub fn open_line(
                             }
                         }
                         if last_char == b'{' as c_char {
-                            g_st().Ins.did_si = true;
+                            g_st().ins_global.did_si = true;
                             no_si = true;
                         } else if last_char != b';' as c_char
                             && last_char != b'}' as c_char
                             && cin_is_cinword(ptr)
                         {
-                            g_st().Ins.did_si = true;
+                            g_st().ins_global.did_si = true;
                         }
                     }
                 } else {
@@ -1132,18 +1132,18 @@ pub fn open_line(
                     }
                     let p = skipwhite(ptr);
                     if crate::memory::cstr_first_byte(p) == b'}' {
-                        g_st().Ins.did_si = true;
+                        g_st().ins_global.did_si = true;
                     } else {
-                        g_st().Ins.can_si_back = true;
+                        g_st().ins_global.can_si_back = true;
                     }
                 }
                 curwin_mut().w_cursor = old_cursor;
             }
             if do_si {
-                g_st().Ins.can_si = true;
+                g_st().ins_global.can_si = true;
             }
 
-            g_st().Ins.did_ai = true;
+            g_st().ins_global.did_ai = true;
         }
 
         let do_cindent = opt_vars().p_paste == 0
@@ -1159,7 +1159,7 @@ pub fn open_line(
             )
             && (flags & OPENLINE_FORCE_INDENT) == 0;
 
-        g_st().Ins.end_comment_pending = 0;
+        g_st().ins_global.end_comment_pending = 0;
         if (flags & OPENLINE_DO_COM) != 0 {
             lead_len = get_leader_len(saved_line, &raw mut lead_flags, dir == BACKWARD, true);
             if lead_len == 0
@@ -1236,7 +1236,7 @@ pub fn open_line(
 
                     while !crate::memory::cstr_is_empty(p) && *p.sub(1) != b':' as c_char {
                         if *p == COM_AUTO_END {
-                            g_st().Ins.end_comment_pending = -1;
+                            g_st().ins_global.end_comment_pending = -1;
                         }
                         p = p.add(1);
                     }
@@ -1247,8 +1247,8 @@ pub fn open_line(
                         c",",
                     );
 
-                    if g_st().Ins.end_comment_pending == -1 {
-                        g_st().Ins.end_comment_pending = c_int::from(lead_end[n - 1] as u8);
+                    if g_st().ins_global.end_comment_pending == -1 {
+                        g_st().ins_global.end_comment_pending = c_int::from(lead_end[n - 1] as u8);
                     }
 
                     if dir == FORWARD {
@@ -1304,15 +1304,15 @@ pub fn open_line(
                     let mut p2 = p;
                     while !crate::memory::cstr_is_empty(p2) && crate::memory::cstr_first_byte(p2) != b':' {
                         if *p2 == COM_AUTO_END {
-                            g_st().Ins.end_comment_pending = -1;
+                            g_st().ins_global.end_comment_pending = -1;
                         }
                         p2 = p2.add(1);
                     }
-                    if g_st().Ins.end_comment_pending == -1 {
+                    if g_st().ins_global.end_comment_pending == -1 {
                         while !crate::memory::cstr_is_empty(p2) && crate::memory::cstr_first_byte(p2) != b',' {
                             p2 = p2.add(1);
                         }
-                        g_st().Ins.end_comment_pending = c_int::from(*p2.sub(1) as u8);
+                        g_st().ins_global.end_comment_pending = c_int::from(*p2.sub(1) as u8);
                     }
                     break;
                 }
@@ -1511,15 +1511,15 @@ pub fn open_line(
 
                 newcol = lead_len;
 
-                if newindent != 0 || g_st().Ins.did_si {
+                if newindent != 0 || g_st().ins_global.did_si {
                     while lead_len != 0 && ascii_iswhite(crate::memory::cstr_first_char(leader)) {
                         lead_len -= 1;
                         newcol -= 1;
                         leader = leader.add(1);
                     }
                 }
-                g_st().Ins.did_si = false;
-                g_st().Ins.can_si = false;
+                g_st().ins_global.did_si = false;
+                g_st().ins_global.can_si = false;
             } else if !comment_end.is_null()
                 && crate::memory::cstr_first_byte(comment_end) == b'*'
                 && crate::memory::cstr_byte_at(comment_end, 1) == b'/'
@@ -1539,14 +1539,14 @@ pub fn open_line(
         if !p_extra.is_null() {
             *p_extra = saved_char;
 
-            if replace_normal(g_st().State) {
+            if replace_normal(g_st().state_global) {
                 replace_push_nul();
             }
             if curbuf_mut().b_p_ai != 0 || (flags & OPENLINE_DELSPACES) != 0 {
                 while (crate::memory::cstr_first_byte(p_extra) == b' ' || crate::memory::cstr_first_byte(p_extra) == b'\t')
                     && !utf_iscomposing_first(utf_ptr2char(p_extra.add(1)))
                 {
-                    if replace_normal(g_st().State) {
+                    if replace_normal(g_st().state_global) {
                         replace_push(p_extra, 1);
                     }
                     p_extra = p_extra.add(1);
@@ -1573,10 +1573,10 @@ pub fn open_line(
             }
             crate::memory::cstr_cat(leader, p_extra);
             p_extra = leader;
-            g_st().Ins.did_ai = true;
+            g_st().ins_global.did_ai = true;
             less_cols -= lead_len;
         } else {
-            g_st().Ins.end_comment_pending = 0;
+            g_st().ins_global.end_comment_pending = 0;
         }
 
         g_st().curbuf_splice_pending += 1;
@@ -1607,7 +1607,7 @@ pub fn open_line(
         }
 
         let mut did_append: bool;
-        let append_failed = if (g_st().State & VREPLACE_FLAG) == 0 || old_cursor.lnum >= g_st().orig_line_count {
+        let append_failed = if (g_st().state_global & VREPLACE_FLAG) == 0 || old_cursor.lnum >= g_st().orig_line_count {
             if !ml_append(curwin_mut().w_cursor.lnum, p_extra, 0, false) {
                 did_append = false;
                 true
@@ -1618,7 +1618,7 @@ pub fn open_line(
             }
         } else {
             curwin_mut().w_cursor.lnum += 1;
-            if curwin_mut().w_cursor.lnum >= g_st().Ins.start.lnum + g_st().vr_lines_changed {
+            if curwin_mut().w_cursor.lnum >= g_st().ins_global.start.lnum + g_st().vr_lines_changed {
                 u_save_cursor();
                 g_st().vr_lines_changed += 1;
             }
@@ -1631,9 +1631,9 @@ pub fn open_line(
 
         if !append_failed {
             g_st().inhibit_delete_count += 1;
-            if newindent != 0 || g_st().Ins.did_si {
+            if newindent != 0 || g_st().ins_global.did_si {
                 curwin_mut().w_cursor.lnum += 1;
-                if g_st().Ins.did_si {
+                if g_st().ins_global.did_si {
                     let sw = get_sw_value(curbuf_mut());
                     if opt_vars().p_sr != 0 {
                         newindent -= newindent % sw;
@@ -1648,21 +1648,21 @@ pub fn open_line(
                 }
                 less_cols -= curwin_mut().w_cursor.col;
 
-                g_st().Ins.ai_col = curwin_mut().w_cursor.col;
+                g_st().ins_global.ai_col = curwin_mut().w_cursor.col;
 
-                if replace_normal(g_st().State) {
+                if replace_normal(g_st().state_global) {
                     for _ in 0..curwin_mut().w_cursor.col {
                         replace_push_nul();
                     }
                 }
                 newcol += curwin_mut().w_cursor.col;
                 if no_si {
-                    g_st().Ins.did_si = false;
+                    g_st().ins_global.did_si = false;
                 }
             }
             g_st().inhibit_delete_count -= 1;
 
-            if replace_normal(g_st().State) {
+            if replace_normal(g_st().state_global) {
                 while lead_len > 0 {
                     replace_push_nul();
                     lead_len -= 1;
@@ -1672,7 +1672,7 @@ pub fn open_line(
             curwin_mut().w_cursor = old_cursor;
 
             if dir == FORWARD {
-                if trunc_line || (g_st().State & MODE_INSERT) != 0 {
+                if trunc_line || (g_st().state_global & MODE_INSERT) != 0 {
                     *saved_line.add(curwin_mut().w_cursor.col as usize) = NUL;
                     if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
                         truncate_spaces(saved_line, curwin_mut().w_cursor.col as usize);
@@ -1763,9 +1763,9 @@ pub fn open_line(
             curwin_mut().w_cursor.col = newcol;
             curwin_mut().w_cursor.coladd = 0;
 
-            let vreplace_mode = if (g_st().State & VREPLACE_FLAG) != 0 {
-                let m = g_st().State;
-                g_st().State = MODE_INSERT;
+            let vreplace_mode = if (g_st().state_global & VREPLACE_FLAG) != 0 {
+                let m = g_st().state_global;
+                g_st().state_global = MODE_INSERT;
                 m
             } else {
                 0
@@ -1778,18 +1778,18 @@ pub fn open_line(
                     && curbuf_mut().b_p_ai != 0
                 {
                     fixthisline(get_lisp_indent);
-                    g_st().Ins.ai_col = getwhitecols_curline() as Colnr;
+                    g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
                 } else if do_cindent || (curbuf_mut().b_p_ai != 0 && use_indentexpr_for_lisp()) {
                     do_c_expr_indent();
-                    g_st().Ins.ai_col = getwhitecols_curline() as Colnr;
+                    g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
                 }
             }
 
             if vreplace_mode != 0 {
-                g_st().State = vreplace_mode;
+                g_st().state_global = vreplace_mode;
             }
 
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 let mut extra_vec = std::slice::from_raw_parts(
                     get_cursor_line_ptr(),
                     get_cursor_line_len() as usize + 1,

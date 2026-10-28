@@ -46,24 +46,33 @@ const S_OK: HRESULT = 0;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct COORD {
+    #[allow(non_snake_case)]
     pub X: i16,
+    #[allow(non_snake_case)]
     pub Y: i16,
 }
 
 #[cfg(windows)]
 #[repr(C)]
 pub struct SECURITY_ATTRIBUTES {
+    #[allow(non_snake_case)]
     pub nLength: DWORD,
+    #[allow(non_snake_case)]
     pub lpSecurityDescriptor: *mut c_void,
+    #[allow(non_snake_case)]
     pub bInheritHandle: BOOL,
 }
 
 #[cfg(windows)]
 #[repr(C)]
 pub struct PROCESS_INFORMATION {
+    #[allow(non_snake_case)]
     pub hProcess: HANDLE,
+    #[allow(non_snake_case)]
     pub hThread: HANDLE,
+    #[allow(non_snake_case)]
     pub dwProcessId: DWORD,
+    #[allow(non_snake_case)]
     pub dwThreadId: DWORD,
 }
 
@@ -71,29 +80,48 @@ pub struct PROCESS_INFORMATION {
 #[repr(C)]
 pub struct STARTUPINFOW {
     pub cb: DWORD,
+    #[allow(non_snake_case)]
     pub lpReserved: *mut u16,
+    #[allow(non_snake_case)]
     pub lpDesktop: *mut u16,
+    #[allow(non_snake_case)]
     pub lpTitle: *mut u16,
+    #[allow(non_snake_case)]
     pub dwX: DWORD,
+    #[allow(non_snake_case)]
     pub dwY: DWORD,
+    #[allow(non_snake_case)]
     pub dwXSize: DWORD,
+    #[allow(non_snake_case)]
     pub dwYSize: DWORD,
+    #[allow(non_snake_case)]
     pub dwXCountChars: DWORD,
+    #[allow(non_snake_case)]
     pub dwYCountChars: DWORD,
+    #[allow(non_snake_case)]
     pub dwFillAttribute: DWORD,
+    #[allow(non_snake_case)]
     pub dwFlags: DWORD,
+    #[allow(non_snake_case)]
     pub wShowWindow: u16,
+    #[allow(non_snake_case)]
     pub cbReserved2: u16,
+    #[allow(non_snake_case)]
     pub lpReserved2: *mut u8,
+    #[allow(non_snake_case)]
     pub hStdInput: HANDLE,
+    #[allow(non_snake_case)]
     pub hStdOutput: HANDLE,
+    #[allow(non_snake_case)]
     pub hStdError: HANDLE,
 }
 
 #[cfg(windows)]
 #[repr(C)]
 pub struct STARTUPINFOEXW {
+    #[allow(non_snake_case)]
     pub StartupInfo: STARTUPINFOW,
+    #[allow(non_snake_case)]
     pub lpAttributeList: *mut c_void,
 }
 
@@ -151,10 +179,15 @@ pub type ClosePseudoConsoleFn = Option<unsafe extern "system" fn(HPCON)>;
 
 #[cfg(windows)]
 struct ConptyModuleState {
+    #[allow(non_snake_case)]
     pCreatePseudoConsole: CreatePseudoConsoleFn,
+    #[allow(non_snake_case)]
     pResizePseudoConsole: ResizePseudoConsoleFn,
+    #[allow(non_snake_case)]
     pClosePseudoConsole: ClosePseudoConsoleFn,
+    #[allow(non_snake_case)]
     HAS_CONPTY: TriState,
+    #[allow(non_snake_case)]
     CONPTY_COUNT: c_int,
 }
 

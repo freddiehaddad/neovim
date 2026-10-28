@@ -174,10 +174,10 @@ fn coladvance2(
         let mut head: c_int = 0;
 
         let one_more = c_int::from(
-            (g_st().State & MODE_INSERT) != 0
-                || (g_st().State & MODE_TERMINAL) != 0
+            (g_st().state_global & MODE_INSERT) != 0
+                || (g_st().state_global & MODE_TERMINAL) != 0
                 || g_st().restart_edit != 0
-                || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
+                || (g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
                 || ((get_ve_flags( &mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
         );
 
@@ -188,7 +188,7 @@ fn coladvance2(
             idx = linelen - 1 + one_more;
             col = wcol;
 
-            if (addspaces || finetune) && !g_st().Visual.active {
+            if (addspaces || finetune) && !g_st().visual_global.active {
                 wp.w_curswant = linetabsize(wp, pos.lnum) + one_more;
                 if wp.w_curswant > 0 {
                     wp.w_curswant -= 1;
@@ -209,7 +209,7 @@ fn coladvance2(
                     csize -= 1;
                 }
 
-                if wcol / width > csize / width && ((g_st().State & MODE_INSERT) == 0 || wcol > csize + 1)
+                if wcol / width > csize / width && ((g_st().state_global & MODE_INSERT) == 0 || wcol > csize + 1)
                 {
                     wcol = (csize / width + 1) * width - 1;
                 }
@@ -395,10 +395,10 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
         if len == 0 {
             win.w_cursor.col = 0;
         } else if win.w_cursor.col >= len {
-            if (g_st().State & MODE_INSERT) != 0
+            if (g_st().state_global & MODE_INSERT) != 0
                 || g_st().restart_edit != 0
-                || (g_st().State & MODE_TERMINAL) != 0
-                || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
+                || (g_st().state_global & MODE_TERMINAL) != 0
+                || (g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
                 || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
                 || virtual_active( &mut *win)
             {
@@ -451,15 +451,15 @@ pub fn check_cursor(wp: &mut WinInfoInfo) {
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
 pub fn check_visual_pos() {
      {
-        if g_st().Visual.start.lnum > curbuf_mut().b_ml.ml_line_count {
-            g_st().Visual.start.lnum = curbuf_mut().b_ml.ml_line_count;
-            g_st().Visual.start.col = 0;
-            g_st().Visual.start.coladd = 0;
+        if g_st().visual_global.start.lnum > curbuf_mut().b_ml.ml_line_count {
+            g_st().visual_global.start.lnum = curbuf_mut().b_ml.ml_line_count;
+            g_st().visual_global.start.col = 0;
+            g_st().visual_global.start.coladd = 0;
         } else {
-            let len = ml_get_len(g_st().Visual.start.lnum);
-            if g_st().Visual.start.col > len {
-                g_st().Visual.start.col = len;
-                g_st().Visual.start.coladd = 0;
+            let len = ml_get_len(g_st().visual_global.start.lnum);
+            if g_st().visual_global.start.col > len {
+                g_st().visual_global.start.col = len;
+                g_st().visual_global.start.coladd = 0;
             }
         }
     }
@@ -469,7 +469,7 @@ pub fn check_visual_pos() {
 pub fn adjust_cursor_col() {
      {
         if curwin_mut().w_cursor.col > 0
-            && (!g_st().Visual.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+            && (!g_st().visual_global.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
             && gchar_cursor() == 0
         {
             curwin_mut().w_cursor.col -= 1;

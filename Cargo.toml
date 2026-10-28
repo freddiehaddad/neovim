@@ -58,9 +58,6 @@ codegen-units = 256
 [profile.release]
 lto = "thin"
 
-[lints.rust]
-non_snake_case = "allow"
-
 [lints.clippy]
 doc_lazy_continuation = "allow"
 doc_overindented_list_items = "allow"

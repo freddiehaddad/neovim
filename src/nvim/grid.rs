@@ -7,7 +7,7 @@ use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::mbyte::{
     mb_string2cells, utf_cluster_info_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
-    utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    utf_ptr2_str_char_info_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
@@ -554,7 +554,7 @@ pub fn grid_line_puts(
 
         let start_col = col;
         let max_col = grid_st().grid_line_maxcol;
-        let mut ci = utf_ptr2StrCharInfo_len(text, len);
+        let mut ci = utf_ptr2_str_char_info_len(text, len);
         while col < max_col && len > 0 && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_cluster_info_len(ci, &mut len);
             let mut mbyte_cells = cli.cells;

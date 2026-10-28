@@ -1136,7 +1136,7 @@ fn apply_cursorline_highlight(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
         let ae = syn_attr2entry(wlv.cul_attr);
         if ae.rgb_fg_color == -1 && ae.cterm_fg_color == 0 {
             wlv.line_attr_lowprio = wlv.cul_attr;
-        } else if (g_st().State & MODE_INSERT) == 0
+        } else if (g_st().state_global & MODE_INSERT) == 0
             && bt_quickfix(unsafe { wp.w_buffer.as_ref() })
             && qf_current_entry(wp) == wlv.lnum
         {
@@ -1506,14 +1506,14 @@ pub fn win_line(
             let hlc = vcol_hlc(&wlv);
             advance_color_col(&mut wlv, hlc);
 
-            if g_st().Visual.active && wp.w_buffer == curwin_mut().w_buffer {
-                let (top, bot) = if ltoreq(curwin_mut().w_cursor, g_st().Visual.start) {
-                    (&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().Visual.start)
+            if g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer {
+                let (top, bot) = if ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
+                    (&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().visual_global.start)
                 } else {
-                    (&raw mut g_st().Visual.start, &raw mut (*curwin_ptr()).w_cursor)
+                    (&raw mut g_st().visual_global.start, &raw mut (*curwin_ptr()).w_cursor)
                 };
                 lnum_in_visual_area = lnum >= (*top).lnum && lnum <= (*bot).lnum;
-                if g_st().Visual.mode == CTRL_V_CONST {
+                if g_st().visual_global.mode == CTRL_V_CONST {
                     if lnum_in_visual_area {
                         wlv.fromcol = wp.w_old_cursor_fcol;
                         wlv.tocol = wp.w_old_cursor_lcol;
@@ -1522,7 +1522,7 @@ pub fn win_line(
                     if lnum > (*top).lnum && lnum <= (*bot).lnum {
                         wlv.fromcol = 0;
                     } else if lnum == (*top).lnum {
-                        if g_st().Visual.mode == b'V' as c_int {
+                        if g_st().visual_global.mode == b'V' as c_int {
                             wlv.fromcol = 0;
                         } else {
                             getvvcol(
@@ -1538,7 +1538,7 @@ pub fn win_line(
                             }
                         }
                     }
-                    if g_st().Visual.mode != b'V' as c_int && lnum == (*bot).lnum {
+                    if g_st().visual_global.mode != b'V' as c_int && lnum == (*bot).lnum {
                         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && (*bot).col == 0 && (*bot).coladd == 0 {
                             wlv.fromcol = -10;
                             wlv.tocol = MAXCOL;
@@ -1574,11 +1574,11 @@ pub fn win_line(
                     area_highlighting = true;
                     vi_attr = win_hl_attr(&mut *wp, HLF_V);
                 }
-            } else if g_st().Search.hl_match
+            } else if g_st().search_global.hl_match
                 && ptr::eq(wp, curwin_ptr())
                 && !has_foldtext
                 && lnum >= curwin_mut().w_cursor.lnum
-                && lnum <= curwin_mut().w_cursor.lnum + g_st().Search.match_lines
+                && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines
             {
                 if lnum == curwin_mut().w_cursor.lnum {
                     getvcol(
@@ -1592,10 +1592,10 @@ pub fn win_line(
                 } else {
                     wlv.fromcol = 0;
                 }
-                if lnum == curwin_mut().w_cursor.lnum + g_st().Search.match_lines {
+                if lnum == curwin_mut().w_cursor.lnum + g_st().search_global.match_lines {
                     let mut pos = CursorPos {
                         lnum,
-                        col: g_st().Search.match_endcol,
+                        col: g_st().search_global.match_endcol,
                         coladd: 0,
                     };
                     getvcol(
@@ -1607,7 +1607,7 @@ pub fn win_line(
                         0,
                     );
                 }
-                if wlv.fromcol == wlv.tocol && g_st().Search.match_endcol != 0 {
+                if wlv.fromcol == wlv.tocol && g_st().search_global.match_endcol != 0 {
                     wlv.tocol = wlv.fromcol + 1;
                 }
                 area_highlighting = true;
@@ -1674,7 +1674,7 @@ pub fn win_line(
         if wp.w_onebuf_opt.wo_cul != 0
             && wp.w_p_culopt_flags != K_OPT_CULOPT_FLAG_NUMBER
             && lnum == wp.w_cursorline
-            && !(ptr::eq(wp, curwin_ptr()) && g_st().Visual.active)
+            && !(ptr::eq(wp, curwin_ptr()) && g_st().visual_global.active)
         {
             cul_screenline = is_wrapped && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0;
             if !cul_screenline {
@@ -1895,7 +1895,7 @@ pub fn win_line(
                 && (wp.w_onebuf_opt.wo_cuc != 0
                     || !wlv.color_cols.is_empty()
                     || virtual_active(wp)
-                    || (g_st().Visual.active && wp.w_buffer == curwin_mut().w_buffer)
+                    || (g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer)
                     || has_fold)
             {
                 wlv.vcol = start_vcol;
@@ -1981,7 +1981,7 @@ pub fn win_line(
             ptr = line.add(v as usize);
         }
 
-        if (g_st().State & MODE_INSERT) != 0
+        if (g_st().state_global & MODE_INSERT) != 0
             && ins_compl_win_active(wp)
             && (in_curline || ins_compl_lnum_in_range(lnum))
         {
@@ -2265,7 +2265,7 @@ pub fn win_line(
                             has_match_conc = 0;
                         }
 
-                        if (g_st().State & MODE_INSERT) != 0
+                        if (g_st().state_global & MODE_INSERT) != 0
                             && ins_compl_win_active(wp)
                             && (in_curline || ins_compl_lnum_in_range(lnum))
                         {
@@ -2320,7 +2320,7 @@ pub fn win_line(
 
                     if area_attr != 0 {
                         char_attr_pri = hl_combine_attr(wlv.line_attr, area_attr);
-                        if !g_st().Search.hl_match {
+                        if !g_st().search_global.hl_match {
                             char_attr_pri = hl_combine_attr(search_attr, char_attr_pri);
                         }
                     } else if search_attr != 0 {
@@ -2613,7 +2613,7 @@ pub fn win_line(
                                 word_end = v1 + len;
 
                                 if spell_hlf != HLF_COUNT
-                                    && (g_st().State & MODE_INSERT) != 0
+                                    && (g_st().state_global & MODE_INSERT) != 0
                                     && wp.w_cursor.lnum == lnum
                                     && wp.w_cursor.col >= (prev_ptr.offset_from(line) as Colnr)
                                     && wp.w_cursor.col < word_end
@@ -2935,7 +2935,7 @@ pub fn win_line(
                             && (wp.w_onebuf_opt.wo_list != 0
                                 || (wlv.fromcol >= 0
                                     && wlv.tocol > wlv.vcol
-                                    && g_st().Visual.mode != CTRL_V_CONST
+                                    && g_st().visual_global.mode != CTRL_V_CONST
                                     && wlv.col < view_width))
                             && lcs_eol_todo
                             && lcs_eol != 0
@@ -2994,8 +2994,8 @@ pub fn win_line(
                             wlv.n_attr = wlv.n_extra + 1;
                             wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
                             saved_attr2 = wlv.char_attr;
-                        } else if g_st().Visual.active
-                            && (g_st().Visual.mode == CTRL_V_CONST || g_st().Visual.mode == b'v' as c_int)
+                        } else if g_st().visual_global.active
+                            && (g_st().visual_global.mode == CTRL_V_CONST || g_st().visual_global.mode == b'v' as c_int)
                             && virtual_active(wp)
                             && wlv.tocol != MAXCOL
                             && wlv.vcol < wlv.tocol
@@ -3148,8 +3148,8 @@ pub fn win_line(
                     if lcs_eol_todo
                         && ((area_attr != 0
                             && wlv.vcol == wlv.fromcol
-                            && (g_st().Visual.mode != CTRL_V_CONST
-                                || lnum == g_st().Visual.start.lnum
+                            && (g_st().visual_global.mode != CTRL_V_CONST
+                                || lnum == g_st().visual_global.start.lnum
                                 || lnum == curwin_mut().w_cursor.lnum))
                             || prevcol_hl_flag)
                     {

@@ -238,10 +238,10 @@ pub(crate) struct EvalModuleState {
     echo_hl_id: c_int,
     last_timer_id: u64,
     callback_depth: c_int,
-    CURRENT_COPY_ID: c_int,
-    EVAL7_RECURSE: c_int,
-    VAR_ITEM_COPY_RECURSE: c_int,
-    VAR2FPOS_POS: CursorPos,
+    current_copy_id: c_int,
+    eval7_recurse: c_int,
+    var_item_copy_recurse: c_int,
+    var2_fpos_pos: CursorPos,
     timers: std::collections::BTreeMap<u64, *mut VimTimer>,
 }
 
@@ -252,10 +252,10 @@ impl EvalModuleState {
             echo_hl_id: 0,
             last_timer_id: 1,
             callback_depth: 0,
-            CURRENT_COPY_ID: 0,
-            EVAL7_RECURSE: 0,
-            VAR_ITEM_COPY_RECURSE: 0,
-            VAR2FPOS_POS: CursorPos { lnum: 0, col: 0, coladd: 0 },
+            current_copy_id: 0,
+            eval7_recurse: 0,
+            var_item_copy_recurse: 0,
+            var2_fpos_pos: CursorPos { lnum: 0, col: 0, coladd: 0 },
             timers: std::collections::BTreeMap::new(),
         }
     }
@@ -362,7 +362,7 @@ pub fn tv_dict_set_ret(tv: &mut TypVal, d: *mut TvDict) {
 
 #[inline]
 fn tv_list_copyid(l: &TvList) -> c_int {
-    l.lv_copyID
+    l.lv_copy_id
 }
 
 #[inline]
@@ -793,7 +793,7 @@ pub fn eval_to_number(expr: impl crate::strings::IntoCCharPtr, use_simple_functi
             r = may_call_simple_func(expr, &mut rettv);
         }
         if r == NOTDONE {
-            r = if eval1(&raw mut p, &mut rettv, Some(&mut g_st().EVALARG_EVALUATE)) {
+            r = if eval1(&raw mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)) {
                 OK
             } else {
                 FAIL
@@ -1330,7 +1330,7 @@ fn get_lval_subscript(lp: &mut Lval,
                     empty1 = true;
                 } else {
                     empty1 = false;
-                    let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
+                    let evalarg_ptr = &raw mut g_st().evalarg_evaluate;
                     if !eval1(&raw mut p, &mut var1, (!evalarg_ptr.is_null()).then(|| &mut *evalarg_ptr)) {
                         tv_clear(&mut var1);
                         tv_clear(&mut var2);
@@ -1371,7 +1371,7 @@ fn get_lval_subscript(lp: &mut Lval,
                         lp.ll_empty2 = true;
                     } else {
                         lp.ll_empty2 = false;
-                        let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
+                        let evalarg_ptr = &raw mut g_st().evalarg_evaluate;
                         if !eval1(&raw mut p, &mut var2, (!evalarg_ptr.is_null()).then(|| &mut *evalarg_ptr))
                             || !tv_check_str(&var2)
                         {
@@ -2824,11 +2824,11 @@ fn eval7(
         }
         let mut end_leader: *const c_char = *arg;
 
-        if eval_st().EVAL7_RECURSE == MAX_EVAL7_RECURSE {
+        if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
             semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), *arg);
             return false;
         }
-        eval_st().EVAL7_RECURSE += 1;
+        eval_st().eval7_recurse += 1;
 
         match **arg as u8 {
             b'0'..=b'9' => {
@@ -2952,7 +2952,7 @@ fn eval7(
             ok = eval7_leader(&mut *rettv, false, start_leader, &raw mut end_leader);
         }
 
-        eval_st().EVAL7_RECURSE -= 1;
+        eval_st().eval7_recurse -= 1;
         ok
     }
 }
@@ -4230,8 +4230,8 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
 
 /// Get next (unique) copy ID.
 pub fn get_copy_id() -> c_int {
-    eval_st().CURRENT_COPY_ID = eval_st().CURRENT_COPY_ID.wrapping_add(COPYID_INC);
-        eval_st().CURRENT_COPY_ID
+    eval_st().current_copy_id = eval_st().current_copy_id.wrapping_add(COPYID_INC);
+        eval_st().current_copy_id
 }
 
 /// Do garbage collection for lists and dicts.
@@ -4431,7 +4431,7 @@ fn free_unref_items(copy_id: c_int) -> c_int {
         tv_st().tv_in_free_unref_items = true;
 
         for &dd in gc_dicts_slice().iter().rev() {
-            if ((*dd).dv_copyID & COPYID_MASK) != (copy_id & COPYID_MASK) {
+            if ((*dd).dv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK) {
                 tv_dict_free_contents(&mut *dd);
                 did_free = true;
             }
@@ -4450,7 +4450,7 @@ fn free_unref_items(copy_id: c_int) -> c_int {
         while i > 0 {
             i -= 1;
             let dd_cur = gc_dicts_slice()[i];
-            if ((*dd_cur).dv_copyID & COPYID_MASK) != (copy_id & COPYID_MASK) {
+            if ((*dd_cur).dv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK) {
                 drop(Box::from_raw(dd_cur));
             }
         }
@@ -4459,7 +4459,7 @@ fn free_unref_items(copy_id: c_int) -> c_int {
         while j > 0 {
             j -= 1;
             let ll_cur = gc_lists_slice()[j];
-            if ((*ll_cur).lv_copyID & COPYID_MASK) != (copy_id & COPYID_MASK)
+            if ((*ll_cur).lv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK)
                 && !tv_list_has_watchers(&*ll_cur)
             {
                 drop(Box::from_raw(ll_cur));
@@ -4551,11 +4551,11 @@ fn set_ref_in_item_dict(
     list_stack: *mut ListStack,
 ) -> bool {
     unsafe {
-        if dd.is_none() || dd.as_deref_mut().unwrap().dv_copyID == copy_id {
+        if dd.is_none() || dd.as_deref_mut().unwrap().dv_copy_id == copy_id {
             return false;
         }
 
-        dd.as_deref_mut().unwrap().dv_copyID = copy_id;
+        dd.as_deref_mut().unwrap().dv_copy_id = copy_id;
         if ht_stack.is_null() {
             return set_ref_in_ht(&raw mut dd.as_deref_mut().unwrap().dv_hashtab, copy_id, list_stack);
         }
@@ -4577,11 +4577,11 @@ fn set_ref_in_item_list(
     list_stack: Option<&mut ListStack>,
 ) -> bool {
     unsafe {
-        if ll.is_null() || (*ll).lv_copyID == copy_id {
+        if ll.is_null() || (*ll).lv_copy_id == copy_id {
             return false;
         }
 
-        (*ll).lv_copyID = copy_id;
+        (*ll).lv_copy_id = copy_id;
         if let Some(list_stack) = list_stack {
             list_stack.push(ll);
             false
@@ -4598,11 +4598,11 @@ fn set_ref_in_item_partial(
     list_stack: *mut ListStack,
 ) -> bool {
     unsafe {
-        if pt.is_null() || (*pt).pt_copyID == copy_id {
+        if pt.is_null() || (*pt).pt_copy_id == copy_id {
             return false;
         }
 
-        (*pt).pt_copyID = copy_id;
+        (*pt).pt_copy_id = copy_id;
 
         let mut abort = set_ref_in_func(
             (*pt)
@@ -5229,7 +5229,7 @@ pub fn callback_call(
                     skipwhite(callback.data.as_funcref()),
                     rettv,
                     None,
-                    &mut g_st().EVALARG_EVALUATE,
+                    &mut g_st().evalarg_evaluate,
                 );
                 eval_st().callback_depth -= 1;
                 return r;
@@ -5656,19 +5656,19 @@ pub fn var2fpos(
                 return ptr::null_mut();
             }
 
-            eval_st().VAR2FPOS_POS.lnum = tv_list_find_nr(l.as_mut(), 0, Some(&mut error)) as Linenr;
-            if error || eval_st().VAR2FPOS_POS.lnum <= 0 || eval_st().VAR2FPOS_POS.lnum > (*bp).b_ml.ml_line_count {
+            eval_st().var2_fpos_pos.lnum = tv_list_find_nr(l.as_mut(), 0, Some(&mut error)) as Linenr;
+            if error || eval_st().var2_fpos_pos.lnum <= 0 || eval_st().var2_fpos_pos.lnum > (*bp).b_ml.ml_line_count {
                 return ptr::null_mut();
             }
 
-            eval_st().VAR2FPOS_POS.col = tv_list_find_nr(l.as_mut(), 1, Some(&mut error)) as Colnr;
+            eval_st().var2_fpos_pos.col = tv_list_find_nr(l.as_mut(), 1, Some(&mut error)) as Colnr;
             if error {
                 return ptr::null_mut();
             }
             let len = if charcol {
-                mb_charlen(ml_get_buf(&mut *bp, eval_st().VAR2FPOS_POS.lnum))
+                mb_charlen(ml_get_buf(&mut *bp, eval_st().var2_fpos_pos.lnum))
             } else {
-                ml_get_buf_len(&mut *bp, eval_st().VAR2FPOS_POS.lnum)
+                ml_get_buf_len(&mut *bp, eval_st().var2_fpos_pos.lnum)
             };
 
             let li = tv_list_find(l.as_mut(), 1);
@@ -5677,20 +5677,20 @@ pub fn var2fpos(
                 && !(*tv_list_item_tv(&mut *li)).vval.v_string().is_null()
                 && (crate::memory::cstr_as_bytes((*tv_list_item_tv(&mut *li)).vval.v_string()) == b"$")
             {
-                eval_st().VAR2FPOS_POS.col = len + 1;
+                eval_st().var2_fpos_pos.col = len + 1;
             }
 
-            if eval_st().VAR2FPOS_POS.col == 0 || eval_st().VAR2FPOS_POS.col > len + 1 {
+            if eval_st().var2_fpos_pos.col == 0 || eval_st().var2_fpos_pos.col > len + 1 {
                 return ptr::null_mut();
             }
-            eval_st().VAR2FPOS_POS.col -= 1;
+            eval_st().var2_fpos_pos.col -= 1;
 
-            eval_st().VAR2FPOS_POS.coladd = tv_list_find_nr(l.as_mut(), 2, Some(&mut error)) as Colnr;
+            eval_st().var2_fpos_pos.coladd = tv_list_find_nr(l.as_mut(), 2, Some(&mut error)) as Colnr;
             if error {
-                eval_st().VAR2FPOS_POS.coladd = 0;
+                eval_st().var2_fpos_pos.coladd = 0;
             }
 
-            return &raw mut eval_st().VAR2FPOS_POS;
+            return &raw mut eval_st().var2_fpos_pos;
         }
 
         let name = tv_get_string_chk(tv);
@@ -5698,22 +5698,22 @@ pub fn var2fpos(
             return ptr::null_mut();
         }
 
-        eval_st().VAR2FPOS_POS.lnum = 0;
+        eval_st().var2_fpos_pos.lnum = 0;
         if crate::memory::cstr_first_byte(name) == b'.' {
-            eval_st().VAR2FPOS_POS = CursorPos {
+            eval_st().var2_fpos_pos = CursorPos {
                 lnum: wp.w_cursor.lnum,
                 col: wp.w_cursor.col,
                 coladd: wp.w_cursor.coladd,
             };
         } else if crate::memory::cstr_first_byte(name) == b'v' && crate::memory::cstr_byte_at(name, 1) == 0 {
-            if g_st().Visual.active && ptr::eq(wp, curwin_ptr()) {
-                eval_st().VAR2FPOS_POS = CursorPos {
-                    lnum: g_st().Visual.start.lnum,
-                    col: g_st().Visual.start.col,
-                    coladd: g_st().Visual.start.coladd,
+            if g_st().visual_global.active && ptr::eq(wp, curwin_ptr()) {
+                eval_st().var2_fpos_pos = CursorPos {
+                    lnum: g_st().visual_global.start.lnum,
+                    col: g_st().visual_global.start.col,
+                    coladd: g_st().visual_global.start.coladd,
                 };
             } else {
-                eval_st().VAR2FPOS_POS = CursorPos {
+                eval_st().var2_fpos_pos = CursorPos {
                     lnum: wp.w_cursor.lnum,
                     col: wp.w_cursor.col,
                     coladd: wp.w_cursor.coladd,
@@ -5725,54 +5725,54 @@ pub fn var2fpos(
             if fm.is_null() || (*fm).mark.lnum <= 0 {
                 return ptr::null_mut();
             }
-            eval_st().VAR2FPOS_POS = (*fm).mark;
+            eval_st().var2_fpos_pos = (*fm).mark;
             if ascii_isupper(crate::memory::cstr_char_at(name, 1)) || ascii_isdigit(crate::memory::cstr_char_at(name, 1)) {
                 *ret_fnum = (*fm).fnum;
             }
         }
-        if eval_st().VAR2FPOS_POS.lnum != 0 {
+        if eval_st().var2_fpos_pos.lnum != 0 {
             if charcol {
-                eval_st().VAR2FPOS_POS.col = buf_byteidx_to_charidx(bp.as_mut(), eval_st().VAR2FPOS_POS.lnum, eval_st().VAR2FPOS_POS.col);
+                eval_st().var2_fpos_pos.col = buf_byteidx_to_charidx(bp.as_mut(), eval_st().var2_fpos_pos.lnum, eval_st().var2_fpos_pos.col);
             }
-            return &raw mut eval_st().VAR2FPOS_POS;
+            return &raw mut eval_st().var2_fpos_pos;
         }
 
-        eval_st().VAR2FPOS_POS.coladd = 0;
+        eval_st().var2_fpos_pos.coladd = 0;
 
         if crate::memory::cstr_first_byte(name) == b'w' && dollar_lnum {
             check_cursor_moved(wp);
 
-            eval_st().VAR2FPOS_POS.col = 0;
+            eval_st().var2_fpos_pos.col = 0;
             if crate::memory::cstr_byte_at(name, 1) == b'0' {
                 update_topline(wp);
-                eval_st().VAR2FPOS_POS.lnum = if wp.w_topline > 0 {
+                eval_st().var2_fpos_pos.lnum = if wp.w_topline > 0 {
                     wp.w_topline
                 } else {
                     1
                 };
-                return &raw mut eval_st().VAR2FPOS_POS;
+                return &raw mut eval_st().var2_fpos_pos;
             } else if crate::memory::cstr_byte_at(name, 1) == b'$' {
                 validate_botline_win(&mut *wp);
-                eval_st().VAR2FPOS_POS.lnum = if wp.w_botline > 0 {
+                eval_st().var2_fpos_pos.lnum = if wp.w_botline > 0 {
                     wp.w_botline - 1
                 } else {
                     0
                 };
-                return &raw mut eval_st().VAR2FPOS_POS;
+                return &raw mut eval_st().var2_fpos_pos;
             }
         } else if crate::memory::cstr_first_byte(name) == b'$' {
             if dollar_lnum {
-                eval_st().VAR2FPOS_POS.lnum = (*bp).b_ml.ml_line_count;
-                eval_st().VAR2FPOS_POS.col = 0;
+                eval_st().var2_fpos_pos.lnum = (*bp).b_ml.ml_line_count;
+                eval_st().var2_fpos_pos.col = 0;
             } else {
-                eval_st().VAR2FPOS_POS.lnum = wp.w_cursor.lnum;
-                eval_st().VAR2FPOS_POS.col = if charcol {
+                eval_st().var2_fpos_pos.lnum = wp.w_cursor.lnum;
+                eval_st().var2_fpos_pos.col = if charcol {
                     mb_charlen(ml_get_buf(&mut *bp, wp.w_cursor.lnum))
                 } else {
                     ml_get_buf_len(&mut *bp, wp.w_cursor.lnum)
                 };
             }
-            return &raw mut eval_st().VAR2FPOS_POS;
+            return &raw mut eval_st().var2_fpos_pos;
         }
         ptr::null_mut()
     }
@@ -6392,11 +6392,11 @@ pub fn var_item_copy(
     unsafe {
         let mut ret = true;
 
-        if eval_st().VAR_ITEM_COPY_RECURSE >= DICT_MAXNEST {
+        if eval_st().var_item_copy_recurse >= DICT_MAXNEST {
             emsg(gettext(E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY));
             return false;
         }
-        eval_st().VAR_ITEM_COPY_RECURSE += 1;
+        eval_st().var_item_copy_recurse += 1;
 
         match from.v_type {
             VarType::VarNumber
@@ -6410,7 +6410,7 @@ pub fn var_item_copy(
             VarType::VarString => {
                 let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) else {
                     tv_copy(&*from, &mut *to);
-                    eval_st().VAR_ITEM_COPY_RECURSE -= 1;
+                    eval_st().var_item_copy_recurse -= 1;
                     return ret;
                 };
                 if from.vval.v_string().is_null() {
@@ -6449,7 +6449,7 @@ pub fn var_item_copy(
                 to.v_lock = VAR_UNLOCKED;
                 if from.vval.v_dict().is_null() {
                     to.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
-                } else if copy_id != 0 && (*from.vval.v_dict()).dv_copyID == copy_id {
+                } else if copy_id != 0 && (*from.vval.v_dict()).dv_copy_id == copy_id {
                     to.vval = crate::eval::typval::TypvalVval::Dict((*from.vval.v_dict()).dv_copydict);
                     (*to.vval.v_dict()).dv_refcount += 1;
                 } else {
@@ -6464,7 +6464,7 @@ pub fn var_item_copy(
                 ret = false;
             }
         }
-        eval_st().VAR_ITEM_COPY_RECURSE -= 1;
+        eval_st().var_item_copy_recurse -= 1;
         ret
     }
 }

@@ -27,29 +27,29 @@ const IOFBF: c_int = 0;
 const PEXP_SUBCMD: i32 = 0;
 
 struct ProfileModuleState {
-    PROF_WAIT_TIME: Proftime,
-    WAIT_TIME: Proftime,
-    PAUSE_TIME: Proftime,
-    G_START_TIME: Proftime,
-    G_PREV_TIME: Proftime,
-    PEXPAND_WHAT: i32,
-    STARTUPTIME_BUF: Vec<c_char>,
-    PROFILE_FNAME: Option<CString>,
-    PROFILE_MSG_BUF: [c_char; 50],
+    prof_wait_time: Proftime,
+    wait_time: Proftime,
+    pause_time: Proftime,
+    g_start_time: Proftime,
+    g_prev_time: Proftime,
+    pexpand_what: i32,
+    startuptime_buf: Vec<c_char>,
+    profile_fname: Option<CString>,
+    profile_msg_buf: [c_char; 50],
 }
 
 impl ProfileModuleState {
     const fn new() -> Self {
         Self {
-            PROF_WAIT_TIME: 0,
-            WAIT_TIME: 0,
-            PAUSE_TIME: 0,
-            G_START_TIME: 0,
-            G_PREV_TIME: 0,
-            PEXPAND_WHAT: PEXP_SUBCMD,
-            STARTUPTIME_BUF: Vec::new(),
-            PROFILE_FNAME: None,
-            PROFILE_MSG_BUF: [0; 50],
+            prof_wait_time: 0,
+            wait_time: 0,
+            pause_time: 0,
+            g_start_time: 0,
+            g_prev_time: 0,
+            pexpand_what: PEXP_SUBCMD,
+            startuptime_buf: Vec::new(),
+            profile_fname: None,
+            profile_msg_buf: [0; 50],
         }
     }
 }
@@ -178,7 +178,7 @@ pub struct Funccall {
     pub fc_prof_child: Proftime,
     pub fc_caller: *mut Funccall,
     pub fc_refcount: c_int,
-    pub fc_copyID: c_int,
+    pub fc_copy_id: c_int,
     pub fc_ufuncs: Vec<*mut UserFunc>,
 }
 
@@ -202,7 +202,7 @@ impl Funccall {
             fc_prof_child: 0,
             fc_caller: std::ptr::null_mut(),
             fc_refcount: 0,
-            fc_copyID: 0,
+            fc_copy_id: 0,
             fc_ufuncs: Vec::new(),
         }
     }
@@ -226,7 +226,7 @@ pub fn profile_msg(tm: Proftime) -> *const c_char {
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
     unsafe {
-        let buf = &mut *std::ptr::addr_of_mut!(prof_st().PROFILE_MSG_BUF);
+        let buf = &mut *std::ptr::addr_of_mut!(prof_st().profile_msg_buf);
         let copy_len = bytes.len().min(buf.len() - 1);
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf.as_mut_ptr().cast::<u8>(), copy_len);
         buf[copy_len] = 0;
@@ -289,12 +289,12 @@ pub const fn profile_self(
 
 #[inline]
 fn profile_get_wait() -> Proftime {
-    prof_st().PROF_WAIT_TIME
+    prof_st().prof_wait_time
 }
 
 /// Sets the current waittime (`profile_set_wait`).
 pub fn profile_set_wait(wait: Proftime) {
-    prof_st().PROF_WAIT_TIME = wait;
+    prof_st().prof_wait_time = wait;
 }
 
 /// Subtracts the passed waittime since `tm` (`profile_sub_wait`).
@@ -375,7 +375,7 @@ pub fn profile_reset() {
             }
         }
 
-        prof_st().PROFILE_FNAME = None;
+        prof_st().profile_fname = None;
     }
 }
 
@@ -389,7 +389,7 @@ pub fn ex_profile(eap: &mut Exarg) {
 
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
-            prof_st().PROFILE_FNAME = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
+            prof_st().profile_fname = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
             g_st().do_profiling = PROF_YES;
             profile_set_wait(profile_zero());
             set_vim_var_nr(VV_PROFILING, 1);
@@ -402,13 +402,13 @@ pub fn ex_profile(eap: &mut Exarg) {
             profile_reset();
         } else if arg_bytes == b"pause" {
             if g_st().do_profiling == PROF_YES {
-                prof_st().PAUSE_TIME = profile_start();
+                prof_st().pause_time = profile_start();
             }
             g_st().do_profiling = PROF_PAUSED;
         } else if arg_bytes == b"continue" {
             if g_st().do_profiling == PROF_PAUSED {
-                let elapsed = profile_end(prof_st().PAUSE_TIME);
-                prof_st().PAUSE_TIME = elapsed;
+                let elapsed = profile_end(prof_st().pause_time);
+                prof_st().pause_time = elapsed;
                 profile_set_wait(profile_add(profile_get_wait(), elapsed));
             }
             g_st().do_profiling = PROF_YES;
@@ -422,7 +422,7 @@ pub fn ex_profile(eap: &mut Exarg) {
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
 pub fn get_profile_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
-    if prof_st().PEXPAND_WHAT == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
+    if prof_st().pexpand_what == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
         std::ptr::null_mut()
@@ -432,7 +432,7 @@ pub fn get_profile_name(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
 pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) { let arg = arg.into_c_char_ptr();
     xp.xp_context = EXPAND_PROFILE;
-    prof_st().PEXPAND_WHAT = PEXP_SUBCMD;
+    prof_st().pexpand_what = PEXP_SUBCMD;
     xp.xp_pattern = arg.cast_mut();
 
     let end_subcmd = skiptowhite(arg);
@@ -455,13 +455,13 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
 
 /// Called when starting to wait for user input (`prof_input_start`).
 pub fn prof_input_start() {
-    prof_st().WAIT_TIME = profile_start();
+    prof_st().wait_time = profile_start();
 }
 
 /// Called when finished waiting for user input (`prof_input_end`).
 pub fn prof_input_end() {
-    let elapsed = profile_end(prof_st().WAIT_TIME);
-    prof_st().WAIT_TIME = elapsed;
+    let elapsed = profile_end(prof_st().wait_time);
+    prof_st().wait_time = elapsed;
     profile_set_wait(profile_add(profile_get_wait(), elapsed));
 }
 
@@ -839,7 +839,7 @@ fn script_dump_profile(fd: *mut FILE) {
 /// Dump the profiling info (`profile_dump`).
 pub fn profile_dump() {
     unsafe {
-        let Some(ref profile_fname) = prof_st().PROFILE_FNAME else {
+        let Some(ref profile_fname) = prof_st().profile_fname else {
             return;
         };
 
@@ -925,8 +925,8 @@ pub fn script_line_end() {
 pub fn time_push(rel: &mut Proftime, start: &mut Proftime) {
     let now = profile_start();
     {
-        let prev = prof_st().G_PREV_TIME;
-        prof_st().G_PREV_TIME = now;
+        let prev = prof_st().g_prev_time;
+        prof_st().g_prev_time = now;
         *rel = profile_sub(now, prev);
         *start = now;
     }
@@ -934,7 +934,7 @@ pub fn time_push(rel: &mut Proftime, start: &mut Proftime) {
 
 /// Computes the prev time after doing something that could nest (`time_pop`).
 pub fn time_pop(tp: Proftime) {
-    prof_st().G_PREV_TIME = prof_st().G_PREV_TIME.wrapping_sub(tp);
+    prof_st().g_prev_time = prof_st().g_prev_time.wrapping_sub(tp);
 }
 
 fn time_diff(then: Proftime, now: Proftime) {
@@ -953,8 +953,8 @@ pub fn time_start(message: &std::ffi::CStr) {
         let fp = tf.as_ptr();
 
         let now = profile_start();
-        prof_st().G_START_TIME = now;
-        prof_st().G_PREV_TIME = now;
+        prof_st().g_start_time = now;
+        prof_st().g_prev_time = now;
 
         fprintf!(fp, c"\ntimes in msec\n");
         fprintf!(
@@ -979,7 +979,7 @@ pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&Proftime
         let fp = tf.as_ptr();
 
         let now = profile_start();
-        time_diff(prof_st().G_START_TIME, now);
+        time_diff(prof_st().g_start_time, now);
 
         if let Some(start) = start {
             fprintf!(fp, c"  ");
@@ -987,8 +987,8 @@ pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&Proftime
         }
 
         fprintf!(fp, c"  ");
-        let prev = prof_st().G_PREV_TIME;
-        prof_st().G_PREV_TIME = now;
+        let prev = prof_st().g_prev_time;
+        prof_st().g_prev_time = now;
         time_diff(prev, now);
 
         fprintf!(fp, c": %s\n", mesg);
@@ -1006,15 +1006,15 @@ pub fn time_init(fname: impl crate::strings::IntoCCharPtr, proc_name: impl crate
             return;
         };
         let fp = tf.as_ptr();
-        prof_st().STARTUPTIME_BUF = vec![0; BUFSIZE + 1];
+        prof_st().startuptime_buf = vec![0; BUFSIZE + 1];
         let r = setvbuf(
             fp,
-            prof_st().STARTUPTIME_BUF.as_mut_ptr(),
+            prof_st().startuptime_buf.as_mut_ptr(),
             IOFBF,
             BUFSIZE + 1,
         );
         if r != 0 {
-            prof_st().STARTUPTIME_BUF = Vec::new();
+            prof_st().startuptime_buf = Vec::new();
             g_st().time_fd = None;
             let err_str = crate::memory::cstr_lossy(uv_err_name(r));
             eprint!("time_init: setvbuf failed: {r} {err_str}");
@@ -1033,12 +1033,12 @@ pub fn time_finish() {
     if !has_time_fd() {
             return;
         }
-        assert!(!prof_st().STARTUPTIME_BUF.is_empty());
+        assert!(!prof_st().startuptime_buf.is_empty());
         time_msg(c"--- NVIM STARTED ---\n", None);
 
         g_st().time_fd = None;
 
-        prof_st().STARTUPTIME_BUF = Vec::new();
+        prof_st().startuptime_buf = Vec::new();
 }
 
 #[cfg(test)]

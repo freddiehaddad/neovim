@@ -420,7 +420,7 @@ pub fn r#match(
                     let mut cs = CapState {
                         cap: ptr::null_mut(),
                         ocap: capture,
-                        L: l,
+                        lstate: l,
                         ptop,
                         firstcap: 0,
                         s: o,

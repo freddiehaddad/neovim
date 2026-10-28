@@ -101,7 +101,7 @@ pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool { let
                 c"?".as_ptr()
             };
             vim_snprintf!(
-                ptr::addr_of_mut!(g_st().IObuff).cast(),
+                ptr::addr_of_mut!(g_st().iobuff).cast(),
                 IOSIZE,
                 fmt,
                 reason,
@@ -150,7 +150,7 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
             let app = if !name.is_null() {
                 name
             } else {
-                ptr::addr_of!(g_st().NameBuff).cast()
+                ptr::addr_of!(g_st().name_buff).cast()
             };
             vim_snprintf!(
                 fmt.as_mut_ptr(),
@@ -169,7 +169,7 @@ pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::
             let app = if !name.is_null() {
                 name
             } else {
-                ptr::addr_of!(g_st().NameBuff).cast()
+                ptr::addr_of!(g_st().name_buff).cast()
             };
             vim_snprintf!(
                 fmt.as_mut_ptr(),

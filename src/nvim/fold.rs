@@ -673,7 +673,7 @@ pub fn clear_folding(win: &mut WinInfoInfo) {
 /// Update folds for changes in the buffer of a window.
 pub fn fold_update(wp: *mut WinInfoInfo, top: Linenr, bot: Linenr) {
     unsafe {
-        if g_st().disable_fold_update != 0 || ((g_st().State & MODE_INSERT) != 0 && !foldmethod_is_indent(&mut *wp)) {
+        if g_st().disable_fold_update != 0 || ((g_st().state_global & MODE_INSERT) != 0 && !foldmethod_is_indent(&mut *wp)) {
             return;
         }
 
@@ -863,14 +863,14 @@ pub fn find_wl_entry(win: &mut WinInfoInfo, lnum: Linenr) -> c_int {
 /// Adjust the Visual area to include any fold at the start or end completely.
 pub fn fold_adjust_visual() {
     unsafe {
-        if !g_st().Visual.active || has_any_folding(curwin_mut()) == 0 {
+        if !g_st().visual_global.active || has_any_folding(curwin_mut()) == 0 {
             return;
         }
 
-        let (start, end) = if ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
-            (&raw mut g_st().Visual.start, &raw mut (*curwin_ptr()).w_cursor)
+        let (start, end) = if ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
+            (&raw mut g_st().visual_global.start, &raw mut (*curwin_ptr()).w_cursor)
         } else {
-            (&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().Visual.start)
+            (&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().visual_global.start)
         };
         if has_folding(
             curwin_ptr(),
@@ -1106,7 +1106,7 @@ pub fn fold_mark_adjust(
         if line2 < line1 {
             line2 = line1;
         }
-        if (g_st().State & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
+        if (g_st().state_global & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
             line1 -= 1;
         }
         fold_mark_adjust_recurse(&mut wp.w_folds, line1, line2, amount, amount_after);
@@ -1123,7 +1123,7 @@ fn fold_mark_adjust_recurse(
             return;
         }
 
-        let top = if (g_st().State & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
+        let top = if (g_st().state_global & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
             line1 + 1
         } else {
             line1
@@ -1288,8 +1288,8 @@ fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
         }
         parse_marker(&mut *wp);
 
-        foldAddMarker(&mut *buf, start, wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen);
-        foldAddMarker(&mut *buf, end, fold_st().foldendmarker, fold_st().foldendmarkerlen);
+        fold_add_marker(&mut *buf, start, wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen);
+        fold_add_marker(&mut *buf, end, fold_st().foldendmarker, fold_st().foldendmarkerlen);
 
         changed_lines( &mut *buf, start.lnum, 0, end.lnum, 0, false);
 
@@ -1298,7 +1298,7 @@ fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
     }
 }
 
-fn foldAddMarker(buf: &mut FileBuf, pos: CursorPos, marker: impl crate::strings::IntoCCharPtr, markerlen: usize) { let marker = marker.into_c_char_ptr();
+fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: impl crate::strings::IntoCCharPtr, markerlen: usize) { let marker = marker.into_c_char_ptr();
     unsafe {
         let cms = buf.b_p_cms;
         let p = crate::memory::cstr_as_bytes(cms).windows(2).position(|w| w == b"%s").map_or(ptr::null_mut(), |i| cms.add(i));
@@ -1353,13 +1353,13 @@ fn delete_fold_markers(wp: &mut WinInfoInfo, fp: &mut FoldEntry, recursive: bool
                 delete_fold_markers(wp, child, true, lnum_off + fp.fd_top);
             }
         }
-        foldDelMarker(
+        fold_del_marker(
             wp.buf_mut(),
             fp.fd_top + lnum_off,
             wp.w_onebuf_opt.wo_fmr,
             fold_st().foldstartmarkerlen,
         );
-        foldDelMarker(
+        fold_del_marker(
             wp.buf_mut(),
             fp.fd_top + lnum_off + fp.fd_len - 1,
             fold_st().foldendmarker,
@@ -1368,7 +1368,7 @@ fn delete_fold_markers(wp: &mut WinInfoInfo, fp: &mut FoldEntry, recursive: bool
     }
 }
 
-fn foldDelMarker(buf: &mut FileBuf, lnum: Linenr, marker: impl crate::strings::IntoCCharPtr, markerlen: usize) { let marker = marker.into_c_char_ptr();
+fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker: impl crate::strings::IntoCCharPtr, markerlen: usize) { let marker = marker.into_c_char_ptr();
     unsafe {
         if lnum > buf.b_ml.ml_line_count {
             return;
@@ -2432,10 +2432,10 @@ fn foldlevel_expr(flp: &mut Fline) {
             flp.lvl = 0;
         }
 
-        let save_keytyped = g_st().KeyTyped;
+        let save_keytyped = g_st().key_typed;
         let mut c: c_int = 0;
         let n = eval_foldexpr(&mut *flp.wp, &mut c);
-        g_st().KeyTyped = save_keytyped;
+        g_st().key_typed = save_keytyped;
 
         match c as u8 {
             b'a' => {

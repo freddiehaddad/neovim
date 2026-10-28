@@ -819,7 +819,7 @@ static ENC_ALIAS_TABLE: &[EncAliasEntry] = &[
 ];
 
 struct MbyteModuleState {
-    CW_TABLE: Vec<CwInterval>,
+    cw_table: Vec<CwInterval>,
     mb_unescape_buf: [c_char; 6],
     iconv_working: WorkingStatus,
 }
@@ -827,7 +827,7 @@ struct MbyteModuleState {
 impl MbyteModuleState {
     const fn new() -> Self {
         Self {
-            CW_TABLE: Vec::new(),
+            cw_table: Vec::new(),
             mb_unescape_buf: [0; 6],
             iconv_working: WorkingStatus::KUnknown,
         }
@@ -914,7 +914,7 @@ pub fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
 }
 
 #[inline]
-pub fn utf_ptr2CharInfo(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo { let p_in = p_in.into_c_char_ptr();
+pub fn utf_ptr2_char_info(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo { let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         let first = *p;
@@ -942,12 +942,12 @@ pub fn utf_ptr2_str_char_info(ptr: impl crate::strings::IntoCCharPtr) -> StrChar
     let ptr = ptr.into_c_char_ptr();
     StrCharInfo {
             ptr,
-            chr: utf_ptr2CharInfo(ptr),
+            chr: utf_ptr2_char_info(ptr),
         }
 }
 
 #[inline]
-pub fn utf_ptr2CharInfo_len(p_in: impl crate::strings::IntoCCharPtr, size: c_int) -> CharInfo { let p_in = p_in.into_c_char_ptr();
+pub fn utf_ptr2_char_info_len(p_in: impl crate::strings::IntoCCharPtr, size: c_int) -> CharInfo { let p_in = p_in.into_c_char_ptr();
     unsafe {
         let p = p_in.cast::<u8>();
         assert!(size >= 0);
@@ -978,10 +978,10 @@ pub fn utf_ptr2CharInfo_len(p_in: impl crate::strings::IntoCCharPtr, size: c_int
 }
 
 #[inline]
-pub fn utf_ptr2StrCharInfo_len(ptr: impl crate::strings::IntoCCharPtr, size: c_int) -> StrCharInfo { let ptr = ptr.into_c_char_ptr();
+pub fn utf_ptr2_str_char_info_len(ptr: impl crate::strings::IntoCCharPtr, size: c_int) -> StrCharInfo { let ptr = ptr.into_c_char_ptr();
     StrCharInfo {
             ptr,
-            chr: utf_ptr2CharInfo_len(ptr, size),
+            chr: utf_ptr2_char_info_len(ptr, size),
         }
 }
 
@@ -1251,7 +1251,7 @@ pub fn mb_string2cells(str_: impl crate::strings::IntoCCharPtr) -> usize { let s
 pub fn mb_string2cells_len(str_: impl crate::strings::IntoCCharPtr, size: usize) -> usize { let str_ = str_.into_c_char_ptr();
     let mut clen = 0usize;
         let mut len = size as c_int;
-        let mut ci = utf_ptr2StrCharInfo_len(str_, len);
+        let mut ci = utf_ptr2_str_char_info_len(str_, len);
         while len > 0 {
             let cli = utf_cluster_info_len(ci, &mut len);
             clen += cli.cells as usize;
@@ -2022,7 +2022,7 @@ pub fn utf_ambiguous_width(p: impl crate::strings::IntoCCharPtr) -> bool { let p
         if crate::memory::cstr_is_empty(p) || crate::memory::cstr_byte_at(p, 1) == 0 {
             return false;
         }
-        let info = utf_ptr2CharInfo(p);
+        let info = utf_ptr2_char_info(p);
         if info.value >= 0x80 {
             let prop = utf8proc_get_property(info.value);
             if prop.ambiguous_width() || prop_is_emojilike(prop) {
@@ -2322,7 +2322,7 @@ pub fn show_utf8() {
         }
 
         let copy_len = out.len().min(IOSIZE - 1);
-        let io_ptr = g_st().IObuff.as_mut_ptr();
+        let io_ptr = g_st().iobuff.as_mut_ptr();
         ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len);
         *io_ptr.add(copy_len) = NUL;
         msg(io_ptr, 0);
@@ -3368,7 +3368,7 @@ pub fn string_convert_ext(
 }
 
 fn cw_value(c: c_int) -> c_int {
-    let table = mbyte_st().CW_TABLE.as_slice();
+    let table = mbyte_st().cw_table.as_slice();
     let c64 = i64::from(c);
     table
         .binary_search_by(|entry| {
@@ -3462,12 +3462,12 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
             }
         }
 
-        let cw_table_save = std::mem::replace(&mut mbyte_st().CW_TABLE, table);
+        let cw_table_save = std::mem::replace(&mut mbyte_st().cw_table, table);
 
         let error = check_chars_options();
         if !error.is_null() {
             emsg(error);
-            mbyte_st().CW_TABLE = cw_table_save;
+            mbyte_st().cw_table = cw_table_save;
             return;
         }
 
@@ -3478,7 +3478,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 
 pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
-        let table = mbyte_st().CW_TABLE.as_slice();
+        let table = mbyte_st().cw_table.as_slice();
         tv_list_alloc_ret(rettv, table.len() as isize);
         for &entry_data in table {
             let entry = tv_list_alloc(3);

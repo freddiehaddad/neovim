@@ -134,17 +134,17 @@ pub const K_PATH_CMP_EXPAND: PathCmpFlags = 1 << 1;
 pub const K_PATH_CMP_FULL: PathCmpFlags = 1 << 2;
 
 struct PathModuleState {
-    SCANDIR_COUNT: c_int,
-    STARDEPTH: c_int,
-    EXPAND_RECURSIVE: bool,
+    scandir_count: c_int,
+    stardepth: c_int,
+    expand_recursive: bool,
 }
 
 impl PathModuleState {
     const fn new() -> Self {
         Self {
-            SCANDIR_COUNT: 0,
-            STARDEPTH: 0,
-            EXPAND_RECURSIVE: false,
+            scandir_count: 0,
+            stardepth: 0,
+            expand_recursive: false,
         }
     }
 }
@@ -574,6 +574,7 @@ pub fn add_pathsep(p: *mut c_char) -> bool {
     }
 }
 
+#[allow(non_snake_case)]
 pub fn FullName_save(fname: impl crate::strings::IntoCCharPtr, force: bool) -> Option<std::ffi::CString> { let fname = fname.into_c_char_ptr();
     if fname.is_null() {
         return None;
@@ -619,13 +620,13 @@ pub fn path_has_wildcard(p: impl crate::strings::IntoCCharPtr, all: bool) -> boo
 
 fn scandir_next_with_dots(dir: Option<&mut Directory>) -> *const c_char {
     let Some(dir) = dir else {
-        path_st().SCANDIR_COUNT = 0;
+        path_st().scandir_count = 0;
         return ptr::null();
     };
 
-    path_st().SCANDIR_COUNT += 1;
-    if path_st().SCANDIR_COUNT == 1 || path_st().SCANDIR_COUNT == 2 {
-        return if path_st().SCANDIR_COUNT == 1 {
+    path_st().scandir_count += 1;
+    if path_st().scandir_count == 1 || path_st().scandir_count == 2 {
+        return if path_st().scandir_count == 1 {
             c".".as_ptr()
         } else {
             c"..".as_ptr()
@@ -653,7 +654,7 @@ fn do_path_expand(
         let start_len = gap.len();
         let mut starstar = false;
 
-        if path_st().STARDEPTH > 0 && (flags & EW_NOBREAK) == 0 {
+        if path_st().stardepth > 0 && (flags & EW_NOBREAK) == 0 {
             os_breakcheck();
             if g_st().got_int {
                 return 0;
@@ -752,15 +753,15 @@ fn do_path_expand(
 
         let mut len = s.offset_from(buf) as usize;
         if !didstar
-            && path_st().STARDEPTH < 100
+            && path_st().stardepth < 100
             && starstar
             && e.offset_from(s) == 2
             && crate::memory::cstr_first_byte(path_end) == b'/'
         {
             vim_snprintf!(s, buflen - len, c"%s", path_end.add(1));
-            path_st().STARDEPTH += 1;
+            path_st().stardepth += 1;
             do_path_expand(gap, buf, len, flags, true);
-            path_st().STARDEPTH -= 1;
+            path_st().stardepth -= 1;
         }
         *s = NUL;
 
@@ -789,19 +790,19 @@ fn do_path_expand(
                         continue;
                     }
 
-                    if starstar && path_st().STARDEPTH < 100 {
+                    if starstar && path_st().stardepth < 100 {
                         vim_snprintf!(buf.add(len), buflen - len, c"/**%s", path_end);
-                        path_st().STARDEPTH += 1;
+                        path_st().stardepth += 1;
                         do_path_expand(gap, buf, len + 1, flags, true);
-                        path_st().STARDEPTH -= 1;
+                        path_st().stardepth -= 1;
                     }
 
                     vim_snprintf!(buf.add(len), buflen - len, c"%s", path_end);
                     if path_has_wildcard(path_end, false) {
-                        if path_st().STARDEPTH < 100 {
-                            path_st().STARDEPTH += 1;
+                        if path_st().stardepth < 100 {
+                            path_st().stardepth += 1;
                             do_path_expand(gap, buf, len + 1, flags, false);
-                            path_st().STARDEPTH -= 1;
+                            path_st().stardepth -= 1;
                         }
                     } else {
                         let mut file_info: FileInfo = FileInfo::new();
@@ -1277,7 +1278,7 @@ pub fn gen_expand_wildcards_vec(
             curbuf_mut().b_p_path
         };
 
-        if path_st().EXPAND_RECURSIVE {
+        if path_st().expand_recursive {
             #[cfg(unix)]
             {
                 return os_expand_wildcards(num_pat, pat, file, flags);
@@ -1298,7 +1299,7 @@ pub fn gen_expand_wildcards_vec(
             }
         }
 
-        path_st().EXPAND_RECURSIVE = true;
+        path_st().expand_recursive = true;
 
         for i in 0..num_pat {
             if g_st().got_int {
@@ -1311,7 +1312,7 @@ pub fn gen_expand_wildcards_vec(
             if vim_backtick(p) {
                 add_pat = expand_backtick(file, p, flags);
                 if add_pat == -1 {
-                    path_st().EXPAND_RECURSIVE = false;
+                    path_st().expand_recursive = false;
                     file.clear();
                     return false;
                 }
@@ -1326,7 +1327,7 @@ pub fn gen_expand_wildcards_vec(
                         file.clear();
                         let res =
                             os_expand_wildcards(num_pat, pat, file, flags | EW_KEEPDOLLAR);
-                        path_st().EXPAND_RECURSIVE = false;
+                        path_st().expand_recursive = false;
                         return res;
                     }
                 }
@@ -1339,14 +1340,14 @@ pub fn gen_expand_wildcards_vec(
                                 || (crate::memory::cstr_byte_at(p, 1) == b'.'
                                     && vim_ispathsep(crate::memory::cstr_char_at(p, 2)))))
                     {
-                        path_st().EXPAND_RECURSIVE = false;
+                        path_st().expand_recursive = false;
                         add_pat = expand_in_path(file, p, flags);
-                        path_st().EXPAND_RECURSIVE = true;
+                        path_st().expand_recursive = true;
                         did_expand_in_path = true;
                     } else {
-                        path_st().EXPAND_RECURSIVE = false;
+                        path_st().expand_recursive = false;
                         let tmp_add_pat = path_expand(file, p, flags);
-                        path_st().EXPAND_RECURSIVE = true;
+                        path_st().expand_recursive = true;
                         debug_assert!(tmp_add_pat <= c_int::MAX as usize);
                         add_pat = tmp_add_pat as c_int;
                     }
@@ -1364,14 +1365,14 @@ pub fn gen_expand_wildcards_vec(
             }
 
             if did_expand_in_path && !file.is_empty() && (flags & (EW_PATH | EW_CDPATH)) != 0 {
-                path_st().EXPAND_RECURSIVE = false;
+                path_st().expand_recursive = false;
                 uniquefy_paths(file, p, path_option);
-                path_st().EXPAND_RECURSIVE = true;
+                path_st().expand_recursive = true;
             }
             drop(p_owned);
         }
 
-        path_st().EXPAND_RECURSIVE = false;
+        path_st().expand_recursive = false;
 
         (flags & EW_EMPTYOK) != 0 || !file.is_empty()
     }
@@ -1796,6 +1797,7 @@ pub fn path_with_extension(path: impl crate::strings::IntoCCharPtr, extension: &
     }
 }
 
+#[allow(non_snake_case)]
 pub fn vim_isAbsName(name: impl crate::strings::IntoCCharPtr) -> bool { let name = name.into_c_char_ptr();
     path_with_url(name) != 0 || path_is_absolute(name)
 }
@@ -2328,7 +2330,7 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf: *mut c_
                 { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
             } else {
                 let path = path_cstr.as_ptr();
-                let namebuff = g_st().NameBuff.as_mut_ptr();
+                let namebuff = g_st().name_buff.as_mut_ptr();
                 let mut iter: *const c_char = ptr::null();
                 loop {
                     let mut dir: *const c_char = ptr::null();

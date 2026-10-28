@@ -30,13 +30,13 @@ use crate::regexp::MAXCOL;
 const K_CPO_ENDOFSENT: c_int = b'J' as c_int;
 
 struct TextobjectState {
-    CLS_BIGWORD: bool,
+    cls_bigword: bool,
 }
 
 impl TextobjectState {
     const fn new() -> Self {
         Self {
-            CLS_BIGWORD: false,
+            cls_bigword: false,
         }
     }
 }
@@ -323,7 +323,7 @@ fn cls() -> c_int {
 
         c = utf_class(c);
 
-        if c != 0 && tobj_st().CLS_BIGWORD {
+        if c != 0 && tobj_st().cls_bigword {
             return 1;
         }
         c
@@ -333,7 +333,7 @@ fn cls() -> c_int {
 pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
     unsafe {
         curwin_mut().w_cursor.coladd = 0;
-        tobj_st().CLS_BIGWORD = bigword;
+        tobj_st().cls_bigword = bigword;
         while {
             count -= 1;
             count >= 0
@@ -385,7 +385,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
 pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
      {
         curwin_mut().w_cursor.coladd = 0;
-        tobj_st().CLS_BIGWORD = bigword;
+        tobj_st().cls_bigword = bigword;
         while {
             count -= 1;
             count >= 0
@@ -434,12 +434,12 @@ pub fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> bool {
 pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> bool {
     unsafe {
         curwin_mut().w_cursor.coladd = 0;
-        tobj_st().CLS_BIGWORD = bigword;
+        tobj_st().cls_bigword = bigword;
 
         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-            && g_st().Visual.active
-            && g_st().Visual.mode == b'v' as c_int
-            && g_st().Visual.select_exclu_adj
+            && g_st().visual_global.active
+            && g_st().visual_global.mode == b'v' as c_int
+            && g_st().visual_global.select_exclu_adj
         {
             unadjust_for_sel();
         }
@@ -494,7 +494,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
 pub fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
      {
         curwin_mut().w_cursor.coladd = 0;
-        tobj_st().CLS_BIGWORD = bigword;
+        tobj_st().cls_bigword = bigword;
         while {
             count -= 1;
             count >= 0
@@ -610,14 +610,14 @@ pub fn current_word(
         let mut inclusive = true;
         let mut include_white = false;
 
-        tobj_st().CLS_BIGWORD = bigword;
+        tobj_st().cls_bigword = bigword;
         clearpos(&mut start_pos);
 
-        if g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && lt(g_st().Visual.start, curwin_mut().w_cursor) {
+        if g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && lt(g_st().visual_global.start, curwin_mut().w_cursor) {
             dec_cursor();
         }
 
-        if !g_st().Visual.active || equalpos(curwin_mut().w_cursor, g_st().Visual.start) {
+        if !g_st().visual_global.active || equalpos(curwin_mut().w_cursor, g_st().visual_global.start) {
             back_in_line();
             start_pos = curwin_mut().w_cursor;
 
@@ -638,8 +638,8 @@ pub fn current_word(
                 }
             }
 
-            if g_st().Visual.active {
-                g_st().Visual.start = start_pos;
+            if g_st().visual_global.active {
+                g_st().visual_global.start = start_pos;
                 redraw_curbuf_later(UPD_INVERTED);
             } else {
                 oap.start = start_pos;
@@ -650,7 +650,7 @@ pub fn current_word(
 
         while count > 0 {
             inclusive = true;
-            if g_st().Visual.active && lt(curwin_mut().w_cursor, g_st().Visual.start) {
+            if g_st().visual_global.active && lt(curwin_mut().w_cursor, g_st().visual_global.start) {
                 if decl(&mut curwin_mut().w_cursor) == -1 {
                     return false;
                 }
@@ -688,8 +688,8 @@ pub fn current_word(
             if oneleft() {
                 back_in_line();
                 if cls() == 0 && curwin_mut().w_cursor.col > 0 {
-                    if g_st().Visual.active {
-                        g_st().Visual.start = curwin_mut().w_cursor;
+                    if g_st().visual_global.active {
+                        g_st().visual_global.start = curwin_mut().w_cursor;
                     } else {
                         oap.start = curwin_mut().w_cursor;
                     }
@@ -698,12 +698,12 @@ pub fn current_word(
             curwin_mut().w_cursor = pos;
         }
 
-        if g_st().Visual.active {
-            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && inclusive && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
+        if g_st().visual_global.active {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && inclusive && ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
                 inc_cursor();
             }
-            if g_st().Visual.mode == b'V' as c_int {
-                g_st().Visual.mode = b'v' as c_int;
+            if g_st().visual_global.mode == b'V' as c_int {
+                g_st().visual_global.mode = b'v' as c_int;
                 g_st().redraw_cmdline = true;
             }
         } else {
@@ -718,11 +718,11 @@ pub fn current_word(
 pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     unsafe {
         if include {
-            if g_st().Visual.active {
-                g_st().Visual.start.lnum = 1;
-                g_st().Visual.start.col = 0;
-                g_st().Visual.start.coladd = 0;
-                g_st().Visual.mode = b'V' as c_int;
+            if g_st().visual_global.active {
+                g_st().visual_global.start.lnum = 1;
+                g_st().visual_global.start.col = 0;
+                g_st().visual_global.start.coladd = 0;
+                g_st().visual_global.mode = b'V' as c_int;
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
@@ -761,13 +761,13 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
         end_pos.col = mb_prevptr(line, end).offset_from(line) as Colnr;
         end_pos.coladd = 0;
 
-        if g_st().Visual.active {
-            g_st().Visual.start = start_pos;
+        if g_st().visual_global.active {
+            g_st().visual_global.start = start_pos;
             curwin_mut().w_cursor = end_pos;
-            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
                 inc_cursor();
             }
-            g_st().Visual.mode = b'v' as c_int;
+            g_st().visual_global.mode = b'v' as c_int;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
@@ -788,7 +788,7 @@ pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
         let mut pos = start_pos;
         findsent(FORWARD, 1);
 
-        let do_extend = g_st().Visual.active && !equalpos(start_pos, g_st().Visual.start);
+        let do_extend = g_st().visual_global.active && !equalpos(start_pos, g_st().visual_global.start);
         if !do_extend {
             while ascii_iswhite(gchar_pos(&mut pos)) {
                 incl(&mut pos);
@@ -829,13 +829,13 @@ pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
                 }
             }
 
-            if g_st().Visual.active {
+            if g_st().visual_global.active {
                 if !equalpos(start_pos, curwin_mut().w_cursor) {
                     if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                         curwin_mut().w_cursor.col += 1;
                     }
-                    g_st().Visual.start = start_pos;
-                    g_st().Visual.mode = b'v' as c_int;
+                    g_st().visual_global.start = start_pos;
+                    g_st().visual_global.mode = b'v' as c_int;
                     g_st().redraw_cmdline = true;
                     redraw_curbuf_later(UPD_INVERTED);
                     return true;
@@ -850,7 +850,7 @@ pub fn current_sent(oap: &mut Oparg, mut count: c_int, include: bool) -> bool {
         }
 
         // extend:
-        if lt(start_pos, g_st().Visual.start) {
+        if lt(start_pos, g_st().visual_global.start) {
             let mut at_start_sent = true;
             decl(&mut pos);
             while lt(pos, curwin_mut().w_cursor) {
@@ -940,7 +940,7 @@ pub fn current_block(
         let mut old_end = curwin_mut().w_cursor;
         let mut old_start = old_end;
 
-        if !g_st().Visual.active || equalpos(g_st().Visual.start, curwin_mut().w_cursor) {
+        if !g_st().visual_global.active || equalpos(g_st().visual_global.start, curwin_mut().w_cursor) {
             setpcmark();
             if what == b'{' as c_int {
                 while inindent(1) {
@@ -952,11 +952,11 @@ pub fn current_block(
             if gchar_cursor() == what {
                 curwin_mut().w_cursor.col += 1;
             }
-        } else if lt(g_st().Visual.start, curwin_mut().w_cursor) {
-            old_start = g_st().Visual.start;
-            curwin_mut().w_cursor = g_st().Visual.start;
+        } else if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
+            old_start = g_st().visual_global.start;
+            curwin_mut().w_cursor = g_st().visual_global.start;
         } else {
-            old_end = g_st().Visual.start;
+            old_end = g_st().visual_global.start;
         }
 
         let save_cpo = opt_vars().p_cpo;
@@ -1016,7 +1016,7 @@ pub fn current_block(
                     }
                 }
 
-                if equalpos(start_pos, *end_pos) && g_st().Visual.active {
+                if equalpos(start_pos, *end_pos) && g_st().visual_global.active {
                     curwin_mut().w_cursor = old_pos;
                     return false;
                 }
@@ -1024,7 +1024,7 @@ pub fn current_block(
                 if !lt(start_pos, old_start)
                     && !lt(old_end, curwin_mut().w_cursor)
                     && !equalpos(start_pos, curwin_mut().w_cursor)
-                    && g_st().Visual.active
+                    && g_st().visual_global.active
                 {
                     curwin_mut().w_cursor = old_start;
                     decl(&mut curwin_mut().w_cursor);
@@ -1047,15 +1047,15 @@ pub fn current_block(
             }
         }
 
-        if g_st().Visual.active {
+        if g_st().visual_global.active {
             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 inc(&mut curwin_mut().w_cursor);
             }
             if sol && gchar_cursor() != c_int::from(NUL) {
                 inc(&mut curwin_mut().w_cursor);
             }
-            g_st().Visual.start = start_pos;
-            g_st().Visual.mode = b'v' as c_int;
+            g_st().visual_global.start = start_pos;
+            g_st().visual_global.mode = b'v' as c_int;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
@@ -1139,11 +1139,11 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
         let old_pos = curwin_mut().w_cursor;
         let mut old_end = curwin_mut().w_cursor;
         let mut old_start = old_end;
-        if !g_st().Visual.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+        if !g_st().visual_global.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
             decl(&mut old_end);
         }
 
-        if !g_st().Visual.active || equalpos(g_st().Visual.start, curwin_mut().w_cursor) {
+        if !g_st().visual_global.active || equalpos(g_st().visual_global.start, curwin_mut().w_cursor) {
             setpcmark();
 
             while inindent(1) {
@@ -1167,11 +1167,11 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
                 dec_cursor();
                 old_end = curwin_mut().w_cursor;
             }
-        } else if lt(g_st().Visual.start, curwin_mut().w_cursor) {
-            old_start = g_st().Visual.start;
-            curwin_mut().w_cursor = g_st().Visual.start;
+        } else if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
+            old_start = g_st().visual_global.start;
+            curwin_mut().w_cursor = g_st().visual_global.start;
         } else {
-            old_end = g_st().Visual.start;
+            old_end = g_st().visual_global.start;
         }
 
         'again: loop {
@@ -1245,7 +1245,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
                 }
             } else {
                 let c = get_cursor_pos_ptr();
-                if crate::memory::cstr_first_byte(c) == b'<' && !g_st().Visual.active && curwin_mut().w_cursor.col == 0 {
+                if crate::memory::cstr_first_byte(c) == b'<' && !g_st().visual_global.active && curwin_mut().w_cursor.col == 0 {
                     is_inclusive = false;
                 } else if crate::memory::cstr_first_byte(c) == b'<' {
                     dec_cursor();
@@ -1268,7 +1268,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
                 }
                 curwin_mut().w_cursor = end_pos;
 
-                if g_st().Visual.active && equalpos(start_pos, old_start) && equalpos(end_pos, old_end) {
+                if g_st().visual_global.active && equalpos(start_pos, old_start) && equalpos(end_pos, old_end) {
                     do_include = true;
                     curwin_mut().w_cursor = old_start;
                     count = count_arg;
@@ -1276,14 +1276,14 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: c_int, include: bool) -> boo
                 }
             }
 
-            if g_st().Visual.active {
+            if g_st().visual_global.active {
                 if lt(end_pos, start_pos) {
                     curwin_mut().w_cursor = start_pos;
                 } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                     inc_cursor();
                 }
-                g_st().Visual.start = start_pos;
-                g_st().Visual.mode = b'v' as c_int;
+                g_st().visual_global.start = start_pos;
+                g_st().visual_global.mode = b'v' as c_int;
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
@@ -1317,7 +1317,7 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
 
         let mut start_lnum = curwin_mut().w_cursor.lnum;
 
-        let do_extend = g_st().Visual.active && start_lnum != g_st().Visual.start.lnum;
+        let do_extend = g_st().visual_global.active && start_lnum != g_st().visual_global.start.lnum;
         if !do_extend {
             let white_in_front = linewhite(start_lnum);
             while start_lnum > 1 {
@@ -1381,13 +1381,13 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
                 }
             }
 
-            if g_st().Visual.active {
-                if !(g_st().Visual.mode == b'V' as c_int && start_lnum == curwin_mut().w_cursor.lnum) {
-                    if g_st().Visual.start.lnum != start_lnum {
-                        g_st().Visual.start.lnum = start_lnum;
-                        g_st().Visual.start.col = 0;
+            if g_st().visual_global.active {
+                if !(g_st().visual_global.mode == b'V' as c_int && start_lnum == curwin_mut().w_cursor.lnum) {
+                    if g_st().visual_global.start.lnum != start_lnum {
+                        g_st().visual_global.start.lnum = start_lnum;
+                        g_st().visual_global.start.col = 0;
                     }
-                    g_st().Visual.mode = b'V' as c_int;
+                    g_st().visual_global.mode = b'V' as c_int;
                     redraw_curbuf_later(UPD_INVERTED);
                     showmode();
                     curwin_mut().w_cursor.lnum = end_lnum;
@@ -1405,7 +1405,7 @@ pub fn current_par(oap: &mut Oparg, count: c_int, include: bool, type_: c_int) -
         }
 
         // extend:
-        let dir = if start_lnum < g_st().Visual.start.lnum {
+        let dir = if start_lnum < g_st().visual_global.start.lnum {
             BACKWARD
         } else {
             FORWARD
@@ -1552,35 +1552,35 @@ pub fn current_quote(
         let mut restore_vis_bef = false;
 
         let abort_search = |did_exclusive_adj: bool, restore_vis_bef: bool| -> bool {
-            if g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+            if g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 if did_exclusive_adj {
                     inc_cursor();
                 }
                 if restore_vis_bef {
-                    ptr::swap(&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().Visual.start);
+                    ptr::swap(&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().visual_global.start);
                 }
             }
             false
         };
 
-        if g_st().Visual.active {
-            if g_st().Visual.start.lnum != curwin_mut().w_cursor.lnum {
+        if g_st().visual_global.active {
+            if g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum {
                 return false;
             }
 
-            vis_bef_curs = lt(g_st().Visual.start, curwin_mut().w_cursor);
-            vis_empty = equalpos(g_st().Visual.start, curwin_mut().w_cursor);
+            vis_bef_curs = lt(g_st().visual_global.start, curwin_mut().w_cursor);
+            vis_empty = equalpos(g_st().visual_global.start, curwin_mut().w_cursor);
             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 if vis_bef_curs {
                     dec_cursor();
                     did_exclusive_adj = true;
                 } else if !vis_empty {
-                    dec(&mut g_st().Visual.start);
+                    dec(&mut g_st().visual_global.start);
                     did_exclusive_adj = true;
                 }
-                vis_empty = equalpos(g_st().Visual.start, curwin_mut().w_cursor);
+                vis_empty = equalpos(g_st().visual_global.start, curwin_mut().w_cursor);
                 if !vis_bef_curs && !vis_empty {
-                    ptr::swap(&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().Visual.start);
+                    ptr::swap(&raw mut (*curwin_ptr()).w_cursor, &raw mut g_st().visual_global.start);
                     vis_bef_curs = true;
                     restore_vis_bef = true;
                 }
@@ -1590,21 +1590,21 @@ pub fn current_quote(
         if !vis_empty {
             let mut i: c_int;
             if vis_bef_curs {
-                inside_quotes = g_st().Visual.start.col > 0
-                    && c_int::from(*line.add((g_st().Visual.start.col - 1) as usize) as u8) == quotechar
+                inside_quotes = g_st().visual_global.start.col > 0
+                    && c_int::from(*line.add((g_st().visual_global.start.col - 1) as usize) as u8) == quotechar
                     && *line.add(curwin_mut().w_cursor.col as usize) != NUL
                     && c_int::from(*line.add((curwin_mut().w_cursor.col + 1) as usize) as u8)
                         == quotechar;
-                i = g_st().Visual.start.col;
+                i = g_st().visual_global.start.col;
                 col_end = curwin_mut().w_cursor.col;
             } else {
                 inside_quotes = curwin_mut().w_cursor.col > 0
                     && c_int::from(*line.add((curwin_mut().w_cursor.col - 1) as usize) as u8)
                         == quotechar
-                    && *line.add(g_st().Visual.start.col as usize) != NUL
-                    && c_int::from(*line.add((g_st().Visual.start.col + 1) as usize) as u8) == quotechar;
+                    && *line.add(g_st().visual_global.start.col as usize) != NUL
+                    && c_int::from(*line.add((g_st().visual_global.start.col + 1) as usize) as u8) == quotechar;
                 i = curwin_mut().w_cursor.col;
-                col_end = g_st().Visual.start.col;
+                col_end = g_st().visual_global.start.col;
             }
 
             while i <= col_end {
@@ -1700,17 +1700,17 @@ pub fn current_quote(
             col_start += 1;
         }
         curwin_mut().w_cursor.col = col_start;
-        if g_st().Visual.active {
+        if g_st().visual_global.active {
             if vis_empty
                 || (vis_bef_curs
                     && !selected_quote
                     && (inside_quotes
-                        || (c_int::from(*line.add(g_st().Visual.start.col as usize) as u8) != quotechar
-                            && (g_st().Visual.start.col == 0
-                                || c_int::from(*line.add((g_st().Visual.start.col - 1) as usize) as u8)
+                        || (c_int::from(*line.add(g_st().visual_global.start.col as usize) as u8) != quotechar
+                            && (g_st().visual_global.start.col == 0
+                                || c_int::from(*line.add((g_st().visual_global.start.col - 1) as usize) as u8)
                                     != quotechar))))
             {
-                g_st().Visual.start = curwin_mut().w_cursor;
+                g_st().visual_global.start = curwin_mut().w_cursor;
                 redraw_curbuf_later(UPD_INVERTED);
             }
         } else {
@@ -1722,7 +1722,7 @@ pub fn current_quote(
         if (include || count > 1 || (!vis_empty && inside_quotes)) && inc_cursor() == 2 {
             inclusive = true;
         }
-        if g_st().Visual.active {
+        if g_st().visual_global.active {
             if vis_empty || vis_bef_curs {
                 if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e' {
                     dec_cursor();
@@ -1730,18 +1730,18 @@ pub fn current_quote(
             } else {
                 if inside_quotes
                     || (!selected_quote
-                        && c_int::from(*line.add(g_st().Visual.start.col as usize) as u8) != quotechar
-                        && (*line.add(g_st().Visual.start.col as usize) == NUL
-                            || c_int::from(*line.add((g_st().Visual.start.col + 1) as usize) as u8)
+                        && c_int::from(*line.add(g_st().visual_global.start.col as usize) as u8) != quotechar
+                        && (*line.add(g_st().visual_global.start.col as usize) == NUL
+                            || c_int::from(*line.add((g_st().visual_global.start.col + 1) as usize) as u8)
                                 != quotechar))
                 {
                     dec_cursor();
-                    g_st().Visual.start = curwin_mut().w_cursor;
+                    g_st().visual_global.start = curwin_mut().w_cursor;
                 }
                 curwin_mut().w_cursor.col = col_start;
             }
-            if g_st().Visual.mode == b'V' as c_int {
-                g_st().Visual.mode = b'v' as c_int;
+            if g_st().visual_global.mode == b'V' as c_int {
+                g_st().visual_global.mode = b'v' as c_int;
                 g_st().redraw_cmdline = true;
             }
         } else {

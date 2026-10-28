@@ -50,7 +50,7 @@ struct Cob {
     cob_curwin_save: *mut WinInfoInfo,
     cob_aco: CtxSwitch,
     cob_using_aco: c_int,
-    cob_save_VIsual_active: c_int,
+    cob_save_visual_active: c_int,
 }
 
 impl Cob {
@@ -59,7 +59,7 @@ impl Cob {
             cob_curwin_save: ptr::null_mut(),
             cob_aco: CtxSwitch::new(),
             cob_using_aco: 0,
-            cob_save_VIsual_active: 0,
+            cob_save_visual_active: 0,
         }
     }
 }
@@ -113,8 +113,8 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: *mut FileBuf) {
      {
         *cob = Cob::new();
 
-        cob.cob_save_VIsual_active = c_int::from(g_st().Visual.active);
-        g_st().Visual.active = false;
+        cob.cob_save_visual_active = c_int::from(g_st().visual_global.active);
+        g_st().visual_global.active = false;
         cob.cob_curwin_save = curwin_ptr();
         g_st().curbuf = buf;
         find_win_for_curbuf();
@@ -141,7 +141,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
             set_curwin(cob.cob_curwin_save);
             g_st().curbuf = curwin_mut().w_buffer;
         }
-        g_st().Visual.active = cob.cob_save_VIsual_active != 0;
+        g_st().visual_global.active = cob.cob_save_visual_active != 0;
     }
 }
 

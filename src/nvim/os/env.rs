@@ -132,15 +132,15 @@ impl Drop for ExpandCtx {
 }
 
 struct EnvModuleState {
-    HOMEDIR: Option<std::ffi::CString>,
-    HOMEDIR_BUF: [c_char; MAXPATHL],
+    homedir: Option<std::ffi::CString>,
+    homedir_buf: [c_char; MAXPATHL],
 }
 
 impl EnvModuleState {
     const fn new() -> Self {
         Self {
-            HOMEDIR: None,
-            HOMEDIR_BUF: [0; MAXPATHL],
+            homedir: None,
+            homedir_buf: [0; MAXPATHL],
         }
     }
 }
@@ -160,7 +160,7 @@ unsafe extern "C" {
     #[cfg(target_os = "macos")]
     fn _NSGetEnviron() -> *mut *mut *mut c_char;
     #[cfg(all(not(windows), not(target_os = "macos")))]
-    static environ: *mut *mut c_char;
+    static ENVIRON: *mut *mut c_char;
 
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
@@ -477,7 +477,7 @@ pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
 /// Gets the "real", resolved user home directory as determined by `init_homedir`.
 #[cfg(windows)]
 pub fn os_homedir() -> *const c_char {
-    let Some(ref hd) = env_st().HOMEDIR else {
+    let Some(ref hd) = env_st().homedir else {
             emsg(c"os_homedir failed: homedir not initialized");
             return ptr::null();
         };
@@ -486,7 +486,7 @@ pub fn os_homedir() -> *const c_char {
 
 fn os_uv_homedir() -> *mut c_char {
     unsafe {
-        let buf = (&raw mut env_st().HOMEDIR_BUF).cast::<c_char>();
+        let buf = (&raw mut env_st().homedir_buf).cast::<c_char>();
         *buf = NUL;
         let mut homedir_size = MAXPATHL;
         let ret_value = uv_os_homedir(buf, &mut homedir_size);
@@ -501,7 +501,7 @@ fn os_uv_homedir() -> *mut c_char {
 /// Sets `homedir` to the "real", resolved user home directory.
 pub fn init_homedir() {
     unsafe {
-        env_st().HOMEDIR = None;
+        env_st().homedir = None;
 
         let home_cstr = os_getenv_cstr(c"HOME");
         let mut var: *mut c_char = home_cstr
@@ -560,8 +560,8 @@ pub fn init_homedir() {
                 var = os_uv_homedir();
             }
 
-            if !var.is_null() && !os_realpath(var, g_st().IObuff.as_mut_ptr(), IOSIZE).is_null() {
-                var = g_st().IObuff.as_mut_ptr();
+            if !var.is_null() && !os_realpath(var, g_st().iobuff.as_mut_ptr(), IOSIZE).is_null() {
+                var = g_st().iobuff.as_mut_ptr();
             }
 
             if (crate::memory::cstr_is_empty(var))
@@ -572,13 +572,13 @@ pub fn init_homedir() {
         }
 
         if !var.is_null() {
-            env_st().HOMEDIR = to_slash_save(var);
+            env_st().homedir = to_slash_save(var);
         }
     }
 }
 
 pub fn free_homedir() {
-    env_st().HOMEDIR = None;
+    env_st().homedir = None;
 }
 
 /// Call `expand_env()` and store the result in an allocated string.
@@ -715,7 +715,7 @@ pub fn expand_env_esc(
                     || vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(src, 1)))
                     || !vim_strchr(c" ,\t\n", c_int::from(crate::memory::cstr_byte_at(src, 1))).is_null()
                 {
-                    var = (&raw const env_st().HOMEDIR)
+                    var = (&raw const env_st().homedir)
                         .as_ref()
                         .unwrap()
                         .as_ref()
@@ -925,7 +925,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 
         #[cfg(windows)]
         if crate::memory::cstr_as_bytes(name) == b"HOME" {
-            return env_st().HOMEDIR.clone();
+            return env_st().homedir.clone();
         }
 
         let kos_env_path = os_getenv_cstr(name);
@@ -1052,7 +1052,7 @@ pub fn home_replace(
             return dlen.min(dstlen - 1);
         }
 
-        let homedir_ptr = (&raw const env_st().HOMEDIR)
+        let homedir_ptr = (&raw const env_st().homedir)
             .as_ref()
             .unwrap()
             .as_ref()

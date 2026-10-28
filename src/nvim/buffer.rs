@@ -1613,7 +1613,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: c_int) -> bool {
             return false;
         }
 
-        if (&raw mut *buf) == g_st().curbuf && g_st().Visual.active && !mem_st().entered_free_all_mem {
+        if (&raw mut *buf) == g_st().curbuf && g_st().visual_global.active && !mem_st().entered_free_all_mem {
             end_visual_mode();
         }
 
@@ -1965,7 +1965,7 @@ pub fn do_bufdel(
             }
 
             if deleted == 0 {
-                let iobuff_ptr = g_st().IObuff.as_mut_ptr();
+                let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                 if command == DOBUF_UNLOAD {
                     xstrlcpy(
                         iobuff_ptr,
@@ -2236,7 +2236,7 @@ fn do_buffer_ext(
 
             let buf_fnum = (*buf).b_fnum;
 
-            if buf == g_st().curbuf && g_st().Visual.active {
+            if buf == g_st().curbuf && g_st().visual_global.active {
                 end_visual_mode();
             }
 
@@ -2497,7 +2497,7 @@ pub fn set_curbuf(buf: *mut FileBuf, action: c_int, update_jumplist: bool) {
         }
         buflist_altfpos(curwin_mut());
 
-        g_st().Visual.reselect = 0;
+        g_st().visual_global.reselect = 0;
 
         let prevbuf = g_st().curbuf;
         let mut newbufref: Bufref = Bufref::new();
@@ -2522,7 +2522,7 @@ pub fn set_curbuf(buf: *mut FileBuf, action: c_int, update_jumplist: bool) {
                 close_windows(prevbuf, false);
             }
             if bufref_valid(Some(&prevbufref)) && !aborting() {
-                if prevbuf == g_st().curbuf && ((g_st().State & MODE_INSERT) == 0 || curbuf_mut().b_nwindows <= 1) {
+                if prevbuf == g_st().curbuf && ((g_st().state_global & MODE_INSERT) == 0 || curbuf_mut().b_nwindows <= 1) {
                     u_sync(false);
                 }
                 close_buffer(
@@ -2562,7 +2562,7 @@ pub fn set_curbuf(buf: *mut FileBuf, action: c_int, update_jumplist: bool) {
 /// Enter a new current buffer.
 fn enter_buffer(buf: *mut FileBuf) {
     unsafe {
-        if g_st().Visual.active && !mem_st().entered_free_all_mem {
+        if g_st().visual_global.active && !mem_st().entered_free_all_mem {
             end_visual_mode();
         }
 
@@ -3048,7 +3048,7 @@ pub fn buflist_getfile(
             }
         }
 
-        g_st().RedrawingDisabled += 1;
+        g_st().redrawing_disabled += 1;
         if getfile(
             (*buf).b_fnum,
             ptr::null_mut(),
@@ -3058,7 +3058,7 @@ pub fn buflist_getfile(
             forceit != 0,
         ) <= 0
         {
-            g_st().RedrawingDisabled -= 1;
+            g_st().redrawing_disabled -= 1;
 
             if opt_vars().p_sol == 0 && col != 0 {
                 curwin_mut().w_cursor.col = col;
@@ -3071,7 +3071,7 @@ pub fn buflist_getfile(
             }
             return true;
         }
-        g_st().RedrawingDisabled -= 1;
+        g_st().redrawing_disabled -= 1;
         false
     }
 }
@@ -3650,7 +3650,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             }
 
             let name = buf_spname(buf);
-            let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
+            let namebuff_ptr = g_st().name_buff.as_mut_ptr();
             if !name.is_null() {
                 xstrlcpy(namebuff_ptr, name, MAXPATHL);
             } else {
@@ -3687,7 +3687,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             if !ui_has(K_UIMESSAGES) || g_st().msg_col > 0 {
                 msg_putchar(b'\n' as c_int);
             }
-            let iobuff_ptr = g_st().IObuff.as_mut_ptr();
+            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             let mut len = vim_snprintf_safelen!(
                 iobuff_ptr,
                 IOSIZE - 20,
@@ -4161,7 +4161,7 @@ pub fn maketitle() {
             let mut maxlen = 0;
 
             if opt_vars().p_titlelen > 0 {
-                maxlen = ((opt_vars().p_titlelen * i64::from(g_st().Columns) / 100) as c_int).max(10);
+                maxlen = ((opt_vars().p_titlelen * i64::from(g_st().columns_global) / 100) as c_int).max(10);
             }
 
             if !crate::memory::cstr_is_empty(opt_vars().p_titlestring) {
@@ -4468,12 +4468,12 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 };
                 let size_mismatch = if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
                     i64::from((*wp).w_height + (*wp).w_hsep_height + (*wp).w_status_height)
-                        < i64::from(g_st().Rows)
+                        < i64::from(g_st().rows_global)
                             - opt_vars().p_ch
                             - i64::from(tabline_height())
                             - i64::from(global_stl_height())
                 } else {
-                    (*wp).w_width != g_st().Columns
+                    (*wp).w_width != g_st().columns_global
                 };
                 if ((*wp).buf_mut().b_nwindows > 1
                     || (*wp).w_floating

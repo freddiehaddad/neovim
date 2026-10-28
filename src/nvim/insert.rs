@@ -237,7 +237,7 @@ struct InsertState {
     old_topline: Linenr,
     old_topfill: c_int,
     inserted_space: c_int,
-    replaceState: c_int,
+    replace_state: c_int,
     did_restart_edit: c_int,
     nomove: bool,
 }
@@ -259,7 +259,7 @@ impl InsertState {
             old_topline: 0,
             old_topfill: 0,
             inserted_space: 0,
-            replaceState: 0,
+            replace_state: 0,
             did_restart_edit: 0,
             nomove: false,
         }
@@ -369,12 +369,12 @@ fn insert_enter(s: &mut InsertState) {
     unsafe {
         s.did_backspace = true;
         s.old_topfill = -1;
-        s.replaceState = MODE_REPLACE;
+        s.replace_state = MODE_REPLACE;
         s.cmdchar_todo = s.cmdchar;
         s.ins_just_started = true;
-        g_st().Ins.did_restart_edit = g_st().restart_edit;
+        g_st().ins_global.did_restart_edit = g_st().restart_edit;
         msg_check_for_delay(true);
-        g_st().Ins.update_start_orig = true;
+        g_st().ins_global.update_start_orig = true;
 
         ins_compl_clear();
 
@@ -399,28 +399,28 @@ fn insert_enter(s: &mut InsertState) {
                 && *get_vim_var_str(VV_CHAR) == NUL
                 && save_cursor.lnum <= curbuf_mut().b_ml.ml_line_count
             {
-                let save_state = g_st().State;
+                let save_state = g_st().state_global;
                 curwin_mut().w_cursor = save_cursor;
-                g_st().State = MODE_INSERT;
+                g_st().state_global = MODE_INSERT;
                 check_cursor_col(curwin_mut());
-                g_st().State = save_state;
+                g_st().state_global = save_state;
             }
         }
 
         if g_st().where_paste_started.lnum != 0 {
-            g_st().Ins.start = g_st().where_paste_started;
+            g_st().ins_global.start = g_st().where_paste_started;
         } else {
-            g_st().Ins.start = curwin_mut().w_cursor;
+            g_st().ins_global.start = curwin_mut().w_cursor;
             if s.startln != 0 {
-                g_st().Ins.start.col = 0;
+                g_st().ins_global.start.col = 0;
             }
         }
 
-        g_st().Ins.start_textlen = linetabsize_str(get_cursor_line_ptr());
-        g_st().Ins.start_blank_vcol = MAXCOL;
+        g_st().ins_global.start_textlen = linetabsize_str(get_cursor_line_ptr());
+        g_st().ins_global.start_blank_vcol = MAXCOL;
 
-        if !g_st().Ins.did_ai {
-            g_st().Ins.ai_col = 0;
+        if !g_st().ins_global.did_ai {
+            g_st().ins_global.ai_col = 0;
         }
 
         if s.cmdchar != NUL as c_int && g_st().restart_edit == 0 {
@@ -461,39 +461,39 @@ fn insert_enter(s: &mut InsertState) {
         }
 
         if s.cmdchar == b'R' as c_int {
-            g_st().State = MODE_REPLACE;
+            g_st().state_global = MODE_REPLACE;
         } else if s.cmdchar == b'V' as c_int || s.cmdchar == b'v' as c_int {
-            g_st().State = MODE_VREPLACE;
-            s.replaceState = MODE_VREPLACE;
+            g_st().state_global = MODE_VREPLACE;
+            s.replace_state = MODE_VREPLACE;
             g_st().orig_line_count = curbuf_mut().b_ml.ml_line_count;
             g_st().vr_lines_changed = 1;
         } else {
-            g_st().State = MODE_INSERT;
+            g_st().state_global = MODE_INSERT;
         }
 
         may_trigger_modechanged();
-        g_st().Ins.stop_insert_mode = false;
+        g_st().ins_global.stop_insert_mode = false;
 
         if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), K_MTMETA_INLINE) > 0 {
             curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
         }
 
         if curbuf_mut().b_p_iminsert == B_IMODE_LMAP {
-            g_st().State |= MODE_LANGMAP;
+            g_st().state_global |= MODE_LANGMAP;
         }
 
         setmouse();
         clear_showcmd();
-        g_st().Ins.revins_on = g_st().State == MODE_INSERT && opt_vars().p_ri != 0;
-        if g_st().Ins.revins_on {
+        g_st().ins_global.revins_on = g_st().state_global == MODE_INSERT && opt_vars().p_ri != 0;
+        if g_st().ins_global.revins_on {
             undisplay_dollar();
         }
-        g_st().Ins.revins_chars = 0;
-        g_st().Ins.revins_legal = 0;
-        g_st().Ins.revins_scol = -1;
+        g_st().ins_global.revins_chars = 0;
+        g_st().ins_global.revins_legal = 0;
+        g_st().ins_global.revins_scol = -1;
 
         if g_st().restart_edit != 0 && stuff_empty() {
-            g_st().Ins.moved = if g_st().where_paste_started.lnum == 0 {
+            g_st().ins_global.moved = if g_st().where_paste_started.lnum == 0 {
                 K_INS_JUMP
             } else {
                 K_INS_NONE
@@ -502,7 +502,7 @@ fn insert_enter(s: &mut InsertState) {
 
             validate_virtcol(curwin_mut());
             update_curswant();
-            if (g_st().ins_at_eol && curwin_mut().w_cursor.lnum == g_st().Ins.o_lnum)
+            if (g_st().ins_at_eol && curwin_mut().w_cursor.lnum == g_st().ins_global.o_lnum)
                 || curwin_mut().w_curswant > curwin_mut().w_virtcol
             {
                 let ptr = get_cursor_line_ptr().offset(curwin_mut().w_cursor.col as isize);
@@ -519,14 +519,14 @@ fn insert_enter(s: &mut InsertState) {
             }
             g_st().ins_at_eol = false;
         } else {
-            g_st().Ins.moved = K_INS_NONE;
+            g_st().ins_global.moved = K_INS_NONE;
         }
 
         g_st().need_start_insertmode = false;
-        g_st().Ins.need_undo = true;
+        g_st().ins_global.need_undo = true;
         g_st().where_paste_started.lnum = 0;
-        g_st().Ins.can_cindent = true;
-        if g_st().Ins.did_restart_edit == 0 {
+        g_st().ins_global.can_cindent = true;
+        if g_st().ins_global.did_restart_edit == 0 {
             fold_open_cursor();
         }
 
@@ -535,7 +535,7 @@ fn insert_enter(s: &mut InsertState) {
             s.i = showmode();
         }
 
-        if g_st().Ins.did_restart_edit == 0 {
+        if g_st().ins_global.did_restart_edit == 0 {
             change_warning(curbuf_mut(), if s.i == 0 { 0 } else { s.i + 1 });
         }
 
@@ -543,7 +543,7 @@ fn insert_enter(s: &mut InsertState) {
         do_digraph(-1);
 
         let redo = redo_keys(ptr::null());
-        g_st().Ins.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as c_int);
+        g_st().ins_global.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as c_int);
 
         g_st().old_indent = 0;
 
@@ -556,7 +556,7 @@ fn insert_enter(s: &mut InsertState) {
 
         ins_compl_clear_autocomplete_delay();
         if g_st().ins_at_eol {
-            g_st().Ins.o_lnum = curwin_mut().w_cursor.lnum;
+            g_st().ins_global.o_lnum = curwin_mut().w_cursor.lnum;
         }
 
         pum_check_clear();
@@ -576,32 +576,32 @@ fn insert_check(s: &mut InsertState) -> c_int {
      {
         mc_ins_cascade();
 
-        if g_st().Ins.revins_legal == 0 {
-            g_st().Ins.revins_scol = -1;
+        if g_st().ins_global.revins_legal == 0 {
+            g_st().ins_global.revins_scol = -1;
         } else {
-            g_st().Ins.revins_legal = 0;
+            g_st().ins_global.revins_legal = 0;
         }
 
-        if g_st().Ins.moved != K_INS_NONE {
+        if g_st().ins_global.moved != K_INS_NONE {
             s.count = 0;
         }
 
-        if g_st().Ins.update_start_orig {
-            g_st().Ins.start_orig = g_st().Ins.start;
+        if g_st().ins_global.update_start_orig {
+            g_st().ins_global.start_orig = g_st().ins_global.start;
         }
 
-        if !curbuf_mut().terminal.is_null() && !g_st().Ins.stop_insert_mode {
-            g_st().Ins.stop_insert_mode = true;
+        if !curbuf_mut().terminal.is_null() && !g_st().ins_global.stop_insert_mode {
+            g_st().ins_global.stop_insert_mode = true;
             g_st().restart_edit = b'I' as c_int;
             stuffchar_readbuff(K_NOP);
         }
 
-        if g_st().Ins.stop_insert_mode && !ins_compl_active() {
+        if g_st().ins_global.stop_insert_mode && !ins_compl_active() {
             s.count = 0;
             return 0;
         }
 
-        if g_st().Ins.moved == K_INS_NONE {
+        if g_st().ins_global.moved == K_INS_NONE {
             curwin_mut().w_set_curswant = true;
         }
 
@@ -695,10 +695,10 @@ fn insert_check(s: &mut InsertState) -> c_int {
             s.lastc = s.c;
         }
 
-        if g_st().Ins.dont_sync_undo == K_NONE {
-            g_st().Ins.dont_sync_undo = K_TRUE;
+        if g_st().ins_global.dont_sync_undo == K_NONE {
+            g_st().ins_global.dont_sync_undo = K_TRUE;
         } else {
-            g_st().Ins.dont_sync_undo = K_FALSE;
+            g_st().ins_global.dont_sync_undo = K_FALSE;
         }
 
         if s.ins_just_started {
@@ -724,7 +724,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
 
 fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
     unsafe {
-        if g_st().Ins.stop_insert_mode {
+        if g_st().ins_global.stop_insert_mode {
             if key != K_IGNORE && key != K_NOP {
                 vungetc(key);
             }
@@ -851,7 +851,7 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
                 do_c_expr_indent();
                 return 1;
             }
-            if g_st().Ins.can_cindent
+            if g_st().ins_global.can_cindent
                 && in_cinkeys(s.c, b'*' as c_int, s.line_is_white)
                 && stop_arrow()
             {
@@ -921,7 +921,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 }
             }
             K_INS | K_KINS => {
-                ins_insert(s.replaceState);
+                ins_insert(s.replace_state);
             }
             K_SELECT | K_IGNORE => {}
             K_HELP | K_F1 | K_XF1 => {
@@ -1050,8 +1050,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     paste_repeat(1);
                 } else if s.c == K_EVENT {
                     state_handle_k_event();
-                    if g_st().Ins.dont_sync_undo == K_TRUE {
-                        g_st().Ins.dont_sync_undo = K_NONE;
+                    if g_st().ins_global.dont_sync_undo == K_TRUE {
+                        g_st().ins_global.dont_sync_undo = K_NONE;
                     }
                 } else if s.c == K_COMMAND {
                     do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
@@ -1074,7 +1074,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     && g_st().curbuf == save_curbuf.br_buf
                     && tick != buf_get_changedtick(curbuf_mut());
                 if curbuf_mut().b_u_synced || changed {
-                    g_st().Ins.need_undo = true;
+                    g_st().ins_global.need_undo = true;
                 }
                 if changed && !ins_compl_active() {
                     mc_ins_cascade();
@@ -1082,8 +1082,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 }
             }
             K_COMPLETE_DELAY => {
-                if g_st().Ins.dont_sync_undo == K_TRUE {
-                    g_st().Ins.dont_sync_undo = K_NONE;
+                if g_st().ins_global.dont_sync_undo == K_TRUE {
+                    g_st().ins_global.dont_sync_undo = K_NONE;
                 }
                 ins_compl_clear_autocomplete_delay();
                 if ins_compl_has_autocomplete() && !char_avail() && curwin_mut().w_cursor.col != 0 {
@@ -1290,10 +1290,10 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 if s.c == b' ' as c_int {
                     s.inserted_space = 1;
                     if inindent(0) {
-                        g_st().Ins.can_cindent = false;
+                        g_st().ins_global.can_cindent = false;
                     }
-                    if g_st().Ins.start_blank_vcol == MAXCOL && curwin_mut().w_cursor.lnum == g_st().Ins.start.lnum {
-                        g_st().Ins.start_blank_vcol = get_nolist_virtcol();
+                    if g_st().ins_global.start_blank_vcol == MAXCOL && curwin_mut().w_cursor.lnum == g_st().ins_global.start.lnum {
+                        g_st().ins_global.start_blank_vcol = get_nolist_virtcol();
                     }
                 }
 
@@ -1305,8 +1305,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     }) && s.c != CTRL_RSB_CONST)
                 {
                     insert_special(s.c, 0, 0);
-                    g_st().Ins.revins_legal += 1;
-                    g_st().Ins.revins_chars += 1;
+                    g_st().ins_global.revins_legal += 1;
+                    g_st().ins_global.revins_chars += 1;
                 }
 
                 auto_format(false, true);
@@ -1332,7 +1332,7 @@ fn insert_do_complete(s: &mut InsertState) {
         }
         g_st().disable_fold_update -= 1;
         ins_st().compl_busy = false;
-        g_st().Ins.can_si = may_do_si();
+        g_st().ins_global.can_si = may_do_si();
     }
 }
 
@@ -1352,11 +1352,11 @@ fn insert_handle_key_post(s: &mut InsertState) {
             ins_compl_cancel();
         }
 
-        if g_st().Ins.moved != K_INS_NONE {
+        if g_st().ins_global.moved != K_INS_NONE {
             s.inserted_space = 0;
         }
 
-        if g_st().Ins.can_cindent && cindent_on() && ctrl_x_mode_normal() {
+        if g_st().ins_global.can_cindent && cindent_on() && ctrl_x_mode_normal() {
             insert_do_cindent(s);
         }
     }
@@ -1498,8 +1498,8 @@ fn ins_ctrl_v() {
         }
         clear_showcmd();
         insert_special(c, 1, 1);
-        g_st().Ins.revins_chars += 1;
-        g_st().Ins.revins_legal += 1;
+        g_st().ins_global.revins_chars += 1;
+        g_st().ins_global.revins_legal += 1;
 }
 
 pub fn edit_putchar(c: c_int, highlight: bool) {
@@ -1607,8 +1607,8 @@ fn init_prompt(cmdchar_todo: c_int) {
             coladvance(curwin_mut(), MAXCOL);
         }
 
-        if g_st().Ins.start_orig.lnum != curbuf_mut().b_prompt_start.mark.lnum
-            || g_st().Ins.start_orig.col != curbuf_mut().b_prompt_start.mark.col
+        if g_st().ins_global.start_orig.lnum != curbuf_mut().b_prompt_start.mark.lnum
+            || g_st().ins_global.start_orig.col != curbuf_mut().b_prompt_start.mark.col
         {
             set_insstart(
                 curbuf_mut().b_prompt_start.mark.lnum,
@@ -1639,12 +1639,12 @@ pub fn prompt_curpos_editable() -> bool {
 }
 
 fn set_insstart(lnum: Linenr, col: Colnr) {
-    g_st().Ins.start.lnum = lnum;
-        g_st().Ins.start.col = col;
-        g_st().Ins.start_orig = g_st().Ins.start;
-        g_st().Ins.start_textlen = g_st().Ins.start.col;
-        g_st().Ins.start_blank_vcol = MAXCOL;
-        g_st().Ins.moved = K_INS_NONE;
+    g_st().ins_global.start.lnum = lnum;
+        g_st().ins_global.start.col = col;
+        g_st().ins_global.start_orig = g_st().ins_global.start;
+        g_st().ins_global.start_textlen = g_st().ins_global.start.col;
+        g_st().ins_global.start_blank_vcol = MAXCOL;
+        g_st().ins_global.moved = K_INS_NONE;
 }
 
 pub fn edit_unputchar() {
@@ -1700,7 +1700,7 @@ pub fn truncate_spaces(line: *mut c_char, len: usize) {
     unsafe {
         let mut i = len as isize - 1;
         while i >= 0 && ascii_iswhite(*line.offset(i) as u8 as c_int) {
-            if (g_st().State & REPLACE_FLAG) != 0 {
+            if (g_st().state_global & REPLACE_FLAG) != 0 {
                 replace_join(0);
             }
             i -= 1;
@@ -1714,7 +1714,7 @@ pub fn backspace_until_column(col: c_int) {
      {
         while curwin_mut().w_cursor.col > col {
             curwin_mut().w_cursor.col -= 1;
-            if (g_st().State & REPLACE_FLAG) != 0 {
+            if (g_st().state_global & REPLACE_FLAG) != 0 {
                 replace_do_bs(col);
             } else if !del_char_after_col(col) {
                 break;
@@ -1768,7 +1768,7 @@ pub fn get_literal(no_simplify: bool) -> c_int {
             if (g_st().mod_mask & !MOD_MASK_SHIFT) != 0 {
                 break;
             }
-            if (g_st().State & MODE_CMDLINE) == 0 && mb_byte2len_check(nc) == 1 {
+            if (g_st().state_global & MODE_CMDLINE) == 0 && mb_byte2len_check(nc) == 1 {
                 add_to_showcmd(nc);
             }
             if nc == b'x' as c_int || nc == b'X' as c_int {
@@ -1872,12 +1872,12 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
         if textwidth > 0
             && (force_format
                 || (!ascii_iswhite(c)
-                    && !((g_st().State & REPLACE_FLAG) != 0
-                        && (g_st().State & VREPLACE_FLAG) == 0
+                    && !((g_st().state_global & REPLACE_FLAG) != 0
+                        && (g_st().state_global & VREPLACE_FLAG) == 0
                         && !crate::memory::cstr_is_empty(get_cursor_pos_ptr()))
-                    && (curwin_mut().w_cursor.lnum != g_st().Ins.start.lnum
-                        || ((!has_format_option(K_FO_INS_LONG) || g_st().Ins.start_textlen <= textwidth)
-                            && (!fo_ins_blank || g_st().Ins.start_blank_vcol <= textwidth)))))
+                    && (curwin_mut().w_cursor.lnum != g_st().ins_global.start.lnum
+                        || ((!has_format_option(K_FO_INS_LONG) || g_st().ins_global.start_textlen <= textwidth)
+                            && (!fo_ins_blank || g_st().ins_global.start_blank_vcol <= textwidth)))))
         {
             let mut do_internal = true;
             let virtcol = get_nolist_virtcol()
@@ -1888,7 +1888,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
                 && (force_format || virtcol > textwidth)
             {
                 do_internal = fex_format(curwin_mut().w_cursor.lnum, 1, c) != 0;
-                g_st().Ins.need_undo = true;
+                g_st().ins_global.need_undo = true;
             }
             if do_internal {
                 internal_format(textwidth, second_indent, flags, c == NUL as c_int, c);
@@ -1899,7 +1899,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
             return;
         }
 
-        if g_st().Ins.did_ai && c == g_st().Ins.end_comment_pending {
+        if g_st().ins_global.did_ai && c == g_st().ins_global.end_comment_pending {
             let mut lead_end = [0 as c_char; COM_MAX_LEN];
             let mut p: *mut c_char = ptr::null_mut();
             let line = get_cursor_line_ptr();
@@ -1940,26 +1940,26 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
 
                 if i >= 0
                     && end_len > 0
-                    && (lead_end[(end_len - 1) as usize] as u8 as c_int) == g_st().Ins.end_comment_pending
+                    && (lead_end[(end_len - 1) as usize] as u8 as c_int) == g_st().ins_global.end_comment_pending
                 {
                     backspace_until_column(i);
                     ins_bytes_len((&raw mut lead_end).cast(), (end_len - 1) as usize);
                 }
             }
         }
-        g_st().Ins.end_comment_pending = NUL as c_int;
+        g_st().ins_global.end_comment_pending = NUL as c_int;
 
-        g_st().Ins.did_ai = false;
-        g_st().Ins.did_si = false;
-        g_st().Ins.can_si = false;
-        g_st().Ins.can_si_back = false;
+        g_st().ins_global.did_ai = false;
+        g_st().ins_global.did_si = false;
+        g_st().ins_global.can_si = false;
+        g_st().ins_global.can_si_back = false;
 
         if !is_special_ins(c)
             && utf_char2len(c) == 1
             && !has_event(EVENT_INSERTCHARPRE)
             && !*test_disable_char_avail.as_ptr()
             && vpeekc() != NUL as c_int
-            && (g_st().State & REPLACE_FLAG) == 0
+            && (g_st().state_global & REPLACE_FLAG) == 0
             && !cindent_on()
             && opt_vars().p_ri == 0
         {
@@ -2038,20 +2038,20 @@ fn redo_literal(c: c_int) {
 
 /// Called when the cursor moves in insert-mode without editing text.
 pub fn start_arrow(end_insert_pos: *mut CursorPos, end_change: bool, move_key: c_int) {
-    if g_st().Ins.moved == K_INS_NONE && end_change {
+    if g_st().ins_global.moved == K_INS_NONE && end_change {
             stop_insert(end_insert_pos, 0, 0);
         }
-        if g_st().Ins.moved != K_INS_JUMP {
+        if g_st().ins_global.moved != K_INS_JUMP {
             if move_key == NUL as c_int {
                 redo_append_str(c"\x1b", 1);
-                g_st().Ins.moved = K_INS_JUMP;
+                g_st().ins_global.moved = K_INS_JUMP;
             } else {
                 if !is_special_fn(move_key) {
                     redo_append_char(CTRL_G);
                 }
                 redo_append_char(move_key);
                 if end_change {
-                    g_st().Ins.moved = K_INS_ARROW;
+                    g_st().ins_global.moved = K_INS_ARROW;
                 }
             }
         }
@@ -2059,7 +2059,7 @@ pub fn start_arrow(end_insert_pos: *mut CursorPos, end_change: bool, move_key: c
 }
 
 fn start_arrow_with_change(end_insert_pos: &mut CursorPos, end_change: bool, move_key: c_int) {
-    if !end_change && g_st().Ins.moved != K_INS_JUMP {
+    if !end_change && g_st().ins_global.moved != K_INS_JUMP {
             redo_append_char(CTRL_G);
             redo_append_char(b'U' as c_int);
         }
@@ -2078,20 +2078,20 @@ fn check_spell_redraw() {
 
 pub fn stop_arrow() -> bool {
      {
-        if g_st().Ins.moved != K_INS_NONE {
-            g_st().Ins.start = curwin_mut().w_cursor;
-            if g_st().Ins.start.col > g_st().Ins.start_orig.col && !g_st().Ins.need_undo {
-                g_st().Ins.update_start_orig = false;
+        if g_st().ins_global.moved != K_INS_NONE {
+            g_st().ins_global.start = curwin_mut().w_cursor;
+            if g_st().ins_global.start.col > g_st().ins_global.start_orig.col && !g_st().ins_global.need_undo {
+                g_st().ins_global.update_start_orig = false;
             }
-            g_st().Ins.start_textlen = linetabsize_str(get_cursor_line_ptr());
+            g_st().ins_global.start_textlen = linetabsize_str(get_cursor_line_ptr());
 
-            let jumped = g_st().Ins.moved == K_INS_JUMP;
+            let jumped = g_st().ins_global.moved == K_INS_JUMP;
             if u_save_cursor() {
-                g_st().Ins.moved = K_INS_NONE;
-                g_st().Ins.need_undo = false;
+                g_st().ins_global.moved = K_INS_NONE;
+                g_st().ins_global.need_undo = false;
             }
-            g_st().Ins.ai_col = 0;
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+            g_st().ins_global.ai_col = 0;
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 g_st().orig_line_count = curbuf_mut().b_ml.ml_line_count;
                 g_st().vr_lines_changed = 1;
             }
@@ -2105,23 +2105,23 @@ pub fn stop_arrow() -> bool {
                         ..CmdSpec::default()
                     },
                 );
-                g_st().Ins.new_insert_skip = 2;
+                g_st().ins_global.new_insert_skip = 2;
                 mc_ins_cascade_restart();
             } else {
                 let redo = redo_keys(ptr::null());
-                g_st().Ins.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as c_int);
+                g_st().ins_global.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as c_int);
             }
-        } else if g_st().Ins.need_undo && u_save_cursor() {
-            if lt(curwin_mut().w_cursor, g_st().Ins.start) {
-                g_st().Ins.start = curwin_mut().w_cursor;
-                g_st().Ins.start_textlen = linetabsize_str(get_cursor_line_ptr());
+        } else if g_st().ins_global.need_undo && u_save_cursor() {
+            if lt(curwin_mut().w_cursor, g_st().ins_global.start) {
+                g_st().ins_global.start = curwin_mut().w_cursor;
+                g_st().ins_global.start_textlen = linetabsize_str(get_cursor_line_ptr());
             }
-            g_st().Ins.need_undo = false;
+            g_st().ins_global.need_undo = false;
         }
 
         fold_open_cursor();
 
-        !(g_st().Ins.moved != K_INS_NONE || g_st().Ins.need_undo)
+        !(g_st().ins_global.moved != K_INS_NONE || g_st().ins_global.need_undo)
     }
 }
 
@@ -2133,16 +2133,16 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
         let redo_cstr = redo_keys(ptr::null());
         let added = match redo_cstr {
             None => 0,
-            Some(ref s) => (s.as_bytes().len() as c_int) - g_st().Ins.new_insert_skip,
+            Some(ref s) => (s.as_bytes().len() as c_int) - g_st().ins_global.new_insert_skip,
         };
-        if g_st().Ins.did_restart_edit == 0 || added > 0 {
+        if g_st().ins_global.did_restart_edit == 0 || added > 0 {
             ins_st().last_insert = redo_cstr;
-            ins_st().last_insert_skip = if added < 0 { 0 } else { g_st().Ins.new_insert_skip };
+            ins_st().last_insert_skip = if added < 0 { 0 } else { g_st().ins_global.new_insert_skip };
         }
 
-        if g_st().Ins.moved == K_INS_NONE && !end_insert_pos.is_null() {
+        if g_st().ins_global.moved == K_INS_NONE && !end_insert_pos.is_null() {
             let mut cc: c_int;
-            if !g_st().Ins.need_undo && has_format_option(K_FO_AUTO) {
+            if !g_st().ins_global.need_undo && has_format_option(K_FO_AUTO) {
                 let tpos = curwin_mut().w_cursor;
                 cc = b'x' as c_int;
                 if curwin_mut().w_cursor.col > 0 && gchar_cursor() == NUL as c_int {
@@ -2171,7 +2171,7 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
             check_auto_format(true);
 
             if nomove == 0
-                && g_st().Ins.did_ai
+                && g_st().ins_global.did_ai
                 && !mc_ins_replaying()
                 && (esc != 0
                     || (vim_strchr(opt_vars().p_cpo, K_CPO_INDENT).is_null()
@@ -2213,7 +2213,7 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
                         }
                     }
 
-                    if g_st().Visual.active {
+                    if g_st().visual_global.active {
                         check_visual_pos();
                     }
                 } else {
@@ -2221,14 +2221,14 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
                 }
             }
         }
-        g_st().Ins.did_ai = false;
-        g_st().Ins.did_si = false;
-        g_st().Ins.can_si = false;
-        g_st().Ins.can_si_back = false;
+        g_st().ins_global.did_ai = false;
+        g_st().ins_global.did_si = false;
+        g_st().ins_global.can_si = false;
+        g_st().ins_global.can_si_back = false;
 
         if !end_insert_pos.is_null() {
-            curbuf_mut().b_op_start = g_st().Ins.start;
-            curbuf_mut().b_op_start_orig = g_st().Ins.start_orig;
+            curbuf_mut().b_op_start = g_st().ins_global.start;
+            curbuf_mut().b_op_start_orig = g_st().ins_global.start_orig;
             curbuf_mut().b_op_end = *end_insert_pos;
         }
     }
@@ -2368,7 +2368,7 @@ pub fn cursor_up_inner(wp: &mut WinInfoInfo, mut n: Linenr, skip_conceal: bool) 
                 if skip_conceal && decor_conceal_line(&raw mut *wp, lnum - 1, true) {
                     n += 1;
                 }
-                if n > 0 || !((g_st().State & MODE_INSERT) != 0 || (opt_vars().fdo_flags & K_OPT_FDO_FLAG_ALL) != 0) {
+                if n > 0 || !((g_st().state_global & MODE_INSERT) != 0 || (opt_vars().fdo_flags & K_OPT_FDO_FLAG_ALL) != 0) {
                     has_folding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
                 }
             }
@@ -2550,15 +2550,15 @@ pub fn get_last_insert_save() -> Option<std::ffi::CString> {
 
 fn echeck_abbr(c: c_int) -> bool {
      {
-        if opt_vars().p_paste != 0 || g_st().no_abbr || g_st().Ins.moved != K_INS_NONE {
+        if opt_vars().p_paste != 0 || g_st().no_abbr || g_st().ins_global.moved != K_INS_NONE {
             return false;
         }
         check_abbr(
             c,
             get_cursor_line_ptr(),
             curwin_mut().w_cursor.col,
-            if curwin_mut().w_cursor.lnum == g_st().Ins.start.lnum {
-                g_st().Ins.start.col
+            if curwin_mut().w_cursor.lnum == g_st().ins_global.start.lnum {
+                g_st().ins_global.start.col
             } else {
                 0
             },
@@ -2611,13 +2611,13 @@ pub fn replace_join(mut off: c_int) {
 }
 
 fn replace_pop_ins() {
-    let old_state = g_st().State;
-        g_st().State = MODE_NORMAL;
+    let old_state = g_st().state_global;
+        g_st().state_global = MODE_NORMAL;
         while replace_pop_if_nul() > 0 {
             mb_replace_pop_ins();
             dec_cursor();
         }
-        g_st().State = old_state;
+        g_st().state_global = old_state;
 }
 
 fn mb_replace_pop_ins() {
@@ -2635,7 +2635,7 @@ fn mb_replace_pop_ins() {
 fn replace_do_bs(limit_col: c_int) {
     unsafe {
         let mut start_vcol: Colnr = 0;
-        let l_state = g_st().State;
+        let l_state = g_st().state_global;
 
         let cc = replace_pop_if_nul();
         if cc > 0 {
@@ -2688,7 +2688,7 @@ fn ins_reg() {
     unsafe {
         let mut need_redraw = false;
         let mut literally: c_int = 0;
-        let vis_active = g_st().Visual.active;
+        let vis_active = g_st().visual_global.active;
 
         ins_st().pc_status = PC_STATUS_UNSET;
         if redrawing() && !char_avail() {
@@ -2747,13 +2747,13 @@ fn ins_reg() {
             } else if !insert_reg(regname, ptr::null_mut(), literally != 0) {
                 vim_beep(K_OPT_BO_FLAG_REGISTER);
                 need_redraw = true;
-            } else if g_st().Ins.stop_insert_mode {
+            } else if g_st().ins_global.stop_insert_mode {
                 need_redraw = true;
             }
         }
         g_st().no_u_sync -= 1;
         if g_st().u_sync_once == 1 {
-            g_st().Ins.need_undo = true;
+            g_st().ins_global.need_undo = true;
         }
         g_st().u_sync_once = 0;
 
@@ -2762,7 +2762,7 @@ fn ins_reg() {
         }
         clear_showcmd();
 
-        if !vis_active && g_st().Visual.active {
+        if !vis_active && g_st().visual_global.active {
             end_visual_mode();
         }
     }
@@ -2784,12 +2784,12 @@ fn ins_ctrl_g() {
             c if c == b'j' as c_int => ins_down(true),
             c if c == b'u' as c_int => {
                 u_sync(true);
-                g_st().Ins.need_undo = true;
-                g_st().Ins.update_start_orig = false;
-                g_st().Ins.start = curwin_mut().w_cursor;
+                g_st().ins_global.need_undo = true;
+                g_st().ins_global.update_start_orig = false;
+                g_st().ins_global.start = curwin_mut().w_cursor;
             }
             c if c == b'U' as c_int => {
-                g_st().Ins.dont_sync_undo = K_NONE;
+                g_st().ins_global.dont_sync_undo = K_NONE;
             }
             ESC => {}
             _ => {
@@ -2802,12 +2802,12 @@ fn ins_ctrl_g() {
 fn ins_ctrl_hat() {
      {
         if map_to_exists_mode(c"", MODE_LANGMAP, false) {
-            if (g_st().State & MODE_LANGMAP) != 0 {
+            if (g_st().state_global & MODE_LANGMAP) != 0 {
                 curbuf_mut().b_p_iminsert = B_IMODE_NONE;
-                g_st().State &= !MODE_LANGMAP;
+                g_st().state_global &= !MODE_LANGMAP;
             } else {
                 curbuf_mut().b_p_iminsert = B_IMODE_LMAP;
-                g_st().State |= MODE_LANGMAP;
+                g_st().state_global |= MODE_LANGMAP;
             }
         }
         set_iminsert_global(curbuf_mut());
@@ -2822,10 +2822,10 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
         let temp = curwin_mut().w_cursor.col;
         if ins_st().ins_esc_disabled_redraw {
-            g_st().RedrawingDisabled -= 1;
+            g_st().redrawing_disabled -= 1;
             ins_st().ins_esc_disabled_redraw = false;
         }
-        if g_st().Ins.moved == K_INS_NONE {
+        if g_st().ins_global.moved == K_INS_NONE {
             if cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
                 redo_append_str(c"\x1b", 1);
             }
@@ -2840,20 +2840,20 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             *count -= 1;
             if *count > 0 {
                 if !vim_strchr(opt_vars().p_cpo, K_CPO_REPLCNT).is_null() {
-                    g_st().State &= !REPLACE_FLAG;
+                    g_st().state_global &= !REPLACE_FLAG;
                 }
 
                 start_redo_ins();
                 if cmdchar == b'r' as c_int || cmdchar == b'v' as c_int {
                     stuff_redo_readbuff(c"\x1b");
                 }
-                g_st().RedrawingDisabled += 1;
+                g_st().redrawing_disabled += 1;
                 ins_st().ins_esc_disabled_redraw = true;
                 return false;
             }
             stop_insert(&raw mut (*curwin_ptr()).w_cursor, 1, c_int::from(nomove));
             undisplay_dollar();
-        } else if g_st().Ins.moved == K_INS_ARROW && cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
+        } else if g_st().ins_global.moved == K_INS_ARROW && cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
             redo_append_str(c"\x1b", 1);
         }
 
@@ -2877,8 +2877,8 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
         if !nomove
             && (curwin_mut().w_cursor.col != 0 || curwin_mut().w_cursor.coladd > 0)
-            && (g_st().restart_edit == NUL as c_int || (gchar_cursor() == NUL as c_int && !g_st().Visual.active))
-            && !g_st().Ins.revins_on
+            && (g_st().restart_edit == NUL as c_int || (gchar_cursor() == NUL as c_int && !g_st().visual_global.active))
+            && !g_st().ins_global.revins_on
         {
             if curwin_mut().w_cursor.coladd > 0 || get_ve_flags(curwin_mut()) == K_OPT_VE_FLAG_ALL {
                 oneleft();
@@ -2892,7 +2892,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             }
         }
 
-        g_st().State = MODE_NORMAL;
+        g_st().state_global = MODE_NORMAL;
         may_trigger_modechanged();
         if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), K_MTMETA_INLINE) > 0 {
             curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
@@ -2915,21 +2915,21 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
 fn ins_ctrl_() {
      {
-        if g_st().Ins.revins_on && g_st().Ins.revins_chars != 0 && g_st().Ins.revins_scol >= 0 {
-            while gchar_cursor() != NUL as c_int && g_st().Ins.revins_chars != 0 {
-                g_st().Ins.revins_chars -= 1;
+        if g_st().ins_global.revins_on && g_st().ins_global.revins_chars != 0 && g_st().ins_global.revins_scol >= 0 {
+            while gchar_cursor() != NUL as c_int && g_st().ins_global.revins_chars != 0 {
+                g_st().ins_global.revins_chars -= 1;
                 curwin_mut().w_cursor.col += 1;
             }
         }
         opt_vars().p_ri = c_int::from(opt_vars().p_ri == 0);
-        g_st().Ins.revins_on = g_st().State == MODE_INSERT && opt_vars().p_ri != 0;
-        if g_st().Ins.revins_on {
-            g_st().Ins.revins_scol = curwin_mut().w_cursor.col;
-            g_st().Ins.revins_legal += 1;
-            g_st().Ins.revins_chars = 0;
+        g_st().ins_global.revins_on = g_st().state_global == MODE_INSERT && opt_vars().p_ri != 0;
+        if g_st().ins_global.revins_on {
+            g_st().ins_global.revins_scol = curwin_mut().w_cursor.col;
+            g_st().ins_global.revins_legal += 1;
+            g_st().ins_global.revins_chars = 0;
             undisplay_dollar();
         } else {
-            g_st().Ins.revins_scol = -1;
+            g_st().ins_global.revins_scol = -1;
         }
         showmode();
     }
@@ -2966,7 +2966,7 @@ fn ins_start_select(c: c_int) -> bool {
 }
 
 fn ins_insert(replace_state: c_int) {
-    let mode_str = if (g_st().State & REPLACE_FLAG) != 0 {
+    let mode_str = if (g_st().state_global & REPLACE_FLAG) != 0 {
             c"i".as_ptr()
         } else if replace_state == MODE_VREPLACE {
             c"v".as_ptr()
@@ -2975,10 +2975,10 @@ fn ins_insert(replace_state: c_int) {
         };
         set_vim_var_string(VV_INSERTMODE, mode_str, 1);
         ins_apply_autocmds(EVENT_INSERTCHANGE);
-        if (g_st().State & REPLACE_FLAG) != 0 {
-            g_st().State = MODE_INSERT | (g_st().State & MODE_LANGMAP);
+        if (g_st().state_global & REPLACE_FLAG) != 0 {
+            g_st().state_global = MODE_INSERT | (g_st().state_global & MODE_LANGMAP);
         } else {
-            g_st().State = replace_state | (g_st().State & MODE_LANGMAP);
+            g_st().state_global = replace_state | (g_st().state_global & MODE_LANGMAP);
         }
         may_trigger_modechanged();
         redo_append_char(K_INS);
@@ -2988,10 +2988,10 @@ fn ins_insert(replace_state: c_int) {
 
 fn ins_ctrl_o() {
      {
-        g_st().Visual.restart_select = 0;
-        if (g_st().State & VREPLACE_FLAG) != 0 {
+        g_st().visual_global.restart_select = 0;
+        if (g_st().state_global & VREPLACE_FLAG) != 0 {
             g_st().restart_edit = b'V' as c_int;
-        } else if (g_st().State & REPLACE_FLAG) != 0 {
+        } else if (g_st().state_global & REPLACE_FLAG) != 0 {
             g_st().restart_edit = b'R' as c_int;
         } else {
             g_st().restart_edit = b'I' as c_int;
@@ -3017,7 +3017,7 @@ fn ins_shift(c: c_int, lastc: c_int) {
         {
             curwin_mut().w_cursor.col -= 1;
             del_char(false);
-            if (g_st().State & REPLACE_FLAG) != 0 {
+            if (g_st().state_global & REPLACE_FLAG) != 0 {
                 replace_pop_ins();
             }
             if lastc == b'^' as c_int {
@@ -3033,13 +3033,13 @@ fn ins_shift(c: c_int, lastc: c_int) {
             );
         }
 
-        if g_st().Ins.did_ai && *skipwhite(get_cursor_line_ptr()) != NUL {
-            g_st().Ins.did_ai = false;
+        if g_st().ins_global.did_ai && *skipwhite(get_cursor_line_ptr()) != NUL {
+            g_st().ins_global.did_ai = false;
         }
-        g_st().Ins.did_si = false;
-        g_st().Ins.can_si = false;
-        g_st().Ins.can_si_back = false;
-        g_st().Ins.can_cindent = false;
+        g_st().ins_global.did_si = false;
+        g_st().ins_global.can_si = false;
+        g_st().ins_global.can_si_back = false;
+        g_st().ins_global.can_cindent = false;
     }
 }
 
@@ -3055,17 +3055,17 @@ fn ins_del() {
             } else {
                 mc_ins_join();
                 curwin_mut().w_cursor.col = temp;
-                if (g_st().State & VREPLACE_FLAG) != 0 && g_st().orig_line_count > curbuf_mut().b_ml.ml_line_count {
+                if (g_st().state_global & VREPLACE_FLAG) != 0 && g_st().orig_line_count > curbuf_mut().b_ml.ml_line_count {
                     g_st().orig_line_count = curbuf_mut().b_ml.ml_line_count;
                 }
             }
         } else if !del_char(false) {
             vim_beep(K_OPT_BO_FLAG_BACKSPACE);
         }
-        g_st().Ins.did_ai = false;
-        g_st().Ins.did_si = false;
-        g_st().Ins.can_si = false;
-        g_st().Ins.can_si_back = false;
+        g_st().ins_global.did_ai = false;
+        g_st().ins_global.did_si = false;
+        g_st().ins_global.can_si = false;
+        g_st().ins_global.can_si_back = false;
         redo_append_char(K_DEL);
     }
 }
@@ -3078,16 +3078,16 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
         let mut call_fix_indent = false;
 
         if buf_is_empty(curbuf_mut())
-            || (!g_st().Ins.revins_on
+            || (!g_st().ins_global.revins_on
                 && ((curwin_mut().w_cursor.lnum == 1 && curwin_mut().w_cursor.col == 0)
                     || (!can_bs(BS_START)
-                        && ((g_st().Ins.moved != K_INS_NONE && !bt_prompt(Some(crate::globals::curbuf_mut())))
-                            || (curwin_mut().w_cursor.lnum == g_st().Ins.start_orig.lnum
-                                && curwin_mut().w_cursor.col <= g_st().Ins.start_orig.col)))
+                        && ((g_st().ins_global.moved != K_INS_NONE && !bt_prompt(Some(crate::globals::curbuf_mut())))
+                            || (curwin_mut().w_cursor.lnum == g_st().ins_global.start_orig.lnum
+                                && curwin_mut().w_cursor.col <= g_st().ins_global.start_orig.col)))
                     || (!can_bs(BS_INDENT)
-                        && g_st().Ins.moved == K_INS_NONE
-                        && g_st().Ins.ai_col > 0
-                        && curwin_mut().w_cursor.col <= g_st().Ins.ai_col)
+                        && g_st().ins_global.moved == K_INS_NONE
+                        && g_st().ins_global.ai_col > 0
+                        && curwin_mut().w_cursor.col <= g_st().ins_global.ai_col)
                     || (!can_bs(BS_EOL) && curwin_mut().w_cursor.col == 0)))
         {
             vim_beep(K_OPT_BO_FLAG_BACKSPACE);
@@ -3099,10 +3099,10 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
         }
         let in_indent = inindent(0);
         if in_indent {
-            g_st().Ins.can_cindent = false;
+            g_st().ins_global.can_cindent = false;
         }
-        g_st().Ins.end_comment_pending = NUL as c_int;
-        if g_st().Ins.revins_on {
+        g_st().ins_global.end_comment_pending = NUL as c_int;
+        if g_st().ins_global.revins_on {
             inc_cursor();
         }
         if curwin_mut().w_cursor.coladd > 0 {
@@ -3119,22 +3119,22 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
         if curwin_mut().w_cursor.col == 0 {
             mc_ins_join();
-            let lnum = g_st().Ins.start.lnum;
-            if curwin_mut().w_cursor.lnum == lnum || g_st().Ins.revins_on {
+            let lnum = g_st().ins_global.start.lnum;
+            if curwin_mut().w_cursor.lnum == lnum || g_st().ins_global.revins_on {
                 if !u_save(curwin_mut().w_cursor.lnum - 2, curwin_mut().w_cursor.lnum + 1) {
                     return false;
                 }
-                g_st().Ins.start.lnum -= 1;
-                g_st().Ins.start.col = ml_get_len(g_st().Ins.start.lnum);
+                g_st().ins_global.start.lnum -= 1;
+                g_st().ins_global.start.col = ml_get_len(g_st().ins_global.start.lnum);
             }
             cc = -1;
-            if (g_st().State & REPLACE_FLAG) != 0 {
+            if (g_st().state_global & REPLACE_FLAG) != 0 {
                 cc = replace_pop_if_nul();
             }
-            if (g_st().State & REPLACE_FLAG) != 0 && curwin_mut().w_cursor.lnum <= lnum {
+            if (g_st().state_global & REPLACE_FLAG) != 0 && curwin_mut().w_cursor.lnum <= lnum {
                 dec_cursor();
             } else {
-                if (g_st().State & VREPLACE_FLAG) == 0 || curwin_mut().w_cursor.lnum > g_st().orig_line_count {
+                if (g_st().state_global & VREPLACE_FLAG) == 0 || curwin_mut().w_cursor.lnum > g_st().orig_line_count {
                     temp = gchar_cursor();
                     curwin_mut().w_cursor.lnum -= 1;
 
@@ -3156,9 +3156,9 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                     dec_cursor();
                 }
 
-                if (g_st().State & REPLACE_FLAG) != 0 {
-                    let old_state = g_st().State;
-                    g_st().State = MODE_NORMAL;
+                if (g_st().state_global & REPLACE_FLAG) != 0 {
+                    let old_state = g_st().state_global;
+                    g_st().state_global = MODE_NORMAL;
                     while cc > 0 {
                         let save_col = curwin_mut().w_cursor.col;
                         mb_replace_pop_ins();
@@ -3166,16 +3166,16 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                         cc = replace_pop_if_nul();
                     }
                     replace_pop_ins();
-                    g_st().State = old_state;
+                    g_st().state_global = old_state;
                 }
             }
-            g_st().Ins.did_ai = false;
+            g_st().ins_global.did_ai = false;
         } else {
-            if g_st().Ins.revins_on {
+            if g_st().ins_global.revins_on {
                 dec_cursor();
             }
             let mut mincol: Colnr = 0;
-            if mode == BACKSPACE_LINE && (curbuf_mut().b_p_ai != 0 || cindent_on()) && !g_st().Ins.revins_on {
+            if mode == BACKSPACE_LINE && (curbuf_mut().b_p_ai != 0 || cindent_on()) && !g_st().ins_global.revins_on {
                 let save_col = curwin_mut().w_cursor.col;
                 beginline(BL_WHITE);
                 if curwin_mut().w_cursor.col < save_col {
@@ -3191,7 +3191,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                         && curwin_mut().w_cursor.col > 0
                         && (*get_cursor_pos_ptr().offset(-1) == TAB as c_char
                             || (*get_cursor_pos_ptr().offset(-1) == b' ' as c_char
-                                && (*inserted_space_p == 0 || g_st().Ins.moved != K_INS_NONE)))))
+                                && (*inserted_space_p == 0 || g_st().ins_global.moved != K_INS_NONE)))))
             {
                 *inserted_space_p = 0;
 
@@ -3250,9 +3250,9 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
                 while curwin_mut().w_cursor.col > want_col {
                     dec_cursor();
-                    if (g_st().State & REPLACE_FLAG) != 0 {
-                        if curwin_mut().w_cursor.lnum != g_st().Ins.start.lnum
-                            || curwin_mut().w_cursor.col >= g_st().Ins.start.col
+                    if (g_st().state_global & REPLACE_FLAG) != 0 {
+                        if curwin_mut().w_cursor.lnum != g_st().ins_global.start.lnum
+                            || curwin_mut().w_cursor.col >= g_st().ins_global.start.col
                         {
                             replace_do_bs(-1);
                         }
@@ -3262,17 +3262,17 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                 }
 
                 while space_vcol < want_vcol {
-                    if curwin_mut().w_cursor.lnum == g_st().Ins.start_orig.lnum
-                        && curwin_mut().w_cursor.col < g_st().Ins.start_orig.col
+                    if curwin_mut().w_cursor.lnum == g_st().ins_global.start_orig.lnum
+                        && curwin_mut().w_cursor.col < g_st().ins_global.start_orig.col
                     {
-                        g_st().Ins.start_orig.col = curwin_mut().w_cursor.col;
+                        g_st().ins_global.start_orig.col = curwin_mut().w_cursor.col;
                     }
 
-                    if (g_st().State & VREPLACE_FLAG) != 0 {
+                    if (g_st().state_global & VREPLACE_FLAG) != 0 {
                         ins_char(b' ' as c_int);
                     } else {
                         ins_str(c" ", 1);
-                        if (g_st().State & REPLACE_FLAG) != 0 {
+                        if (g_st().state_global & REPLACE_FLAG) != 0 {
                             replace_push_nul();
                         }
                     }
@@ -3281,7 +3281,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             } else {
                 let mut cclass = mb_get_class(get_cursor_pos_ptr());
                 loop {
-                    if !g_st().Ins.revins_on {
+                    if !g_st().ins_global.revins_on {
                         dec_cursor();
                     }
                     cc = gchar_cursor();
@@ -3295,14 +3295,14 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                             || c_int::from(vim_iswordc(cc)) != temp
                             || prev_cclass != cclass)
                     {
-                        if !g_st().Ins.revins_on {
+                        if !g_st().ins_global.revins_on {
                             inc_cursor();
-                        } else if (g_st().State & REPLACE_FLAG) != 0 {
+                        } else if (g_st().state_global & REPLACE_FLAG) != 0 {
                             dec_cursor();
                         }
                         break;
                     }
-                    if (g_st().State & REPLACE_FLAG) != 0 {
+                    if (g_st().state_global & REPLACE_FLAG) != 0 {
                         replace_do_bs(-1);
                     } else {
                         let mut has_composing = false;
@@ -3318,22 +3318,22 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                         if has_composing {
                             inc_cursor();
                         }
-                        if g_st().Ins.revins_chars != 0 {
-                            g_st().Ins.revins_chars -= 1;
-                            g_st().Ins.revins_legal += 1;
+                        if g_st().ins_global.revins_chars != 0 {
+                            g_st().ins_global.revins_chars -= 1;
+                            g_st().ins_global.revins_legal += 1;
                         }
-                        if g_st().Ins.revins_on && gchar_cursor() == NUL as c_int {
+                        if g_st().ins_global.revins_on && gchar_cursor() == NUL as c_int {
                             break;
                         }
                     }
                     if mode == BACKSPACE_CHAR {
                         break;
                     }
-                    if !(g_st().Ins.revins_on
+                    if !(g_st().ins_global.revins_on
                         || (curwin_mut().w_cursor.col > mincol
                             && (can_bs(BS_NOSTOP)
-                                || curwin_mut().w_cursor.lnum != g_st().Ins.start_orig.lnum
-                                || curwin_mut().w_cursor.col != g_st().Ins.start_orig.col)))
+                                || curwin_mut().w_cursor.lnum != g_st().ins_global.start_orig.lnum
+                                || curwin_mut().w_cursor.col != g_st().ins_global.start_orig.col)))
                     {
                         break;
                     }
@@ -3341,11 +3341,11 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             }
             did_backspace = true;
         }
-        g_st().Ins.did_si = false;
-        g_st().Ins.can_si = false;
-        g_st().Ins.can_si_back = false;
+        g_st().ins_global.did_si = false;
+        g_st().ins_global.can_si = false;
+        g_st().ins_global.can_si_back = false;
         if curwin_mut().w_cursor.col <= 1 {
-            g_st().Ins.did_ai = false;
+            g_st().ins_global.did_ai = false;
         }
 
         if call_fix_indent {
@@ -3354,10 +3354,10 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
         redo_append_char(c);
 
-        if curwin_mut().w_cursor.lnum == g_st().Ins.start_orig.lnum
-            && curwin_mut().w_cursor.col < g_st().Ins.start_orig.col
+        if curwin_mut().w_cursor.lnum == g_st().ins_global.start_orig.lnum
+            && curwin_mut().w_cursor.col < g_st().ins_global.start_orig.col
         {
-            g_st().Ins.start_orig.col = curwin_mut().w_cursor.col;
+            g_st().ins_global.start_orig.col = curwin_mut().w_cursor.col;
         }
 
         if !vim_strchr(opt_vars().p_cpo, K_CPO_BACKSPACE).is_null() && g_st().dollar_vcol == -1 {
@@ -3373,18 +3373,18 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
 fn ins_left() {
      {
-        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
+        let end_change = g_st().ins_global.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
         undisplay_dollar();
         let mut tpos = curwin_mut().w_cursor;
         if oneleft() {
             start_arrow_with_change(&mut tpos, end_change, K_LEFT);
-            if g_st().Ins.revins_scol != -1 && curwin_mut().w_cursor.col >= g_st().Ins.revins_scol {
-                g_st().Ins.revins_legal += 1;
+            if g_st().ins_global.revins_scol != -1 && curwin_mut().w_cursor.col >= g_st().ins_global.revins_scol {
+                g_st().ins_global.revins_legal += 1;
             }
-            g_st().Ins.revins_chars += 1;
+            g_st().ins_global.revins_chars += 1;
         } else if !vim_strchr(opt_vars().p_ww, b'[' as c_int).is_null() && curwin_mut().w_cursor.lnum > 1 {
             start_arrow(&raw mut tpos, true, K_LEFT);
             curwin_mut().w_cursor.lnum -= 1;
@@ -3393,13 +3393,13 @@ fn ins_left() {
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = K_FALSE;
+        g_st().ins_global.dont_sync_undo = K_FALSE;
     }
 }
 
 fn ins_home(c: c_int) {
      {
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
         undisplay_dollar();
@@ -3420,7 +3420,7 @@ fn ins_home(c: c_int) {
 
 fn ins_end(c: c_int) {
      {
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
         undisplay_dollar();
@@ -3440,8 +3440,8 @@ fn ins_end(c: c_int) {
 
 fn ins_s_left() {
      {
-        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
+        let end_change = g_st().ins_global.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
         undisplay_dollar();
@@ -3452,14 +3452,14 @@ fn ins_s_left() {
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = K_FALSE;
+        g_st().ins_global.dont_sync_undo = K_FALSE;
     }
 }
 
 fn ins_right() {
     unsafe {
-        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
+        let end_change = g_st().ins_global.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
         undisplay_dollar();
@@ -3472,9 +3472,9 @@ fn ins_right() {
                 curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
             }
 
-            g_st().Ins.revins_legal += 1;
-            if g_st().Ins.revins_chars != 0 {
-                g_st().Ins.revins_chars -= 1;
+            g_st().ins_global.revins_legal += 1;
+            if g_st().ins_global.revins_chars != 0 {
+                g_st().ins_global.revins_chars -= 1;
             }
         } else if !vim_strchr(opt_vars().p_ww, b']' as c_int).is_null()
             && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
@@ -3486,14 +3486,14 @@ fn ins_right() {
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = K_FALSE;
+        g_st().ins_global.dont_sync_undo = K_FALSE;
     }
 }
 
 fn ins_s_right() {
      {
-        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
+        let end_change = g_st().ins_global.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed {
             fold_open_cursor();
         }
         undisplay_dollar();
@@ -3505,7 +3505,7 @@ fn ins_s_right() {
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = K_FALSE;
+        g_st().ins_global.dont_sync_undo = K_FALSE;
     }
 }
 
@@ -3518,7 +3518,7 @@ fn ins_up(startcol: bool) {
         let mut tpos = curwin_mut().w_cursor;
         if cursor_up(1, true) {
             if startcol {
-                coladvance(curwin_mut(), getvcol_nolist(&mut g_st().Ins.start));
+                coladvance(curwin_mut(), getvcol_nolist(&mut g_st().ins_global.start));
             }
             if old_topline != curwin_mut().w_topline || old_topfill != curwin_mut().w_topfill {
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
@@ -3528,7 +3528,7 @@ fn ins_up(startcol: bool) {
                 true,
                 if startcol { b'k' as c_int } else { K_UP },
             );
-            g_st().Ins.can_cindent = true;
+            g_st().ins_global.can_cindent = true;
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
@@ -3550,7 +3550,7 @@ fn ins_pageup() {
         let mut tpos = curwin_mut().w_cursor;
         if pagescroll(BACKWARD, 1, false) {
             start_arrow(&raw mut tpos, true, NUL as c_int);
-            g_st().Ins.can_cindent = true;
+            g_st().ins_global.can_cindent = true;
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
@@ -3566,7 +3566,7 @@ fn ins_down(startcol: bool) {
         let mut tpos = curwin_mut().w_cursor;
         if cursor_down(1, true) {
             if startcol {
-                coladvance(curwin_mut(), getvcol_nolist(&mut g_st().Ins.start));
+                coladvance(curwin_mut(), getvcol_nolist(&mut g_st().ins_global.start));
             }
             if old_topline != curwin_mut().w_topline || old_topfill != curwin_mut().w_topfill {
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
@@ -3576,7 +3576,7 @@ fn ins_down(startcol: bool) {
                 true,
                 if startcol { b'j' as c_int } else { K_DOWN },
             );
-            g_st().Ins.can_cindent = true;
+            g_st().ins_global.can_cindent = true;
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
@@ -3598,7 +3598,7 @@ fn ins_pagedown() {
         let mut tpos = curwin_mut().w_cursor;
         if pagescroll(FORWARD, 1, false) {
             start_arrow(&raw mut tpos, true, NUL as c_int);
-            g_st().Ins.can_cindent = true;
+            g_st().ins_global.can_cindent = true;
         } else {
             vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
@@ -3607,8 +3607,8 @@ fn ins_pagedown() {
 
 fn ins_tab() -> bool {
     unsafe {
-        if g_st().Ins.start_blank_vcol == MAXCOL && curwin_mut().w_cursor.lnum == g_st().Ins.start.lnum {
-            g_st().Ins.start_blank_vcol = get_nolist_virtcol();
+        if g_st().ins_global.start_blank_vcol == MAXCOL && curwin_mut().w_cursor.lnum == g_st().ins_global.start.lnum {
+            g_st().ins_global.start_blank_vcol = get_nolist_virtcol();
         }
         if echeck_abbr(TAB + ABBR_OFF) {
             return false;
@@ -3616,7 +3616,7 @@ fn ins_tab() -> bool {
 
         let ind = inindent(0);
         if ind {
-            g_st().Ins.can_cindent = false;
+            g_st().ins_global.can_cindent = false;
         }
 
         if curbuf_mut().b_p_et == 0
@@ -3637,10 +3637,10 @@ fn ins_tab() -> bool {
             return true;
         }
 
-        g_st().Ins.did_ai = false;
-        g_st().Ins.did_si = false;
-        g_st().Ins.can_si = false;
-        g_st().Ins.can_si_back = false;
+        g_st().ins_global.did_ai = false;
+        g_st().ins_global.did_si = false;
+        g_st().ins_global.can_si = false;
+        g_st().ins_global.can_si_back = false;
         redo_append_str(c"\t", 1);
 
         let mut temp: c_int = if opt_vars().p_sta != 0 && ind {
@@ -3665,11 +3665,11 @@ fn ins_tab() -> bool {
             temp -= 1;
             temp > 0
         } {
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 ins_char(b' ' as c_int);
             } else {
                 ins_str(c" ", 1);
-                if (g_st().State & REPLACE_FLAG) != 0 {
+                if (g_st().state_global & REPLACE_FLAG) != 0 {
                     replace_push_nul();
                 }
             }
@@ -3690,7 +3690,7 @@ fn ins_tab() -> bool {
             let mut change_col: c_int = -1;
             let save_list = curwin_mut().w_onebuf_opt.wo_list;
 
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 pos = curwin_mut().w_cursor;
                 cursor = &raw mut pos;
                 let line_len = get_cursor_line_len() as usize;
@@ -3714,12 +3714,12 @@ fn ins_tab() -> bool {
                 ptr = ptr.offset(-1);
             }
 
-            if (g_st().State & REPLACE_FLAG) != 0
-                && fpos.lnum == g_st().Ins.start.lnum
-                && fpos.col < g_st().Ins.start.col
+            if (g_st().state_global & REPLACE_FLAG) != 0
+                && fpos.lnum == g_st().ins_global.start.lnum
+                && fpos.col < g_st().ins_global.start.col
             {
-                ptr = ptr.offset((g_st().Ins.start.col - fpos.col) as isize);
-                fpos.col = g_st().Ins.start.col;
+                ptr = ptr.offset((g_st().ins_global.start.col - fpos.col) as isize);
+                fpos.col = g_st().ins_global.start.col;
             }
 
             getvcol(
@@ -3753,8 +3753,8 @@ fn ins_tab() -> bool {
                     *ptr = TAB as c_char;
                     if change_col < 0 {
                         change_col = fpos.col;
-                        if fpos.lnum == g_st().Ins.start.lnum && fpos.col < g_st().Ins.start.col {
-                            g_st().Ins.start.col = fpos.col;
+                        if fpos.lnum == g_st().ins_global.start.lnum && fpos.col < g_st().ins_global.start.col {
+                            g_st().ins_global.start.col = fpos.col;
                         }
                     }
                 }
@@ -3780,7 +3780,7 @@ fn ins_tab() -> bool {
 
                 let i = (*cursor).col - fpos.col;
                 if i > 0 {
-                    if (g_st().State & VREPLACE_FLAG) == 0 {
+                    if (g_st().state_global & VREPLACE_FLAG) == 0 {
                         let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
                         let col = ptr.offset_from(curbuf_mut().b_ml.ml_line_ptr) as usize;
                         let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
@@ -3803,7 +3803,7 @@ fn ins_tab() -> bool {
                         let rem = crate::memory::cstr_len(ptr.offset(i as isize)) + 1;
                         ptr::copy(ptr.offset(i as isize), ptr, rem);
                     }
-                    if (g_st().State & REPLACE_FLAG) != 0 && (g_st().State & VREPLACE_FLAG) == 0 {
+                    if (g_st().state_global & REPLACE_FLAG) != 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
                         for _ in 0..i {
                             replace_join(repl_off);
                         }
@@ -3811,7 +3811,7 @@ fn ins_tab() -> bool {
                 }
                 (*cursor).col -= i;
 
-                if (g_st().State & VREPLACE_FLAG) != 0 {
+                if (g_st().state_global & VREPLACE_FLAG) != 0 {
                     backspace_until_column(change_col);
                     ins_bytes_len(
                         saved_line.offset(change_col as isize),
@@ -3838,7 +3838,7 @@ pub fn ins_eol(c: c_int) -> bool {
         }
         undisplay_dollar();
 
-        if (g_st().State & REPLACE_FLAG) != 0 && (g_st().State & VREPLACE_FLAG) == 0 {
+        if (g_st().state_global & REPLACE_FLAG) != 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
             replace_push_nul();
         }
 
@@ -3846,7 +3846,7 @@ pub fn ins_eol(c: c_int) -> bool {
             coladvance(curwin_mut(), getviscol());
         }
 
-        if g_st().Ins.revins_on {
+        if g_st().ins_global.revins_on {
             curwin_mut().w_cursor.col += get_cursor_pos_len();
         }
 
@@ -3862,7 +3862,7 @@ pub fn ins_eol(c: c_int) -> bool {
             None,
         );
         g_st().old_indent = 0;
-        g_st().Ins.can_cindent = true;
+        g_st().ins_global.can_cindent = true;
         fold_open_cursor();
         i
     }
@@ -3988,8 +3988,8 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
                 curbuf_mut().b_p_tw = -1;
                 insert_special(c, 1, 0);
                 curbuf_mut().b_p_tw = tw_save;
-                g_st().Ins.revins_chars += 1;
-                g_st().Ins.revins_legal += 1;
+                g_st().ins_global.revins_chars += 1;
+                g_st().ins_global.revins_legal += 1;
                 c = CTRL_V_CONST;
                 auto_format(false, true);
             }
@@ -4017,12 +4017,12 @@ pub fn get_nolist_virtcol() -> Colnr {
 
 fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
     {
-        if c == CTRL_RSB_CONST || g_st().KeyStuffed != 0 || !has_event(EVENT_INSERTCHARPRE) {
+        if c == CTRL_RSB_CONST || g_st().key_stuffed != 0 || !has_event(EVENT_INSERTCHARPRE) {
             return None;
         }
 
         let mut buf = [0 as c_char; MB_MAXBYTES + 1];
-        let save_state = g_st().State;
+        let save_state = g_st().state_global;
         let buflen = utf_char2bytes(c, (&raw mut buf).cast()) as usize;
         buf[buflen] = NUL;
 
@@ -4039,17 +4039,17 @@ fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
 
         set_vim_var_string(VV_CHAR, ptr::null(), -1);
         g_st().textlock -= 1;
-        g_st().State = save_state;
+        g_st().state_global = save_state;
         res
     }
 }
 
 pub fn get_can_cindent() -> bool {
-    g_st().Ins.can_cindent
+    g_st().ins_global.can_cindent
 }
 
 pub fn set_can_cindent(val: bool) {
-    g_st().Ins.can_cindent = val;
+    g_st().ins_global.can_cindent = val;
 }
 
 /// Trigger `event` and take care of fixing undo.

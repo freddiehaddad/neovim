@@ -203,7 +203,7 @@ fn redraw_for_cursorcolumn(wp: &mut WinInfoInfo) {
             redraw_later(Some(&mut *wp), UPD_VALID);
         }
 
-        if g_st().Visual.active && wp.w_buffer == g_st().curbuf {
+        if g_st().visual_global.active && wp.w_buffer == g_st().curbuf {
             redraw_buf_later(g_st().curbuf, UPD_INVERTED);
         }
     }
@@ -2590,7 +2590,7 @@ pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> bool {
             }
         } else {
             let one_window = g_st().firstwin == g_st().lastwin;
-            count *= if one_window && opt_vars().p_window > 0 && opt_vars().p_window < i64::from(g_st().Rows - 1) {
+            count *= if one_window && opt_vars().p_window > 0 && opt_vars().p_window < i64::from(g_st().rows_global - 1) {
                 (opt_vars().p_window as c_int - 2).max(1)
             } else {
                 get_scroll_overlap(dir)
@@ -2675,11 +2675,11 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
         let set_curswant = curwin_mut().w_set_curswant;
         let old_curwin = curwin_ptr();
         let old_curbuf = g_st().curbuf;
-        let old_visual_select = g_st().Visual.select;
-        let old_visual_active = g_st().Visual.active;
+        let old_visual_select = g_st().visual_global.select;
+        let old_visual_active = g_st().visual_global.active;
 
-        g_st().Visual.select = false;
-        g_st().Visual.active = false;
+        g_st().visual_global.select = false;
+        g_st().visual_global.active = false;
         for wp in for_all_windows_ptr() {
             set_curwin(wp);
             g_st().curbuf = curwin_mut().w_buffer;
@@ -2715,8 +2715,8 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
             }
         }
 
-        g_st().Visual.select = old_visual_select;
-        g_st().Visual.active = old_visual_active;
+        g_st().visual_global.select = old_visual_select;
+        g_st().visual_global.active = old_visual_active;
         set_curwin(old_curwin);
         g_st().curbuf = old_curbuf;
     }

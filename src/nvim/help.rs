@@ -52,7 +52,7 @@ pub fn ex_help(eap: &mut Exarg) {
         let mut wp: *mut WinInfoInfo;
         let mut empty_fnum: c_int = 0;
         let mut alt_fnum: c_int = 0;
-        let old_key_typed = g_st().KeyTyped;
+        let old_key_typed = g_st().key_typed;
 
         if !eap.arg.is_null() {
             arg = eap.arg;
@@ -193,7 +193,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
                     let mut n = WSP_HELP;
                     if g_st().cmdmod.cmod_split == 0
-                        && curwin_mut().w_width != g_st().Columns
+                        && curwin_mut().w_width != g_st().columns_global
                         && curwin_mut().w_width < 80
                     {
                         n |= if opt_vars().p_sb != 0 { WSP_BOT } else { WSP_TOP };
@@ -227,7 +227,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
         if !early_ret {
             g_st().restart_edit = 0;
-            g_st().KeyTyped = old_key_typed;
+            g_st().key_typed = old_key_typed;
 
             do_tag(
                 None,
@@ -366,7 +366,7 @@ pub fn find_help_tags(
             tv_clear(&mut rettv);
             return false;
         }
-        xstrlcpy(g_st().IObuff.as_mut_ptr(), rettv.vval.v_string(), IOSIZE);
+        xstrlcpy(g_st().iobuff.as_mut_ptr(), rettv.vval.v_string(), IOSIZE);
         tv_clear(&mut rettv);
 
         matches.clear();
@@ -376,7 +376,7 @@ pub fn find_help_tags(
         }
         let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
         if find_tags(
-            g_st().IObuff.as_mut_ptr(),
+            g_st().iobuff.as_mut_ptr(),
             &mut raw_matches,
             flags,
             crate::regexp::MAXCOL,

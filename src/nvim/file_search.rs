@@ -1203,7 +1203,7 @@ pub fn find_file_in_path_option(
         });
         let ff_opt = &mut *FF_OPT_STATE.as_ptr();
         let mut file_name: Option<std::ffi::CString> = None;
-        let name_buff = g_st().NameBuff.as_mut_ptr();
+        let name_buff = g_st().name_buff.as_mut_ptr();
 
         if !rel_fname.is_null() && path_with_url(rel_fname) != 0 {
             rel_fname = ptr::null_mut();
@@ -1386,7 +1386,7 @@ pub fn find_file_in_path_option(
 pub fn grab_file_name(count: c_int, file_lnum: &mut Linenr) -> Option<std::ffi::CString> {
     unsafe {
         let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
-        let fname = if g_st().Visual.active {
+        let fname = if g_st().visual_global.active {
             let mut len: usize = 0;
             let mut ptr: *mut c_char = ptr::null_mut();
             if !get_visual_text(None, &mut ptr, &mut len) {
@@ -1722,7 +1722,7 @@ pub fn do_autocmd_dirchanged(
 pub fn vim_chdirfile(fname: impl crate::strings::IntoCCharPtr, cause: CdCause) -> bool { let fname = fname.into_c_char_ptr();
     unsafe {
         let mut dir: [c_char; MAXPATHL] = [0; MAXPATHL];
-        let name_buff = g_st().NameBuff.as_mut_ptr();
+        let name_buff = g_st().name_buff.as_mut_ptr();
 
         xstrlcpy(dir.as_mut_ptr(), fname, MAXPATHL);
         *path_tail_with_sep(dir.as_mut_ptr()) = NUL;

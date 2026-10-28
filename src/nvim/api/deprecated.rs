@@ -47,19 +47,19 @@ const LINE_BUFFER_MIN_SIZE: usize = 4096;
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_empty {
-    pub is_set__empty_: OptionalKeys,
+    pub is_set_empty: OptionalKeys,
 }
 
 struct ApiDeprecatedState {
-    OUT_LINE_BUF: Vec<c_char>,
-    ERR_LINE_BUF: Vec<c_char>,
+    out_line_buf: Vec<c_char>,
+    err_line_buf: Vec<c_char>,
 }
 
 impl ApiDeprecatedState {
     const fn new() -> Self {
         Self {
-            OUT_LINE_BUF: Vec::new(),
-            ERR_LINE_BUF: Vec::new(),
+            out_line_buf: Vec::new(),
+            err_line_buf: Vec::new(),
         }
     }
 }
@@ -1184,9 +1184,9 @@ fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
 fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
     unsafe {
         let line_buf_ptr = if to_err {
-            &raw mut api_dep_st().ERR_LINE_BUF
+            &raw mut api_dep_st().err_line_buf
         } else {
-            &raw mut api_dep_st().OUT_LINE_BUF
+            &raw mut api_dep_st().out_line_buf
         };
         let line_buf = &mut *line_buf_ptr;
 

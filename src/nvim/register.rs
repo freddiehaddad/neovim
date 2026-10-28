@@ -147,8 +147,8 @@ pub struct BlockDef {
     pub start_vcol: Colnr,
     pub end_vcol: Colnr,
     pub is_short: c_int,
-    pub is_MAX: c_int,
-    pub is_oneChar: c_int,
+    pub is_max: c_int,
+    pub is_one_char: c_int,
     pub pre_whitesp: c_int,
     pub pre_whitesp_c: c_int,
     pub end_char_vcols: Colnr,
@@ -166,8 +166,8 @@ impl BlockDef {
             start_vcol: 0,
             end_vcol: 0,
             is_short: 0,
-            is_MAX: 0,
-            is_oneChar: 0,
+            is_max: 0,
+            is_one_char: 0,
             pre_whitesp: 0,
             pre_whitesp_c: 0,
             end_char_vcols: 0,
@@ -768,7 +768,7 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                 false,
             );
             let p_ptr = p.as_ptr().cast_mut();
-            if g_st().Visual.active && (crate::memory::cstr_prefix_bytes(p_ptr, 5) == &b"'<,'>"[..5]) {
+            if g_st().visual_global.active && (crate::memory::cstr_prefix_bytes(p_ptr, 5) == &b"'<,'>"[..5]) {
                 retval = put_in_typebuf(p_ptr.add(5), true, true, silent);
             } else {
                 retval = put_in_typebuf(p_ptr, true, true, silent);
@@ -883,7 +883,7 @@ pub fn insert_reg(regname: c_int, mut reg: *mut Yankreg, literally_arg: bool) ->
                 for i in 0..reg_ref.y_array.len() {
                     if put {
                         let mut dir = BACKWARD;
-                        if (g_st().State & REPLACE_FLAG) != 0 {
+                        if (g_st().state_global & REPLACE_FLAG) != 0 {
                             if !u_save_cursor() {
                                 return false;
                             }
@@ -1137,7 +1137,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
         if orig_motion == MotionType::MtCharWise
             && oap.start.col == 0
             && !oap.inclusive
-            && (!oap.is_VIsual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+            && (!oap.is_visual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
             && oap.end.col == 0
             && yanklines > 1
         {
@@ -1407,7 +1407,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
         tv_dict_add_bool(
             &mut *dict,
             c"visual",
-            if oap.is_VIsual {
+            if oap.is_visual {
                 K_BOOL_VAR_TRUE_CONST
             } else {
                 K_BOOL_VAR_FALSE_CONST
@@ -1481,7 +1481,7 @@ fn put_do_autocmd(
         tv_dict_add_bool(
             &mut *v_event,
             c"visual",
-            if g_st().Visual.active {
+            if g_st().visual_global.active {
                 K_BOOL_VAR_TRUE_CONST
             } else {
                 K_BOOL_VAR_FALSE_CONST
@@ -1564,7 +1564,7 @@ pub fn do_put(
         curbuf_mut().b_op_end = curwin_mut().w_cursor;
 
         if regname == c_int::from(b'.') && reg.is_null() {
-            let non_linewise_vis = g_st().Visual.active && g_st().Visual.mode != c_int::from(b'V');
+            let non_linewise_vis = g_st().visual_global.active && g_st().visual_global.mode != c_int::from(b'V');
 
             let command_start_char = if non_linewise_vis {
                 c_int::from(b'c')
@@ -2115,7 +2115,7 @@ pub fn do_put(
                     let start_lnum = lnum;
                     let mut first_byte_off: c_int = 0;
 
-                    if g_st().Visual.active {
+                    if g_st().visual_global.active {
                         end_lnum = curbuf_mut()
                             .b_visual
                             .vi_end
@@ -2158,9 +2158,9 @@ pub fn do_put(
                                     col = MAXCOL;
                                 }
                             }
-                            if g_st().Visual.active && col > oldlen {
+                            if g_st().visual_global.active && col > oldlen {
                                 lnum += 1;
-                                if !(g_st().Visual.active && lnum <= end_lnum) {
+                                if !(g_st().visual_global.active && lnum <= end_lnum) {
                                     break;
                                 }
                                 continue;
@@ -2193,10 +2193,10 @@ pub fn do_put(
                                 totlen as c_int,
                                 K_EXTMARK_UNDO,
                             );
-                            if g_st().Visual.active {
+                            if g_st().visual_global.active {
                                 lnum += 1;
                             }
-                            if !(g_st().Visual.active && lnum <= end_lnum) {
+                            if !(g_st().visual_global.active && lnum <= end_lnum) {
                                 break;
                             }
                         }
@@ -2467,7 +2467,7 @@ pub fn do_put(
         drop(insert_string_owned);
 
         if curbuf_mut().terminal.is_null() {
-            g_st().Visual.active = false;
+            g_st().visual_global.active = false;
         }
 
         adjust_cursor_eol();
@@ -2476,7 +2476,7 @@ pub fn do_put(
 
 fn dis_msg(p: impl crate::strings::IntoCCharPtr, skip_esc: bool) { let mut p = p.into_c_char_ptr();
     unsafe {
-        let mut n = g_st().Columns - 6;
+        let mut n = g_st().columns_global - 6;
         while !crate::memory::cstr_is_empty(p) && !(*p == ESC && skip_esc && crate::memory::cstr_byte_at(p, 1) == 0) {
             n -= ptr2cells(p);
             if n < 0 {
@@ -2560,7 +2560,7 @@ pub fn ex_display(eap: &mut Exarg) {
                     msg_putchar(name);
                     msg_puts(c"   ");
 
-                    let mut n = g_st().Columns - 11;
+                    let mut n = g_st().columns_global - 11;
                     let mut j: usize = 0;
                     while j < yb_ref.y_array.len() && n > 1 {
                         if j != 0 {

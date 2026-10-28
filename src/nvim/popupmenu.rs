@@ -274,7 +274,7 @@ fn pum_compute_vertical_placement(
         {
             pum().above = true;
 
-            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_none() {
+            if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
                 context_lines = 0;
             } else {
                 context_lines = 2.min(target_win.as_deref_mut().unwrap().w_wrow - target_win.as_deref_mut().unwrap().w_cline_row);
@@ -302,7 +302,7 @@ fn pum_compute_vertical_placement(
         } else {
             pum().above = false;
 
-            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_none() {
+            if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
                 context_lines = 0;
             } else {
                 validate_cheight( target_win.as_deref_mut().unwrap());
@@ -358,7 +358,7 @@ fn pum_compute_horizontal_placement(
     border_width: c_int,
 ) {
      {
-        let max_col = g_st().Columns.max(if let Some(target_win) = target_win {
+        let max_col = g_st().columns_global.max(if let Some(target_win) = target_win {
             target_win.w_wincol + target_win.w_view_width
         } else {
             0
@@ -431,10 +431,10 @@ pub fn pum_display(
 
         if !pum().is_visible {
             pum().external =
-                ui_has(K_UIPOPUPMENU_CONST) || ((g_st().State & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST));
+                ui_has(K_UIPOPUPMENU_CONST) || ((g_st().state_global & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST));
         }
 
-        pum().rl = (g_st().State & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl != 0;
+        pum().rl = (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl != 0;
 
         let border_width = pum_border_width();
         loop {
@@ -443,10 +443,10 @@ pub fn pum_display(
             validate_cursor_col(curwin_mut());
             let mut above_row: c_int = 0;
             let mut below_row = g_st().cmdline_row.max(curwin_mut().w_winrow + curwin_mut().w_view_height);
-            if (g_st().State & MODE_CMDLINE) != 0 {
+            if (g_st().state_global & MODE_CMDLINE) != 0 {
                 below_row = g_st().cmdline_row;
             }
-            let target_win = if (g_st().State & MODE_CMDLINE) != 0 {
+            let target_win = if (g_st().state_global & MODE_CMDLINE) != 0 {
                 g_st().cmdline_win
             } else {
                 curwin_ptr()
@@ -457,7 +457,7 @@ pub fn pum_display(
             let mut pum_win_row: c_int;
             let mut cursor_col: c_int;
 
-            if (g_st().State & MODE_CMDLINE) != 0 {
+            if (g_st().state_global & MODE_CMDLINE) != 0 {
                 pum_win_row = if !g_st().cmdline_win.is_null() {
                     (*g_st().cmdline_win).w_wrow
                 } else if ui_has(K_UICMDLINE) {
@@ -473,7 +473,7 @@ pub fn pum_display(
                 cursor_col %= if !g_st().cmdline_win.is_null() {
                     (*g_st().cmdline_win).w_view_width
                 } else {
-                    g_st().Columns
+                    g_st().columns_global
                 };
                 pum().anchor_grid = if ui_has(K_UICMDLINE) {
                     -1
@@ -593,7 +593,7 @@ pub fn pum_display(
             }
         }
 
-        g_st().pum_grid.zindex = if (g_st().State & MODE_CMDLINE) != 0 {
+        g_st().pum_grid.zindex = if (g_st().state_global & MODE_CMDLINE) != 0 {
             K_ZINDEX_CMDLINE_POPUP_MENU
         } else {
             K_ZINDEX_POPUP_MENU
@@ -617,7 +617,7 @@ fn pum_compute_text_attrs(
             return None;
         }
 
-        let leader = if (g_st().State & MODE_CMDLINE) != 0 {
+        let leader = if (g_st().state_global & MODE_CMDLINE) != 0 {
             cmdline_compl_pattern()
         } else {
             ins_compl_leader()
@@ -626,7 +626,7 @@ fn pum_compute_text_attrs(
             return None;
         }
 
-        let in_fuzzy = if (g_st().State & MODE_CMDLINE) != 0 {
+        let in_fuzzy = if (g_st().state_global & MODE_CMDLINE) != 0 {
             cmdline_compl_is_fuzzy()
         } else {
             (get_cot_flags() & K_OPT_COT_FLAG_FUZZY) != 0
@@ -784,7 +784,7 @@ pub fn pum_redraw() {
         let mut extra_space = false;
         if pum().rl {
             col_off = pum().width - 1;
-            debug_assert!((g_st().State & MODE_CMDLINE) == 0);
+            debug_assert!((g_st().state_global & MODE_CMDLINE) == 0);
             let win_end_col = curwin_mut().w_wincol + curwin_mut().w_view_width;
             if pum().col < win_end_col - 1 {
                 grid_width += 1;
@@ -1252,7 +1252,7 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: c_int) -> bool {
      {
         let border_width = pum_border_width();
         let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
-        let right_extra = g_st().Columns - col;
+        let right_extra = g_st().columns_global - col;
         let left_extra = pum().col - 2;
 
         let max_extra = right_extra.max(left_extra);
@@ -1279,7 +1279,7 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: c_int) -> bool {
         wp.w_config.anchor = 0;
         let count = wp.buf_mut().b_ml.ml_line_count;
         wp.w_view_width = wp.w_config.width;
-        wp.w_config.height = plines_m_win(wp, wp.w_topline, count, g_st().Rows);
+        wp.w_config.height = plines_m_win(wp, wp.w_topline, count, g_st().rows_global);
         wp.w_config.row = f64::from(pum().row);
         wp.w_config.hide = false;
         let cfg = wp.w_config.clone();
@@ -1295,7 +1295,7 @@ pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut WinInfoInfo {
             return ptr::null_mut();
         }
         block_autocmds();
-        g_st().RedrawingDisabled += 1;
+        g_st().redrawing_disabled += 1;
         g_st().no_u_sync += 1;
         let mut wp = win_float_find(K_WIN_INFO);
         if wp.is_null() {
@@ -1310,7 +1310,7 @@ pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut WinInfoInfo {
         let mut max_info_width: c_int = 0;
         pum_preview_set_text(&mut *wp, info, &mut lnum, &mut max_info_width);
         g_st().no_u_sync -= 1;
-        g_st().RedrawingDisabled -= 1;
+        g_st().redrawing_disabled -= 1;
         redraw_later(wp.as_mut(), UPD_NOT_VALID);
 
         if !pum_adjust_info_position(&mut *wp, max_info_width) {
@@ -1375,7 +1375,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
             pum().first = pum().first.min(pum().size - pum().height);
 
             if (*pum().array.add(pum().selected as usize)).pum_info.is_some()
-                && g_st().Rows > 10
+                && g_st().rows_global > 10
                 && repeat <= 1
                 && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
                 && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
@@ -1391,7 +1391,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                 if opt_vars().p_pvh > 0 && opt_vars().p_pvh < i64::from(g_st().g_do_tagpreview) {
                     g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
                 }
-                g_st().RedrawingDisabled += 1;
+                g_st().redrawing_disabled += 1;
                 g_st().no_u_sync += 1;
 
                 if !use_float {
@@ -1409,7 +1409,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                 }
 
                 g_st().no_u_sync -= 1;
-                g_st().RedrawingDisabled -= 1;
+                g_st().redrawing_disabled -= 1;
                 g_st().g_do_tagpreview = 0;
 
                 if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == K_WIN_INFO {
@@ -1645,8 +1645,8 @@ fn pum_position_at_mouse(min_width: c_int) {
     unsafe {
         let min_row: c_int = 0;
         let min_col: c_int = 0;
-        let mut max_row = g_st().Rows;
-        let mut max_col = g_st().Columns;
+        let mut max_row = g_st().rows_global;
+        let mut max_col = g_st().columns_global;
         let mut grid = g_st().mouse_grid;
         let mut row = g_st().mouse_row;
         let mut col = g_st().mouse_col;
@@ -1665,8 +1665,8 @@ fn pum_position_at_mouse(min_width: c_int) {
                 pum().win_col_offset = (*wp).w_wincol;
 
                 if (*wp).w_view_height > 0 || (*wp).w_view_width > 0 {
-                    max_row = (g_st().Rows - (*wp).w_winrow).max((*wp).w_winrow + (*wp).w_view_height);
-                    max_col = (g_st().Columns - (*wp).w_wincol).max((*wp).w_wincol + (*wp).w_view_width);
+                    max_row = (g_st().rows_global - (*wp).w_winrow).max((*wp).w_winrow + (*wp).w_view_height);
+                    max_col = (g_st().columns_global - (*wp).w_wincol).max((*wp).w_wincol + (*wp).w_view_width);
                 }
             }
         }

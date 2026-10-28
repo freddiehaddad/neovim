@@ -1597,7 +1597,7 @@ pub fn check_abbr(
                     q = q_vec.as_mut_ptr();
                     qlen = vim_unescape_ks(q) as c_int;
                 }
-                let match_found = (cand.m_mode & g_st().State) != 0
+                let match_found = (cand.m_mode & g_st().state_global) != 0
                     && qlen == len
                     && crate::memory::cstr_slice(q, len as usize)
                         == crate::memory::cstr_slice(ptr_arg, len as usize);
@@ -2846,11 +2846,11 @@ pub fn modify_keymap(
             parsed_args.expr = opts.expr;
             parsed_args.unique = opts.unique;
             parsed_args.replace_keycodes = opts.replace_keycodes;
-            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_KEYMAP_CALLBACK) {
+            if has_key(opts.is_set_keymap, KEYSET_OPTIDX_KEYMAP_CALLBACK) {
                 lua_funcref = opts.callback;
                 opts.callback = LUA_NOREF;
             }
-            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_KEYMAP_DESC) {
+            if has_key(opts.is_set_keymap, KEYSET_OPTIDX_KEYMAP_DESC) {
                 parsed_args.desc = Some(string_to_cstr(opts.desc));
             }
         }

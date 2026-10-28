@@ -89,7 +89,7 @@ const KEYSET_OPTIDX_NS_OPTS_WINS: u64 = 1;
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_get_extmark {
-    pub is_set__get_extmark_: OptionalKeys,
+    pub is_set_get_extmark: OptionalKeys,
     pub details: Boolean,
     pub hl_name: Boolean,
 }
@@ -97,7 +97,7 @@ pub struct KeyDict_get_extmark {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_get_extmarks {
-    pub is_set__get_extmarks_: OptionalKeys,
+    pub is_set_get_extmarks: OptionalKeys,
     pub limit: Integer,
     pub details: Boolean,
     pub hl_name: Boolean,
@@ -108,7 +108,7 @@ pub struct KeyDict_get_extmarks {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_set_extmark {
-    pub is_set__set_extmark_: OptionalKeys,
+    pub is_set_set_extmark: OptionalKeys,
     pub id: Integer,
     pub end_line: Integer,
     pub end_row: Integer,
@@ -149,7 +149,7 @@ pub struct KeyDict_set_extmark {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_set_decoration_provider {
-    pub is_set__set_decoration_provider_: OptionalKeys,
+    pub is_set_set_decoration_provider: OptionalKeys,
     pub on_start: LuaRef,
     pub on_buf: LuaRef,
     pub on_win: LuaRef,
@@ -164,7 +164,7 @@ pub struct KeyDict_set_decoration_provider {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_ns_opts {
-    pub is_set__ns_opts_: OptionalKeys,
+    pub is_set_ns_opts: OptionalKeys,
     pub wins: Array,
 }
 
@@ -399,7 +399,7 @@ pub fn nvim_buf_get_extmark_by_id(
 
         let details = opts.details;
         let hl_name = if has_key(
-            opts.is_set__get_extmark_,
+            opts.is_set_get_extmark,
             KEYSET_OPTIDX_GET_EXTMARK_HL_NAME,
         ) {
             opts.hl_name
@@ -497,7 +497,7 @@ pub fn nvim_buf_get_extmarks(
             return rv;
         }
 
-        let mask = opts.is_set__get_extmarks_;
+        let mask = opts.is_set_get_extmarks;
         let details = opts.details;
         let hl_name = if has_key(mask, KEYSET_OPTIDX_GET_EXTMARKS_HL_NAME) {
             opts.hl_name
@@ -756,7 +756,7 @@ pub fn nvim_buf_set_extmark(
                 break 'error;
             }
 
-            let mask = opts.is_set__set_extmark_;
+            let mask = opts.is_set_set_extmark;
             let mut id: u32 = 0;
             if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_ID) {
                 if opts.id <= 0 {
@@ -1668,7 +1668,7 @@ pub fn parse_virt_text(
 /// @nodoc
 // DLLEXPORT String nvim__buf_debug_extmarks(Buffer buf, Boolean keys, Boolean dot, Error *err)
 //   FUNC_API_SINCE(7) FUNC_API_RET_ALLOC;
-pub fn nvim__buf_debug_extmarks(
+pub fn nvim_buf_debug_extmarks(
     buf: Buffer,
     keys: Boolean,
     dot: Boolean,
@@ -1692,7 +1692,7 @@ pub fn nvim__buf_debug_extmarks(
 ///           - wins: a list of windows to be scoped in
 ///
 // DLLEXPORT void nvim__ns_set(Integer ns_id, Dict(ns_opts) *opts, Error *err);
-pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) {
+pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) {
     unsafe {
         if !ns_initialized(ns_id as u32) {
             api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
@@ -1701,7 +1701,7 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
 
         let mut set_scoped = true;
 
-        if has_key(opts.is_set__ns_opts_, KEYSET_OPTIDX_NS_OPTS_WINS) {
+        if has_key(opts.is_set_ns_opts, KEYSET_OPTIDX_NS_OPTS_WINS) {
             if opts.wins.size == 0 {
                 set_scoped = false;
             }
@@ -1755,14 +1755,14 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
 /// @param ns_id Namespace
 /// @return  Map defining the namespace properties, see |nvim__ns_set()|
 // DLLEXPORT Dict(ns_opts) nvim__ns_get(Integer ns_id, Arena *arena, Error *err);
-pub fn nvim__ns_get(
+pub fn nvim_ns_get(
     ns_id: Integer,
     arena: &mut Arena,
     err: &mut Error,
 ) -> KeyDict_ns_opts {
     unsafe {
         let mut opts = KeyDict_ns_opts {
-            is_set__ns_opts_: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
+            is_set_ns_opts: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
             wins: Array::new(),
         };
 

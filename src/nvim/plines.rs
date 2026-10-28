@@ -685,10 +685,10 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: Colnr) -> c_
 fn virt_text_cursor_off(csarg: &CharsizeArg, on_nul: bool) -> c_int {
      {
         let mut off = 0;
-        if !on_nul || (g_st().State & MODE_NORMAL) == 0 {
+        if !on_nul || (g_st().state_global & MODE_NORMAL) == 0 {
             off += csarg.cur_text_width_left;
         }
-        if !on_nul && (g_st().State & MODE_NORMAL) != 0 {
+        if !on_nul && (g_st().state_global & MODE_NORMAL) != 0 {
             off += csarg.cur_text_width_right;
         }
         off
@@ -773,10 +773,10 @@ pub fn getvcol(
         }
         if cursor.is_some() {
             if ci.chr.value == TAB
-                && (g_st().State & MODE_NORMAL) != 0
+                && (g_st().state_global & MODE_NORMAL) != 0
                 && wp.w_onebuf_opt.wo_list == 0
                 && !virtual_active( &mut *wp)
-                && !(g_st().Visual.active && (crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' || ltoreq(*pos, g_st().Visual.start)))
+                && !(g_st().visual_global.active && (crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' || ltoreq(*pos, g_st().visual_global.start)))
             {
                 *cursor.as_deref_mut().unwrap() = vcol + incr - 1;
             } else {
@@ -984,7 +984,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: c_long) -> c_i
         }
 
         let mut col = vcol;
-        if ci.chr.value == TAB && (g_st().State & MODE_NORMAL) != 0 && csarg.use_tabstop {
+        if ci.chr.value == TAB && (g_st().state_global & MODE_NORMAL) != 0 && csarg.use_tabstop {
             col += win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, 1).width - 1;
         }
 

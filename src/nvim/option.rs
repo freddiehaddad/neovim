@@ -494,57 +494,57 @@ const E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX: *const c_char =
 const W_ARABIC: *const c_char = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'".as_ptr();
 
 struct OptionModuleState {
-    P_TERM: Option<std::ffi::CString>,
-    P_TTYTYPE: Option<std::ffi::CString>,
-    P_ET_NOBIN: c_int,
-    P_ML_NOBIN: c_int,
-    P_TW_NOBIN: OptInt,
-    P_WM_NOBIN: OptInt,
-    P_AI_NOPASTE: c_int,
-    P_ET_NOPASTE: c_int,
-    P_STS_NOPASTE: OptInt,
-    P_TW_NOPASTE: OptInt,
-    P_WM_NOPASTE: OptInt,
-    P_VSTS_NOPASTE: Option<std::ffi::CString>,
-    OLD_P_PASTE: c_int,
-    SAVE_SM: c_int,
-    SAVE_STA: c_int,
-    SAVE_RU: c_int,
-    SAVE_RI: c_int,
-    SYN_RECURSIVE: c_int,
-    EXPAND_OPTION_IDX: OptIndex,
-    EXPAND_OPTION_START_COL: c_int,
-    EXPAND_OPTION_NAME: [c_char; 5],
-    EXPAND_OPTION_FLAGS: c_int,
-    EXPAND_OPTION_APPEND: bool,
+    p_term: Option<std::ffi::CString>,
+    p_ttytype: Option<std::ffi::CString>,
+    p_et_nobin: c_int,
+    p_ml_nobin: c_int,
+    p_tw_nobin: OptInt,
+    p_wm_nobin: OptInt,
+    p_ai_nopaste: c_int,
+    p_et_nopaste: c_int,
+    p_sts_nopaste: OptInt,
+    p_tw_nopaste: OptInt,
+    p_wm_nopaste: OptInt,
+    p_vsts_nopaste: Option<std::ffi::CString>,
+    old_p_paste: c_int,
+    save_sm: c_int,
+    save_sta: c_int,
+    save_ru: c_int,
+    save_ri: c_int,
+    syn_recursive: c_int,
+    expand_option_idx: OptIndex,
+    expand_option_start_col: c_int,
+    expand_option_name: [c_char; 5],
+    expand_option_flags: c_int,
+    expand_option_append: bool,
 }
 
 impl OptionModuleState {
     const fn new() -> Self {
         Self {
-            P_TERM: None,
-            P_TTYTYPE: None,
-            P_ET_NOBIN: 0,
-            P_ML_NOBIN: 0,
-            P_TW_NOBIN: 0,
-            P_WM_NOBIN: 0,
-            P_AI_NOPASTE: 0,
-            P_ET_NOPASTE: 0,
-            P_STS_NOPASTE: 0,
-            P_TW_NOPASTE: 0,
-            P_WM_NOPASTE: 0,
-            P_VSTS_NOPASTE: None,
-            OLD_P_PASTE: 0,
-            SAVE_SM: 0,
-            SAVE_STA: 0,
-            SAVE_RU: 0,
-            SAVE_RI: 0,
-            SYN_RECURSIVE: 0,
-            EXPAND_OPTION_IDX: K_OPT_INVALID,
-            EXPAND_OPTION_START_COL: 0,
-            EXPAND_OPTION_NAME: [b't' as c_char, b'_' as c_char, 0, 0, 0],
-            EXPAND_OPTION_FLAGS: 0,
-            EXPAND_OPTION_APPEND: false,
+            p_term: None,
+            p_ttytype: None,
+            p_et_nobin: 0,
+            p_ml_nobin: 0,
+            p_tw_nobin: 0,
+            p_wm_nobin: 0,
+            p_ai_nopaste: 0,
+            p_et_nopaste: 0,
+            p_sts_nopaste: 0,
+            p_tw_nopaste: 0,
+            p_wm_nopaste: 0,
+            p_vsts_nopaste: None,
+            old_p_paste: 0,
+            save_sm: 0,
+            save_sta: 0,
+            save_ru: 0,
+            save_ri: 0,
+            syn_recursive: 0,
+            expand_option_idx: K_OPT_INVALID,
+            expand_option_start_col: 0,
+            expand_option_name: [b't' as c_char, b'_' as c_char, 0, 0, 0],
+            expand_option_flags: 0,
+            expand_option_append: false,
         }
     }
 }
@@ -1136,8 +1136,8 @@ pub fn free_all_options() {
         free_tagfunc_option();
         free_findfunc_option();
         g_st().fenc_default = None;
-        opt_st().P_TERM = None;
-        opt_st().P_TTYTYPE = None;
+        opt_st().p_term = None;
+        opt_st().p_ttytype = None;
     }
 }
 
@@ -1160,9 +1160,9 @@ pub fn set_init_2(_headless: bool) {
         comp_col();
 
         if !option_was_set(K_OPT_WINDOW) {
-            opt_vars().p_window = OptInt::from(g_st().Rows - 1);
+            opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
         }
-        change_option_default(K_OPT_WINDOW, integer_obj(OptInt::from(g_st().Rows - 1)));
+        change_option_default(K_OPT_WINDOW, integer_obj(OptInt::from(g_st().rows_global - 1)));
     }
 }
 
@@ -2165,7 +2165,7 @@ pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> bool {
                     }
 
                     if !errmsg.is_null() {
-                        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+                        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                         let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2)
                             as isize;
                         let arg_len = arg.offset_from(startarg);
@@ -2269,10 +2269,10 @@ pub fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
                     curbuf_mut().b_p_et_nobin = curbuf_mut().b_p_et;
                 }
                 if (opt_flags & OPT_LOCAL) == 0 {
-                    opt_st().P_TW_NOBIN = opt_vars().p_tw;
-                    opt_st().P_WM_NOBIN = opt_vars().p_wm;
-                    opt_st().P_ML_NOBIN = opt_vars().p_ml;
-                    opt_st().P_ET_NOBIN = opt_vars().p_et;
+                    opt_st().p_tw_nobin = opt_vars().p_tw;
+                    opt_st().p_wm_nobin = opt_vars().p_wm;
+                    opt_st().p_ml_nobin = opt_vars().p_ml;
+                    opt_st().p_et_nobin = opt_vars().p_et;
                 }
             }
 
@@ -2297,10 +2297,10 @@ pub fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
                 curbuf_mut().b_p_et = curbuf_mut().b_p_et_nobin;
             }
             if (opt_flags & OPT_LOCAL) == 0 {
-                opt_vars().p_tw = opt_st().P_TW_NOBIN;
-                opt_vars().p_wm = opt_st().P_WM_NOBIN;
-                opt_vars().p_ml = opt_st().P_ML_NOBIN;
-                opt_vars().p_et = opt_st().P_ET_NOBIN;
+                opt_vars().p_tw = opt_st().p_tw_nobin;
+                opt_vars().p_wm = opt_st().p_wm_nobin;
+                opt_vars().p_ml = opt_st().p_ml_nobin;
+                opt_vars().p_et = opt_st().p_et_nobin;
             }
         }
 
@@ -2326,7 +2326,7 @@ fn option_expand(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) -> *
 
         let var = (*opt).var.cast::<*mut c_char>();
         let esc = var == &raw mut opt_vars().p_tags || var == &raw mut opt_vars().p_path;
-        let namebuf_ptr = g_st().NameBuff.as_mut_ptr();
+        let namebuf_ptr = g_st().name_buff.as_mut_ptr();
         expand_env_esc(
             val,
             namebuf_ptr,
@@ -2813,13 +2813,13 @@ pub fn did_set_cmdheight(args: &mut Optset) -> *const c_char {
     unsafe {
         let old_value = args.os_oldval.data.integer();
 
-        if opt_vars().p_ch > OptInt::from(g_st().Rows - min_rows(curtab_mut()) + 1) {
-            opt_vars().p_ch = OptInt::from(g_st().Rows - min_rows(curtab_mut()) + 1);
+        if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1) {
+            opt_vars().p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
         }
 
         if (opt_vars().p_ch != old_value
             || OptInt::from(tabline_height() + global_stl_height() + (*g_st().topframe).fr_height)
-                != OptInt::from(g_st().Rows) - opt_vars().p_ch)
+                != OptInt::from(g_st().rows_global) - opt_vars().p_ch)
             && g_st().full_screen
         {
             command_height();
@@ -2991,28 +2991,28 @@ pub fn did_set_laststatus(args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'lines' or 'columns' option value.
 pub fn did_set_lines_or_columns(args: &mut Optset) -> *const c_char {
-    if opt_vars().p_lines != OptInt::from(g_st().Rows) || opt_vars().p_columns != OptInt::from(g_st().Columns) {
+    if opt_vars().p_lines != OptInt::from(g_st().rows_global) || opt_vars().p_columns != OptInt::from(g_st().columns_global) {
             if g_st().updating_screen {
                 let oldval = integer_obj(args.os_oldval.data.integer());
                 set_option_varp(args.os_idx, args.os_varp, oldval);
             } else if g_st().full_screen {
                 screen_resize(opt_vars().p_columns as c_int, opt_vars().p_lines as c_int);
             } else {
-                g_st().Rows = opt_vars().p_lines as c_int;
-                g_st().Columns = opt_vars().p_columns as c_int;
+                g_st().rows_global = opt_vars().p_lines as c_int;
+                g_st().columns_global = opt_vars().p_columns as c_int;
                 check_screensize();
-                let new_row = (OptInt::from(g_st().Rows) - opt_vars().p_ch.max(1)) as c_int;
-                if g_st().cmdline_row > new_row && OptInt::from(g_st().Rows) > opt_vars().p_ch {
+                let new_row = (OptInt::from(g_st().rows_global) - opt_vars().p_ch.max(1)) as c_int;
+                if g_st().cmdline_row > new_row && OptInt::from(g_st().rows_global) > opt_vars().p_ch {
                     g_st().cmdline_row = new_row;
                 }
             }
-            if opt_vars().p_window >= OptInt::from(g_st().Rows) || !option_was_set(K_OPT_WINDOW) {
-                opt_vars().p_window = OptInt::from(g_st().Rows - 1);
+            if opt_vars().p_window >= OptInt::from(g_st().rows_global) || !option_was_set(K_OPT_WINDOW) {
+                opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
             }
         }
 
-        if opt_vars().p_sj >= OptInt::from(g_st().Rows) && g_st().full_screen {
-            opt_vars().p_sj = OptInt::from(g_st().Rows / 2);
+        if opt_vars().p_sj >= OptInt::from(g_st().rows_global) && g_st().full_screen {
+            opt_vars().p_sj = OptInt::from(g_st().rows_global / 2);
         }
 
         ptr::null()
@@ -3070,7 +3070,7 @@ pub fn did_set_paste(_args: &mut Optset) -> *const c_char {
      {
         let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
         if opt_vars().p_paste != 0 {
-            if opt_st().OLD_P_PASTE == 0 {
+            if opt_st().old_p_paste == 0 {
                 for buf in for_all_buffers_mut() {
                     buf.b_p_tw_nopaste = buf.b_p_tw;
                     buf.b_p_wm_nopaste = buf.b_p_wm;
@@ -3085,16 +3085,16 @@ pub fn did_set_paste(_args: &mut Optset) -> *const c_char {
                         };
                 }
 
-                opt_st().SAVE_SM = opt_vars().p_sm;
-                opt_st().SAVE_STA = opt_vars().p_sta;
-                opt_st().SAVE_RU = opt_vars().p_ru;
-                opt_st().SAVE_RI = opt_vars().p_ri;
-                opt_st().P_AI_NOPASTE = opt_vars().p_ai;
-                opt_st().P_ET_NOPASTE = opt_vars().p_et;
-                opt_st().P_STS_NOPASTE = opt_vars().p_sts;
-                opt_st().P_TW_NOPASTE = opt_vars().p_tw;
-                opt_st().P_WM_NOPASTE = opt_vars().p_wm;
-                opt_st().P_VSTS_NOPASTE = if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
+                opt_st().save_sm = opt_vars().p_sm;
+                opt_st().save_sta = opt_vars().p_sta;
+                opt_st().save_ru = opt_vars().p_ru;
+                opt_st().save_ri = opt_vars().p_ri;
+                opt_st().p_ai_nopaste = opt_vars().p_ai;
+                opt_st().p_et_nopaste = opt_vars().p_et;
+                opt_st().p_sts_nopaste = opt_vars().p_sts;
+                opt_st().p_tw_nopaste = opt_vars().p_tw;
+                opt_st().p_wm_nopaste = opt_vars().p_wm;
+                opt_st().p_vsts_nopaste = if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
                     Some(crate::memory::cstr_to_cstring(opt_vars().p_vsts))
                 } else {
                     None
@@ -3130,7 +3130,7 @@ pub fn did_set_paste(_args: &mut Optset) -> *const c_char {
                 free_string_option(opt_vars().p_vsts);
             }
             opt_vars().p_vsts = empty_opt;
-        } else if opt_st().OLD_P_PASTE != 0 {
+        } else if opt_st().old_p_paste != 0 {
             for buf in for_all_buffers_mut() {
                 buf.b_p_tw = buf.b_p_tw_nopaste;
                 buf.b_p_wm = buf.b_p_wm_nopaste;
@@ -3151,27 +3151,27 @@ pub fn did_set_paste(_args: &mut Optset) -> *const c_char {
                 }
             }
 
-            opt_vars().p_sm = opt_st().SAVE_SM;
-            opt_vars().p_sta = opt_st().SAVE_STA;
-            if opt_vars().p_ru != opt_st().SAVE_RU {
+            opt_vars().p_sm = opt_st().save_sm;
+            opt_vars().p_sta = opt_st().save_sta;
+            if opt_vars().p_ru != opt_st().save_ru {
                 status_redraw_all();
             }
-            opt_vars().p_ru = opt_st().SAVE_RU;
-            opt_vars().p_ri = opt_st().SAVE_RI;
-            opt_vars().p_ai = opt_st().P_AI_NOPASTE;
-            opt_vars().p_et = opt_st().P_ET_NOPASTE;
-            opt_vars().p_sts = opt_st().P_STS_NOPASTE;
-            opt_vars().p_tw = opt_st().P_TW_NOPASTE;
-            opt_vars().p_wm = opt_st().P_WM_NOPASTE;
+            opt_vars().p_ru = opt_st().save_ru;
+            opt_vars().p_ri = opt_st().save_ri;
+            opt_vars().p_ai = opt_st().p_ai_nopaste;
+            opt_vars().p_et = opt_st().p_et_nopaste;
+            opt_vars().p_sts = opt_st().p_sts_nopaste;
+            opt_vars().p_tw = opt_st().p_tw_nopaste;
+            opt_vars().p_wm = opt_st().p_wm_nopaste;
             if !opt_vars().p_vsts.is_null() {
                 free_string_option(opt_vars().p_vsts);
             }
-            opt_vars().p_vsts = opt_st().P_VSTS_NOPASTE
+            opt_vars().p_vsts = opt_st().p_vsts_nopaste
                 .as_ref()
                 .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
         }
 
-        opt_st().OLD_P_PASTE = opt_vars().p_paste;
+        opt_st().old_p_paste = opt_vars().p_paste;
 
         didset_options_sctx(OPT_LOCAL | OPT_GLOBAL, P_PASTE_DEP_OPTS);
 
@@ -3450,8 +3450,8 @@ pub fn did_set_winblend(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'window' option value.
 pub fn did_set_window(_args: &mut Optset) -> *const c_char {
-    if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(g_st().Rows) {
-            opt_vars().p_window = OptInt::from(g_st().Rows - 1);
+    if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(g_st().rows_global) {
+            opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
         }
         ptr::null()
 }
@@ -3510,16 +3510,16 @@ pub fn did_set_xhistory(args: &mut Optset) -> *const c_char {
 }
 
 fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
-    opt_st().SYN_RECURSIVE += 1;
+    opt_st().syn_recursive += 1;
         buf.b_flags |= BF_SYN_SET;
         apply_autocmds(
             EVENT_SYNTAX,
             buf.b_p_syn,
             buf.b_fname,
-            value_changed || opt_st().SYN_RECURSIVE == 1,
+            value_changed || opt_st().syn_recursive == 1,
             &raw mut *buf,
         );
-        opt_st().SYN_RECURSIVE -= 1;
+        opt_st().syn_recursive -= 1;
 }
 
 fn do_spelllang_source(win: &mut WinInfoInfo) {
@@ -3586,7 +3586,7 @@ fn check_num_option_bounds(
                 *newval = (*newval).clamp(0, 100);
             }
             K_OPT_SCROLLJUMP => {
-                if (*newval < -100 || *newval >= OptInt::from(g_st().Rows)) && g_st().full_screen {
+                if (*newval < -100 || *newval >= OptInt::from(g_st().rows_global)) && g_st().full_screen {
                     errmsg = E_SCROLL.as_ptr();
                     *newval = 1;
                 }
@@ -3820,13 +3820,13 @@ pub fn get_tty_option(name: impl crate::strings::IntoCCharPtr) -> Object { let n
             }
         } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
             cstr_to_obj(
-                opt_st().P_TERM
+                opt_st().p_term
                     .as_ref()
                     .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
             )
         } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"ttytype") {
             cstr_to_obj(
-                opt_st().P_TTYTYPE
+                opt_st().p_ttytype
                     .as_ref()
                     .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
             )
@@ -3840,12 +3840,12 @@ pub fn get_tty_option(name: impl crate::strings::IntoCCharPtr) -> Object { let n
 
 pub fn set_tty_option(name: &std::ffi::CStr, value: Option<std::ffi::CString>) -> bool {
     if Some(name.to_bytes()) == Some(b"term") {
-            opt_st().P_TERM = value;
+            opt_st().p_term = value;
             return true;
         }
 
         if Some(name.to_bytes()) == Some(b"ttytype") {
-            opt_st().P_TTYTYPE = value;
+            opt_st().p_ttytype = value;
             return true;
         }
 
@@ -6291,13 +6291,13 @@ fn showoptions(all: bool, opt_flags: c_int) {
                 }
                 if !varp.is_null() && (all || optval_default(opt_idx, varp) == 0) {
                     let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
-                        g_st().Columns
+                        g_st().columns_global
                     } else if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
                         1
                     } else {
                         optval_fmt(opt_idx, opt_flags);
                         ((*opt).fullname.to_bytes().len() as c_int)
-                            + vim_strsize(g_st().NameBuff.as_ptr())
+                            + vim_strsize(g_st().name_buff.as_ptr())
                             + 1
                     };
                     if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
@@ -6308,7 +6308,7 @@ fn showoptions(all: bool, opt_flags: c_int) {
 
             let item_count = items.len();
             let rows = if run == 1 {
-                let mut cols = (g_st().Columns + GAP - 3) / INC;
+                let mut cols = (g_st().columns_global + GAP - 3) / INC;
                 if cols == 0 {
                     cols = 1;
                 }
@@ -6404,7 +6404,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: c_int) {
         if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
             msg_putchar(b'=' as c_int);
             optval_fmt(opt_idx, opt_flags);
-            let namebuf_ptr = g_st().NameBuff.as_ptr();
+            let namebuf_ptr = g_st().name_buff.as_ptr();
             if !crate::memory::cstr_is_empty(namebuf_ptr) {
                 msg_outtrans(namebuf_ptr, 0, false);
             }
@@ -7416,19 +7416,19 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: c_int) {
 
                 buf.b_p_ai = opt_vars().p_ai;
                 copy_opt_sctx(buf, K_BUF_OPT_AUTOINDENT);
-                buf.b_p_ai_nopaste = opt_st().P_AI_NOPASTE;
+                buf.b_p_ai_nopaste = opt_st().p_ai_nopaste;
                 buf.b_p_sw = opt_vars().p_sw;
                 copy_opt_sctx(buf, K_BUF_OPT_SHIFTWIDTH);
                 buf.b_p_scbk = opt_vars().p_scbk;
                 copy_opt_sctx(buf, K_BUF_OPT_SCROLLBACK);
                 buf.b_p_tw = opt_vars().p_tw;
                 copy_opt_sctx(buf, K_BUF_OPT_TEXTWIDTH);
-                buf.b_p_tw_nopaste = opt_st().P_TW_NOPASTE;
-                buf.b_p_tw_nobin = opt_st().P_TW_NOBIN;
+                buf.b_p_tw_nopaste = opt_st().p_tw_nopaste;
+                buf.b_p_tw_nobin = opt_st().p_tw_nobin;
                 buf.b_p_wm = opt_vars().p_wm;
                 copy_opt_sctx(buf, K_BUF_OPT_WRAPMARGIN);
-                buf.b_p_wm_nopaste = opt_st().P_WM_NOPASTE;
-                buf.b_p_wm_nobin = opt_st().P_WM_NOBIN;
+                buf.b_p_wm_nopaste = opt_st().p_wm_nopaste;
+                buf.b_p_wm_nobin = opt_st().p_wm_nobin;
                 buf.b_p_bin = opt_vars().p_bin;
                 copy_opt_sctx(buf, K_BUF_OPT_BINARY);
                 buf.b_p_bomb = opt_vars().p_bomb;
@@ -7439,11 +7439,11 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: c_int) {
                 copy_opt_sctx(buf, K_BUF_OPT_FIXENDOFLINE);
                 buf.b_p_follow = opt_vars().p_follow;
                 copy_opt_sctx(buf, K_BUF_OPT_FOLLOW);
-                buf.b_p_et_nobin = opt_st().P_ET_NOBIN;
-                buf.b_p_et_nopaste = opt_st().P_ET_NOPASTE;
+                buf.b_p_et_nobin = opt_st().p_et_nobin;
+                buf.b_p_et_nopaste = opt_st().p_et_nopaste;
                 buf.b_p_ml = opt_vars().p_ml;
                 copy_opt_sctx(buf, K_BUF_OPT_MODELINE);
-                buf.b_p_ml_nobin = opt_st().P_ML_NOBIN;
+                buf.b_p_ml_nobin = opt_st().p_ml_nobin;
                 buf.b_p_inf = opt_vars().p_inf;
                 copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
                 if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
@@ -7469,7 +7469,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: c_int) {
                 copy_opt_sctx(buf, K_BUF_OPT_TAGFUNC);
                 buf.b_p_sts = opt_vars().p_sts;
                 copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
-                buf.b_p_sts_nopaste = opt_st().P_STS_NOPASTE;
+                buf.b_p_sts_nopaste = opt_st().p_sts_nopaste;
                 buf.b_p_vsts = alloc_string_option(opt_vars().p_vsts);
                 copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
                 if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
@@ -7477,7 +7477,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: c_int) {
                 } else {
                     buf.b_p_vsts_array.clear();
                 }
-                buf.b_p_vsts_nopaste = opt_st().P_VSTS_NOPASTE.clone();
+                buf.b_p_vsts_nopaste = opt_st().p_vsts_nopaste.clone();
                 buf.b_p_com = alloc_string_option(opt_vars().p_com);
                 copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
                 buf.b_p_cms = alloc_string_option(opt_vars().p_cms);
@@ -7643,7 +7643,7 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flags: c_int) {
     unsafe {
-        opt_st().EXPAND_OPTION_FLAGS = opt_flags;
+        opt_st().expand_option_flags = opt_flags;
 
         xp.xp_context = EXPAND_SETTINGS;
         if crate::memory::cstr_is_empty(arg) {
@@ -7701,8 +7701,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             }
             nextchar = *p;
             is_term_option = true;
-            opt_st().EXPAND_OPTION_NAME[2] = key2termcap0(key) as c_char;
-            opt_st().EXPAND_OPTION_NAME[3] = key2termcap1(key) as c_char;
+            opt_st().expand_option_name[2] = key2termcap0(key) as c_char;
+            opt_st().expand_option_name[3] = key2termcap1(key) as c_char;
         } else if crate::memory::cstr_first_byte(p) == b't' && crate::memory::cstr_byte_at(p, 1) == b'_' {
             p = p.add(2);
             if !crate::memory::cstr_is_empty(p) {
@@ -7714,8 +7714,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             p = p.add(1);
             nextchar = *p;
             is_term_option = true;
-            opt_st().EXPAND_OPTION_NAME[2] = *p.offset(-2);
-            opt_st().EXPAND_OPTION_NAME[3] = *p.offset(-1);
+            opt_st().expand_option_name[2] = *p.offset(-2);
+            opt_st().expand_option_name[3] = *p.offset(-1);
         } else {
             while ascii_isalnum(crate::memory::cstr_first_char(p)) || crate::memory::cstr_first_byte(p) == b'_' || crate::memory::cstr_first_byte(p) == b'*' {
                 p = p.add(1);
@@ -7736,7 +7736,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
             }
         }
 
-        opt_st().EXPAND_OPTION_APPEND = false;
+        opt_st().expand_option_append = false;
         let mut expand_option_subtract = false;
         if (nextchar == b'-' as c_char || nextchar == b'+' as c_char || nextchar == b'^' as c_char)
             && crate::memory::cstr_byte_at(p, 1) == b'='
@@ -7745,7 +7745,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
                 expand_option_subtract = true;
             }
             if nextchar == b'+' as c_char || nextchar == b'^' as c_char {
-                opt_st().EXPAND_OPTION_APPEND = true;
+                opt_st().expand_option_append = true;
             }
             p = p.add(1);
             nextchar = b'=' as c_char;
@@ -7758,13 +7758,13 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         }
 
         if is_term_option {
-            opt_st().EXPAND_OPTION_IDX = K_OPT_INVALID;
+            opt_st().expand_option_idx = K_OPT_INVALID;
         } else {
-            opt_st().EXPAND_OPTION_IDX = opt_idx;
+            opt_st().expand_option_idx = opt_idx;
         }
 
         xp.xp_pattern = p.add(1);
-        opt_st().EXPAND_OPTION_START_COL = p.add(1).offset_from(xp.xp_line) as c_int;
+        opt_st().expand_option_start_col = p.add(1).offset_from(xp.xp_line) as c_int;
 
         let opt_var = (*get_option(opt_idx)).var;
         if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
@@ -7783,8 +7783,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         if expand_option_subtract {
             xp.xp_context = EXPAND_SETTING_SUBTRACT;
             return;
-        } else if opt_st().EXPAND_OPTION_IDX != K_OPT_INVALID
-            && (*get_option(opt_st().EXPAND_OPTION_IDX)).opt_expand_cb.is_some()
+        } else if opt_st().expand_option_idx != K_OPT_INVALID
+            && (*get_option(opt_st().expand_option_idx)).opt_expand_cb.is_some()
         {
             xp.xp_context = EXPAND_STRING_SETTING;
         } else if crate::memory::cstr_is_empty(xp.xp_pattern) {
@@ -7870,7 +7870,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flag
         if (*get_option(opt_idx)).var == (&raw mut opt_vars().p_sps).cast() {
             if crate::memory::cstr_prefix_bytes(xp.xp_pattern, 5) == &b"file:"[..5] {
                 xp.xp_pattern = xp.xp_pattern.add(5);
-            } else if (*get_option(opt_st().EXPAND_OPTION_IDX)).opt_expand_cb.is_some() {
+            } else if (*get_option(opt_st().expand_option_idx)).opt_expand_cb.is_some() {
                 xp.xp_context = EXPAND_STRING_SETTING;
             }
         }
@@ -7970,8 +7970,8 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
         while !crate::memory::cstr_is_empty(var) {
             if crate::memory::cstr_first_byte(var) == b'\\'
                 && crate::memory::cstr_byte_at(var, 1) == b'\\'
-                && opt_st().EXPAND_OPTION_IDX != K_OPT_INVALID
-                && ((*get_option(opt_st().EXPAND_OPTION_IDX)).flags & K_OPT_FLAG_EXPAND) != 0
+                && opt_st().expand_option_idx != K_OPT_INVALID
+                && ((*get_option(opt_st().expand_option_idx)).flags & K_OPT_FLAG_EXPAND) != 0
                 && vim_isfilec(crate::memory::cstr_byte_at(var, 2) as c_int)
                 && (crate::memory::cstr_byte_at(var, 2) != b'\\'
                     || (var == buf && crate::memory::cstr_byte_at(var, 4) != b'\\'))
@@ -7994,22 +7994,22 @@ pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> 
 pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
     matches.clear();
 
-        if opt_st().EXPAND_OPTION_IDX == K_OPT_INVALID {
-            opt_st().EXPAND_OPTION_IDX = find_option((&raw const opt_st().EXPAND_OPTION_NAME).cast());
+        if opt_st().expand_option_idx == K_OPT_INVALID {
+            opt_st().expand_option_idx = find_option((&raw const opt_st().expand_option_name).cast());
         }
 
-        let var = if opt_st().EXPAND_OPTION_IDX != K_OPT_INVALID {
+        let var = if opt_st().expand_option_idx != K_OPT_INVALID {
             let o = opt_from_varp(
-                opt_st().EXPAND_OPTION_IDX,
-                get_varp_scope(get_option(opt_st().EXPAND_OPTION_IDX), opt_st().EXPAND_OPTION_FLAGS),
+                opt_st().expand_option_idx,
+                get_varp_scope(get_option(opt_st().expand_option_idx), opt_st().expand_option_flags),
             );
             let is_luafn = o.obj_type == ObjectType::ObjectTypeLuaRef;
-            optval_free_read(opt_st().EXPAND_OPTION_IDX, o);
+            optval_free_read(opt_st().expand_option_idx, o);
             if is_luafn {
                 return true;
             }
-            optval_fmt(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS);
-            g_st().NameBuff.as_mut_ptr()
+            optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
+            g_st().name_buff.as_mut_ptr()
         } else {
             c"".as_ptr().cast_mut()
         };
@@ -8025,28 +8025,28 @@ pub fn expand_string_setting(
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
     unsafe {
-        if opt_st().EXPAND_OPTION_IDX == K_OPT_INVALID {
+        if opt_st().expand_option_idx == K_OPT_INVALID {
             return false;
         }
-        let opt = get_option(opt_st().EXPAND_OPTION_IDX);
+        let opt = get_option(opt_st().expand_option_idx);
         let Some(expand_cb) = (*opt).opt_expand_cb else {
             return false;
         };
 
-        let set_arg = xp.xp_line.add(opt_st().EXPAND_OPTION_START_COL as usize);
+        let set_arg = xp.xp_line.add(opt_st().expand_option_start_col as usize);
         let mut args = Optexpand {
-            oe_varp: get_varp_scope(opt, opt_st().EXPAND_OPTION_FLAGS).cast::<c_char>(),
-            oe_idx: opt_st().EXPAND_OPTION_IDX,
+            oe_varp: get_varp_scope(opt, opt_st().expand_option_flags).cast::<c_char>(),
+            oe_idx: opt_st().expand_option_idx,
             oe_opt_value: ptr::null_mut(),
-            oe_append: opt_st().EXPAND_OPTION_APPEND,
-            oe_include_orig_val: !opt_st().EXPAND_OPTION_APPEND && crate::memory::cstr_is_empty(set_arg),
+            oe_append: opt_st().expand_option_append,
+            oe_include_orig_val: !opt_st().expand_option_append && crate::memory::cstr_is_empty(set_arg),
             oe_regmatch: regmatch,
             oe_xp: xp,
             oe_set_arg: set_arg,
         };
 
-        optval_fmt(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS);
-        let buf = escape_option_str_cmdline(g_st().NameBuff.as_mut_ptr());
+        optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
+        let buf = escape_option_str_cmdline(g_st().name_buff.as_mut_ptr());
         args.oe_opt_value = buf.as_ptr().cast_mut();
 
         expand_cb(&mut args, matches)
@@ -8060,18 +8060,18 @@ pub fn expand_setting_subtract(
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
     unsafe {
-        if opt_st().EXPAND_OPTION_IDX == K_OPT_INVALID
-            || option_has_type(opt_st().EXPAND_OPTION_IDX, ObjectType::ObjectTypeInteger)
-            || is_callback_option(opt_st().EXPAND_OPTION_IDX)
+        if opt_st().expand_option_idx == K_OPT_INVALID
+            || option_has_type(opt_st().expand_option_idx, ObjectType::ObjectTypeInteger)
+            || is_callback_option(opt_st().expand_option_idx)
         {
             return expand_old_setting(matches);
         }
 
         let option_val =
-            *(get_option_varp_scope_from(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS, curbuf_mut(), curwin_ptr())
+            *(get_option_varp_scope_from(opt_st().expand_option_idx, opt_st().expand_option_flags, curbuf_mut(), curwin_ptr())
                 .cast::<*mut c_char>());
 
-        let option_flags = (*get_option(opt_st().EXPAND_OPTION_IDX)).flags;
+        let option_flags = (*get_option(opt_st().expand_option_idx)).flags;
 
         if (option_flags & K_OPT_FLAG_COMMA) != 0 {
             if crate::memory::cstr_is_empty(option_val) {
@@ -8145,7 +8145,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
         let varp = get_varp_scope(opt, opt_flags);
         assert!(!varp.is_null());
 
-        let namebuf_ptr = g_st().NameBuff.as_mut_ptr();
+        let namebuf_ptr = g_st().name_buff.as_mut_ptr();
         let mut wc: OptInt = 0;
         if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
             xstrlcpy(namebuf_ptr, get_special_key_name(wc as c_int, 0), MAXPATHL);
@@ -8581,7 +8581,7 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut TvDict {
 /// Return the effective 'scrolloff' value for the current window.
 pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
      {
-        if (g_st().State & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.is_null() {
+        if (g_st().state_global & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.is_null() {
             return 0;
         }
         if wp.w_onebuf_opt.wo_so < 0 {

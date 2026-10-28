@@ -1652,11 +1652,11 @@ struct CmdexpandState {
     cmdline_orig: Option<Vec<u8>>,
     filetype_expand_what: FiletypeExpandWhat,
     breakpt_expand_what: BreakptExpandWhat,
-    HEALTHCHECK_NAMES: Object,
-    HEALTHCHECK_LAST_GEN: c_uint,
-    ARG1_LUA_NAMES: Object,
-    ARG1_LUA_LAST_XP_LINE: Option<CString>,
-    ARG1_LUA_LAST_GEN: c_uint,
+    healthcheck_names: Object,
+    healthcheck_last_gen: c_uint,
+    arg1_lua_names: Object,
+    arg1_lua_last_xp_line: Option<CString>,
+    arg1_lua_last_gen: c_uint,
     first_match: c_int,
 }
 
@@ -1676,17 +1676,17 @@ impl CmdexpandState {
             cmdline_orig: None,
             filetype_expand_what: FiletypeExpandWhat::All,
             breakpt_expand_what: BreakptExpandWhat::Add,
-            HEALTHCHECK_NAMES: Object {
+            healthcheck_names: Object {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             },
-            HEALTHCHECK_LAST_GEN: 0,
-            ARG1_LUA_NAMES: Object {
+            healthcheck_last_gen: 0,
+            arg1_lua_names: Object {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             },
-            ARG1_LUA_LAST_XP_LINE: None,
-            ARG1_LUA_LAST_GEN: 0,
+            arg1_lua_last_xp_line: None,
+            arg1_lua_last_gen: 0,
             first_match: 0,
         }
     }
@@ -2211,7 +2211,7 @@ fn redraw_wildmenu(
         }
         let num_matches = matches.len() as c_int;
 
-        let mut buf_vec = vec![0 as c_char; (g_st().Columns as usize) * MB_MAXBYTES + 1];
+        let mut buf_vec = vec![0 as c_char; (g_st().columns_global as usize) * MB_MAXBYTES + 1];
         let buf = buf_vec.as_mut_ptr();
 
         if match_idx == -1 {
@@ -2232,13 +2232,13 @@ fn redraw_wildmenu(
             if cmdexp().first_match > 0 {
                 clen += 2;
             }
-            if clen > g_st().Columns {
+            if clen > g_st().columns_global {
                 cmdexp().first_match = match_idx;
                 clen = 2;
                 let mut i = match_idx;
                 while i < num_matches {
                     clen += wildmenu_match_len(xp, show_match(matches, i as usize, showtail)) + 2;
-                    if clen >= g_st().Columns {
+                    if clen >= g_st().columns_global {
                         break;
                     }
                     i += 1;
@@ -2254,7 +2254,7 @@ fn redraw_wildmenu(
                     xp,
                     show_match(matches, (cmdexp().first_match - 1) as usize, showtail),
                 ) + 2;
-                if clen >= g_st().Columns {
+                if clen >= g_st().columns_global {
                     break;
                 }
                 cmdexp().first_match -= 1;
@@ -2276,7 +2276,7 @@ fn redraw_wildmenu(
         clen = len as c_int;
 
         let mut i = cmdexp().first_match;
-        while clen + wildmenu_match_len(xp, show_match(matches, i as usize, showtail)) + 2 < g_st().Columns
+        while clen + wildmenu_match_len(xp, show_match(matches, i as usize, showtail)) + 2 < g_st().columns_global
         {
             if i == match_idx {
                 selstart = buf.add(len);
@@ -2333,7 +2333,7 @@ fn redraw_wildmenu(
         if row >= 0 {
             if g_st().wild_menu_showing == 0 {
                 if g_st().msg_scrolled > 0 {
-                    if g_st().cmdline_row == g_st().Rows - 1 {
+                    if g_st().cmdline_row == g_st().rows_global - 1 {
                         msg_scroll_up(false, false);
                         g_st().msg_scrolled += 1;
                     } else {
@@ -2368,7 +2368,7 @@ fn redraw_wildmenu(
                 grid_line_puts(selstart_col, selstart, -1, hl_attr(HLF_WM));
             }
 
-            grid_line_fill(clen, g_st().Columns, fillchar, attr);
+            grid_line_fill(clen, g_st().columns_global, fillchar, attr);
 
             grid_line_flush();
         }
@@ -2748,7 +2748,7 @@ fn showmatches_oneline(
                 if showtail {
                     p = show_match(matches, j as usize, showtail);
                 } else {
-                    let name_buff = g_st().NameBuff.as_mut_ptr();
+                    let name_buff = g_st().name_buff.as_mut_ptr();
                     home_replace(None, match_j, name_buff, MAXPATHL, true);
                     p = name_buff;
                 }
@@ -2845,7 +2845,7 @@ pub fn showmatches(
                         || xp.xp_context == EXPAND_SHELLCMD
                         || xp.xp_context == EXPAND_BUFFERS)
                 {
-                    let name_buff = g_st().NameBuff.as_mut_ptr();
+                    let name_buff = g_st().name_buff.as_mut_ptr();
                     home_replace(None, match_i.as_ptr(), name_buff, MAXPATHL, true);
                     vim_strsize(name_buff)
                 } else {
@@ -2858,7 +2858,7 @@ pub fn showmatches(
                 num_matches
             } else {
                 maxlen += 2;
-                let mut columns = (g_st().Columns + 2) / maxlen;
+                let mut columns = (g_st().columns_global + 2) / maxlen;
                 if columns < 1 {
                     columns = 1;
                 }
@@ -3100,7 +3100,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
             };
             xp.xp_pattern = (*ccline).cmdbuff;
             xp.xp_pattern_len = (*ccline).cmdpos as usize;
-            g_st().Search.first_line = 0;
+            g_st().search_global.first_line = 0;
             return;
         }
 
@@ -4451,7 +4451,7 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
         }
 
         let si = script_item(idx + 1);
-        let name_buff = g_st().NameBuff.as_mut_ptr();
+        let name_buff = g_st().name_buff.as_mut_ptr();
         home_replace(None, (*si).name_ptr(), name_buff, MAXPATHL, true);
         name_buff
     }
@@ -4487,7 +4487,7 @@ fn get_mapclear_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
-        if cmdexp().HEALTHCHECK_LAST_GEN != prompt_id || cmdexp().HEALTHCHECK_LAST_GEN == 0 {
+        if cmdexp().healthcheck_last_gen != prompt_id || cmdexp().healthcheck_last_gen == 0 {
             let a = Array::new();
             let mut err = Error::new();
             let code = c"return vim.health._complete()";
@@ -4503,16 +4503,16 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
                 &mut err,
             );
             api_clear_error(&mut err);
-            api_free_object(cmdexp().HEALTHCHECK_NAMES);
-            cmdexp().HEALTHCHECK_NAMES = res;
-            cmdexp().HEALTHCHECK_LAST_GEN = prompt_id;
+            api_free_object(cmdexp().healthcheck_names);
+            cmdexp().healthcheck_names = res;
+            cmdexp().healthcheck_last_gen = prompt_id;
         }
 
-        if cmdexp().HEALTHCHECK_NAMES.obj_type == ObjectType::ObjectTypeArray
+        if cmdexp().healthcheck_names.obj_type == ObjectType::ObjectTypeArray
             && idx >= 0
-            && (idx as usize) < cmdexp().HEALTHCHECK_NAMES.data.array().size
+            && (idx as usize) < cmdexp().healthcheck_names.data.array().size
         {
-            let item = *cmdexp().HEALTHCHECK_NAMES.data.array().items.add(idx as usize);
+            let item = *cmdexp().healthcheck_names.data.array().items.add(idx as usize);
             if item.obj_type == ObjectType::ObjectTypeString {
                 return item.data.string().data;
             }
@@ -4525,13 +4525,13 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
-        let last_line_ptr = &raw const cmdexp().ARG1_LUA_LAST_XP_LINE;
+        let last_line_ptr = &raw const cmdexp().arg1_lua_last_xp_line;
         if (*last_line_ptr)
             .as_ref()
             .is_none_or(|s| crate::memory::cstr_as_bytes(s.as_ptr()) != crate::memory::cstr_as_bytes(xp.xp_line))
-            || cmdexp().ARG1_LUA_LAST_GEN != prompt_id
+            || cmdexp().arg1_lua_last_gen != prompt_id
         {
-            cmdexp().ARG1_LUA_LAST_XP_LINE = Some(cstr_to_cstring(xp.xp_line));
+            cmdexp().arg1_lua_last_xp_line = Some(cstr_to_cstring(xp.xp_line));
             let mut args_items = [
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
@@ -4557,16 +4557,16 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: c_int) -> *m
                 &mut err,
             );
             api_clear_error(&mut err);
-            api_free_object(cmdexp().ARG1_LUA_NAMES);
-            cmdexp().ARG1_LUA_NAMES = res;
-            cmdexp().ARG1_LUA_LAST_GEN = prompt_id;
+            api_free_object(cmdexp().arg1_lua_names);
+            cmdexp().arg1_lua_names = res;
+            cmdexp().arg1_lua_last_gen = prompt_id;
         }
 
-        if cmdexp().ARG1_LUA_NAMES.obj_type == ObjectType::ObjectTypeArray
+        if cmdexp().arg1_lua_names.obj_type == ObjectType::ObjectTypeArray
             && idx >= 0
-            && (idx as usize) < cmdexp().ARG1_LUA_NAMES.data.array().size
+            && (idx as usize) < cmdexp().arg1_lua_names.data.array().size
         {
-            let item = *cmdexp().ARG1_LUA_NAMES.data.array().items.add(idx as usize);
+            let item = *cmdexp().arg1_lua_names.data.array().items.add(idx as usize);
             if item.obj_type == ObjectType::ObjectTypeString {
                 return item.data.string().data;
             }
@@ -5591,7 +5591,7 @@ fn wildmenu_process_key_menunames(
             && *cclp.cmdbuff.add((cclp.cmdpos - 1) as usize) == b'.' as c_char
         {
             key = opt_vars().p_wc as c_int;
-            g_st().KeyTyped = true;
+            g_st().key_typed = true;
         } else if key == K_UP {
             let mut found = false;
 
@@ -5622,7 +5622,7 @@ fn wildmenu_process_key_menunames(
                 cmdline_del(cclp, i);
             }
             key = opt_vars().p_wc as c_int;
-            g_st().KeyTyped = true;
+            g_st().key_typed = true;
             xp.xp_context = EXPAND_NOTHING;
         }
 
@@ -5653,7 +5653,7 @@ fn wildmenu_process_key_filenames(
                 || *cclp.cmdbuff.add((cclp.cmdpos - 3) as usize) != b'.' as c_char)
         {
             key = opt_vars().p_wc as c_int;
-            g_st().KeyTyped = true;
+            g_st().key_typed = true;
         } else if (crate::memory::cstr_prefix_bytes(xp.xp_pattern, 3) == crate::memory::cstr_prefix_bytes(upseg.as_ptr().add(1), 3)) && key == K_DOWN {
             let mut found = false;
 
@@ -5676,7 +5676,7 @@ fn wildmenu_process_key_filenames(
             {
                 cmdline_del(cclp, j - 2);
                 key = opt_vars().p_wc as c_int;
-                g_st().KeyTyped = true;
+                g_st().key_typed = true;
             }
         } else if key == K_UP {
             let mut found = false;
@@ -5728,7 +5728,7 @@ fn wildmenu_process_key_filenames(
             }
 
             key = opt_vars().p_wc as c_int;
-            g_st().KeyTyped = true;
+            g_st().key_typed = true;
         }
 
         key
@@ -5756,11 +5756,11 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
             return;
         }
 
-        let skt = g_st().KeyTyped;
-        let old_redrawing_disabled = g_st().RedrawingDisabled;
+        let skt = g_st().key_typed;
+        let old_redrawing_disabled = g_st().redrawing_disabled;
 
         if cclp.input_fn != 0 {
-            g_st().RedrawingDisabled = 0;
+            g_st().redrawing_disabled = 0;
         }
 
         set_no_hlsearch(true);
@@ -5782,9 +5782,9 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
             g_st().wild_menu_showing = 0;
             redraw_statuslines();
         }
-        g_st().KeyTyped = skt;
+        g_st().key_typed = skt;
         if cclp.input_fn != 0 {
-            g_st().RedrawingDisabled = old_redrawing_disabled;
+            g_st().redrawing_disabled = old_redrawing_disabled;
         }
 }
 
@@ -6158,7 +6158,7 @@ fn expand_pattern_in_buf(
 ) -> bool { let pat = pat.into_c_char_ptr();
      {
         let exacttext = (opt_vars().wop_flags & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
-        let has_range = g_st().Search.first_line != 0;
+        let has_range = g_st().search_global.first_line != 0;
 
         matches.clear();
 
@@ -6178,7 +6178,7 @@ fn expand_pattern_in_buf(
             coladd: 0,
         };
         if has_range {
-            cur_match_pos.lnum = g_st().Search.first_line;
+            cur_match_pos.lnum = g_st().search_global.first_line;
         } else {
             cur_match_pos = cmdexp().pre_incsearch_pos;
         }
@@ -6219,7 +6219,7 @@ fn expand_pattern_in_buf(
             }
 
             if has_range
-                && (cur_match_pos.lnum < g_st().Search.first_line || cur_match_pos.lnum > g_st().Search.last_line)
+                && (cur_match_pos.lnum < g_st().search_global.first_line || cur_match_pos.lnum > g_st().search_global.last_line)
             {
                 break;
             }

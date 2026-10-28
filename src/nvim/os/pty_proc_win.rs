@@ -117,7 +117,7 @@ mod win_impl {
     type BOOLEAN = u8;
     use crate::event::r#loop::{uv_thread_create, uv_thread_detach};
     type WaitOrTimerCallback =
-        Option<unsafe extern "system" fn(lpParameter: *mut c_void, TimerOrWaitFired: BOOLEAN)>;
+        Option<unsafe extern "system" fn(lp_parameter: *mut c_void, timer_or_wait_fired: BOOLEAN)>;
 
     use crate::event::r#loop::{UV_REQ, UV_RUN_ONCE};
     use crate::log::LOGLVL_ERR;

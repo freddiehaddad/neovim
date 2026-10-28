@@ -659,34 +659,34 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
 
                 match a & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
                     0 => {
-                        g_st().IObuff[len] = b'0' as c_char;
+                        g_st().iobuff[len] = b'0' as c_char;
                         len += 1;
                     }
                     EX_EXTRA => {
-                        g_st().IObuff[len] = b'*' as c_char;
+                        g_st().iobuff[len] = b'*' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NOSPC) => {
-                        g_st().IObuff[len] = b'?' as c_char;
+                        g_st().iobuff[len] = b'?' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NEEDARG) => {
-                        g_st().IObuff[len] = b'+' as c_char;
+                        g_st().iobuff[len] = b'+' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => {
-                        g_st().IObuff[len] = b'1' as c_char;
+                        g_st().iobuff[len] = b'1' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) => {
-                        g_st().IObuff[len] = b'_' as c_char;
+                        g_st().iobuff[len] = b'_' as c_char;
                         len += 1;
                     }
                     _ => {}
                 }
 
                 loop {
-                    g_st().IObuff[len] = b' ' as c_char;
+                    g_st().iobuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 5 - over {
                         break;
@@ -700,12 +700,12 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (g_st().IObuff.as_mut_ptr()).add(len),
+                            (g_st().iobuff.as_mut_ptr()).add(len),
                             copy_len,
                         );
                         len += copy_len;
                     } else if (a & EX_DFLALL) != 0 {
-                        g_st().IObuff[len] = b'%' as c_char;
+                        g_st().iobuff[len] = b'%' as c_char;
                         len += 1;
                     } else if cmd.uc_def >= 0 {
                         let s = format!("{}", cmd.uc_def);
@@ -713,18 +713,18 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (g_st().IObuff.as_mut_ptr()).add(len),
+                            (g_st().iobuff.as_mut_ptr()).add(len),
                             copy_len,
                         );
                         len += copy_len;
                     } else {
-                        g_st().IObuff[len] = b'.' as c_char;
+                        g_st().iobuff[len] = b'.' as c_char;
                         len += 1;
                     }
                 }
 
                 loop {
-                    g_st().IObuff[len] = b' ' as c_char;
+                    g_st().iobuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 8 - over {
                         break;
@@ -741,7 +741,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
                             let copy_len = bytes.len().min(IOSIZE - 1 - len);
                             ptr::copy_nonoverlapping(
                                 bytes.as_ptr().cast::<c_char>(),
-                                (g_st().IObuff.as_mut_ptr()).add(len),
+                                (g_st().iobuff.as_mut_ptr()).add(len),
                                 copy_len,
                             );
                             len += copy_len;
@@ -751,7 +751,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
                 }
 
                 loop {
-                    g_st().IObuff[len] = b' ' as c_char;
+                    g_st().iobuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 13 - over {
                         break;
@@ -764,22 +764,22 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
                     let copy_len = bytes.len().min(IOSIZE - 1 - len);
                     ptr::copy_nonoverlapping(
                         bytes.as_ptr().cast::<c_char>(),
-                        (g_st().IObuff.as_mut_ptr()).add(len),
+                        (g_st().iobuff.as_mut_ptr()).add(len),
                         copy_len,
                     );
                     len += copy_len;
                 }
 
                 loop {
-                    g_st().IObuff[len] = b' ' as c_char;
+                    g_st().iobuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 25 - over {
                         break;
                     }
                 }
 
-                g_st().IObuff[len] = NUL;
-                msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
+                g_st().iobuff[len] = NUL;
+                msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
 
                 if cmd.uc_luaref != LUA_NOREF {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, true);
@@ -792,7 +792,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) { let name 
                 msg_outtrans_special(
                     cmd.uc_rep.as_ptr(),
                     false,
-                    if name_len == 0 { g_st().Columns - 47 } else { 0 },
+                    if name_len == 0 { g_st().columns_global - 47 } else { 0 },
                 );
                 if opt_vars().p_verbose > 0 {
                     last_set_msg(cmd.uc_script_ctx);

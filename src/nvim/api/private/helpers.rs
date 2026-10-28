@@ -1579,15 +1579,15 @@ pub fn api_set_sctx(channel_id: u64) -> Sctx {
 }
 
 struct ApiMetadataState {
-    MEM_FOR_METADATA: ArenaMem,
-    METADATA_OBJ: Object,
+    mem_for_metadata: ArenaMem,
+    metadata_obj: Object,
 }
 
 impl ApiMetadataState {
     const fn new() -> Self {
         Self {
-            MEM_FOR_METADATA: ptr::null_mut(),
-            METADATA_OBJ: OBJECT_NIL,
+            mem_for_metadata: ptr::null_mut(),
+            metadata_obj: OBJECT_NIL,
         }
     }
 }
@@ -4356,7 +4356,7 @@ pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
 }
 
 pub fn api_metadata() -> Object {
-    if api_meta_st().METADATA_OBJ.obj_type == ObjectType::ObjectTypeNil {
+    if api_meta_st().metadata_obj.obj_type == ObjectType::ObjectTypeNil {
             let mut arena = Arena {
                 cur_blk: ptr::null_mut(),
                 pos: 0,
@@ -4365,13 +4365,13 @@ pub fn api_metadata() -> Object {
             let mut err = Error::new();
             let mut len: usize = 0;
             let ptr = api_get_packed_metadata(&mut len).cast::<c_char>();
-            api_meta_st().METADATA_OBJ = unpack(ptr, len, &mut arena, &mut err);
-            if error_set(&err) || api_meta_st().METADATA_OBJ.obj_type != ObjectType::ObjectTypeDict {
+            api_meta_st().metadata_obj = unpack(ptr, len, &mut arena, &mut err);
+            if error_set(&err) || api_meta_st().metadata_obj.obj_type != ObjectType::ObjectTypeDict {
                 std::process::abort();
             }
-            api_meta_st().MEM_FOR_METADATA = arena_finish(&mut arena);
+            api_meta_st().mem_for_metadata = arena_finish(&mut arena);
         }
-        api_meta_st().METADATA_OBJ
+        api_meta_st().metadata_obj
 }
 
 pub fn api_metadata_raw() -> NvimString {

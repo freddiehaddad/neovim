@@ -239,15 +239,15 @@ impl Default for Mparm {
 }
 
 struct MainInitState {
-    ARGV0: *mut c_char,
-    REALLY_EXITING: bool,
+    argv0: *mut c_char,
+    really_exiting: bool,
 }
 
 impl MainInitState {
     const fn new() -> Self {
         Self {
-            ARGV0: ptr::null_mut(),
-            REALLY_EXITING: false,
+            argv0: ptr::null_mut(),
+            really_exiting: false,
         }
     }
 }
@@ -347,8 +347,8 @@ fn early_init(paramp: &mut Mparm) {
     cmdline_init();
     eval_init();
     set_vim_var_nr(VV_STARTTIME, os_realtime() as Varnumber);
-    init_path(if !main_init_st().ARGV0.is_null() {
-        main_init_st().ARGV0
+    init_path(if !main_init_st().argv0.is_null() {
+        main_init_st().argv0
     } else {
         c"nvim".as_ptr()
     });
@@ -366,10 +366,10 @@ fn early_init(paramp: &mut Mparm) {
         let copy_len = buf.len().min(20);
         ptr::copy_nonoverlapping(
             buf.as_ptr().cast::<c_char>(),
-            (&raw mut g_st().windowsVersion).cast::<c_char>(),
+            (&raw mut g_st().windows_version).cast::<c_char>(),
             copy_len,
         );
-        *((&raw mut g_st().windowsVersion).cast::<c_char>().add(19)) = 0;
+        *((&raw mut g_st().windows_version).cast::<c_char>().add(19)) = 0;
     }
 
     time_msg_if_enabled(c"early init");
@@ -428,8 +428,8 @@ pub fn nvim_main() -> c_int {
 
 fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
     unsafe {
-        main_init_st().ARGV0 = *argv;
-        to_slash_if_needed(main_init_st().ARGV0);
+        main_init_st().argv0 = *argv;
+        to_slash_if_needed(main_init_st().argv0);
 
         if !appname_is_valid() {
             fprintf!(
@@ -543,7 +543,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 dup2(startup_stderr_fd, STDERR_FILENO);
                 close(startup_stderr_fd);
             }
-            mainerr(g_st().IObuff.as_ptr(), ptr::null(), ptr::null());
+            mainerr(g_st().iobuff.as_ptr(), ptr::null(), ptr::null());
         }
 
         #[cfg(windows)]
@@ -556,7 +556,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         if params.diff_mode != 0 && params.window_count == -1 {
             params.window_count = 0;
         }
-        g_st().RedrawingDisabled += 1;
+        g_st().redrawing_disabled += 1;
 
         setbuf(crate::log::log_get_stdout(), ptr::null_mut());
 
@@ -568,9 +568,9 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         assert!(
-            opt_vars().p_ch >= 0 && i64::from(g_st().Rows) >= opt_vars().p_ch && i64::from(g_st().Rows) - opt_vars().p_ch <= i64::from(c_int::MAX)
+            opt_vars().p_ch >= 0 && i64::from(g_st().rows_global) >= opt_vars().p_ch && i64::from(g_st().rows_global) - opt_vars().p_ch <= i64::from(c_int::MAX)
         );
-        g_st().cmdline_row = g_st().Rows - opt_vars().p_ch as c_int;
+        g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch as c_int;
         g_st().msg_row = g_st().cmdline_row;
         default_grid_alloc();
         set_init_2(g_st().headless_mode);
@@ -757,7 +757,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         set_starting(0);
 
-        g_st().RedrawingDisabled = 0;
+        g_st().redrawing_disabled = 0;
         redraw_all_later(UPD_NOT_VALID);
         g_st().no_wait_return = 0;
 
@@ -1061,10 +1061,10 @@ pub fn getout(mut exitval: c_int) -> ! {
 pub fn preserve_exit(errmsg: impl crate::strings::IntoCCharPtr) -> ! {
     let errmsg = errmsg.into_c_char_ptr();
     unsafe {
-        if main_init_st().REALLY_EXITING {
+        if main_init_st().really_exiting {
             std::process::exit(2);
         }
-        main_init_st().REALLY_EXITING = true;
+        main_init_st().really_exiting = true;
         g_st().exiting = true;
         signal_reject_deadly();
 
@@ -1680,7 +1680,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         b's' => {
                             if parmp.scriptin.is_some() {
                                 vim_snprintf!(
-                                    g_st().IObuff.as_mut_ptr(),
+                                    g_st().iobuff.as_mut_ptr(),
                                     IOSIZE,
                                     gettext(
                                         c"Attempt to open script file again: \"%s %s\"\n",
@@ -1691,7 +1691,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 fprintf!(
                                     log_get_stderr(),
                                     c"%s",
-                                    g_st().IObuff.as_ptr(),
+                                    g_st().iobuff.as_ptr(),
                                 );
                                 os_exit(2);
                             }
@@ -1718,7 +1718,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                             } else {
                                 if parmp.scriptout.is_some() {
                                     vim_snprintf!(
-                                        g_st().IObuff.as_mut_ptr(),
+                                        g_st().iobuff.as_mut_ptr(),
                                         IOSIZE,
                                         gettext(
                                             c"Attempt to open script file again: \"%s %s\"\n",
@@ -1729,7 +1729,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                     fprintf!(
                                         log_get_stderr(),
                                         c"%s",
-                                        g_st().IObuff.as_ptr(),
+                                        g_st().iobuff.as_ptr(),
                                     );
                                     os_exit(2);
                                 }
@@ -1829,8 +1829,8 @@ fn set_argf_var() {
         for i in 0..count {
             let fname = alist_name(&*garglist().add(i as usize));
             if !fname.is_null() {
-                let _ = vim_full_name(fname, g_st().NameBuff.as_mut_ptr(), MAXPATHL, false);
-                tv_list_append_string( &mut *list, g_st().NameBuff.as_ptr(), -1);
+                let _ = vim_full_name(fname, g_st().name_buff.as_mut_ptr(), MAXPATHL, false);
+                tv_list_append_string( &mut *list, g_st().name_buff.as_ptr(), -1);
             }
         }
         tv_list_set_lock(list.as_mut(), VAR_FIXED);
@@ -1919,13 +1919,13 @@ fn handle_quickfix(paramp: &mut Mparm) {
             if let Some(ref use_ef) = paramp.use_ef {
                 set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
-            vim_snprintf!(g_st().IObuff.as_mut_ptr(), IOSIZE, c"cfile %s", opt_vars().p_ef);
+            vim_snprintf!(g_st().iobuff.as_mut_ptr(), IOSIZE, c"cfile %s", opt_vars().p_ef);
             if qf_init(
                 None,
                 opt_vars().p_ef,
                 opt_vars().p_efm,
                 1,
-                g_st().IObuff.as_ptr(),
+                g_st().iobuff.as_ptr(),
                 opt_vars().p_menc,
             ) < 0
             {
@@ -1940,12 +1940,12 @@ fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
             g_st().swap_exists_did_quit = false;
             vim_snprintf!(
-                g_st().IObuff.as_mut_ptr(),
+                g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
                 c"ta %s",
                 tagname.as_ptr(),
             );
-            do_cmdline_cmd(g_st().IObuff.as_ptr());
+            do_cmdline_cmd(g_st().iobuff.as_ptr());
             time_msg_if_enabled(c"jumping to tag");
 
             if g_st().swap_exists_did_quit {
@@ -2518,7 +2518,7 @@ fn mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: impl crate::strings::I
 }
 
 fn print_mainerr(msg1: impl crate::strings::IntoCCharPtr, msg2: impl crate::strings::IntoCCharPtr, msg3: impl crate::strings::IntoCCharPtr) { let msg1 = msg1.into_c_char_ptr(); let msg2 = msg2.into_c_char_ptr(); let msg3 = msg3.into_c_char_ptr();
-    let prgname = path_tail(main_init_st().ARGV0);
+    let prgname = path_tail(main_init_st().argv0);
         signal_stop();
 
         let stderr = log_get_stderr();

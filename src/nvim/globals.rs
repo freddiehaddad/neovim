@@ -66,8 +66,8 @@ impl<T> GlobalState<T> {
 pub struct EditorState {
     pub main_loop: Loop,
     pub g_stats: NvimStats,
-    pub Rows: c_int,
-    pub Columns: c_int,
+    pub rows_global: c_int,
+    pub columns_global: c_int,
     pub mod_mask: c_int,
     pub vgetc_mod_mask: c_int,
     pub vgetc_char: c_int,
@@ -153,7 +153,7 @@ pub struct EditorState {
     pub include_none: c_int,
     pub include_default: c_int,
     pub include_link: c_int,
-    pub Search: SearchState,
+    pub search_global: SearchState,
     pub need_check_timestamps: bool,
     pub did_check_timestamps: bool,
     pub no_check_timestamps: c_int,
@@ -195,17 +195,17 @@ pub struct EditorState {
     pub sandbox: c_int,
     pub silent_mode: bool,
     pub exmode_active: bool,
-    pub Visual: VisualState,
+    pub visual_global: VisualState,
     pub where_paste_started: CursorPos,
     pub did_syncbind: bool,
     pub old_indent: c_int,
     pub saved_cursor: CursorPos,
-    pub Ins: InsState,
+    pub ins_global: InsState,
     pub orig_line_count: Linenr,
     pub vr_lines_changed: c_int,
     pub inhibit_delete_count: c_int,
     pub fenc_default: Option<std::ffi::CString>,
-    pub State: c_int,
+    pub state_global: c_int,
     pub debug_mode: bool,
     pub finish_op: bool,
     pub opcount: c_int,
@@ -234,11 +234,11 @@ pub struct EditorState {
     pub in_assert_fails: bool,
     pub swap_exists_action: c_int,
     pub swap_exists_did_quit: bool,
-    pub IObuff: [c_char; IOSIZE],
-    pub NameBuff: [c_char; MAXPATHL],
+    pub iobuff: [c_char; IOSIZE],
+    pub name_buff: [c_char; MAXPATHL],
     pub msg_buf: [c_char; MSG_BUF_LEN],
     pub os_buf: [c_char; MAXPATHL],
-    pub RedrawingDisabled: c_int,
+    pub redrawing_disabled: c_int,
     pub readonlymode: bool,
     pub recoverymode: bool,
     pub typebuf: Typebuf,
@@ -246,8 +246,8 @@ pub struct EditorState {
     pub ex_normal_busy: c_int,
     pub expr_map_lock: c_int,
     pub ignore_script: bool,
-    pub KeyTyped: bool,
-    pub KeyStuffed: c_int,
+    pub key_typed: bool,
+    pub key_stuffed: c_int,
     pub maptick: c_int,
     pub must_redraw: c_int,
     pub skip_redraw: bool,
@@ -303,7 +303,7 @@ pub struct EditorState {
     pub vim_ignored: c_int,
     pub embedded_mode: bool,
     pub headless_mode: bool,
-    pub windowsVersion: [c_char; 20],
+    pub windows_version: [c_char; 20],
     pub skip_win_fix_scroll: bool,
     pub skip_update_topline: bool,
     pub namespace_ids: Vec<(std::ffi::CString, c_int)>,
@@ -340,7 +340,7 @@ pub struct EditorState {
     pub redraw_not_allowed: bool,
     pub screen_search_hl: SynMatch,
     pub search_hl_has_cursor_lnum: Linenr,
-    pub EVALARG_EVALUATE: Evalarg,
+    pub evalarg_evaluate: Evalarg,
     pub curbuf_splice_pending: c_int,
     pub disable_fold_update: c_int,
     pub default_grid: ScreenGrid,
@@ -409,8 +409,8 @@ impl EditorState {
     redraw: 0,
     log_skip: 0,
 },
-            Rows: DFLT_ROWS,
-            Columns: DFLT_COLS,
+            rows_global: DFLT_ROWS,
+            columns_global: DFLT_COLS,
             mod_mask: 0,
             vgetc_mod_mask: 0,
             vgetc_char: 0,
@@ -519,7 +519,7 @@ impl EditorState {
             include_none: 0,
             include_default: 0,
             include_link: 0,
-            Search: SearchState {
+            search_global: SearchState {
     hl_match: false,
     match_lines: 0,
     match_endcol: 0,
@@ -570,7 +570,7 @@ impl EditorState {
             sandbox: 0,
             silent_mode: false,
             exmode_active: false,
-            Visual: VisualState {
+            visual_global: VisualState {
     start: CursorPos {
         lnum: 0,
         col: 0,
@@ -602,7 +602,7 @@ impl EditorState {
     col: 0,
     coladd: 0,
 },
-            Ins: InsState {
+            ins_global: InsState {
     start: CursorPos {
         lnum: 0,
         col: 0,
@@ -639,7 +639,7 @@ impl EditorState {
             vr_lines_changed: 0,
             inhibit_delete_count: 0,
             fenc_default: None,
-            State: MODE_NORMAL,
+            state_global: MODE_NORMAL,
             debug_mode: false,
             finish_op: false,
             opcount: 0,
@@ -668,11 +668,11 @@ impl EditorState {
             in_assert_fails: false,
             swap_exists_action: SEA_NONE,
             swap_exists_did_quit: false,
-            IObuff: [0 as c_char; IOSIZE],
-            NameBuff: [0 as c_char; MAXPATHL],
+            iobuff: [0 as c_char; IOSIZE],
+            name_buff: [0 as c_char; MAXPATHL],
             msg_buf: [0 as c_char; MSG_BUF_LEN],
             os_buf: [0 as c_char; MAXPATHL],
-            RedrawingDisabled: 0,
+            redrawing_disabled: 0,
             readonlymode: false,
             recoverymode: false,
             typebuf: Typebuf::ZERO,
@@ -680,8 +680,8 @@ impl EditorState {
             ex_normal_busy: 0,
             expr_map_lock: 0,
             ignore_script: false,
-            KeyTyped: false,
-            KeyStuffed: 0,
+            key_typed: false,
+            key_stuffed: 0,
             maptick: 0,
             must_redraw: 0,
             skip_redraw: false,
@@ -737,7 +737,7 @@ impl EditorState {
             vim_ignored: 0,
             embedded_mode: false,
             headless_mode: false,
-            windowsVersion: [0 as c_char; 20],
+            windows_version: [0 as c_char; 20],
             skip_win_fix_scroll: false,
             skip_update_topline: false,
             namespace_ids: Vec::new(),
@@ -801,7 +801,7 @@ impl EditorState {
     tm: 0,
 },
             search_hl_has_cursor_lnum: 0,
-            EVALARG_EVALUATE: Evalarg { eval_flags: 1 },
+            evalarg_evaluate: Evalarg { eval_flags: 1 },
             curbuf_splice_pending: 0,
             disable_fold_update: 0,
             default_grid: SCREEN_GRID_INIT,
@@ -1374,14 +1374,14 @@ mod tests {
     fn default_globals_match_c_initializers() {
         let _guard = TEST_GLOBAL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
-            assert_eq!({ g_st().Rows }, 24);
-            assert_eq!({ g_st().Columns }, 80);
+            assert_eq!({ g_st().rows_global }, 24);
+            assert_eq!({ g_st().columns_global }, 80);
             assert_eq!({ g_st().dollar_vcol }, -1);
             assert_eq!({ g_st().t_colors }, 256);
             assert_eq!({ *starting.as_ptr() }, 2);
-            assert_eq!({ g_st().State }, 0x01);
-            assert_eq!({ g_st().Visual.mode }, b'v' as c_int);
-            assert_eq!({ g_st().Search.last_line }, 0x7fffffff);
+            assert_eq!({ g_st().state_global }, 0x01);
+            assert_eq!({ g_st().visual_global.mode }, b'v' as c_int);
+            assert_eq!({ g_st().search_global.last_line }, 0x7fffffff);
             assert_eq!(
                 crate::memory::cstr_as_bytes(NO_LINES_MSG.as_ptr()),
                 b"--No lines in buffer--"

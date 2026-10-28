@@ -87,7 +87,7 @@ use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd {
-    pub is_set__cmd_: OptionalKeys,
+    pub is_set_cmd: OptionalKeys,
     pub cmd: NvimString,
     pub range: Array,
     pub count: Integer,
@@ -104,7 +104,7 @@ pub struct KeyDict_cmd {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd_magic {
-    pub is_set__cmd_magic_: OptionalKeys,
+    pub is_set_cmd_magic: OptionalKeys,
     pub file: Boolean,
     pub bar: Boolean,
 }
@@ -112,7 +112,7 @@ pub struct KeyDict_cmd_magic {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd_mods {
-    pub is_set__cmd_mods_: OptionalKeys,
+    pub is_set_cmd_mods: OptionalKeys,
     pub silent: Boolean,
     pub emsg_silent: Boolean,
     pub unsilent: Boolean,
@@ -138,7 +138,7 @@ pub struct KeyDict_cmd_mods {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_cmd_mods_filter {
-    pub is_set__cmd_mods_filter_: OptionalKeys,
+    pub is_set_cmd_mods_filter: OptionalKeys,
     pub pattern: NvimString,
     pub force: Boolean,
 }
@@ -152,7 +152,7 @@ pub struct KeyDict_cmd_opts {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_user_command {
-    pub is_set__user_command_: OptionalKeys,
+    pub is_set_user_command: OptionalKeys,
     pub addr: Object,
     pub bang: Boolean,
     pub bar: Boolean,
@@ -375,7 +375,7 @@ pub fn nvim_parse_cmd(
             get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
         };
 
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
         result.cmd = cstr_as_string(name);
 
         if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
@@ -384,7 +384,7 @@ pub fn nvim_parse_cmd(
                 add_c(&mut range, integer_obj(i64::from(ea.line1)));
             }
             add_c(&mut range, integer_obj(i64::from(ea.line2)));
-            result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_RANGE;
+            result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_RANGE;
             result.range = range;
         }
 
@@ -397,20 +397,20 @@ pub fn nvim_parse_cmd(
                 0
             };
             if ea.addr_count > 0 || cmd.is_some_and(|c| c.uc_def != 0) || count != 0 {
-                result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_COUNT;
+                result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_COUNT;
                 result.count = count;
             }
         }
 
         if (ea.argt & EX_REGSTR) != 0 {
             let reg = [ea.regname as c_char, NUL];
-            result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_REG;
+            result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_REG;
             result.reg = cstr_to_arena_str(arena, reg.as_ptr());
         }
 
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
         result.bang = ea.forceit != 0;
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_ARGS;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ARGS;
         result.args = args;
 
         let nargs_ch = if (ea.argt & EX_EXTRA) != 0 {
@@ -431,7 +431,7 @@ pub fn nvim_parse_cmd(
             b'0'
         };
         let nargs = [nargs_ch as c_char, NUL];
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_NARGS;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NARGS;
         result.nargs = string_obj(cstr_to_arena_str(arena, nargs.as_ptr()));
 
         let addr = match ea.addr_type {
@@ -445,9 +445,9 @@ pub fn nvim_parse_cmd(
             ADDR_NONE => c"none".as_ptr(),
             _ => c"?".as_ptr(),
         };
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
         result.addr = cstr_as_string(addr);
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
         result.nextcmd = cstr_as_string(ea.nextcmd);
 
         let mut mods = arena_dict(arena, 20);
@@ -569,13 +569,13 @@ pub fn nvim_parse_cmd(
             string_obj(static_cstr_as_string(split)),
         );
 
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_MODS;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MODS;
         result.mods = mods;
 
         let mut magic = arena_dict(arena, 2);
         put_c(&mut magic, c"file", boolean_obj(ea.magic.file));
         put_c(&mut magic, c"bar", boolean_obj(ea.magic.bar));
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_MAGIC;
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MAGIC;
         result.magic = magic;
 
         undo_cmdmod(&mut cmod);
@@ -635,7 +635,7 @@ pub fn nvim_cmd(
             size: 0,
         };
 
-        let mask = cmd.is_set__cmd_;
+        let mask = cmd.is_set_cmd;
 
         'end: {
             if !has_key(mask, KEYSET_OPTIDX_CMD_CMD) {
@@ -1020,13 +1020,13 @@ pub fn nvim_cmd(
                     break 'end;
                 }
 
-                ea.magic.file = if has_key(magic.is_set__cmd_magic_, KEYSET_OPTIDX_CMD_MAGIC_FILE)
+                ea.magic.file = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_FILE)
                 {
                     magic.file
                 } else {
                     (ea.argt & EX_XFILE) != 0
                 };
-                ea.magic.bar = if has_key(magic.is_set__cmd_magic_, KEYSET_OPTIDX_CMD_MAGIC_BAR) {
+                ea.magic.bar = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_BAR) {
                     magic.bar
                 } else {
                     (ea.argt & EX_TRLBAR) != 0
@@ -1052,7 +1052,7 @@ pub fn nvim_cmd(
                     break 'end;
                 }
 
-                let mods_mask = mods.is_set__cmd_mods_;
+                let mods_mask = mods.is_set_cmd_mods;
                 if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_FILTER) {
                     let mut filter = KeyDict_cmd_mods_filter::default();
                     if !api_dict_to_keydict(
@@ -1065,7 +1065,7 @@ pub fn nvim_cmd(
                     }
 
                     if has_key(
-                        filter.is_set__cmd_mods_filter_,
+                        filter.is_set_cmd_mods_filter,
                         KEYSET_OPTIDX_CMD_MODS_FILTER_PATTERN,
                     ) {
                         cmod.cmod_filter_force = filter.force;
@@ -1470,7 +1470,7 @@ pub fn create_user_command(
                 );
                 break 'err;
             }
-            let mask = opts.is_set__user_command_;
+            let mask = opts.is_set_user_command;
             if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE)
                 && has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT)
             {

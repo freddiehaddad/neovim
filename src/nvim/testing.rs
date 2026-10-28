@@ -775,7 +775,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         g_st().need_wait_return = false;
         g_st().emsg_on_display = false;
         msg_reset_scroll();
-        g_st().lines_left = g_st().Rows;
+        g_st().lines_left = g_st().rows_global;
         g_st().emsg_assert_fails_msg = None;
         drop(tofree);
         set_vim_var_string(VV_ERRMSG, std::ptr::null(), 0);

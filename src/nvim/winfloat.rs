@@ -267,8 +267,8 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             } else {
                 0
             };
-            wp.w_height = wp.w_height.min(g_st().Rows - win_border_height(wp) - above_ch);
-            wp.w_width = wp.w_width.min(g_st().Columns - win_border_width(wp));
+            wp.w_height = wp.w_height.min(g_st().rows_global - win_border_height(wp) - above_ch);
+            wp.w_width = wp.w_width.min(g_st().columns_global - win_border_width(wp));
         }
 
         win_set_inner_size(wp, true);
@@ -576,16 +576,16 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
         let border_h = win_border_height(&mut *wp);
         let border_w = win_border_width(&mut *wp);
-        let row = wp.w_wantline.max(0).min(g_st().Rows - 1);
-        let col = wp.w_wantcol.max(0).min(g_st().Columns - 1);
+        let row = wp.w_wantline.max(0).min(g_st().rows_global - 1);
+        let col = wp.w_wantcol.max(0).min(g_st().columns_global - 1);
 
         let v = opt_keyset(opt_vars().p_pvp, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
-        let mut want_w = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_WIDTH) {
+        let mut want_w = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
             (*v).width as c_int
         } else {
             0
         };
-        let mut want_h = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_HEIGHT) {
+        let mut want_h = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
             (*v).height as c_int
         } else {
             0
@@ -594,23 +594,23 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
         // If a dimension is not given in 'previewpopup', autosize to the content.
         let last: Linenr = wp.buf_mut().b_ml.ml_line_count;
         if want_w == 0 {
-            want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().Columns).max(1);
+            want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().columns_global).max(1);
         }
-        want_w = want_w.min(g_st().Columns);
+        want_w = want_w.min(g_st().columns_global);
 
         if want_h == 0 {
             let saved_view_width = wp.w_view_width;
             wp.w_view_width = want_w;
-            want_h = plines_m_win(wp, 1, last, g_st().Rows).max(1);
+            want_h = plines_m_win(wp, 1, last, g_st().rows_global).max(1);
             wp.w_view_width = saved_view_width;
         }
-        want_h = want_h.min(g_st().Rows);
+        want_h = want_h.min(g_st().rows_global);
 
         let need_h = want_h + border_h;
         let need_w = want_w + border_w;
-        let space_below = g_st().Rows - row - 1 - (opt_vars().p_ch as c_int);
+        let space_below = g_st().rows_global - row - 1 - (opt_vars().p_ch as c_int);
         let space_above = row - 1;
-        let space_right = g_st().Columns - col - 1;
+        let space_right = g_st().columns_global - col - 1;
         let space_left = col;
         // Prefer below/right; flip only if this side can't fit but the other can.
         let below = space_below >= need_h || space_above < need_h;
@@ -635,17 +635,17 @@ pub fn win_previewpopup_config(value: impl crate::strings::IntoCCharPtr, config:
     unsafe {
         let v = opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
 
-        if (has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_HEIGHT) && (*v).height < 1)
-            || (has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_WIDTH) && (*v).width < 1)
+        if (has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) && (*v).height < 1)
+            || (has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) && (*v).width < 1)
         {
             return false;
         }
-        config.height = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_HEIGHT) {
+        config.height = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) {
             (*v).height as c_int
         } else {
             0
         };
-        config.width = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_WIDTH) {
+        config.width = if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
             (*v).width as c_int
         } else {
             0
@@ -653,7 +653,7 @@ pub fn win_previewpopup_config(value: impl crate::strings::IntoCCharPtr, config:
 
         // Use 'previewpopup' border if set, else fallback to 'winborder'.
         let mut border: *mut c_char = ptr::null_mut();
-        if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_BORDER) {
+        if has_key((*v).is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
             border = (*v).border.as_mut_ptr();
         } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder) {
             border = opt_vars().p_winborder;

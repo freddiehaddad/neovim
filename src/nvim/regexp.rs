@@ -2103,17 +2103,17 @@ pub(super) fn reg_match_visual() -> bool {
         } else {
             re_st().rex.reg_win
         };
-        if re_st().rex.reg_buf != g_st().curbuf || g_st().Visual.start.lnum == 0 || !reg_multi() {
+        if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi() {
             return false;
         }
 
-        let (top, bot, mode, curswant) = if g_st().Visual.active {
-            let (t, b) = if lt(g_st().Visual.start, (*wp).w_cursor) {
-                (g_st().Visual.start, (*wp).w_cursor)
+        let (top, bot, mode, curswant) = if g_st().visual_global.active {
+            let (t, b) = if lt(g_st().visual_global.start, (*wp).w_cursor) {
+                (g_st().visual_global.start, (*wp).w_cursor)
             } else {
-                ((*wp).w_cursor, g_st().Visual.start)
+                ((*wp).w_cursor, g_st().visual_global.start)
             };
-            (t, b, g_st().Visual.mode, (*wp).w_curswant)
+            (t, b, g_st().visual_global.mode, (*wp).w_curswant)
         } else {
             let (t, mut b) = if lt(curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end) {
                 (curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end)

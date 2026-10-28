@@ -53,7 +53,7 @@ use crate::charset::NUL;
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_option {
-    pub is_set__option_: OptionalKeys,
+    pub is_set_option: OptionalKeys,
     pub scope: NvimString,
     pub win: Window,
     pub buf: Buffer,
@@ -77,7 +77,7 @@ fn validate_option_value_args(
     err: &mut Error,
 ) -> bool { let name = name.into_c_char_ptr();
     unsafe {
-        let mask = opts.is_set__option_;
+        let mask = opts.is_set_option;
         if has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
             && (has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE)
                 || has_key(mask, KEYSET_OPTIDX_OPTION_BUF)
@@ -450,7 +450,7 @@ pub fn nvim_get_option_value(
 /// @nodoc
 // DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_LUA_ONLY;
-pub fn nvim__option_to_object(
+pub fn nvim_option_to_object(
     name: NvimString,
     value: Object,
     arena: &mut Arena,
@@ -778,7 +778,7 @@ pub fn nvim_set_option_value(
             });
         }
 
-        let rv = nvim__option_to_object(name, merged_val, arena, err);
+        let rv = nvim_option_to_object(name, merged_val, arena, err);
         optval_free(merged_val);
         rv
     }

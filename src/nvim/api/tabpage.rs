@@ -25,7 +25,7 @@ const KEYSET_OPTIDX_TABPAGE_CONFIG_AFTER: u64 = 1;
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_tabpage_config {
-    pub is_set__tabpage_config_: OptionalKeys,
+    pub is_set_tabpage_config: OptionalKeys,
     pub after: Integer,
 }
 
@@ -262,7 +262,7 @@ pub fn nvim_open_tabpage(
         };
 
         let after: c_int = if has_key(
-            config.is_set__tabpage_config_,
+            config.is_set_tabpage_config,
             KEYSET_OPTIDX_TABPAGE_CONFIG_AFTER,
         ) {
             config.after as c_int

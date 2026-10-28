@@ -79,7 +79,7 @@ pub struct TvBlob {
 #[repr(C)]
 pub struct TvPartial {
     pub pt_refcount: c_int,
-    pub pt_copyID: c_int,
+    pub pt_copy_id: c_int,
     pub pt_name: Option<std::ffi::CString>,
     pub pt_func: *mut UserFunc,
     pub pt_auto: bool,
@@ -91,7 +91,7 @@ impl Default for TvPartial {
     fn default() -> Self {
         Self {
             pt_refcount: 0,
-            pt_copyID: 0,
+            pt_copy_id: 0,
             pt_name: None,
             pt_func: ptr::null_mut(),
             pt_auto: false,
@@ -417,7 +417,7 @@ pub struct TvList {
     pub lv_refcount: c_int,
     pub lv_len: c_int,
     pub lv_idx: c_int,
-    pub lv_copyID: c_int,
+    pub lv_copy_id: c_int,
     pub lv_lock: c_int,
     pub lua_table_ref: c_int,
 }
@@ -434,7 +434,7 @@ impl TvList {
             lv_refcount: 0,
             lv_len: 0,
             lv_idx: 0,
-            lv_copyID: 0,
+            lv_copy_id: 0,
             lv_lock: 0,
             lua_table_ref: LUA_NOREF,
         }
@@ -482,7 +482,7 @@ pub struct TvDict {
     pub dv_lock: c_int,
     pub dv_scope: c_int,
     pub dv_refcount: c_int,
-    pub dv_copyID: c_int,
+    pub dv_copy_id: c_int,
     pub dv_hashtab: crate::hashtab::Hashtab,
     pub dv_copydict: *mut TvDict,
     pub dv_gc_idx: Option<usize>,
@@ -496,7 +496,7 @@ impl TvDict {
             dv_lock: 0,
             dv_scope: 0,
             dv_refcount: 0,
-            dv_copyID: 0,
+            dv_copy_id: 0,
             dv_hashtab: crate::hashtab::Hashtab::new(),
             dv_copydict: ptr::null_mut(),
             dv_gc_idx: None,
@@ -640,7 +640,7 @@ pub const TV_EMPTY_STRING: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
 
 pub(crate) struct TypvalModuleState {
     pub(crate) tv_in_free_unref_items: bool,
-    TV_EQUAL_RECURSE_LIMIT: c_int,
+    tv_equal_recurse_limit: c_int,
     dict_numbuf: [c_char; NUMBUFLEN],
     mybuf_chk: [c_char; NUMBUFLEN],
     mybuf: [c_char; NUMBUFLEN],
@@ -650,7 +650,7 @@ impl TypvalModuleState {
     const fn new() -> Self {
         Self {
             tv_in_free_unref_items: false,
-            TV_EQUAL_RECURSE_LIMIT: 0,
+            tv_equal_recurse_limit: 0,
             dict_numbuf: [0; NUMBUFLEN],
             mybuf_chk: [0; NUMBUFLEN],
             mybuf: [0; NUMBUFLEN],
@@ -1036,7 +1036,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut TvList {
             lv_refcount: 0,
             lv_len: 0,
             lv_idx: 0,
-            lv_copyID: 0,
+            lv_copy_id: 0,
             lv_lock: 0,
             lua_table_ref: LUA_NOREF,
         }));
@@ -1331,7 +1331,7 @@ pub fn tv_list_copy(
         let copy = tv_list_alloc(tv_list_len_inline(orig.as_deref()) as isize);
         tv_list_ref_inline(copy.as_mut());
         if copy_id != 0 {
-            orig.as_deref_mut().unwrap().lv_copyID = copy_id;
+            orig.as_deref_mut().unwrap().lv_copy_id = copy_id;
             orig.as_deref_mut().unwrap().lv_copylist = copy;
         }
         for item in crate::eval::typval::list_iter_mut(orig.unwrap().lv_first) {
@@ -2837,7 +2837,7 @@ pub fn tv_dict_alloc() -> *mut TvDict {
             dv_lock: VAR_UNLOCKED,
             dv_scope: VAR_NO_SCOPE,
             dv_refcount: 0,
-            dv_copyID: 0,
+            dv_copy_id: 0,
             dv_hashtab: crate::hashtab::Hashtab::new(),
             dv_copydict: ptr::null_mut(),
             dv_gc_idx: None,
@@ -3443,7 +3443,7 @@ pub fn tv_dict_copy(
 
         let mut copy = tv_dict_alloc();
         if copy_id != 0 {
-            orig.as_deref_mut().unwrap().dv_copyID = copy_id;
+            orig.as_deref_mut().unwrap().dv_copy_id = copy_id;
             orig.as_deref_mut().unwrap().dv_copydict = copy;
         }
         let mut todo = orig.as_deref_mut().unwrap().dv_hashtab.ht_used;
@@ -4000,7 +4000,7 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: c_int) {
                 return;
             }
             let dict = (*pt).pt_dict.cast::<TvDict>();
-            debug_assert!(dict.is_null() || (*dict).dv_copyID == copy_id);
+            debug_assert!(dict.is_null() || (*dict).dv_copy_id == copy_id);
             (*pt).pt_dict = ptr::null_mut();
             (*pt).pt_argv.clear();
             debug_assert!((*pt).pt_refcount <= 1);
@@ -4140,11 +4140,11 @@ fn nothing_convert_one_value(
                     tv.v_lock = VAR_UNLOCKED;
                     return true;
                 }
-                let saved_copy_id = (*list).lv_copyID;
-                if (*list).lv_copyID == copy_id {
+                let saved_copy_id = (*list).lv_copy_id;
+                if (*list).lv_copy_id == copy_id {
                     return true;
                 }
-                (*list).lv_copyID = copy_id;
+                (*list).lv_copy_id = copy_id;
                 let mut mpsv = MPConvStackVal {
                     tv: &raw mut *tv,
                     saved_copy_id,
@@ -4172,11 +4172,11 @@ fn nothing_convert_one_value(
                     nothing_conv_empty_dict(Some(&mut *tv_ptr), dictp);
                     return true;
                 }
-                let saved_copy_id = (*dict).dv_copyID;
-                if (*dict).dv_copyID == copy_id {
+                let saved_copy_id = (*dict).dv_copy_id;
+                if (*dict).dv_copy_id == copy_id {
                     return true;
                 }
-                (*dict).dv_copyID = copy_id;
+                (*dict).dv_copy_id = copy_id;
                 let mut mpsv = MPConvStackVal {
                     tv: tv_ptr,
                     saved_copy_id,
@@ -4221,7 +4221,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 } => {
                     if *todo == 0 {
                         mpstack.pop();
-                        (*dict).dv_copyID = saved_copy_id;
+                        (*dict).dv_copy_id = saved_copy_id;
                         nothing_conv_dict_end(dictp);
                         continue;
                     }
@@ -4237,7 +4237,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                     let cur_li = *li;
                     if cur_li.is_null() {
                         mpstack.pop();
-                        (*list).lv_copyID = saved_copy_id;
+                        (*list).lv_copy_id = saved_copy_id;
                         nothing_conv_list_end(cur_tv.as_mut());
                         continue;
                     }
@@ -4285,11 +4285,11 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                                     nothing_conv_empty_dict(None, dictp);
                                     continue;
                                 }
-                                let saved_copy_id = (*dict).dv_copyID;
-                                if (*dict).dv_copyID == copy_id {
+                                let saved_copy_id = (*dict).dv_copy_id;
+                                if (*dict).dv_copy_id == copy_id {
                                     continue;
                                 }
-                                (*dict).dv_copyID = copy_id;
+                                (*dict).dv_copy_id = copy_id;
                                 let mut mpsv = MPConvStackVal {
                                     tv: ptr::null_mut(),
                                     saved_copy_id,
@@ -4570,10 +4570,10 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
 
         let cur_cnt = RECURSIVE_CNT.load(std::sync::atomic::Ordering::Relaxed);
         if cur_cnt == 0 {
-            tv_st().TV_EQUAL_RECURSE_LIMIT = 1000;
+            tv_st().tv_equal_recurse_limit = 1000;
         }
-        if cur_cnt >= tv_st().TV_EQUAL_RECURSE_LIMIT {
-            tv_st().TV_EQUAL_RECURSE_LIMIT -= 1;
+        if cur_cnt >= tv_st().tv_equal_recurse_limit {
+            tv_st().tv_equal_recurse_limit -= 1;
             return true;
         }
 

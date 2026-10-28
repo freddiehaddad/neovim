@@ -290,8 +290,8 @@ pub(crate) struct RuntimeModuleState {
     pub(crate) exestack: Vec<Estack>,
     pub(crate) script_items: Vec<Scriptitem>,
     ga_loaded: Vec<std::ffi::CString>,
-    last_current_SID_seq: c_int,
-    last_current_SID: Scid,
+    last_current_sid_seq: c_int,
+    last_current_sid: Scid,
     runtime_search_path_valid: bool,
     runtime_search_path_valid_thread: bool,
     runtime_search_path_refcount: usize,
@@ -312,8 +312,8 @@ impl RuntimeModuleState {
             exestack: Vec::new(),
             script_items: Vec::new(),
             ga_loaded: Vec::new(),
-            last_current_SID_seq: 0,
-            last_current_SID: 0,
+            last_current_sid_seq: 0,
+            last_current_sid: 0,
             runtime_search_path_valid: false,
             runtime_search_path_valid_thread: false,
             runtime_search_path_refcount: 0,
@@ -2097,6 +2097,7 @@ pub fn expand_runtime_cmd(
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
+#[allow(non_snake_case)]
 pub fn ExpandPackAddDir(pat: impl crate::strings::IntoCCharPtr, file: &mut Vec<std::ffi::CString>) -> bool { let pat = pat.into_c_char_ptr();
      {
         file.clear();
@@ -2256,7 +2257,7 @@ fn add_dir(
             #[cfg(not(windows))]
             let appname_len = crate::memory::cstr_len(appname);
             debug_assert!(appname_len < IOSIZE - 6);
-            let iobuff = g_st().IObuff.as_mut_ptr();
+            let iobuff = g_st().iobuff.as_mut_ptr();
             crate::memory::cstr_ncpy(iobuff, appname, appname_len);
             #[cfg(windows)]
             if matches!(type_, XDGVarType::XDGDataHome | XDGVarType::XDGStateHome) {
@@ -2591,8 +2592,8 @@ pub fn new_script_item(
     sid_out: &mut Scid,
 ) -> *mut Scriptitem {
     unsafe {
-        rt_st().last_current_SID += 1;
-        let sid = rt_st().last_current_SID;
+        rt_st().last_current_sid += 1;
+        let sid = rt_st().last_current_sid;
         {
             *sid_out = sid;
         }
@@ -2633,7 +2634,7 @@ fn do_source_buffer_init(
             return None;
         }
 
-        let iobuff = g_st().IObuff.as_mut_ptr();
+        let iobuff = g_st().iobuff.as_mut_ptr();
         let fname = if !curbuf_mut().b_ffname.is_null() {
             cstr_to_cstring(curbuf_mut().b_ffname)
         } else {
@@ -2888,8 +2889,8 @@ fn do_source_ext(
 
             let save_current_sctx = g_st().current_sctx;
 
-            rt_st().last_current_SID_seq += 1;
-            g_st().current_sctx.sc_seq = rt_st().last_current_SID_seq;
+            rt_st().last_current_sid_seq += 1;
+            g_st().current_sctx.sc_seq = rt_st().last_current_sid_seq;
 
             if sid > 0 {
                 si = script_item(sid);
@@ -3028,7 +3029,7 @@ fn do_source_ext(
             }
 
             if l_has_time_fd {
-                let iobuff = g_st().IObuff.as_mut_ptr();
+                let iobuff = g_st().iobuff.as_mut_ptr();
                 vim_snprintf!(iobuff, IOSIZE, c"sourcing %s", fname);
                 time_msg(iobuff, Some(&start_time));
                 time_pop(rel_time);
@@ -3111,8 +3112,8 @@ pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> c_int { l
 /// ":scriptnames"
 pub fn ex_scriptnames(eap: &mut Exarg) {
     unsafe {
-        let namebuff = g_st().NameBuff.as_mut_ptr();
-        let iobuff = g_st().IObuff.as_mut_ptr();
+        let namebuff = g_st().name_buff.as_mut_ptr();
+        let iobuff = g_st().iobuff.as_mut_ptr();
         if eap.addr_count > 0 || !crate::memory::cstr_is_empty(eap.arg) {
             if eap.addr_count > 0 && !script_id_valid(eap.line2) {
                 emsg(gettext(E_INVARG));
@@ -3156,7 +3157,7 @@ pub fn get_scriptname(
 ) -> std::borrow::Cow<'static, CStr> {
     use std::borrow::Cow;
     unsafe {
-        let iobuff = g_st().IObuff.as_mut_ptr();
+        let iobuff = g_st().iobuff.as_mut_ptr();
         let ptr = match script_ctx.sc_sid {
             SID_MODELINE => gettext(c"modeline"),
             SID_CMDARG => gettext(c"--cmd argument"),

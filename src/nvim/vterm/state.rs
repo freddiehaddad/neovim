@@ -1,7 +1,7 @@
 //! VTerm terminal state machine (`src/nvim/vterm/state.c`).
 
 use crate::grid::{Schar, schar_from_ascii, schar_from_buf};
-use crate::mbyte::{utf_cluster_info_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
+use crate::mbyte::{utf_cluster_info_len, utf_char2bytes, utf_iscomposing, utf_ptr2_str_char_info_len};
 use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::terminal::Terminal;
 use crate::vterm::encoding::{VTermEncodingType, vterm_lookup_encoding};
@@ -111,6 +111,7 @@ pub(crate) const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
 
 /// Primary Device Attributes (DA1) response.
 #[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
 pub static vterm_primary_device_attr: crate::globals::GlobalState<[c_char; 9]> =
     crate::globals::GlobalState::new([
         b'6' as c_char,
@@ -649,7 +650,7 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_in
             }
 
             let mut scratch = grapheme_len as c_int;
-            let ci = utf_ptr2StrCharInfo_len(state.grapheme_buf.as_ptr(), scratch);
+            let ci = utf_ptr2_str_char_info_len(state.grapheme_buf.as_ptr(), scratch);
             let cli = utf_cluster_info_len(ci, &mut scratch);
             let width = cli.cells;
 

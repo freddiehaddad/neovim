@@ -118,7 +118,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                         ui_flush();
                         break K_EVENT;
                     } else {
-                        if g_st().must_redraw != 0 && !g_st().need_wait_return && (g_st().State & MODE_CMDLINE) == 0 {
+                        if g_st().must_redraw != 0 && !g_st().need_wait_return && (g_st().state_global & MODE_CMDLINE) == 0 {
                             update_screen();
                             setcursor();
                         }
@@ -182,14 +182,14 @@ pub fn state_handle_k_event() {
 }
 
 pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
-    if (g_st().State & MODE_TERMINAL) != 0 {
+    if (g_st().state_global & MODE_TERMINAL) != 0 {
             return true;
         }
 
         let cur_ve_flags = get_ve_flags( wp);
 
         if cur_ve_flags == K_OPT_VE_FLAG_ALL
-            || ((cur_ve_flags & K_OPT_VE_FLAG_INSERT) != 0 && (g_st().State & MODE_INSERT) != 0)
+            || ((cur_ve_flags & K_OPT_VE_FLAG_INSERT) != 0 && (g_st().state_global & MODE_INSERT) != 0)
         {
             return true;
         }
@@ -197,13 +197,13 @@ pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
         if g_st().virtual_op != K_NONE {
             return g_st().virtual_op != 0;
         }
-        (cur_ve_flags & K_OPT_VE_FLAG_BLOCK) != 0 && g_st().Visual.active && g_st().Visual.mode == CTRL_V_CONST
+        (cur_ve_flags & K_OPT_VE_FLAG_BLOCK) != 0 && g_st().visual_global.active && g_st().visual_global.mode == CTRL_V_CONST
 }
 
 pub fn get_real_state() -> c_int {
-    if (g_st().State & MODE_NORMAL) != 0 {
-            if g_st().Visual.active {
-                if g_st().Visual.select {
+    if (g_st().state_global & MODE_NORMAL) != 0 {
+            if g_st().visual_global.active {
+                if g_st().visual_global.select {
                     return MODE_SELECT;
                 }
                 return MODE_VISUAL;
@@ -211,37 +211,37 @@ pub fn get_real_state() -> c_int {
                 return MODE_OP_PENDING;
             }
         }
-        g_st().State
+        g_st().state_global
 }
 
 pub fn get_mode(buf: *mut c_char) {
     unsafe {
         let mut i: usize = 0;
 
-        if g_st().State == MODE_HITRETURN
-            || g_st().State == MODE_ASKMORE
-            || g_st().State == MODE_SETWSIZE
-            || ((g_st().State & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
+        if g_st().state_global == MODE_HITRETURN
+            || g_st().state_global == MODE_ASKMORE
+            || g_st().state_global == MODE_SETWSIZE
+            || ((g_st().state_global & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
         {
             *buf.add(i) = b'r' as c_char;
             i += 1;
-            if g_st().State == MODE_ASKMORE {
+            if g_st().state_global == MODE_ASKMORE {
                 *buf.add(i) = b'm' as c_char;
                 i += 1;
-            } else if (g_st().State & MODE_CMDLINE) != 0 {
+            } else if (g_st().state_global & MODE_CMDLINE) != 0 {
                 *buf.add(i) = b'?' as c_char;
                 i += 1;
             }
-        } else if g_st().State == MODE_EXTERNCMD {
+        } else if g_st().state_global == MODE_EXTERNCMD {
             *buf.add(i) = b'!' as c_char;
             i += 1;
-        } else if (g_st().State & MODE_INSERT) != 0 {
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+        } else if (g_st().state_global & MODE_INSERT) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 *buf.add(i) = b'R' as c_char;
                 i += 1;
                 *buf.add(i) = b'v' as c_char;
                 i += 1;
-            } else if (g_st().State & REPLACE_FLAG) != 0 {
+            } else if (g_st().state_global & REPLACE_FLAG) != 0 {
                 *buf.add(i) = b'R' as c_char;
                 i += 1;
             } else {
@@ -255,28 +255,28 @@ pub fn get_mode(buf: *mut c_char) {
                 *buf.add(i) = b'x' as c_char;
                 i += 1;
             }
-        } else if (g_st().State & MODE_CMDLINE) != 0 || g_st().exmode_active {
+        } else if (g_st().state_global & MODE_CMDLINE) != 0 || g_st().exmode_active {
             *buf.add(i) = b'c' as c_char;
             i += 1;
             if g_st().exmode_active {
                 *buf.add(i) = b'v' as c_char;
                 i += 1;
             }
-            if (g_st().State & MODE_CMDLINE) != 0 && cmdline_overstrike() {
+            if (g_st().state_global & MODE_CMDLINE) != 0 && cmdline_overstrike() {
                 *buf.add(i) = b'r' as c_char;
                 i += 1;
             }
-        } else if (g_st().State & MODE_TERMINAL) != 0 {
+        } else if (g_st().state_global & MODE_TERMINAL) != 0 {
             *buf.add(i) = b't' as c_char;
             i += 1;
-        } else if g_st().Visual.active {
-            if g_st().Visual.select {
-                *buf.add(i) = (g_st().Visual.mode + (b's' as c_int) - (b'v' as c_int)) as c_char;
+        } else if g_st().visual_global.active {
+            if g_st().visual_global.select {
+                *buf.add(i) = (g_st().visual_global.mode + (b's' as c_int) - (b'v' as c_int)) as c_char;
                 i += 1;
             } else {
-                *buf.add(i) = g_st().Visual.mode as c_char;
+                *buf.add(i) = g_st().visual_global.mode as c_char;
                 i += 1;
-                if g_st().Visual.restart_select != 0 {
+                if g_st().visual_global.restart_select != 0 {
                     *buf.add(i) = b's' as c_char;
                     i += 1;
                 }

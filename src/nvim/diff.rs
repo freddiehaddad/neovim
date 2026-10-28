@@ -212,7 +212,7 @@ struct DiffState {
     f_diff_hlid_prev_diff_flags: c_int,
     f_diff_hlid_change_start: c_int,
     f_diff_hlid_change_end: c_int,
-    f_diff_hlid_hlID: Hlf,
+    f_diff_hlid_hl_id: Hlf,
 }
 
 impl DiffState {
@@ -239,7 +239,7 @@ impl DiffState {
             f_diff_hlid_prev_diff_flags: 0,
             f_diff_hlid_change_start: 0,
             f_diff_hlid_change_end: 0,
-            f_diff_hlid_hlID: 0,
+            f_diff_hlid_hl_id: 0,
         }
     }
 }
@@ -252,7 +252,7 @@ fn diff_st() -> &'static mut DiffState {
 }
 #[inline]
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
-    (v.is_set__dip_ & (1u64 << idx)) != 0
+    (v.is_set_dip & (1u64 << idx)) != 0
 }
 fn diff_scan_start(tp: &mut TabPageInfo, idx: c_int, lnum: Linenr) -> usize {
     if let Some(dp_idx) = diff_st().diff_finger_dp_idx
@@ -3355,7 +3355,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 eap.line2,
             );
             if eap.cmdidx != CMD_DIFFGET {
-                if g_st().KeyTyped {
+                if g_st().key_typed {
                     u_sync(false);
                 }
                 ctx_restore(&mut aco);
@@ -3821,9 +3821,9 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     diff_st().f_diff_hlid_change_start = MAXCOL;
                     diff_st().f_diff_hlid_change_end = -1;
                     if diff_find_change(curwin_mut(), lnum, &mut diffline) {
-                        diff_st().f_diff_hlid_hlID = HLF_ADD;
+                        diff_st().f_diff_hlid_hl_id = HLF_ADD;
                     } else {
-                        diff_st().f_diff_hlid_hlID = HLF_CHD;
+                        diff_st().f_diff_hlid_hl_id = HLF_CHD;
                         if !diffline.changes.is_empty() && cache_results {
                             diff_st().f_diff_hlid_change_start =
                                 diffline.changes[0].dc_start[diffline.bufidx as usize];
@@ -3832,10 +3832,10 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                         }
                     }
                 } else {
-                    diff_st().f_diff_hlid_hlID = HLF_ADD;
+                    diff_st().f_diff_hlid_hl_id = HLF_ADD;
                 }
             } else {
-                diff_st().f_diff_hlid_hlID = 0;
+                diff_st().f_diff_hlid_hl_id = 0;
             }
             if cache_results {
                 diff_st().f_diff_hlid_prev_lnum = lnum;
@@ -3844,16 +3844,16 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 diff_st().f_diff_hlid_prev_diff_flags = diff_st().diff_flags;
             }
         }
-        if diff_st().f_diff_hlid_hlID == HLF_CHD || diff_st().f_diff_hlid_hlID == HLF_TXD {
+        if diff_st().f_diff_hlid_hl_id == HLF_CHD || diff_st().f_diff_hlid_hl_id == HLF_TXD {
             let col = tv_get_number(&argvars[1]) as c_int - 1;
             if cache_results {
                 if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
-                    diff_st().f_diff_hlid_hlID = HLF_TXD;
+                    diff_st().f_diff_hlid_hl_id = HLF_TXD;
                 } else {
-                    diff_st().f_diff_hlid_hlID = HLF_CHD;
+                    diff_st().f_diff_hlid_hl_id = HLF_CHD;
                 }
             } else {
-                diff_st().f_diff_hlid_hlID = HLF_CHD;
+                diff_st().f_diff_hlid_hl_id = HLF_CHD;
                 for change in &diffline.changes {
                     let added = diff_change_parse(
                         &diffline,
@@ -3862,7 +3862,7 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                         &mut diff_st().f_diff_hlid_change_end,
                     );
                     if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
-                        diff_st().f_diff_hlid_hlID = if added { HLF_TXA } else { HLF_TXD };
+                        diff_st().f_diff_hlid_hl_id = if added { HLF_TXA } else { HLF_TXD };
                         break;
                     }
                     if col < diff_st().f_diff_hlid_change_start {
@@ -3871,7 +3871,7 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 }
             }
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hlID as Varnumber);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(diff_st().f_diff_hlid_hl_id as Varnumber);
     }
 }
 #[cfg(test)]

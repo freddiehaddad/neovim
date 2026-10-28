@@ -49,7 +49,7 @@ const KEYSET_OPTIDX_WIN_RESIZE_ANCHOR: u64 = 1;
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_win_text_height {
-    pub is_set__win_text_height_: OptionalKeys,
+    pub is_set_win_text_height: OptionalKeys,
     pub start_row: Integer,
     pub end_row: Integer,
     pub start_vcol: Integer,
@@ -60,7 +60,7 @@ pub struct KeyDict_win_text_height {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_win_resize {
-    pub is_set__win_resize_: OptionalKeys,
+    pub is_set_win_resize: OptionalKeys,
     pub anchor: NvimString,
 }
 
@@ -573,7 +573,7 @@ pub fn nvim_win_text_height(
         let mut end_vcol: i64 = -1;
 
         let mut oob = false;
-        let mask = opts.is_set__win_text_height_;
+        let mask = opts.is_set_win_text_height;
 
         if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW) {
             start_lnum = normalize_index(&mut *buf, opts.start_row, false, &mut oob) as Linenr;
@@ -739,7 +739,7 @@ pub fn nvim_win_resize(
         let mut from_left = true;
 
         if has_key(
-            opts.is_set__win_resize_,
+            opts.is_set_win_resize,
             KEYSET_OPTIDX_WIN_RESIZE_ANCHOR,
         ) {
             let anchor = opts.anchor.data;

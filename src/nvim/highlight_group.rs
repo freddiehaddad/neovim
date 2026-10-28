@@ -93,7 +93,7 @@ const KEYSET_OPTIDX_GET_HIGHLIGHT_CREATE: u64 = 4;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_get_highlight {
-    pub is_set__get_highlight_: OptionalKeys,
+    pub is_set_get_highlight: OptionalKeys,
     pub id: Integer,
     pub name: NvimString,
     pub link: Boolean,
@@ -982,7 +982,7 @@ pub fn set_hl_group(
         }
 
         let update =
-            has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_UPDATE) && dict.update;
+            has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_UPDATE) && dict.update;
         g.sg_gui = attrs.rgb_ae_attr & !HL_DEFAULT;
 
         g.sg_rgb_fg = attrs.rgb_fg_color;
@@ -993,7 +993,7 @@ pub fn set_hl_group(
             (
                 &raw mut g.sg_rgb_fg_idx,
                 g.sg_rgb_fg,
-                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_FG) {
+                if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FG) {
                     dict.fg
                 } else {
                     dict.foreground
@@ -1002,7 +1002,7 @@ pub fn set_hl_group(
             (
                 &raw mut g.sg_rgb_bg_idx,
                 g.sg_rgb_bg,
-                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_BG) {
+                if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_BG) {
                     dict.bg
                 } else {
                     dict.background
@@ -1011,7 +1011,7 @@ pub fn set_hl_group(
             (
                 &raw mut g.sg_rgb_sp_idx,
                 g.sg_rgb_sp,
-                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_SP) {
+                if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_SP) {
                     dict.sp
                 } else {
                     dict.special
@@ -1062,7 +1062,7 @@ pub fn set_hl_group(
 
         if attrs.font >= 0 {
             g.sg_font = Some(crate::memory::cstr_to_cstring(hl_get_font(attrs.font)));
-        } else if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
+        } else if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
             g.sg_font = None;
         }
 
@@ -1819,7 +1819,7 @@ pub fn ns_get_hl_defs(
 ) -> Dict {
     unsafe {
         let link = if has_key(
-            opts.is_set__get_highlight_,
+            opts.is_set_get_highlight,
             KEYSET_OPTIDX_GET_HIGHLIGHT_LINK,
         ) {
             opts.link
@@ -1828,11 +1828,11 @@ pub fn ns_get_hl_defs(
         };
         let mut id: c_int = -1;
         if has_key(
-            opts.is_set__get_highlight_,
+            opts.is_set_get_highlight,
             KEYSET_OPTIDX_GET_HIGHLIGHT_NAME,
         ) {
             let create = if has_key(
-                opts.is_set__get_highlight_,
+                opts.is_set_get_highlight,
                 KEYSET_OPTIDX_GET_HIGHLIGHT_CREATE,
             ) {
                 opts.create
@@ -1848,7 +1848,7 @@ pub fn ns_get_hl_defs(
                 return Dict::new();
             }
         } else if has_key(
-            opts.is_set__get_highlight_,
+            opts.is_set_get_highlight,
             KEYSET_OPTIDX_GET_HIGHLIGHT_ID,
         ) {
             id = opts.id as c_int;
@@ -2091,7 +2091,7 @@ pub fn syn_list_header(
         } else if (ui_has(K_UIMESSAGES) || g_st().msg_silent != 0) && !force_newline {
             msg_putchar(c_int::from(b' '));
             adjust = false;
-        } else if g_st().msg_col + outlen + 1 >= g_st().Columns || force_newline {
+        } else if g_st().msg_col + outlen + 1 >= g_st().columns_global || force_newline {
             msg_putchar(c_int::from(b'\n'));
             if g_st().got_int {
                 return true;
@@ -2108,7 +2108,7 @@ pub fn syn_list_header(
         }
 
         if !did_header {
-            if endcol == g_st().Columns - 1 && endcol <= name_col {
+            if endcol == g_st().columns_global - 1 && endcol <= name_col {
                 msg_putchar(c_int::from(b' '));
             }
             msg_puts_hl(c"xxx", id, false);

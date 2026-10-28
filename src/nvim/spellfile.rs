@@ -256,7 +256,7 @@ impl Affentry {
 struct Affheader {
     ah_key: [c_char; AH_KEY_LEN],
     ah_flag: c_uint,
-    ah_newID: c_int,
+    ah_new_id: c_int,
     ah_combine: c_int,
     ah_follows: c_int,
     ah_entries: Vec<Affentry>,
@@ -266,7 +266,7 @@ struct Affheader {
 struct Compitem {
     ci_key: [c_char; AH_KEY_LEN],
     ci_flag: c_uint,
-    ci_newID: c_int,
+    ci_new_id: c_int,
 }
 
 #[derive(Clone, Copy)]
@@ -292,7 +292,7 @@ struct Wordnode {
     wn_sibling: Option<usize>,
     wn_refs: c_int,
     wn_byte: u8,
-    wn_affixID: u8,
+    wn_affix_id: u8,
     wn_flags: u16,
     wn_region: i16,
 }
@@ -306,7 +306,7 @@ impl Wordnode {
             wn_sibling: None,
             wn_refs: 0,
             wn_byte: 0,
-            wn_affixID: 0,
+            wn_affix_id: 0,
             wn_flags: 0,
             wn_region: 0,
         }
@@ -361,8 +361,8 @@ struct Spellinfo {
     si_nobreak: c_char,
     si_syllable: Option<std::ffi::CString>,
     si_prefcond: Vec<Option<std::ffi::CString>>,
-    si_newprefID: c_int,
-    si_newcompID: c_int,
+    si_newpref_id: c_int,
+    si_newcomp_id: c_int,
 }
 
 impl Default for Spellinfo {
@@ -415,8 +415,8 @@ impl Default for Spellinfo {
             si_nobreak: 0,
             si_syllable: None,
             si_prefcond: Vec::new(),
-            si_newprefID: 0,
-            si_newcompID: 0,
+            si_newpref_id: 0,
+            si_newcomp_id: 0,
         }
     }
 }
@@ -1741,12 +1741,12 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
         }
 
         vim_snprintf!(
-            g_st().IObuff.as_mut_ptr(),
+            g_st().iobuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Reading affix file %s..."),
             fname,
         );
-        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
+        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
 
         let do_rep = spin.si_rep.is_empty();
         let do_repsal = spin.si_repsal.is_empty();
@@ -2149,7 +2149,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
                         let mut new_ah = Affheader {
                             ah_key: [0; AH_KEY_LEN],
                             ah_flag,
-                            ah_newID: 0,
+                            ah_new_id: 0,
                             ah_combine: c_int::from(*items[2] == b'Y' as c_char),
                             ah_follows: 0,
                             ah_entries: Vec::new(),
@@ -2181,10 +2181,10 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
                     }
 
                     if *items[0] == b'P' as c_char && aff.af_pfxpostpone != 0 {
-                        if (*cur_aff).ah_newID == 0 {
+                        if (*cur_aff).ah_new_id == 0 {
                             check_renumber(spin);
-                            spin.si_newprefID += 1;
-                            (*cur_aff).ah_newID = spin.si_newprefID;
+                            spin.si_newpref_id += 1;
+                            (*cur_aff).ah_new_id = spin.si_newpref_id;
                             did_postpone_prefix = false;
                         } else {
                             did_postpone_prefix = true;
@@ -2366,14 +2366,14 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
                                     spin.si_prefroot,
                                     n,
                                     idx,
-                                    (*cur_aff).ah_newID,
+                                    (*cur_aff).ah_new_id,
                                 );
                                 did_postpone_prefix = true;
                             }
 
                             if aff_todo == 0 && !did_postpone_prefix {
-                                spin.si_newprefID -= 1;
-                                (*cur_aff).ah_newID = 0;
+                                spin.si_newpref_id -= 1;
+                                (*cur_aff).ah_new_id = 0;
                             }
                         }
                     }
@@ -2552,10 +2552,10 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
             process_compflags(spin, &mut aff, cf.as_ptr().cast_mut());
         }
 
-        if spin.si_newcompID < spin.si_newprefID {
-            if spin.si_newcompID == 127 || spin.si_newcompID == 255 {
+        if spin.si_newcomp_id < spin.si_newpref_id {
+            if spin.si_newcomp_id == 127 || spin.si_newcomp_id == 255 {
                 msg(gettext(c"Too many postponed prefixes"), 0);
-            } else if spin.si_newprefID == 0 || spin.si_newprefID == 127 {
+            } else if spin.si_newpref_id == 0 || spin.si_newpref_id == 127 {
                 msg(gettext(c"Too many compound flags"), 0);
             } else {
                 msg(
@@ -2775,24 +2775,24 @@ fn process_compflags(spin: &mut Spellinfo, aff: &mut Afffile, compflags: *mut c_
                     crate::memory::cstr_ncpy(key.as_mut_ptr(), prevp, cur.offset_from(prevp) as usize);
                     let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr());
                     let id = if let Some(ci) = aff.af_comp.get(key_bytes) {
-                        ci.ci_newID
+                        ci.ci_new_id
                     } else {
                         let mut ci = Compitem {
                             ci_key: [0; AH_KEY_LEN],
                             ci_flag: flag,
-                            ci_newID: 0,
+                            ci_new_id: 0,
                         };
                         crate::memory::cstr_cpy(ci.ci_key.as_mut_ptr(), key.as_ptr());
                         let mut new_id: c_int;
                         loop {
                             check_renumber(spin);
-                            new_id = spin.si_newcompID;
-                            spin.si_newcompID -= 1;
+                            new_id = spin.si_newcomp_id;
+                            spin.si_newcomp_id -= 1;
                             if vim_strchr(c"/?*+[]\\-^", new_id).is_null() {
                                 break;
                             }
                         }
-                        ci.ci_newID = new_id;
+                        ci.ci_new_id = new_id;
                         aff.af_comp.insert(key_bytes.to_vec(), ci);
                         new_id
                     };
@@ -2809,9 +2809,9 @@ fn process_compflags(spin: &mut Spellinfo, aff: &mut Afffile, compflags: *mut c_
 }
 
 fn check_renumber(spin: &mut Spellinfo) {
-    if spin.si_newprefID == spin.si_newcompID && spin.si_newcompID < 128 {
-            spin.si_newprefID = 127;
-            spin.si_newcompID = 255;
+    if spin.si_newpref_id == spin.si_newcomp_id && spin.si_newcomp_id < 128 {
+            spin.si_newpref_id = 127;
+            spin.si_newcomp_id = 255;
         }
 }
 
@@ -2948,12 +2948,12 @@ fn spell_read_dic(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
         }
 
         vim_snprintf!(
-            g_st().IObuff.as_mut_ptr(),
+            g_st().iobuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Reading dictionary file %s..."),
             fname,
         );
-        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
+        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
 
         spin.si_msg_count = 999999;
 
@@ -3211,7 +3211,7 @@ fn get_pfxlist(
                 crate::memory::cstr_ncpy(key.as_mut_ptr(), prevp, p.offset_from(prevp) as usize);
                 let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr());
                 if let Some(ah) = affile.af_pref.get(key_bytes) {
-                    let id = ah.ah_newID;
+                    let id = ah.ah_new_id;
                     if id != 0 && !store_afflist_add(store_afflist, cntp, id) {
                         return false;
                     }
@@ -3241,7 +3241,7 @@ fn get_compflags(
                 crate::memory::cstr_ncpy(key.as_mut_ptr(), prevp, p.offset_from(prevp) as usize);
                 let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr());
                 if let Some(ci) = affile.af_comp.get(key_bytes)
-                    && !store_afflist_add(store_afflist, &mut *cntp, ci.ci_newID)
+                    && !store_afflist_add(store_afflist, &mut *cntp, ci.ci_new_id)
                 {
                     return false;
                 }
@@ -3568,12 +3568,12 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
         }
 
         vim_snprintf!(
-            g_st().IObuff.as_mut_ptr(),
+            g_st().iobuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Reading word file %s..."),
             fname,
         );
-        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
+        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
 
         while !vim_fgets(rline.as_mut_ptr(), MAXLINELEN as c_int, fd) && !g_st().got_int {
             line_breakcheck();
@@ -3755,12 +3755,12 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
 
         if spin.si_ascii != 0 && non_ascii > 0 {
             vim_snprintf!(
-                g_st().IObuff.as_mut_ptr(),
+                g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
-            spell_message(&*spin, g_st().IObuff.as_mut_ptr());
+            spell_message(&*spin, g_st().iobuff.as_mut_ptr());
         }
 
         retval
@@ -3880,7 +3880,7 @@ fn tree_add_word(
                     if copyp_node.wn_byte == 0 {
                         spin.si_nodes[np].wn_flags = copyp_node.wn_flags;
                         spin.si_nodes[np].wn_region = copyp_node.wn_region;
-                        spin.si_nodes[np].wn_affixID = copyp_node.wn_affixID;
+                        spin.si_nodes[np].wn_affix_id = copyp_node.wn_affix_id;
                     }
 
                     spin.si_nodes[np].wn_refs = 1;
@@ -3902,14 +3902,14 @@ fn tree_add_word(
                 let advance = n.wn_byte < wb
                     || (n.wn_byte == 0
                         && if flags < 0 {
-                            (n.wn_affixID as c_uint) < (affix_id as c_uint)
+                            (n.wn_affix_id as c_uint) < (affix_id as c_uint)
                         } else {
                             (n.wn_flags as c_uint) < ((flags & WN_MASK) as c_uint)
                                 || (n.wn_flags as c_int == (flags & WN_MASK)
                                     && if spin.si_sugtree != 0 {
                                         (n.wn_region as c_int & 0xffff) < region
                                     } else {
-                                        (n.wn_affixID as c_uint) < (affix_id as c_uint)
+                                        (n.wn_affix_id as c_uint) < (affix_id as c_uint)
                                     })
                         });
                 if !advance {
@@ -3928,7 +3928,7 @@ fn tree_add_word(
                             && (flags < 0
                                 || spin.si_sugtree != 0
                                 || n.wn_flags as c_int != (flags & WN_MASK)
-                                || n.wn_affixID as c_int != affix_id))
+                                || n.wn_affix_id as c_int != affix_id))
                 }
             };
             if need_new {
@@ -3952,7 +3952,7 @@ fn tree_add_word(
             if wb == 0 {
                 spin.si_nodes[node_idx].wn_flags = flags as u16;
                 spin.si_nodes[node_idx].wn_region |= region as i16;
-                spin.si_nodes[node_idx].wn_affixID = affix_id as u8;
+                spin.si_nodes[node_idx].wn_affix_id = affix_id as u8;
                 break;
             }
             prev = Some(NodeSlot::Child(node_idx));
@@ -4065,7 +4065,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
                 ((tot - n) * 100 / tot) as c_long
             };
             vim_snprintf!(
-                g_st().IObuff.as_mut_ptr(),
+                g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
                 name.as_ptr(),
@@ -4074,7 +4074,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
                 tot - n,
                 perc,
             );
-            spell_message( &*spin, g_st().IObuff.as_mut_ptr());
+            spell_message( &*spin, g_st().iobuff.as_mut_ptr());
         }
     }
 }
@@ -4132,7 +4132,7 @@ fn node_compress(
             let n: c_uint = if n_node.wn_byte == 0 {
                 (n_node.wn_flags as c_int
                     + ((n_node.wn_region as c_int) << 8)
-                    + ((n_node.wn_affixID as c_int) << 16)) as c_uint
+                    + ((n_node.wn_affix_id as c_int) << 16)) as c_uint
             } else {
                 (n_node.wn_byte as usize).wrapping_add(n_node.wn_child.unwrap_or(0) << 8) as c_uint
             };
@@ -4163,7 +4163,7 @@ fn node_equal(nodes: &[Wordnode], n1: usize, n2: usize) -> bool {
         let b = nodes[i2];
         if a.wn_byte != b.wn_byte
             || if a.wn_byte == 0 {
-                a.wn_flags != b.wn_flags || a.wn_region != b.wn_region || a.wn_affixID != b.wn_affixID
+                a.wn_flags != b.wn_flags || a.wn_region != b.wn_region || a.wn_affix_id != b.wn_affix_id
             } else {
                 a.wn_child != b.wn_child
             }
@@ -4542,14 +4542,14 @@ fn put_node(
                             fputc(BY_FLAGS, fd);
                             fputc(n.wn_flags as c_int, fd);
                         }
-                        fputc(n.wn_affixID as c_int, fd);
+                        fputc(n.wn_affix_id as c_int, fd);
                         put_bytes(fd, n.wn_region as u16 as u64, 2);
                     } else {
                         let mut flags = n.wn_flags as c_int;
                         if regionmask != 0 && (n.wn_region as c_int) != regionmask {
                             flags |= WF_REGION;
                         }
-                        if n.wn_affixID != 0 {
+                        if n.wn_affix_id != 0 {
                             flags |= WF_AFX;
                         }
                         if flags == 0 {
@@ -4567,7 +4567,7 @@ fn put_node(
                                 fputc(n.wn_region as c_int, fd);
                             }
                             if (flags & WF_AFX) != 0 {
-                                fputc(n.wn_affixID as c_int, fd);
+                                fputc(n.wn_affix_id as c_int, fd);
                             }
                         }
                     }
@@ -4895,12 +4895,12 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) { l
         }
 
         vim_snprintf!(
-            g_st().IObuff.as_mut_ptr(),
+            g_st().iobuff.as_mut_ptr(),
             IOSIZE,
             gettext(c"Writing suggestion file %s..."),
             fname,
         );
-        spell_message(&*spin, g_st().IObuff.as_mut_ptr());
+        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
 
         if fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) != 1 {
             emsg(gettext(E_WRITE));
@@ -4947,12 +4947,12 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) { l
             }
 
             vim_snprintf!(
-                g_st().IObuff.as_mut_ptr(),
+                g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Estimated runtime memory use: %d bytes"),
                 spin.si_memtot,
             );
-            spell_message(&*spin, g_st().IObuff.as_mut_ptr());
+            spell_message(&*spin, g_st().iobuff.as_mut_ptr());
         }
 
         fclose(fd);
@@ -4978,7 +4978,7 @@ fn mkspell(
         spin.si_ascii = c_int::from(ascii);
         spin.si_followup = 1;
         spin.si_rem_accents = 1;
-        spin.si_newcompID = 127;
+        spin.si_newcomp_id = 127;
 
         let fcount = fnames.len() as c_int;
         let innames = if fcount == 1 { fnames } else { &fnames[1..] };
@@ -5122,23 +5122,23 @@ fn mkspell(
 
                 if !error && !g_st().got_int {
                     vim_snprintf!(
-                        g_st().IObuff.as_mut_ptr(),
+                        g_st().iobuff.as_mut_ptr(),
                         IOSIZE,
                         gettext(c"Writing spell file %s..."),
                         wfname,
                     );
-                    spell_message(&spin, g_st().IObuff.as_mut_ptr());
+                    spell_message(&spin, g_st().iobuff.as_mut_ptr());
 
                     error = !write_vim_spell(&mut spin, wfname);
 
                     spell_message(&spin, gettext(c"Done!"));
                     vim_snprintf!(
-                        g_st().IObuff.as_mut_ptr(),
+                        g_st().iobuff.as_mut_ptr(),
                         IOSIZE,
                         gettext(c"Estimated runtime memory use: %d bytes"),
                         spin.si_memtot,
                     );
-                    spell_message(&spin, g_st().IObuff.as_mut_ptr());
+                    spell_message(&spin, g_st().iobuff.as_mut_ptr());
 
                     if !error {
                         spell_reload_one(wfname, added_word);
@@ -5305,7 +5305,7 @@ pub fn spell_add_word(
                                 home_replace(
                                     None,
                                     fname,
-                                    g_st().NameBuff.as_mut_ptr(),
+                                    g_st().name_buff.as_mut_ptr(),
                                     MAXPATHL,
                                     true,
                                 );
@@ -5314,7 +5314,7 @@ pub fn spell_add_word(
                                     gettext(c"Word '%.*s' removed from %s"),
                                     len,
                                     word,
-                                    g_st().NameBuff.as_ptr(),
+                                    g_st().name_buff.as_ptr(),
                                 );
                             }
                         }
@@ -5367,7 +5367,7 @@ pub fn spell_add_word(
                 home_replace(
                     None,
                     fname,
-                    g_st().NameBuff.as_mut_ptr(),
+                    g_st().name_buff.as_mut_ptr(),
                     MAXPATHL,
                     true,
                 );
@@ -5376,7 +5376,7 @@ pub fn spell_add_word(
                     gettext(c"Word '%.*s' added to %s"),
                     len,
                     word,
-                    g_st().NameBuff.as_ptr(),
+                    g_st().name_buff.as_ptr(),
                 );
             }
         }

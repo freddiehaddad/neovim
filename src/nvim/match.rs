@@ -452,7 +452,7 @@ fn next_search_hl(
         let mut nmatched: c_int = 0;
         let called_emsg_before = g_st().called_emsg;
 
-        if (lnum < g_st().Search.first_line || lnum > g_st().Search.last_line) && cur.is_none() {
+        if (lnum < g_st().search_global.first_line || lnum > g_st().search_global.last_line) && cur.is_none() {
             shl.lnum = 0;
             return;
         }

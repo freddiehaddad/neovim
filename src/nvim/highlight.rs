@@ -113,7 +113,7 @@ pub const HLATTRS_INIT: HlAttrs = HlAttrs {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_highlight {
-    pub is_set__highlight_: OptionalKeys,
+    pub is_set_highlight: OptionalKeys,
     pub altfont: Boolean,
     pub blink: Boolean,
     pub bold: Boolean,
@@ -538,7 +538,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
                         &mut err,
                     );
                     fallback =
-                        if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_FALLBACK) {
+                        if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FALLBACK) {
                             dict.fallback
                         } else {
                             true
@@ -1468,7 +1468,7 @@ pub fn dict2hlattrs(
         let mut font: i32 = if let Some(base) = base { base.font } else { -1 };
         let mut cterm_mask_provided = false;
 
-        let is_set = dict.is_set__highlight_;
+        let is_set = dict.is_set_highlight;
         mask = apply_flag_with_key(
             is_set,
             KEYSET_OPTIDX_HIGHLIGHT_REVERSE,

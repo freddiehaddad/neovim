@@ -254,7 +254,7 @@ use crate::runtime::SID_NONE;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptKeyDict_briopt {
-    pub is_set__briopt_: OptionalKeys,
+    pub is_set_briopt: OptionalKeys,
     pub shift: Integer,
     pub min: Integer,
     pub sbr: Boolean,
@@ -265,7 +265,7 @@ pub struct OptKeyDict_briopt {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptKeyDict_dip {
-    pub is_set__dip_: OptionalKeys,
+    pub is_set_dip: OptionalKeys,
     pub filler: Boolean,
     pub anchor: Boolean,
     pub context: Integer,
@@ -290,7 +290,7 @@ pub struct OptKeyDict_dip {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptKeyDict_mopt {
-    pub is_set__mopt_: OptionalKeys,
+    pub is_set_mopt: OptionalKeys,
     pub hit_enter: Boolean,
     pub history: Integer,
     pub maxheight: Integer,
@@ -303,7 +303,7 @@ pub struct OptKeyDict_mopt {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptKeyDict_mousescroll {
-    pub is_set__mousescroll_: OptionalKeys,
+    pub is_set_mousescroll: OptionalKeys,
     pub hor: Integer,
     pub ver: Integer,
 }
@@ -311,7 +311,7 @@ pub struct OptKeyDict_mousescroll {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptKeyDict_pvp {
-    pub is_set__pvp_: OptionalKeys,
+    pub is_set_pvp: OptionalKeys,
     pub height: Integer,
     pub width: Integer,
     pub border: [c_char; 8],
@@ -396,7 +396,7 @@ struct OptionStrState {
     set_opt_callback_orig_option: *mut c_char,
     set_opt_callback_func: CompleteListItemGetter,
     expand_eiw: bool,
-    OPT_KEYSET_SHARED: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
+    opt_keyset_shared: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
 }
 
 impl OptionStrState {
@@ -405,7 +405,7 @@ impl OptionStrState {
             set_opt_callback_orig_option: ptr::null_mut(),
             set_opt_callback_func: None,
             expand_eiw: false,
-            OPT_KEYSET_SHARED: [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
+            opt_keyset_shared: [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
         }
     }
 }
@@ -2236,7 +2236,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        let io_buff = g_st().IObuff.as_mut_ptr();
+        let io_buff = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(
             io_buff,
             IOSIZE,
@@ -2398,7 +2398,7 @@ pub fn did_set_guicursor(_args: &mut Optset) -> *const c_char {
         if !errmsg.is_null() {
             return errmsg;
         }
-        if g_st().Visual.active {
+        if g_st().visual_global.active {
             redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         }
         ptr::null()
@@ -2617,8 +2617,8 @@ pub fn validate_mousescroll(args: &mut Optset) -> *const c_char {
             ptr::null_mut(),
         )
         .cast::<OptKeyDict_mousescroll>();
-        let has_hor = ((*v).is_set__mousescroll_ & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
-        let has_ver = ((*v).is_set__mousescroll_ & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
+        let has_hor = ((*v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
+        let has_ver = ((*v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
         if has_hor || has_ver {
             ptr::null()
         } else {
@@ -2632,8 +2632,8 @@ pub fn did_set_mousescroll(_args: &mut Optset) -> *const c_char {
     unsafe {
         let v = opt_keyset(opt_vars().p_mousescroll, K_OPT_MOUSESCROLL, ptr::null_mut())
             .cast::<OptKeyDict_mousescroll>();
-        let has_hor = ((*v).is_set__mousescroll_ & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
-        let has_ver = ((*v).is_set__mousescroll_ & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
+        let has_hor = ((*v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
+        let has_ver = ((*v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
         opt_vars().p_mousescroll_hor = if has_hor {
             i64::from((*v).hor as c_int)
         } else {
@@ -2655,7 +2655,7 @@ pub fn did_set_rulerformat(args: &mut Optset) -> *const c_char {
 
 /// The 'selection' option is changed.
 pub fn did_set_selection(_args: &mut Optset) -> *const c_char {
-    if g_st().Visual.active {
+    if g_st().visual_global.active {
             redraw_curbuf_later(UPD_INVERTED);
         }
         ptr::null()
@@ -3568,7 +3568,7 @@ pub fn opt_keyset(
 ) -> *mut OptKeySet { let value = value.into_c_char_ptr();
     unsafe {
         if keyset.is_null() {
-            keyset = (&raw mut optstr_st().OPT_KEYSET_SHARED).cast::<OptKeySet>();
+            keyset = (&raw mut optstr_st().opt_keyset_shared).cast::<OptKeySet>();
         }
         let si = opt_dict_schema(opt_idx).unwrap();
         ptr::write_bytes(keyset.cast::<u8>(), 0, si.size);

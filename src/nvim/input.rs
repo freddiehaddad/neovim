@@ -251,15 +251,15 @@ struct InputModuleState {
     on_key_blocked: c_int,
     typeahead_char: c_int,
     block_redo: bool,
-    KeyNoremap: c_int,
+    key_noremap: c_int,
     last_recorded_len: usize,
     saved_typebuf: [Typebuf; NSCRIPT],
     no_reduce_keys: c_int,
-    GOTCHARS_STATE: GotcharsState,
-    UPDATESCRIPT_COUNT: c_int,
-    SHOWCMD_STATE: GotcharsState,
-    LAST_VGETC_RECORDED_LEN: usize,
-    VGETORPEEK_TC: c_int,
+    gotchars_state: GotcharsState,
+    updatescript_count: c_int,
+    showcmd_state: GotcharsState,
+    last_vgetc_recorded_len: usize,
+    vgetorpeek_tc: c_int,
 }
 
 impl InputModuleState {
@@ -284,15 +284,15 @@ impl InputModuleState {
             on_key_blocked: 0,
             typeahead_char: 0,
             block_redo: false,
-            KeyNoremap: 0,
+            key_noremap: 0,
             last_recorded_len: 0,
             saved_typebuf: [const { Typebuf::ZERO }; NSCRIPT],
             no_reduce_keys: 0,
-            GOTCHARS_STATE: GotcharsState::new(),
-            UPDATESCRIPT_COUNT: 0,
-            SHOWCMD_STATE: GotcharsState::new(),
-            LAST_VGETC_RECORDED_LEN: 0,
-            VGETORPEEK_TC: 0,
+            gotchars_state: GotcharsState::new(),
+            updatescript_count: 0,
+            showcmd_state: GotcharsState::new(),
+            last_vgetc_recorded_len: 0,
+            vgetorpeek_tc: 0,
         }
     }
 }
@@ -342,9 +342,9 @@ pub(crate) fn langmap_adjust(c: &mut c_int, condition: bool) {
                 || if g_st().vgetc_busy != 0 {
                     typebuf_maplen() == 0
                 } else {
-                    g_st().KeyTyped
+                    g_st().key_typed
                 })
-            && g_st().KeyStuffed == 0
+            && g_st().key_stuffed == 0
             && *c >= 0
         {
             if *c < 256 {
@@ -593,8 +593,8 @@ pub fn flush_buffers(flush_typeahead: FlushBuffers) {
             atom_composite_abort();
         }
 
-        if !inp_st().readbuf2.keys.is_empty() && g_st().Visual.active {
-            g_st().Visual.need_end = true;
+        if !inp_st().readbuf2.keys.is_empty() && g_st().visual_global.active {
+            g_st().visual_global.need_end = true;
         }
         inp_st().readbuf1 = StuffBuf::new();
         inp_st().readbuf2 = StuffBuf::new();
@@ -853,7 +853,7 @@ pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
 }
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
-pub fn stuffReadbuffSpecial(s: impl crate::strings::IntoCCharPtr) { let mut s = s.into_c_char_ptr();
+pub fn stuff_readbuff_special(s: impl crate::strings::IntoCCharPtr) { let mut s = s.into_c_char_ptr();
     unsafe {
         while !crate::memory::cstr_is_empty(s) {
             if crate::memory::cstr_first_byte(s) == K_SPECIAL && crate::memory::cstr_byte_at(s, 1) != 0 && crate::memory::cstr_byte_at(s, 2) != 0 {
@@ -993,7 +993,7 @@ fn init_typebuf() {
 
 /// Returns true when keys cannot be remapped.
 pub fn noremap_keys() -> bool {
-    (inp_st().KeyNoremap & ((RM_NONE | RM_SCRIPT) as c_int)) != 0
+    (inp_st().key_noremap & ((RM_NONE | RM_SCRIPT) as c_int)) != 0
 }
 
 /// Insert a string in position `offset` in the typeahead buffer.
@@ -1123,7 +1123,7 @@ pub fn requeue_key(c: c_int, modifiers: c_int, extra_consumed: c_int, recorded: 
         let len = special_to_buf(c, modifiers, true, buf.as_mut_ptr()) as usize;
         assert!(len < buf.len());
         buf[len] = NUL as c_char;
-        ins_typebuf(buf.as_mut_ptr(), inp_st().KeyNoremap, 0, !g_st().KeyTyped, g_st().cmd_silent);
+        ins_typebuf(buf.as_mut_ptr(), inp_st().key_noremap, 0, !g_st().key_typed, g_st().cmd_silent);
         ungetchars(len as c_int + extra_consumed, recorded);
 }
 
@@ -1266,17 +1266,17 @@ fn gotchars(chars: *const u8, len: usize) {
             todo -= 1;
             let b = *s;
             s = s.add(1);
-            if !gotchars_add_byte(&mut inp_st().GOTCHARS_STATE, b) {
+            if !gotchars_add_byte(&mut inp_st().gotchars_state, b) {
                 continue;
             }
 
-            let buflen = inp_st().GOTCHARS_STATE.buflen;
+            let buflen = inp_st().gotchars_state.buflen;
             for i in 0..buflen {
-                updatescript(inp_st().GOTCHARS_STATE.buf[i] as c_int);
+                updatescript(inp_st().gotchars_state.buf[i] as c_int);
             }
 
             if buflen > inp_st().on_key_ignore_len {
-                let start_ptr = (&raw const inp_st().GOTCHARS_STATE.buf)
+                let start_ptr = (&raw const inp_st().gotchars_state.buf)
                     .cast::<c_char>()
                     .add(inp_st().on_key_ignore_len);
                 inp_st().on_key_buf.extend_from_slice(std::slice::from_raw_parts(
@@ -1290,15 +1290,15 @@ fn gotchars(chars: *const u8, len: usize) {
 
             if g_st().reg_recording != 0 {
                 inp_st().recordbuff.extend_from_slice(std::slice::from_raw_parts(
-                    (&raw const inp_st().GOTCHARS_STATE.buf).cast::<c_char>(),
+                    (&raw const inp_st().gotchars_state.buf).cast::<c_char>(),
                     buflen,
                 ));
                 inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
             }
 
-            atom_typed_add((&raw const inp_st().GOTCHARS_STATE.buf).cast::<u8>(), buflen);
+            atom_typed_add((&raw const inp_st().gotchars_state.buf).cast::<u8>(), buflen);
 
-            inp_st().GOTCHARS_STATE.buflen = 0;
+            inp_st().gotchars_state.buflen = 0;
         }
 
         may_sync_undo();
@@ -1316,7 +1316,7 @@ pub fn gotchars_ignore() {
 
 fn ungetchars(len: c_int, recorded: bool) {
      {
-        if !g_st().KeyTyped {
+        if !g_st().key_typed {
             return;
         }
         let len_u = len as usize;
@@ -1333,7 +1333,7 @@ fn ungetchars(len: c_int, recorded: bool) {
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
 pub fn may_sync_undo() {
-    if ((g_st().State & (MODE_INSERT | MODE_CMDLINE)) == 0 || g_st().Ins.moved != K_INS_NONE) && inp_st().curscript < 0 {
+    if ((g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) == 0 || g_st().ins_global.moved != K_INS_NONE) && inp_st().curscript < 0 {
             u_sync(false);
         }
 }
@@ -1418,7 +1418,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
         }
 
         inp_st().curscript += 1;
-        let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
+        let namebuff_ptr = g_st().name_buff.as_mut_ptr();
         expand_env(name, namebuff_ptr, MAXPATHL as c_int);
         let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
@@ -1437,12 +1437,12 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
 
         if directly {
             let mut oa = Oparg::new();
-            let save_state = g_st().State;
+            let save_state = g_st().state_global;
             let save_restart_edit = g_st().restart_edit;
             let save_finish_op = g_st().finish_op;
             let save_msg_scroll = g_st().msg_scroll;
 
-            g_st().State = MODE_NORMAL;
+            g_st().state_global = MODE_NORMAL;
             g_st().msg_scroll = 0;
             g_st().restart_edit = 0;
             g_st().finish_op = false;
@@ -1457,7 +1457,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
                 }
             }
 
-            g_st().State = save_state;
+            g_st().state_global = save_state;
             g_st().msg_scroll = save_msg_scroll;
             g_st().restart_edit = save_restart_edit;
             g_st().finish_op = save_finish_op;
@@ -1550,12 +1550,12 @@ fn updatescript(c: c_int) {
         let idle = c == 0;
         if idle
             || (opt_vars().p_uc > 0 && {
-                inp_st().UPDATESCRIPT_COUNT += 1;
-                (inp_st().UPDATESCRIPT_COUNT as OptInt) >= opt_vars().p_uc
+                inp_st().updatescript_count += 1;
+                (inp_st().updatescript_count as OptInt) >= opt_vars().p_uc
             })
         {
             ml_sync_all(c_int::from(idle), 1, opt_vars().p_fs != 0 || idle);
-            inp_st().UPDATESCRIPT_COUNT = 0;
+            inp_st().updatescript_count = 0;
         }
     }
 }
@@ -1586,18 +1586,18 @@ fn add_byte_to_showcmd(byte: u8) {
             return;
         }
 
-        if !gotchars_add_byte(&mut inp_st().SHOWCMD_STATE, byte) {
+        if !gotchars_add_byte(&mut inp_st().showcmd_state, byte) {
             return;
         }
 
-        let buflen = inp_st().SHOWCMD_STATE.buflen;
-        inp_st().SHOWCMD_STATE.buf[buflen] = NUL as u8;
-        inp_st().SHOWCMD_STATE.buflen = 0;
+        let buflen = inp_st().showcmd_state.buflen;
+        inp_st().showcmd_state.buf[buflen] = NUL as u8;
+        inp_st().showcmd_state.buflen = 0;
 
         let mut modifiers: c_int = 0;
         let mut c: c_int = NUL;
 
-        let mut ptr = (&raw const inp_st().SHOWCMD_STATE.buf).cast::<u8>();
+        let mut ptr = (&raw const inp_st().showcmd_state.buf).cast::<u8>();
         if *ptr == K_SPECIAL && *ptr.add(1) == KS_MODIFIER && *ptr.add(2) != NUL as u8 {
             modifiers = *ptr.add(2) as c_int;
             ptr = ptr.add(3);
@@ -1660,7 +1660,7 @@ pub fn vgetc() -> c_int {
             g_st().vgetc_mod_mask = 0;
             g_st().vgetc_char = 0;
 
-            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(inp_st().LAST_VGETC_RECORDED_LEN);
+            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(inp_st().last_vgetc_recorded_len);
 
             loop {
                 let mut did_inc = false;
@@ -1706,18 +1706,18 @@ pub fn vgetc() -> c_int {
                 }
 
                 if g_st().no_mapping == 0
-                    && g_st().KeyTyped
+                    && g_st().key_typed
                     && g_st().mod_mask == MOD_MASK_ALT as c_int
-                    && (g_st().State & MODE_TERMINAL) == 0
+                    && (g_st().state_global & MODE_TERMINAL) == 0
                     && !is_mouse_key(c)
                 {
                     g_st().mod_mask = 0;
                     requeue_key(c, 0, 3, true);
                     ins_typebuf(
                         ESC_STR,
-                        inp_st().KeyNoremap,
+                        inp_st().key_noremap,
                         0,
-                        !g_st().KeyTyped,
+                        !g_st().key_typed,
                         g_st().cmd_silent,
                     );
                     continue;
@@ -1779,7 +1779,7 @@ pub fn vgetc() -> c_int {
                 break;
             }
 
-            inp_st().LAST_VGETC_RECORDED_LEN = inp_st().last_recorded_len;
+            inp_st().last_vgetc_recorded_len = inp_st().last_recorded_len;
         }
 
         g_st().may_garbage_collect = false;
@@ -2083,7 +2083,7 @@ fn at_ins_compl_key() -> bool {
 
 fn check_simplify_modifier(max_offset: c_int) -> c_int {
     unsafe {
-        if (g_st().State & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
+        if (g_st().state_global & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
             return 0;
         }
 
@@ -2216,9 +2216,9 @@ fn handle_mapping(
             && (g_st().typebuf.tb_maplen == 0
                 || is_plug_map
                 || (*tb_noremap_ptr().add(g_st().typebuf.tb_off as usize) & (RM_NONE | RM_ABBR)) == 0)
-            && !(opt_vars().p_paste != 0 && (g_st().State & (MODE_INSERT | MODE_CMDLINE)) != 0)
-            && !(g_st().State == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as c_int))
-            && g_st().State != MODE_ASKMORE
+            && !(opt_vars().p_paste != 0 && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
+            && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as c_int))
+            && g_st().state_global != MODE_ASKMORE
             && !at_ins_compl_key()
         {
             let nolmaplen: c_int;
@@ -2242,7 +2242,7 @@ fn handle_mapping(
                 let orig_tb_c1 = tb_c1;
                 langmap_adjust(
                     &mut tb_c1,
-                    (g_st().State & (MODE_CMDLINE | MODE_INSERT)) == 0 && get_real_state() != MODE_SELECT,
+                    (g_st().state_global & (MODE_CMDLINE | MODE_INSERT)) == 0 && get_real_state() != MODE_SELECT,
                 );
                 if orig_tb_c1 != tb_c1 {
                     let mut cbuf = [0 as c_char; 6];
@@ -2405,7 +2405,7 @@ fn handle_mapping(
             *mapdepth += 1;
             if (*mapdepth as OptInt) >= opt_vars().p_mmd {
                 emsg(gettext(E_RECURSIVE_MAPPING));
-                if (g_st().State & MODE_CMDLINE) != 0 {
+                if (g_st().state_global & MODE_CMDLINE) != 0 {
                     redrawcmdline();
                 } else {
                     setcursor();
@@ -2416,8 +2416,8 @@ fn handle_mapping(
                 return MapResult::MapResultFail as c_int;
             }
 
-            if g_st().Visual.active && g_st().Visual.select && (mp.m_mode & MODE_VISUAL) != 0 {
-                g_st().Visual.select = false;
+            if g_st().visual_global.active && g_st().visual_global.select && (mp.m_mode & MODE_VISUAL) != 0 {
+                g_st().visual_global.select = false;
                 ins_typebuf(
                     K_SELECT_STRING.as_ptr().cast::<c_char>().cast_mut(),
                     REMAP_NONE,
@@ -2452,12 +2452,12 @@ fn handle_mapping(
                         res = Some(
                             std::ffi::CString::new([K_SPECIAL, KS_EXTRA, KE_IGNORE]).unwrap(),
                         );
-                        if (g_st().State & MODE_CMDLINE) != 0 {
+                        if (g_st().state_global & MODE_CMDLINE) != 0 {
                             g_st().msg_didout = true;
                             g_st().msg_row = g_st().msg_row.max(g_st().cmdline_row);
                             redrawcmd();
                         }
-                    } else if (g_st().State & (MODE_NORMAL | MODE_INSERT)) != 0 {
+                    } else if (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0 {
                         setcursor();
                     }
                 }
@@ -2516,7 +2516,7 @@ pub fn vungetc(c: c_int) {
             mouse_grid: g_st().mouse_grid,
             mouse_row: g_st().mouse_row,
             mouse_col: g_st().mouse_col,
-            stuffed: g_st().KeyStuffed != 0,
+            stuffed: g_st().key_stuffed != 0,
         };
 }
 
@@ -2546,7 +2546,7 @@ fn vgetorpeek(advance: bool) -> c_int {
         g_st().vgetc_busy += 1;
 
         if advance {
-            g_st().KeyStuffed = 0;
+            g_st().key_stuffed = 0;
             g_st().typebuf_was_empty = false;
         }
 
@@ -2564,7 +2564,7 @@ fn vgetorpeek(advance: bool) -> c_int {
             }
             if c != NUL && !g_st().got_int {
                 if advance {
-                    g_st().KeyStuffed = 1;
+                    g_st().key_stuffed = 1;
                 }
                 if g_st().typebuf.tb_no_abbr_cnt == 0 {
                     g_st().typebuf.tb_no_abbr_cnt = 1;
@@ -2585,7 +2585,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                     if g_st().got_int {
                         c = inchar(tb_buf_ptr(), g_st().typebuf.tb_buflen - 1, 0);
                         if (c != 0 || g_st().typebuf.tb_maplen != 0)
-                            && (g_st().State & (MODE_INSERT | MODE_CMDLINE)) != 0
+                            && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0
                         {
                             c = ESC;
                         } else {
@@ -2623,12 +2623,12 @@ fn vgetorpeek(advance: bool) -> c_int {
                             if advance {
                                 g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
                                 if g_st().typebuf.tb_maplen > 0 {
-                                    g_st().KeyTyped = false;
+                                    g_st().key_typed = false;
                                 } else {
-                                    g_st().KeyTyped = true;
+                                    g_st().key_typed = true;
                                     gotchars(tb_buf_ptr().add(g_st().typebuf.tb_off as usize), 1);
                                 }
-                                inp_st().KeyNoremap =
+                                inp_st().key_noremap =
                                     *tb_noremap_ptr().add(g_st().typebuf.tb_off as usize) as c_int;
                                 del_typebuf(1, 0);
                             }
@@ -2645,7 +2645,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         && g_st().no_mapping == 0
                         && g_st().ex_normal_busy == 0
                         && g_st().typebuf.tb_maplen == 0
-                        && (g_st().State & MODE_INSERT) != 0
+                        && (g_st().state_global & MODE_INSERT) != 0
                         && (opt_vars().p_timeout != 0 || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
                         && {
                             c = inchar(
@@ -2667,7 +2667,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         if curwin_mut().w_cursor.col != 0 {
                             let mut col: Colnr = 0;
                             if curwin_mut().w_wcol > 0 {
-                                if g_st().Ins.did_ai
+                                if g_st().ins_global.did_ai
                                     && *skipwhite(
                                         get_cursor_line_ptr().add(curwin_mut().w_cursor.col as usize),
                                     ) == NUL as c_char
@@ -2751,14 +2751,14 @@ fn vgetorpeek(advance: bool) -> c_int {
                             continue;
                         }
 
-                        c = if (g_st().State & MODE_CMDLINE) != 0
-                            || (g_st().cmdwin_type > 0 && inp_st().VGETORPEEK_TC == ESC)
+                        c = if (g_st().state_global & MODE_CMDLINE) != 0
+                            || (g_st().cmdwin_type > 0 && inp_st().vgetorpeek_tc == ESC)
                         {
                             CTRL_C_CONST
                         } else {
                             ESC
                         };
-                        inp_st().VGETORPEEK_TC = c;
+                        inp_st().vgetorpeek_tc = c;
 
                         if advance {
                             g_st().typebuf_was_empty = true;
@@ -2767,8 +2767,8 @@ fn vgetorpeek(advance: bool) -> c_int {
                         break;
                     }
 
-                    if ((g_st().State & MODE_INSERT) != 0 || opt_vars().p_lz != 0)
-                        && (g_st().State & MODE_CMDLINE) == 0
+                    if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz != 0)
+                        && (g_st().state_global & MODE_CMDLINE) == 0
                         && advance
                         && g_st().must_redraw != 0
                         && !g_st().need_wait_return
@@ -2780,10 +2780,10 @@ fn vgetorpeek(advance: bool) -> c_int {
                     let mut showcmd_idx: c_int = 0;
                     let mut showing_partial = false;
                     if g_st().typebuf.tb_len > 0 && advance {
-                        if ((g_st().State & (MODE_NORMAL | MODE_INSERT)) != 0 || g_st().State == MODE_LANGMAP)
-                            && g_st().State != MODE_HITRETURN
+                        if ((g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0 || g_st().state_global == MODE_LANGMAP)
+                            && g_st().state_global != MODE_HITRETURN
                         {
-                            if (g_st().State & MODE_INSERT) != 0
+                            if (g_st().state_global & MODE_INSERT) != 0
                                 && utf_ptr2cells(
                                     tb_buf_ptr()
                                         .add((g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize)
@@ -2817,7 +2817,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                             curwin_mut().w_wrow = old_wrow;
                         }
 
-                        if (g_st().State & MODE_CMDLINE) != 0
+                        if (g_st().state_global & MODE_CMDLINE) != 0
                             && !(*get_cmdline_info()).cmdbuff.is_null()
                             && g_st().cmdline_star == 0
                         {
@@ -2859,10 +2859,10 @@ fn vgetorpeek(advance: bool) -> c_int {
                         pop_showcmd();
                     }
                     if showing_partial {
-                        if (g_st().State & MODE_INSERT) != 0 {
+                        if (g_st().state_global & MODE_INSERT) != 0 {
                             edit_unputchar();
                         }
-                        if (g_st().State & MODE_CMDLINE) != 0 && !(*get_cmdline_info()).cmdbuff.is_null() {
+                        if (g_st().state_global & MODE_CMDLINE) != 0 && !(*get_cmdline_info()).cmdbuff.is_null() {
                             unputcmdline();
                         } else {
                             setcursor();
@@ -2897,15 +2897,15 @@ fn vgetorpeek(advance: bool) -> c_int {
             }
         }
 
-        if advance && opt_vars().p_smd != 0 && g_st().msg_silent == 0 && (g_st().State & MODE_INSERT) != 0 {
+        if advance && opt_vars().p_smd != 0 && g_st().msg_silent == 0 && (g_st().state_global & MODE_INSERT) != 0 {
             if c == ESC && !mode_deleted && g_st().no_mapping == 0 && g_st().mode_displayed {
-                if g_st().typebuf.tb_len != 0 && !g_st().KeyTyped {
+                if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
                     g_st().redraw_cmdline = true;
                 } else {
                     unshowmode(false);
                 }
             } else if c != ESC && mode_deleted {
-                if g_st().typebuf.tb_len != 0 && !g_st().KeyTyped {
+                if g_st().typebuf.tb_len != 0 && !g_st().key_typed {
                     g_st().redraw_cmdline = true;
                 } else {
                     showmode();
@@ -2933,7 +2933,7 @@ fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
             ui_flush();
         }
 
-        if g_st().State != MODE_HITRETURN {
+        if g_st().state_global != MODE_HITRETURN {
             g_st().did_outofmem_msg = false;
             g_st().did_swapwrite_msg = false;
         }
@@ -3235,7 +3235,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
 /// Wraps pasted text stream with `K_PASTE_START` and `K_PASTE_END`.
 pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: bool) {
     unsafe {
-        if (g_st().State & MODE_CMDLINE) != 0 {
+        if (g_st().state_global & MODE_CMDLINE) != 0 {
             return;
         }
 
@@ -3253,7 +3253,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
                 K_PASTE_END
             };
             if need_redo {
-                if state == K_FALSE && (g_st().State & MODE_INSERT) == 0 {
+                if state == K_FALSE && (g_st().state_global & MODE_INSERT) == 0 {
                     redo_new(CmdSpec::default());
                 }
                 sb_add_char(&mut inp_st().redobuff.cur.body, c);

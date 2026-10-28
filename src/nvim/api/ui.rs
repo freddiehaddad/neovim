@@ -1338,7 +1338,7 @@ pub fn remote_ui_raw_line(
             if endcol < clearcol {
                 remote_ui_cursor_goto(ui, row, endcol);
                 remote_ui_highlight_set(ui, clearattr as c_int);
-                if clearattr == 0 && clearcol == Integer::from(g_st().Columns) {
+                if clearattr == 0 && clearcol == Integer::from(g_st().columns_global) {
                     push_call(ui, c"eol_clear", ARRAY_INIT);
                 } else {
                     let mut c = endcol;

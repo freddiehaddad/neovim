@@ -208,19 +208,19 @@ pub const CONTEXT_INIT: Context = Context {
 };
 
 struct ContextModuleState {
-    CTX_SWITCH_DEPTH: c_int,
-    CTX_SAVED_CURWIN: ObjHandle,
-    CTX_DID_CHDIR: bool,
-    CTX_MARKS_NS_ID: u32,
+    ctx_switch_depth: c_int,
+    ctx_saved_curwin: ObjHandle,
+    ctx_did_chdir: bool,
+    ctx_marks_ns_id: u32,
 }
 
 impl ContextModuleState {
     const fn new() -> Self {
         Self {
-            CTX_SWITCH_DEPTH: 0,
-            CTX_SAVED_CURWIN: 0,
-            CTX_DID_CHDIR: false,
-            CTX_MARKS_NS_ID: 0,
+            ctx_switch_depth: 0,
+            ctx_saved_curwin: 0,
+            ctx_did_chdir: false,
+            ctx_marks_ns_id: 0,
         }
     }
 }
@@ -248,10 +248,10 @@ pub fn handle_get_window(h: ObjHandle) -> *mut WinInfoInfo {
 
 fn ctx_marks_ns() -> u32 {
     {
-        if ctx_st().CTX_MARKS_NS_ID == 0 {
-            ctx_st().CTX_MARKS_NS_ID = nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
+        if ctx_st().ctx_marks_ns_id == 0 {
+            ctx_st().ctx_marks_ns_id = nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
         }
-        ctx_st().CTX_MARKS_NS_ID
+        ctx_st().ctx_marks_ns_id
     }
 }
 
@@ -591,8 +591,8 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
     persist: bool,
 ) {
     unsafe {
-        let did_chdir = ctx_st().CTX_DID_CHDIR;
-        ctx_st().CTX_DID_CHDIR = persist && did_chdir;
+        let did_chdir = ctx_st().ctx_did_chdir;
+        ctx_st().ctx_did_chdir = persist && did_chdir;
 
         let dirs_win = handle_get_window(cs.cs_new_curwin);
         if !dirs_win.is_null() {
@@ -683,7 +683,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
                 }
             }
             ctx_localdirs_restore(&mut *cs, None, dirs_tab.as_mut(), false);
-        } else if cs.cs_cwd.is_some() && !ctx_st().CTX_DID_CHDIR {
+        } else if cs.cs_cwd.is_some() && !ctx_st().ctx_did_chdir {
             g_st().globaldir = cs.cs_globaldir.take();
         }
         cs.cs_globaldir = None;
@@ -691,7 +691,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
         if cs.cs_apply_acd {
             do_autochdir();
         } else if let Some(ref cs_cwd) = cs.cs_cwd
-            && ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || !ctx_st().CTX_DID_CHDIR)
+            && ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || !ctx_st().ctx_did_chdir)
         {
             os_chdir(cs_cwd.as_ptr());
             shorten_fnames(1);
@@ -701,7 +701,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
 }
 
 pub fn ctx_did_chdir() {
-    ctx_st().CTX_DID_CHDIR = true;
+    ctx_st().ctx_did_chdir = true;
 }
 
 pub fn is_ctx_win(win: *const WinInfoInfo) -> bool {
@@ -783,10 +783,10 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> *mut WinInfoInfo {
 }
 
 pub fn ctx_saved_curwin() -> *mut WinInfoInfo {
-    if ctx_st().CTX_SAVED_CURWIN == 0 {
+    if ctx_st().ctx_saved_curwin == 0 {
             ptr::null_mut()
         } else {
-            win_find_by_handle(ctx_st().CTX_SAVED_CURWIN)
+            win_find_by_handle(ctx_st().ctx_saved_curwin)
         }
 }
 
@@ -809,8 +809,8 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             K_CTX_SWITCH_DIRS
         };
         cs.cs_ctxwin_idx = -1;
-        cs.cs_did_chdir = ctx_st().CTX_DID_CHDIR;
-        ctx_st().CTX_DID_CHDIR = false;
+        cs.cs_did_chdir = ctx_st().ctx_did_chdir;
+        ctx_st().ctx_did_chdir = false;
         if cs.cs_mode == K_CTX_SWITCH_DIRS {
             wp = curwin_ptr();
         }
@@ -848,8 +848,8 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             cs.cs_prompt_insert = curbuf_mut().b_prompt_insert;
         }
         if !cs.cs_same_win {
-            cs.cs_visual_active = g_st().Visual.active;
-            g_st().Visual.active = false;
+            cs.cs_visual_active = g_st().visual_global.active;
+            g_st().visual_global.active = false;
         }
 
         if (flags & K_CTX_NO_EVENTS) != 0 {
@@ -882,10 +882,10 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
         set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.cast());
 
         if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
-            if ctx_st().CTX_SWITCH_DEPTH == 0 {
-                ctx_st().CTX_SAVED_CURWIN = cs.cs_curwin;
+            if ctx_st().ctx_switch_depth == 0 {
+                ctx_st().ctx_saved_curwin = cs.cs_curwin;
             }
-            ctx_st().CTX_SWITCH_DEPTH += 1;
+            ctx_st().ctx_switch_depth += 1;
         }
         if (flags & K_CTX_VALIDATE) != 0 {
             check_cursor(curwin_mut());
@@ -964,12 +964,12 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         }
 
         if !cs.cs_same_win {
-            g_st().Visual.active = cs.cs_visual_active;
+            g_st().visual_global.active = cs.cs_visual_active;
         }
         if cs.cs_mode == K_CTX_SWITCH_BUF {
             check_cursor(curwin_mut());
-            if g_st().Visual.active {
-                check_pos(curbuf_mut(), &mut g_st().Visual.start);
+            if g_st().visual_global.active {
+                check_pos(curbuf_mut(), &mut g_st().visual_global.start);
             }
         }
 
@@ -977,25 +977,25 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             unblock_autocmds();
         }
         ctx_dirs_restore(cs);
-        if cs.cs_ctxwin_idx < 0 && ctx_st().CTX_DID_CHDIR {
+        if cs.cs_ctxwin_idx < 0 && ctx_st().ctx_did_chdir {
             update_cwd(K_CD_CAUSE_WINDOW);
         }
-        ctx_st().CTX_DID_CHDIR = ctx_st().CTX_DID_CHDIR || cs.cs_did_chdir;
+        ctx_st().ctx_did_chdir = ctx_st().ctx_did_chdir || cs.cs_did_chdir;
         if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
             let wp = win_find_by_handle(cs.cs_target_win);
             if !wp.is_null() && !equalpos(cs.cs_target_old_pos, (*wp).w_cursor) {
                 (*wp).w_redr_status = true;
             }
             check_cursor(curwin_mut());
-            if g_st().Visual.active {
-                check_pos(curbuf_mut(), &mut g_st().Visual.start);
+            if g_st().visual_global.active {
+                check_pos(curbuf_mut(), &mut g_st().visual_global.start);
             }
         }
         if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
-            assert!(ctx_st().CTX_SWITCH_DEPTH > 0);
-            ctx_st().CTX_SWITCH_DEPTH -= 1;
-            if ctx_st().CTX_SWITCH_DEPTH == 0 {
-                ctx_st().CTX_SAVED_CURWIN = 0;
+            assert!(ctx_st().ctx_switch_depth > 0);
+            ctx_st().ctx_switch_depth -= 1;
+            if ctx_st().ctx_switch_depth == 0 {
+                ctx_st().ctx_saved_curwin = 0;
             }
         }
     }

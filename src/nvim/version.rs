@@ -3959,7 +3959,7 @@ pub fn ex_version(eap: &mut Exarg) {
 fn version_msg_wrap(s: impl crate::strings::IntoCCharPtr, wrap: bool) { let s = s.into_c_char_ptr();
      {
         let len = vim_strsize(s) + if wrap { 2 } else { 0 };
-        if !g_st().got_int && len < g_st().Columns && g_st().msg_col + len >= g_st().Columns && crate::memory::cstr_first_byte(s) != b'\n' {
+        if !g_st().got_int && len < g_st().columns_global && g_st().msg_col + len >= g_st().columns_global && crate::memory::cstr_first_byte(s) != b'\n' {
             msg_putchar(b'\n' as c_int);
         }
         if !g_st().got_int {
@@ -3992,7 +3992,7 @@ pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
         }
         width += 1;
 
-        if g_st().Columns < width {
+        if g_st().columns_global < width {
             for (idx, &item) in items.iter().enumerate() {
                 version_msg_wrap(item, idx as c_int == current);
                 if g_st().msg_col > 0 && (idx as c_int) < item_count - 1 {
@@ -4002,7 +4002,7 @@ pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
             return;
         }
 
-        let ncol = (g_st().Columns + 1) / width;
+        let ncol = (g_st().columns_global + 1) / width;
         let nrow = item_count / ncol + c_int::from(item_count % ncol != 0);
         let mut cur_row: c_int = 1;
 
@@ -4153,16 +4153,16 @@ pub fn intro_message(colon: bool) {
         ];
 
         let lines_size = lines.len() as c_int;
-        let mut blanklines = g_st().Rows - (lines_size - 1);
+        let mut blanklines = g_st().rows_global - (lines_size - 1);
         if opt_vars().p_ls > 1 {
-            blanklines -= g_st().Rows - (*g_st().topframe).fr_height;
+            blanklines -= g_st().rows_global - (*g_st().topframe).fr_height;
         }
         if blanklines < 0 {
             blanklines = 0;
         }
 
         let mut row = blanklines / 2;
-        if (row >= 2 && g_st().Columns >= 50) || colon {
+        if (row >= 2 && g_st().columns_global >= 50) || colon {
             for (i, &p) in lines.iter().enumerate() {
                 let formatted_cstr: Option<CString>;
 
@@ -4189,7 +4189,7 @@ pub fn intro_message(colon: bool) {
                     c"".as_ptr()
                 };
 
-                if !crate::memory::cstr_is_empty(mesg) && row < g_st().Rows - 1 {
+                if !crate::memory::cstr_is_empty(mesg) && row < g_st().rows_global - 1 {
                     do_intro_line(row, mesg, colon, i < 3);
                 }
                 row += 1;
@@ -4200,7 +4200,7 @@ pub fn intro_message(colon: bool) {
 
 fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: bool, is_logo: bool) { let mesg = mesg.into_c_char_ptr();
     unsafe {
-        let mut col = (g_st().Columns - vim_strsize(mesg)) / 2;
+        let mut col = (g_st().columns_global - vim_strsize(mesg)) / 2;
         if col < 0 {
             col = 0;
         }

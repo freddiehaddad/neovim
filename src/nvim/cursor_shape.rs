@@ -477,15 +477,15 @@ pub fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
 pub fn cursor_get_mode_idx() -> c_int {
      {
-        if g_st().State == MODE_SHOWMATCH {
+        if g_st().state_global == MODE_SHOWMATCH {
             SHAPE_IDX_SM as c_int
-        } else if g_st().State == MODE_TERMINAL {
+        } else if g_st().state_global == MODE_TERMINAL {
             SHAPE_IDX_TERM as c_int
-        } else if (g_st().State & VREPLACE_FLAG) != 0 || (g_st().State & REPLACE_FLAG) != 0 {
+        } else if (g_st().state_global & VREPLACE_FLAG) != 0 || (g_st().state_global & REPLACE_FLAG) != 0 {
             SHAPE_IDX_R as c_int
-        } else if (g_st().State & MODE_INSERT) != 0 {
+        } else if (g_st().state_global & MODE_INSERT) != 0 {
             SHAPE_IDX_I as c_int
-        } else if (g_st().State & MODE_CMDLINE) != 0 {
+        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
             if cmdline_at_end() {
                 SHAPE_IDX_C as c_int
             } else if cmdline_overstrike() {
@@ -495,7 +495,7 @@ pub fn cursor_get_mode_idx() -> c_int {
             }
         } else if g_st().finish_op {
             SHAPE_IDX_O as c_int
-        } else if g_st().Visual.active {
+        } else if g_st().visual_global.active {
             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 SHAPE_IDX_VE as c_int
             } else {

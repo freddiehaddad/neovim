@@ -709,16 +709,16 @@ pub fn spell_suggest(count: c_int) {
                 emsg(gettext(E_NO_SPELL));
                 break 'skip;
             }
-            if g_st().Visual.active {
-                if curwin_mut().w_cursor.lnum != g_st().Visual.start.lnum {
+            if g_st().visual_global.active {
+                if curwin_mut().w_cursor.lnum != g_st().visual_global.start.lnum {
                     vim_beep(K_OPT_BO_FLAG_SPELL);
                     break 'skip;
                 }
-                badlen = curwin_mut().w_cursor.col - g_st().Visual.start.col;
+                badlen = curwin_mut().w_cursor.col - g_st().visual_global.start.col;
                 if badlen < 0 {
                     badlen = -badlen;
                 } else {
-                    curwin_mut().w_cursor.col = g_st().Visual.start.col;
+                    curwin_mut().w_cursor.col = g_st().visual_global.start.col;
                 }
                 badlen += 1;
                 end_visual_mode();
@@ -751,7 +751,7 @@ pub fn spell_suggest(count: c_int) {
             let line = line_vec.as_mut_ptr();
             sps_st().spell_suggest_timeout = 5000;
             let mut sug = Suginfo::default();
-            let limit = sps_st().sps_limit.min(g_st().Rows - 2);
+            let limit = sps_st().sps_limit.min(g_st().rows_global - 2);
             spell_find_suggest(
                 line.add(curwin_mut().w_cursor.col as usize),
                 badlen,
@@ -778,7 +778,7 @@ pub fn spell_suggest(count: c_int) {
             } else {
                 curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
                 select_spell_suggestion(&mut sug);
-                g_st().lines_left = g_st().Rows;
+                g_st().lines_left = g_st().rows_global;
                 g_st().msg_scroll = msg_scroll_save;
                 return;
             }
@@ -793,14 +793,14 @@ pub fn spell_suggest(count: c_int) {
                         .unwrap_or_default(),
                     );
                     vim_snprintf!(
-                        g_st().IObuff.as_mut_ptr(),
+                        g_st().iobuff.as_mut_ptr(),
                         IOSIZE,
                         c"%s%.*s",
                         stp.st_word.as_ptr(),
                         sug.su_badlen - stp.st_orglen,
                         sug.su_badptr.add(stp.st_orglen as usize),
                     );
-                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring(g_st().IObuff.as_ptr()));
+                    spell_priv_st().repl_to = Some(crate::memory::cstr_to_cstring(g_st().iobuff.as_ptr()));
                 } else {
                     spell_priv_st().repl_from = Some(
                         CString::new(std::slice::from_raw_parts(

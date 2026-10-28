@@ -170,7 +170,7 @@ const KEYSET_OPTIDX_REDRAW_VALID: u32 = 5;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_get_ns {
-    pub is_set__get_ns_: OptionalKeys,
+    pub is_set_get_ns: OptionalKeys,
     pub winid: Window,
 }
 
@@ -184,7 +184,7 @@ pub struct KeyDict_runtime {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_echo_opts {
-    pub is_set__echo_opts_: OptionalKeys,
+    pub is_set_echo_opts: OptionalKeys,
     pub err: Boolean,
     pub verbose: Boolean,
     pub _truncate: Boolean,
@@ -200,7 +200,7 @@ pub struct KeyDict_echo_opts {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_open_term {
-    pub is_set__open_term_: OptionalKeys,
+    pub is_set_open_term: OptionalKeys,
     pub on_input: LuaRef,
     pub force_crlf: Boolean,
 }
@@ -208,21 +208,21 @@ pub struct KeyDict_open_term {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_context {
-    pub is_set__context_: OptionalKeys,
+    pub is_set_context: OptionalKeys,
     pub types: Array,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_chan_set {
-    pub is_set__chan_set_: OptionalKeys,
+    pub is_set_chan_set: OptionalKeys,
     pub detach: Boolean,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_eval_statusline {
-    pub is_set__eval_statusline_: OptionalKeys,
+    pub is_set_eval_statusline: OptionalKeys,
     pub winid: Window,
     pub maxwidth: Integer,
     pub fillchar: NvimString,
@@ -235,14 +235,14 @@ pub struct KeyDict_eval_statusline {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_complete_set {
-    pub is_set__complete_set_: OptionalKeys,
+    pub is_set_complete_set: OptionalKeys,
     pub info: NvimString,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict_redraw {
-    pub is_set__redraw_: OptionalKeys,
+    pub is_set_redraw: OptionalKeys,
     pub flush: Boolean,
     pub cursor: Boolean,
     pub valid: Boolean,
@@ -269,13 +269,13 @@ pub struct MessageData {
 }
 
 struct ApiVimState {
-    PASTE_CANCELLED: bool,
+    paste_cancelled: bool,
 }
 
 impl ApiVimState {
     const fn new() -> Self {
         Self {
-            PASTE_CANCELLED: false,
+            paste_cancelled: false,
         }
     }
 }
@@ -458,7 +458,7 @@ pub fn nvim_set_hl(
         }
         let mut link_id: c_int = -1;
 
-        if (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
+        if (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -467,7 +467,7 @@ pub fn nvim_set_hl(
             return;
         }
 
-        let update = (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0
+        let update = (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0
             && val.update;
         let mut base: *mut HlAttrs = ptr::null_mut();
         let mut base_attrs = HlAttrs::default();
@@ -496,7 +496,7 @@ pub fn nvim_set_hl(
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
      {
-        if (opts.is_set__get_ns_ & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
+        if (opts.is_set_get_ns & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
             let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(opts.winid, err) else {
                 return 0;
             };
@@ -870,7 +870,7 @@ pub fn nvim_exec_lua(
 // DLLEXPORT Object nvim__exec_lua_fast(String code, Array args, Arena *arena,
 //                                      Error *err) FUNC_API_SINCE(14) FUNC_API_REMOTE_ONLY
 //   FUNC_API_FAST;
-pub fn nvim__exec_lua_fast(
+pub fn nvim_exec_lua_fast(
     code: NvimString,
     args: Array,
     arena: &mut Arena,
@@ -918,7 +918,7 @@ pub fn nvim_list_runtime_paths(arena: &mut Arena, err: &mut Error) -> Array {
 
 /// @nodoc
 // DLLEXPORT Array nvim__runtime_inspect(Arena *arena);
-pub fn nvim__runtime_inspect(arena: &mut Arena) -> Array {
+pub fn nvim_runtime_inspect(arena: &mut Arena) -> Array {
     runtime_inspect(arena)
 }
 
@@ -967,7 +967,7 @@ pub fn nvim_get_runtime_file(
 
 /// @nodoc
 // DLLEXPORT String nvim__get_lib_dir(void) FUNC_API_RET_ALLOC;
-pub fn nvim__get_lib_dir() -> NvimString {
+pub fn nvim_get_lib_dir() -> NvimString {
     get_lib_dir().map_or(
             NvimString {
                 data: ptr::null_mut(),
@@ -986,7 +986,7 @@ pub fn nvim__get_lib_dir() -> NvimString {
 // DLLEXPORT ArrayOf(String) nvim__get_runtime(ArrayOf(String) pat, Boolean all, Dict(runtime) *opts,
 //                                             Arena *arena, Error *err) FUNC_API_SINCE(8)
 //   FUNC_API_FAST;
-pub fn nvim__get_runtime(
+pub fn nvim_get_runtime(
     pat: Array,
     all: Boolean,
     opts: &mut KeyDict_runtime,
@@ -1270,7 +1270,7 @@ pub fn nvim_echo(
         let is_progress = crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress");
         let mut needs_clear = !history;
         let has_percent =
-            (opts.is_set__echo_opts_ & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
+            (opts.is_set_echo_opts & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
 
         let valid = 'validate: {
             if !is_progress
@@ -1652,13 +1652,13 @@ pub fn nvim_open_term(
         }
 
         let mut cb = LUA_NOREF;
-        if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_OPEN_TERM_ON_INPUT)) != 0 {
+        if (opts.is_set_open_term & (1u64 << KEYSET_OPTIDX_OPEN_TERM_ON_INPUT)) != 0 {
             cb = opts.on_input;
             opts.on_input = LUA_NOREF;
         }
 
         let force_crlf =
-            if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_OPEN_TERM_FORCE_CRLF)) != 0 {
+            if (opts.is_set_open_term & (1u64 << KEYSET_OPTIDX_OPEN_TERM_FORCE_CRLF)) != 0 {
                 opts.force_crlf
             } else {
                 true
@@ -1829,14 +1829,14 @@ pub fn nvim_paste(
             return false;
         }
         if phase == -1 || phase == 1 {
-            api_vim_st().PASTE_CANCELLED = false;
+            api_vim_st().paste_cancelled = false;
             if !curbuf_mut().terminal.is_null() {
                 terminal_set_streamed_paste(&mut *curbuf_mut().terminal, true);
             }
-        } else if api_vim_st().PASTE_CANCELLED {
-            let retval = !api_vim_st().PASTE_CANCELLED;
+        } else if api_vim_st().paste_cancelled {
+            let retval = !api_vim_st().paste_cancelled;
             if phase == 3 {
-                api_vim_st().PASTE_CANCELLED = false;
+                api_vim_st().paste_cancelled = false;
             }
             return retval;
         }
@@ -1857,28 +1857,28 @@ pub fn nvim_paste(
             err,
         );
         if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
-            api_vim_st().PASTE_CANCELLED = true;
+            api_vim_st().paste_cancelled = true;
         }
-        if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !curbuf_mut().terminal.is_null() {
+        if (phase == -1 || phase == 3 || api_vim_st().paste_cancelled) && !curbuf_mut().terminal.is_null() {
             terminal_set_streamed_paste(&mut *curbuf_mut().terminal, false);
         }
         let null_str = NvimString {
             data: ptr::null_mut(),
             size: 0,
         };
-        if !api_vim_st().PASTE_CANCELLED && (phase == -1 || phase == 1) {
+        if !api_vim_st().paste_cancelled && (phase == -1 || phase == 1) {
             paste_store(channel_id, K_FALSE, null_str, crlf);
         }
-        if !api_vim_st().PASTE_CANCELLED {
+        if !api_vim_st().paste_cancelled {
             paste_store(channel_id, K_NONE, data, crlf);
         }
-        if phase == 3 || phase == (if api_vim_st().PASTE_CANCELLED { 2 } else { -1 }) {
+        if phase == 3 || phase == (if api_vim_st().paste_cancelled { 2 } else { -1 }) {
             paste_store(channel_id, K_TRUE, null_str, crlf);
         }
 
-        let retval = !api_vim_st().PASTE_CANCELLED;
+        let retval = !api_vim_st().paste_cancelled;
         if phase == -1 || phase == 3 {
-            api_vim_st().PASTE_CANCELLED = false;
+            api_vim_st().paste_cancelled = false;
         }
         retval
     }
@@ -1943,7 +1943,7 @@ pub fn nvim_put(
 
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        let visual_was_active = g_st().Visual.active;
+        let visual_was_active = g_st().visual_global.active;
         g_st().msg_silent += 1;
         do_put(
             b'_' as c_int,
@@ -1953,7 +1953,7 @@ pub fn nvim_put(
             if follow { PUT_CURSEND } else { 0 },
         );
         g_st().msg_silent -= 1;
-        g_st().Visual.active = visual_was_active;
+        g_st().visual_global.active = visual_was_active;
         try_leave(&tstate, err);
     }
 }
@@ -2016,7 +2016,7 @@ pub fn nvim_get_context(
     err: &mut Error,
 ) -> Dict {
     {
-        let types = if (opts.is_set__context_ & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
+        let types = if (opts.is_set_context & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
             opts.types
         } else {
             Array::new()
@@ -2308,7 +2308,7 @@ pub fn nvim_chan_set(
         if !validate_int(!channel.is_null(), c"chan", chan, err) {
             return;
         }
-        if (config.is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
+        if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
             (*channel).detach = config.detach;
             channel_event( &mut *channel, EVENT_CHANINFO);
         }
@@ -2321,7 +2321,7 @@ pub fn nvim_chan_set(
 /// @param buf   cmdwin buffer id, or 0 to clear.
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim__cmdwin_set(String type, Buffer buf, Error *err) FUNC_API_SINCE(14);
-pub fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
+pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
      {
         if type_str.size == 0 || buf == 0 {
             g_st().cmdwin_type = 0;
@@ -2400,7 +2400,7 @@ pub fn nvim_list_chans(arena: &mut Arena) -> Array {
 ///
 /// @return its argument.
 // DLLEXPORT Object nvim__id(Object obj, Arena *arena);
-pub fn nvim__id(obj: Object, arena: &mut Arena) -> Object {
+pub fn nvim_id(obj: Object, arena: &mut Arena) -> Object {
     copy_object(obj, Some(arena))
 }
 
@@ -2413,7 +2413,7 @@ pub fn nvim__id(obj: Object, arena: &mut Arena) -> Object {
 ///
 /// @return its argument.
 // DLLEXPORT Array nvim__id_array(Array arr, Arena *arena);
-pub fn nvim__id_array(arr: Array, arena: &mut Arena) -> Array {
+pub fn nvim_id_array(arr: Array, arena: &mut Arena) -> Array {
     copy_array(arr, Some(arena))
 }
 
@@ -2426,7 +2426,7 @@ pub fn nvim__id_array(arr: Array, arena: &mut Arena) -> Array {
 ///
 /// @return its argument.
 // DLLEXPORT Dict nvim__id_dict(Dict dct, Arena *arena);
-pub fn nvim__id_dict(dct: Dict, arena: &mut Arena) -> Dict {
+pub fn nvim_id_dict(dct: Dict, arena: &mut Arena) -> Dict {
     copy_dict(dct, Some(arena))
 }
 
@@ -2448,7 +2448,7 @@ pub extern "C" fn nvim__id_float(flt: Float) -> Float {
 ///
 /// @return Map of various internal stats.
 // DLLEXPORT Dict nvim__stats(Arena *arena);
-pub fn nvim__stats(arena: &mut Arena) -> Dict {
+pub fn nvim_stats(arena: &mut Arena) -> Dict {
     let mut rv = arena_dict(arena, 6);
         put_c(&mut rv, c"fsync", integer_obj(g_st().g_stats.fsync));
         put_c(
@@ -2646,7 +2646,7 @@ pub fn nvim_select_popupmenu_item(
 /// NB: if your UI doesn't use hlstate, this will not return hlstate first time.
 // DLLEXPORT Array nvim__inspect_cell(Integer grid, Integer row, Integer col, Arena *arena,
 //                                    Error *err);
-pub fn nvim__inspect_cell(
+pub fn nvim_inspect_cell(
     grid: Integer,
     row: Integer,
     col: Integer,
@@ -2694,21 +2694,21 @@ pub fn nvim__inspect_cell(
 
 /// @nodoc
 // DLLEXPORT void nvim__screenshot(String path) FUNC_API_FAST;
-pub fn nvim__screenshot(path: NvimString) {
+pub fn nvim_screenshot(path: NvimString) {
     ui_call_screenshot(path);
 }
 
 /// For testing. The condition in schar_cache_clear_if_full is hard to
 /// reach, so this function can be used to force a cache clear in a test.
 // DLLEXPORT void nvim__invalidate_glyph_cache(void);
-pub fn nvim__invalidate_glyph_cache() {
+pub fn nvim_invalidate_glyph_cache() {
     schar_cache_clear();
         g_st().must_redraw = UPD_CLEAR;
 }
 
 /// @nodoc
 // DLLEXPORT Object nvim__unpack(String str, Arena *arena, Error *err) FUNC_API_FAST;
-pub fn nvim__unpack(
+pub fn nvim_unpack(
     str_: NvimString,
     arena: &mut Arena,
     err: &mut Error,
@@ -2888,7 +2888,7 @@ pub fn nvim_eval_statusline(
 
         let window = opts.winid;
 
-        if (opts.is_set__eval_statusline_ & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR))
+        if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR))
             != 0
         {
             let ci = utf_ptr2_str_char_info(opts.fillchar.data);
@@ -2916,7 +2916,7 @@ pub fn nvim_eval_statusline(
             return result;
         }
 
-        if (opts.is_set__eval_statusline_
+        if (opts.is_set_eval_statusline
             & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
             != 0
         {
@@ -2993,7 +2993,7 @@ pub fn nvim_eval_statusline(
             }
         }
 
-        let maxwidth = if (opts.is_set__eval_statusline_
+        let maxwidth = if (opts.is_set_eval_statusline
             & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH))
             != 0
         {
@@ -3001,7 +3001,7 @@ pub fn nvim_eval_statusline(
         } else if statuscol_lnum != 0 {
             win_col_off(wp)
         } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
-            g_st().Columns
+            g_st().columns_global
         } else {
             (*wp).w_width
         };
@@ -3133,7 +3133,7 @@ pub fn nvim_eval_statusline(
 ///       - bufnr: (integer) buffer id in floating window
 // DLLEXPORT DictOf(Integer) nvim__complete_set(Integer index, Dict(complete_set) *opts, Arena *arena,
 //                                              Error *err);
-pub fn nvim__complete_set(
+pub fn nvim_complete_set(
     index: Integer,
     opts: &mut KeyDict_complete_set,
     arena: &mut Arena,
@@ -3149,7 +3149,7 @@ pub fn nvim__complete_set(
             );
             return rv;
         }
-        if (opts.is_set__complete_set_ & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
+        if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
             let wp = pum_set_info(index as c_int, opts.info.data);
             if !wp.is_null() {
                 put_c(&mut rv, c"winid", window_obj((*wp).handle));
@@ -3217,19 +3217,19 @@ fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
 ///               - win: Target a specific |window-ID| as described below.
 ///               - winbar: Redraw the 'winbar' in `buf`, `win` or all windows.
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
-pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
+pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     unsafe {
         let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
 
-        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
+        if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
             win = find_window_by_handle(opts.win, err);
             if error_set(err) {
                 return;
             }
         }
 
-        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_BUF)) != 0 {
+        if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_BUF)) != 0 {
             if !win.is_null() {
                 api_set_error!(
                     err,
@@ -3246,7 +3246,7 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         }
 
         let count = u32::from(!win.is_null()) + u32::from(!buf.is_null());
-        if (xpopcount(opts.is_set__redraw_) as u32) <= count {
+        if (xpopcount(opts.is_set_redraw) as u32) <= count {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -3256,9 +3256,9 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             return;
         }
 
-        let has_valid = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_VALID)) != 0;
-        let has_range = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_RANGE)) != 0;
-        let has_flush = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_FLUSH)) != 0;
+        let has_valid = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_VALID)) != 0;
+        let has_range = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_RANGE)) != 0;
+        let has_flush = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_FLUSH)) != 0;
 
         if has_valid {
             let rtype = if opts.valid {
@@ -3329,8 +3329,8 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         }
 
         let save_lz = opt_vars().p_lz;
-        let save_rd = g_st().RedrawingDisabled;
-        g_st().RedrawingDisabled = 0;
+        let save_rd = g_st().redrawing_disabled;
+        g_st().redrawing_disabled = 0;
         opt_vars().p_lz = 0;
         if opts.statuscolumn || opts.statusline || opts.winbar {
             if win.is_null() {
@@ -3365,13 +3365,13 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             ui_flush();
         }
 
-        g_st().RedrawingDisabled = save_rd;
+        g_st().redrawing_disabled = save_rd;
         opt_vars().p_lz = save_lz;
     }
 }
 
 // DLLEXPORT void nvim__set_restart_on_crash(String progpath, Array argv);
-pub fn nvim__set_restart_on_crash(progpath: NvimString, argv: Array) {
+pub fn nvim_set_restart_on_crash(progpath: NvimString, argv: Array) {
     ui_call_set_restart_on_crash_exit(progpath, argv);
 }
 

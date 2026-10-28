@@ -122,9 +122,9 @@ pub const K_TERMINFO_FUNC_KEY_MAX: usize = 63;
 #[derive(Clone)]
 pub struct TerminfoEntry {
     pub back_color_erase: bool,
-    pub Tc: bool,
-    pub RGB: bool,
-    pub Su: bool,
+    pub tc: bool,
+    pub rgb: bool,
+    pub su: bool,
     pub max_colors: c_int,
     pub lines: c_int,
     pub columns: c_int,

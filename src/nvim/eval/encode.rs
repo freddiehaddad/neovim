@@ -42,13 +42,13 @@ pub const ENCODE_BOOL_VAR_NAMES: [*const c_char; 2] = [c"v:false".as_ptr(), c"v:
 pub const ENCODE_SPECIAL_VAR_NAMES: [*const c_char; 1] = [c"v:null".as_ptr()];
 
 struct EvalEncodeState {
-    DID_ECHO_STRING_EMSG: bool,
+    did_echo_string_emsg: bool,
 }
 
 impl EvalEncodeState {
     const fn new() -> Self {
         Self {
-            DID_ECHO_STRING_EMSG: false,
+            did_echo_string_emsg: false,
         }
     }
 }
@@ -1111,8 +1111,8 @@ impl EncodeBackend<'_> {
                     gap,
                     mode: TextEncodeMode::String,
                 } => {
-                    if !encode_st().DID_ECHO_STRING_EMSG {
-                        encode_st().DID_ECHO_STRING_EMSG = true;
+                    if !encode_st().did_echo_string_emsg {
+                        encode_st().did_echo_string_emsg = true;
                         emsg(
                             c"E724: unable to correctly dump variable with self-referencing container",
                         );
@@ -1139,8 +1139,8 @@ impl EncodeBackend<'_> {
                     mode: TextEncodeMode::Json,
                     ..
                 } => {
-                    if !encode_st().DID_ECHO_STRING_EMSG {
-                        encode_st().DID_ECHO_STRING_EMSG = true;
+                    if !encode_st().did_echo_string_emsg {
+                        encode_st().did_echo_string_emsg = true;
                         emsg(
                             c"E724: unable to correctly dump variable with self-referencing container",
                         );
@@ -1231,10 +1231,10 @@ fn convert_one_value(
                 if list.is_null() || tv_list_len(list.as_ref()) == 0 {
                     backend.conv_empty_list();
                 } else {
-                    let saved_copy_id = (*list).lv_copyID;
+                    let saved_copy_id = (*list).lv_copy_id;
                     let csr = backend.check_self_reference(
                         MPContainerRef::List(list),
-                        &mut (*list).lv_copyID,
+                        &mut (*list).lv_copy_id,
                         mpstack,
                         copy_id,
                         objname,
@@ -1355,10 +1355,10 @@ fn convert_one_value(
                                     K_MP_ARRAY => {
                                         if (*val_di).di_tv.v_type == VarType::VarList {
                                             let val_list = (*val_di).di_tv.vval.v_list();
-                                            let saved_copy_id = (*val_list).lv_copyID;
+                                            let saved_copy_id = (*val_list).lv_copy_id;
                                             let csr = backend.check_self_reference(
                                                 MPContainerRef::List(val_list),
-                                                &mut (*val_list).lv_copyID,
+                                                &mut (*val_list).lv_copy_id,
                                                 mpstack,
                                                 copy_id,
                                                 objname,
@@ -1397,10 +1397,10 @@ fn convert_one_value(
                                                     li = (*li).li_next;
                                                 }
                                                 if all_pairs {
-                                                    let saved_copy_id = (*val_list).lv_copyID;
+                                                    let saved_copy_id = (*val_list).lv_copy_id;
                                                     let csr = backend.check_self_reference(
                                                         MPContainerRef::Pairs(val_list),
-                                                        &mut (*val_list).lv_copyID,
+                                                        &mut (*val_list).lv_copy_id,
                                                         mpstack,
                                                         copy_id,
                                                         objname,
@@ -1456,10 +1456,10 @@ fn convert_one_value(
                     }
                 }
                 if !handled_special {
-                    let saved_copy_id = (*dict).dv_copyID;
+                    let saved_copy_id = (*dict).dv_copy_id;
                     let csr = backend.check_self_reference(
                         MPContainerRef::Dict(dict),
-                        &mut (*dict).dv_copyID,
+                        &mut (*dict).dv_copy_id,
                         mpstack,
                         copy_id,
                         objname,
@@ -1514,7 +1514,7 @@ fn encode_vim_with_backend(
                 } => {
                     if *todo == 0 {
                         mpstack.pop();
-                        (*dict).dv_copyID = saved_copy_id;
+                        (*dict).dv_copy_id = saved_copy_id;
                         backend.conv_dict_end();
                         continue;
                     } else if *todo != (*dict).dv_hashtab.ht_used {
@@ -1543,7 +1543,7 @@ fn encode_vim_with_backend(
                     let cur_li = *li;
                     if cur_li.is_null() {
                         mpstack.pop();
-                        (*list).lv_copyID = saved_copy_id;
+                        (*list).lv_copy_id = saved_copy_id;
                         backend.conv_list_end();
                         continue;
                     } else if cur_li != tv_list_first(list.as_ref()) {
@@ -1555,7 +1555,7 @@ fn encode_vim_with_backend(
                 MPConvStackData::Pairs { list, li } => {
                     if li.is_null() {
                         mpstack.pop();
-                        (*list).lv_copyID = saved_copy_id;
+                        (*list).lv_copy_id = saved_copy_id;
                         backend.conv_dict_end();
                         continue;
                     } else if li != tv_list_first(list.as_ref()) {
@@ -1635,10 +1635,10 @@ fn encode_vim_with_backend(
                                     backend.conv_empty_dict();
                                     continue;
                                 }
-                                let saved_copy_id = (*dict).dv_copyID;
+                                let saved_copy_id = (*dict).dv_copy_id;
                                 let csr = backend.check_self_reference(
                                     MPContainerRef::Dict(dict),
-                                    &mut (*dict).dv_copyID,
+                                    &mut (*dict).dv_copy_id,
                                     &mpstack,
                                     copy_id,
                                     objname,
@@ -1732,7 +1732,7 @@ pub fn encode_tv2string(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi
         let evs_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument");
         assert!(evs_ret);
-        encode_st().DID_ECHO_STRING_EMSG = false;
+        encode_st().did_echo_string_emsg = false;
         if let Some(ref mut p) = len {
             **p = ga.len();
         }
@@ -1769,7 +1769,7 @@ pub fn encode_tv2json(tv: &mut TypVal,mut len: Option<&mut usize>) -> std::ffi::
         };
         let evj_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument");
-        encode_st().DID_ECHO_STRING_EMSG = false;
+        encode_st().did_echo_string_emsg = false;
         if !evj_ret {
             ga.clear();
         }
@@ -1817,7 +1817,7 @@ mod tests {
             lv_refcount: 1,
             lv_len: 2,
             lv_idx: 0,
-            lv_copyID: 0,
+            lv_copy_id: 0,
             lv_lock: 0,
             lua_table_ref: -2,
         };

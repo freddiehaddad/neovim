@@ -94,19 +94,19 @@ const E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS: &CStr =
     c"E1216: digraph_setlist() argument must be a list of lists with two items";
 
 struct DigraphModuleState {
-    USER_DIGRAPHS: Vec<DigraphEntry>,
-    BACKSPACED: c_int,
-    LASTCHAR: c_int,
-    DIGRAPH_FOR_CHAR_BUF: [c_char; 3],
+    user_digraphs: Vec<DigraphEntry>,
+    backspaced: c_int,
+    lastchar: c_int,
+    digraph_for_char_buf: [c_char; 3],
 }
 
 impl DigraphModuleState {
     const fn new() -> Self {
         Self {
-            USER_DIGRAPHS: Vec::new(),
-            BACKSPACED: 0,
-            LASTCHAR: 0,
-            DIGRAPH_FOR_CHAR_BUF: [0; 3],
+            user_digraphs: Vec::new(),
+            backspaced: 0,
+            lastchar: 0,
+            digraph_for_char_buf: [0; 3],
         }
     }
 }
@@ -1614,30 +1614,30 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 /// Handle digraphs after typing a character (`do_digraph`).
 pub fn do_digraph(mut c: c_int) -> c_int {
     if c == -1 {
-            digr_st().BACKSPACED = -1;
+            digr_st().backspaced = -1;
         } else if opt_vars().p_dg != 0 {
-            if digr_st().BACKSPACED >= 0 {
-                c = digraph_get(digr_st().BACKSPACED, c, false);
+            if digr_st().backspaced >= 0 {
+                c = digraph_get(digr_st().backspaced, c, false);
             }
-            digr_st().BACKSPACED = -1;
+            digr_st().backspaced = -1;
 
-            if (c == K_BS || c == CTRL_H_CONST) && digr_st().LASTCHAR >= 0 {
-                digr_st().BACKSPACED = digr_st().LASTCHAR;
+            if (c == K_BS || c == CTRL_H_CONST) && digr_st().lastchar >= 0 {
+                digr_st().backspaced = digr_st().lastchar;
             }
         }
-        digr_st().LASTCHAR = c;
+        digr_st().lastchar = c;
         c
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
 pub fn get_digraph_for_char(val: c_int) -> *mut c_char {
      {
-        for dp in digr_st().USER_DIGRAPHS.iter().chain(DIGRAPHDEFAULT.iter()) {
+        for dp in digr_st().user_digraphs.iter().chain(DIGRAPHDEFAULT.iter()) {
             if dp.result == val {
-                digr_st().DIGRAPH_FOR_CHAR_BUF[0] = dp.char1 as c_char;
-                digr_st().DIGRAPH_FOR_CHAR_BUF[1] = dp.char2 as c_char;
-                digr_st().DIGRAPH_FOR_CHAR_BUF[2] = NUL;
-                return &raw mut digr_st().DIGRAPH_FOR_CHAR_BUF[0];
+                digr_st().digraph_for_char_buf[0] = dp.char1 as c_char;
+                digr_st().digraph_for_char_buf[1] = dp.char2 as c_char;
+                digr_st().digraph_for_char_buf[2] = NUL;
+                return &raw mut digr_st().digraph_for_char_buf[0];
             }
         }
         ptr::null_mut()
@@ -1685,7 +1685,7 @@ fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
         return char2;
     }
 
-    let user_slice = digr_st().USER_DIGRAPHS.as_slice();
+    let user_slice = digr_st().user_digraphs.as_slice();
     for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
         if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
             if dp.result != 0 {
@@ -1717,7 +1717,7 @@ pub fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
 /// Add a digraph to the digraph table (`registerdigraph`).
 fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
      {
-        let user_vec = &mut digr_st().USER_DIGRAPHS;
+        let user_vec = &mut digr_st().user_digraphs;
         for dp in user_vec.iter_mut() {
             if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
                 dp.result = n;
@@ -1820,7 +1820,7 @@ pub fn listdigraphs(use_headers: bool) {
             fast_breakcheck();
         }
 
-        for dp in digr_st().USER_DIGRAPHS.as_slice() {
+        for dp in digr_st().user_digraphs.as_slice() {
             if g_st().got_int {
                 break;
             }
@@ -1853,7 +1853,7 @@ fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
 
 pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
     unsafe {
-        let user_slice = digr_st().USER_DIGRAPHS.as_slice();
+        let user_slice = digr_st().user_digraphs.as_slice();
         let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
         tv_list_alloc_ret(&mut *rettv, cap);
 
@@ -1906,7 +1906,7 @@ fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
             }
             *previous = dp.result;
         }
-        if g_st().msg_col > g_st().Columns - list_width {
+        if g_st().msg_col > g_st().columns_global - list_width {
             msg_putchar(b'\n' as c_int);
         }
 

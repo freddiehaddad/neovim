@@ -38,35 +38,35 @@ const CMD_UP: c_int = 9;
 const CMD_DOWN: c_int = 10;
 
 struct DebuggerState {
-    DEBUG_GREEDY: bool,
-    LAST_CMD: c_int,
-    LAST_BREAKP: c_int,
-    HAS_EXPR_BREAKPOINT: bool,
-    DEBUG_SKIPPED: bool,
-    DEBUG_BREAKPOINT_LNUM: c_int,
-    DEBUG_OLDVAL: Option<CString>,
-    DEBUG_NEWVAL: Option<CString>,
-    DEBUG_BREAKPOINT_NAME: *mut c_char,
-    DEBUG_SKIPPED_NAME: *mut c_char,
-    DBG_BREAKP: Vec<Debuggy>,
-    PROF_GA: Vec<Debuggy>,
+    debug_greedy: bool,
+    last_cmd: c_int,
+    last_breakp: c_int,
+    has_expr_breakpoint: bool,
+    debug_skipped: bool,
+    debug_breakpoint_lnum: c_int,
+    debug_oldval: Option<CString>,
+    debug_newval: Option<CString>,
+    debug_breakpoint_name: *mut c_char,
+    debug_skipped_name: *mut c_char,
+    dbg_breakp: Vec<Debuggy>,
+    prof_ga: Vec<Debuggy>,
 }
 
 impl DebuggerState {
     const fn new() -> Self {
         Self {
-            DEBUG_GREEDY: false,
-            LAST_CMD: 0,
-            LAST_BREAKP: 0,
-            HAS_EXPR_BREAKPOINT: false,
-            DEBUG_SKIPPED: false,
-            DEBUG_BREAKPOINT_LNUM: 0,
-            DEBUG_OLDVAL: None,
-            DEBUG_NEWVAL: None,
-            DEBUG_BREAKPOINT_NAME: std::ptr::null_mut(),
-            DEBUG_SKIPPED_NAME: std::ptr::null_mut(),
-            DBG_BREAKP: Vec::new(),
-            PROF_GA: Vec::new(),
+            debug_greedy: false,
+            last_cmd: 0,
+            last_breakp: 0,
+            has_expr_breakpoint: false,
+            debug_skipped: false,
+            debug_breakpoint_lnum: 0,
+            debug_oldval: None,
+            debug_newval: None,
+            debug_breakpoint_name: std::ptr::null_mut(),
+            debug_skipped_name: std::ptr::null_mut(),
+            dbg_breakp: Vec::new(),
+            prof_ga: Vec::new(),
         }
     }
 }
@@ -81,9 +81,9 @@ fn dbg_st() -> &'static mut DebuggerState {
 #[inline]
 fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<Debuggy> {
     if is_prof {
-            &mut dbg_st().PROF_GA
+            &mut dbg_st().prof_ga
         } else {
-            &mut dbg_st().DBG_BREAKP
+            &mut dbg_st().dbg_breakp
         }
 }
 
@@ -207,7 +207,7 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into
 pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
     unsafe {
         let save_msg_scroll = g_st().msg_scroll;
-        let save_state = g_st().State;
+        let save_state = g_st().state_global;
         let save_did_emsg = g_st().did_emsg;
         let save_cmd_silent = g_st().cmd_silent;
         let save_msg_silent = g_st().msg_silent;
@@ -218,7 +218,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
         let mut save_ignore_script = false;
         let mut cmdline_cstr: Option<CString>;
 
-        g_st().RedrawingDisabled += 1;
+        g_st().redrawing_disabled += 1;
         g_st().no_wait_return += 1;
         g_st().did_emsg = 0;
         g_st().cmd_silent = false;
@@ -226,7 +226,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
         g_st().emsg_silent = 0;
         g_st().redir_off = true;
 
-        g_st().State = MODE_NORMAL;
+        g_st().state_global = MODE_NORMAL;
         g_st().debug_mode = true;
 
         if !g_st().debug_did_msg {
@@ -235,10 +235,10 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
                 0,
             );
         }
-        if let Some(oldval) = dbg_st().DEBUG_OLDVAL.take() {
+        if let Some(oldval) = dbg_st().debug_oldval.take() {
             smsg!(0, c"Oldval = \"%s\"", oldval.as_ptr());
         }
-        if let Some(newval) = dbg_st().DEBUG_NEWVAL.take() {
+        if let Some(newval) = dbg_st().debug_newval.take() {
             smsg!(0, c"Newval = \"%s\"", newval.as_ptr());
         }
         if let Some(sname) = estack_sfile(ESTACK_NONE) {
@@ -258,7 +258,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
 
             let save_ex_normal_busy = g_st().ex_normal_busy;
             g_st().ex_normal_busy = 0;
-            if !dbg_st().DEBUG_GREEDY {
+            if !dbg_st().debug_greedy {
                 save_typeahead(&mut typeaheadbuf);
                 typeahead_saved = true;
                 save_ignore_script = g_st().ignore_script;
@@ -332,10 +332,10 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
                             lcmd = 0;
                         }
                     }
-                    dbg_st().LAST_CMD = lcmd;
+                    dbg_st().last_cmd = lcmd;
                 }
 
-                let cur_last = dbg_st().LAST_CMD;
+                let cur_last = dbg_st().last_cmd;
                 if cur_last != 0 {
                     match cur_last {
                         CMD_CONT => {
@@ -357,7 +357,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
                         CMD_INTERRUPT => {
                             g_st().got_int = true;
                             g_st().debug_break_level = 9999;
-                            dbg_st().LAST_CMD = CMD_STEP;
+                            dbg_st().last_cmd = CMD_STEP;
                         }
                         CMD_BACKTRACE => {
                             do_showbacktrace(cmd);
@@ -397,16 +397,16 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
                 );
                 g_st().debug_break_level = n2;
             }
-            g_st().lines_left = g_st().Rows - 1;
+            g_st().lines_left = g_st().rows_global - 1;
         }
 
-        g_st().RedrawingDisabled -= 1;
+        g_st().redrawing_disabled -= 1;
         g_st().no_wait_return -= 1;
         redraw_all_later(UPD_NOT_VALID);
         g_st().need_wait_return = false;
         g_st().msg_scroll = save_msg_scroll;
-        g_st().lines_left = g_st().Rows - 1;
-        g_st().State = save_state;
+        g_st().lines_left = g_st().rows_global - 1;
+        g_st().state_global = save_state;
         g_st().debug_mode = false;
         g_st().did_emsg = save_did_emsg;
         g_st().cmd_silent = save_cmd_silent;
@@ -429,10 +429,10 @@ pub fn ex_debug(eap: &mut Exarg) {
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
 pub fn dbg_check_breakpoint(eap: &mut Exarg) {
     unsafe {
-        dbg_st().DEBUG_SKIPPED = false;
-        if !dbg_st().DEBUG_BREAKPOINT_NAME.is_null() {
+        dbg_st().debug_skipped = false;
+        if !dbg_st().debug_breakpoint_name.is_null() {
             if eap.skip == 0 {
-                let bp_name = dbg_st().DEBUG_BREAKPOINT_NAME;
+                let bp_name = dbg_st().debug_breakpoint_name;
                 let is_snr = (crate::memory::cstr_first_byte(bp_name)) == K_SPECIAL
                     && (crate::memory::cstr_byte_at(bp_name, 1)) == KS_EXTRA
                     && (crate::memory::cstr_byte_at(bp_name, 2)) == KE_SNR;
@@ -441,22 +441,22 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
                 } else {
                     (c"", bp_name)
                 };
-                let lnum = dbg_st().DEBUG_BREAKPOINT_LNUM;
+                let lnum = dbg_st().debug_breakpoint_lnum;
                 let fmt_str = format!("Breakpoint in \"%s%s\" line {lnum}\0");
                 smsg!(0, fmt_str.as_ptr().cast::<c_char>(), prefix, rest);
-                dbg_st().DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
+                dbg_st().debug_breakpoint_name = std::ptr::null_mut();
                 do_debug(eap.cmd);
             } else {
-                dbg_st().DEBUG_SKIPPED = true;
-                dbg_st().DEBUG_SKIPPED_NAME = dbg_st().DEBUG_BREAKPOINT_NAME;
-                dbg_st().DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
+                dbg_st().debug_skipped = true;
+                dbg_st().debug_skipped_name = dbg_st().debug_breakpoint_name;
+                dbg_st().debug_breakpoint_name = std::ptr::null_mut();
             }
         } else if g_st().ex_nesting_level <= g_st().debug_break_level {
             if eap.skip == 0 {
                 do_debug(eap.cmd);
             } else {
-                dbg_st().DEBUG_SKIPPED = true;
-                dbg_st().DEBUG_SKIPPED_NAME = std::ptr::null_mut();
+                dbg_st().debug_skipped = true;
+                dbg_st().debug_skipped_name = std::ptr::null_mut();
             }
         }
     }
@@ -464,12 +464,12 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
 pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
-    if !dbg_st().DEBUG_SKIPPED {
+    if !dbg_st().debug_skipped {
             return false;
         }
         let prev_got_int = g_st().got_int;
         g_st().got_int = false;
-        dbg_st().DEBUG_BREAKPOINT_NAME = dbg_st().DEBUG_SKIPPED_NAME;
+        dbg_st().debug_breakpoint_name = dbg_st().debug_skipped_name;
         eap.skip = 0;
         dbg_check_breakpoint(eap);
         eap.skip = 1;
@@ -593,19 +593,19 @@ pub fn ex_breakadd(eap: &mut Exarg) {
                     bp.dbg_lnum = 1;
                 }
                 if eap.cmdidx != CMD_PROFILE {
-                    dbg_st().LAST_BREAKP += 1;
-                    bp.dbg_nr = dbg_st().LAST_BREAKP;
+                    dbg_st().last_breakp += 1;
+                    bp.dbg_nr = dbg_st().last_breakp;
                     g_st().debug_tick += 1;
                 }
                 gap.push(bp);
             }
         } else {
-            dbg_st().LAST_BREAKP += 1;
-            bp.dbg_nr = dbg_st().LAST_BREAKP;
+            dbg_st().last_breakp += 1;
+            bp.dbg_nr = dbg_st().last_breakp;
             gap.push(bp);
             g_st().debug_tick += 1;
             if !is_prof {
-                dbg_st().HAS_EXPR_BREAKPOINT = true;
+                dbg_st().has_expr_breakpoint = true;
             }
         }
 }
@@ -613,12 +613,12 @@ pub fn ex_breakadd(eap: &mut Exarg) {
 /// `:debuggreedy` command (`ex_debuggreedy`).
 pub fn ex_debuggreedy(eap: &mut Exarg) {
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
-    dbg_st().DEBUG_GREEDY = greedy;
+    dbg_st().debug_greedy = greedy;
 }
 
 fn update_has_expr_breakpoint() {
     let bps = dbg_vec_mut(false);
-        dbg_st().HAS_EXPR_BREAKPOINT = bps.iter().any(|bp| bp.dbg_type == DBG_EXPR);
+        dbg_st().has_expr_breakpoint = bps.iter().any(|bp| bp.dbg_type == DBG_EXPR);
 }
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
@@ -763,22 +763,22 @@ fn debuggy_find(
                             && tv.vval.v_number() == 0
                         {
                             line = true;
-                            dbg_st().DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
+                            dbg_st().debug_oldval = Some(typval_tostring(Some(old_val), true));
                             let mut v = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
-                            dbg_st().DEBUG_NEWVAL = Some(typval_tostring(v.as_mut(), true));
+                            dbg_st().debug_newval = Some(typval_tostring(v.as_mut(), true));
                             tv_clear(old_val);
                             bp.dbg_val = v;
                         }
                         tv_clear(&mut tv);
                     } else {
-                        dbg_st().DEBUG_OLDVAL = Some(typval_tostring(None, true));
+                        dbg_st().debug_oldval = Some(typval_tostring(None, true));
                         bp.dbg_val = Some(tv);
-                        dbg_st().DEBUG_NEWVAL = Some(typval_tostring(bp.dbg_val.as_mut(), true));
+                        dbg_st().debug_newval = Some(typval_tostring(bp.dbg_val.as_mut(), true));
                         line = true;
                     }
                 } else if let Some(ref mut old_val) = bp.dbg_val {
-                    dbg_st().DEBUG_OLDVAL = Some(typval_tostring(Some(old_val), true));
-                    dbg_st().DEBUG_NEWVAL = Some(typval_tostring(None, true));
+                    dbg_st().debug_oldval = Some(typval_tostring(Some(old_val), true));
+                    dbg_st().debug_newval = Some(typval_tostring(None, true));
                     tv_clear(old_val);
                     bp.dbg_val = None;
                     line = true;
@@ -809,8 +809,8 @@ pub fn has_profiling(file: bool, fname: impl crate::strings::IntoCCharPtr,fp: Op
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).
 pub fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
-    dbg_st().DEBUG_BREAKPOINT_NAME = name;
-    dbg_st().DEBUG_BREAKPOINT_LNUM = lnum;
+    dbg_st().debug_breakpoint_name = name;
+    dbg_st().debug_breakpoint_lnum = lnum;
 }
 
 #[cfg(test)]

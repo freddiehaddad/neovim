@@ -37,7 +37,7 @@ enum NluaXdiffMode {
 #[repr(C)]
 #[derive(Default)]
 pub struct KeyDict_xdl_diff {
-    pub is_set__xdl_diff_: u64,
+    pub is_set_xdl_diff: u64,
     pub on_hunk: c_int,
     pub result_type: NvimString,
     pub algorithm: NvimString,
@@ -55,7 +55,7 @@ pub struct KeyDict_xdl_diff {
 impl KeyDict_xdl_diff {
     fn init() -> Self {
         Self {
-            is_set__xdl_diff_: 0,
+            is_set_xdl_diff: 0,
             on_hunk: LUA_NOREF,
             result_type: NvimString {
                 data: std::ptr::null_mut(),
@@ -82,7 +82,7 @@ impl KeyDict_xdl_diff {
 
     #[inline]
     fn has_key(&self, optidx: u64) -> bool {
-        (self.is_set__xdl_diff_ & (1u64 << optidx)) != 0
+        (self.is_set_xdl_diff & (1u64 << optidx)) != 0
     }
 }
 

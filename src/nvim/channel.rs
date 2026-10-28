@@ -129,15 +129,15 @@ const F_DUPFD_CLOEXEC: c_int = 17;
 const F_DUPFD_CLOEXEC: c_int = 12;
 
 struct ChannelModuleState {
-    DID_STDIO: bool,
-    NEXT_CHAN_ID: u64,
+    did_stdio: bool,
+    next_chan_id: u64,
 }
 
 impl ChannelModuleState {
     const fn new() -> Self {
         Self {
-            DID_STDIO: false,
-            NEXT_CHAN_ID: CHAN_STDERR + 1,
+            did_stdio: false,
+            next_chan_id: CHAN_STDERR + 1,
         }
     }
 }
@@ -231,7 +231,7 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
 
         let chan = find_channel(id);
         if chan.is_null() {
-            if id < chan_st().NEXT_CHAN_ID {
+            if id < chan_st().next_chan_id {
                 return true;
             }
             {
@@ -351,8 +351,8 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         } else if r#type == K_CHANNEL_STREAM_STDERR {
             CHAN_STDERR
         } else {
-            let id = chan_st().NEXT_CHAN_ID;
-            chan_st().NEXT_CHAN_ID += 1;
+            let id = chan_st().next_chan_id;
+            chan_st().next_chan_id += 1;
             id
         };
         assert!(id <= (i64::MAX as u64));
@@ -429,8 +429,8 @@ pub fn free_channel_event(chan: &mut Channel) {
 
 fn channel_destroy_early(chan: &mut Channel) {
     unsafe {
-        chan_st().NEXT_CHAN_ID -= 1;
-        if chan.id != chan_st().NEXT_CHAN_ID {
+        chan_st().next_chan_id -= 1;
+        if chan.id != chan_st().next_chan_id {
             std::process::abort();
         }
         let _ = g_st().channels.remove(&chan.id);
@@ -685,13 +685,13 @@ pub fn channel_from_stdio(
             return 0;
         }
 
-        if chan_st().DID_STDIO {
+        if chan_st().did_stdio {
             {
                 *error = gettext(c"channel was already open");
             }
             return 0;
         }
-        chan_st().DID_STDIO = true;
+        chan_st().did_stdio = true;
 
         let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
         let mut stdin_dup_fd = STDIN_FILENO;

@@ -835,8 +835,8 @@ pub struct TabPageInfo {
     pub tp_prevwin: *mut WinInfoInfo,
     pub tp_firstwin: *mut WinInfoInfo,
     pub tp_lastwin: *mut WinInfoInfo,
-    pub tp_old_Rows_avail: i64,
-    pub tp_old_Columns: i64,
+    pub tp_old_rows_avail: i64,
+    pub tp_old_columns: i64,
     pub tp_ch_used: i64,
     pub tp_did_tabclosedpre: bool,
     pub tp_diffs: Vec<crate::diff::DiffBlock>,
@@ -859,8 +859,8 @@ impl TabPageInfo {
             tp_prevwin: ptr::null_mut(),
             tp_firstwin: ptr::null_mut(),
             tp_lastwin: ptr::null_mut(),
-            tp_old_Rows_avail: 0,
-            tp_old_Columns: 0,
+            tp_old_rows_avail: 0,
+            tp_old_columns: 0,
             tp_ch_used: 0,
             tp_did_tabclosedpre: false,
             tp_diffs: Vec::new(),
@@ -943,8 +943,8 @@ struct WindowModuleState {
     command_frame_height: bool,
     last_tp_handle: c_int,
     last_win_id: c_int,
-    old_Rows: c_int,
-    old_Columns: c_int,
+    old_rows: c_int,
+    old_columns: c_int,
     did_initial_scroll_size_snapshot: bool,
     winclosed_recursive: bool,
     tabclosedpre_recursive: bool,
@@ -961,8 +961,8 @@ impl WindowModuleState {
             command_frame_height: true,
             last_tp_handle: 0,
             last_win_id: LOWEST_WIN_ID - 1,
-            old_Rows: 0,
-            old_Columns: 0,
+            old_rows: 0,
+            old_columns: 0,
             did_initial_scroll_size_snapshot: false,
             winclosed_recursive: false,
             tabclosedpre_recursive: false,
@@ -987,7 +987,7 @@ fn nowin() -> *mut WinInfoInfo {
 
 #[inline]
 fn rows_avail() -> OptInt {
-    OptInt::from(g_st().Rows)
+    OptInt::from(g_st().rows_global)
             - opt_vars().p_ch
             - OptInt::from(tabline_height())
             - OptInt::from(global_stl_height())
@@ -1111,6 +1111,7 @@ pub fn swbuf_goto_win_with_buf(buf: *mut FileBuf) -> *mut WinInfoInfo {
         wp
 }
 
+#[allow(non_snake_case)]
 fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
     unsafe {
         if Prenum != 0 {
@@ -1454,7 +1455,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 win_setheight(if prenum != 0 {
                     prenum
                 } else {
-                    g_st().Rows - win_st().min_set_ch as c_int
+                    g_st().rows_global - win_st().min_set_ch as c_int
                 });
             }
             c if c == b'>' as c_int => {
@@ -1464,7 +1465,7 @@ pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
                 win_setwidth(curwin_mut().w_width - prenum1);
             }
             c if c == b'|' as c_int => {
-                win_setwidth(if prenum != 0 { prenum } else { g_st().Columns });
+                win_setwidth(if prenum != 0 { prenum } else { g_st().columns_global });
             }
             c if c == b'}' as c_int || c == b']' as c_int || c == CTRL_RSB_CONST => {
                 if nchar == b'}' as c_int {
@@ -1608,7 +1609,7 @@ pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
         let win_handle = win.handle;
         let tab = win_find_tabpage(&raw mut *win);
 
-        g_st().RedrawingDisabled += 1;
+        g_st().redrawing_disabled += 1;
 
         let mut switchwin: CtxSwitch = CtxSwitch::new();
 
@@ -1647,7 +1648,7 @@ pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
         validate_cursor(curwin_mut());
 
         ctx_restore(&mut switchwin);
-        g_st().RedrawingDisabled -= 1;
+        g_st().redrawing_disabled -= 1;
     }
 }
 
@@ -1756,7 +1757,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                     }
                 }
             } else if c.relative == K_FLOAT_RELATIVE_LASTSTATUS {
-                row += f64::from(g_st().Rows - opt_vars().p_ch as c_int - last_stl_height(false));
+                row += f64::from(g_st().rows_global - opt_vars().p_ch as c_int - last_stl_height(false));
             } else if c.relative == K_FLOAT_RELATIVE_TABLINE {
                 row += f64::from(tabline_height());
             }
@@ -1786,9 +1787,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
             };
             comp_row += (*grid).comp_row;
             comp_col += (*grid).comp_col;
-            comp_row = comp_row.min(g_st().Rows - wp.w_height_outer - above_ch).max(0);
+            comp_row = comp_row.min(g_st().rows_global - wp.w_height_outer - above_ch).max(0);
             if !c.fixed || east {
-                comp_col = comp_col.min(g_st().Columns - wp.w_width_outer).max(0);
+                comp_col = comp_col.min(g_st().columns_global - wp.w_width_outer).max(0);
             }
             wp.w_winrow = comp_row;
             wp.w_wincol = comp_col;
@@ -2364,7 +2365,7 @@ pub fn win_split_ins(
             let is_stl_global = global_stl_height() > 0;
             if toplevel {
                 (*wp).w_wincol = 0;
-                win_new_width(&mut *wp, g_st().Columns);
+                win_new_width(&mut *wp, g_st().columns_global);
                 (*wp).w_vsep_width = 0;
             } else {
                 (*wp).w_wincol = (*oldwin).w_wincol;
@@ -2434,11 +2435,11 @@ pub fn win_split_ins(
         status_redraw_all();
 
         if need_status != 0 {
-            g_st().msg_row = g_st().Rows - 1;
+            g_st().msg_row = g_st().rows_global - 1;
             g_st().msg_col = g_st().sc_col;
             msg_clr_eos_force();
             comp_col();
-            g_st().msg_row = g_st().Rows - 1;
+            g_st().msg_row = g_st().rows_global - 1;
             g_st().msg_col = 0;
         }
 
@@ -2729,7 +2730,7 @@ fn win_exchange(mut prenum: c_int) {
 
         if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
             reset_visual_and_resel();
-        } else if g_st().Visual.active {
+        } else if g_st().visual_global.active {
             (*wp).w_cursor = curwin_mut().w_cursor;
         }
 
@@ -2955,7 +2956,7 @@ pub fn win_equal(next_curwin: *mut WinInfoInfo, current: bool, mut dir: c_int) {
             dir,
             0,
             tabline_height(),
-            g_st().Columns,
+            g_st().columns_global,
             (*g_st().topframe).fr_height,
         );
         if !is_ctx_win(next_curwin) {
@@ -2999,7 +3000,7 @@ fn win_equal_rec(
 
             if dir != b'v' as c_int {
                 let mut n = frame_minwidth(topfr, nowin());
-                if col + width == g_st().Columns {
+                if col + width == g_st().columns_global {
                     extra_sep = 1;
                 } else {
                     extra_sep = 0;
@@ -3251,8 +3252,8 @@ pub fn leaving_window(win: &mut WinInfoInfo) {
         }
         g_st().restart_edit = NUL as c_int;
 
-        if (g_st().State & MODE_INSERT) != 0 && !g_st().Ins.stop_insert_mode {
-            g_st().Ins.stop_insert_mode = true;
+        if (g_st().state_global & MODE_INSERT) != 0 && !g_st().ins_global.stop_insert_mode {
+            g_st().ins_global.stop_insert_mode = true;
             if win.buf_mut().b_prompt_insert == NUL as c_int {
                 win.buf_mut().b_prompt_insert = b'A' as c_int;
             }
@@ -3267,10 +3268,10 @@ pub fn entering_window(win: &mut WinInfoInfo) {
         }
 
         if win.buf_mut().b_prompt_insert != NUL as c_int {
-            g_st().Ins.stop_insert_mode = false;
+            g_st().ins_global.stop_insert_mode = false;
         }
 
-        if (g_st().State & MODE_INSERT) == 0 {
+        if (g_st().state_global & MODE_INSERT) == 0 {
             g_st().restart_edit = win.buf_mut().b_prompt_insert;
         }
     }
@@ -3302,7 +3303,7 @@ pub fn curwin_init() {
 
 pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
     unsafe {
-        g_st().RedrawingDisabled += 1;
+        g_st().redrawing_disabled += 1;
 
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (is_ctx_win(g_st().lastwin) || !one_window( &mut *wp, ptr::null_mut())) {
@@ -3311,7 +3312,7 @@ pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
                 && !(win_locked(&mut *wp) != 0 || (*wp).buf_mut().b_locked > 0)
             {
                 if window_layout_locked(Cmdidx::CmdSize) {
-                    g_st().RedrawingDisabled -= 1;
+                    g_st().redrawing_disabled -= 1;
                     return;
                 }
                 if !win_close(wp, false, false) {
@@ -3333,11 +3334,11 @@ pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
                         && !(win_locked(&mut *wp2) != 0 || (*wp2).buf_mut().b_locked > 0)
                     {
                         if window_layout_locked(Cmdidx::CmdSize) {
-                            g_st().RedrawingDisabled -= 1;
+                            g_st().redrawing_disabled -= 1;
                             return;
                         }
                         if !win_close_othertab(wp2, 0, tp, false) {
-                            g_st().RedrawingDisabled -= 1;
+                            g_st().redrawing_disabled -= 1;
                             return;
                         }
                         nexttp = g_st().first_tabpage;
@@ -3349,7 +3350,7 @@ pub fn close_windows(buf: *mut FileBuf, keep_curwin: bool) {
             tp = nexttp;
         }
 
-        g_st().RedrawingDisabled -= 1;
+        g_st().redrawing_disabled -= 1;
     }
 }
 
@@ -4969,7 +4970,7 @@ pub fn win_alloc_ctx_win(idx: c_int) {
     unsafe {
         let mut err = ERROR_INIT;
         let mut fconfig = WIN_CONFIG_INIT;
-        fconfig.width = g_st().Columns;
+        fconfig.width = g_st().columns_global;
         fconfig.height = 5;
         fconfig.focusable = false;
         fconfig.mouse = false;
@@ -5001,8 +5002,8 @@ fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
 
         new_frame(curwin_mut());
         g_st().topframe = curwin_mut().w_frame;
-        (*g_st().topframe).fr_width = g_st().Columns;
-        (*g_st().topframe).fr_height = g_st().Rows - opt_vars().p_ch as c_int - global_stl_height();
+        (*g_st().topframe).fr_width = g_st().columns_global;
+        (*g_st().topframe).fr_height = g_st().rows_global - opt_vars().p_ch as c_int - global_stl_height();
 
         true
     }
@@ -5025,10 +5026,10 @@ pub fn win_init_size() {
         firstwin_mut().w_height_outer = firstwin_mut().w_height;
         firstwin_mut().w_winrow_off = firstwin_mut().w_winbar_height;
         (*g_st().topframe).fr_height = avail;
-        firstwin_mut().w_width = g_st().Columns;
+        firstwin_mut().w_width = g_st().columns_global;
         firstwin_mut().w_view_width = firstwin_mut().w_width;
         firstwin_mut().w_width_outer = firstwin_mut().w_width;
-        (*g_st().topframe).fr_width = g_st().Columns;
+        (*g_st().topframe).fr_width = g_st().columns_global;
     }
 }
 
@@ -5095,7 +5096,7 @@ pub fn win_new_tabpage(
             }
         } else {
             unuse_tabpage(curtab_mut());
-            curtab_mut().tp_old_Rows_avail = rows_avail();
+            curtab_mut().tp_old_rows_avail = rows_avail();
             g_st().firstwin = ptr::null_mut();
             g_st().lastwin = ptr::null_mut();
         }
@@ -5174,7 +5175,7 @@ pub fn win_new_tabpage(
             unuse_tabpage(curtab_mut());
             use_tabpage(old_curtab);
             g_st().redraw_tabline = true;
-            if curtab_mut().tp_old_Rows_avail != rows_avail() {
+            if curtab_mut().tp_old_rows_avail != rows_avail() {
                 win_new_screen_rows();
             }
 
@@ -5373,9 +5374,9 @@ fn leave_tabpage(new_curbuf: *mut FileBuf, trigger_leave_autocmds: bool) -> bool
         (*tp).tp_prevwin = g_st().prevwin;
         (*tp).tp_firstwin = g_st().firstwin;
         (*tp).tp_lastwin = g_st().lastwin;
-        (*tp).tp_old_Rows_avail = rows_avail();
-        if (*tp).tp_old_Columns != -1 {
-            (*tp).tp_old_Columns = i64::from(g_st().Columns);
+        (*tp).tp_old_rows_avail = rows_avail();
+        if (*tp).tp_old_columns != -1 {
+            (*tp).tp_old_columns = i64::from(g_st().columns_global);
         }
         g_st().firstwin = ptr::null_mut();
         g_st().lastwin = ptr::null_mut();
@@ -5431,15 +5432,15 @@ fn enter_tabpage(
 
         reset_dragwin();
 
-        if curtab_mut().tp_old_Rows_avail != rows_avail() || old_off != firstwin_mut().w_winrow {
+        if curtab_mut().tp_old_rows_avail != rows_avail() || old_off != firstwin_mut().w_winrow {
             win_new_screen_rows();
         }
-        if curtab_mut().tp_old_Columns != i64::from(g_st().Columns) {
+        if curtab_mut().tp_old_columns != i64::from(g_st().columns_global) {
             if starting_val() == 0 {
                 win_new_screen_cols();
-                curtab_mut().tp_old_Columns = i64::from(g_st().Columns);
+                curtab_mut().tp_old_columns = i64::from(g_st().columns_global);
             } else {
-                curtab_mut().tp_old_Columns = -1;
+                curtab_mut().tp_old_columns = -1;
             }
         }
 
@@ -5678,7 +5679,7 @@ pub fn win_goto(wp: *mut WinInfoInfo) {
 
         if !ptr::eq((*wp).w_buffer, g_st().curbuf) {
             reset_visual_and_resel();
-        } else if g_st().Visual.active {
+        } else if g_st().visual_global.active {
             (*wp).w_cursor = curwin_mut().w_cursor;
         }
 
@@ -6128,7 +6129,7 @@ pub fn win_alloc(after: *mut WinInfoInfo, hidden: bool) -> *mut WinInfoInfo {
             win_append(after, new_wp, tp);
         }
 
-        (*new_wp).w_width = g_st().Columns;
+        (*new_wp).w_width = g_st().columns_global;
 
         (*new_wp).w_ns_hl = -1;
 
@@ -6370,17 +6371,17 @@ fn frame_remove(frp: &mut Frame) {
 }
 
 pub fn win_new_screensize() {
-    if win_st().old_Rows != g_st().Rows {
-            if opt_vars().p_window == OptInt::from(win_st().old_Rows - 1)
-                || (win_st().old_Rows == 0 && !option_was_set(K_OPT_WINDOW))
+    if win_st().old_rows != g_st().rows_global {
+            if opt_vars().p_window == OptInt::from(win_st().old_rows - 1)
+                || (win_st().old_rows == 0 && !option_was_set(K_OPT_WINDOW))
             {
-                opt_vars().p_window = OptInt::from(g_st().Rows - 1);
+                opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
             }
-            win_st().old_Rows = g_st().Rows;
+            win_st().old_rows = g_st().rows_global;
             win_new_screen_rows();
         }
-        if win_st().old_Columns != g_st().Columns {
-            win_st().old_Columns = g_st().Columns;
+        if win_st().old_columns != g_st().columns_global {
+            win_st().old_columns = g_st().columns_global;
             win_new_screen_cols();
         }
 }
@@ -6414,9 +6415,9 @@ pub fn win_new_screen_cols() {
             return;
         }
 
-        frame_new_width(&mut *g_st().topframe, g_st().Columns, false, true);
-        if !frame_check_width(&*g_st().topframe, g_st().Columns) {
-            frame_new_width(&mut *g_st().topframe, g_st().Columns, false, false);
+        frame_new_width(&mut *g_st().topframe, g_st().columns_global, false, true);
+        if !frame_check_width(&*g_st().topframe, g_st().columns_global) {
+            frame_new_width(&mut *g_st().topframe, g_st().columns_global, false, false);
         }
 
         win_comp_pos();
@@ -6896,11 +6897,11 @@ fn frame_setheight(curfrp: &mut Frame, mut height: c_int, from_top: bool) {
                         room -= frame_minheight(&mut *frp, ptr::null_mut());
                     }
                 }
-                if !from_top || curfrp.fr_width != g_st().Columns {
+                if !from_top || curfrp.fr_width != g_st().columns_global {
                     room_cmdline = 0;
                 } else {
                     let wp = lastwin_nofloating(ptr::null_mut());
-                    room_cmdline = g_st().Rows
+                    room_cmdline = g_st().rows_global
                         - opt_vars().p_ch as c_int
                         - global_stl_height()
                         - ((*wp).w_winrow
@@ -6913,7 +6914,7 @@ fn frame_setheight(curfrp: &mut Frame, mut height: c_int, from_top: bool) {
                 if height <= room + room_cmdline {
                     break;
                 }
-                if run == 2 || curfrp.fr_width == g_st().Columns {
+                if run == 2 || curfrp.fr_width == g_st().columns_global {
                     height = room + room_cmdline;
                     break;
                 }
@@ -7112,7 +7113,7 @@ fn frame_setwidth(curfrp: &mut Frame, mut width: c_int, from_left: bool) {
 pub fn did_set_winminheight(_args: &mut Optset) -> *const c_char {
     let mut first = true;
         while opt_vars().p_wmh > 0 {
-            let room = g_st().Rows - opt_vars().p_ch as c_int;
+            let room = g_st().rows_global - opt_vars().p_ch as c_int;
             let needed = min_rows_for_all_tabpages();
             if room >= needed {
                 break;
@@ -7130,7 +7131,7 @@ pub fn did_set_winminwidth(_args: &mut Optset) -> *const c_char {
     unsafe {
         let mut first = true;
         while opt_vars().p_wmw > 0 {
-            let room = g_st().Columns;
+            let room = g_st().columns_global;
             let needed = frame_minwidth(&mut *g_st().topframe, ptr::null_mut());
             if room >= needed {
                 break;
@@ -7189,7 +7190,7 @@ pub fn win_drag_status_line(dragwin: &mut WinInfoInfo, mut offset: c_int) {
             }
             fr = (*curfr).fr_next;
         } else {
-            room = g_st().Rows - g_st().cmdline_row;
+            room = g_st().rows_global - g_st().cmdline_row;
             if !(*curfr).fr_next.is_null() {
                 room -= opt_vars().p_ch as c_int + global_stl_height();
             } else if win_st().min_set_ch > 0 {
@@ -7627,7 +7628,7 @@ pub fn command_height() {
         let mut old_p_ch = curtab_mut().tp_ch_used as c_int;
 
         let mut frp = (*lastwin_nofloating(ptr::null_mut())).w_frame;
-        while (*frp).fr_width != g_st().Columns && !(*frp).fr_parent.is_null() {
+        while (*frp).fr_width != g_st().columns_global && !(*frp).fr_parent.is_null() {
             frp = (*frp).fr_parent;
         }
 
@@ -7656,7 +7657,7 @@ pub fn command_height() {
 
         win_comp_pos();
         win_fix_scroll(true);
-        g_st().cmdline_row = g_st().Rows - opt_vars().p_ch as c_int;
+        g_st().cmdline_row = g_st().rows_global - opt_vars().p_ch as c_int;
         g_st().redraw_cmdline = true;
 
         if g_st().msg_scrolled == 0 && g_st().full_screen {
@@ -7665,7 +7666,7 @@ pub fn command_height() {
                 msg_grid_validate();
                 grid = &raw mut g_st().msg_grid_adj;
             }
-            grid_clear(grid, g_st().cmdline_row, g_st().Rows, 0, g_st().Columns, 0);
+            grid_clear(grid, g_st().cmdline_row, g_st().rows_global, 0, g_st().columns_global, 0);
             g_st().msg_row = g_st().cmdline_row;
         }
 

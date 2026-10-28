@@ -143,7 +143,7 @@ const KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP: u32 = 8;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict__shada_buflist_item {
-    pub is_set___shada_buflist_item_: OptionalKeys,
+    pub is_set_shada_buflist_item: OptionalKeys,
     pub l: Integer,
     pub c: Integer,
     pub f: NvimString,
@@ -152,7 +152,7 @@ pub struct KeyDict__shada_buflist_item {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict__shada_mark {
-    pub is_set___shada_mark_: OptionalKeys,
+    pub is_set_shada_mark: OptionalKeys,
     pub n: Integer,
     pub l: Integer,
     pub c: Integer,
@@ -162,7 +162,7 @@ pub struct KeyDict__shada_mark {
 #[repr(C)]
 #[derive(Clone, Default)]
 pub struct KeyDict__shada_register {
-    pub is_set___shada_register_: OptionalKeys,
+    pub is_set_shada_register: OptionalKeys,
     pub rc: StringArray,
     pub ru: Boolean,
     pub rt: Integer,
@@ -173,7 +173,7 @@ pub struct KeyDict__shada_register {
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct KeyDict__shada_search_pat {
-    pub is_set___shada_search_pat_: OptionalKeys,
+    pub is_set_shada_search_pat: OptionalKeys,
     pub magic: Boolean,
     pub smartcase: Boolean,
     pub has_line_offset: Boolean,
@@ -581,7 +581,7 @@ const MISSING_ENTRY: ShadaEntry = ShadaEntry {
 };
 
 const DEFAULT_SEARCH_PAT: KeyDict__shada_search_pat = KeyDict__shada_search_pat {
-    is_set___shada_search_pat_: 0,
+    is_set_shada_search_pat: 0,
     magic: true,
     smartcase: false,
     has_line_offset: false,
@@ -1721,7 +1721,7 @@ fn shada_filename(file: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
                 if crate::memory::cstr_is_empty(file) {
                     file = shada_get_default_file();
                 }
-                let name_buff_ptr = g_st().NameBuff.as_mut_ptr();
+                let name_buff_ptr = g_st().name_buff.as_mut_ptr();
                 let len = expand_env(file.cast_mut(), name_buff_ptr, MAXPATHL as c_int);
                 return Some(
                     std::ffi::CString::new(std::slice::from_raw_parts(
@@ -2452,7 +2452,7 @@ fn add_search_pattern(ret_pse: &mut ShadaEntry,
                 entry_type: ShadaEntryType::SDItemSearchPattern,
                 timestamp: pat.timestamp,
                 data: ShadaEntryData::SearchPattern(KeyDict__shada_search_pat {
-                    is_set___shada_search_pat_: 0,
+                    is_set_shada_search_pat: 0,
                     magic: pat.magic,
                     smartcase: !pat.no_scs,
                     has_line_offset: if is_substitute_pattern {
@@ -2767,7 +2767,7 @@ fn shada_write(
                             let di = vartv.vval.v_dict();
                             let copy_id = get_copy_id();
                             if !set_ref_in_ht(&mut (*di).dv_hashtab, copy_id, ptr::null_mut())
-                                && copy_id == (*di).dv_copyID
+                                && copy_id == (*di).dv_copy_id
                             {
                                 tv_clear(&mut vartv);
                                 skip = true;
@@ -2777,7 +2777,7 @@ fn shada_write(
                             let l = vartv.vval.v_list();
                             let copy_id = get_copy_id();
                             if !set_ref_in_list_items(l, copy_id, ptr::null_mut())
-                                && copy_id == (*l).lv_copyID
+                                && copy_id == (*l).lv_copy_id
                             {
                                 tv_clear(&mut vartv);
                                 skip = true;
@@ -2827,7 +2827,7 @@ fn shada_write(
 
             if dump_one_history[HIST_SEARCH as usize] {
                 let search_highlighted =
-                    !(g_st().Search.no_hlsearch || !find_shada_parameter(b'h' as c_int).is_null());
+                    !(g_st().search_global.no_hlsearch || !find_shada_parameter(b'h' as c_int).is_null());
                 let search_last_used = search_was_last_used();
 
                 add_search_pattern(
@@ -3711,7 +3711,7 @@ fn shada_read_next_item(
                             };
                             break 'parse_item false;
                         }
-                        if ((*it).is_set___shada_search_pat_
+                        if ((*it).is_set_shada_search_pat
                             & (1u64 << KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP))
                             == 0
                         {
@@ -3748,7 +3748,7 @@ fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         let fm = entry.data.filemark_mut();
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_N)) != 0 {
+                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_N)) != 0 {
                             if entry_type == ShadaEntryType::SDItemJump
                                 || entry_type == ShadaEntryType::SDItemChange
                             {
@@ -3762,13 +3762,13 @@ fn shada_read_next_item(
                             }
                             fm.name = it.n as c_char;
                         }
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_L)) != 0 {
+                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_L)) != 0 {
                             fm.mark.lnum = it.l as Linenr;
                         }
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_C)) != 0 {
+                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_C)) != 0 {
                             fm.mark.col = it.c as Colnr;
                         }
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_F)) != 0 {
+                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_F)) != 0 {
                             let mut bytes =
                                 crate::memory::cstr_slice(it.f.data, it.f.size)
                                     .to_vec();
@@ -3811,7 +3811,7 @@ fn shada_read_next_item(
                     }
                     ShadaEntryType::SDItemRegister => {
                         let mut it = KeyDict__shada_register {
-                            is_set___shada_register_: 0,
+                            is_set_shada_register: 0,
                             rc: Vec::new(),
                             ru: false,
                             rt: 0,
@@ -3850,25 +3850,25 @@ fn shada_read_next_item(
                         let reg = entry.data.reg_mut();
                         reg.contents = it.rc;
 
-                        if (it.is_set___shada_register_
+                        if (it.is_set_shada_register
                             & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RU))
                             != 0
                         {
                             reg.is_unnamed = it.ru;
                         }
-                        if (it.is_set___shada_register_
+                        if (it.is_set_shada_register
                             & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RT))
                             != 0
                         {
                             reg.reg_type = it.rt as u8;
                         }
-                        if (it.is_set___shada_register_
+                        if (it.is_set_shada_register
                             & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_N))
                             != 0
                         {
                             reg.name = it.n as c_char;
                         }
-                        if (it.is_set___shada_register_
+                        if (it.is_set_shada_register
                             & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RW))
                             != 0
                         {
@@ -4085,19 +4085,19 @@ fn shada_read_next_item(
                                     fname: None,
                                     additional_data: additional_data_take(&mut it_ad),
                                 };
-                                if (it.is_set___shada_buflist_item_
+                                if (it.is_set_shada_buflist_item
                                     & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_L))
                                     != 0
                                 {
                                     e.pos.lnum = it.l as Linenr;
                                 }
-                                if (it.is_set___shada_buflist_item_
+                                if (it.is_set_shada_buflist_item
                                     & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_C))
                                     != 0
                                 {
                                     e.pos.col = it.c as Colnr;
                                 }
-                                if (it.is_set___shada_buflist_item_
+                                if (it.is_set_shada_buflist_item
                                     & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_F))
                                     != 0
                                 {
@@ -4204,7 +4204,7 @@ fn shada_removable(name: impl crate::strings::IntoCCharPtr) -> bool { let name =
         while *p != 0 {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ");
             if part[0] == (b'r' as c_char) {
-                let name_buff_ptr = g_st().NameBuff.as_mut_ptr();
+                let name_buff_ptr = g_st().name_buff.as_mut_ptr();
                 let n = home_replace(
                     None,
                     part.as_ptr().add(1),

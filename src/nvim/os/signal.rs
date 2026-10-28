@@ -232,7 +232,7 @@ fn deadly_signal(signum: c_int) -> ! {
         set_vim_var_nr(VV_DYING, 1);
         g_st().v_dying = 1;
 
-        let io_buf = g_st().IObuff.as_mut_ptr();
+        let io_buf = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(
             io_buf,
             IOSIZE,

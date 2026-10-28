@@ -14,15 +14,15 @@ use std::ffi::{CString, c_char, c_int};
 use crate::event::r#loop::uv_uid_t;
 
 struct OsUsersState {
-    USERS: Vec<CString>,
-    LAZY_INIT_DONE: bool,
+    users: Vec<CString>,
+    lazy_init_done: bool,
 }
 
 impl OsUsersState {
     const fn new() -> Self {
         Self {
-            USERS: Vec::new(),
-            LAZY_INIT_DONE: false,
+            users: Vec::new(),
+            lazy_init_done: false,
         }
     }
 }
@@ -248,15 +248,15 @@ pub fn os_get_userdir(name: impl crate::strings::IntoCCharPtr) -> Option<CString
 /// # Safety
 /// Must only be called during exit cleanup.
 pub fn free_users() {
-    users_st().USERS = Vec::new();
+    users_st().users = Vec::new();
 }
 
 fn init_users() {
-    if users_st().LAZY_INIT_DONE {
+    if users_st().lazy_init_done {
             return;
         }
-        users_st().LAZY_INIT_DONE = true;
-        users_st().USERS = collect_usernames();
+        users_st().lazy_init_done = true;
+        users_st().users = collect_usernames();
 }
 
 /// Obtain username at `idx` for `ExpandGeneric()` (`get_users`).
@@ -269,7 +269,7 @@ pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: c_int) -> *mut c_char
     }
      {
         init_users();
-        let users = &users_st().USERS;
+        let users = &users_st().users;
         users
             .get(idx as usize)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -284,7 +284,7 @@ pub fn match_user(name: impl crate::strings::IntoCCharPtr) -> c_int { let name =
      {
         init_users();
         let target = crate::memory::cstr_as_bytes(name);
-        let users = &users_st().USERS;
+        let users = &users_st().users;
         let mut result = 0;
 
         for entry_cstr in users {

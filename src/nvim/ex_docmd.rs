@@ -595,7 +595,7 @@ struct ExDocmdState {
     filetype_detect: TriState,
     filetype_plugin: TriState,
     filetype_indent: TriState,
-    EX_ERROR_BUF: [c_char; MSG_BUF_LEN],
+    ex_error_buf: [c_char; MSG_BUF_LEN],
 }
 
 impl ExDocmdState {
@@ -608,7 +608,7 @@ impl ExDocmdState {
             filetype_detect: K_NONE,
             filetype_plugin: K_NONE,
             filetype_indent: K_NONE,
-            EX_ERROR_BUF: [0; MSG_BUF_LEN],
+            ex_error_buf: [0; MSG_BUF_LEN],
         }
     }
 }
@@ -5035,7 +5035,7 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
         g_st().did_emsg = 0;
 
         if (flags & DOCMD_KEYTYPED) == 0 && !fgetline.is_exline() {
-            g_st().KeyTyped = false;
+            g_st().key_typed = false;
         }
 
         next_cmdline = cmdline;
@@ -5116,14 +5116,14 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
                 }
 
                 if fgetline.is_none() {
-                    if g_st().KeyTyped && (flags & DOCMD_REPEAT) == 0 {
+                    if g_st().key_typed && (flags & DOCMD_REPEAT) == 0 {
                         g_st().need_wait_return = false;
                     }
                     retval = false;
                     break;
                 }
                 let Some(next_cstr) = fgetline.call(b':' as c_int, indent, true) else {
-                    if g_st().KeyTyped && (flags & DOCMD_REPEAT) == 0 {
+                    if g_st().key_typed && (flags & DOCMD_REPEAT) == 0 {
                         g_st().need_wait_return = false;
                     }
                     retval = false;
@@ -5185,7 +5185,7 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
                 msg_start();
                 g_st().msg_scroll = c_int::from(true);
                 g_st().no_wait_return += 1;
-                g_st().RedrawingDisabled += 1;
+                g_st().redrawing_disabled += 1;
                 did_inc = true;
             }
 
@@ -5416,11 +5416,11 @@ pub fn do_cmdline(cmdline: impl crate::strings::IntoCCharPtr, fgetline: LineGett
         cstack.cs_emsg_silent_list.clear();
 
         if did_inc {
-            g_st().RedrawingDisabled -= 1;
+            g_st().redrawing_disabled -= 1;
             g_st().no_wait_return -= 1;
             g_st().msg_scroll = 0;
 
-            if !retval || (g_st().did_endif && g_st().KeyTyped && g_st().did_emsg == 0) {
+            if !retval || (g_st().did_endif && g_st().key_typed && g_st().did_emsg == 0) {
                 g_st().need_wait_return = false;
                 g_st().msg_didany = false;
             } else if g_st().need_wait_return {
@@ -5452,12 +5452,12 @@ pub fn handle_did_throw() {
         match excp.r#type {
             ET_USER => {
                 let _ = vim_snprintf!(
-                    g_st().IObuff.as_mut_ptr(),
+                    g_st().iobuff.as_mut_ptr(),
                     IOSIZE,
                     gettext(c"E605: Exception not caught: %s"),
                     excp.value.as_ptr(),
                 );
-                p = Some(cstr_to_cstring(g_st().IObuff.as_ptr()));
+                p = Some(cstr_to_cstring(g_st().iobuff.as_ptr()));
             }
             ET_ERROR => {
                 messages = excp.messages.clone();
@@ -5522,7 +5522,7 @@ pub fn get_loop_line(
             return line;
         }
 
-        g_st().KeyTyped = false;
+        g_st().key_typed = false;
         cp.current_line += 1;
         let wp = &lines[cp.current_line as usize];
         *sourcing_lnum_ptr() = wp.lnum;
@@ -6006,7 +6006,7 @@ pub fn parse_cmdline(
 
             if eap.cmdidx == CMD_SIZE_I32 {
                 xstrlcpy(
-                    g_st().IObuff.as_mut_ptr(),
+                    g_st().iobuff.as_mut_ptr(),
                     gettext(E_NOT_AN_EDITOR_COMMAND),
                     IOSIZE,
                 );
@@ -6016,7 +6016,7 @@ pub fn parse_cmdline(
                     *cmdline
                 };
                 append_command(cmdname);
-                *errormsg = g_st().IObuff.as_ptr();
+                *errormsg = g_st().iobuff.as_ptr();
                 break 'end;
             }
 
@@ -6523,7 +6523,7 @@ fn do_one_cmd(
             if ea.cmdidx == CMD_SIZE_I32 {
                 if ea.skip == 0 {
                     xstrlcpy(
-                        g_st().IObuff.as_mut_ptr(),
+                        g_st().iobuff.as_mut_ptr(),
                         gettext(E_NOT_AN_EDITOR_COMMAND),
                         IOSIZE,
                     );
@@ -6535,7 +6535,7 @@ fn do_one_cmd(
                     if (flags & DOCMD_VERBOSE) == 0 {
                         append_command(cmdname);
                     }
-                    errormsg = g_st().IObuff.as_ptr();
+                    errormsg = g_st().iobuff.as_ptr();
                     g_st().did_emsg_syntax = true;
                     verify_command(cmdname);
                 }
@@ -6765,9 +6765,9 @@ fn do_one_cmd(
 
         if !crate::memory::cstr_is_empty(errormsg) && g_st().did_emsg == 0 {
             if (flags & DOCMD_VERBOSE) != 0 {
-                let iobuf_ptr: *const c_char = g_st().IObuff.as_ptr();
+                let iobuf_ptr: *const c_char = g_st().iobuff.as_ptr();
                 if errormsg != iobuf_ptr {
-                    xstrlcpy(g_st().IObuff.as_mut_ptr(), errormsg, IOSIZE);
+                    xstrlcpy(g_st().iobuff.as_mut_ptr(), errormsg, IOSIZE);
                     errormsg = iobuf_ptr;
                 }
                 append_command(*ea.cmdlinep);
@@ -7338,7 +7338,7 @@ pub fn checkforcmd(pp: *mut *mut c_char, cmd: &std::ffi::CStr, len: c_int) -> bo
 
 fn append_command(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_char_ptr();
     unsafe {
-        let iobuf_ptr: *mut c_char = g_st().IObuff.as_mut_ptr();
+        let iobuf_ptr: *mut c_char = g_st().iobuff.as_mut_ptr();
         let len = crate::memory::cstr_len(iobuf_ptr);
         let mut s = cmd;
         let mut d: *mut c_char;
@@ -7827,7 +7827,7 @@ pub fn get_address(
                                 } else {
                                     0
                                 };
-                            g_st().Search.cmdlen = 0;
+                            g_st().search_global.cmdlen = 0;
                             let search_flags = if silent {
                                 SEARCH_KEEP
                             } else {
@@ -7851,7 +7851,7 @@ pub fn get_address(
                             }
                             lnum = curwin_mut().w_cursor.lnum;
                             curwin_mut().w_cursor = pos;
-                            cmd = cmd.add(g_st().Search.cmdlen as usize);
+                            cmd = cmd.add(g_st().search_global.cmdlen as usize);
                         }
                     }
                     b'\\' => {
@@ -8289,14 +8289,14 @@ pub fn expand_filename(
                     let esc_wildcards = c" \t*?[{".as_ptr().cast_mut();
                     expand_env_esc(
                         eap.arg,
-                        g_st().NameBuff.as_mut_ptr(),
+                        g_st().name_buff.as_mut_ptr(),
                         MAXPATHL as c_int,
                         esc_wildcards,
                         true,
                         ptr::null_mut(),
                     );
-                    has_wildcards = path_has_wildcard(g_st().NameBuff.as_ptr(), true);
-                    p = g_st().NameBuff.as_mut_ptr();
+                    has_wildcards = path_has_wildcard(g_st().name_buff.as_ptr(), true);
+                    p = g_st().name_buff.as_mut_ptr();
                 } else {
                     p = ptr::null_mut();
                 }
@@ -10237,13 +10237,13 @@ fn ex_tabs(_eap: &mut Exarg) {
                 msg_putchar(b'\n' as c_int);
             }
             let _ = vim_snprintf!(
-                g_st().IObuff.as_mut_ptr(),
+                g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
                 gettext(c"Tab page %d"),
                 tabcount,
             );
             tabcount += 1;
-            let _ = msg_outtrans(g_st().IObuff.as_ptr(), HLF_T, false);
+            let _ = msg_outtrans(g_st().iobuff.as_ptr(), HLF_T, false);
             os_breakcheck();
 
             for wp in win_iter_ptr(if ptr::eq(tp, g_st().curtab) {
@@ -10275,17 +10275,17 @@ fn ex_tabs(_eap: &mut Exarg) {
                 msg_putchar(b' ' as c_int);
                 let spname = buf_spname((*wp).w_buffer);
                 if !spname.is_null() {
-                    xstrlcpy(g_st().IObuff.as_mut_ptr(), spname, IOSIZE);
+                    xstrlcpy(g_st().iobuff.as_mut_ptr(), spname, IOSIZE);
                 } else {
                     home_replace(
                         ((*wp).w_buffer).as_ref(),
                         (*wp).buf_mut().b_fname,
-                        g_st().IObuff.as_mut_ptr(),
+                        g_st().iobuff.as_mut_ptr(),
                         IOSIZE,
                         true,
                     );
                 }
-                let _ = msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
+                let _ = msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
                 os_breakcheck();
 
             }
@@ -10418,14 +10418,14 @@ fn ex_resize(eap: &mut Exarg) {
             if crate::memory::cstr_first_byte(eap.arg) == b'-' || crate::memory::cstr_first_byte(eap.arg) == b'+' {
                 n += (*wp).w_width;
             } else if n == 0 && crate::memory::cstr_is_empty(eap.arg) {
-                n = g_st().Columns;
+                n = g_st().columns_global;
             }
             win_setwidth_win(n, &mut *wp, true);
         } else {
             if crate::memory::cstr_first_byte(eap.arg) == b'-' || crate::memory::cstr_first_byte(eap.arg) == b'+' {
                 n += (*wp).w_height;
             } else if n == 0 && crate::memory::cstr_is_empty(eap.arg) {
-                n = g_st().Rows - 1;
+                n = g_st().rows_global - 1;
             }
             win_setheight_win(n, &mut *wp, true);
         }
@@ -10827,8 +10827,8 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             new_dir = prev.as_ptr().cast_mut();
         }
 
-        let pdir = if os_dirname(g_st().NameBuff.as_mut_ptr(), MAXPATHL) {
-            Some(crate::memory::cstr_to_cstring(g_st().NameBuff.as_ptr()))
+        let pdir = if os_dirname(g_st().name_buff.as_mut_ptr(), MAXPATHL) {
+            Some(crate::memory::cstr_to_cstring(g_st().name_buff.as_ptr()))
         } else {
             None
         };
@@ -10836,10 +10836,10 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
         if crate::memory::cstr_is_empty(new_dir) && opt_vars().p_cdh != 0 {
             expand_env(
                 c"$HOME",
-                g_st().NameBuff.as_mut_ptr(),
+                g_st().name_buff.as_mut_ptr(),
                 MAXPATHL as c_int,
             );
-            new_dir = g_st().NameBuff.as_mut_ptr();
+            new_dir = g_st().name_buff.as_mut_ptr();
         }
 
         let new_dir_owned = to_slash_save(new_dir).unwrap_or_default();
@@ -10915,7 +10915,7 @@ pub fn ex_cd(eap: &mut Exarg) {
 
         if eap.forceit != 0 && crate::memory::cstr_is_empty(new_dir) && scope != K_CD_SCOPE_GLOBAL {
             chdir_clear(scope);
-            if g_st().KeyTyped || opt_vars().p_verbose >= 5 {
+            if g_st().key_typed || opt_vars().p_verbose >= 5 {
                 ex_pwd(eap);
             }
             return;
@@ -10926,7 +10926,7 @@ pub fn ex_cd(eap: &mut Exarg) {
             return;
         }
 
-        if do_chdir(new_dir, scope) && (g_st().KeyTyped || opt_vars().p_verbose >= 5) {
+        if do_chdir(new_dir, scope) && (g_st().key_typed || opt_vars().p_verbose >= 5) {
             ex_pwd(eap);
         }
     }
@@ -10934,9 +10934,9 @@ pub fn ex_cd(eap: &mut Exarg) {
 
 fn ex_pwd(_eap: &mut Exarg) {
      {
-        if os_dirname(g_st().NameBuff.as_mut_ptr(), MAXPATHL) {
+        if os_dirname(g_st().name_buff.as_mut_ptr(), MAXPATHL) {
             #[cfg(windows)]
-            slash_adjust(g_st().NameBuff.as_mut_ptr());
+            slash_adjust(g_st().name_buff.as_mut_ptr());
             if opt_vars().p_verbose > 0 {
                 let context = if let Some(reason) = g_st().last_chdir_reason {
                     reason.as_ptr()
@@ -10953,10 +10953,10 @@ fn ex_pwd(_eap: &mut Exarg) {
                     0,
                     c"[%s] %s",
                     context,
-                    g_st().NameBuff.as_ptr(),
+                    g_st().name_buff.as_ptr(),
                 );
             } else {
-                let _ = msg(g_st().NameBuff.as_ptr(), 0);
+                let _ = msg(g_st().name_buff.as_ptr(), 0);
             }
         } else {
             let _ = emsg(gettext(c"E187: Unknown"));
@@ -11108,7 +11108,7 @@ fn ex_operators(eap: &mut Exarg) {
             beginline(BL_SOL | BL_FIX);
         }
 
-        if g_st().Visual.active {
+        if g_st().visual_global.active {
             end_visual_mode();
         }
 
@@ -11483,24 +11483,24 @@ fn ex_redraw(eap: &mut Exarg) {
         if g_st().cmdpreview {
             return;
         }
-        let r = g_st().RedrawingDisabled;
+        let r = g_st().redrawing_disabled;
         let p = opt_vars().p_lz;
 
-        g_st().RedrawingDisabled = 0;
+        g_st().redrawing_disabled = 0;
         opt_vars().p_lz = 0;
         validate_cursor(curwin_mut());
         update_topline(curwin_mut());
         if eap.forceit != 0 {
             redraw_all_later(UPD_NOT_VALID);
             g_st().redraw_cmdline = true;
-        } else if g_st().Visual.active {
+        } else if g_st().visual_global.active {
             redraw_curbuf_later(UPD_INVERTED);
         }
         update_screen();
         if g_st().need_maketitle {
             maketitle();
         }
-        g_st().RedrawingDisabled = r;
+        g_st().redrawing_disabled = r;
         opt_vars().p_lz = p;
 
         g_st().msg_didout = false;
@@ -11515,7 +11515,7 @@ fn ex_redrawstatus(eap: &mut Exarg) {
     if g_st().cmdpreview {
             return;
         }
-        let r = g_st().RedrawingDisabled;
+        let r = g_st().redrawing_disabled;
         let p = opt_vars().p_lz;
 
         if eap.forceit != 0 {
@@ -11524,31 +11524,31 @@ fn ex_redrawstatus(eap: &mut Exarg) {
             status_redraw_curbuf();
         }
 
-        g_st().RedrawingDisabled = 0;
+        g_st().redrawing_disabled = 0;
         opt_vars().p_lz = 0;
-        if (g_st().State & MODE_CMDLINE) != 0 {
+        if (g_st().state_global & MODE_CMDLINE) != 0 {
             redraw_statuslines();
         } else {
-            if g_st().Visual.active {
+            if g_st().visual_global.active {
                 redraw_curbuf_later(UPD_INVERTED);
             }
             update_screen();
         }
-        g_st().RedrawingDisabled = r;
+        g_st().redrawing_disabled = r;
         opt_vars().p_lz = p;
         ui_flush();
 }
 
 fn ex_redrawtabline(_eap: &mut Exarg) {
-    let r = g_st().RedrawingDisabled;
+    let r = g_st().redrawing_disabled;
         let p = opt_vars().p_lz;
 
-        g_st().RedrawingDisabled = 0;
+        g_st().redrawing_disabled = 0;
         opt_vars().p_lz = 0;
 
         draw_tabline();
 
-        g_st().RedrawingDisabled = r;
+        g_st().redrawing_disabled = r;
         opt_vars().p_lz = p;
         ui_flush();
 }
@@ -11637,7 +11637,7 @@ pub fn save_current_state(sst: &mut SaveState) {
         sst.save_msg_scroll = g_st().msg_scroll;
         sst.save_restart_edit = g_st().restart_edit;
         sst.save_msg_didout = g_st().msg_didout;
-        sst.save_State = g_st().State;
+        sst.save_state = g_st().state_global;
         sst.save_finish_op = g_st().finish_op;
         sst.save_opcount = g_st().opcount;
         sst.save_reg_executing = g_st().reg_executing;
@@ -11667,7 +11667,7 @@ pub fn restore_current_state(sst: &mut SaveState) {
 
         g_st().msg_didout |= sst.save_msg_didout;
 
-        g_st().State = sst.save_State;
+        g_st().state_global = sst.save_state;
         ui_cursor_shape();
     }
 }
@@ -11678,7 +11678,7 @@ pub fn expr_map_locked() -> bool {
 
 fn ex_normal(eap: &mut Exarg) {
     unsafe {
-        if !curbuf_mut().terminal.is_null() && (g_st().State & MODE_TERMINAL) != 0 {
+        if !curbuf_mut().terminal.is_null() && (g_st().state_global & MODE_TERMINAL) != 0 {
             let _ = emsg(c"Can't re-enter normal mode from terminal mode");
             return;
         }
@@ -11786,7 +11786,7 @@ fn ex_startinsert(eap: &mut Exarg) {
             set_cursor_for_append_to_line();
         }
 
-        if (g_st().State & MODE_INSERT) != 0 {
+        if (g_st().state_global & MODE_INSERT) != 0 {
             return;
         }
 
@@ -11805,7 +11805,7 @@ fn ex_startinsert(eap: &mut Exarg) {
             curwin_mut().w_curswant = 0;
         }
 
-        if g_st().Visual.active {
+        if g_st().visual_global.active {
             showmode();
         }
     }
@@ -11813,7 +11813,7 @@ fn ex_startinsert(eap: &mut Exarg) {
 
 fn ex_stopinsert(_eap: &mut Exarg) {
     g_st().restart_edit = 0;
-        g_st().Ins.stop_insert_mode = true;
+        g_st().ins_global.stop_insert_mode = true;
         clearmode();
 }
 
@@ -12525,7 +12525,7 @@ fn ex_filetype(eap: &mut Exarg) {
 }
 
 pub fn ex_errmsg(msg: &std::ffi::CStr, arg: impl crate::strings::IntoCCharPtr) -> *mut c_char { let arg = arg.into_c_char_ptr();
-    let buf = (&raw mut docmd_st().EX_ERROR_BUF).cast::<c_char>();
+    let buf = (&raw mut docmd_st().ex_error_buf).cast::<c_char>();
         let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg.as_ptr()), arg);
         buf
 }
@@ -12577,10 +12577,10 @@ fn ex_digraphs(eap: &mut Exarg) {
 }
 
 pub fn set_no_hlsearch(flag: bool) {
-    g_st().Search.no_hlsearch = flag;
+    g_st().search_global.no_hlsearch = flag;
         set_vim_var_nr(
             VV_HLSEARCH,
-            Varnumber::from(!g_st().Search.no_hlsearch && opt_vars().p_hls != 0),
+            Varnumber::from(!g_st().search_global.no_hlsearch && opt_vars().p_hls != 0),
         );
 }
 

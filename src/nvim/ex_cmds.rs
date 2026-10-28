@@ -341,7 +341,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
 
         let mut c = utf_ptr2char(data);
         let mut off: usize = 0;
-        let iobuff_ptr = g_st().IObuff.as_mut_ptr();
+        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
 
         if c < 0x80 {
             if c == NL {
@@ -1364,8 +1364,8 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
         }
 
         appended_lines_mark(n, count);
-        if g_st().Visual.active {
-            check_pos(curbuf_mut(), &mut g_st().Visual.start);
+        if g_st().visual_global.active {
+            check_pos(curbuf_mut(), &mut g_st().visual_global.start);
         }
 
         msgmore(count);
@@ -1639,7 +1639,7 @@ fn do_filter(
             }
 
             let cmd_buf = make_filter_cmd(cmd, itmp, otmp, do_in);
-            ui_cursor_goto(g_st().Rows - 1, 0);
+            ui_cursor_goto(g_st().rows_global - 1, 0);
 
             'error: {
                 if do_out {
@@ -1818,7 +1818,7 @@ pub fn do_shell(cmd: impl crate::strings::IntoCCharPtr, flags: c_int) { let cmd 
         g_st().did_check_timestamps = false;
         g_st().need_check_timestamps = true;
 
-        g_st().msg_row = g_st().Rows - 1;
+        g_st().msg_row = g_st().rows_global - 1;
         g_st().msg_col = 0;
 
         apply_autocmds(
@@ -2997,7 +2997,7 @@ pub fn do_ecmd(
                 oldbuf = (flags & ECMD_OLDBUF) != 0;
             }
 
-            g_st().RedrawingDisabled += 1;
+            g_st().redrawing_disabled += 1;
             did_inc_redrawing_disabled = true;
 
             buf = g_st().curbuf;
@@ -3213,7 +3213,7 @@ pub fn do_ecmd(
                 keymap_init();
             }
 
-            g_st().RedrawingDisabled -= 1;
+            g_st().redrawing_disabled -= 1;
             did_inc_redrawing_disabled = false;
             if !g_st().skip_redraw {
                 let n = *so_ptr;
@@ -3242,7 +3242,7 @@ pub fn do_ecmd(
         }
 
         if did_inc_redrawing_disabled {
-            g_st().RedrawingDisabled -= 1;
+            g_st().redrawing_disabled -= 1;
         }
         if did_set_swapcommand {
             set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
@@ -3294,8 +3294,8 @@ fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
             eap.nextcmd = p;
             Some(theline)
         } else {
-            let getline_state = g_st().State;
-            g_st().State = MODE_CMDLINE;
+            let getline_state = g_st().state_global;
+            g_st().state_global = MODE_CMDLINE;
             let cstack = eap.cstack.cast::<Cstack>();
             let raw_line = eap.ea_getline.call(
                 if (*cstack).cs_looplevel > 0 {
@@ -3306,7 +3306,7 @@ fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
                 indent,
                 true,
             );
-            g_st().State = getline_state;
+            g_st().state_global = getline_state;
             raw_line.map(|s| {
                 s.into_bytes_with_nul()
                     .into_iter()
@@ -3350,10 +3350,10 @@ pub fn ex_append(eap: &mut Exarg) {
             lnum = 0;
         }
 
-        let save_state = g_st().State;
-        g_st().State = MODE_INSERT;
+        let save_state = g_st().state_global;
+        g_st().state_global = MODE_INSERT;
         if curbuf_mut().b_p_iminsert == B_IMODE_LMAP {
-            g_st().State |= MODE_LANGMAP;
+            g_st().state_global |= MODE_LANGMAP;
         }
 
         loop {
@@ -3368,7 +3368,7 @@ pub fn ex_append(eap: &mut Exarg) {
                 }
             }
             let mut theline_vec = get_append_line(eap, indent);
-            g_st().lines_left = g_st().Rows - 1;
+            g_st().lines_left = g_st().rows_global - 1;
             let Some(ref mut theline_v) = theline_vec else {
                 break;
             };
@@ -3411,7 +3411,7 @@ pub fn ex_append(eap: &mut Exarg) {
                 empty = false;
             }
         }
-        g_st().State = save_state;
+        g_st().state_global = save_state;
         ui_cursor_shape();
 
         if eap.forceit != 0 {
@@ -3490,7 +3490,7 @@ pub fn ex_z(eap: &mut Exarg) {
         let lnum = eap.line2;
 
         if eap.forceit != 0 {
-            bigness = (g_st().Rows - 1) as i64;
+            bigness = (g_st().rows_global - 1) as i64;
         } else if g_st().firstwin == g_st().lastwin {
             bigness = curwin_mut().w_onebuf_opt.wo_scr * 2;
         } else {
@@ -3581,7 +3581,7 @@ pub fn ex_z(eap: &mut Exarg) {
         for i in start..=end {
             if minus != 0 && i == lnum {
                 msg_putchar(b'\n' as c_int);
-                for _ in 1..g_st().Columns {
+                for _ in 1..g_st().columns_global {
                     msg_putchar(b'-' as c_int);
                 }
             }
@@ -3595,7 +3595,7 @@ pub fn ex_z(eap: &mut Exarg) {
 
             if minus != 0 && i == lnum {
                 msg_putchar(b'\n' as c_int);
-                for _ in 1..g_st().Columns {
+                for _ in 1..g_st().columns_global {
                     msg_putchar(b'-' as c_int);
                 }
             }
@@ -4191,7 +4191,7 @@ fn do_sub(
 
                         if excmds_st().subflags.do_ask && cmdpreview_ns <= 0 {
                             let mut typed: c_int = 0;
-                            let save_state = g_st().State;
+                            let save_state = g_st().state_global;
                             curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
                             if curwin_mut().w_onebuf_opt.wo_crb != 0 {
@@ -4209,8 +4209,8 @@ fn do_sub(
                                 let save_p_fen = curwin_mut().w_onebuf_opt.wo_fen;
 
                                 curwin_mut().w_onebuf_opt.wo_fen = 0;
-                                let temp = g_st().RedrawingDisabled;
-                                g_st().RedrawingDisabled = 0;
+                                let temp = g_st().redrawing_disabled;
+                                g_st().redrawing_disabled = 0;
 
                                 opt_vars().p_lz = 0;
 
@@ -4234,13 +4234,13 @@ fn do_sub(
                                     );
                                 }
 
-                                g_st().Search.match_lines =
+                                g_st().search_global.match_lines =
                                     regmatch.endpos[0].lnum - regmatch.startpos[0].lnum;
-                                g_st().Search.match_endcol = regmatch.endpos[0].col + len_change;
-                                if g_st().Search.match_lines == 0 && g_st().Search.match_endcol == 0 {
-                                    g_st().Search.match_endcol = 1;
+                                g_st().search_global.match_endcol = regmatch.endpos[0].col + len_change;
+                                if g_st().search_global.match_lines == 0 && g_st().search_global.match_endcol == 0 {
+                                    g_st().search_global.match_endcol = 1;
                                 }
-                                g_st().Search.hl_match = true;
+                                g_st().search_global.hl_match = true;
 
                                 update_topline(curwin_mut());
                                 validate_cursor(curwin_mut());
@@ -4251,7 +4251,7 @@ fn do_sub(
 
                                 curwin_mut().w_onebuf_opt.wo_fen = save_p_fen;
 
-                                let iobuff_ptr = g_st().IObuff.as_mut_ptr();
+                                let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                                 let p_fmt = gettext(
                                     c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
                                 );
@@ -4263,13 +4263,13 @@ fn do_sub(
                                     true,
                                     None,
                                 );
-                                g_st().Search.hl_match = false;
+                                g_st().search_global.hl_match = false;
                                 drop(p);
 
                                 g_st().msg_didout = false;
                                 gotocmdline(true);
                                 opt_vars().p_lz = save_p_lz;
-                                g_st().RedrawingDisabled = temp;
+                                g_st().redrawing_disabled = temp;
 
                                 if !orig_line.is_null() {
                                     crate::memline::ml_replace_len(
@@ -4306,7 +4306,7 @@ fn do_sub(
                                     scrolldown_clamp();
                                 }
                             }
-                            g_st().State = save_state;
+                            g_st().state_global = save_state;
                             setmouse();
                             if !vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
                                 g_st().no_u_sync -= 1;
@@ -4775,7 +4775,7 @@ fn do_sub(
 /// Give message for number of substitutions.
 pub fn do_sub_msg(count_only: bool) -> bool {
     unsafe {
-        if (((g_st().sub_nsubs as OptInt) > opt_vars().p_report && (g_st().KeyTyped || g_st().sub_nlines > 1 || opt_vars().p_report < 1))
+        if (((g_st().sub_nsubs as OptInt) > opt_vars().p_report && (g_st().key_typed || g_st().sub_nlines > 1 || opt_vars().p_report < 1))
             || count_only)
             && messaging()
         {

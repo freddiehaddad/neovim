@@ -323,7 +323,7 @@ const fn empty_dict() -> TvDict {
         dv_lock: 0,
         dv_scope: 0,
         dv_refcount: 0,
-        dv_copyID: 0,
+        dv_copy_id: 0,
         dv_hashtab: Hashtab::new(),
         dv_copydict: ptr::null_mut(),
         dv_gc_idx: None,
@@ -356,12 +356,12 @@ struct VarsModuleState {
     redir_buf: Vec<c_char>,
     redir_endp: *mut c_char,
     redir_varname: Option<std::ffi::CString>,
-    GDONE: usize,
-    BDONE: usize,
-    WDONE: usize,
-    TDONE: usize,
-    VIDX: usize,
-    HI: *mut Hashitem,
+    gdone: usize,
+    bdone: usize,
+    wdone: usize,
+    tdone: usize,
+    vidx: usize,
+    hi: *mut Hashitem,
 }
 
 impl VarsModuleState {
@@ -488,12 +488,12 @@ impl VarsModuleState {
             redir_buf: Vec::new(),
             redir_endp: ptr::null_mut(),
             redir_varname: None,
-            GDONE: 0,
-            BDONE: 0,
-            WDONE: 0,
-            TDONE: 0,
-            VIDX: 0,
-            HI: ptr::null_mut(),
+            gdone: 0,
+            bdone: 0,
+            wdone: 0,
+            tdone: 0,
+            vidx: 0,
+            hi: ptr::null_mut(),
         }
     }
 }
@@ -858,7 +858,7 @@ pub fn eval_spell_expr(badword: impl crate::strings::IntoCCharPtr, expr: impl cr
 
         let mut r = may_call_simple_func(p, &mut rettv);
         if r == NOTDONE {
-            r = if eval1(&raw mut p, &mut rettv, Some(&mut g_st().EVALARG_EVALUATE)) {
+            r = if eval1(&raw mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)) {
                 OK
             } else {
                 FAIL
@@ -1593,7 +1593,7 @@ fn list_arg_vars(
                         if !handle_subscript(
                             (&raw mut arg).cast(),
                             &mut tv,
-                            Some(&mut g_st().EVALARG_EVALUATE),
+                            Some(&mut g_st().evalarg_evaluate),
                             true,
                         )
                         {
@@ -2323,24 +2323,24 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
     unsafe {
         if idx == 0 {
-            vars_st().GDONE = 0;
-            vars_st().BDONE = 0;
-            vars_st().WDONE = 0;
-            vars_st().VIDX = 0;
-            vars_st().TDONE = 0;
+            vars_st().gdone = 0;
+            vars_st().bdone = 0;
+            vars_st().wdone = 0;
+            vars_st().vidx = 0;
+            vars_st().tdone = 0;
         }
 
-        if vars_st().GDONE < vars_st().globvardict.dv_hashtab.ht_used {
-            if vars_st().GDONE == 0 {
-                vars_st().HI = (&*get_globvar_ht()).array_ptr();
+        if vars_st().gdone < vars_st().globvardict.dv_hashtab.ht_used {
+            if vars_st().gdone == 0 {
+                vars_st().hi = (&*get_globvar_ht()).array_ptr();
             } else {
-                vars_st().HI = vars_st().HI.add(1);
+                vars_st().hi = vars_st().hi.add(1);
             }
-            vars_st().GDONE += 1;
-            while hashitem_empty(&*vars_st().HI) {
-                vars_st().HI = vars_st().HI.add(1);
+            vars_st().gdone += 1;
+            while hashitem_empty(&*vars_st().hi) {
+                vars_st().hi = vars_st().hi.add(1);
             }
-            let hi_key = (&*vars_st().HI).key_ptr();
+            let hi_key = (&*vars_st().hi).key_ptr();
             if b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2) {
                 return cat_prefix_varname(b'g' as c_int, hi_key);
             }
@@ -2349,50 +2349,50 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 
         let mut ht: *const Hashtab =
             &raw const (*(*(*prevwin_curwin()).w_buffer).b_vars()).dv_hashtab;
-        if vars_st().BDONE < (*ht).ht_used {
-            if vars_st().BDONE == 0 {
-                vars_st().HI = (&*ht).array_ptr();
+        if vars_st().bdone < (*ht).ht_used {
+            if vars_st().bdone == 0 {
+                vars_st().hi = (&*ht).array_ptr();
             } else {
-                vars_st().HI = vars_st().HI.add(1);
+                vars_st().hi = vars_st().hi.add(1);
             }
-            vars_st().BDONE += 1;
-            while hashitem_empty(&*vars_st().HI) {
-                vars_st().HI = vars_st().HI.add(1);
+            vars_st().bdone += 1;
+            while hashitem_empty(&*vars_st().hi) {
+                vars_st().hi = vars_st().hi.add(1);
             }
-            return cat_prefix_varname(b'b' as c_int, (&*vars_st().HI).key_ptr());
+            return cat_prefix_varname(b'b' as c_int, (&*vars_st().hi).key_ptr());
         }
 
         ht = &raw const (*(*prevwin_curwin()).w_vars()).dv_hashtab;
-        if vars_st().WDONE < (*ht).ht_used {
-            if vars_st().WDONE == 0 {
-                vars_st().HI = (&*ht).array_ptr();
+        if vars_st().wdone < (*ht).ht_used {
+            if vars_st().wdone == 0 {
+                vars_st().hi = (&*ht).array_ptr();
             } else {
-                vars_st().HI = vars_st().HI.add(1);
+                vars_st().hi = vars_st().hi.add(1);
             }
-            vars_st().WDONE += 1;
-            while hashitem_empty(&*vars_st().HI) {
-                vars_st().HI = vars_st().HI.add(1);
+            vars_st().wdone += 1;
+            while hashitem_empty(&*vars_st().hi) {
+                vars_st().hi = vars_st().hi.add(1);
             }
-            return cat_prefix_varname(b'w' as c_int, (&*vars_st().HI).key_ptr());
+            return cat_prefix_varname(b'w' as c_int, (&*vars_st().hi).key_ptr());
         }
 
         ht = &raw const (*curtab_mut().tp_vars()).dv_hashtab;
-        if vars_st().TDONE < (*ht).ht_used {
-            if vars_st().TDONE == 0 {
-                vars_st().HI = (&*ht).array_ptr();
+        if vars_st().tdone < (*ht).ht_used {
+            if vars_st().tdone == 0 {
+                vars_st().hi = (&*ht).array_ptr();
             } else {
-                vars_st().HI = vars_st().HI.add(1);
+                vars_st().hi = vars_st().hi.add(1);
             }
-            vars_st().TDONE += 1;
-            while hashitem_empty(&*vars_st().HI) {
-                vars_st().HI = vars_st().HI.add(1);
+            vars_st().tdone += 1;
+            while hashitem_empty(&*vars_st().hi) {
+                vars_st().hi = vars_st().hi.add(1);
             }
-            return cat_prefix_varname(b't' as c_int, (&*vars_st().HI).key_ptr());
+            return cat_prefix_varname(b't' as c_int, (&*vars_st().hi).key_ptr());
         }
 
-        if vars_st().VIDX < VV_LEN {
-            let v = vars_st().VIDX as VimVarIndex;
-            vars_st().VIDX += 1;
+        if vars_st().vidx < VV_LEN {
+            let v = vars_st().vidx as VimVarIndex;
+            vars_st().vidx += 1;
             return cat_prefix_varname(b'v' as c_int, get_vim_var_name(v));
         }
 
@@ -2855,7 +2855,7 @@ pub fn init_var_dict(dict: &mut TvDict, dict_var: &mut ScopeDictDictItem, scope:
         dict.dv_lock = VAR_UNLOCKED;
         dict.dv_scope = scope;
         dict.dv_refcount = DO_NOT_FREE_CNT;
-        dict.dv_copyID = 0;
+        dict.dv_copy_id = 0;
         dict_var.di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
         dict_var.di_tv.v_type = VarType::VarDict;
         dict_var.di_tv.v_lock = VAR_FIXED;
@@ -3023,7 +3023,7 @@ pub fn before_set_vvar(
                     b'?' as c_int
                 });
             } else if crate::memory::cstr_as_bytes(varname) == b"hlsearch" {
-                g_st().Search.no_hlsearch = di.di_tv.vval.v_number() == 0;
+                g_st().search_global.no_hlsearch = di.di_tv.vval.v_number() == 0;
                 redraw_all_later(UPD_SOME_VALID);
             }
             if watched {
@@ -3632,7 +3632,7 @@ pub fn var_exists(var: impl crate::strings::IntoCCharPtr) -> bool { let mut var 
             }
             n = eval_variable(name, len, Some(&mut tv), ptr::null_mut(), false, true);
             if n {
-                n = handle_subscript(&raw mut var, &mut tv, Some(&mut g_st().EVALARG_EVALUATE), false);
+                n = handle_subscript(&raw mut var, &mut tv, Some(&mut g_st().evalarg_evaluate), false);
                 if n {
                     tv_clear(&mut tv);
                 }

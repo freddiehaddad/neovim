@@ -381,7 +381,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
 
 pub fn get_trans_bufname(buf: &mut FileBuf) {
      {
-        let name_buff = g_st().NameBuff.as_mut_ptr();
+        let name_buff = g_st().name_buff.as_mut_ptr();
         let sp = buf_spname(&raw mut *buf);
         if !sp.is_null() {
             xstrlcpy(name_buff, sp, MAXPATHL);
@@ -530,7 +530,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             fillchar = schar_from_ascii(b' ');
             group = HLF_TPF;
             attr = hl_attr(group);
-            maxwidth = g_st().Columns;
+            maxwidth = g_st().columns_global;
             opt_idx = K_OPT_TABLINE;
             click_defs = g_st().tab_page_click_defs.as_mut_ptr();
         } else if draw_winbar {
@@ -567,7 +567,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         } else if draw_ruler && ui_event {
             stl = opt_vars().p_ruf;
             opt_idx = K_OPT_RULERFORMAT;
-            maxwidth = g_st().Columns / 2;
+            maxwidth = g_st().columns_global / 2;
             fillchar = schar_from_ascii(b' ');
             group = HLF_MSG;
             attr = hl_attr(group);
@@ -591,10 +591,10 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                     stl = opt_vars().p_ruf;
                 }
             }
-            row = g_st().Rows - 1;
-            col = g_st().ru_col.max(g_st().Columns / 2);
+            row = g_st().rows_global - 1;
+            col = g_st().ru_col.max(g_st().columns_global / 2);
             grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
-            maxwidth = g_st().Columns - col;
+            maxwidth = g_st().columns_global - col;
             fillchar = schar_from_ascii(b' ');
             group = HLF_MSG;
             attr = hl_attr(group);
@@ -612,9 +612,9 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 0
             };
             if is_stl_global {
-                row = g_st().Rows - (opt_vars().p_ch as c_int) - 1;
+                row = g_st().rows_global - (opt_vars().p_ch as c_int) - 1;
                 col = 0;
-                maxwidth = g_st().Columns;
+                maxwidth = g_st().columns_global;
             } else if (*wp).w_status_height == 0 {
                 stl_st().stl_expr_entered = false;
                 if !restore_curwin.is_null() {
@@ -850,7 +850,7 @@ fn ui_ext_tabline_update() {
             pos: 0,
             size: 0,
         };
-        let name_buff = g_st().NameBuff.as_mut_ptr();
+        let name_buff = g_st().name_buff.as_mut_ptr();
 
         let mut n_tabs: usize = 0;
         let mut tp = g_st().first_tabpage;
@@ -952,7 +952,7 @@ pub fn draw_tabline() {
         let attr_fill = hl_attr(HLF_TPF);
         let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
         let use_sep_chars = g_st().t_colors < 8;
-        let name_buff = g_st().NameBuff.as_mut_ptr();
+        let name_buff = g_st().name_buff.as_mut_ptr();
 
         if !crate::grid::grid_allocated(&g_st().default_grid) {
             return;
@@ -968,7 +968,7 @@ pub fn draw_tabline() {
             return;
         }
 
-        debug_assert!(g_st().tab_page_click_defs.len() >= g_st().Columns as usize);
+        debug_assert!(g_st().tab_page_click_defs.len() >= g_st().columns_global as usize);
         stl_clear_click_defs(&mut g_st().tab_page_click_defs);
 
         if !crate::memory::cstr_is_empty(opt_vars().p_tal) {
@@ -984,7 +984,7 @@ pub fn draw_tabline() {
             }
 
             let tabwidth = (if tabcount > 0 {
-                (g_st().Columns - 1 + tabcount / 2) / tabcount
+                (g_st().columns_global - 1 + tabcount / 2) / tabcount
             } else {
                 0
             })
@@ -995,7 +995,7 @@ pub fn draw_tabline() {
 
             tp = g_st().first_tabpage;
             while !tp.is_null() {
-                if col >= g_st().Columns - 4 {
+                if col >= g_st().columns_global - 4 {
                     break;
                 }
 
@@ -1036,7 +1036,7 @@ pub fn draw_tabline() {
                 if modified || wincount > 1 {
                     if wincount > 1 {
                         let len = vim_snprintf!(name_buff, MAXPATHL, c"%d", wincount);
-                        if col + len >= g_st().Columns - 3 {
+                        if col + len >= g_st().columns_global - 3 {
                             break;
                         }
                         grid_line_puts(
@@ -1065,7 +1065,7 @@ pub fn draw_tabline() {
                         len -= ptr2cells(p);
                         p = p.add(utfc_ptr2len(p) as usize);
                     }
-                    let n = g_st().Columns - col - 1;
+                    let n = g_st().columns_global - col - 1;
                     len = len.min(n);
 
                     grid_line_puts(col, p, -1, attr);
@@ -1087,7 +1087,7 @@ pub fn draw_tabline() {
                 tp = (*tp).tp_next;
             }
 
-            for scol in col..g_st().Columns {
+            for scol in col..g_st().columns_global {
                 g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
                     type_: K_STL_CLICK_TAB_SWITCH,
                     tabnr: 0,
@@ -1096,15 +1096,15 @@ pub fn draw_tabline() {
             }
 
             let c = if use_sep_chars { b'_' } else { b' ' };
-            grid_line_fill(col, g_st().Columns, schar_from_ascii(c), attr_fill);
+            grid_line_fill(col, g_st().columns_global, schar_from_ascii(c), attr_fill);
 
             if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b't' {
-                let n = g_st().Columns - col - c_int::from(tabcount > 1) * 3;
+                let n = g_st().columns_global - col - c_int::from(tabcount > 1) * 3;
                 let sc_width = 10.min(n);
 
                 if sc_width > 0 {
                     grid_line_puts(
-                        g_st().Columns - sc_width - c_int::from(tabcount > 1) * 2,
+                        g_st().columns_global - sc_width - c_int::from(tabcount > 1) * 2,
                         (&raw const g_st().showcmd_buf).cast(),
                         sc_width,
                         attr_nosel,
@@ -1114,8 +1114,8 @@ pub fn draw_tabline() {
             }
 
             if tabcount > 1 {
-                grid_line_put_schar(g_st().Columns - 1, schar_from_ascii(b'X'), attr_nosel);
-                g_st().tab_page_click_defs.as_mut_slice()[(g_st().Columns - 1) as usize] = StlClickDefinition {
+                grid_line_put_schar(g_st().columns_global - 1, schar_from_ascii(b'X'), attr_nosel);
+                g_st().tab_page_click_defs.as_mut_slice()[(g_st().columns_global - 1) as usize] = StlClickDefinition {
                     type_: K_STL_CLICK_TAB_CLOSE,
                     tabnr: 999,
                     func: None,
@@ -1385,9 +1385,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
         let mut owned_usefmt: Option<std::ffi::CString> = None;
         let mut usefmt = fmt;
         let save_redraw_not_allowed = g_st().redraw_not_allowed;
-        let save_KeyTyped = g_st().KeyTyped;
+        #[allow(non_snake_case)]
+        let save_KeyTyped = g_st().key_typed;
         let did_emsg_before = g_st().did_emsg;
-        let name_buff = g_st().NameBuff.as_mut_ptr();
+        let name_buff = g_st().name_buff.as_mut_ptr();
 
         if g_st().updating_screen {
             g_st().redraw_not_allowed = true;
@@ -1910,11 +1911,12 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                         let save_curbuf = g_st().curbuf;
                         let save_curwin = curwin_ptr();
-                        let save_VIsual_active = g_st().Visual.active;
+                        #[allow(non_snake_case)]
+                        let save_VIsual_active = g_st().visual_global.active;
                         set_curwin(wp);
                         g_st().curbuf = (*wp).w_buffer;
                         if curwin_ptr() != save_curwin {
-                            g_st().Visual.active = false;
+                            g_st().visual_global.active = false;
                         }
 
                         owned_str = eval_to_string_safe(out_p, use_sandbox, false);
@@ -1924,7 +1926,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                         set_curwin(save_curwin);
                         g_st().curbuf = save_curbuf;
-                        g_st().Visual.active = save_VIsual_active;
+                        g_st().visual_global.active = save_VIsual_active;
 
                         do_unlet(c"g:actual_curbuf", "g:actual_curbuf".len(), true);
                         do_unlet(c"g:actual_curwin", "g:actual_curwin".len(), true);
@@ -2004,7 +2006,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     num = (*wp).buf_mut().b_ml.ml_line_count;
                 }
                 STL_COLUMN => {
-                    num = if (g_st().State & MODE_INSERT) == 0 && empty_line {
+                    num = if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
                         0
                     } else {
                         (*wp).w_cursor.col + 1
@@ -2012,7 +2014,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_VIRTCOL | STL_VIRTCOL_ALT => {
                     let virtcol = (*wp).w_virtcol + 1;
-                    let col_1 = if (g_st().State & MODE_INSERT) == 0 && empty_line {
+                    let col_1 = if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
                         0
                     } else {
                         (*wp).w_cursor.col + 1
@@ -2075,7 +2077,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         0
                     } else {
                         l + 1
-                            + if (g_st().State & MODE_INSERT) == 0 && empty_line {
+                            + if (g_st().state_global & MODE_INSERT) == 0 && empty_line {
                                 0
                             } else {
                                 (*wp).w_cursor.col
@@ -2550,7 +2552,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             optval_free_read(opt_idx, def);
         }
 
-        g_st().KeyTyped = save_KeyTyped;
+        g_st().key_typed = save_KeyTyped;
         width
     }
 }

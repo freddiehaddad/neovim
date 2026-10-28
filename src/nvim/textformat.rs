@@ -84,7 +84,7 @@ pub struct Oparg {
     pub restore_cursor: bool,
     pub line_count: Linenr,
     pub empty: bool,
-    pub is_VIsual: bool,
+    pub is_visual: bool,
     pub from_visual: bool,
     pub start_vcol: Colnr,
     pub end_vcol: Colnr,
@@ -109,7 +109,7 @@ impl Oparg {
             restore_cursor: false,
             line_count: 0,
             empty: false,
-            is_VIsual: false,
+            is_visual: false,
             from_visual: false,
             start_vcol: 0,
             end_vcol: 0,
@@ -214,7 +214,7 @@ pub fn internal_format(
 
         curwin_mut().w_onebuf_opt.wo_lbr = 0;
 
-        if curbuf_mut().b_p_ai == 0 && (g_st().State & VREPLACE_FLAG) == 0 {
+        if curbuf_mut().b_p_ai == 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
             cc = gchar_cursor();
             if ascii_iswhite(cc) {
                 save_char = cc as c_char;
@@ -284,8 +284,8 @@ pub fn internal_format(
 
             while (!fo_ins_blank && !has_format_option(K_FO_INS_VI))
                 || (flags & INSCHAR_FORMAT) != 0
-                || curwin_mut().w_cursor.lnum != g_st().Ins.start.lnum
-                || curwin_mut().w_cursor.col >= g_st().Ins.start.col
+                || curwin_mut().w_cursor.lnum != g_st().ins_global.start.lnum
+                || curwin_mut().w_cursor.col >= g_st().ins_global.start.col
             {
                 if curwin_mut().w_cursor.col == startcol && c != 0 {
                     cc = c;
@@ -433,7 +433,7 @@ pub fn internal_format(
 
             undisplay_dollar();
 
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 orig_col = startcol;
             } else {
                 g_st().replace_offset = startcol - end_foundcol;
@@ -450,7 +450,7 @@ pub fn internal_format(
             startcol -= curwin_mut().w_cursor.col;
             startcol = startcol.max(0);
 
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 let pos_len = get_cursor_pos_len() as usize;
                 let keep_len = (startcol as usize).min(pos_len);
                 saved_text.reserve_exact(keep_len + 1);
@@ -500,7 +500,7 @@ pub fn internal_format(
                         second_indent = get_number_indent(curwin_mut().w_cursor.lnum - 1);
                     }
                     if second_indent >= 0 {
-                        if (g_st().State & VREPLACE_FLAG) != 0 {
+                        if (g_st().state_global & VREPLACE_FLAG) != 0 {
                             change_indent(INDENT_SET, second_indent, 0, true);
                         } else if leader_len > 0 && second_indent - leader_len > 0 {
                             let padding = second_indent - leader_len;
@@ -516,7 +516,7 @@ pub fn internal_format(
                 first_line = false;
             }
 
-            if (g_st().State & VREPLACE_FLAG) != 0 {
+            if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 ins_bytes(saved_text.as_mut_ptr());
             } else {
                 curwin_mut().w_cursor.col += startcol;
@@ -526,10 +526,10 @@ pub fn internal_format(
 
             haveto_redraw = true;
             set_can_cindent(true);
-            g_st().Ins.did_ai = false;
-            g_st().Ins.did_si = false;
-            g_st().Ins.can_si = false;
-            g_st().Ins.can_si_back = false;
+            g_st().ins_global.did_ai = false;
+            g_st().ins_global.did_si = false;
+            g_st().ins_global.can_si = false;
+            g_st().ins_global.can_si_back = false;
             line_breakcheck();
         }
 
@@ -733,7 +733,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             curwin_mut().w_cursor = pos;
         }
 
-        if !crate::memory::cstr_is_empty(old) && !trailblank && !wasatend && pos.col > 0 && (g_st().State & MODE_INSERT) != 0 {
+        if !crate::memory::cstr_is_empty(old) && !trailblank && !wasatend && pos.col > 0 && (g_st().state_global & MODE_INSERT) != 0 {
             let line = get_cursor_line_ptr();
             if whitechar(*line.add((pos.col - 1) as usize) as c_int) {
                 curwin_mut().w_cursor = pos;
@@ -842,7 +842,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
         }
         curwin_mut().w_cursor = oap.start;
 
-        if oap.is_VIsual {
+        if oap.is_visual {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
@@ -873,7 +873,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
             check_cursor(curwin_mut());
         }
 
-        if oap.is_VIsual {
+        if oap.is_visual {
             for wp in for_all_windows_mut() {
                 if wp.w_old_cursor_lnum != 0 {
                     if wp.w_old_cursor_lnum > wp.w_old_visual_lnum {
@@ -889,7 +889,7 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
 
 /// Implementation of the format operator `gq` for when using `'formatexpr'` (`op_formatexpr`).
 pub fn op_formatexpr(oap: &mut Oparg) {
-    if oap.is_VIsual {
+    if oap.is_visual {
             redraw_curbuf_later(UPD_INVERTED);
         }
 
@@ -937,7 +937,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         let mut need_set_indent = true;
         let first_line = curwin_mut().w_cursor.lnum;
         let mut force_format = false;
-        let old_state = g_st().State;
+        let old_state = g_st().state_global;
 
         let max_len = comp_textwidth(true) * 3;
 
@@ -1062,13 +1062,13 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                         set_indent(indent, SIN_CHANGED);
                     }
 
-                    g_st().State = MODE_NORMAL;
+                    g_st().state_global = MODE_NORMAL;
                     coladvance(curwin_mut(), MAXCOL);
                     while curwin_mut().w_cursor.col != 0 && ascii_isspace(gchar_cursor()) {
                         dec_cursor();
                     }
 
-                    g_st().State = MODE_INSERT;
+                    g_st().state_global = MODE_INSERT;
                     let smd_save = opt_vars().p_smd;
                     opt_vars().p_smd = 0;
 
@@ -1085,7 +1085,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                         second_indent,
                     );
 
-                    g_st().State = old_state;
+                    g_st().state_global = old_state;
                     opt_vars().p_smd = smd_save;
                     ui_cursor_shape();
 

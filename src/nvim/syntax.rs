@@ -361,7 +361,7 @@ pub struct Synpat {
     sp_startcol: c_int,
     sp_cont_list: SynIdList,
     sp_next_list: SynIdList,
-    SpSyn: SpSyn,
+    sp_syn: SpSyn,
     sp_pattern: Option<std::ffi::CString>,
     sp_prog: Option<Box<Regprog>>,
     sp_time: SynTime,
@@ -383,7 +383,7 @@ impl Synpat {
             sp_startcol: 0,
             sp_cont_list: None,
             sp_next_list: None,
-            SpSyn: SpSyn::new(),
+            sp_syn: SpSyn::new(),
             sp_pattern: None,
             sp_prog: None,
             sp_time: SynTime::new(),
@@ -732,10 +732,10 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
         };
 
         let sst_len = (*syn_st().syn_block).b_sst_max;
-        let dist = if sst_len <= g_st().Rows {
+        let dist = if sst_len <= g_st().rows_global {
             999999
         } else {
-            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - g_st().Rows) + 1
+            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
         };
 
         while syn_st().current_lnum < lnum {
@@ -855,7 +855,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
                 let mut idx = (*syn_st().syn_block).b_syn_patterns.len() as c_int - 1;
                 while idx >= 0 {
                     let spp = syn_items(&mut *syn_st().syn_block).offset(idx as isize);
-                    if (*spp).SpSyn.id == (*syn_st().syn_block).b_syn_sync_id
+                    if (*spp).sp_syn.id == (*syn_st().syn_block).b_syn_sync_id
                         && (*spp).sp_type == SPTYPE_START
                     {
                         validate_current_state();
@@ -1139,12 +1139,12 @@ pub fn syn_stack_free_all(block: *mut Synblock) {
 
 fn syn_stack_alloc() {
     unsafe {
-        let mut len = ((*syn_st().syn_buf).b_ml.ml_line_count / SST_DIST + g_st().Rows * 2)
+        let mut len = ((*syn_st().syn_buf).b_ml.ml_line_count / SST_DIST + g_st().rows_global * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
         let cur_len = (*syn_st().syn_block).b_sst_max;
         if cur_len > len * 2 || cur_len < len {
             len = (*syn_st().syn_buf).b_ml.ml_line_count;
-            len = ((len + len / 2) / SST_DIST + g_st().Rows * 2).clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
+            len = ((len + len / 2) / SST_DIST + g_st().rows_global * 2).clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
             while ((*syn_st().syn_block).b_sst_array.len() as c_int) + 2 > len && syn_stack_cleanup() {}
             let needed = ((*syn_st().syn_block).b_sst_array.len() as c_int) + 2;
@@ -1213,10 +1213,10 @@ fn syn_stack_cleanup() -> bool {
         }
 
         let sst_len = (*syn_st().syn_block).b_sst_max;
-        let dist = if sst_len <= g_st().Rows {
+        let dist = if sst_len <= g_st().rows_global {
             999999
         } else {
-            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - g_st().Rows) + 1
+            (*syn_st().syn_buf).b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
         };
 
         let mut tick = (*syn_st().syn_block).b_sst_lasttick;
@@ -1739,7 +1739,7 @@ fn syn_current_attr(
                                     in_id_list(
                                         ptr::null_mut(),
                                         cur_next_list,
-                                        &mut (*spp).SpSyn,
+                                        &mut (*spp).sp_syn,
                                         0,
                                     ) != 0
                                 } else if cur_si.is_null() {
@@ -1748,7 +1748,7 @@ fn syn_current_attr(
                                     in_id_list(
                                         cur_si,
                                         &(*cur_si).si_cont_list,
-                                        &mut (*spp).SpSyn,
+                                        &mut (*spp).sp_syn,
                                         (*spp).sp_flags,
                                     ) != 0
                                 }
@@ -2206,7 +2206,7 @@ fn update_si_attr(idx: c_int) {
         if ((*sip).si_flags & HL_MATCH) != 0 {
             (*sip).si_id = (*spp).sp_syn_match_id as c_int;
         } else {
-            (*sip).si_id = (*spp).SpSyn.id as c_int;
+            (*sip).si_id = (*spp).sp_syn.id as c_int;
         }
         (*sip).si_attr = syn_id2attr((*sip).si_id);
         (*sip).si_trans_id = (*sip).si_id;
@@ -2487,7 +2487,7 @@ fn find_endpos(
             }
             limit_pos(end_endpos, m_endpos);
 
-            if (*spp).sp_syn_match_id != (*spp).SpSyn.id && (*spp).sp_syn_match_id != 0 {
+            if (*spp).sp_syn_match_id != (*spp).sp_syn.id && (*spp).sp_syn_match_id != 0 {
                 *end_idx = best_idx;
                 if ((*spp).sp_off_flags & (1 << (SPO_RE_OFF + SPO_COUNT))) != 0 {
                     hl_endpos.lnum = best_regmatch.endpos[0].lnum;
@@ -3058,7 +3058,7 @@ fn syn_clear_one(id: c_int, syncing: bool) {
         let mut idx = (*win_s(curwin_mut())).b_syn_patterns.len() as c_int - 1;
         while idx >= 0 {
             let spp = syn_items(&mut *win_s(curwin_mut())).offset(idx as isize);
-            if (*spp).SpSyn.id as c_int == id && (*spp).sp_syncing == syncing {
+            if (*spp).sp_syn.id as c_int == id && (*spp).sp_syncing == syncing {
                 syn_remove_pattern(&mut *win_s(curwin_mut()), idx);
             }
             idx -= 1;
@@ -3258,7 +3258,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
         let mut idx: c_int = 0;
         while (idx as usize) < (*win_s(curwin_mut())).b_syn_patterns.len() && !g_st().got_int {
             let spp = syn_items(&mut *win_s(curwin_mut())).offset(idx as isize);
-            if (*spp).SpSyn.id as c_int != id || (*spp).sp_syncing != syncing {
+            if (*spp).sp_syn.id as c_int != id || (*spp).sp_syncing != syncing {
                 idx += 1;
                 continue;
             }
@@ -3308,7 +3308,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                 put_id_list(c"contains", list.as_ptr(), hl_id);
             }
 
-            if let Some(ref list) = (*spp).SpSyn.cont_in_list {
+            if let Some(ref list) = (*spp).sp_syn.cont_in_list {
                 put_id_list(c"containedin", list.as_ptr(), hl_id);
             }
 
@@ -3325,7 +3325,7 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
                 msg_putchar(b' ' as c_int);
                 if (*spp).sp_sync_idx >= 0 {
                     let sync_id = (*syn_items(&mut *win_s(curwin_mut())).offset((*spp).sp_sync_idx as isize))
-                        .SpSyn
+                        .sp_syn
                         .id as c_int;
                     msg_outtrans(highlight_group_name(sync_id - 1), 0, false);
                 } else {
@@ -3369,8 +3369,8 @@ fn syn_list_cluster(id: c_int) {
         if g_st().msg_col >= endcol {
             endcol = g_st().msg_col + 1;
         }
-        if g_st().Columns <= endcol {
-            endcol = g_st().Columns - 1;
+        if g_st().columns_global <= endcol {
+            endcol = g_st().columns_global - 1;
         }
 
         msg_advance(endcol);
@@ -3773,7 +3773,7 @@ fn get_syn_options(
                         let mut i = (*win_s(curwin_mut())).b_syn_patterns.len() as c_int - 1;
                         while i >= 0 {
                             let spp = syn_items(&mut *win_s(curwin_mut())).offset(i as isize);
-                            if (*spp).SpSyn.id as c_int == syn_id && (*spp).sp_type == SPTYPE_START
+                            if (*spp).sp_syn.id as c_int == syn_id && (*spp).sp_type == SPTYPE_START
                             {
                                 opt.sync_idx = Some(i);
                                 break;
@@ -4047,14 +4047,14 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: c_int) {
                     syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
                     item.sp_syncing = syncing != 0;
                     item.sp_type = SPTYPE_MATCH;
-                    item.SpSyn.id = syn_id as i16;
-                    item.SpSyn.inc_tag = syn_st().current_syn_inc_tag;
+                    item.sp_syn.id = syn_id as i16;
+                    item.sp_syn.inc_tag = syn_st().current_syn_inc_tag;
                     item.sp_flags = syn_opt_arg.flags;
                     item.sp_sync_idx = syn_opt_arg.sync_idx.unwrap_or(0);
                     item.sp_cont_list = syn_opt_arg.cont_list.take();
-                    item.SpSyn.cont_in_list = syn_opt_arg.cont_in_list.take();
+                    item.sp_syn.cont_in_list = syn_opt_arg.cont_in_list.take();
                     item.sp_cchar = conceal_char;
-                    if item.SpSyn.cont_in_list.is_some() {
+                    if item.sp_syn.cont_in_list.is_some() {
                         (*win_s(curwin_mut())).b_syn_containedin = 1;
                     }
                     item.sp_next_list = syn_opt_arg.next_list.take();
@@ -4230,13 +4230,13 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: c_int) {
                                 SPTYPE_END
                             };
                             pat.sp_flags |= syn_opt_arg.flags;
-                            pat.SpSyn.id = syn_id as i16;
-                            pat.SpSyn.inc_tag = syn_st().current_syn_inc_tag;
+                            pat.sp_syn.id = syn_id as i16;
+                            pat.sp_syn.inc_tag = syn_st().current_syn_inc_tag;
                             pat.sp_syn_match_id = ppp.pp_matchgroup_id as i16;
                             pat.sp_cchar = conceal_char;
                             if item == ITEM_START {
                                 pat.sp_cont_list = syn_opt_arg.cont_list.clone();
-                                pat.SpSyn.cont_in_list = syn_opt_arg.cont_in_list.clone();
+                                pat.sp_syn.cont_in_list = syn_opt_arg.cont_in_list.clone();
                                 if syn_opt_arg.cont_in_list.is_some() {
                                     (*win_s(curwin_mut())).b_syn_containedin = 1;
                                 }
@@ -4937,7 +4937,7 @@ fn in_id_list(
                 if in_id_list(
                     ptr::null_mut(),
                     &ssp.cont_in_list,
-                    &mut (*c_spp).SpSyn,
+                    &mut (*c_spp).sp_syn,
                     (*c_spp).sp_flags,
                 ) != 0
                 {
@@ -5435,7 +5435,7 @@ fn syntime_report() {
                     match_: pat.sp_time.match_,
                     slowest: pat.sp_time.slowest,
                     average: profile_divide(pat.sp_time.total, pat.sp_time.count),
-                    id: pat.SpSyn.id as c_int,
+                    id: pat.sp_syn.id as c_int,
                     pattern: pat.sp_pattern.clone(),
                 });
             }
@@ -5473,7 +5473,7 @@ fn syntime_report() {
             msg_puts(c" ");
 
             msg_advance(69);
-            let mut len = if g_st().Columns < 80 { 20 } else { g_st().Columns - 70 };
+            let mut len = if g_st().columns_global < 80 { 20 } else { g_st().columns_global - 70 };
             let pat_ptr = p.pattern.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
             let patlen = p.pattern.as_ref().map_or(0, |s| s.to_bytes().len() as c_int);
             if patlen < len {

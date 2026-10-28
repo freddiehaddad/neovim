@@ -199,15 +199,15 @@ const INIT_XFMARK: Xfmark = Xfmark {
 };
 
 struct MarkModuleState {
-    POS_TO_MARK_FMS: Fmark,
-    MARK_MOVE_TO_FM_COPY: Fmark,
+    pos_to_mark_fms: Fmark,
+    mark_move_to_fm_copy: Fmark,
 }
 
 impl MarkModuleState {
     const fn new() -> Self {
         Self {
-            POS_TO_MARK_FMS: INIT_FMARK,
-            MARK_MOVE_TO_FM_COPY: INIT_FMARK,
+            pos_to_mark_fms: INIT_FMARK,
+            mark_move_to_fm_copy: INIT_FMARK,
         }
     }
 }
@@ -752,7 +752,7 @@ pub fn mark_get_visual(buf: &mut FileBuf, name: c_int) -> *mut Fmark {
 
 /// Wrap a `CursorPos` into an `Fmark` (`pos_to_mark`).
 pub fn pos_to_mark(buf: &FileBuf, fmp: Option<&mut Fmark>, pos: CursorPos) -> *mut Fmark {
-    let fm = fmp.unwrap_or(&mut mark_st().POS_TO_MARK_FMS);
+    let fm = fmp.unwrap_or(&mut mark_st().pos_to_mark_fms);
     fm.fnum = buf.b_fnum;
     fm.mark = pos;
     &raw mut *fm
@@ -786,8 +786,8 @@ pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
         }
 
         if (*fm).fnum != curbuf_mut().b_fnum {
-            mark_st().MARK_MOVE_TO_FM_COPY = (*fm).clone();
-            fm = &raw mut mark_st().MARK_MOVE_TO_FM_COPY;
+            mark_st().mark_move_to_fm_copy = (*fm).clone();
+            fm = &raw mut mark_st().mark_move_to_fm_copy;
             res |= switch_to_mark_buf( &mut *fm, (flags & K_MARK_JUMP_LIST) == 0);
             if (res & K_MARK_MOVE_FAILED) != 0 {
                 return res;
@@ -896,22 +896,22 @@ fn fname2fnum(fm: &mut Xfmark) {
         if crate::memory::cstr_first_byte(fname) == b'~' && vim_ispathsep_nocolon(c_int::from(crate::memory::cstr_byte_at(fname, 1))) {
             let len = expand_env(
                 c"~/",
-                g_st().NameBuff.as_mut_ptr(),
+                g_st().name_buff.as_mut_ptr(),
                 MAXPATHL as c_int,
             );
             xstrlcpy(
-                (g_st().NameBuff.as_mut_ptr()).add(len),
+                (g_st().name_buff.as_mut_ptr()).add(len),
                 fname.add(2),
                 MAXPATHL - len,
             );
         } else {
-            xstrlcpy(g_st().NameBuff.as_mut_ptr(), fname, MAXPATHL);
+            xstrlcpy(g_st().name_buff.as_mut_ptr(), fname, MAXPATHL);
         }
 
-        os_dirname(g_st().IObuff.as_mut_ptr(), IOSIZE);
-        let p = path_shorten_fname(g_st().NameBuff.as_mut_ptr(), g_st().IObuff.as_mut_ptr());
+        os_dirname(g_st().iobuff.as_mut_ptr(), IOSIZE);
+        let p = path_shorten_fname(g_st().name_buff.as_mut_ptr(), g_st().iobuff.as_mut_ptr());
 
-        let _ = buflist_new(g_st().NameBuff.as_mut_ptr(), p, 1, 0);
+        let _ = buflist_new(g_st().name_buff.as_mut_ptr(), p, 1, 0);
     }
 }
 
@@ -1016,17 +1016,17 @@ fn mark_line(mp: &mut CursorPos, lead_len: c_int) -> std::ffi::CString {
         if mp.lnum == 0 || mp.lnum > curbuf_mut().b_ml.ml_line_count {
             return c"-invalid-".to_owned();
         }
-        debug_assert!(g_st().Columns >= 0);
+        debug_assert!(g_st().columns_global >= 0);
         let line = skipwhite(ml_get(mp.lnum));
         let max_bytes = crate::memory::cstr_len(line)
-            .min((g_st().Columns as usize) * 5);
+            .min((g_st().columns_global as usize) * 5);
 
         let mut len: c_int = 0;
         let mut p = line;
         let end = line.add(max_bytes);
         while p < end && !crate::memory::cstr_is_empty(p) {
             len += ptr2cells(p);
-            if len >= g_st().Columns - lead_len {
+            if len >= g_st().columns_global - lead_len {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -1239,12 +1239,12 @@ pub fn ex_jumps(_eap: &mut Exarg) {
                 let copy_len = bytes.len().min(IOSIZE - 1);
                 ptr::copy_nonoverlapping(
                     bytes.as_ptr().cast::<c_char>(),
-                    g_st().IObuff.as_mut_ptr(),
+                    g_st().iobuff.as_mut_ptr(),
                     copy_len,
                 );
-                g_st().IObuff[copy_len] = NUL;
+                g_st().iobuff[copy_len] = NUL;
 
-                msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
+                msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
                 msg_outtrans(
                     name_cstr.as_ptr(),
                     if curwin_mut().w_jumplist[idx].fmark.fnum == curbuf_mut().b_fnum {
@@ -1299,12 +1299,12 @@ pub fn ex_changes(_eap: &mut Exarg) {
                 let copy_len = bytes.len().min(IOSIZE - 1);
                 ptr::copy_nonoverlapping(
                     bytes.as_ptr().cast::<c_char>(),
-                    g_st().IObuff.as_mut_ptr(),
+                    g_st().iobuff.as_mut_ptr(),
                     copy_len,
                 );
-                g_st().IObuff[copy_len] = NUL;
+                g_st().iobuff[copy_len] = NUL;
 
-                msg_outtrans(g_st().IObuff.as_ptr(), 0, false);
+                msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
                 let name = mark_line(&mut curbuf_mut().b_changelist[idx].mark, 17);
                 msg_outtrans(name.as_ptr(), HLF_D, false);
                 os_breakcheck();

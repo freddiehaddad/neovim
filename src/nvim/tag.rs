@@ -350,10 +350,10 @@ struct TagModuleState {
     ptag_entry: Taggy,
     tfu_in_use: bool,
     tag_fnames: Vec<std::ffi::CString>,
-    DO_TAG_MAX_NUM_MATCHES: c_int,
-    DO_TAG_MATCHES: Vec<Vec<c_char>>,
-    DO_TAG_FLAGS: c_int,
-    TAG_LISTFILES_EXTRA: Vec<([c_char; 2], std::ffi::CString)>,
+    do_tag_max_num_matches: c_int,
+    do_tag_matches: Vec<Vec<c_char>>,
+    do_tag_flags: c_int,
+    tag_listfiles_extra: Vec<([c_char; 2], std::ffi::CString)>,
 }
 
 impl TagModuleState {
@@ -364,10 +364,10 @@ impl TagModuleState {
             ptag_entry: Taggy { tagname: None, fmark: Fmark { mark: CursorPos { lnum: 0, col: 0, coladd: 0 }, fnum: 0, timestamp: 0, view: Fmarkv { topline_offset: MAXLNUM, skipcol: 0 }, additional_data: None }, cur_match: 0, cur_fnum: 0, user_data: None },
             tfu_in_use: false,
             tag_fnames: Vec::new(),
-            DO_TAG_MAX_NUM_MATCHES: 0,
-            DO_TAG_MATCHES: Vec::new(),
-            DO_TAG_FLAGS: 0,
-            TAG_LISTFILES_EXTRA: Vec::new(),
+            do_tag_max_num_matches: 0,
+            do_tag_matches: Vec::new(),
+            do_tag_flags: 0,
+            tag_listfiles_extra: Vec::new(),
         }
     }
 }
@@ -432,7 +432,7 @@ pub fn do_tag(eap: Option<&Exarg>,
         let mut use_tfu = true;
         let mut tofree: Option<std::ffi::CString> = None;
         if type_ == DT_FREE {
-            tag_st().DO_TAG_MATCHES.clear();
+            tag_st().do_tag_matches.clear();
             return;
         }
 
@@ -451,7 +451,7 @@ pub fn do_tag(eap: Option<&Exarg>,
             use_tfu = false;
         }
 
-        let prev_num_matches = tag_st().DO_TAG_MATCHES.len() as c_int;
+        let prev_num_matches = tag_st().do_tag_matches.len() as c_int;
         tag_st().nofile_fname = None;
 
         assert!(!tag.is_null());
@@ -518,7 +518,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                     }
 
                     if type_ == DT_POP {
-                        let old_key_typed = g_st().KeyTyped;
+                        let old_key_typed = g_st().key_typed;
                         tagstackidx -= count;
                         if tagstackidx < 0 {
                             emsg(gettext(E_AT_BOTTOM_OF_TAG_STACK));
@@ -559,7 +559,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                             fold_open_cursor();
                         }
 
-                        tag_st().DO_TAG_MATCHES.clear();
+                        tag_st().do_tag_matches.clear();
                         tag_freematch();
                         break 'end_do_tag;
                     }
@@ -669,8 +669,8 @@ pub fn do_tag(eap: Option<&Exarg>,
                     .as_ref()
                     .is_none_or(|m| crate::memory::cstr_as_bytes(m.as_ptr()) != crate::memory::cstr_as_bytes(name));
                 if new_tag
-                    || (cur_match >= tag_st().DO_TAG_MATCHES.len() as c_int
-                        && tag_st().DO_TAG_MAX_NUM_MATCHES != MAXCOL)
+                    || (cur_match >= tag_st().do_tag_matches.len() as c_int
+                        && tag_st().do_tag_max_num_matches != MAXCOL)
                     || other_name
                 {
                     if other_name {
@@ -680,37 +680,37 @@ pub fn do_tag(eap: Option<&Exarg>,
                     if type_ == DT_SELECT || type_ == DT_JUMP || type_ == DT_LTAG {
                         cur_match = MAXCOL - 1;
                     }
-                    tag_st().DO_TAG_MAX_NUM_MATCHES = if type_ == DT_TAG {
+                    tag_st().do_tag_max_num_matches = if type_ == DT_TAG {
                         MAXCOL
                     } else {
                         cur_match + 1
                     };
 
                     if !no_regexp && crate::memory::cstr_first_byte(name) == b'/' {
-                        tag_st().DO_TAG_FLAGS = TAG_REGEXP;
+                        tag_st().do_tag_flags = TAG_REGEXP;
                         name = name.add(1);
                     } else {
-                        tag_st().DO_TAG_FLAGS = TAG_NOIC;
+                        tag_st().do_tag_flags = TAG_NOIC;
                     }
 
                     if verbose {
-                        tag_st().DO_TAG_FLAGS |= TAG_VERBOSE;
+                        tag_st().do_tag_flags |= TAG_VERBOSE;
                     }
                     if !use_tfu {
-                        tag_st().DO_TAG_FLAGS |= TAG_NO_TAGFUNC;
+                        tag_st().do_tag_flags |= TAG_NO_TAGFUNC;
                     }
 
                     let mut new_matches: Vec<Vec<c_char>> = Vec::new();
                     if find_tags(
                         name,
                         &mut new_matches,
-                        tag_st().DO_TAG_FLAGS,
-                        tag_st().DO_TAG_MAX_NUM_MATCHES,
+                        tag_st().do_tag_flags,
+                        tag_st().do_tag_max_num_matches,
                         buf_ffname,
                     ) == OK
-                        && (new_matches.len() as c_int) < tag_st().DO_TAG_MAX_NUM_MATCHES
+                        && (new_matches.len() as c_int) < tag_st().do_tag_max_num_matches
                     {
-                        tag_st().DO_TAG_MAX_NUM_MATCHES = MAXCOL;
+                        tag_st().do_tag_max_num_matches = MAXCOL;
                     }
 
                     if tagstack != (&raw mut (*curwin_ptr()).w_tagstack).cast::<Taggy>() {
@@ -725,7 +725,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                         let mut tagp = Tagptrs::default();
                         let mut tagp2 = Tagptrs::default();
 
-                        for old_match in &tag_st().DO_TAG_MATCHES {
+                        for old_match in &tag_st().do_tag_matches {
                             parse_match(old_match.as_ptr().cast_mut(), &mut tagp);
                             for i in idx..new_matches.len() {
                                 parse_match(new_matches[i].as_mut_ptr(), &mut tagp2);
@@ -738,10 +738,10 @@ pub fn do_tag(eap: Option<&Exarg>,
                             }
                         }
                     }
-                    tag_st().DO_TAG_MATCHES = new_matches;
+                    tag_st().do_tag_matches = new_matches;
                 }
 
-                let do_tag_num_matches = tag_st().DO_TAG_MATCHES.len() as c_int;
+                let do_tag_num_matches = tag_st().do_tag_matches.len() as c_int;
                 if do_tag_num_matches <= 0 {
                     if verbose {
                         semsg!(gettext(E_TAG_NOT_FOUND_STR), name);
@@ -751,14 +751,14 @@ pub fn do_tag(eap: Option<&Exarg>,
                     if type_ == DT_TAG && !crate::memory::cstr_is_empty(tag) {
                         cur_match = if count > 0 { count - 1 } else { 0 };
                     } else if type_ == DT_SELECT || (type_ == DT_JUMP && do_tag_num_matches > 1) {
-                        select_tag_match((eap.is_some()).then(||  { eap.unwrap() }), new_tag, use_tagstack, &tag_st().DO_TAG_MATCHES, name);
+                        select_tag_match((eap.is_some()).then(||  { eap.unwrap() }), new_tag, use_tagstack, &tag_st().do_tag_matches, name);
                         if use_tagstack {
                             (*tagstack.add(tagstackidx as usize)).fmark = saved_fmark;
                             tagstackidx = prevtagstackidx;
                         }
                         break;
                     } else if type_ == DT_LTAG {
-                        if !add_llist_tags(tag, &tag_st().DO_TAG_MATCHES) {
+                        if !add_llist_tags(tag, &tag_st().do_tag_matches) {
                             break 'end_do_tag;
                         }
                         cur_match = 0;
@@ -787,7 +787,7 @@ pub fn do_tag(eap: Option<&Exarg>,
 
                         if use_tfu
                             && parse_match(
-                                tag_st().DO_TAG_MATCHES.as_slice()[cur_match as usize]
+                                tag_st().do_tag_matches.as_slice()[cur_match as usize]
                                     .as_ptr()
                                     .cast_mut(),
                                 &mut tagp2,
@@ -816,7 +816,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                         );
                     }
 
-                    let cur_match_ptr = tag_st().DO_TAG_MATCHES.as_slice()[cur_match as usize]
+                    let cur_match_ptr = tag_st().do_tag_matches.as_slice()[cur_match as usize]
                         .as_ptr()
                         .cast_mut();
                     let ic = ((*cur_match_ptr as usize) & MT_IC_OFF) != 0;
@@ -826,8 +826,8 @@ pub fn do_tag(eap: Option<&Exarg>,
                         && (do_tag_num_matches > 1 || ic)
                         && !skip_msg
                     {
-                        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
-                        let more_str = if tag_st().DO_TAG_MAX_NUM_MATCHES != MAXCOL {
+                        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
+                        let more_str = if tag_st().do_tag_max_num_matches != MAXCOL {
                             gettext(c" or more").cast_const()
                         } else {
                             c"".as_ptr()
@@ -856,7 +856,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                         }
                     }
 
-                    let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+                    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                     let iobufflen =
                         vim_snprintf_safelen!(iobuf_ptr, IOSIZE, c":ta %s\r", name);
                     set_vim_var_string(VV_SWAPCOMMAND, iobuf_ptr, iobufflen as isize);
@@ -868,7 +868,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                     if i == NOTAGFILE {
                         if (type_ == DT_PREV && cur_match > 0)
                             || ((type_ == DT_TAG || type_ == DT_NEXT || type_ == DT_FIRST)
-                                && (tag_st().DO_TAG_MAX_NUM_MATCHES != MAXCOL
+                                && (tag_st().do_tag_max_num_matches != MAXCOL
                                     || cur_match < do_tag_num_matches - 1))
                         {
                             error_cur_match = cur_match;
@@ -1085,7 +1085,7 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<c_char>
             }
         }
 
-        let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
         set_errorlist(curwin_ptr(), list.as_ref(), b' ' as c_int, iobuf_ptr, None);
 
@@ -1118,7 +1118,7 @@ pub fn do_tags(_eap: &mut Exarg) {
                 };
 
                 msg_putchar(b'\n' as c_int);
-                let iobuf_ptr = g_st().IObuff.as_mut_ptr();
+                let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                 vim_snprintf!(
                     iobuf_ptr,
                     IOSIZE,
@@ -2074,7 +2074,7 @@ fn findtags_add_match(
                 crate::memory::cstr_ncpy(v.as_mut_ptr(), tagpp.tagname, len);
                 mfp_vec = Some(v);
 
-                if (g_st().State & MODE_INSERT) != 0 {
+                if (g_st().state_global & MODE_INSERT) != 0 {
                     st.get_searchpat = opt_vars().p_sft != 0;
                 }
             }
@@ -2701,7 +2701,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
         let mut getfile_result = GETFILE_UNUSED;
         let mut curwin_save: *mut WinInfoInfo = ptr::null_mut();
         let mut full_fname: Option<std::ffi::CString> = None;
-        let old_key_typed = g_st().KeyTyped;
+        let old_key_typed = g_st().key_typed;
         let l_g_do_tagpreview = g_st().g_do_tagpreview;
         let len = matching_line_len(lbuf_arg) + 1;
         let mut lbuf_vec = vec![0 as c_char; len];
@@ -2753,7 +2753,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                 break 'erret;
             }
 
-            g_st().RedrawingDisabled += 1;
+            g_st().redrawing_disabled += 1;
 
             if l_g_do_tagpreview != 0 {
                 g_st().postponed_split = 0;
@@ -2791,7 +2791,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                     g_st().postponed_split_flags,
                 )
                 {
-                    g_st().RedrawingDisabled -= 1;
+                    g_st().redrawing_disabled -= 1;
                     break 'erret;
                 }
                 curwin_mut().w_onebuf_opt.wo_scb = 0;
@@ -2815,7 +2815,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                 curwin_mut().w_set_curswant = true;
                 g_st().postponed_split = 0;
 
-                let save_no_hlsearch = g_st().Search.no_hlsearch;
+                let save_no_hlsearch = g_st().search_global.no_hlsearch;
 
                 let search_options = if !vim_strchr(opt_vars().p_cpo, K_CPO_TAGPAT).is_null() {
                     0
@@ -2979,9 +2979,9 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                     win_enter(curwin_save, true);
                 }
 
-                g_st().RedrawingDisabled -= 1;
+                g_st().redrawing_disabled -= 1;
             } else {
-                g_st().RedrawingDisabled -= 1;
+                g_st().redrawing_disabled -= 1;
                 if g_st().postponed_split != 0 {
                     win_close(curwin_ptr(), false, false);
                     g_st().postponed_split = 0;
@@ -3112,7 +3112,7 @@ pub fn tagstack_clear_entry(item: &mut Taggy) {
 
 pub fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)> {
      {
-        tag_st().TAG_LISTFILES_EXTRA
+        tag_st().tag_listfiles_extra
             .as_slice()
             .get(idx)
             .map(|(k, f)| (k.as_ptr(), f.as_ptr()))
@@ -3145,7 +3145,7 @@ pub fn expand_tags(
             )
         };
         file.clear();
-        tag_st().TAG_LISTFILES_EXTRA.clear();
+        tag_st().tag_listfiles_extra.clear();
         if ret == OK {
             file.reserve_exact(raw_matches.len());
             if tagnames {
@@ -3153,7 +3153,7 @@ pub fn expand_tags(
                     file.push(crate::memory::cstr_to_cstring(m.as_ptr()));
                 }
             } else {
-                tag_st().TAG_LISTFILES_EXTRA.reserve_exact(raw_matches.len());
+                tag_st().tag_listfiles_extra.reserve_exact(raw_matches.len());
                 for mut m in raw_matches {
                     let mut t_p = Tagptrs::default();
                     parse_match(m.as_mut_ptr(), &mut t_p);
@@ -3172,7 +3172,7 @@ pub fn expand_tags(
                         t_p.fname.cast::<u8>(),
                         fname_len,
                     ));
-                    tag_st().TAG_LISTFILES_EXTRA.push(([kind_c, 0], fname_cstr));
+                    tag_st().tag_listfiles_extra.push(([kind_c, 0], fname_cstr));
                 }
             }
         }

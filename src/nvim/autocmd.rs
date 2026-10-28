@@ -2795,7 +2795,7 @@ pub fn apply_autocmds_group(
         let mut wait_time: Proftime = 0;
         let mut did_save_redobuff = false;
         let mut save_redo = RedoState::new();
-        let save_key_typed = g_st().KeyTyped;
+        let save_key_typed = g_st().key_typed;
         let mut aco: CtxSwitch = CtxSwitch::new();
 
         'bypass_au: {
@@ -2976,7 +2976,7 @@ pub fn apply_autocmds_group(
 
             g_st().autocmd_match = (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
 
-            g_st().RedrawingDisabled += 1;
+            g_st().redrawing_disabled += 1;
 
             estack_push(ETYPE_AUCMD, ptr::null(), 0);
 
@@ -3072,7 +3072,7 @@ pub fn apply_autocmds_group(
                 }
             }
 
-            g_st().RedrawingDisabled -= 1;
+            g_st().redrawing_disabled -= 1;
             g_st().autocmd_busy = save_autocmd_busy;
             au_st().filechangeshell_busy = false;
             au_st().autocmd_nested = save_autocmd_nested;
@@ -3087,7 +3087,7 @@ pub fn apply_autocmds_group(
             if g_st().do_profiling == PROF_YES {
                 prof_child_exit(&mut wait_time);
             }
-            g_st().KeyTyped = save_key_typed;
+            g_st().key_typed = save_key_typed;
             drop(patcmd);
             au_st().apply_autocmds_nesting -= 1;
 

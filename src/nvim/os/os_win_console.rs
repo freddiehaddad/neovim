@@ -69,10 +69,15 @@ const UV_TTY_SUPPORTED: c_int = 0;
 
 #[cfg(windows)]
 struct WinConsoleState {
+    #[allow(non_snake_case)]
     ORIG_TITLE: [c_char; 256],
+    #[allow(non_snake_case)]
     H_WND: HWND,
+    #[allow(non_snake_case)]
     H_ORIG_ICON_SMALL: HICON,
+    #[allow(non_snake_case)]
     H_ORIG_ICON: HICON,
+    #[allow(non_snake_case)]
     CONSOLE_INHERITED: bool,
 }
 
@@ -101,11 +106,17 @@ fn wincon_st() -> &'static mut WinConsoleState {
 #[cfg(windows)]
 #[repr(C)]
 pub struct OsVersionInfoA {
+    #[allow(non_snake_case)]
     pub dwOSVersionInfoSize: u32,
+    #[allow(non_snake_case)]
     pub dwMajorVersion: u32,
+    #[allow(non_snake_case)]
     pub dwMinorVersion: u32,
+    #[allow(non_snake_case)]
     pub dwBuildNumber: u32,
+    #[allow(non_snake_case)]
     pub dwPlatformId: u32,
+    #[allow(non_snake_case)]
     pub szCSDVersion: [c_char; 128],
 }
 
@@ -319,7 +330,7 @@ pub fn os_icon_init() {
         }
 
         if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
-            let namebuff = std::ptr::addr_of_mut!(g_st().NameBuff).cast::<c_char>();
+            let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast::<c_char>();
             vim_snprintf!(
                 namebuff,
                 MAXPATHL,

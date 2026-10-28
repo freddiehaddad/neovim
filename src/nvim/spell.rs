@@ -2854,12 +2854,12 @@ pub fn spell_dump_compl(
         }
         if do_region && !region_names.is_null() && pat.is_null() {
             vim_snprintf!(
-                g_st().IObuff.as_mut_ptr(),
+                g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
                 c"/regions=%s",
                 region_names,
             );
-            let _ = ml_append(lnum, g_st().IObuff.as_mut_ptr(), 0, false);
+            let _ = ml_append(lnum, g_st().iobuff.as_mut_ptr(), 0, false);
             lnum += 1;
         } else {
             do_region = false;
@@ -2871,7 +2871,7 @@ pub fn spell_dump_compl(
             }
             if pat.is_null() {
                 vim_snprintf!(
-                    g_st().IObuff.as_mut_ptr(),
+                    g_st().iobuff.as_mut_ptr(),
                     IOSIZE,
                     c"# file: %s",
                     slang
@@ -2879,7 +2879,7 @@ pub fn spell_dump_compl(
                         .as_ref()
                         .map_or(c"".as_ptr(), |s| s.as_ptr()),
                 );
-                let _ = ml_append(lnum, g_st().IObuff.as_mut_ptr(), 0, false);
+                let _ = ml_append(lnum, g_st().iobuff.as_mut_ptr(), 0, false);
                 lnum += 1;
             }
             let patlen: isize = if !pat.is_null() && slang.sl_pbyts.is_empty() {
@@ -3040,13 +3040,13 @@ fn dump_word(
                 let tw_bytes = crate::memory::cstr_as_bytes(tw);
                 if let Some(&wc_count) = slang.sl_wordcount.get(tw_bytes) {
                     vim_snprintf!(
-                        g_st().IObuff.as_mut_ptr(),
+                        g_st().iobuff.as_mut_ptr(),
                         IOSIZE,
                         c"%s\t%d",
                         tw,
                         wc_count as c_int,
                     );
-                    p = g_st().IObuff.as_mut_ptr();
+                    p = g_st().iobuff.as_mut_ptr();
                 }
             }
             let _ = ml_append(lnum, p, 0, false);

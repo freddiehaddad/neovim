@@ -122,22 +122,22 @@ fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInf
                         format!(
                             "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
                             i64::from(wp.w_height),
-                            i64::from(g_st().Rows) / 2,
-                            i64::from(g_st().Rows)
+                            i64::from(g_st().rows_global) / 2,
+                            i64::from(g_st().rows_global)
                         ),
                     )
                 {
                     return false;
                 }
 
-                if wp.w_width < g_st().Columns
+                if wp.w_width < g_st().columns_global
                     && !write_fmt(
                         fd,
                         format!(
                             "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
                             i64::from(wp.w_width),
-                            i64::from(g_st().Columns) / 2,
-                            i64::from(g_st().Columns)
+                            i64::from(g_st().columns_global) / 2,
+                            i64::from(g_st().columns_global)
                         ),
                     )
                 {
@@ -746,8 +746,8 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 fd,
                 format!(
                     "set lines={} columns={}\n",
-                    i64::from(g_st().Rows),
-                    i64::from(g_st().Columns)
+                    i64::from(g_st().rows_global),
+                    i64::from(g_st().columns_global)
                 ),
             )
         {
@@ -1144,7 +1144,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 if opt_vars().p_hls != 0 && !write_bytes(fd, b"set hlsearch\n") {
                     failed = true;
                 }
-                if g_st().Search.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
+                if g_st().search_global.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
                     failed = true;
                 }
                 if eap.cmdidx == CMD_MKSESSION

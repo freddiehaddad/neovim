@@ -33,21 +33,21 @@ pub const HIST_DEBUG: c_int = 4;
 pub const HIST_COUNT: usize = 5;
 
 struct CmdhistState {
-    HISTORY: [Vec<Histentry>; HIST_COUNT],
-    HISIDX: [c_int; HIST_COUNT],
-    HISNUM: [c_int; HIST_COUNT],
-    HISLEN: c_int,
-    LAST_MAPTICK: c_int,
+    history: [Vec<Histentry>; HIST_COUNT],
+    hisidx: [c_int; HIST_COUNT],
+    hisnum: [c_int; HIST_COUNT],
+    hislen: c_int,
+    last_maptick: c_int,
 }
 
 impl CmdhistState {
     const fn new() -> Self {
         Self {
-            HISTORY: [const { Vec::new() }; HIST_COUNT],
-            HISIDX: [-1; HIST_COUNT],
-            HISNUM: [0; HIST_COUNT],
-            HISLEN: 0,
-            LAST_MAPTICK: -1,
+            history: [const { Vec::new() }; HIST_COUNT],
+            hisidx: [-1; HIST_COUNT],
+            hisnum: [0; HIST_COUNT],
+            hislen: 0,
+            last_maptick: -1,
         }
     }
 }
@@ -119,13 +119,13 @@ fn hist_free_entry(hisptr: *mut Histentry) {
 
 /// Return the length of the history tables (`get_hislen`).
 pub fn get_hislen() -> c_int {
-    hist_st().HISLEN
+    hist_st().hislen
 }
 
 /// Return a slice of a specified history table (`get_histentry`).
 pub fn get_histentry(hist_type: c_int) -> &'static [Histentry] {
     unsafe {
-        (&raw const hist_st().HISTORY[hist_type as usize])
+        (&raw const hist_st().history[hist_type as usize])
             .as_ref()
             .unwrap()
             .as_slice()
@@ -134,7 +134,7 @@ pub fn get_histentry(hist_type: c_int) -> &'static [Histentry] {
 
 /// Return the current index for `hist_type` (`get_hisidx`).
 pub fn get_hisidx(hist_type: c_int) -> c_int {
-    hist_st().HISIDX[hist_type as usize]
+    hist_st().hisidx[hist_type as usize]
 }
 
 /// Translate a history character to the associated `HistoryType` (`hist_char2type`).
@@ -162,7 +162,7 @@ pub fn get_history_arg(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
 pub fn init_history() {
     assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (c_int::MAX as i64));
         let newlen = opt_vars().p_hi as c_int;
-        let oldlen = hist_st().HISLEN;
+        let oldlen = hist_st().hislen;
 
         if newlen == oldlen {
             return;
@@ -171,7 +171,7 @@ pub fn init_history() {
         for hist_type in 0..HIST_COUNT {
             let mut temp = vec![Histentry::new(); newlen.max(0) as usize];
 
-            let j = hist_st().HISIDX[hist_type];
+            let j = hist_st().hisidx[hist_type];
             if j >= 0 {
                 let l1 = (j + 1).min(newlen);
                 let l2 = newlen.min(oldlen) - l1;
@@ -181,27 +181,27 @@ pub fn init_history() {
                 if newlen > 0 {
                     if l2 > 0 {
                         temp[..l2 as usize]
-                            .clone_from_slice(&hist_st().HISTORY[hist_type][i2 as usize..(i2 + l2) as usize]);
+                            .clone_from_slice(&hist_st().history[hist_type][i2 as usize..(i2 + l2) as usize]);
                     }
                     if l1 > 0 {
                         temp[l2 as usize..(l2 + l1) as usize]
-                            .clone_from_slice(&hist_st().HISTORY[hist_type][i1 as usize..(i1 + l1) as usize]);
+                            .clone_from_slice(&hist_st().history[hist_type][i1 as usize..(i1 + l1) as usize]);
                     }
                 }
 
                 for i in 0..i1 {
-                    hist_free_entry(&raw mut hist_st().HISTORY[hist_type][i as usize]);
+                    hist_free_entry(&raw mut hist_st().history[hist_type][i as usize]);
                 }
                 for i in (i1 + l1)..i2 {
-                    hist_free_entry(&raw mut hist_st().HISTORY[hist_type][i as usize]);
+                    hist_free_entry(&raw mut hist_st().history[hist_type][i as usize]);
                 }
             }
 
             let l3 = if j < 0 { 0 } else { newlen.min(oldlen) };
-            hist_st().HISIDX[hist_type] = l3 - 1;
-            hist_st().HISTORY[hist_type] = temp;
+            hist_st().hisidx[hist_type] = l3 - 1;
+            hist_st().history[hist_type] = temp;
         }
-        hist_st().HISLEN = newlen;
+        hist_st().hislen = newlen;
 }
 
 fn in_history(
@@ -211,17 +211,17 @@ fn in_history(
     sep: c_int,
 ) -> bool { let str_ptr = str_ptr.into_c_char_ptr();
      {
-        let cur_idx = hist_st().HISIDX[hist_type];
+        let cur_idx = hist_st().hisidx[hist_type];
         if cur_idx < 0 {
             return false;
         }
-        let hislen = hist_st().HISLEN;
+        let hislen = hist_st().hislen;
         let str_bytes = crate::memory::cstr_as_bytes(str_ptr);
         let mut last_i: c_int = -1;
         let mut i = cur_idx;
 
         loop {
-            let entry = &hist_st().HISTORY[hist_type][i as usize];
+            let entry = &hist_st().history[hist_type][i as usize];
             let Some(ref hisstr) = entry.hisstr else {
                 return false;
             };
@@ -247,18 +247,18 @@ fn in_history(
             return false;
         }
 
-        let matched = hist_st().HISTORY[hist_type][i as usize].clone();
-        while i != hist_st().HISIDX[hist_type] {
+        let matched = hist_st().history[hist_type][i as usize].clone();
+        while i != hist_st().hisidx[hist_type] {
             i += 1;
             if i >= hislen {
                 i = 0;
             }
-            hist_st().HISTORY[hist_type][last_i as usize] = hist_st().HISTORY[hist_type][i as usize].clone();
+            hist_st().history[hist_type][last_i as usize] = hist_st().history[hist_type][i as usize].clone();
             last_i = i;
         }
-        hist_st().HISNUM[hist_type] += 1;
-        let dst = &mut hist_st().HISTORY[hist_type][i as usize];
-        dst.hisnum = hist_st().HISNUM[hist_type];
+        hist_st().hisnum[hist_type] += 1;
+        let dst = &mut hist_st().history[hist_type][i as usize];
+        dst.hisnum = hist_st().hisnum[hist_type];
         dst.hisstr = matched.hisstr;
         dst.sep = matched.sep;
         dst.timestamp = os_time();
@@ -300,7 +300,7 @@ pub fn add_to_history(
     in_map: bool,
     sep: c_int,
 ) { let new_entry = new_entry.into_c_char_ptr();
-    let hislen = hist_st().HISLEN;
+    let hislen = hist_st().hislen;
     if hislen == 0 || histype == HIST_INVALID {
         return;
     }
@@ -311,16 +311,16 @@ pub fn add_to_history(
         }
 
         if histype == HIST_SEARCH && in_map {
-            if g_st().maptick == hist_st().LAST_MAPTICK && hist_st().HISIDX[HIST_SEARCH as usize] >= 0 {
-                let sidx = hist_st().HISIDX[HIST_SEARCH as usize] as usize;
-                hist_free_entry(&raw mut hist_st().HISTORY[HIST_SEARCH as usize][sidx]);
-                hist_st().HISNUM[histype as usize] -= 1;
-                hist_st().HISIDX[HIST_SEARCH as usize] -= 1;
-                if hist_st().HISIDX[HIST_SEARCH as usize] < 0 {
-                    hist_st().HISIDX[HIST_SEARCH as usize] = hislen - 1;
+            if g_st().maptick == hist_st().last_maptick && hist_st().hisidx[HIST_SEARCH as usize] >= 0 {
+                let sidx = hist_st().hisidx[HIST_SEARCH as usize] as usize;
+                hist_free_entry(&raw mut hist_st().history[HIST_SEARCH as usize][sidx]);
+                hist_st().hisnum[histype as usize] -= 1;
+                hist_st().hisidx[HIST_SEARCH as usize] -= 1;
+                if hist_st().hisidx[HIST_SEARCH as usize] < 0 {
+                    hist_st().hisidx[HIST_SEARCH as usize] = hislen - 1;
                 }
             }
-            hist_st().LAST_MAPTICK = -1;
+            hist_st().last_maptick = -1;
         }
 
     let htype = histype as usize;
@@ -329,11 +329,11 @@ pub fn add_to_history(
             return;
         }
 
-        hist_st().HISIDX[htype] += 1;
-        if hist_st().HISIDX[htype] == hislen {
-            hist_st().HISIDX[htype] = 0;
+        hist_st().hisidx[htype] += 1;
+        if hist_st().hisidx[htype] == hislen {
+            hist_st().hisidx[htype] = 0;
         }
-        let hisptr = &mut hist_st().HISTORY[htype][hist_st().HISIDX[htype] as usize];
+        let hisptr = &mut hist_st().history[htype][hist_st().hisidx[htype] as usize];
         hist_free_entry(hisptr);
 
         let entry_bytes = crate::memory::cstr_as_bytes(new_entry);
@@ -342,38 +342,38 @@ pub fn add_to_history(
         hisptr.sep = sep as c_char;
         hisptr.timestamp = os_time();
         hisptr.additional_data = None;
-        hist_st().HISNUM[htype] += 1;
-        hisptr.hisnum = hist_st().HISNUM[htype];
+        hist_st().hisnum[htype] += 1;
+        hisptr.hisnum = hist_st().hisnum[htype];
 
         if histype == HIST_SEARCH && in_map {
-            hist_st().LAST_MAPTICK = g_st().maptick;
+            hist_st().last_maptick = g_st().maptick;
         }
     }
 }
 
 fn get_history_idx(histype: c_int) -> c_int {
-    let hislen = hist_st().HISLEN;
+    let hislen = hist_st().hislen;
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT {
         return -1;
     }
-    let idx = hist_st().HISIDX[histype as usize];
+    let idx = hist_st().hisidx[histype as usize];
     if idx < 0 {
         return -1;
     }
-    hist_st().HISTORY[histype as usize][idx as usize].hisnum
+    hist_st().history[histype as usize][idx as usize].hisnum
 }
 
 fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
-    let hislen = hist_st().HISLEN;
+    let hislen = hist_st().hislen;
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT || num == 0 {
         return -1;
     }
-    let mut i = hist_st().HISIDX[histype as usize];
+    let mut i = hist_st().hisidx[histype as usize];
     if i < 0 {
         return -1;
     }
 
-    let hist = hist_st().HISTORY[histype as usize].as_slice();
+    let hist = hist_st().history[histype as usize].as_slice();
     if num > 0 {
         let mut wrapped = false;
         while hist[i as usize].hisnum > num {
@@ -403,14 +403,14 @@ fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
 
 /// Clear all entries in a history (`clr_history`).
 pub fn clr_history(histype: c_int) -> bool {
-    let hislen = hist_st().HISLEN;
+    let hislen = hist_st().hislen;
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
-        for entry in hist_st().HISTORY[htype].iter_mut().take(hislen as usize) {
+        for entry in hist_st().history[htype].iter_mut().take(hislen as usize) {
                 hist_free_entry(entry);
             }
-            hist_st().HISIDX[htype] = -1;
-            hist_st().HISNUM[htype] = 0;
+            hist_st().hisidx[htype] = -1;
+            hist_st().hisnum[htype] = 0;
         true
     } else {
         false
@@ -419,18 +419,18 @@ pub fn clr_history(histype: c_int) -> bool {
 
 fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr) -> c_int { let str_ptr = str_ptr.into_c_char_ptr();
     unsafe {
-        let hislen = hist_st().HISLEN;
+        let hislen = hist_st().hislen;
         if hislen == 0
             || histype < 0
             || (histype as usize) >= HIST_COUNT
             || *str_ptr == 0
-            || hist_st().HISIDX[histype as usize] < 0
+            || hist_st().hisidx[histype as usize] < 0
         {
             return 0;
         }
 
         let htype = histype as usize;
-        let idx = hist_st().HISIDX[htype];
+        let idx = hist_st().hisidx[htype];
         let mut regmatch = Regmatch {
             regprog: vim_regcomp(str_ptr, RE_MAGIC + RE_STRING),
             startp: [std::ptr::null_mut(); NSUBEXP],
@@ -446,7 +446,7 @@ fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr)
         let mut i = idx;
         let mut last = idx;
         loop {
-            let hisptr = &raw mut hist_st().HISTORY[htype][i as usize];
+            let hisptr = &raw mut hist_st().history[htype][i as usize];
             let Some(ref hisstr) = (*hisptr).hisstr else {
                 break;
             };
@@ -455,7 +455,7 @@ fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr)
                 hist_free_entry(hisptr);
             } else {
                 if i != last {
-                    hist_st().HISTORY[htype][last as usize] = (*hisptr).clone();
+                    hist_st().history[htype][last as usize] = (*hisptr).clone();
                     clear_hist_entry(hisptr);
                 }
                 last -= 1;
@@ -472,8 +472,8 @@ fn del_history_entry(histype: c_int, str_ptr: impl crate::strings::IntoCCharPtr)
             }
         }
 
-        if hist_st().HISTORY[htype][idx as usize].hisstr.is_none() {
-            hist_st().HISIDX[htype] = -1;
+        if hist_st().history[htype][idx as usize].hisstr.is_none() {
+            hist_st().hisidx[htype] = -1;
         }
 
         vim_regfree(regmatch.regprog);
@@ -487,25 +487,25 @@ fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
             return 0;
         }
         let htype = histype as usize;
-        let idx = hist_st().HISIDX[htype];
-        let hislen = hist_st().HISLEN;
-        hist_free_entry(&raw mut hist_st().HISTORY[htype][i as usize]);
+        let idx = hist_st().hisidx[htype];
+        let hislen = hist_st().hislen;
+        hist_free_entry(&raw mut hist_st().history[htype][i as usize]);
 
-        if histype == HIST_SEARCH && g_st().maptick == hist_st().LAST_MAPTICK && i == idx {
-            hist_st().LAST_MAPTICK = -1;
+        if histype == HIST_SEARCH && g_st().maptick == hist_st().last_maptick && i == idx {
+            hist_st().last_maptick = -1;
         }
 
         while i != idx {
             let j = (i + 1) % hislen;
-            hist_st().HISTORY[htype][i as usize] = hist_st().HISTORY[htype][j as usize].clone();
+            hist_st().history[htype][i as usize] = hist_st().history[htype][j as usize].clone();
             i = j;
         }
-        clear_hist_entry(&raw mut hist_st().HISTORY[htype][idx as usize]);
+        clear_hist_entry(&raw mut hist_st().history[htype][idx as usize]);
         i -= 1;
         if i < 0 {
             i += hislen;
         }
-        hist_st().HISIDX[htype] = i;
+        hist_st().hisidx[htype] = i;
         1
 }
 
@@ -588,7 +588,7 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if idx < 0 {
                 tv_set_string(rettv, c"");
             } else {
-                let entry = &hist_st().HISTORY[htype as usize][idx as usize];
+                let entry = &hist_st().history[htype as usize][idx as usize];
                 tv_set_string(rettv, entry.hisstr_ptr());
             }
         }
@@ -623,7 +623,7 @@ pub fn ex_history(eap: &mut Exarg) {
         let arg = eap.arg;
 
         msg_ext_set_kind(c"list_cmd");
-        let hislen = hist_st().HISLEN;
+        let hislen = hist_st().hislen;
         if hislen == 0 {
             msg(c"'history' option is zero", 0);
             return;
@@ -667,8 +667,8 @@ pub fn ex_history(eap: &mut Exarg) {
             let title = format!("\n      #  {hname} history\0");
             msg_puts_title(title.as_ptr().cast::<c_char>());
 
-            let idx = hist_st().HISIDX[histype1 as usize];
-            let hist = hist_st().HISTORY[histype1 as usize].as_slice();
+            let idx = hist_st().hisidx[histype1 as usize];
+            let hist = hist_st().history[histype1 as usize].as_slice();
             let mut j = hisidx1;
             let mut k = hisidx2;
             if j < 0 {
@@ -708,11 +708,11 @@ pub fn ex_history(eap: &mut Exarg) {
                             prefix_bytes.len(),
                         );
                         let len = prefix_bytes.len();
-                        if vim_strsize(entry_ptr) > g_st().Columns - 10 {
+                        if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
                             trunc_string(
                                 entry_ptr,
                                 iobuf.as_mut_ptr().add(len),
-                                g_st().Columns - 10,
+                                g_st().columns_global - 10,
                                 (IOSIZE - len) as c_int,
                             );
                         } else {
@@ -740,13 +740,13 @@ pub fn hist_iter(
 ) -> Option<usize> {
     *hist = Histentry::new();
         let htype = history_type as usize;
-        let last = hist_st().HISIDX[htype];
+        let last = hist_st().hisidx[htype];
         if last == -1 {
             return None;
         }
-        let hislen = hist_st().HISLEN as usize;
+        let hislen = hist_st().hislen as usize;
         let last_idx = last as usize;
-        let history = hist_st().HISTORY[htype].as_mut_slice();
+        let history = hist_st().history[htype].as_mut_slice();
 
         let hiter = if let Some(idx) = iter {
             idx
@@ -786,9 +786,9 @@ pub fn hist_get_array(
     init_history();
         let htype = history_type as usize;
         (
-            hist_st().HISTORY[htype].as_mut_slice(),
-            &mut hist_st().HISIDX[htype],
-            &mut hist_st().HISNUM[htype],
+            hist_st().history[htype].as_mut_slice(),
+            &mut hist_st().hisidx[htype],
+            &mut hist_st().hisnum[htype],
         )
 }
 

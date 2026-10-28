@@ -358,7 +358,7 @@ pub fn sizei(i: *const Instruction) -> c_int {
 struct CompileState {
     p: *mut Pattern,
     ncode: c_int,
-    L: *mut lua_State,
+    lstate: *mut lua_State,
 }
 
 fn nextinstruction(compst: &mut CompileState, n: c_int) -> c_int {
@@ -369,7 +369,7 @@ fn nextinstruction(compst: &mut CompileState, n: c_int) -> c_int {
         if ncode > size - n {
             let nsize = (size as LpegUint) + ((size as LpegUint) >> 1) + (n as LpegUint);
             if nsize >= (c_int::MAX as LpegUint) {
-                luaL_error(compst.L, c"pattern code too large".as_ptr());
+                luaL_error(compst.lstate, c"pattern code too large".as_ptr());
             }
             code.resize(nsize as usize, Instruction { offset: 0 });
         }
@@ -937,7 +937,7 @@ fn peephole(compst: &mut CompileState) {
 }
 
 pub fn compile(l: *mut lua_State, p: &mut Pattern, size: LpegUint) -> *mut Instruction {
-    let mut compst = CompileState { p, ncode: 0, L: l };
+    let mut compst = CompileState { p, ncode: 0, lstate: l };
     let init_size = ((size / 2) + 2) as usize;
     p.code = vec![Instruction { offset: 0 }; init_size];
     let tree_ptr = (&raw mut p.tree).cast::<TTree>();

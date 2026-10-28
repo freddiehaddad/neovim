@@ -235,22 +235,22 @@ pub fn default_grid_alloc() -> bool {
         ds_st().default_grid_resizing = true;
 
         if (grid_allocated(&g_st().default_grid)
-            && g_st().Rows == g_st().default_grid.rows
-            && g_st().Columns == g_st().default_grid.cols)
-            || g_st().Rows == 0
-            || g_st().Columns == 0
+            && g_st().rows_global == g_st().default_grid.rows
+            && g_st().columns_global == g_st().default_grid.cols)
+            || g_st().rows_global == 0
+            || g_st().columns_global == 0
         {
             ds_st().default_grid_resizing = false;
             return false;
         }
 
-        grid_alloc(&mut g_st().default_grid, g_st().Rows, g_st().Columns, true, true);
+        grid_alloc(&mut g_st().default_grid, g_st().rows_global, g_st().columns_global, true, true);
 
         stl_clear_click_defs(&mut g_st().tab_page_click_defs);
-        stl_alloc_click_defs(&mut g_st().tab_page_click_defs, g_st().Columns);
+        stl_alloc_click_defs(&mut g_st().tab_page_click_defs, g_st().columns_global);
 
-        g_st().default_grid.comp_height = g_st().Rows;
-        g_st().default_grid.comp_width = g_st().Columns;
+        g_st().default_grid.comp_height = g_st().rows_global;
+        g_st().default_grid.comp_width = g_st().columns_global;
         g_st().default_grid.handle = DEFAULT_GRID_HANDLE;
 
         ds_st().default_grid_resizing = false;
@@ -320,7 +320,7 @@ pub fn screenclear() {
 fn cmdline_number_prompt() -> bool {
     unsafe {
         !ui_has(K_UIMESSAGES)
-            && (g_st().State & MODE_CMDLINE) != 0
+            && (g_st().state_global & MODE_CMDLINE) != 0
             && (*get_cmdline_info()).mouse_used.is_some()
     }
 }
@@ -335,35 +335,35 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
             return;
         }
 
-        if g_st().State == MODE_HITRETURN || g_st().State == MODE_SETWSIZE {
-            g_st().State = MODE_SETWSIZE;
+        if g_st().state_global == MODE_HITRETURN || g_st().state_global == MODE_SETWSIZE {
+            g_st().state_global = MODE_SETWSIZE;
             return;
         }
 
         g_st().resizing_screen = true;
 
-        g_st().Rows = height;
-        g_st().Columns = width;
+        g_st().rows_global = height;
+        g_st().columns_global = width;
         check_screensize();
         if !ui_has(K_UIMESSAGES) {
-            let max_p_ch = OptInt::from(g_st().Rows - min_rows(curtab_mut()) + 1);
+            let max_p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
             if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
                 opt_vars().p_ch = max_p_ch.max(1);
                 curtab_mut().tp_ch_used = opt_vars().p_ch;
             }
             for tp in for_all_tabpages_ptr() {
                 if !ptr::eq(tp, g_st().curtab) {
-                    let max_tp_ch = OptInt::from(g_st().Rows - min_rows(&mut *tp) + 1);
+                    let max_tp_ch = OptInt::from(g_st().rows_global - min_rows(&mut *tp) + 1);
                     if (*tp).tp_ch_used > 0 && (*tp).tp_ch_used > max_tp_ch {
                         (*tp).tp_ch_used = max_tp_ch.max(1);
                     }
                 }
             }
         }
-        height = g_st().Rows;
-        width = g_st().Columns;
-        opt_vars().p_lines = OptInt::from(g_st().Rows);
-        opt_vars().p_columns = OptInt::from(g_st().Columns);
+        height = g_st().rows_global;
+        width = g_st().columns_global;
+        opt_vars().p_lines = OptInt::from(g_st().rows_global);
+        opt_vars().p_columns = OptInt::from(g_st().columns_global);
 
         ui_call_grid_resize(1, Integer::from(width), Integer::from(height));
 
@@ -376,12 +376,12 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
                 ds_st().msg_grid_invalid = true;
             }
 
-            g_st().RedrawingDisabled += 1;
+            g_st().redrawing_disabled += 1;
 
             win_new_screensize();
             comp_col();
 
-            g_st().RedrawingDisabled -= 1;
+            g_st().redrawing_disabled -= 1;
 
             retry_count += 1;
             if retry_count > 3 {
@@ -400,7 +400,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
         ds_st().resizing_autocmd = false;
         redraw_all_later(UPD_CLEAR);
 
-        if g_st().State != MODE_ASKMORE && g_st().State != MODE_EXTERNCMD {
+        if g_st().state_global != MODE_ASKMORE && g_st().state_global != MODE_EXTERNCMD {
             screenclear();
         }
 
@@ -410,11 +410,11 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
             changed_line_abv_curs();
             invalidate_botline_win(curwin_mut());
 
-            if g_st().State == MODE_ASKMORE
-                || g_st().State == MODE_EXTERNCMD
-                || ((g_st().State & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
+            if g_st().state_global == MODE_ASKMORE
+                || g_st().state_global == MODE_EXTERNCMD
+                || ((g_st().state_global & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
             {
-                if (g_st().State & MODE_CMDLINE) != 0 {
+                if (g_st().state_global & MODE_CMDLINE) != 0 {
                     update_screen();
                 }
                 if grid_allocated(&g_st().msg_grid) {
@@ -426,7 +426,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
                 if curwin_mut().w_onebuf_opt.wo_scb != 0 {
                     do_check_scrollbind(true);
                 }
-                if (g_st().State & MODE_CMDLINE) != 0 {
+                if (g_st().state_global & MODE_CMDLINE) != 0 {
                     ds_st().redraw_popupmenu = false;
                     update_screen();
                     redrawcmdline();
@@ -445,7 +445,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
                     }
                 }
             }
-            if g_st().State != MODE_ASKMORE {
+            if g_st().state_global != MODE_ASKMORE {
                 ui_flush();
             }
         }
@@ -454,12 +454,12 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
 }
 
 pub fn check_screensize() {
-    g_st().Rows = g_st().Rows.max(min_rows_for_all_tabpages()).min(1000);
-        g_st().Columns = g_st().Columns.clamp(MIN_COLUMNS, 10000);
+    g_st().rows_global = g_st().rows_global.max(min_rows_for_all_tabpages()).min(1000);
+        g_st().columns_global = g_st().columns_global.clamp(MIN_COLUMNS, 10000);
 }
 
 pub fn redrawing() -> bool {
-    g_st().RedrawingDisabled == 0 && !(opt_vars().p_lz != 0 && char_avail() && !g_st().KeyTyped && !g_st().do_redraw)
+    g_st().redrawing_disabled == 0 && !(opt_vars().p_lz != 0 && char_avail() && !g_st().key_typed && !g_st().do_redraw)
 }
 
 pub fn update_screen() -> bool {
@@ -515,7 +515,7 @@ pub fn update_screen() -> bool {
 
         if g_st().msg_scrolled != 0 || ds_st().msg_grid_invalid {
             g_st().clear_cmdline = true;
-            let valid = (g_st().Rows - msg_scrollsize()).max(0);
+            let valid = (g_st().rows_global - msg_scrollsize()).max(0);
             if grid_allocated(&g_st().msg_grid) {
                 let limit = msg_scrollsize().min(g_st().msg_grid.rows);
                 for i in 0..limit {
@@ -533,11 +533,11 @@ pub fn update_screen() -> bool {
             if type_ == UPD_NOT_VALID && !ui_has(K_UIMULTIGRID) && g_st().msg_scrolled != 0 {
                 was_invalidated = ui_comp_set_screen_valid(false);
                 let mut i = valid;
-                while i < g_st().Rows - (opt_vars().p_ch as c_int) {
+                while i < g_st().rows_global - (opt_vars().p_ch as c_int) {
                     grid_clear_line(
                         &mut g_st().default_grid,
                         g_st().default_grid.line_offset[i as usize],
-                        g_st().Columns,
+                        g_st().columns_global,
                         false,
                     );
                     i += 1;
@@ -552,11 +552,11 @@ pub fn update_screen() -> bool {
                         }
                     }
                 }
-                if is_stl_global && g_st().Rows - (opt_vars().p_ch as c_int) - 1 > valid {
+                if is_stl_global && g_st().rows_global - (opt_vars().p_ch as c_int) - 1 > valid {
                     curwin_mut().w_redr_status = true;
                 }
             }
-            msg_grid_set_pos(g_st().Rows - (opt_vars().p_ch as c_int), false);
+            msg_grid_set_pos(g_st().rows_global - (opt_vars().p_ch as c_int), false);
             ds_st().msg_grid_invalid = false;
             if was_invalidated {
                 ui_comp_set_screen_valid(true);
@@ -592,10 +592,10 @@ pub fn update_screen() -> bool {
         if type_ == UPD_NOT_VALID && g_st().clear_cmdline && !ui_has(K_UIMESSAGES) {
             grid_clear(
                 &raw mut g_st().default_gridview,
-                g_st().Rows - (opt_vars().p_ch as c_int),
-                g_st().Rows,
+                g_st().rows_global - (opt_vars().p_ch as c_int),
+                g_st().rows_global,
                 0,
-                g_st().Columns,
+                g_st().columns_global,
                 0,
             );
         }
@@ -726,7 +726,7 @@ pub fn update_screen() -> bool {
         if pum_drawn() && g_st().must_redraw_pum {
             win_check_ns_hl(Some(crate::globals::curwin_mut()));
             pum_redraw();
-        } else if (g_st().State & MODE_CMDLINE) != 0 {
+        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
             pum_check_clear();
         }
 
@@ -769,7 +769,7 @@ pub fn update_screen() -> bool {
 }
 
 pub fn start_search_hl() {
-    if opt_vars().p_hls == 0 || g_st().Search.no_hlsearch {
+    if opt_vars().p_hls == 0 || g_st().search_global.no_hlsearch {
             return;
         }
 
@@ -829,7 +829,7 @@ pub fn show_cursor_info_later(force: bool) {
     unsafe {
         let state = get_real_state();
         let empty_line = c_int::from(
-            (g_st().State & MODE_INSERT) == 0
+            (g_st().state_global & MODE_INSERT) == 0
                 && *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) == NUL,
         );
 
@@ -845,11 +845,11 @@ pub fn show_cursor_info_later(force: bool) {
             || (empty_line as c_char) != curwin_mut().w_stl_empty
             || g_st().reg_recording != curwin_mut().w_stl_recording
             || state != curwin_mut().w_stl_state
-            || (g_st().Visual.active
-                && (g_st().Visual.mode != curwin_mut().w_stl_visual_mode
-                    || g_st().Visual.start.lnum != curwin_mut().w_stl_visual_pos.lnum
-                    || g_st().Visual.start.col != curwin_mut().w_stl_visual_pos.col
-                    || g_st().Visual.start.coladd != curwin_mut().w_stl_visual_pos.coladd))
+            || (g_st().visual_global.active
+                && (g_st().visual_global.mode != curwin_mut().w_stl_visual_mode
+                    || g_st().visual_global.start.lnum != curwin_mut().w_stl_visual_pos.lnum
+                    || g_st().visual_global.start.col != curwin_mut().w_stl_visual_pos.col
+                    || g_st().visual_global.start.coladd != curwin_mut().w_stl_visual_pos.coladd))
         {
             if curwin_mut().w_status_height != 0 || global_stl_height() != 0 {
                 curwin_mut().w_redr_status = true;
@@ -872,15 +872,15 @@ pub fn show_cursor_info_later(force: bool) {
         curwin_mut().w_stl_topfill = curwin_mut().w_topfill;
         curwin_mut().w_stl_recording = g_st().reg_recording;
         curwin_mut().w_stl_state = state;
-        if g_st().Visual.active {
-            curwin_mut().w_stl_visual_mode = g_st().Visual.mode;
-            curwin_mut().w_stl_visual_pos = g_st().Visual.start;
+        if g_st().visual_global.active {
+            curwin_mut().w_stl_visual_mode = g_st().visual_global.mode;
+            curwin_mut().w_stl_visual_pos = g_st().visual_global.start;
         }
     }
 }
 
 pub fn skip_showmode() -> bool {
-    if g_st().global_busy != 0 || g_st().msg_silent != 0 || !redrawing() || (char_avail() && !g_st().KeyTyped) {
+    if g_st().global_busy != 0 || g_st().msg_silent != 0 || !redrawing() || (char_avail() && !g_st().key_typed) {
             g_st().redraw_mode = true;
             return true;
         }
@@ -895,10 +895,10 @@ pub fn showmode() -> c_int {
         msg_grid_validate();
 
         let do_mode = (opt_vars().p_smd != 0 && g_st().msg_silent == 0)
-            && ((g_st().State & MODE_TERMINAL) != 0
-                || (g_st().State & MODE_INSERT) != 0
+            && ((g_st().state_global & MODE_TERMINAL) != 0
+                || (g_st().state_global & MODE_INSERT) != 0
                 || g_st().restart_edit != 0
-                || g_st().Visual.active);
+                || g_st().visual_global.active);
 
         let can_show_mode = opt_vars().p_ch != 0 || ui_has(K_UIMESSAGES);
         if (do_mode || g_st().reg_recording != 0) && can_show_mode {
@@ -910,7 +910,7 @@ pub fn showmode() -> c_int {
             msg_check_for_delay(false);
 
             let mut need_clear = g_st().clear_cmdline;
-            if g_st().clear_cmdline && g_st().cmdline_row < g_st().Rows - 1 {
+            if g_st().clear_cmdline && g_st().cmdline_row < g_st().rows_global - 1 {
                 msg_clr_cmdline();
             }
 
@@ -927,7 +927,7 @@ pub fn showmode() -> c_int {
                     length = if ui_has(K_UIMESSAGES) {
                         c_int::MAX
                     } else {
-                        (g_st().Rows - g_st().msg_row) * g_st().Columns - 3
+                        (g_st().rows_global - g_st().msg_row) * g_st().columns_global - 3
                     };
                     if !g_st().edit_submode_extra.is_null() {
                         length -= vim_strsize(g_st().edit_submode_extra);
@@ -953,13 +953,13 @@ pub fn showmode() -> c_int {
                         }
                     }
                 } else {
-                    if (g_st().State & MODE_TERMINAL) != 0 {
+                    if (g_st().state_global & MODE_TERMINAL) != 0 {
                         msg_puts_hl(gettext(c" TERMINAL"), hl_id, false);
-                    } else if (g_st().State & VREPLACE_FLAG) != 0 {
+                    } else if (g_st().state_global & VREPLACE_FLAG) != 0 {
                         msg_puts_hl(gettext(c" VREPLACE"), hl_id, false);
-                    } else if (g_st().State & REPLACE_FLAG) != 0 {
+                    } else if (g_st().state_global & REPLACE_FLAG) != 0 {
                         msg_puts_hl(gettext(c" REPLACE"), hl_id, false);
-                    } else if (g_st().State & MODE_INSERT) != 0 {
+                    } else if (g_st().state_global & MODE_INSERT) != 0 {
                         if opt_vars().p_ri != 0 {
                             msg_puts_hl(gettext(c" REVERSE"), hl_id, false);
                         }
@@ -979,27 +979,27 @@ pub fn showmode() -> c_int {
                     } else if g_st().restart_edit == c_int::from(b'V') {
                         msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
                     }
-                    if (g_st().State & MODE_LANGMAP) != 0 {
+                    if (g_st().state_global & MODE_LANGMAP) != 0 {
                         if curwin_mut().w_onebuf_opt.wo_arab != 0 {
                             msg_puts_hl(gettext(c" Arabic"), hl_id, false);
                         } else if get_keymap_str(
                             curwin_mut(),
                             c" (%s)",
-                            g_st().NameBuff.as_mut_ptr(),
+                            g_st().name_buff.as_mut_ptr(),
                             MAXPATHL as c_int,
                         ) > 0
                         {
-                            msg_puts_hl(g_st().NameBuff.as_ptr(), hl_id, false);
+                            msg_puts_hl(g_st().name_buff.as_ptr(), hl_id, false);
                         }
                     }
-                    if (g_st().State & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {
+                    if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {
                         msg_puts_hl(gettext(c" (paste)"), hl_id, false);
                     }
 
-                    if g_st().Visual.active {
-                        let code = (if g_st().Visual.select { 4 } else { 0 })
-                            + (if g_st().Visual.mode == CTRL_V_CONST { 2 } else { 0 })
-                            + (if g_st().Visual.mode == c_int::from(b'V') {
+                    if g_st().visual_global.active {
+                        let code = (if g_st().visual_global.select { 4 } else { 0 })
+                            + (if g_st().visual_global.mode == CTRL_V_CONST { 2 } else { 0 })
+                            + (if g_st().visual_global.mode == c_int::from(b'V') {
                                 1
                             } else {
                                 0
@@ -1043,7 +1043,7 @@ pub fn showmode() -> c_int {
 
         msg_ext_flush_showmode();
 
-        if g_st().Visual.active {
+        if g_st().visual_global.active {
             clear_showcmd();
         }
 
@@ -1058,11 +1058,11 @@ pub fn showmode() -> c_int {
 
 fn msg_pos_mode() {
     g_st().msg_col = 0;
-        g_st().msg_row = g_st().Rows - 1;
+        g_st().msg_row = g_st().rows_global - 1;
 }
 
 pub fn unshowmode(force: bool) {
-    if !redrawing() || (!force && char_avail() && !g_st().KeyTyped) {
+    if !redrawing() || (!force && char_avail() && !g_st().key_typed) {
             g_st().redraw_cmdline = true;
         } else {
             clearmode();
@@ -1118,10 +1118,10 @@ pub fn comp_col() {
                 g_st().sc_col += 1;
             }
         }
-        assert!(g_st().sc_col >= 0 && c_int::MIN + g_st().sc_col <= g_st().Columns);
-        g_st().sc_col = g_st().Columns - g_st().sc_col;
-        assert!(g_st().ru_col >= 0 && c_int::MIN + g_st().ru_col <= g_st().Columns);
-        g_st().ru_col = g_st().Columns - g_st().ru_col;
+        assert!(g_st().sc_col >= 0 && c_int::MIN + g_st().sc_col <= g_st().columns_global);
+        g_st().sc_col = g_st().columns_global - g_st().sc_col;
+        assert!(g_st().ru_col >= 0 && c_int::MIN + g_st().ru_col <= g_st().columns_global);
+        g_st().ru_col = g_st().columns_global - g_st().ru_col;
         if g_st().sc_col <= 0 {
             g_st().sc_col = 1;
         }
@@ -1370,7 +1370,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
 
 fn win_update(wp: &mut WinInfoInfo) {
     unsafe {
-        if ptr::eq(wp.w_grid.target, &raw mut g_st().default_grid) && wp.w_wincol >= g_st().Columns {
+        if ptr::eq(wp.w_grid.target, &raw mut g_st().default_grid) && wp.w_wincol >= g_st().columns_global {
             return;
         }
 
@@ -1730,21 +1730,21 @@ fn win_update(wp: &mut WinInfoInfo) {
             type_ = UPD_NOT_VALID;
         }
 
-        if (g_st().Visual.active && ptr::eq(buf, curwin_mut().w_buffer))
+        if (g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer))
             || (wp.w_old_cursor_lnum != 0 && type_ != UPD_NOT_VALID)
         {
             let mut from: Linenr;
             let mut to: Linenr;
 
-            if g_st().Visual.active {
-                if g_st().Visual.mode != c_int::from(wp.w_old_visual_mode as u8)
+            if g_st().visual_global.active {
+                if g_st().visual_global.mode != c_int::from(wp.w_old_visual_mode as u8)
                     || type_ == UPD_INVERTED_ALL
                 {
-                    if curwin_mut().w_cursor.lnum < g_st().Visual.start.lnum {
+                    if curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum {
                         from = curwin_mut().w_cursor.lnum;
-                        to = g_st().Visual.start.lnum;
+                        to = g_st().visual_global.start.lnum;
                     } else {
-                        from = g_st().Visual.start.lnum;
+                        from = g_st().visual_global.start.lnum;
                         to = curwin_mut().w_cursor.lnum;
                     }
                     from = from
@@ -1763,23 +1763,23 @@ fn win_update(wp: &mut WinInfoInfo) {
                         }
                     }
 
-                    if g_st().Visual.start.lnum != wp.w_old_visual_lnum
-                        || g_st().Visual.start.col != wp.w_old_visual_col
+                    if g_st().visual_global.start.lnum != wp.w_old_visual_lnum
+                        || g_st().visual_global.start.col != wp.w_old_visual_col
                     {
                         if wp.w_old_visual_lnum < from && wp.w_old_visual_lnum != 0 {
                             from = wp.w_old_visual_lnum;
                         }
-                        to = to.max(wp.w_old_visual_lnum).max(g_st().Visual.start.lnum);
-                        from = from.min(g_st().Visual.start.lnum);
+                        to = to.max(wp.w_old_visual_lnum).max(g_st().visual_global.start.lnum);
+                        from = from.min(g_st().visual_global.start.lnum);
                     }
                 }
 
-                if g_st().Visual.mode == CTRL_V_CONST {
+                if g_st().visual_global.mode == CTRL_V_CONST {
                     let mut fromc: Colnr = 0;
                     let mut toc: Colnr = 0;
                     getvcols(
                         &raw mut *wp,
-                        &mut g_st().Visual.start,
+                        &mut g_st().visual_global.start,
                         &mut curwin_mut().w_cursor,
                         &mut fromc,
                         &mut toc,
@@ -1788,7 +1788,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     toc += 1;
                     if curwin_mut().w_curswant == MAXCOL {
                         if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {
-                            let cursor_above = curwin_mut().w_cursor.lnum < g_st().Visual.start.lnum;
+                            let cursor_above = curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum;
                             toc = 0;
                             let mut pos = CursorPos {
                                 lnum: curwin_mut().w_cursor.lnum,
@@ -1796,9 +1796,9 @@ fn win_update(wp: &mut WinInfoInfo) {
                                 coladd: 0,
                             };
                             while if cursor_above {
-                                pos.lnum <= g_st().Visual.start.lnum
+                                pos.lnum <= g_st().visual_global.start.lnum
                             } else {
-                                pos.lnum >= g_st().Visual.start.lnum
+                                pos.lnum >= g_st().visual_global.start.lnum
                             } {
                                 let mut t: Colnr = 0;
                                 pos.col = ml_get_buf_len(wp.buf_mut(), pos.lnum);
@@ -1820,8 +1820,8 @@ fn win_update(wp: &mut WinInfoInfo) {
                     }
 
                     if fromc != wp.w_old_cursor_fcol || toc != wp.w_old_cursor_lcol {
-                        from = from.min(g_st().Visual.start.lnum);
-                        to = to.max(g_st().Visual.start.lnum);
+                        from = from.min(g_st().visual_global.start.lnum);
+                        to = to.max(g_st().visual_global.start.lnum);
                     }
                     wp.w_old_cursor_fcol = fromc;
                     wp.w_old_cursor_lcol = toc;
@@ -1874,11 +1874,11 @@ fn win_update(wp: &mut WinInfoInfo) {
             }
         }
 
-        if g_st().Visual.active && ptr::eq(buf, curwin_mut().w_buffer) {
-            wp.w_old_visual_mode = g_st().Visual.mode as c_char;
+        if g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer) {
+            wp.w_old_visual_mode = g_st().visual_global.mode as c_char;
             wp.w_old_cursor_lnum = curwin_mut().w_cursor.lnum;
-            wp.w_old_visual_lnum = g_st().Visual.start.lnum;
-            wp.w_old_visual_col = g_st().Visual.start.col;
+            wp.w_old_visual_lnum = g_st().visual_global.start.lnum;
+            wp.w_old_visual_col = g_st().visual_global.start.col;
             wp.w_old_curswant = curwin_mut().w_curswant;
         } else {
             wp.w_old_visual_mode = 0;
@@ -2788,11 +2788,11 @@ pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
         }
         let c = if (get_real_state() & MODE_VISUAL) != 0 {
             c_int::from(b'v')
-        } else if (g_st().State & MODE_INSERT) != 0 {
+        } else if (g_st().state_global & MODE_INSERT) != 0 {
             c_int::from(b'i')
-        } else if (g_st().State & MODE_NORMAL) != 0 {
+        } else if (g_st().state_global & MODE_NORMAL) != 0 {
             c_int::from(b'n')
-        } else if (g_st().State & MODE_CMDLINE) != 0 {
+        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
             c_int::from(b'c')
         } else {
             return false;

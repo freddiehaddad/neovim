@@ -81,8 +81,8 @@ struct VTermTestState {
     want_state_settermprop: bool,
     want_state_scrollback: bool,
     want_screen_scrollback: bool,
-    STATE_PEN: StatePenRecord,
-    TEST_VT: Option<Box<std::cell::UnsafeCell<crate::vterm::mouse::VTerm>>>,
+    state_pen: StatePenRecord,
+    test_vt: Option<Box<std::cell::UnsafeCell<crate::vterm::mouse::VTerm>>>,
 }
 
 impl VTermTestState {
@@ -97,7 +97,7 @@ impl VTermTestState {
             want_state_settermprop: false,
             want_state_scrollback: false,
             want_screen_scrollback: false,
-            STATE_PEN: StatePenRecord {
+            state_pen: StatePenRecord {
                 bold: 0,
                 underline: 0,
                 italic: 0,
@@ -113,7 +113,7 @@ impl VTermTestState {
                 foreground: VTermColor { bytes: [0; 4] },
                 background: VTermColor { bytes: [0; 4] },
             },
-            TEST_VT: None,
+            test_vt: None,
         }
     }
 }
@@ -541,20 +541,20 @@ pub fn state_setpenattr(
     _user: *mut VTermScreen,
 ) -> c_int {
     match attr {
-            VTERM_ATTR_BOLD => vtt_st().STATE_PEN.bold = val.boolean(),
-            VTERM_ATTR_UNDERLINE => vtt_st().STATE_PEN.underline = val.number(),
-            VTERM_ATTR_ITALIC => vtt_st().STATE_PEN.italic = val.boolean(),
-            VTERM_ATTR_BLINK => vtt_st().STATE_PEN.blink = val.boolean(),
-            VTERM_ATTR_REVERSE => vtt_st().STATE_PEN.reverse = val.boolean(),
-            VTERM_ATTR_CONCEAL => vtt_st().STATE_PEN.conceal = val.boolean(),
-            VTERM_ATTR_STRIKE => vtt_st().STATE_PEN.strike = val.boolean(),
-            VTERM_ATTR_FONT => vtt_st().STATE_PEN.font = val.number(),
-            VTERM_ATTR_SMALL => vtt_st().STATE_PEN.small = val.boolean(),
-            VTERM_ATTR_BASELINE => vtt_st().STATE_PEN.baseline = val.number(),
-            VTERM_ATTR_DIM => vtt_st().STATE_PEN.dim = val.boolean(),
-            VTERM_ATTR_OVERLINE => vtt_st().STATE_PEN.overline = val.boolean(),
-            VTERM_ATTR_FOREGROUND => vtt_st().STATE_PEN.foreground = val.color(),
-            VTERM_ATTR_BACKGROUND => vtt_st().STATE_PEN.background = val.color(),
+            VTERM_ATTR_BOLD => vtt_st().state_pen.bold = val.boolean(),
+            VTERM_ATTR_UNDERLINE => vtt_st().state_pen.underline = val.number(),
+            VTERM_ATTR_ITALIC => vtt_st().state_pen.italic = val.boolean(),
+            VTERM_ATTR_BLINK => vtt_st().state_pen.blink = val.boolean(),
+            VTERM_ATTR_REVERSE => vtt_st().state_pen.reverse = val.boolean(),
+            VTERM_ATTR_CONCEAL => vtt_st().state_pen.conceal = val.boolean(),
+            VTERM_ATTR_STRIKE => vtt_st().state_pen.strike = val.boolean(),
+            VTERM_ATTR_FONT => vtt_st().state_pen.font = val.number(),
+            VTERM_ATTR_SMALL => vtt_st().state_pen.small = val.boolean(),
+            VTERM_ATTR_BASELINE => vtt_st().state_pen.baseline = val.number(),
+            VTERM_ATTR_DIM => vtt_st().state_pen.dim = val.boolean(),
+            VTERM_ATTR_OVERLINE => vtt_st().state_pen.overline = val.boolean(),
+            VTERM_ATTR_FOREGROUND => vtt_st().state_pen.foreground = val.color(),
+            VTERM_ATTR_BACKGROUND => vtt_st().state_pen.background = val.color(),
             VTERM_N_ATTRS => return 0,
             _ => {}
         }
@@ -1032,7 +1032,7 @@ mod tests {
             vtt_st().want_screen_scrollback = false;
             let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
             let vt = &mut *cell.get();
-            vtt_st().TEST_VT = Some(cell);
+            vtt_st().test_vt = Some(cell);
             vterm_output_set_callback(vt, Some(term_output), ptr::null_mut());
             vterm_set_utf8(vt, 1);
             vt
@@ -1040,7 +1040,7 @@ mod tests {
     }
 
     fn vterm_free(_vt: &mut VTerm) {
-        vtt_st().TEST_VT = None;
+        vtt_st().test_vt = None;
     }
 
     fn wantparser(vt: &mut VTerm) {
