@@ -1,7 +1,7 @@
 //! Window related builtin functions (`src/nvim/eval/window.c`).
 
 use crate::buffer::{bt_cmdwin, bt_quickfix, bt_terminal, first_win_in_tab};
-use crate::charset::{NUL, getdigits_int};
+use crate::charset::getdigits_int;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::errors::*;
@@ -342,7 +342,7 @@ fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
                     if count <= 0 {
                         count = 1;
                     }
-                    if !endp.is_null() && *endp != NUL {
+                    if !crate::memory::cstr_is_empty(endp) {
                         let tail = crate::memory::cstr_as_bytes(endp);
                         if tail == b"j" {
                             twin = win_vert_neighbor(tp, &mut *twin, false, count);

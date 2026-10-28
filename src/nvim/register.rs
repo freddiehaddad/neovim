@@ -700,8 +700,8 @@ fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> Vec<c_c
         while cmd_start > 0 {
             cmd_start -= 1;
             let p = skipwhite((*lines.add(cmd_start)).data);
-            if *p != b'\\' as c_char
-                && (*p != b'"' as c_char
+            if crate::memory::cstr_first_byte(p) != b'\\'
+                && (crate::memory::cstr_first_byte(p) != b'"'
                     || *p.add(1) != b'\\' as c_char
                     || *p.add(2) != b' ' as c_char)
             {
@@ -716,7 +716,7 @@ fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> Vec<c_c
         for j in (cmd_start + 1)..=cmd_end {
             tmp = lines.add(j);
             let mut p = skipwhite((*tmp).data);
-            if *p == b'\\' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'\\' {
                 p = p.add(1);
                 let rem = ((*tmp).data as usize + (*tmp).size) - (p as usize);
                 if rem > 0 {
@@ -810,8 +810,8 @@ pub fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent: c_int)
                 let cont_vec: Vec<c_char>;
                 if colon != 0 && i > 0 {
                     let p = skipwhite(str_);
-                    if *p == b'\\' as c_char
-                        || (*p == b'"' as c_char
+                    if crate::memory::cstr_first_byte(p) == b'\\'
+                        || (crate::memory::cstr_first_byte(p) == b'"'
                             && *p.add(1) == b'\\' as c_char
                             && *p.add(2) == b' ' as c_char)
                     {
@@ -1631,7 +1631,7 @@ pub fn do_put(
                     stuffReadbuff(c"j0");
                 } else {
                     let cursor_pos = get_cursor_pos_ptr();
-                    let one_past_line = *cursor_pos == NUL;
+                    let one_past_line = crate::memory::cstr_is_empty(cursor_pos);
                     let mut eol = false;
                     if !one_past_line {
                         eol = *cursor_pos.add(utfc_ptr2len(cursor_pos) as usize) == NUL;
@@ -1704,7 +1704,7 @@ pub fn do_put(
                         });
                         ptrlen -= item_size + 1;
                         tmp = tmp.add(1);
-                        if *tmp == NUL {
+                        if crate::memory::cstr_is_empty(tmp) {
                             y_type = MotionType::kMTLineWise;
                             break;
                         }
@@ -1763,7 +1763,7 @@ pub fn do_put(
                     let mut p = get_cursor_pos_ptr();
                     let p_orig = p;
                     let plen = get_cursor_pos_len() as usize;
-                    if dir == FORWARD && *p != NUL {
+                    if dir == FORWARD && !crate::memory::cstr_is_empty(p) {
                         p = p.add(utfc_ptr2len(p) as usize);
                     }
                     split_pos = ((p as usize) - (curline as usize)) as colnr_T;
@@ -1955,7 +1955,7 @@ pub fn do_put(
                         init_charsize_arg(&mut csarg, curwin_mut(), curwin_mut().w_cursor.lnum, oldp);
                     let mut ci = utf_ptr2StrCharInfo(oldp);
                     vcol = 0;
-                    while vcol < col && *ci.ptr != NUL {
+                    while vcol < col && !crate::memory::cstr_is_empty(ci.ptr) {
                         let cli = utf_ClusterInfo(ci);
                         incr = win_charsize(
                             cstype,
@@ -1972,7 +1972,7 @@ pub fn do_put(
                     let mut ptr_ = ci.ptr.cast_mut();
                     bd.textcol = ((ptr_ as usize) - (oldp as usize)) as colnr_T;
 
-                    let shortline = (vcol < col) || (vcol == col && *ptr_ == NUL);
+                    let shortline = (vcol < col) || (vcol == col && crate::memory::cstr_is_empty(ptr_));
 
                     if vcol < col {
                         bd.startspaces = col - vcol;
@@ -1996,7 +1996,7 @@ pub fn do_put(
                         cstype =
                             init_charsize_arg(&mut csarg, curwin_mut(), 0, (*y_array.add(i)).data);
                         ci = utf_ptr2StrCharInfo((*y_array.add(i)).data);
-                        while *ci.ptr != NUL {
+                        while !crate::memory::cstr_is_empty(ci.ptr) {
                             let cli = utf_ClusterInfo(ci);
                             spaces -= win_charsize(
                                 cstype,
@@ -2281,8 +2281,8 @@ pub fn do_put(
                                     if cnt == count && i == y_size - 1 {
                                         lendiff = ml_get_len(lnum);
                                     }
-                                    let indent = if (*ptr_ == b'#' as c_char && preprocs_left())
-                                        || *ptr_ == NUL
+                                    let indent = if (crate::memory::cstr_first_byte(ptr_) == b'#' && preprocs_left())
+                                        || crate::memory::cstr_is_empty(ptr_)
                                     {
                                         0
                                     } else if first_indent {
@@ -2481,7 +2481,7 @@ pub fn do_put(
 fn dis_msg(mut p: *const c_char, skip_esc: bool) {
     unsafe {
         let mut n = g_st().Columns - 6;
-        while *p != NUL && !(*p == ESC && skip_esc && *p.add(1) == NUL) {
+        while !crate::memory::cstr_is_empty(p) && !(*p == ESC && skip_esc && *p.add(1) == NUL) {
             n -= ptr2cells(p);
             if n < 0 {
                 break;
@@ -2502,7 +2502,7 @@ fn dis_msg(mut p: *const c_char, skip_esc: bool) {
 pub fn ex_display(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
-        if !arg.is_null() && *arg == NUL {
+        if !arg.is_null() && crate::memory::cstr_is_empty(arg) {
             arg = ptr::null_mut();
         }
         let hl_id = HLF_8;
@@ -2572,7 +2572,7 @@ pub fn ex_display(eap: &mut exarg_T) {
                             n -= 2;
                         }
                         let mut p: *const c_char = yb_ref.y_array[j].data;
-                        while *p != NUL {
+                        while !crate::memory::cstr_is_empty(p) {
                             n -= ptr2cells(p);
                             if n < 0 {
                                 break;

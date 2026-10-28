@@ -1072,7 +1072,7 @@ pub fn preserve_exit(errmsg: impl crate::strings::IntoCCharPtr) -> ! {
             ui_client_stop();
         }
         let stderr = log_get_stderr();
-        if !errmsg.is_null() && *errmsg != NUL {
+        if !crate::memory::cstr_is_empty(errmsg) {
             let bytes = crate::memory::cstr_as_bytes(errmsg);
             let has_eol = bytes.last() == Some(&b'\n');
             fprintf!(
@@ -1350,7 +1350,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
 
         while argc > 0 {
             let arg0 = *argv;
-            if *arg0 == b'+' as c_char && !had_minmin {
+            if crate::memory::cstr_first_byte(arg0) == b'+' && !had_minmin {
                 if parmp.commands.len() >= MAX_ARG_CMDS {
                     mainerr(ERR_EXTRA_CMD, ptr::null(), ptr::null());
                 }
@@ -1362,7 +1362,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         .commands
                         .push(crate::memory::cstr_to_cstring(arg0.add(1)));
                 }
-            } else if *arg0 == b'-' as c_char && !had_minmin {
+            } else if crate::memory::cstr_first_byte(arg0) == b'-' && !had_minmin {
                 let mut want_argument = false;
                 let c = *arg0.add(argv_idx as usize) as u8;
                 argv_idx += 1;
@@ -1437,7 +1437,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         } else if strnicmp_ascii(sub, b"luamod-dev") {
                             g_st().nlua_disable_preload = true;
                         } else {
-                            if *sub != NUL {
+                            if !crate::memory::cstr_is_empty(sub) {
                                 mainerr(ERR_OPT_UNKNOWN, arg0, ptr::null());
                             }
                             had_minmin = true;
@@ -1614,7 +1614,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             if c == b'S' {
                                 let a: *const c_char = if argc < 1 {
                                     c"Session.vim".as_ptr()
-                                } else if *cur_arg == b'-' as c_char {
+                                } else if crate::memory::cstr_first_byte(cur_arg) == b'-' {
                                     argc += 1;
                                     argv = argv.sub(1);
                                     c"Session.vim".as_ptr()

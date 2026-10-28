@@ -138,13 +138,13 @@ pub fn tabstop_set(
     unsafe {
         let mut valcount: usize = 1;
 
-        if *var == NUL || (*var == b'0' as c_char && *var.add(1) == NUL) {
+        if crate::memory::cstr_is_empty(var) || (crate::memory::cstr_first_byte(var) == b'0' && *var.add(1) == NUL) {
             array.clear();
             return ptr::null();
         }
 
         let mut cp = var;
-        while *cp != NUL {
+        while !crate::memory::cstr_is_empty(cp) {
             if cp == var || *cp.sub(1) == b',' as c_char {
                 let mut end = cp;
                 if getdigits(&raw mut end, false, 1) <= 0 {
@@ -160,7 +160,7 @@ pub fn tabstop_set(
                 cp = cp.add(1);
                 continue;
             }
-            if *cp == b',' as c_char
+            if crate::memory::cstr_first_byte(cp) == b','
                 && cp > var
                 && *cp.sub(1) != b',' as c_char
                 && *cp.add(1) != NUL
@@ -174,7 +174,7 @@ pub fn tabstop_set(
 
         let mut out = Vec::with_capacity(valcount);
         cp = var;
-        while *cp != NUL {
+        while !crate::memory::cstr_is_empty(cp) {
             let n = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(cp)) as c_int;
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
@@ -182,10 +182,10 @@ pub fn tabstop_set(
                 return opt_error(errbuf, e_invarg2, var);
             }
             out.push(n);
-            while *cp != NUL && *cp != b',' as c_char {
+            while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b',' {
                 cp = cp.add(1);
             }
-            if *cp != NUL {
+            if !crate::memory::cstr_is_empty(cp) {
                 cp = cp.add(1);
             }
         }
@@ -556,7 +556,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
         }
 
         while todo > 0 {
-            if *p != b' ' as c_char {
+            if crate::memory::cstr_first_byte(p) != b' ' {
                 doit = true;
             } else {
                 p = p.add(1);
@@ -967,7 +967,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
                     || !std::ptr::fn_addr_eq(how, get_lisp_indent as Indenter)
                 {
                     let l = skipwhite(get_cursor_line_ptr());
-                    let amount = if *l == NUL { 0 } else { how() };
+                    let amount = if crate::memory::cstr_is_empty(l) { 0 } else { how() };
                     if amount >= 0 && set_indent(amount, 0) {
                         if first_changed == 0 {
                             first_changed = curwin_mut().w_cursor.lnum;
@@ -1100,7 +1100,7 @@ pub fn ins_try_si(c: c_int) {
                     while curwin_mut().w_cursor.lnum > 1 {
                         curwin_mut().w_cursor.lnum -= 1;
                         let ptr = skipwhite(ml_get(curwin_mut().w_cursor.lnum));
-                        if *ptr != b'#' as c_char && *ptr != NUL {
+                        if crate::memory::cstr_first_byte(ptr) != b'#' && !crate::memory::cstr_is_empty(ptr) {
                             break;
                         }
                     }
@@ -1192,7 +1192,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
             new_cursor_col = 0;
             let line = get_cursor_line_ptr();
             vcol = 0;
-            if *line != NUL {
+            if !crate::memory::cstr_is_empty(line) {
                 let mut csarg = CharsizeArg::new();
                 let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line);
                 let mut ci: StrCharInfo = utf_ptr2StrCharInfo(line);
@@ -1213,7 +1213,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
                     }
                     vcol = next_vcol;
                     ci = cli.next;
-                    if *ci.ptr == NUL {
+                    if crate::memory::cstr_is_empty(ci.ptr) {
                         break;
                     }
                 }
@@ -1428,7 +1428,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
             emsg(gettext(errmsg));
             return;
         }
-        while ascii_isdigit(*ptr) || *ptr == b',' as c_char {
+        while ascii_isdigit(*ptr) || crate::memory::cstr_first_byte(ptr) == b',' {
             ptr = ptr.add(1);
         }
 
@@ -1680,8 +1680,8 @@ pub fn get_lisp_indent() -> c_int {
                 }
 
                 let mut that = get_cursor_line_ptr();
-                while *that != NUL {
-                    if *that == b';' as c_char {
+                while !crate::memory::cstr_is_empty(that) {
+                    if crate::memory::cstr_first_byte(that) == b';' {
                         while *that.add(1) != NUL {
                             that = that.add(1);
                         }
@@ -1689,7 +1689,7 @@ pub fn get_lisp_indent() -> c_int {
                         continue;
                     }
 
-                    if *that == b'\\' as c_char {
+                    if crate::memory::cstr_first_byte(that) == b'\\' {
                         if *that.add(1) != NUL {
                             that = that.add(1);
                         }
@@ -1697,15 +1697,15 @@ pub fn get_lisp_indent() -> c_int {
                         continue;
                     }
 
-                    if *that == b'"' as c_char && *that.add(1) != NUL {
+                    if crate::memory::cstr_first_byte(that) == b'"' && *that.add(1) != NUL {
                         loop {
                             that = that.add(1);
-                            if *that == NUL || *that == b'"' as c_char {
+                            if crate::memory::cstr_is_empty(that) || crate::memory::cstr_first_byte(that) == b'"' {
                                 break;
                             }
-                            if *that == b'\\' as c_char {
+                            if crate::memory::cstr_first_byte(that) == b'\\' {
                                 that = that.add(1);
-                                if *that == NUL {
+                                if crate::memory::cstr_is_empty(that) {
                                     break;
                                 }
                                 if *that.add(1) == NUL {
@@ -1714,13 +1714,13 @@ pub fn get_lisp_indent() -> c_int {
                                 }
                             }
                         }
-                        if *that == NUL {
+                        if crate::memory::cstr_is_empty(that) {
                             break;
                         }
                     }
-                    if *that == b'(' as c_char || *that == b'[' as c_char {
+                    if crate::memory::cstr_first_byte(that) == b'(' || crate::memory::cstr_first_byte(that) == b'[' {
                         parencount += 1;
-                    } else if *that == b')' as c_char || *that == b']' as c_char {
+                    } else if crate::memory::cstr_first_byte(that) == b')' || crate::memory::cstr_first_byte(that) == b']' {
                         parencount -= 1;
                     }
                     that = that.add(1);
@@ -1743,7 +1743,7 @@ pub fn get_lisp_indent() -> c_int {
 
                 let mut sci: StrCharInfo = utf_ptr2StrCharInfo(line);
                 amount = 0;
-                while *sci.ptr != NUL && col > 0 {
+                while !crate::memory::cstr_is_empty(sci.ptr) && col > 0 {
                     let cli: ClusterInfo = utf_ClusterInfo(sci);
                     amount += win_charsize(
                         cstype,
@@ -1759,10 +1759,10 @@ pub fn get_lisp_indent() -> c_int {
                 }
                 let mut that = sci.ptr;
 
-                if (*that == b'(' as c_char || *that == b'[' as c_char) && lisp_match(that.add(1)) {
+                if (crate::memory::cstr_first_byte(that) == b'(' || crate::memory::cstr_first_byte(that) == b'[') && lisp_match(that.add(1)) {
                     amount += 2;
                 } else {
-                    if *that != NUL {
+                    if !crate::memory::cstr_is_empty(that) {
                         that = that.add(1);
                         amount += 1;
                     }
@@ -1781,8 +1781,8 @@ pub fn get_lisp_indent() -> c_int {
                         that = that.add(1);
                     }
 
-                    if *that != NUL && *that != b';' as c_char {
-                        if *that != b'(' as c_char && *that != b'[' as c_char {
+                    if !crate::memory::cstr_is_empty(that) && crate::memory::cstr_first_byte(that) != b';' {
+                        if crate::memory::cstr_first_byte(that) != b'(' && crate::memory::cstr_first_byte(that) != b'[' {
                             firsttry += 1;
                         }
 
@@ -1795,7 +1795,7 @@ pub fn get_lisp_indent() -> c_int {
                             && !(b'0' as i32..=b'9' as i32).contains(&ci.value)
                         {
                             let mut quotecount = false;
-                            while *that != NUL
+                            while !crate::memory::cstr_is_empty(that)
                                 && (!ascii_iswhite(ci.value) || quotecount || parencount != 0)
                             {
                                 if ci.value == b'"' as i32 {
@@ -1854,7 +1854,7 @@ pub fn get_lisp_indent() -> c_int {
                             that = that.add(1);
                         }
 
-                        if *that == NUL || *that == b';' as c_char {
+                        if crate::memory::cstr_is_empty(that) || crate::memory::cstr_first_byte(that) == b';' {
                             amount = firsttry;
                         }
                     }
@@ -1878,7 +1878,7 @@ fn lisp_match(p: *const c_char) -> bool {
             opt_vars().p_lispwords
         };
 
-        while *word != NUL {
+        while !crate::memory::cstr_is_empty(word) {
             let len = copy_option_part(&raw mut word, buf.as_mut_ptr(), buf.len(), c",");
             if (crate::memory::cstr_prefix_bytes(buf.as_ptr(), len) == crate::memory::cstr_prefix_bytes(p, len)) && ascii_iswhite_or_nul(*p.add(len)) {
                 return true;

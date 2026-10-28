@@ -632,7 +632,7 @@ pub fn u_get_undo_file_name(
 
         let ffname_len = crate::memory::cstr_len(ffname);
         let mut dirp = opt_vars().p_udir;
-        while *dirp != NUL {
+        while !crate::memory::cstr_is_empty(dirp) {
             let mut dir_len = copy_option_part(
                 &raw mut dirp,
                 dir_name.as_mut_ptr(),
@@ -658,7 +658,7 @@ pub fn u_get_undo_file_name(
                 }
 
                 let mut has_directory = os_isdir(dir_name.as_ptr());
-                if !has_directory && *dirp == NUL && !reading {
+                if !has_directory && crate::memory::cstr_is_empty(dirp) && !reading {
                     let mut failed_dir: Option<std::ffi::CString> = None;
                     let ret = os_mkdir_recurse(dir_name.as_ptr(), 0o755, &mut failed_dir, None);
                     if ret != 0 {
@@ -678,7 +678,7 @@ pub fn u_get_undo_file_name(
                         munged_vec = vec![0; ffname_len + 1];
                         ptr::copy_nonoverlapping(ffname, munged_vec.as_mut_ptr(), ffname_len);
                         let mut p = munged_vec.as_mut_ptr();
-                        while *p != NUL {
+                        while !crate::memory::cstr_is_empty(p) {
                             if vim_ispathsep(*p as c_int) {
                                 *p = b'%' as c_char;
                             }
@@ -2994,11 +2994,11 @@ fn u_eval_tree(buf: &mut buf_T, first_uhp: Option<usize>) -> *mut list_T {
 /// `"undofile(name)"` function.
 pub fn f_undofile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         crate::eval::typval::tv_set_string(rettv, ptr::null());
         let fname = tv_get_string(&argvars[0]);
 
-        if *fname != NUL
+        if !crate::memory::cstr_is_empty(fname)
             && let Some(ffname) = FullName_save(fname, true)
             && let Some(ufile) = u_get_undo_file_name(ffname.as_ptr(), false)
         {

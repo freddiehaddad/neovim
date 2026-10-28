@@ -1071,7 +1071,7 @@ unsafe extern "C" fn input_cb(
         ptr::copy_nonoverlapping(line.add(col), buf_ptr, tocopy);
         for i in 0..tocopy {
             let p = buf_ptr.add(i);
-            if *p == b'\n' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'\n' {
                 *p = NUL;
             }
         }

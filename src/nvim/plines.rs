@@ -294,7 +294,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
         let mut is_doublewidth = false;
         if use_tabstop {
             size = tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array);
-        } else if *cur == NUL {
+        } else if crate::memory::cstr_is_empty(cur) {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
             size = kInvalidByteCells;
@@ -356,7 +356,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
         let mut head = mb_added;
         if size > 0
             && (*wp).w_onebuf_opt.wo_wrap != 0
-            && (*sbr != NUL || (*wp).w_onebuf_opt.wo_bri != 0)
+            && (!crate::memory::cstr_is_empty(sbr) || (*wp).w_onebuf_opt.wo_bri != 0)
         {
             let mut col_off_prev = win_col_off(wp);
             let width2 = (*wp).w_view_width - col_off_prev + win_col_off2( &mut *wp);
@@ -374,7 +374,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                 head_prev = csarg.indent_width;
                 if head_prev == c_int::MIN {
                     head_prev = 0;
-                    if *sbr != NUL {
+                    if !crate::memory::cstr_is_empty(sbr) {
                         head_prev += vim_strsize(sbr);
                     }
                     if (*wp).w_onebuf_opt.wo_bri != 0 {
@@ -399,7 +399,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                 let mut head_mid = csarg.indent_width;
                 if head_mid == c_int::MIN {
                     head_mid = 0;
-                    if *sbr != NUL {
+                    if !crate::memory::cstr_is_empty(sbr) {
                         head_mid += vim_strsize(sbr);
                     }
                     if (*wp).w_onebuf_opt.wo_bri != 0 {
@@ -423,7 +423,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                             / width2
                             * head_mid;
                     } else if max_head_vcol < 0 {
-                        let off = mb_added + virt_text_cursor_off(&*csarg, *cur == NUL);
+                        let off = mb_added + virt_text_cursor_off(&*csarg, crate::memory::cstr_is_empty(cur));
                         if off >= prev_rem {
                             if size > off {
                                 head += (1 + (off - prev_rem) / width) * head_mid;
@@ -628,7 +628,7 @@ pub fn linesize_regular(
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2StrCharInfo(line);
-        while (ci.ptr.offset_from(line) as colnr_T) < len && *ci.ptr != NUL {
+        while (ci.ptr.offset_from(line) as colnr_T) < len && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             vcol +=
                 i64::from(charsize_regular(&mut *csarg, ci.ptr, vcol_arg, ci.chr.value, cli.cells).width);
@@ -641,7 +641,7 @@ pub fn linesize_regular(
             }
         }
 
-        if len == MAXCOL && csarg.virt_row >= 0 && *ci.ptr == NUL {
+        if len == MAXCOL && csarg.virt_row >= 0 && crate::memory::cstr_is_empty(ci.ptr) {
             let head = charsize_regular(&mut *csarg, ci.ptr, vcol_arg, ci.chr.value, 0).head;
             vcol += i64::from(csarg.cur_text_width_left + csarg.cur_text_width_right + head);
             vcol_arg = if vcol > i64::from(MAXCOL) {
@@ -663,7 +663,7 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: c_int, len: colnr_T) -> 
         let mut vcol = i64::from(vcol_arg);
 
         let mut ci = utf_ptr2StrCharInfo(line);
-        while (ci.ptr.offset_from(line) as colnr_T) < len && *ci.ptr != NUL {
+        while (ci.ptr.offset_from(line) as colnr_T) < len && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             vcol += i64::from(
                 charsize_fast_impl( &mut *wp, ci.ptr, use_tabstop, vcol_arg, ci.chr.value, cli.cells)
@@ -715,7 +715,7 @@ pub fn getvcol(
         if cstype == kCharsizeFast {
             let use_tabstop = csarg.use_tabstop;
             loop {
-                if *ci.ptr == NUL {
+                if crate::memory::cstr_is_empty(ci.ptr) {
                     char_size = CharSize {
                         width: 1,
                         head: 0,
@@ -737,7 +737,7 @@ pub fn getvcol(
             loop {
                 let cli = utf_ClusterInfo(ci);
                 char_size = charsize_regular(&mut csarg, ci.ptr, vcol, ci.chr.value, cli.cells);
-                if *ci.ptr == NUL {
+                if crate::memory::cstr_is_empty(ci.ptr) {
                     char_size.width = 1 + csarg.cur_text_width_left + csarg.cur_text_width_right;
                     on_nul = true;
                     break;
@@ -751,7 +751,7 @@ pub fn getvcol(
             }
         }
 
-        if *ci.ptr == NUL && end_col < MAXCOL && end_col > (ci.ptr.offset_from(line) as colnr_T) {
+        if crate::memory::cstr_is_empty(ci.ptr) && end_col < MAXCOL && end_col > (ci.ptr.offset_from(line) as colnr_T) {
             pos.col = ci.ptr.offset_from(line) as colnr_T;
         }
 
@@ -921,7 +921,7 @@ pub fn plines_win_nofold(wp: &mut win_T, lnum: linenr_T) -> c_int {
         let s = ml_get_buf(wp.buf_mut(), lnum);
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg,  &mut *wp, lnum, s);
-        if *s == NUL && csarg.virt_row < 0 {
+        if crate::memory::cstr_is_empty(s) && csarg.virt_row < 0 {
             return 1;
         }
 
@@ -969,14 +969,14 @@ pub fn plines_win_col(wp: &mut win_T, lnum: linenr_T, column: c_long) -> c_int {
         let limit_ptr = (line as *const c_char).add(column as usize);
         if cstype == kCharsizeFast {
             let use_tabstop = csarg.use_tabstop;
-            while *ci.ptr != NUL && ci.ptr < limit_ptr {
+            while !crate::memory::cstr_is_empty(ci.ptr) && ci.ptr < limit_ptr {
                 let cli = utf_ClusterInfo(ci);
                 vcol += charsize_fast_impl( &mut *wp, ci.ptr, use_tabstop, vcol, ci.chr.value, cli.cells)
                     .width;
                 ci = cli.next;
             }
         } else {
-            while *ci.ptr != NUL && ci.ptr < limit_ptr {
+            while !crate::memory::cstr_is_empty(ci.ptr) && ci.ptr < limit_ptr {
                 let cli = utf_ClusterInfo(ci);
                 vcol += charsize_regular(&mut csarg, ci.ptr, vcol, ci.chr.value, cli.cells).width;
                 ci = cli.next;

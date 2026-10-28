@@ -1,6 +1,5 @@
 //! Buffer decorations, virtual text/lines, and sign/highlight range state (`src/nvim/decoration.c`).
 
-use crate::charset::NUL;
 
 use crate::api::extmark::{ns_in_win, virt_text_to_array};
 use crate::api::private::helpers::{
@@ -1711,7 +1710,7 @@ pub fn decor_virt_line_rows(wp: &mut win_T,
                 continue;
             };
             let mut virt_str: *const c_char = text.as_ptr();
-            while *virt_str != NUL {
+            while !crate::memory::cstr_is_empty(virt_str) {
                 let bytes_to_next_char = utfc_ptr2len(virt_str);
                 let cells = if *virt_str == TAB {
                     tabstop_padding(vcol, (*buf).b_p_ts, &(*buf).b_p_vts_array)

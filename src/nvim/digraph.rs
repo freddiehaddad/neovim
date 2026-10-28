@@ -1757,9 +1757,9 @@ pub fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
 /// Add the digraphs in the argument to the digraph table (`putdigraph`).
 pub fn putdigraph(mut str: *mut c_char) {
     unsafe {
-        while *str != NUL {
+        while !crate::memory::cstr_is_empty(str) {
             str = skipwhite(str);
-            if *str == NUL {
+            if crate::memory::cstr_is_empty(str) {
                 return;
             }
             let char1 = *str as u8;
@@ -1946,16 +1946,16 @@ fn printdigraph(dp: &digr_T, previous: *mut result_T) {
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
 fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> bool {
-    unsafe {
+     {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
         let mut p = chars;
 
-        if !p.is_null() && *p != NUL {
+        if !crate::memory::cstr_is_empty(p) {
             *char1 = mb_cptr2char_adv(&raw mut p);
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 *char2 = mb_cptr2char_adv(&raw mut p);
-                if *p == NUL {
+                if crate::memory::cstr_is_empty(p) {
                     if check_digraph_chars_valid(*char1, *char2) {
                         return true;
                     }
@@ -1972,7 +1972,7 @@ fn get_digraph_chars(arg: &typval_T, char1: &mut c_int, char2: &mut c_int) -> bo
 }
 
 fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
-    unsafe {
+     {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
         if !get_digraph_chars(argchars, &mut char1, &mut char2) {
@@ -1986,7 +1986,7 @@ fn digraph_set_common(argchars: &typval_T,argdigraph: &typval_T) -> bool {
         }
         let mut p = digraph;
         let n = mb_cptr2char_adv(&raw mut p);
-        if *p != NUL {
+        if !crate::memory::cstr_is_empty(p) {
             semsg!(
                 gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR),
                 digraph,
@@ -2167,7 +2167,7 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
         while let Some(line_cstr) = fgetline.call(0, 0, true) {
             let line = line_cstr.as_ptr();
             let mut p = skipwhite(line);
-            if *p != b'"' as c_char && *p != NUL {
+            if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
                 let mut s = skiptowhite(p);
                 let from_len = s.offset_from(p) as usize;
                 let from_slice = std::slice::from_raw_parts(p.cast::<u8>(), from_len);
@@ -2264,7 +2264,7 @@ pub fn get_keymap_str(
         g_st().emsg_skip -= 1;
         g_st().curbuf = old_curbuf;
         set_curwin(old_curwin);
-        if p.is_null() || *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             if (wp.buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
                 p = wp.buf_mut().b_p_keymap;
             } else {

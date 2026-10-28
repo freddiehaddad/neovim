@@ -1655,7 +1655,7 @@ pub fn win_set_buf(win: &mut win_T, buf: &mut buf_T, err: &mut Error) {
 pub fn win_fdccol_count(wp: &mut win_T) -> c_int {
     unsafe {
         let fdc = wp.w_onebuf_opt.wo_fdc;
-        if *fdc == b'a' as c_char
+        if crate::memory::cstr_first_byte(fdc) == b'a'
             && *fdc.add(1) == b'u' as c_char
             && *fdc.add(2) == b't' as c_char
             && *fdc.add(3) == b'o' as c_char
@@ -7813,9 +7813,9 @@ fn last_status_rec(fr: &mut frame_T, statusline: bool, is_stl_global: bool) {
 pub fn set_winbar_win(wp: &mut win_T, make_room: bool, valid_cursor: bool) -> c_int {
     unsafe {
         let winbar_height = if wp.w_floating {
-            c_int::from(*wp.w_onebuf_opt.wo_wbr != NUL)
+            c_int::from(!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr))
         } else {
-            c_int::from(!crate::memory::cstr_is_empty(opt_vars().p_wbr) || *wp.w_onebuf_opt.wo_wbr != NUL)
+            c_int::from(!crate::memory::cstr_is_empty(opt_vars().p_wbr) || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr))
         };
 
         if wp.w_winbar_height != winbar_height {
@@ -8210,11 +8210,11 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut win_T>) -> *const 
 
         let mut count: usize = 0;
         let mut color_cols = [0 as c_int; 256];
-        while *s != NUL && count < 255 {
+        while !crate::memory::cstr_is_empty(s) && count < 255 {
             let mut col: c_int;
             let mut skip = false;
-            if *s == b'-' as c_char || *s == b'+' as c_char {
-                col = if *s == b'-' as c_char { -1 } else { 1 };
+            if crate::memory::cstr_first_byte(s) == b'-' || crate::memory::cstr_first_byte(s) == b'+' {
+                col = if crate::memory::cstr_first_byte(s) == b'-' { -1 } else { 1 };
                 s = s.add(1);
                 if !ascii_isdigit(c_int::from(*s as u8)) {
                     return e_invarg.as_ptr();
@@ -8237,14 +8237,14 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut win_T>) -> *const 
                 color_cols[count] = col - 1;
                 count += 1;
             }
-            if *s == NUL {
+            if crate::memory::cstr_is_empty(s) {
                 break;
             }
-            if *s != b',' as c_char {
+            if crate::memory::cstr_first_byte(s) != b',' {
                 return e_invarg.as_ptr();
             }
             s = s.add(1);
-            if *s == NUL {
+            if crate::memory::cstr_is_empty(s) {
                 return e_invarg.as_ptr();
             }
         }

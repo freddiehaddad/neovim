@@ -666,7 +666,7 @@ fn is_executable_ext(
         }
         let mut ext = pathext;
         while *ext != 0 {
-            if *ext == b'.' as c_char && (*ext.add(1) == NUL || (*ext.add(1) as u8) == ENV_SEPCHAR)
+            if crate::memory::cstr_first_byte(ext) == b'.' && (*ext.add(1) == NUL || (*ext.add(1) as u8) == ENV_SEPCHAR)
             {
                 if is_executable(name, abspath.as_deref_mut()) {
                     return true;

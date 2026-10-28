@@ -987,7 +987,7 @@ pub fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
 #[inline]
 pub fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
     unsafe {
-        if *cur.ptr == NUL {
+        if crate::memory::cstr_is_empty(cur.ptr) {
             return ClusterInfo {
                 next: cur,
                 cells: opt_vars().dy_escape_width,
@@ -1231,10 +1231,10 @@ pub fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
 }
 
 pub fn mb_string2cells(str_: *const c_char) -> usize {
-    unsafe {
+     {
         let mut clen = 0usize;
         let mut ci = utf_ptr2StrCharInfo(str_);
-        while *ci.ptr != NUL {
+        while !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             clen += if ci.chr.value < 0x80 {
                 1
@@ -1460,7 +1460,7 @@ pub fn utfc_ptr2len(p: *const c_char) -> c_int {
 
 pub fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     unsafe {
-        if size < 1 || *p == NUL {
+        if size < 1 || crate::memory::cstr_is_empty(p) {
             return 0;
         }
         let b0 = *p.cast::<u8>();
@@ -2018,7 +2018,7 @@ pub fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
 
 pub fn utf_ambiguous_width(p: *const c_char) -> bool {
     unsafe {
-        if *p == NUL || *p.add(1) == NUL {
+        if crate::memory::cstr_is_empty(p) || *p.add(1) == NUL {
             return false;
         }
         let info = utf_ptr2CharInfo(p);
@@ -2133,7 +2133,7 @@ pub fn utf_strnicmp(
             s2 = buffer.as_ptr();
         }
 
-        while n1 > 0 && n2 > 0 && *s1 != NUL && *s2 != NUL {
+        while n1 > 0 && n2 > 0 && !crate::memory::cstr_is_empty(s1) && !crate::memory::cstr_is_empty(s2) {
             let cdiff = c_int::from(*s1.cast::<u8>()) - c_int::from(*s2.cast::<u8>());
             if cdiff != 0 {
                 return cdiff;
@@ -2144,10 +2144,10 @@ pub fn utf_strnicmp(
             n2 -= 1;
         }
 
-        if n1 > 0 && *s1 == NUL {
+        if n1 > 0 && crate::memory::cstr_is_empty(s1) {
             n1 = 0;
         }
-        if n2 > 0 && *s2 == NUL {
+        if n2 > 0 && crate::memory::cstr_is_empty(s2) {
             n2 = 0;
         }
         if n1 == 0 && n2 == 0 {
@@ -2699,7 +2699,7 @@ pub fn utf_find_illegal() {
                 p = tf.as_ptr().cast::<c_char>().cast_mut();
             }
 
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 let mut len = utf_ptr2len(p);
                 if *p.cast::<u8>() >= 0x80 && (len == 1 || utf_char2len(utf_ptr2char(p)) != len) {
                     if vimconv.vc_type == CONV_NONE {
@@ -2709,7 +2709,7 @@ pub fn utf_find_illegal() {
                             tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
                         ) as c_int;
                         let mut cur_p = get_cursor_pos_ptr();
-                        while *cur_p != NUL && len > 0 {
+                        while !crate::memory::cstr_is_empty(cur_p) && len > 0 {
                             len -= 1;
                             let l = utf_ptr2len(cur_p);
                             curwin_mut().w_cursor.col += l;
@@ -2820,7 +2820,7 @@ pub fn mb_charlen(str_: *const c_char) -> c_int {
         }
         let mut p = str_;
         let mut count = 0;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             p = p.add(utfc_ptr2len(p) as usize);
             count += 1;
         }
@@ -2833,7 +2833,7 @@ pub fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_int {
         let mut p = str_;
         let end = str_.add(len.max(0) as usize);
         let mut count = 0;
-        while *p != NUL && p < end {
+        while !crate::memory::cstr_is_empty(p) && p < end {
             p = p.add(utfc_ptr2len(p) as usize);
             count += 1;
         }
@@ -2970,9 +2970,9 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
         let mut s: *const c_char = ptr::null();
 
         let mut env_buf = [0 as c_char; 64];
-        if s.is_null() || *s == NUL {
+        if crate::memory::cstr_is_empty(s) {
             s = setlocale(LC_CTYPE, ptr::null());
-            if s.is_null() || *s == NUL {
+            if crate::memory::cstr_is_empty(s) {
                 s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr(), env_buf.len());
                 if s.is_null() {
                     s = os_getenv_buf(c"LC_CTYPE", env_buf.as_mut_ptr(), env_buf.len());
@@ -3175,7 +3175,7 @@ pub fn convert_setup_ext(
     to: *mut c_char,
     to_unicode_is_utf8: bool,
 ) -> bool {
-    unsafe {
+     {
         *vcp = vimconv_T {
             vc_type: CONV_NONE,
             vc_factor: 1,
@@ -3183,10 +3183,8 @@ pub fn convert_setup_ext(
             vc_fail: false,
         };
 
-        if from.is_null()
-            || *from == NUL
-            || to.is_null()
-            || *to == NUL
+        if crate::memory::cstr_is_empty(from)
+            || crate::memory::cstr_is_empty(to)
             || crate::memory::cstr_as_bytes(from) == crate::memory::cstr_as_bytes(to)
         {
             return true;

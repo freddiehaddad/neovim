@@ -558,14 +558,14 @@ pub fn grid_line_puts(
     attr: c_int,
 ) -> c_int {
     let text = text.into_c_char_ptr();
-    unsafe {
+     {
         assert!(!grid_st().grid_line_grid.is_null());
         let mut len = if textlen >= 0 { textlen } else { c_int::MAX };
 
         let start_col = col;
         let max_col = grid_st().grid_line_maxcol;
         let mut ci = utf_ptr2StrCharInfo_len(text, len);
-        while col < max_col && len > 0 && *ci.ptr != NUL {
+        while col < max_col && len > 0 && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo_len(ci, &mut len);
             let mut mbyte_cells = cli.cells;
             let mut schar = if mbyte_cells > 2 || ci.chr.value < 0x20 {
@@ -1311,7 +1311,7 @@ fn grid_draw_bordertext(
                     continue;
                 }
                 let mut p = text;
-                while *p != NUL && overflow > 0 {
+                while !crate::memory::cstr_is_empty(p) && overflow > 0 {
                     overflow -= utf_ptr2cells(p);
                     p = p.add(utfc_ptr2len(p) as usize);
                 }

@@ -757,7 +757,7 @@ fn block_insert(
 
             let mut skipped: c_int = 0;
             if spaces > 0 && bdp.is_short == 0 {
-                if *oldp == b'\t' as c_char {
+                if crate::memory::cstr_first_byte(oldp) == b'\t' {
                     ptr::write_bytes(
                         newp.add((offset + spaces) as usize),
                         b' ',
@@ -844,11 +844,11 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
             && oap.op_type == OP_DELETE
         {
             let mut ptr_line = ml_get(oap.end.lnum).add(oap.end.col as usize);
-            if *ptr_line != NUL {
+            if !crate::memory::cstr_is_empty(ptr_line) {
                 ptr_line = ptr_line.add(usize::from(oap.inclusive));
             }
             ptr_line = skipwhite(ptr_line);
-            if *ptr_line == NUL && inindent(0) {
+            if crate::memory::cstr_is_empty(ptr_line) && inindent(0) {
                 oap.motion_type = kMTLineWise;
             }
         }
@@ -1138,7 +1138,7 @@ fn mb_adjust_opend(oap: &mut oparg_T) {
 
         let line = ml_get(oap.end.lnum);
         let mut ptr_line = line.add(oap.end.col as usize);
-        if *ptr_line != NUL {
+        if !crate::memory::cstr_is_empty(ptr_line) {
             ptr_line = ptr_line.sub(utf_head_off(line, ptr_line) as usize);
             ptr_line = ptr_line.add((utfc_ptr2len(ptr_line) - 1) as usize);
             oap.end.col = ptr_line.offset_from(line) as colnr_T;
@@ -1205,7 +1205,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
                     continue;
                 }
 
-                if g_st().virtual_op != 0 && bd.is_short != 0 && *bd.textstart == NUL {
+                if g_st().virtual_op != 0 && bd.is_short != 0 && crate::memory::cstr_is_empty(bd.textstart) {
                     let mut vpos = pos_T {
                         lnum: curwin_mut().w_cursor.lnum,
                         col: 0,
@@ -1905,8 +1905,8 @@ pub fn skip_comment(
 
         *is_comment = false;
         if leader_offset != -1 {
-            while *comment_flags != NUL {
-                if *comment_flags == COM_END || *comment_flags == b':' as c_char {
+            while !crate::memory::cstr_is_empty(comment_flags) {
+                if *comment_flags == COM_END || crate::memory::cstr_first_byte(comment_flags) == b':' {
                     break;
                 }
                 comment_flags = comment_flags.add(1);
@@ -1926,14 +1926,14 @@ pub fn skip_comment(
             return line;
         }
 
-        while *comment_flags != NUL {
-            if *comment_flags == COM_END || *comment_flags == b':' as c_char {
+        while !crate::memory::cstr_is_empty(comment_flags) {
+            if *comment_flags == COM_END || crate::memory::cstr_first_byte(comment_flags) == b':' {
                 break;
             }
             comment_flags = comment_flags.add(1);
         }
 
-        if *comment_flags == b':' as c_char || *comment_flags == NUL {
+        if crate::memory::cstr_first_byte(comment_flags) == b':' || crate::memory::cstr_is_empty(comment_flags) {
             line = line.add(lead_len as usize);
         }
 
@@ -2000,8 +2000,8 @@ pub fn do_join(
 
             if insert_space && t > 0 {
                 curr = skipwhite(curr);
-                if *curr != NUL
-                    && *curr != b')' as c_char
+                if !crate::memory::cstr_is_empty(curr)
+                    && crate::memory::cstr_first_byte(curr) != b')'
                     && sumsize != 0
                     && endcurr1 != TAB
                     && (!has_format_option(kFoMbyteJoin)
@@ -2195,7 +2195,7 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
         let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol = bdp.start_vcol;
-        while vcol < oap.start_vcol && *ci.ptr != NUL {
+        while vcol < oap.start_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             incr = win_charsize(
                 cstype,
@@ -2254,7 +2254,7 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
                 ci = utf_ptr2StrCharInfo(pend);
                 vcol = bdp.end_vcol;
                 let mut prev_pend = pend;
-                while vcol <= oap.end_vcol && *ci.ptr != NUL {
+                while vcol <= oap.end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
                     prev_pend = ci.ptr;
                     let cli = utf_ClusterInfo(ci);
                     incr = win_charsize(

@@ -2893,7 +2893,7 @@ pub fn nvim_eval_statusline(
         {
             let ci = utf_ptr2StrCharInfo(opts.fillchar.data);
             let cli = utf_ClusterInfo(ci);
-            if *ci.ptr == 0 || *cli.next.ptr != NUL || cli.cells != 1 {
+            if *ci.ptr == 0 || !crate::memory::cstr_is_empty(cli.next.ptr) || cli.cells != 1 {
                 api_err_exp(
                     err,
                     c"fillchar",
@@ -3165,8 +3165,8 @@ pub fn nvim__complete_set(
 }
 
 fn redraw_status(wp: &mut win_T, opts: &mut KeyDict_redraw) {
-    unsafe {
-        if opts.statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
+     {
+        if opts.statuscolumn && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
             wp.w_nrwidth_line_count = 0;
             changed_window_setting(&mut *wp);
         }

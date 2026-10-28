@@ -894,7 +894,7 @@ fn fname2fnum(fm: &mut xfmark_T) {
         };
         let fname = fname_cstr.as_ptr();
 
-        if *fname == b'~' as c_char && vim_ispathsep_nocolon(c_int::from(*fname.add(1) as u8)) {
+        if crate::memory::cstr_first_byte(fname) == b'~' && vim_ispathsep_nocolon(c_int::from(*fname.add(1) as u8)) {
             let len = expand_env(
                 c"~/",
                 &raw mut g_st().NameBuff[0],
@@ -1025,7 +1025,7 @@ fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
         let mut len: c_int = 0;
         let mut p = line;
         let end = line.add(max_bytes);
-        while p < end && *p != NUL {
+        while p < end && !crate::memory::cstr_is_empty(p) {
             len += ptr2cells(p);
             if len >= g_st().Columns - lead_len {
                 break;
@@ -1058,7 +1058,7 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
             coladd: 0,
         };
 
-        if *eap.arg == NUL && eap.forceit != 0 {
+        if crate::memory::cstr_is_empty(eap.arg) && eap.forceit != 0 {
             for i in 0..NMARKS {
                 if curbuf_mut().b_namedm[i].mark.lnum != 0 {
                     do_markset_autocmd((i as u8 + b'a') as c_char, &pos, curbuf_mut());
@@ -1082,12 +1082,12 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
             clrallmarks(curbuf_mut(), os_time());
         } else if eap.forceit != 0 {
             emsg(gettext(e_invarg));
-        } else if *eap.arg == NUL {
+        } else if crate::memory::cstr_is_empty(eap.arg) {
             emsg(gettext(e_argreq));
         } else {
             let timestamp = os_time();
             let mut p = eap.arg;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 let ch = c_int::from(*p as u8);
                 let lower = ascii_islower(ch);
                 let digit = ascii_isdigit(ch);
@@ -2144,7 +2144,7 @@ pub fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
     unsafe {
         if lp.col > 0 || lp.coladd > 1 {
             let p = ml_get_buf(&mut *buf, lp.lnum);
-            if *p == NUL || ml_get_buf_len(&mut *buf, lp.lnum) < lp.col {
+            if crate::memory::cstr_is_empty(p) || ml_get_buf_len(&mut *buf, lp.lnum) < lp.col {
                 lp.col = 0;
             } else {
                 lp.col -= utf_head_off(p, p.add(lp.col as usize));

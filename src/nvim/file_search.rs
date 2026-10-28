@@ -195,7 +195,7 @@ pub fn vim_findfile_init(
         let mut expand_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
         let expand_ptr = expand_buf.as_mut_ptr();
 
-        if *path == b'.' as c_char
+        if crate::memory::cstr_first_byte(path) == b'.'
             && (vim_ispathsep(c_int::from(*path.add(1) as u8)) || *path.add(1) == NUL)
             && (tagfile == 0 || vim_strchr(opt_vars().p_cpo, kCpoDottag).is_null())
             && !rel_fname.is_null()
@@ -211,12 +211,12 @@ pub fn vim_findfile_init(
                 search_ctx.ffsc_start_dir = cbuf_to_string(rel_fname, len);
             }
             path = path.add(1);
-            if *path != NUL {
+            if !crate::memory::cstr_is_empty(path) {
                 path = path.add(1);
             }
-        } else if *path == NUL || !vim_isAbsName(path) {
+        } else if crate::memory::cstr_is_empty(path) || !vim_isAbsName(path) {
             #[cfg(windows)]
-            let handled_drive = if *path != NUL && *path.add(1) == b':' as c_char {
+            let handled_drive = if !crate::memory::cstr_is_empty(path) && *path.add(1) == b':' as c_char {
                 let drive: [c_char; 3] = [*path, b':' as c_char, NUL];
                 if !vim_FullName(drive.as_ptr(), expand_ptr, MAXPATHL, true) {
                     return None;
@@ -245,7 +245,7 @@ pub fn vim_findfile_init(
 
         if !stopdirs.is_null() {
             let mut walker = stopdirs;
-            while *walker == b';' as c_char {
+            while crate::memory::cstr_first_byte(walker) == b';' {
                 walker = walker.add(1);
             }
 
@@ -257,7 +257,7 @@ pub fn vim_findfile_init(
                 } else {
                     crate::memory::cstr_len(helper)
                 };
-                let dir_str = if *helper != NUL && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
+                let dir_str = if !crate::memory::cstr_is_empty(helper) && !vim_isAbsName(helper) && len + 1 < MAXPATHL {
                     crate::memory::cstr_ncpy(expand_ptr, helper, len);
                     FullName_save(helper, len != 0).unwrap_or_default()
                 } else {
@@ -282,12 +282,12 @@ pub fn vim_findfile_init(
             search_ctx.ffsc_fix_path = cbuf_to_string(path, wc_part.offset_from(path) as usize);
 
             expand_size = 0;
-            while *wc_part != NUL {
+            while !crate::memory::cstr_is_empty(wc_part) {
                 if expand_size + 5 >= MAXPATHL {
                     emsg(tr(E_PATH_TOO_LONG_FOR_COMPLETION));
                     break;
                 }
-                if *wc_part == b'*' as c_char && *wc_part.add(1) == b'*' as c_char {
+                if crate::memory::cstr_first_byte(wc_part) == b'*' && *wc_part.add(1) == b'*' as c_char {
                     *expand_ptr.add(expand_size) = *wc_part;
                     expand_size += 1;
                     wc_part = wc_part.add(1);
@@ -307,7 +307,7 @@ pub fn vim_findfile_init(
                         expand_size += 1;
                     }
                     wc_part = errpt;
-                    if *wc_part != NUL && !vim_ispathsep(c_int::from(*wc_part as u8)) {
+                    if !crate::memory::cstr_is_empty(wc_part) && !vim_ispathsep(c_int::from(*wc_part as u8)) {
                         semsg!(
                             tr(c"E343: Invalid path: '**[number]' must be at the end of the path or be followed by '%s'."),
                             PATHSEPSTR_C,
@@ -402,7 +402,7 @@ pub fn vim_findfile_init(
                 if p > search_ctx.ffsc_fix_path.data {
                     len = p.offset_from(search_ctx.ffsc_fix_path.data) as c_int - 1;
                     if len >= 2
-                        && *search_ctx.ffsc_fix_path.data == b'.' as c_char
+                        && crate::memory::cstr_first_byte(search_ctx.ffsc_fix_path.data) == b'.'
                         && *search_ctx.ffsc_fix_path.data.add(1) == b'.' as c_char
                         && (len == 2 || *search_ctx.ffsc_fix_path.data.add(2) == PATHSEP)
                     {
@@ -466,25 +466,25 @@ pub fn vim_findfile_init(
 /// Return the stopdir string. Check that `;` is not escaped.
 pub fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
     unsafe {
-        while *buf != NUL
-            && *buf != b';' as c_char
-            && (*buf != b'\\' as c_char || *buf.add(1) != b';' as c_char)
+        while !crate::memory::cstr_is_empty(buf)
+            && crate::memory::cstr_first_byte(buf) != b';'
+            && (crate::memory::cstr_first_byte(buf) != b'\\' || *buf.add(1) != b';' as c_char)
         {
             buf = buf.add(1);
         }
         let mut dst = buf;
-        if *buf == b';' as c_char {
+        if crate::memory::cstr_first_byte(buf) == b';' {
             *buf = NUL;
             return buf.add(1);
         }
-        if *buf == NUL {
+        if crate::memory::cstr_is_empty(buf) {
             return ptr::null_mut();
         }
         *dst = b';' as c_char;
         dst = dst.add(1);
         buf = buf.add(2);
-        while *buf != NUL && *buf != b';' as c_char {
-            if *buf == b'\\' as c_char && *buf.add(1) == b';' as c_char {
+        while !crate::memory::cstr_is_empty(buf) && crate::memory::cstr_first_byte(buf) != b';' {
+            if crate::memory::cstr_first_byte(buf) == b'\\' && *buf.add(1) == b';' as c_char {
                 *dst = b';' as c_char;
                 dst = dst.add(1);
                 buf = buf.add(2);
@@ -496,7 +496,7 @@ pub fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
         }
         debug_assert!(dst < buf);
         *dst = NUL;
-        if *buf == b';' as c_char {
+        if crate::memory::cstr_first_byte(buf) == b';' {
             *buf = NUL;
             buf.add(1)
         } else {
@@ -613,8 +613,8 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                     }
 
                     rest_of_wildcards = (*stackp).ffs_wc_path;
-                    if *rest_of_wildcards.data != NUL {
-                        if *rest_of_wildcards.data == b'*' as c_char
+                    if !crate::memory::cstr_is_empty(rest_of_wildcards.data) {
+                        if crate::memory::cstr_first_byte(rest_of_wildcards.data) == b'*'
                             && *rest_of_wildcards.data.add(1) == b'*' as c_char
                         {
                             let p = rest_of_wildcards.data.add(2);
@@ -647,7 +647,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                             }
                         }
 
-                        while *rest_of_wildcards.data != NUL
+                        while !crate::memory::cstr_is_empty(rest_of_wildcards.data)
                             && !vim_ispathsep(c_int::from(*rest_of_wildcards.data as u8))
                         {
                             if file_path.size + 1 >= MAXPATHL {
@@ -687,7 +687,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                 }
 
                 if (*stackp).ffs_stage == 0 {
-                    if *rest_of_wildcards.data == NUL {
+                    if crate::memory::cstr_is_empty(rest_of_wildcards.data) {
                         for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
                             let entry = (*stackp).ffs_filearray.as_slice()[i].as_ptr().cast_mut();
                             if path_with_url(entry) == 0 && !os_isdir(entry) {
@@ -760,7 +760,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                                     return Some(crate::memory::cstr_to_cstring(file_path.data));
                                 }
 
-                                if *suf == NUL {
+                                if crate::memory::cstr_is_empty(suf) {
                                     break;
                                 }
                                 file_path.size = len
@@ -797,7 +797,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                     (*stackp).ffs_stage = 1;
                 }
 
-                if *(*stackp).ffs_wc_path.data == b'*' as c_char
+                if crate::memory::cstr_first_byte((*stackp).ffs_wc_path.data) == b'*'
                     && *(*stackp).ffs_wc_path.data.add(1) == b'*' as c_char
                 {
                     for i in (*stackp).ffs_filearray_cur..(*stackp).ffs_filearray.len() {
@@ -829,7 +829,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                 && !g_st().got_int
             {
                 let plen = path_end.offset_from(search_ctx.ffsc_start_dir.data)
-                    + isize::from(*path_end != NUL);
+                    + isize::from(!crate::memory::cstr_is_empty(path_end));
 
                 if ff_path_in_stoplist(
                     search_ctx.ffsc_start_dir.data,
@@ -855,7 +855,7 @@ pub fn vim_findfile(search_ctx: Option<&mut ff_search_ctx_T>) -> Option<std::ffi
                     path_end.offset_from(search_ctx.ffsc_start_dir.data) as usize;
                 path_end = path_end.sub(1);
 
-                if *search_ctx.ffsc_start_dir.data == NUL {
+                if crate::memory::cstr_is_empty(search_ctx.ffsc_start_dir.data) {
                     break;
                 }
 
@@ -1245,14 +1245,14 @@ pub fn find_file_in_path_option(
         let ftf = file_to_find
             .as_ref()
             .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
-        let rel_to_curdir = *ftf == b'.' as c_char
+        let rel_to_curdir = crate::memory::cstr_first_byte(ftf) == b'.'
             && (*ftf.add(1) == NUL
                 || vim_ispathsep(c_int::from(*ftf.add(1) as u8))
                 || (*ftf.add(1) == b'.' as c_char
                     && (*ftf.add(2) == NUL || vim_ispathsep(c_int::from(*ftf.add(2) as u8)))));
         let is_mswin_abs = cfg!(windows)
             && (vim_ispathsep(c_int::from(*ftf as u8))
-                || (*ftf != NUL && *ftf.add(1) == b':' as c_char));
+                || (!crate::memory::cstr_is_empty(ftf) && *ftf.add(1) == b':' as c_char));
 
         if vim_isAbsName(ftf) || rel_to_curdir || is_mswin_abs {
             if first == c_int::from(true) {
@@ -1309,7 +1309,7 @@ pub fn find_file_in_path_option(
                                 .unwrap_or_default(),
                             );
                         }
-                        if *suffix == NUL {
+                        if crate::memory::cstr_is_empty(suffix) {
                             break;
                         }
                         copy_option_part(
@@ -1337,7 +1337,7 @@ pub fn find_file_in_path_option(
                     }
                     ff_opt.did_findfile_init = false;
                 } else {
-                    if ff_opt.dir.is_null() || *ff_opt.dir == NUL {
+                    if crate::memory::cstr_is_empty(ff_opt.dir) {
                         *search_ctx = None;
                         break;
                     }
@@ -1444,10 +1444,10 @@ pub fn file_name_in_line(
 ) -> Option<std::ffi::CString> {
     unsafe {
         let mut ptr = line.add(col as usize);
-        while *ptr != NUL && !vim_isfilec(c_int::from(*ptr as u8)) {
+        while !crate::memory::cstr_is_empty(ptr) && !vim_isfilec(c_int::from(*ptr as u8)) {
             ptr = ptr.add(utfc_ptr2len(ptr) as usize);
         }
-        if *ptr == NUL {
+        if crate::memory::cstr_is_empty(ptr) {
             if (options & FNAME_MESS) != 0 {
                 emsg(tr(c"E446: No file name under cursor"));
             }
@@ -1516,7 +1516,7 @@ pub fn file_name_in_line(
                     p = skipwhite(p);
                 }
             }
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 if !(*p as u8).is_ascii_digit() {
                     p = p.add(1);
                 }

@@ -2446,7 +2446,7 @@ pub fn find_special_key(
         }
 
         let mut src = *srcp;
-        if *src != b'<' as c_char {
+        if crate::memory::cstr_first_byte(src) != b'<' {
             return 0;
         }
         let end = src.add(src_len - 1);
@@ -2459,8 +2459,8 @@ pub fn find_special_key(
         // Find end of modifier list
         let mut last_dash = src;
         let mut bp = src.add(1);
-        while (bp as usize) <= (end as usize) && (*bp == b'-' as c_char || ascii_isident(*bp)) {
-            if *bp == b'-' as c_char {
+        while (bp as usize) <= (end as usize) && (crate::memory::cstr_first_byte(bp) == b'-' || ascii_isident(*bp)) {
+            if crate::memory::cstr_first_byte(bp) == b'-' {
                 last_dash = bp;
                 if (bp.add(1) as usize) <= (end as usize) {
                     let end_minus_bp = end as usize - bp as usize;
@@ -2482,7 +2482,7 @@ pub fn find_special_key(
             }
             if (bp as usize) <= (end as usize) {
                 let end_minus_bp = end as usize - bp as usize;
-                if end_minus_bp > 3 && *bp == b't' as c_char && *bp.add(1) == b'_' as c_char {
+                if end_minus_bp > 3 && crate::memory::cstr_first_byte(bp) == b't' && *bp.add(1) == b'_' as c_char {
                     bp = bp.add(3); // skip t_xx, xx may be '-' or '>'
                 } else if end_minus_bp > 4 && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-") {
                     let mut l: c_int = 0;
@@ -2508,7 +2508,7 @@ pub fn find_special_key(
             bp = bp.add(1);
         }
 
-        if (bp as usize) <= (end as usize) && *bp == b'>' as c_char {
+        if (bp as usize) <= (end as usize) && crate::memory::cstr_first_byte(bp) == b'>' {
             // found matching '>'
             let end_of_name = bp.add(1);
 
@@ -2516,7 +2516,7 @@ pub fn find_special_key(
             let mut modifiers: c_int = 0;
             bp = src.add(1);
             while (bp as usize) < (last_dash as usize) {
-                if *bp != b'-' as c_char {
+                if crate::memory::cstr_first_byte(bp) != b'-' {
                     let bit = name_to_mod_mask(c_int::from(*bp as u8));
                     if bit == 0 {
                         break; // Illegal modifier name
@@ -2627,7 +2627,7 @@ pub fn find_special_key_in_table(c: c_int) -> c_int {
 pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> c_int {
     let name = name.into_c_char_ptr();
     unsafe {
-        if *name == b't' as c_char
+        if crate::memory::cstr_first_byte(name) == b't'
             && *name.add(1) == b'_' as c_char
             && *name.add(2) != 0
             && *name.add(3) != 0

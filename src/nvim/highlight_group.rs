@@ -1286,13 +1286,13 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         if !doclear {
             while ends_excmd(c_int::from(*linep as u8)) == 0 {
                 let key_start = linep;
-                if *linep == b'=' as c_char {
+                if crate::memory::cstr_first_byte(linep) == b'=' {
                     semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR), key_start);
                     error = true;
                     break;
                 }
 
-                while *linep != 0 && !ascii_iswhite(*linep as u8) && *linep != b'=' as c_char {
+                while *linep != 0 && !ascii_iswhite(*linep as u8) && crate::memory::cstr_first_byte(linep) != b'=' {
                     linep = linep.add(1);
                 }
                 let key_len = linep as usize - key_start as usize;
@@ -1318,7 +1318,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                     continue;
                 }
 
-                if *linep != b'=' as c_char {
+                if crate::memory::cstr_first_byte(linep) != b'=' {
                     semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start);
                     error = true;
                     break;
@@ -1327,7 +1327,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 
                 linep = skipwhite(linep);
                 let arg_start: *const c_char;
-                if *linep == b'\'' as c_char {
+                if crate::memory::cstr_first_byte(linep) == b'\'' {
                     linep = linep.add(1);
                     arg_start = linep;
                     linep = crate::memory::cstr_as_bytes(linep).iter().position(|&b| b == b'\'').map_or(ptr::null(), |i| linep.add(i));
@@ -1354,7 +1354,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                 ptr::copy_nonoverlapping(arg_start, arg.as_mut_ptr(), arg_len);
                 arg[arg_len] = NUL;
 
-                if *linep == b'\'' as c_char {
+                if crate::memory::cstr_first_byte(linep) == b'\'' {
                     linep = linep.add(1);
                 }
 
@@ -2162,8 +2162,8 @@ fn set_hl_attr(idx: c_int) {
 
 pub fn syn_name2id(name: impl crate::strings::IntoCCharPtr) -> c_int {
     let name = name.into_c_char_ptr();
-    unsafe {
-        if *name == b'@' as c_char {
+     {
+        if crate::memory::cstr_first_byte(name) == b'@' {
             return syn_check_group(name, crate::memory::cstr_len(name));
         }
         syn_name2id_len(name, crate::memory::cstr_len(name))
@@ -2245,7 +2245,7 @@ fn syn_add_group(name: *const c_char, len: usize) -> c_int {
         }
 
         let mut scoped_parent: c_int = 0;
-        if len > 1 && *name == b'@' as c_char {
+        if len > 1 && crate::memory::cstr_first_byte(name) == b'@' {
             let delim = { let _s = (name).cast::<u8>(); let _sz = len; if _sz == 0 { std::ptr::null_mut::<std::ffi::c_void>() } else { std::slice::from_raw_parts(_s, _sz).iter().rposition(|&_b| _b == b'.').map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| _s.add(_i).cast_mut().cast::<std::ffi::c_void>()) } }.cast::<c_char>();
             if !delim.is_null() {
                 scoped_parent = syn_check_group(name, delim as usize - name as usize);
@@ -2511,12 +2511,12 @@ pub fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
         g_st().include_link = 2;
         g_st().include_default = 1;
 
-        if *arg == NUL {
+        if crate::memory::cstr_is_empty(arg) {
             return;
         }
 
         let mut p: *const c_char = skiptowhite(arg);
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             return;
         }
 
@@ -2526,24 +2526,24 @@ pub fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
             xp.xp_pattern = arg.cast_mut();
             p = skiptowhite(arg);
         }
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             return;
         }
 
         g_st().include_link = 0;
-        if *arg == b'N' as c_char && *arg.add(1) == b'i' as c_char {
+        if crate::memory::cstr_first_byte(arg) == b'N' && *arg.add(1) == b'i' as c_char {
             highlight_list();
         }
         let len = p as usize - arg as usize;
         if (crate::memory::cstr_prefix_bytes(c"link", len) == crate::memory::cstr_prefix_bytes(arg, len)) || (crate::memory::cstr_prefix_bytes(c"clear", len) == crate::memory::cstr_prefix_bytes(arg, len)) {
             xp.xp_pattern = skipwhite(p);
             p = skiptowhite(xp.xp_pattern);
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 xp.xp_pattern = skipwhite(p);
                 p = skiptowhite(xp.xp_pattern);
             }
         }
-        if *p != NUL {
+        if !crate::memory::cstr_is_empty(p) {
             xp.xp_context = EXPAND_NOTHING;
         }
     }
@@ -2608,7 +2608,7 @@ pub fn get_highlight_name_ext(
 
 pub fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
     unsafe {
-        if *name == b'#' as c_char
+        if crate::memory::cstr_first_byte(name) == b'#'
             && (*name.add(1) as u8).is_ascii_hexdigit()
             && (*name.add(2) as u8).is_ascii_hexdigit()
             && (*name.add(3) as u8).is_ascii_hexdigit()

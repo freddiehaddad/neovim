@@ -255,7 +255,7 @@ pub fn find_ucmd(
                 let mut cp = eap.cmd;
                 let mut np = uc.uc_name.as_ptr();
                 let mut k: c_int = 0;
-                while k < len && *np != NUL && {
+                while k < len && !crate::memory::cstr_is_empty(np) && {
                     let c1 = *cp;
                     let c2 = *np;
                     cp = cp.add(1);
@@ -264,15 +264,15 @@ pub fn find_ucmd(
                 } {
                     k += 1;
                 }
-                if k == len || (*np == NUL && ascii_isdigit(*eap.cmd.add(k as usize))) {
-                    if k == len && found && *np != NUL {
+                if k == len || (crate::memory::cstr_is_empty(np) && ascii_isdigit(*eap.cmd.add(k as usize))) {
+                    if k == len && found && !crate::memory::cstr_is_empty(np) {
                         if is_global {
                             return ptr::null_mut();
                         }
                         amb_local = true;
                     }
 
-                    if !found || (k == len && *np == NUL) {
+                    if !found || (k == len && crate::memory::cstr_is_empty(np)) {
                         if k == len {
                             found = true;
                         } else {
@@ -301,7 +301,7 @@ pub fn find_ucmd(
                             xp.as_deref_mut().unwrap().xp_script_ctx.sc_lnum += sourcing_lnum();
                         }
                         matchlen = k;
-                        if k == len && *np == NUL {
+                        if k == len && crate::memory::cstr_is_empty(np) {
                             if let Some(ref mut p) = full {
             **p = 1;
         }
@@ -341,10 +341,10 @@ pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *con
         let mut arg = arg_in;
         let mut p: *const c_char;
 
-        while *arg == b'-' as c_char {
+        while crate::memory::cstr_first_byte(arg) == b'-' {
             arg = arg.add(1);
             p = skiptowhite(arg);
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 p = crate::memory::cstr_as_bytes(arg).iter().position(|&b| b == b'=').map_or(ptr::null(), |i| arg.add(i));
                 if p.is_null() {
                     xp.xp_context = EXPAND_USER_CMD_FLAGS;
@@ -372,7 +372,7 @@ pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *con
         }
 
         p = skiptowhite(arg);
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             xp.xp_context = EXPAND_USER_COMMANDS;
             xp.xp_pattern = arg.cast_mut();
             return ptr::null();
@@ -419,10 +419,10 @@ pub fn set_context_in_user_cmdarg(
         }
         if (argt & EX_ARGSPACE) == 0 {
             let mut p = arg;
-            while *p != NUL {
-                if *p == b' ' as c_char {
+            while !crate::memory::cstr_is_empty(p) {
+                if crate::memory::cstr_first_byte(p) == b' ' {
                     arg = p.add(1);
-                } else if *p == b'\\' as c_char && *p.add(1) != NUL {
+                } else if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL {
                     p = p.add(1);
                 }
                 p = p.add(utfc_ptr2len(p) as usize);
@@ -983,7 +983,7 @@ fn uc_scan_attr(
                 }
             } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range", attrlen)) {
                 *argt |= EX_RANGE;
-                if vallen == 1 && *val == b'%' as c_char {
+                if vallen == 1 && crate::memory::cstr_first_byte(val) == b'%' {
                     *argt |= EX_DFLALL;
                 } else if !val.is_null() {
                     let mut p = val;
@@ -1170,7 +1170,7 @@ pub fn uc_add_command(
         }
 
         (*cmd).uc_rep = rep_cstr;
-        (*cmd).uc_desc = if !desc.is_null() && *desc != NUL {
+        (*cmd).uc_desc = if !crate::memory::cstr_is_empty(desc) {
             Some(crate::memory::cstr_to_cstring(desc))
         } else {
             None
@@ -1200,11 +1200,11 @@ pub fn ex_command(eap: &mut exarg_T) {
         let mut context: c_int = EXPAND_NOTHING;
         let mut compl_arg: Option<CString> = None;
         let mut addr_type_arg: cmd_addr_T = ADDR_NONE;
-        let has_attr = *eap.arg == b'-' as c_char;
+        let has_attr = crate::memory::cstr_first_byte(eap.arg) == b'-';
 
         let mut p = eap.arg;
 
-        while *p == b'-' as c_char {
+        while crate::memory::cstr_first_byte(p) == b'-' {
             p = p.add(1);
             let end = skiptowhite(p);
             if !uc_scan_attr(
@@ -1398,19 +1398,19 @@ fn uc_split_args(
         let mut len: c_int = 2;
         if args.is_empty() {
             let mut p = arg;
-            while *p != NUL {
-                if *p == b'\\' as c_char && *p.add(1) == b'\\' as c_char {
+            while !crate::memory::cstr_is_empty(p) {
+                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) == b'\\' as c_char {
                     len += 2;
                     p = p.add(2);
-                } else if *p == b'\\' as c_char && ascii_iswhite(*p.add(1)) {
+                } else if crate::memory::cstr_first_byte(p) == b'\\' && ascii_iswhite(*p.add(1)) {
                     len += 1;
                     p = p.add(2);
-                } else if *p == b'\\' as c_char || *p == b'"' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'\\' || crate::memory::cstr_first_byte(p) == b'"' {
                     len += 2;
                     p = p.add(1);
                 } else if ascii_iswhite(*p) {
                     p = skipwhite(p);
-                    if *p == NUL {
+                    if crate::memory::cstr_is_empty(p) {
                         break;
                     }
                     len += 4;
@@ -1426,7 +1426,7 @@ fn uc_split_args(
                 let arg_end = p.add(arglen_i);
 
                 while p < arg_end {
-                    if *p == b'\\' as c_char || *p == b'"' as c_char {
+                    if crate::memory::cstr_first_byte(p) == b'\\' || crate::memory::cstr_first_byte(p) == b'"' {
                         len += 2;
                         p = p.add(1);
                     } else {
@@ -1449,24 +1449,24 @@ fn uc_split_args(
 
         if args.is_empty() {
             let mut p = arg;
-            while *p != NUL {
-                if *p == b'\\' as c_char && *p.add(1) == b'\\' as c_char {
+            while !crate::memory::cstr_is_empty(p) {
+                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) == b'\\' as c_char {
                     *q = b'\\' as c_char;
                     *q.add(1) = b'\\' as c_char;
                     q = q.add(2);
                     p = p.add(2);
-                } else if *p == b'\\' as c_char && ascii_iswhite(*p.add(1)) {
+                } else if crate::memory::cstr_first_byte(p) == b'\\' && ascii_iswhite(*p.add(1)) {
                     *q = *p.add(1);
                     q = q.add(1);
                     p = p.add(2);
-                } else if *p == b'\\' as c_char || *p == b'"' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'\\' || crate::memory::cstr_first_byte(p) == b'"' {
                     *q = b'\\' as c_char;
                     *q.add(1) = *p;
                     q = q.add(2);
                     p = p.add(1);
                 } else if ascii_iswhite(*p) {
                     p = skipwhite(p);
-                    if *p == NUL {
+                    if crate::memory::cstr_is_empty(p) {
                         break;
                     }
                     *q = b'"' as c_char;
@@ -1484,7 +1484,7 @@ fn uc_split_args(
                 let arg_end = p.add(arglen_i);
 
                 while p < arg_end {
-                    if *p == b'\\' as c_char || *p == b'"' as c_char {
+                    if crate::memory::cstr_first_byte(p) == b'\\' || crate::memory::cstr_first_byte(p) == b'"' {
                         *q = b'\\' as c_char;
                         *q.add(1) = *p;
                         q = q.add(2);
@@ -1673,7 +1673,7 @@ fn uc_check_code(
         if !vim_strchr(c"qQfF", c_int::from(*p as u8)).is_null()
             && *p.add(1) == b'-' as c_char
         {
-            quote = if *p == b'q' as c_char || *p == b'Q' as c_char {
+            quote = if crate::memory::cstr_first_byte(p) == b'q' || crate::memory::cstr_first_byte(p) == b'Q' {
                 1
             } else {
                 2
@@ -1709,7 +1709,7 @@ fn uc_check_code(
 
         match type_ {
             CodeType::Args => {
-                if *eap.arg == NUL {
+                if crate::memory::cstr_is_empty(eap.arg) {
                     if quote == 1 {
                         result = 2;
                         if !buf.is_null() {
@@ -1733,8 +1733,8 @@ fn uc_check_code(
                         1 => {
                             result = crate::memory::cstr_len(eap.arg) + 2;
                             let mut scan = eap.arg;
-                            while *scan != NUL {
-                                if *scan == b'\\' as c_char || *scan == b'"' as c_char {
+                            while !crate::memory::cstr_is_empty(scan) {
+                                if crate::memory::cstr_first_byte(scan) == b'\\' || crate::memory::cstr_first_byte(scan) == b'"' {
                                     result += 1;
                                 }
                                 scan = scan.add(1);
@@ -1744,8 +1744,8 @@ fn uc_check_code(
                                 *buf = b'"' as c_char;
                                 buf = buf.add(1);
                                 let mut scan = eap.arg;
-                                while *scan != NUL {
-                                    if *scan == b'\\' as c_char || *scan == b'"' as c_char {
+                                while !crate::memory::cstr_is_empty(scan) {
+                                    if crate::memory::cstr_first_byte(scan) == b'\\' || crate::memory::cstr_first_byte(scan) == b'"' {
                                         *buf = b'\\' as c_char;
                                         buf = buf.add(1);
                                     }
@@ -1902,7 +1902,7 @@ pub fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
                 }
                 if !buf.is_null() {
                     let mut ksp = p;
-                    while *ksp != NUL && (*ksp as u8) != K_SPECIAL {
+                    while !crate::memory::cstr_is_empty(ksp) && (*ksp as u8) != K_SPECIAL {
                         ksp = ksp.add(1);
                     }
                     if (*ksp as u8) == K_SPECIAL

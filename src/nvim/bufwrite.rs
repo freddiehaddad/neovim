@@ -1129,7 +1129,7 @@ pub fn buf_write(
         let mut sha_ctx = context_sha256_T::new();
         let bkc = get_bkc_flags( &mut *buf);
 
-        if fname.is_null() || *fname == NUL {
+        if crate::memory::cstr_is_empty(fname) {
             return FAIL;
         }
         if (*buf).b_ml.ml_mfp.is_none() {

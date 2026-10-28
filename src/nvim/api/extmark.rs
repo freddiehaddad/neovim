@@ -11,7 +11,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, Window};
 use crate::buffer::buf_T;
-use crate::charset::{NUL, transstr};
+use crate::charset::transstr;
 use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
     DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
@@ -907,7 +907,7 @@ pub fn nvim_buf_set_extmark(
             if has_key(mask, KEYSET_OPTIDX_set_extmark__conceal_lines) {
                 hl.flags |= kSHConcealLines;
                 has_hl = true;
-                if opts.conceal_lines.size > 0 && *opts.conceal_lines.data != NUL {
+                if opts.conceal_lines.size > 0 && !crate::memory::cstr_is_empty(opts.conceal_lines.data) {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,

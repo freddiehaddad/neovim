@@ -139,7 +139,7 @@ fn match_add(
         let mut regprog: *mut regprog_T = ptr::null_mut();
         let mut rtype = UPD_SOME_VALID;
 
-        if *grp == NUL || (!pat.is_null() && *pat == NUL) {
+        if crate::memory::cstr_is_empty(grp) || (!pat.is_null() && crate::memory::cstr_is_empty(pat)) {
             return -1;
         }
         if id < -1 || id == 0 {
@@ -479,7 +479,7 @@ fn next_search_hl(
             {
                 matchcol = shl.rm.startpos[0].col;
                 let ml = ml_get_buf(&mut *shl.buf, lnum).add(matchcol as usize);
-                if *ml == NUL {
+                if crate::memory::cstr_is_empty(ml) {
                     shl.lnum = 0;
                     break;
                 }
@@ -688,7 +688,7 @@ pub fn prepare_search_hl_line(
 
                 if (*shl).startcol == (*shl).endcol {
                     let p = (*line).add((*shl).endcol as usize);
-                    if *p != NUL {
+                    if !crate::memory::cstr_is_empty(p) {
                         (*shl).endcol += utfc_ptr2len(p);
                     } else {
                         (*shl).endcol += 1;
@@ -799,7 +799,7 @@ pub fn update_search_hl(
 
                         if (*shl).startcol == (*shl).endcol {
                             let p = (*line).add((*shl).endcol as usize);
-                            if *p == NUL {
+                            if crate::memory::cstr_is_empty(p) {
                                 (*shl).endcol += 1;
                             } else {
                                 (*shl).endcol += utfc_ptr2len(p);
@@ -1294,13 +1294,13 @@ pub fn ex_match(eap: &mut exarg_T) {
                     );
                 }
                 p = skipwhite(p);
-                if *p == NUL {
+                if crate::memory::cstr_is_empty(p) {
                     semsg!(gettext(e_invarg2), arg);
                     return;
                 }
                 end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
                 if eap.skip == 0 {
-                    if *end != NUL && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
+                    if !crate::memory::cstr_is_empty(end) && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
                         eap.errmsg = ex_errmsg(e_trailing_arg, end);
                         return;
                     }

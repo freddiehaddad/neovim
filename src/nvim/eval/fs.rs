@@ -153,7 +153,7 @@ pub fn modify_fname(
 
                 // When "/." or "/.." is used: force expansion to get rid of it.
                 p = *fnamep;
-                while *p != NUL {
+                while !crate::memory::cstr_is_empty(p) {
                     if vim_ispathsep(*p as u8 as c_int)
                         && *p.add(1) == b'.' as c_char
                         && (*p.add(2) == NUL
@@ -167,12 +167,12 @@ pub fn modify_fname(
                 }
 
                 // FullName_save() is slow, don't use it when not needed.
-                if *p != NUL
+                if !crate::memory::cstr_is_empty(p)
                     || !vim_isAbsName(*fnamep)
                     || (cfg!(windows)
                         && (*(*fnamep) == b'/' as c_char || *(*fnamep) == b'\\' as c_char))
                 {
-                    let Some(full) = FullName_save(*fnamep, *p != NUL) else {
+                    let Some(full) = FullName_save(*fnamep, !crate::memory::cstr_is_empty(p)) else {
                         *fnamep = ptr::null_mut();
                         *bufp = None;
                         return -1;
@@ -249,7 +249,7 @@ pub fn modify_fname(
                         if path_cmp(opt_vars().p_fic != 0, p, dirname.as_ptr(), dirnamelen) == 0 {
                             p = p.add(dirnamelen);
                             if vim_ispathsep(*p as u8 as c_int) {
-                                while *p != NUL && vim_ispathsep(*p as u8 as c_int) {
+                                while !crate::memory::cstr_is_empty(p) && vim_ispathsep(*p as u8 as c_int) {
                                     p = p.add(1);
                                 }
                                 *fnamep = p;
@@ -338,7 +338,7 @@ pub fn modify_fname(
                 }
 
                 while (s as usize) > (tail as usize) {
-                    if *s == b'.' as c_char {
+                    if crate::memory::cstr_first_byte(s) == b'.' {
                         break;
                     }
                     s = s.wrapping_sub(1);
@@ -521,14 +521,14 @@ pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 /// "delete()" function
 pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         if check_secure() {
             return;
         }
 
         let name = tv_get_string(&argvars[0]);
-        if *name == NUL {
+        if crate::memory::cstr_is_empty(name) {
             emsg(gettext(e_invarg));
             return;
         }
@@ -621,9 +621,9 @@ pub fn f_filecopy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 /// "filereadable()" function
 pub fn f_filereadable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let p = tv_get_string(&argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(*p != NUL && !os_isdir(p) && os_file_is_readable(p)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(!crate::memory::cstr_is_empty(p) && !os_isdir(p) && os_file_is_readable(p)));
     }
 }
 
@@ -659,7 +659,7 @@ fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int
             if p.is_null() {
                 error = true;
             } else {
-                if *p != NUL {
+                if !crate::memory::cstr_is_empty(p) {
                     path = p.cast_mut();
                 }
 
@@ -673,7 +673,7 @@ fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int
             tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
         }
 
-        if *fname != NUL && !error {
+        if !crate::memory::cstr_is_empty(fname) && !error {
             let mut file_to_find: Option<std::ffi::CString> = None;
             let mut search_ctx: Option<ff_search_ctx_T> = None;
 
@@ -738,7 +738,7 @@ pub fn f_findfile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 /// "fnamemodify({fname}, {mods})" function
 pub fn f_fnamemodify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let mut fbuf: Option<Vec<c_char>> = None;
         let mut len: usize = 0;
         let mut buf = [0 as c_char; NUMBUFLEN];
@@ -753,7 +753,7 @@ pub fn f_fnamemodify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             let initial_cstr = cstr_to_cstring(fname);
             len = initial_cstr.as_bytes().len();
             set_fname_buf(&raw mut fname, &mut fbuf, cstr_into_char_vec(initial_cstr));
-            if *mods != NUL {
+            if !crate::memory::cstr_is_empty(mods) {
                 let mut usedlen: usize = 0;
                 modify_fname(
                     mods.cast_mut(),
@@ -1274,7 +1274,7 @@ pub fn f_mkdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 
         let mut buf = [0 as c_char; NUMBUFLEN];
         let dir = tv_get_string_buf(&argvars[0], buf.as_mut_ptr());
-        if *dir == NUL {
+        if crate::memory::cstr_is_empty(dir) {
             return;
         }
 
@@ -1529,7 +1529,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
             semsg!(gettext(e_isadir2), fname);
             return;
         }
-        if *fname == NUL {
+        if crate::memory::cstr_is_empty(fname) {
             semsg!(gettext(e_notopen), gettext(c"<empty>"));
             return;
         }
@@ -1558,7 +1558,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
             while (p as usize) < (buf_ptr.offset(readlen) as usize)
                 || (readlen <= 0 && (!prev.is_empty() || binary))
             {
-                if readlen <= 0 || *p == b'\n' as c_char {
+                if readlen <= 0 || crate::memory::cstr_first_byte(p) == b'\n' {
                     let mut len = (p as usize).wrapping_sub(start as usize);
 
                     // Finished a line.  Remove CRs before NL.
@@ -1595,7 +1595,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
                     if readlen <= 0 {
                         break;
                     }
-                } else if *p == NUL {
+                } else if crate::memory::cstr_is_empty(p) {
                     *p = b'\n' as c_char;
                 } else if *p as u8 == 0xbf && !binary {
                     // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
@@ -1714,7 +1714,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             let mut p_vec = cstr_into_char_vec(cstr_to_cstring(fname));
             let mut p = p_vec.as_mut_ptr();
 
-            if *p == b'.' as c_char
+            if crate::memory::cstr_first_byte(p) == b'.'
                 && (vim_ispathsep(*p.add(1) as u8 as c_int)
                     || (*p.add(1) == b'.' as c_char && vim_ispathsep(*p.add(2) as u8 as c_int)))
             {
@@ -1729,7 +1729,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
             let mut q = path_next_component(p).cast_mut();
             let mut remain_vec: Option<Vec<c_char>> = None;
-            if *q != NUL {
+            if !crate::memory::cstr_is_empty(q) {
                 // Separate the first path component in "p", and keep the
                 // remainder (beginning with the path separator).
                 remain_vec = Some(cstr_into_char_vec(cstr_to_cstring(q.sub(1))));
@@ -1769,7 +1769,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                         buf
                     };
                     q = path_next_component(start_comp).cast_mut();
-                    if *q != NUL {
+                    if !crate::memory::cstr_is_empty(q) {
                         let head_bytes = crate::memory::cstr_as_bytes(q.sub(1));
                         let mut new_rem = Vec::with_capacity(
                             head_bytes.len()
@@ -1787,7 +1787,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                     }
 
                     q = path_tail(p);
-                    if (q as usize) > (p as usize) && *q == NUL {
+                    if (q as usize) > (p as usize) && crate::memory::cstr_is_empty(q) {
                         // Ignore trailing path separator.
                         *q.sub(1) = NUL;
                         q = path_tail(p);
@@ -1815,7 +1815,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
                 // Append the first path component of "remain" to "p".
                 q = path_next_component(remain.add(1)).cast_mut();
-                len = (q as usize).wrapping_sub(remain as usize) as isize - isize::from(*q != NUL);
+                len = (q as usize).wrapping_sub(remain as usize) as isize - isize::from(!crate::memory::cstr_is_empty(q));
                 let p_len = crate::memory::cstr_len(p);
                 let mut new_p = vec![0 as c_char; p_len + len as usize + 1];
                 ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len);
@@ -1824,7 +1824,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 p = p_vec.as_mut_ptr();
 
                 // Shorten "remain".
-                if *q != NUL {
+                if !crate::memory::cstr_is_empty(q) {
                     let rem_tail = q.sub(1);
                     let rem_len = crate::memory::cstr_len(rem_tail) + 1;
                     ptr::copy(rem_tail, remain, rem_len);
@@ -1837,8 +1837,8 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             // the current directory if and only if the argument had this form.
             if !vim_ispathsep(*p as u8 as c_int) {
                 if is_relative_to_current
-                    && *p != NUL
-                    && !(*p == b'.' as c_char
+                    && !crate::memory::cstr_is_empty(p)
+                    && !(crate::memory::cstr_first_byte(p) == b'.'
                         && (*p.add(1) == NUL
                             || vim_ispathsep(*p.add(1) as u8 as c_int)
                             || (*p.add(1) == b'.' as c_char
@@ -1855,7 +1855,7 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
                 } else if !is_relative_to_current {
                     // Strip leading "./".
                     q = p;
-                    while *q == b'.' as c_char && vim_ispathsep(*q.add(1) as u8 as c_int) {
+                    while crate::memory::cstr_first_byte(q) == b'.' && vim_ispathsep(*q.add(1) as u8 as c_int) {
                         q = q.add(2);
                     }
                     if (q as usize) > (p as usize) {
@@ -1913,7 +1913,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&list_T>, binary: bool) -> b
             let mut hunk_start = s;
             let mut p = hunk_start;
             loop {
-                if *p == NUL || *p == NL {
+                if crate::memory::cstr_is_empty(p) || *p == NL {
                     if p != hunk_start {
                         let written = file_write(
                             fp,
@@ -1925,7 +1925,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&list_T>, binary: bool) -> b
                             break 'outer;
                         }
                     }
-                    if *p == NUL {
+                    if crate::memory::cstr_is_empty(p) {
                         break;
                     } else {
                         hunk_start = p.add(1);
@@ -2039,7 +2039,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
                 return;
             }
             let mut p = flags;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 match *p as u8 {
                     b'b' => binary = true,
                     b'a' => append = true,
@@ -2067,7 +2067,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
 
         let mut fp = FileDescriptor::new();
-        if *fname == NUL {
+        if crate::memory::cstr_is_empty(fname) {
             emsg(gettext(
                 c"E482: Can't open file with an empty name",
             ));

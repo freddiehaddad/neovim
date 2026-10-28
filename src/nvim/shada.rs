@@ -1709,7 +1709,7 @@ fn shada_get_default_file() -> *const c_char {
 
 fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
-        if file.is_null() || *file == NUL {
+        if crate::memory::cstr_is_empty(file) {
             if !opt_vars().p_shadafile.is_null() && !crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
                 if !(crate::memory::cstr_as_opt_bytes(opt_vars().p_shadafile) == Some(b"NONE")) {
                     file = opt_vars().p_shadafile;
@@ -1718,7 +1718,7 @@ fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
                 }
             } else {
                 file = find_shada_parameter(b'n' as c_int);
-                if file.is_null() || *file == NUL {
+                if crate::memory::cstr_is_empty(file) {
                     file = shada_get_default_file();
                 }
                 let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();

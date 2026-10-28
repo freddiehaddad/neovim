@@ -871,9 +871,9 @@ pub unsafe extern "C" fn win_col_off(wp: *mut win_T) -> c_int {
     unsafe {
         let num_off = if (*wp).w_onebuf_opt.wo_nu != 0
             || (*wp).w_onebuf_opt.wo_rnu != 0
-            || *(*wp).w_onebuf_opt.wo_stc != NUL
+            || !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stc)
         {
-            number_width( &mut *wp) + c_int::from(*(*wp).w_onebuf_opt.wo_stc == NUL)
+            number_width( &mut *wp) + c_int::from(crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stc))
         } else {
             0
         };
@@ -884,13 +884,13 @@ pub unsafe extern "C" fn win_col_off(wp: *mut win_T) -> c_int {
 /// Return the difference in column offset for the second screen line of a
 /// wrapped line.
 pub fn win_col_off2(wp: &mut win_T) -> c_int {
-    unsafe {
+     {
         if (wp.w_onebuf_opt.wo_nu != 0
             || wp.w_onebuf_opt.wo_rnu != 0
-            || *wp.w_onebuf_opt.wo_stc != NUL)
+            || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
             && !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null()
         {
-            return number_width( wp) + c_int::from(*wp.w_onebuf_opt.wo_stc == NUL);
+            return number_width( wp) + c_int::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc));
         }
         0
     }
@@ -1263,7 +1263,7 @@ fn virtcol2col(wp: &mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
         let line = ml_get_buf(wp.buf_mut(), lnum);
         let mut p = line.add(offset as usize);
 
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             if p == line {
                 return 0;
             }

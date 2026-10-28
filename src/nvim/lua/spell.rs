@@ -13,7 +13,6 @@ use crate::strings::gettext;
 use std::ffi::c_int;
 use std::ptr;
 
-use crate::charset::NUL;
 use crate::drawline::HLF_COUNT;
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 use crate::ex_getln::hlf_T;
@@ -39,7 +38,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
         }
 
         let w_s = curwin_mut().w_s_ptr();
-        if *(*w_s).b_p_spl == NUL {
+        if crate::memory::cstr_is_empty((*w_s).b_p_spl) {
             emsg(gettext(e_no_spell));
             curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
             return 0;
@@ -51,7 +50,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
 
         lua_createtable(lstate, 0, 0);
 
-        while *str_ != NUL {
+        while !crate::memory::cstr_is_empty(str_) {
             let mut attr: hlf_T = HLF_COUNT;
             let len = spell_check(
                 curwin_mut(),

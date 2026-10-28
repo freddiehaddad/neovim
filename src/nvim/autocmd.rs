@@ -1550,7 +1550,7 @@ fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char) {
         }
 
         let mut patlen: c_int = 0;
-        if *pat != NUL {
+        if !crate::memory::cstr_is_empty(pat) {
             patlen = aucmd_span_pattern(pat, &raw mut pat) as c_int;
             if patlen == 0 {
                 return;
@@ -1895,14 +1895,14 @@ pub fn augroup_exists(name: impl crate::strings::IntoCCharPtr) -> bool {
 pub fn do_augroup(arg: *mut c_char, del_group: bool) {
     unsafe {
         if del_group {
-            if *arg == NUL {
+            if crate::memory::cstr_is_empty(arg) {
                 emsg(tr(e_argreq));
             } else {
                 augroup_del(arg, -1, true);
             }
         } else if crate::memory::cstr_as_bytes(arg).eq_ignore_ascii_case(b"end") {
             au_st().current_augroup = AUGROUP_DEFAULT;
-        } else if *arg != NUL {
+        } else if !crate::memory::cstr_is_empty(arg) {
             au_st().current_augroup = augroup_add(arg);
         } else {
             msg_start();
@@ -1947,12 +1947,12 @@ pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_
     let start = start.into_c_char_ptr();
     unsafe {
         let mut p = start;
-        while *p != NUL && !ascii_iswhite(*p) && *p != b',' as c_char && *p != b'|' as c_char {
+        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(*p) && crate::memory::cstr_first_byte(p) != b',' && crate::memory::cstr_first_byte(p) != b'|' {
             p = p.add(1);
         }
 
         let hash_idx = event_name2nr_hash(start, p.offset_from(start) as usize);
-        if *p == b',' as c_char {
+        if crate::memory::cstr_first_byte(p) == b',' {
             p = p.add(1);
         }
         *end = p.cast_mut();
@@ -1984,8 +1984,8 @@ pub fn event_nr2name(event: event_T) -> *const c_char {
 pub fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
     unsafe {
         let mut ignored = false;
-        while *ei != NUL {
-            let unignore = *ei == b'-' as c_char;
+        while !crate::memory::cstr_is_empty(ei) {
+            let unignore = crate::memory::cstr_first_byte(ei) == b'-';
             if unignore {
                 ei = ei.add(1);
             }
@@ -2008,13 +2008,13 @@ pub fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
 
 pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
     unsafe {
-        while *ei != NUL {
+        while !crate::memory::cstr_is_empty(ei) {
             if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
                 ei = ei.add(3 + usize::from(*ei.add(3) == b',' as c_char));
             } else {
-                if *ei == b'-' as c_char {
+                if crate::memory::cstr_first_byte(ei) == b'-' {
                     ei = ei.add(1);
                 }
                 let event = event_name2nr(ei, &raw mut ei);
@@ -2060,7 +2060,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
         let mut cmd_owned: Option<CString> = None;
         let mut nested = false;
         let mut once = false;
-        let group = if *arg == b'|' as c_char {
+        let group = if crate::memory::cstr_first_byte(arg) == b'|' {
             eap.nextcmd = arg.add(1);
             arg = c"".as_ptr().cast_mut();
             AUGROUP_ALL
@@ -2075,16 +2075,16 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
 
         pat = skipwhite(pat);
         'run: {
-            if *pat == b'|' as c_char {
+            if crate::memory::cstr_first_byte(pat) == b'|' {
                 eap.nextcmd = pat.add(1);
                 pat = c"".as_ptr().cast_mut();
                 cmd = c"".as_ptr().cast_mut();
             } else {
                 cmd = pat;
-                while *cmd != NUL && (!ascii_iswhite(*cmd) || *cmd.sub(1) == b'\\' as c_char) {
+                while !crate::memory::cstr_is_empty(cmd) && (!ascii_iswhite(*cmd) || *cmd.sub(1) == b'\\' as c_char) {
                     cmd = cmd.add(1);
                 }
-                if *cmd != NUL {
+                if !crate::memory::cstr_is_empty(cmd) {
                     *cmd = NUL;
                     cmd = cmd.add(1);
                 }
@@ -2101,7 +2101,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
 
                 let mut invalid_flags = false;
                 for _ in 0..2 {
-                    if *cmd == NUL {
+                    if crate::memory::cstr_is_empty(cmd) {
                         continue;
                     }
                     invalid_flags |=
@@ -2120,7 +2120,7 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                     break 'run;
                 }
 
-                if *cmd != NUL {
+                if !crate::memory::cstr_is_empty(cmd) {
                     cmd_owned = expand_sfile(cmd);
                     match cmd_owned {
                         Some(ref co) => cmd = co.as_ptr().cast_mut(),
@@ -2129,27 +2129,27 @@ pub fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int) {
                 }
             }
 
-            let is_showing = forceit == 0 && *cmd == NUL;
+            let is_showing = forceit == 0 && crate::memory::cstr_is_empty(cmd);
 
             if is_showing {
                 msg_ext_set_kind(c"list_cmd");
                 msg_puts_title(tr(c"\n--- Autocommands ---"));
 
-                if *arg == b'*' as c_char || *arg == b'|' as c_char || *arg == NUL {
+                if crate::memory::cstr_first_byte(arg) == b'*' || crate::memory::cstr_first_byte(arg) == b'|' || crate::memory::cstr_is_empty(arg) {
                     au_show_for_all_events(group, pat);
                 } else {
                     let event = event_name2nr(arg, &raw mut arg);
                     assert!((event as usize) < NUM_EVENTS);
                     au_show_for_event(group, event, pat);
                 }
-            } else if *arg == b'*' as c_char || *arg == NUL || *arg == b'|' as c_char {
-                if *cmd != NUL {
+            } else if crate::memory::cstr_first_byte(arg) == b'*' || crate::memory::cstr_is_empty(arg) || crate::memory::cstr_first_byte(arg) == b'|' {
+                if !crate::memory::cstr_is_empty(cmd) {
                     emsg(tr(e_cannot_define_autocommands_for_all_events));
                 } else {
                     do_all_autocmd_events(pat, once, c_int::from(nested), cmd, forceit != 0, group);
                 }
             } else {
-                while *arg != NUL && *arg != b'|' as c_char && !ascii_iswhite(*arg) {
+                while !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && !ascii_iswhite(*arg) {
                     let event = event_name2nr(arg, &raw mut arg);
                     assert!((event as usize) < NUM_EVENTS);
                     if !do_autocmd_event(
@@ -2198,17 +2198,17 @@ pub fn do_autocmd_event(
 ) -> bool {
     let cmd = cmd.into_c_char_ptr();
     unsafe {
-        assert!(*pat != NUL || del);
+        assert!(!crate::memory::cstr_is_empty(pat) || del);
 
         let mut buflocal_pat = [0 as c_char; BUFLOCAL_PAT_LEN];
-        let is_adding_cmd = *cmd != NUL;
+        let is_adding_cmd = !crate::memory::cstr_is_empty(cmd);
         let findgroup = if group == AUGROUP_ALL {
             au_st().current_augroup
         } else {
             group
         };
 
-        if *pat == NUL && del {
+        if crate::memory::cstr_is_empty(pat) && del {
             aucmd_del_for_event_and_group(event, findgroup);
             return true;
         }
@@ -2233,7 +2233,7 @@ pub fn do_autocmd_event(
             }
 
             if del {
-                assert!(*pat != NUL);
+                assert!(!crate::memory::cstr_is_empty(pat));
 
                 let acs = &raw mut au_st().autocmds[event as usize];
                 for ac in &mut *acs {
@@ -2422,20 +2422,20 @@ pub fn autocmd_register(
 pub fn aucmd_span_pattern(pat: impl crate::strings::IntoCCharPtr, start: *mut *const c_char) -> usize {
     let mut pat = pat.into_c_char_ptr();
     unsafe {
-        while *pat == b',' as c_char {
+        while crate::memory::cstr_first_byte(pat) == b',' {
             pat = pat.add(1);
         }
 
         let mut p = pat;
         let mut brace_level: c_int = 0;
-        while *p != NUL
-            && (*p != b',' as c_char
+        while !crate::memory::cstr_is_empty(p)
+            && (crate::memory::cstr_first_byte(p) != b','
                 || brace_level != 0
                 || (p > pat && *p.sub(1) == b'\\' as c_char))
         {
-            if *p == b'{' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'{' {
                 brace_level += 1;
-            } else if *p == b'}' as c_char {
+            } else if crate::memory::cstr_first_byte(p) == b'}' {
                 brace_level -= 1;
             }
             p = p.add(1);
@@ -2461,7 +2461,7 @@ pub fn do_doautocmd(
 
         let group = arg_augroup_get(&raw mut arg);
 
-        if *arg == b'*' as c_char {
+        if crate::memory::cstr_first_byte(arg) == b'*' {
             emsg(tr(c"E217: Can't execute autocommands for ALL events"));
             return false;
         }
@@ -2473,7 +2473,7 @@ pub fn do_doautocmd(
 
         fname = skipwhite(fname);
 
-        while *arg != NUL && ends_excmd(c_int::from(*arg.cast::<u8>())) == 0 && !ascii_iswhite(*arg)
+        while !crate::memory::cstr_is_empty(arg) && ends_excmd(c_int::from(*arg.cast::<u8>())) == 0 && !ascii_iswhite(*arg)
         {
             let ev = event_name2nr(arg, &raw mut arg);
             if apply_autocmds_group(
@@ -2908,7 +2908,7 @@ pub fn apply_autocmds_group(
             g_st().autocmd_bufnr = if buf.is_null() { 0 } else { (*buf).b_fnum };
 
             let mut sfname_owned: Option<CString> = None;
-            let fname_owned: Option<CString> = if fname.is_null() || *fname == NUL {
+            let fname_owned: Option<CString> = if crate::memory::cstr_is_empty(fname) {
                 if buf.is_null() {
                     fname = ptr::null_mut();
                 } else if event == EVENT_SYNTAX {
@@ -3544,19 +3544,19 @@ pub fn aucmd_set_expand_context(
         let mut p = arg;
         let mut group = arg_augroup_get(&raw mut arg);
 
-        if *arg == NUL && group != AUGROUP_ALL && !ascii_iswhite(*arg.sub(1)) {
+        if crate::memory::cstr_is_empty(arg) && group != AUGROUP_ALL && !ascii_iswhite(*arg.sub(1)) {
             arg = p;
             group = AUGROUP_ALL;
         }
 
         p = arg;
-        while *p != NUL && !ascii_iswhite(*p) {
-            if *p == b',' as c_char {
+        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(*p) {
+            if crate::memory::cstr_first_byte(p) == b',' {
                 arg = p.add(1);
             }
             p = p.add(1);
         }
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             if group == AUGROUP_ALL {
                 au_st().autocmd_include_groups = true;
             }
@@ -3566,10 +3566,10 @@ pub fn aucmd_set_expand_context(
         }
 
         arg = skipwhite(p);
-        while *arg != NUL && (!ascii_iswhite(*arg) || *arg.sub(1) == b'\\' as c_char) {
+        while !crate::memory::cstr_is_empty(arg) && (!ascii_iswhite(*arg) || *arg.sub(1) == b'\\' as c_char) {
             arg = arg.add(1);
         }
-        if *arg != NUL {
+        if !crate::memory::cstr_is_empty(arg) {
             arg = skipwhite(arg);
             for _ in 0..2 {
                 let bytes = crate::memory::cstr_as_bytes(arg);
@@ -3785,7 +3785,7 @@ fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {
         let mut pat: *mut c_char;
         let mut p: *mut c_char = ptr::null_mut();
 
-        if *arg == b'*' as c_char {
+        if crate::memory::cstr_first_byte(arg) == b'*' {
             if *arg.add(1) != NUL && !ascii_iswhite(*arg.add(1)) {
                 semsg!(tr(c"E215: Illegal character after *: %s"), arg);
                 return ptr::null_mut();
@@ -3793,7 +3793,7 @@ fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {
             pat = arg.add(1);
         } else {
             pat = arg;
-            while *pat != NUL && *pat != b'|' as c_char && !ascii_iswhite(*pat) {
+            while !crate::memory::cstr_is_empty(pat) && crate::memory::cstr_first_byte(pat) != b'|' && !ascii_iswhite(*pat) {
                 if (event_name2nr(pat, &raw mut p) as usize) >= NUM_EVENTS {
                     if have_group {
                         semsg!(tr(c"E216: No such event: %s"), pat);
@@ -3813,7 +3813,7 @@ fn arg_augroup_get(argp: *mut *mut c_char) -> c_int {
     unsafe {
         let arg = *argp;
         let mut p = arg;
-        while *p != NUL && !ascii_iswhite(*p) && *p != b'|' as c_char {
+        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(*p) && crate::memory::cstr_first_byte(p) != b'|' {
             p = p.add(1);
         }
         if p <= arg {

@@ -584,7 +584,7 @@ pub fn spell_check_sps(
             } else if option_slice_eq(key, keylen, c"timeout") {
                 let mut v = val;
                 let mut vl = vallen;
-                if vl > 0 && *v == b'-' as c_char {
+                if vl > 0 && crate::memory::cstr_first_byte(v) == b'-' {
                     v = v.add(1);
                     vl -= 1;
                 }
@@ -705,7 +705,7 @@ pub fn spell_suggest(count: c_int) {
         let prev_cursor = curwin_mut().w_cursor;
         'skip: {
             let w_s = curwin_mut().w_s_ptr();
-            if *(*w_s).b_p_spl == NUL {
+            if crate::memory::cstr_is_empty((*w_s).b_p_spl) {
                 emsg(gettext(e_no_spell));
                 break 'skip;
             }
@@ -732,7 +732,7 @@ pub fn spell_suggest(count: c_int) {
                 while p > curline && spell_iswordp_nmw(p, curwin_mut()) {
                     mb_ptr_back(curline, &mut p);
                 }
-                while *p != NUL && !spell_iswordp_nmw(p, curwin_mut()) {
+                while !crate::memory::cstr_is_empty(p) && !spell_iswordp_nmw(p, curwin_mut()) {
                     mb_ptr_adv(&mut p);
                 }
                 if !spell_iswordp_nmw(p, curwin_mut()) {
@@ -891,7 +891,7 @@ fn spell_find_suggest(
         let mut do_combine = false;
         let mut did_intern = false;
         *su = suginfo_T::default();
-        if *badptr == NUL {
+        if crate::memory::cstr_is_empty(badptr) {
             return;
         }
         su.su_badptr = badptr;
@@ -964,7 +964,7 @@ fn spell_find_suggest(
         }
         let sps_copy = crate::memory::cstr_to_cstring(opt_vars().p_sps);
         let mut p = sps_copy.as_ptr().cast_mut();
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",");
             let buf_ptr = (&raw mut buf).cast::<c_char>();
             if crate::memory::cstr_prefix_bytes(buf_ptr, 5) == &b"expr:"[..5] {
@@ -2444,7 +2444,7 @@ fn stp_sal_score(
                 let mut p = (&raw mut fword).cast::<c_char>();
                 loop {
                     p = skiptowhite(p);
-                    if *p == NUL {
+                    if crate::memory::cstr_is_empty(p) {
                         break;
                     }
                     crate::memory::cstr_move(p, p.add(1));
@@ -2539,7 +2539,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
             .map_or(ptr::null_mut(), |b| &raw mut *b);
         let mut nrline = ml_get_buf(&mut *sugbuf, sfwordnr + 1);
         let mut orgnr: c_int = 0;
-        while *nrline != NUL {
+        while !crate::memory::cstr_is_empty(nrline) {
             orgnr += bytes2offset(&raw mut nrline);
             let byts = slang.sl_fbyts.as_mut_ptr();
             let idxs = slang.sl_fidxs.as_mut_ptr();
@@ -2933,14 +2933,14 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
         let mut goodsound = goodstart;
         let mut badsound = badstart;
         let mut score: c_int = 0;
-        if (*badsound == b'*' as c_char || *goodsound == b'*' as c_char) && *badsound != *goodsound
+        if (crate::memory::cstr_first_byte(badsound) == b'*' || crate::memory::cstr_first_byte(goodsound) == b'*') && *badsound != *goodsound
         {
-            if (*badsound == NUL && *goodsound.add(1) == NUL)
-                || (*goodsound == NUL && *badsound.add(1) == NUL)
+            if (crate::memory::cstr_is_empty(badsound) && *goodsound.add(1) == NUL)
+                || (crate::memory::cstr_is_empty(goodsound) && *badsound.add(1) == NUL)
             {
                 return SCORE_DEL;
             }
-            if *badsound == NUL || *goodsound == NUL {
+            if crate::memory::cstr_is_empty(badsound) || crate::memory::cstr_is_empty(goodsound) {
                 return SCORE_MAXMAX;
             }
             if *badsound.add(1) == *goodsound.add(1)
@@ -2951,7 +2951,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                 // handle like a substitute
             } else {
                 score = 2 * SCORE_DEL / 3;
-                if *badsound == b'*' as c_char {
+                if crate::memory::cstr_first_byte(badsound) == b'*' {
                     badsound = badsound.add(1);
                 } else {
                     goodsound = goodsound.add(1);
@@ -2966,7 +2966,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
         }
         let mut pl = if n > 0 { goodsound } else { badsound };
         let mut ps = if n > 0 { badsound } else { goodsound };
-        while *pl == *ps && *pl != NUL {
+        while *pl == *ps && !crate::memory::cstr_is_empty(pl) {
             pl = pl.add(1);
             ps = ps.add(1);
         }
@@ -2985,7 +2985,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                 let mut pl2 = pl.add(1);
                 let mut ps2 = ps;
                 while *pl2 == *ps2 {
-                    if *pl2 == NUL {
+                    if crate::memory::cstr_is_empty(pl2) {
                         return score + SCORE_DEL;
                     }
                     pl2 = pl2.add(1);
@@ -3020,14 +3020,14 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                 }
             }
             0 => {
-                if *pl == NUL {
+                if crate::memory::cstr_is_empty(pl) {
                     return score;
                 }
                 if *pl == *ps.add(1) && *pl.add(1) == *ps {
                     let mut pl2 = pl.add(2);
                     let mut ps2 = ps.add(2);
                     while *pl2 == *ps2 {
-                        if *pl2 == NUL {
+                        if crate::memory::cstr_is_empty(pl2) {
                             return score + SCORE_SWAP;
                         }
                         pl2 = pl2.add(1);
@@ -3046,7 +3046,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
                 let mut pl2 = pl.add(1);
                 let mut ps2 = ps.add(1);
                 while *pl2 == *ps2 {
-                    if *pl2 == NUL {
+                    if crate::memory::cstr_is_empty(pl2) {
                         return score + SCORE_SUBST;
                     }
                     pl2 = pl2.add(1);
@@ -3088,12 +3088,12 @@ fn spell_edit_score(
     badword: *const c_char,
     goodword: *const c_char,
 ) -> c_int {
-    unsafe {
+     {
         let mut wbadword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut badlen: usize = 0;
         let mut p = badword;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             wbadword[badlen] = mb_cptr2char_adv(&raw mut p);
             badlen += 1;
         }
@@ -3101,7 +3101,7 @@ fn spell_edit_score(
         badlen += 1;
         let mut goodlen: usize = 0;
         p = goodword;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             wgoodword[goodlen] = mb_cptr2char_adv(&raw mut p);
             goodlen += 1;
         }
@@ -3165,20 +3165,20 @@ fn spell_edit_score_limit_w(
     goodword: *const c_char,
     limit: c_int,
 ) -> c_int {
-    unsafe {
+     {
         let mut stack: [limitscore_T; 10] = [limitscore_T::default(); 10];
         let mut wbadword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut wgoodword: [c_int; MAXWLEN] = [0; MAXWLEN];
         let mut bi: usize = 0;
         let mut p = badword;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             wbadword[bi] = mb_cptr2char_adv(&raw mut p);
             bi += 1;
         }
         wbadword[bi] = 0;
         let mut gi: usize = 0;
         p = goodword;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             wgoodword[gi] = mb_cptr2char_adv(&raw mut p);
             gi += 1;
         }

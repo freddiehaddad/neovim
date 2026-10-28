@@ -1966,7 +1966,7 @@ fn parse_quoted_string(
             );
             p = s.add(1);
             while (p as usize) < (e as usize) {
-                if *p == b'\\' as c_char && (p.add(1) as usize) < (e as usize) {
+                if crate::memory::cstr_first_byte(p) == b'\\' && (p.add(1) as usize) < (e as usize) {
                     p = p.add(1);
                     if std::ptr::eq(p.add(1), e) {
                         size -= 1;

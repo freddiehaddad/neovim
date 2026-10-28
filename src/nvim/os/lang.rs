@@ -695,7 +695,7 @@ pub fn ex_language(eap: &mut exarg_T) {
 
         let p = skiptowhite(eap.arg);
         let arg_len = (p as usize) - (eap.arg as usize);
-        if (*p == NUL || matches!(*p as u8, b' ' | b'\t')) && arg_len >= 3 {
+        if (crate::memory::cstr_is_empty(p) || matches!(*p as u8, b' ' | b'\t')) && arg_len >= 3 {
             if mb_strnicmp(eap.arg, c"messages", arg_len) == 0 {
                 what = VIM_LC_MESSAGES;
                 name = skipwhite(p);
@@ -715,14 +715,14 @@ pub fn ex_language(eap: &mut exarg_T) {
             }
         }
 
-        if *name == NUL {
+        if crate::memory::cstr_is_empty(name) {
             let mut mess_buf = [0 as c_char; 64];
             let mut p_val = if what == VIM_LC_MESSAGES {
                 get_mess_env(&mut mess_buf)
             } else {
                 setlocale(what, ptr::null())
             };
-            if p_val.is_null() || *p_val == NUL {
+            if crate::memory::cstr_is_empty(p_val) {
                 p_val = c"Unknown".as_ptr().cast_mut();
             }
             let _ = smsg!(

@@ -1137,7 +1137,7 @@ pub fn readfile(
                 g_st().msg_scroll = 1;
             }
 
-            if !fname.is_null() && *fname != NUL {
+            if !crate::memory::cstr_is_empty(fname) {
                 let fnamelen = crate::memory::cstr_len(fname);
 
                 if fnamelen >= MAXPATHL {
@@ -1620,7 +1620,7 @@ pub fn readfile(
                     }
                 }
 
-                let can_retry = *fenc != NUL && !read_stdin && !keep_dest_enc && !read_fifo;
+                let can_retry = !crate::memory::cstr_is_empty(fenc) && !read_stdin && !keep_dest_enc && !read_fifo;
 
                 if !skip_read {
                     linerest = 0;
@@ -1778,7 +1778,7 @@ pub fn readfile(
                             && (fio_flags == FIO_UCSBOM
                                 || (curbuf_mut().b_p_bomb == 0
                                     && tmpname.is_none()
-                                    && (*fenc == b'u' as c_char || *fenc == NUL)))
+                                    && (crate::memory::cstr_first_byte(fenc) == b'u' || crate::memory::cstr_is_empty(fenc))))
                         {
                             let mut blen: c_int = 0;
                             let ccname = if size < 2 || curbuf_mut().b_p_bin != 0 {
@@ -2820,7 +2820,7 @@ fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char) -> li
         let mut lnum = curbuf_mut().b_ml.ml_line_count - linecnt + 1;
         let mut s: *const c_char = p;
         while s < endp {
-            if *s == b'\n' as c_char {
+            if crate::memory::cstr_first_byte(s) == b'\n' {
                 lnum += 1;
             }
             s = s.add(1);
@@ -3150,7 +3150,7 @@ pub fn need_conversion(fenc: *const c_char) -> bool {
         let same_encoding: bool;
         let fenc_flags: c_int;
 
-        if *fenc == NUL || CStr::from_ptr(opt_vars().p_enc) == CStr::from_ptr(fenc) {
+        if crate::memory::cstr_is_empty(fenc) || CStr::from_ptr(opt_vars().p_enc) == CStr::from_ptr(fenc) {
             same_encoding = true;
             fenc_flags = 0;
         } else {
@@ -3169,8 +3169,8 @@ pub fn need_conversion(fenc: *const c_char) -> bool {
 /// Return the FIO_ flags needed for the internal conversion if 'name' was
 /// unicode or latin1, otherwise 0.
 pub fn get_fio_flags(mut name: *const c_char) -> c_int {
-    unsafe {
-        if name.is_null() || *name == NUL {
+     {
+        if crate::memory::cstr_is_empty(name) {
             name = if opt_vars().p_enc.is_null() {
                 c"utf-8".as_ptr()
             } else {
@@ -3276,7 +3276,7 @@ pub fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_int) ->
         }
 
         let p = path_shorten_fname(buf.b_ffname, dirname);
-        let shorten = !p.is_null() && *p != NUL;
+        let shorten = !crate::memory::cstr_is_empty(p);
         if shorten
             && !buf.b_sfname.is_null()
             && CStr::from_ptr(p) == CStr::from_ptr(buf.b_sfname)
@@ -3329,7 +3329,7 @@ pub fn modname(
         let fnamelen: usize;
         let extlen = crate::memory::cstr_len(ext);
 
-        if fname.is_null() || *fname == NUL {
+        if crate::memory::cstr_is_empty(fname) {
             retval_vec = vec![0; MAXPATHL + extlen + 3];
             retval = retval_vec.as_mut_ptr();
             if !os_dirname(retval, MAXPATHL) || crate::memory::cstr_as_bytes(retval).is_empty() {
@@ -3365,7 +3365,7 @@ pub fn modname(
         ptr::copy_nonoverlapping(ext, s, extlen + 1);
 
         let e = path_tail(retval);
-        if prepend_dot && *e != b'.' as c_char {
+        if prepend_dot && crate::memory::cstr_first_byte(e) != b'.' {
             let move_len = ((fnamelen + extlen) - e.offset_from(retval) as usize) + 1;
             ptr::copy(e, e.add(1), move_len);
             *e = b'.' as c_char;
@@ -3377,7 +3377,7 @@ pub fn modname(
                 if s < ptr {
                     break;
                 }
-                if *s != b'_' as c_char {
+                if crate::memory::cstr_first_byte(s) != b'_' {
                     *s = b'_' as c_char;
                     break;
                 }
@@ -3847,7 +3847,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                             c"E246: FileChangedShell autocommand deleted buffer"));
                     }
                     let s = CStr::from_ptr(get_vim_var_str(VV_FCS_CHOICE));
-                    if s == c"reload" && *reason != b'd' as c_char {
+                    if s == c"reload" && crate::memory::cstr_first_byte(reason) != b'd' {
                         reload = RELOAD_NORMAL;
                     } else if s == c"edit" {
                         reload = RELOAD_DETECT;
@@ -3858,7 +3858,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                     }
                 }
                 if !n {
-                    if *reason == b'd' as c_char {
+                    if crate::memory::cstr_first_byte(reason) == b'd' {
                         if prev_b_mtime != -1 {
                             mesg = tr(c"E211: File \"%s\" no longer available");
                         }
@@ -3876,7 +3876,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                                 c"W11: Warning: File \"%s\" has changed since editing started",
                             );
                             mesg2 = tr(c"See \":help W11\" for more info.");
-                        } else if *reason == b'm' as c_char {
+                        } else if crate::memory::cstr_first_byte(reason) == b'm' {
                             mesg = tr(
                                 c"W16: Warning: Mode of file \"%s\" has changed since editing started",
                             );
@@ -3909,7 +3909,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
             let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path.as_ptr());
             set_vim_var_string(VV_WARNINGMSG, tbuf, tbuflen as isize);
             if can_reload {
-                if *mesg2 != NUL {
+                if !crate::memory::cstr_is_empty(mesg2) {
                     vim_snprintf!(
                         tbuf.offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
@@ -3931,7 +3931,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                     _ => {}
                 }
             } else if g_st().State > MODE_NORMAL_BUSY || (g_st().State & MODE_CMDLINE) != 0 || fio_st().ALREADY_WARNED {
-                if *mesg2 != NUL {
+                if !crate::memory::cstr_is_empty(mesg2) {
                     vim_snprintf!(
                         tbuf.offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
@@ -3945,7 +3945,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
                 if !g_st().autocmd_busy {
                     msg_start();
                     msg_puts_hl(tbuf, HLF_E, true);
-                    if *mesg2 != NUL {
+                    if !crate::memory::cstr_is_empty(mesg2) {
                         msg_puts_hl(mesg2, HLF_W, true);
                     }
                     msg_clr_eos();
@@ -4302,7 +4302,7 @@ pub fn readdir_core(
                 break;
             }
 
-            let mut ignore = *p == b'.' as c_char
+            let mut ignore = crate::memory::cstr_first_byte(p) == b'.'
                 && (*p.add(1) == NUL || (*p.add(1) == b'.' as c_char && *p.add(2) == NUL));
             if !ignore && context.is_some() {
                 let r = crate::eval::fs::readdir_checkitem(context.as_deref_mut().unwrap(), p);
@@ -4543,11 +4543,11 @@ pub fn match_file_pat(
 
 /// Check if a file matches with a pattern in "list".
 pub fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool {
-    unsafe {
+     {
         let tail = path_tail(sfname);
 
         let mut p = list;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
             copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
             let mut allow_dirs: c_char = 0;
@@ -4610,8 +4610,8 @@ pub fn file_pat_to_reg_pat(
 
         let mut i: usize = 0;
 
-        if *pat == b'*' as c_char {
-            while *pat == b'*' as c_char && pat < pat_end.sub(1) {
+        if crate::memory::cstr_first_byte(pat) == b'*' {
+            while crate::memory::cstr_first_byte(pat) == b'*' && pat < pat_end.sub(1) {
                 pat = pat.add(1);
             }
         } else {
@@ -4620,15 +4620,15 @@ pub fn file_pat_to_reg_pat(
         }
         let mut endp = pat_end.sub(1);
         let mut add_dollar = true;
-        if endp >= pat && *endp == b'*' as c_char {
-            while endp.offset_from(pat) > 0 && *endp == b'*' as c_char {
+        if endp >= pat && crate::memory::cstr_first_byte(endp) == b'*' {
+            while endp.offset_from(pat) > 0 && crate::memory::cstr_first_byte(endp) == b'*' {
                 endp = endp.sub(1);
             }
             add_dollar = false;
         }
         let mut nested: c_int = 0;
         p = pat;
-        while *p != NUL && nested >= 0 && p <= endp {
+        while !crate::memory::cstr_is_empty(p) && nested >= 0 && p <= endp {
             match *p as u8 {
                 b'*' => {
                     *reg_pat.add(i) = b'.' as c_char;

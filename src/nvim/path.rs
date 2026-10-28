@@ -259,7 +259,7 @@ pub fn path_tail(fname: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     unsafe {
         let mut tail: *const c_char = get_past_head(fname);
         let mut p = tail;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             if vim_ispathsep_nocolon(*p as c_int) {
                 tail = p.add(1);
             }
@@ -287,14 +287,14 @@ pub fn invocation_path_tail(invocation: impl crate::strings::IntoCCharPtr, len: 
         let mut tail_end = tail;
         let mut p = tail;
         let mut inquote = false;
-        while *p != NUL && (inquote || *p != b' ' as c_char) {
+        while !crate::memory::cstr_is_empty(p) && (inquote || crate::memory::cstr_first_byte(p) != b' ') {
             let l = utfc_ptr2len(p) as usize;
             if vim_ispathsep_nocolon(*p as c_int) {
                 tail = p.add(1);
                 tail_end = tail;
-            } else if *p == b'\\' as c_char && inquote {
+            } else if crate::memory::cstr_first_byte(p) == b'\\' && inquote {
                 p = p.add(1);
-            } else if *p == b'"' as c_char {
+            } else if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;
             } else {
                 tail_end = p.add(l);
@@ -313,10 +313,10 @@ pub fn invocation_path_tail(invocation: impl crate::strings::IntoCCharPtr, len: 
 pub fn path_next_component(fname: impl crate::strings::IntoCCharPtr) -> *const c_char {
     let mut fname = fname.into_c_char_ptr();
     unsafe {
-        while *fname != NUL && !vim_ispathsep(*fname as c_int) {
+        while !crate::memory::cstr_is_empty(fname) && !vim_ispathsep(*fname as c_int) {
             fname = fname.add(1);
         }
-        if *fname != NUL {
+        if !crate::memory::cstr_is_empty(fname) {
             fname = fname.add(1);
         }
         fname
@@ -414,7 +414,7 @@ pub fn shorten_dir_len(str_: *mut c_char, trim_len: c_int) {
             if s >= tail {
                 *d = *s;
                 d = d.add(1);
-                if *s == NUL {
+                if crate::memory::cstr_is_empty(s) {
                     break;
                 }
             } else if vim_ispathsep(*s as c_int) {
@@ -425,7 +425,7 @@ pub fn shorten_dir_len(str_: *mut c_char, trim_len: c_int) {
             } else if !skip {
                 *d = *s;
                 d = d.add(1);
-                if *s != b'~' as c_char && *s != b'.' as c_char {
+                if crate::memory::cstr_first_byte(s) != b'~' && crate::memory::cstr_first_byte(s) != b'.' {
                     dirchunk_len += 1;
                     if dirchunk_len >= trim_len {
                         skip = true;
@@ -474,7 +474,7 @@ fn do_concat_fnames(
     len: &mut usize,
 ) -> *mut c_char {
     unsafe {
-        if sep && *fname1 != NUL && after_pathsep(fname1, fname1.add(len1)) == 0 {
+        if sep && !crate::memory::cstr_is_empty(fname1) && after_pathsep(fname1, fname1.add(len1)) == 0 {
             *fname1.add(len1) = PATHSEP;
             ptr::copy(fname2, fname1.add(len1 + 1), len2 + 1);
             *len = len1 + 1 + len2;
@@ -554,7 +554,7 @@ pub fn concat_fnames_cstr(
 
 pub fn add_pathsep(p: *mut c_char) -> bool {
     unsafe {
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             return true;
         }
 
@@ -600,14 +600,14 @@ pub fn path_has_wildcard(mut p: *const c_char, all: bool) -> bool {
         } else {
             PATH_ESC_WILDCARDS
         };
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             #[cfg(unix)]
-            if *p == b'\\' as c_char && *p.add(1) != NUL {
+            if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL {
                 p = p.add(2);
                 continue;
             }
             if !vim_strchr(wildcards, *p as u8 as c_int).is_null()
-                || (all && *p == b'~' as c_char && *p.add(1) != NUL)
+                || (all && crate::memory::cstr_first_byte(p) == b'~' && *p.add(1) != NUL)
             {
                 return true;
             }
@@ -670,7 +670,7 @@ fn do_path_expand(
         let mut path_end = path;
         let wild_start = path.add(wildoff);
 
-        while *path_end != NUL {
+        while !crate::memory::cstr_is_empty(path_end) {
             if path_end >= wild_start && rem_backslash(path_end) {
                 *p = *path_end;
                 p = p.add(1);
@@ -713,13 +713,13 @@ fn do_path_expand(
 
         p = s;
         while p < e {
-            if *p == b'*' as c_char && *p.add(1) == b'*' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'*' && *p.add(1) == b'*' as c_char {
                 starstar = true;
             }
             p = p.add(1);
         }
 
-        let starts_with_dot = *s == b'.' as c_char;
+        let starts_with_dot = crate::memory::cstr_first_byte(s) == b'.';
         let Some(pat) = file_pat_to_reg_pat(s, e, ptr::null_mut(), 0) else {
             return 0;
         };
@@ -755,7 +755,7 @@ fn do_path_expand(
             && path_st().STARDEPTH < 100
             && starstar
             && e.offset_from(s) == 2
-            && *path_end == b'/' as c_char
+            && crate::memory::cstr_first_byte(path_end) == b'/'
         {
             vim_snprintf!(s, buflen - len, c"%s", path_end.add(1));
             path_st().STARDEPTH += 1;
@@ -765,7 +765,7 @@ fn do_path_expand(
         *s = NUL;
 
         let mut dir = Directory::new();
-        let dirpath = if *buf == NUL { c".".as_ptr() } else { buf };
+        let dirpath = if crate::memory::cstr_is_empty(buf) { c".".as_ptr() } else { buf };
         if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
             scandir_next_with_dots(None);
             while !g_st().got_int {
@@ -774,7 +774,7 @@ fn do_path_expand(
                     break;
                 }
                 len = s.offset_from(buf) as usize;
-                let dot_ok = *name != b'.' as c_char
+                let dot_ok = crate::memory::cstr_first_byte(name) != b'.'
                     || starts_with_dot
                     || ((flags & EW_DODOT) != 0
                         && *name.add(1) != NUL
@@ -805,7 +805,7 @@ fn do_path_expand(
                         }
                     } else {
                         let mut file_info: FileInfo = FileInfo::new();
-                        if *path_end != NUL {
+                        if !crate::memory::cstr_is_empty(path_end) {
                             backslash_halve(buf.add(len + 1));
                         }
                         if if (flags & EW_ALLLINKS) != 0 {
@@ -893,14 +893,14 @@ fn expand_path_option(
         let buf = buf_arr.as_mut_ptr();
         let mut curdirlen: usize = 0;
 
-        while *path_option != NUL {
+        while !crate::memory::cstr_is_empty(path_option) {
             let mut buflen = copy_option_part(&mut path_option, buf, MAXPATHL, c" ,");
 
             if !vim_strchr(buf, b'`' as c_int).is_null() {
                 continue;
             }
 
-            if *buf == b'.' as c_char && (*buf.add(1) == NUL || vim_ispathsep(*buf.add(1) as c_int))
+            if crate::memory::cstr_first_byte(buf) == b'.' && (*buf.add(1) == NUL || vim_ispathsep(*buf.add(1) as c_int))
             {
                 if curbuf_mut().b_ffname.is_null() {
                     continue;
@@ -917,7 +917,7 @@ fn expand_path_option(
                 }
                 ptr::copy(curbuf_mut().b_ffname, buf, plen);
                 buflen = simplify_filename(buf);
-            } else if *buf == NUL {
+            } else if crate::memory::cstr_is_empty(buf) {
                 let c_len = crate::memory::cstr_len(curdir);
                 ptr::copy_nonoverlapping(curdir, buf, c_len + 1);
                 if curdirlen == 0 {
@@ -1042,7 +1042,7 @@ fn uniquefy_paths(
 
             let path_cutoff = get_path_cutoff(path, &path_ga);
 
-            if *pattern == b'*' as c_char
+            if crate::memory::cstr_first_byte(pattern) == b'*'
                 && *pattern.add(1) == b'*' as c_char
                 && vim_ispathsep_nocolon(*pattern.add(2) as c_int)
                 && !path_cutoff.is_null()
@@ -1136,7 +1136,7 @@ pub fn gettail_dir(fname: *const c_char) -> *const c_char {
         let mut look_for_sep = true;
 
         let mut p = fname;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             if vim_ispathsep(*p as c_int) {
                 if look_for_sep {
                     next_dir_end = p;
@@ -1210,8 +1210,8 @@ fn expand_in_path(
 
 fn has_env_var(mut p: *const c_char) -> bool {
     unsafe {
-        while *p != NUL {
-            if *p == b'\\' as c_char && *p.add(1) != NUL {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL {
                 p = p.add(2);
                 continue;
             }
@@ -1227,11 +1227,11 @@ fn has_env_var(mut p: *const c_char) -> bool {
 #[cfg(unix)]
 fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
     unsafe {
-        while *p != NUL {
-            if *p == b'\r' as c_char || *p == b'\n' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'\r' || crate::memory::cstr_first_byte(p) == b'\n' {
                 break;
             }
-            if *p == b'\\' as c_char
+            if crate::memory::cstr_first_byte(p) == b'\\'
                 && *p.add(1) != NUL
                 && *p.add(1) != b'\r' as c_char
                 && *p.add(1) != b'\n' as c_char
@@ -1240,15 +1240,15 @@ fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
                 continue;
             }
             if !vim_strchr(SPECIAL_WILDCHAR, *p as u8 as c_int).is_null() {
-                if *p == b'{' as c_char && (flags & EW_NOTFOUND) == 0 {
+                if crate::memory::cstr_first_byte(p) == b'{' && (flags & EW_NOTFOUND) == 0 {
                     p = p.add(1);
                     continue;
                 }
-                if *p == b'{' as c_char && vim_strchr(p, b'}' as c_int).is_null() {
+                if crate::memory::cstr_first_byte(p) == b'{' && vim_strchr(p, b'}' as c_int).is_null() {
                     p = p.add(1);
                     continue;
                 }
-                if (*p == b'`' as c_char || *p == b'\'' as c_char)
+                if (crate::memory::cstr_first_byte(p) == b'`' || crate::memory::cstr_first_byte(p) == b'\'')
                     && vim_strchr(p.add(1), *p as u8 as c_int).is_null()
                 {
                     p = p.add(1);
@@ -1316,12 +1316,12 @@ pub fn gen_expand_wildcards_vec(
                     return false;
                 }
             } else {
-                if (has_env_var(p) && (flags & EW_NOTENV) == 0) || *p == b'~' as c_char {
+                if (has_env_var(p) && (flags & EW_NOTENV) == 0) || crate::memory::cstr_first_byte(p) == b'~' {
                     let po = expand_env_save_opt(p, true, PATH_ESC_WILDCARDS.cast_mut());
                     p = po.as_ptr().cast_mut();
                     p_owned = Some(po);
                     #[cfg(unix)]
-                    if has_env_var(p) || *p == b'~' as c_char {
+                    if has_env_var(p) || crate::memory::cstr_first_byte(p) == b'~' {
                         drop(p_owned);
                         file.clear();
                         let res =
@@ -1334,7 +1334,7 @@ pub fn gen_expand_wildcards_vec(
                 if path_has_wildcard(p, false) || (flags & EW_ICASE) != 0 {
                     if (flags & (EW_PATH | EW_CDPATH)) != 0
                         && !path_is_absolute(p)
-                        && !(*p == b'.' as c_char
+                        && !(crate::memory::cstr_first_byte(p) == b'.'
                             && (vim_ispathsep(*p.add(1) as c_int)
                                 || (*p.add(1) == b'.' as c_char
                                     && vim_ispathsep(*p.add(2) as c_int))))
@@ -1419,7 +1419,7 @@ pub fn expand_wildcards_vec(
 
 fn vim_backtick(p: *const c_char) -> bool {
     unsafe {
-        if *p != b'`' as c_char || *p.add(1) == NUL {
+        if crate::memory::cstr_first_byte(p) != b'`' || *p.add(1) == NUL {
             return false;
         }
         let len = crate::memory::cstr_len(p);
@@ -1439,7 +1439,7 @@ fn expand_backtick(
         cmd_vec.push(NUL);
         let cmd_ptr = cmd_vec.as_mut_ptr();
 
-        let cmd_out: Option<std::ffi::CString> = if *cmd_ptr == b'=' as c_char {
+        let cmd_out: Option<std::ffi::CString> = if crate::memory::cstr_first_byte(cmd_ptr) == b'=' {
             eval_to_string(cmd_ptr.add(1), true, false)
         } else {
             get_cmd_output(
@@ -1463,10 +1463,10 @@ fn expand_backtick(
             .collect();
 
         let mut cmd = cmd_buf.as_mut_ptr();
-        while *cmd != NUL {
+        while !crate::memory::cstr_is_empty(cmd) {
             cmd = skipwhite(cmd);
             let mut p = cmd;
-            while *p != NUL && *p != b'\r' as c_char && *p != b'\n' as c_char {
+            while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'\r' && crate::memory::cstr_first_byte(p) != b'\n' {
                 p = p.add(1);
             }
             if p > cmd {
@@ -1477,7 +1477,7 @@ fn expand_backtick(
                 cnt += 1;
             }
             cmd = p;
-            while *cmd != NUL && (*cmd == b'\r' as c_char || *cmd == b'\n' as c_char) {
+            while !crate::memory::cstr_is_empty(cmd) && (crate::memory::cstr_first_byte(cmd) == b'\r' || crate::memory::cstr_first_byte(cmd) == b'\n') {
                 cmd = cmd.add(1);
             }
         }
@@ -1493,7 +1493,7 @@ pub fn slash_adjust(p: *mut c_char) {
             return;
         }
 
-        if *p == b'`' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'`' {
             let len = crate::memory::cstr_len(p);
             if len > 2 && *p.add(len - 1) == b'`' as c_char {
                 return;
@@ -1589,7 +1589,7 @@ pub fn simplify_filename(filename: *mut c_char) -> usize {
 
         let mut p = filename;
         #[cfg(windows)]
-        if *p != NUL && *p.add(1) == b':' as c_char {
+        if !crate::memory::cstr_is_empty(p) && *p.add(1) == b':' as c_char {
             p = p.add(2);
         }
 
@@ -1617,7 +1617,7 @@ pub fn simplify_filename(filename: *mut c_char) -> usize {
                 let move_len = p_end.offset_from(p.add(1)) as usize + 1;
                 ptr::copy(p.add(1), p, move_len);
                 p_end = p_end.sub(1);
-            } else if *p == b'.' as c_char
+            } else if crate::memory::cstr_first_byte(p) == b'.'
                 && (vim_ispathsep(*p.add(1) as c_int) || *p.add(1) == NUL)
             {
                 if p == start && relative {
@@ -1633,7 +1633,7 @@ pub fn simplify_filename(filename: *mut c_char) -> usize {
                     ptr::copy(tail, p, move_len);
                     p_end = p_end.sub(tail.offset_from(p) as usize);
                 }
-            } else if *p == b'.' as c_char
+            } else if crate::memory::cstr_first_byte(p) == b'.'
                 && *p.add(1) == b'.' as c_char
                 && (vim_ispathsep(*p.add(2) as c_int) || *p.add(2) == NUL)
             {
@@ -1720,7 +1720,7 @@ pub fn simplify_filename(filename: *mut c_char) -> usize {
                 p = path_next_component(p).cast_mut();
             }
 
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 break;
             }
         }
@@ -1743,9 +1743,9 @@ pub fn path_has_drive_letter(p: *const c_char, path_len: usize) -> bool {
 
 pub fn path_is_url(p: *const c_char) -> c_int {
     unsafe {
-        if *p == b':' as c_char && *p.add(1) == b'/' as c_char {
+        if crate::memory::cstr_first_byte(p) == b':' && *p.add(1) == b'/' as c_char {
             URL_SLASH
-        } else if *p == b':' as c_char
+        } else if crate::memory::cstr_first_byte(p) == b':'
             && *p.add(1) == b'\\' as c_char
             && *p.add(2) == b'\\' as c_char
         {
@@ -1839,7 +1839,7 @@ pub fn fix_fname(fname: *const c_char) -> Option<std::ffi::CString> {
         FullName_save(fname, true)
     }
     #[cfg(not(unix))]
-    unsafe {
+     {
         if fname.is_null() {
             return None;
         }
@@ -1847,8 +1847,8 @@ pub fn fix_fname(fname: *const c_char) -> Option<std::ffi::CString> {
             || str_contains(fname, b"..")
             || str_contains(fname, b"//")
             || str_contains(fname, b"\\\\")
-            || *fname == b'/' as c_char
-            || *fname == b'\\' as c_char
+            || crate::memory::cstr_first_byte(fname) == b'/'
+            || crate::memory::cstr_first_byte(fname) == b'\\'
         {
             return FullName_save(fname, false);
         }
@@ -2022,13 +2022,13 @@ pub fn path_cmp<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharP
 }
 
 pub fn path_try_shorten_fname(full_path: *mut c_char) -> *mut c_char {
-    unsafe {
+     {
         let mut dirname = [0 as c_char; MAXPATHL];
         let mut p = full_path;
 
         if os_dirname(dirname.as_mut_ptr(), MAXPATHL) {
             p = path_shorten_fname(full_path, dirname.as_mut_ptr());
-            if p.is_null() || *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 p = full_path;
             }
         }
@@ -2076,12 +2076,12 @@ pub fn expand_wildcards_eval(
         let mut exp_pat = *pat;
         let mut ignored_msg: *const c_char = ptr::null();
         let mut usedlen: usize = 0;
-        let is_cur_alt_file = *exp_pat == b'%' as c_char || *exp_pat == b'#' as c_char;
+        let is_cur_alt_file = crate::memory::cstr_first_byte(exp_pat) == b'%' || crate::memory::cstr_first_byte(exp_pat) == b'#';
         let mut star_follows = false;
 
         file.clear();
 
-        if is_cur_alt_file || *exp_pat == b'<' as c_char {
+        if is_cur_alt_file || crate::memory::cstr_first_byte(exp_pat) == b'<' {
             g_st().emsg_off += 1;
             eval_pat = eval_vars(
                 exp_pat,
@@ -2129,7 +2129,7 @@ pub fn match_suffix(fname: *mut c_char) -> bool {
         let fnamelen = crate::memory::cstr_len(fname);
         let mut setsuflen: usize = 0;
         let mut setsuf = opt_vars().p_su;
-        while *setsuf != NUL {
+        while !crate::memory::cstr_is_empty(setsuf) {
             setsuflen =
                 copy_option_part(&mut setsuf, suf_buf.as_mut_ptr(), MAXSUFLEN, c".,");
             if setsuflen == 0 {
@@ -2157,8 +2157,8 @@ pub fn match_suffix(fname: *mut c_char) -> bool {
 }
 
 pub fn path_full_dir_name(directory: *mut c_char, buffer: *mut c_char, len: usize) -> bool {
-    unsafe {
-        if *directory == NUL {
+     {
+        if crate::memory::cstr_is_empty(directory) {
             return os_dirname(buffer, len);
         }
 
@@ -2236,8 +2236,8 @@ fn path_to_absolute(
         #[cfg(windows)]
         let need_expand = force != 0
             || !path_is_absolute(fname)
-            || *fname == b'/' as c_char
-            || *fname == b'\\' as c_char;
+            || crate::memory::cstr_first_byte(fname) == b'/'
+            || crate::memory::cstr_first_byte(fname) == b'\\';
         #[cfg(not(windows))]
         let need_expand = force != 0 || !path_is_absolute(fname);
 
@@ -2297,7 +2297,7 @@ pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr();
     #[cfg(windows)]
     unsafe {
-        if *fname == NUL {
+        if crate::memory::cstr_is_empty(fname) {
             return false;
         }
         ((*fname as u8).is_ascii_alphabetic()
@@ -2307,7 +2307,7 @@ pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
     }
     #[cfg(not(windows))]
     unsafe {
-        *fname == b'/' as c_char || *fname == b'~' as c_char
+        crate::memory::cstr_first_byte(fname) == b'/' || crate::memory::cstr_first_byte(fname) == b'~'
     }
 }
 
@@ -2320,7 +2320,7 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf: *mut c_
         if path_is_absolute(argv0) {
             xstrlcpy(buf, argv0, bufsize);
         } else if let Some(ref path_cstr) = path_cstr {
-            if *argv0 == b'.' as c_char || argv0_bytes.contains(&(PATHSEP as u8)) {
+            if crate::memory::cstr_first_byte(argv0) == b'.' || argv0_bytes.contains(&(PATHSEP as u8)) {
                 if !os_dirname(buf, MAXPATHL) {
                     *buf = NUL;
                 }

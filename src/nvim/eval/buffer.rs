@@ -42,7 +42,6 @@ use crate::window::win_T;
 use std::ffi::c_int;
 use std::ptr;
 
-use crate::charset::NUL;
 
 pub(crate) const SEA_READONLY: c_int = 4;
 
@@ -501,9 +500,9 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
 /// `bufadd(expr)` function (`f_bufadd`).
 pub fn f_bufadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let name = tv_get_string(&argvars[0]).cast_mut();
-        rettv.vval = crate::eval::typval::TypvalVval::Number(buflist_add(if *name == NUL { ptr::null_mut() } else { name }, 0) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(buflist_add(if crate::memory::cstr_is_empty(name) { ptr::null_mut() } else { name }, 0) as varnumber_T);
     }
 }
 

@@ -609,7 +609,7 @@ fn pum_compute_text_attrs(
     user_hlattr: c_int,
 ) -> Option<Vec<c_int>> {
     unsafe {
-        if *text == NUL
+        if crate::memory::cstr_is_empty(text)
             || (hlf != HLF_PSI && hlf != HLF_PNI)
             || (win_hl_attr(curwin_mut(), HLF_PMSI) == win_hl_attr(curwin_mut(), HLF_PSI)
                 && win_hl_attr(curwin_mut(), HLF_PMNI) == win_hl_attr(curwin_mut(), HLF_PNI))
@@ -622,7 +622,7 @@ fn pum_compute_text_attrs(
         } else {
             ins_compl_leader()
         };
-        if leader.is_null() || *leader == NUL {
+        if crate::memory::cstr_is_empty(leader) {
             return None;
         }
 
@@ -647,7 +647,7 @@ fn pum_compute_text_attrs(
         let mut char_pos: u32 = 0;
         let is_select = hlf == HLF_PSI;
 
-        while *ptr != NUL {
+        while !crate::memory::cstr_is_empty(ptr) {
             let mut new_attr = win_hl_attr(curwin_mut(), hlf);
 
             if let Some(ref positions) = match_positions {
@@ -700,7 +700,7 @@ fn pum_grid_puts_with_attrs(
         let col_start = col;
         let mut ptr = text;
 
-        while *ptr != NUL && (textlen < 0 || ptr < text.add(textlen as usize)) {
+        while !crate::memory::cstr_is_empty(ptr) && (textlen < 0 || ptr < text.add(textlen as usize)) {
             let char_len = utfc_ptr2len(ptr);
             let attr_idx = if pum().rl {
                 col_start + cells - col - 1
@@ -964,7 +964,7 @@ pub fn pum_redraw() {
                             s = p;
                         }
                         let w = ptr2cells(p);
-                        if *p != NUL && *p != TAB && totwidth + w <= pum().width {
+                        if !crate::memory::cstr_is_empty(p) && *p != TAB && totwidth + w <= pum().width {
                             width += w;
                             p = p.add(utfc_ptr2len(p) as usize);
                             continue;
@@ -1039,7 +1039,7 @@ pub fn pum_redraw() {
                                 let available_cells = width_limit - totwidth;
                                 let mut p_end = st;
                                 let mut displayed: c_int = 0;
-                                while *p_end != NUL {
+                                while !crate::memory::cstr_is_empty(p_end) {
                                     let char_cells = utf_ptr2cells(p_end);
                                     if displayed + char_cells > available_cells {
                                         break;
@@ -1205,7 +1205,7 @@ fn pum_preview_set_text(
             if !next.is_null() {
                 *next = NUL;
             }
-            if *curr == NUL && next.is_null() {
+            if crate::memory::cstr_is_empty(curr) && next.is_null() {
                 break;
             }
             let save_wrap = win.w_onebuf_opt.wo_wrap;

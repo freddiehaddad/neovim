@@ -858,11 +858,11 @@ fn efmpat_to_regpat(
         *regpat = b'(' as c_char;
         regpat = regpat.add(1);
         #[cfg(windows)]
-        if *efmpat == b'f' as c_char {
+        if crate::memory::cstr_first_byte(efmpat) == b'f' {
             crate::memory::cstr_cpy(regpat, c"\\%(\\a:\\)\\=");
             regpat = regpat.add(10);
         }
-        if *efmpat == b'f' as c_char && *efmpat.add(1) != NUL {
+        if crate::memory::cstr_first_byte(efmpat) == b'f' && *efmpat.add(1) != NUL {
             if *efmpat.add(1) != b'\\' as c_char && *efmpat.add(1) != b'%' as c_char {
                 crate::memory::cstr_cpy(regpat, c".\\{-1,}");
                 regpat = regpat.add(7);
@@ -875,7 +875,7 @@ fn efmpat_to_regpat(
             while {
                 *regpat = *srcptr;
                 srcptr = srcptr.add(1);
-                *regpat != NUL
+                !crate::memory::cstr_is_empty(regpat)
             } {
                 regpat = regpat.add(1);
             }
@@ -899,7 +899,7 @@ fn scanf_fmt_to_regpat(
         let mut efmp = *pefmp;
         let end = efm.add(len as usize);
 
-        if *efmp == b'[' as c_char || *efmp == b'\\' as c_char {
+        if crate::memory::cstr_first_byte(efmp) == b'[' || crate::memory::cstr_first_byte(efmp) == b'\\' {
             *regpat = *efmp;
             let ch = *regpat;
             regpat = regpat.add(1);
@@ -980,7 +980,7 @@ fn efm_to_regpat(
         let end = efm.add(len as usize);
         let mut efmp = efm;
         while efmp < end {
-            if *efmp == b'%' as c_char {
+            if crate::memory::cstr_first_byte(efmp) == b'%' {
                 efmp = efmp.add(1);
                 let mut idx: usize = 0;
                 while idx < FMT_PATTERNS {
@@ -995,7 +995,7 @@ fn efm_to_regpat(
                         return false;
                     }
                     round += 1;
-                } else if *efmp == b'*' as c_char {
+                } else if crate::memory::cstr_first_byte(efmp) == b'*' {
                     efmp = efmp.add(1);
                     ptr = scanf_fmt_to_regpat(&raw mut efmp, efm, len, ptr);
                     if ptr.is_null() {
@@ -1004,10 +1004,10 @@ fn efm_to_regpat(
                 } else if !vim_strchr(c"%\\.^$~[", c_int::from(*efmp as u8)).is_null() {
                     *ptr = *efmp;
                     ptr = ptr.add(1);
-                } else if *efmp == b'#' as c_char {
+                } else if crate::memory::cstr_first_byte(efmp) == b'#' {
                     *ptr = b'*' as c_char;
                     ptr = ptr.add(1);
-                } else if *efmp == b'>' as c_char {
+                } else if crate::memory::cstr_first_byte(efmp) == b'>' {
                     fmt_ptr.conthere = 1;
                 } else if efmp == efm.add(1) {
                     efmp = efm_analyze_prefix(efmp, fmt_ptr);
@@ -1022,13 +1022,13 @@ fn efm_to_regpat(
                     return false;
                 }
             } else {
-                if *efmp == b'\\' as c_char && efmp.add(1) < end {
+                if crate::memory::cstr_first_byte(efmp) == b'\\' && efmp.add(1) < end {
                     efmp = efmp.add(1);
                 } else if !vim_strchr(c".*^$~[", c_int::from(*efmp as u8)).is_null() {
                     *ptr = b'\\' as c_char;
                     ptr = ptr.add(1);
                 }
-                if *efmp != NUL {
+                if !crate::memory::cstr_is_empty(efmp) {
                     *ptr = *efmp;
                     ptr = ptr.add(1);
                 }
@@ -1083,7 +1083,7 @@ fn parse_efm_option(mut efm: *mut c_char) -> Vec<efm_T> {
         let mut fmtstr = vec![0 as c_char; sz];
 
         let mut errored = false;
-        while *efm != NUL {
+        while !crate::memory::cstr_is_empty(efm) {
             let mut fmt_item = efm_T {
                 prog: None,
                 addr: [0; FMT_PATTERNS],
@@ -1135,7 +1135,7 @@ fn qf_grow_linebuf(state: &mut qfstate_T, newsz: usize) -> *mut c_char {
 
 fn qf_get_next_str_line(state: &mut qfstate_T, mut p_str: *mut c_char) -> c_int {
     unsafe {
-        if *p_str == NUL {
+        if crate::memory::cstr_is_empty(p_str) {
             return QF_END_OF_INPUT;
         }
 
@@ -1480,7 +1480,7 @@ fn qf_setup_state(
 ) -> bool {
     unsafe {
         pstate.vc.vc_type = CONV_NONE;
-        if !enc.is_null() && *enc != NUL {
+        if !crate::memory::cstr_is_empty(enc) {
             convert_setup(&mut pstate.vc, enc, opt_vars().p_enc);
         }
 
@@ -1555,7 +1555,7 @@ fn qf_init_ext(
         }
 
         let efm =
-            if errorformat == opt_vars().p_efm && tv.is_none() && !buf.is_null() && *(*buf).b_p_efm != NUL {
+            if errorformat == opt_vars().p_efm && tv.is_none() && !buf.is_null() && !crate::memory::cstr_is_empty((*buf).b_p_efm) {
                 (*buf).b_p_efm
             } else {
                 errorformat
@@ -2051,7 +2051,7 @@ fn qf_parse_file_pfx(
                 qf_pop_dir(&mut qfl.qf_file_stack);
             }
             *fields.namebuf.as_mut_ptr() = NUL;
-            if !tail.is_null() && *tail != NUL {
+            if !crate::memory::cstr_is_empty(tail) {
                 qfl.qf_multiscan = true;
                 return QF_MULTISCAN;
             }
@@ -2301,12 +2301,12 @@ fn qf_add_entry(
         } else {
             qfp.qf_user_data.v_type = VarType::VAR_UNKNOWN;
         }
-        qfp.qf_pattern = if pattern.is_null() || *pattern == NUL {
+        qfp.qf_pattern = if crate::memory::cstr_is_empty(pattern) {
             None
         } else {
             Some(crate::memory::cstr_to_cstring(pattern))
         };
-        qfp.qf_module = if module.is_null() || *module == NUL {
+        qfp.qf_module = if crate::memory::cstr_is_empty(module) {
             None
         } else {
             Some(crate::memory::cstr_to_cstring(module))
@@ -2571,7 +2571,7 @@ fn qf_get_fnum(
 ) -> c_int {
     unsafe {
         let mut ptr_cstr: Option<std::ffi::CString> = None;
-        if fname.is_null() || *fname == NUL {
+        if crate::memory::cstr_is_empty(fname) {
             return 0;
         }
 
@@ -3197,7 +3197,7 @@ fn qf_screen_col_to_idx(vcol: colnr_T) -> c_int {
         let mut p = line;
         let mut col: colnr_T = 0;
 
-        while *p != NUL && col < vcol {
+        while !crate::memory::cstr_is_empty(p) && col < vcol {
             if *p == TAB {
                 col += 8 - (col % 8);
             } else {
@@ -3604,13 +3604,13 @@ pub fn qf_list(eap: &mut exarg_T) {
         }
 
         let mut plus = false;
-        if *arg == b'+' as c_char {
+        if crate::memory::cstr_first_byte(arg) == b'+' {
             arg = arg.add(1);
             plus = true;
         }
         let mut idx1: c_int = 1;
         let mut idx2: c_int = -1;
-        if !get_list_range(&raw mut arg, &mut idx1, &mut idx2) || *arg != NUL {
+        if !get_list_range(&raw mut arg, &mut idx1, &mut idx2) || !crate::memory::cstr_is_empty(arg) {
             semsg!(gettext(e_trailing_arg), arg);
             return;
         }
@@ -3665,15 +3665,15 @@ pub fn qf_list(eap: &mut exarg_T) {
 fn qf_fmt_text(gap: &mut Vec<c_char>, text: *const c_char) {
     unsafe {
         let mut p = text;
-        while *p != NUL {
-            if *p == b'\n' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'\n' {
                 gap.push(b' ' as c_char);
                 loop {
                     p = p.add(1);
-                    if *p == NUL {
+                    if crate::memory::cstr_is_empty(p) {
                         break;
                     }
-                    if !ascii_iswhite(c_int::from(*p as u8)) && *p != b'\n' as c_char {
+                    if !ascii_iswhite(c_int::from(*p as u8)) && crate::memory::cstr_first_byte(p) != b'\n' {
                         break;
                     }
                 }
@@ -4390,7 +4390,7 @@ fn qf_buf_add_line(
     unsafe {
         let gap = qfga_get();
 
-        if !qftf_str.is_null() && *qftf_str != NUL {
+        if !crate::memory::cstr_is_empty(qftf_str) {
             qfga_concat(gap, qftf_str);
         } else {
             if let Some(ref module) = qfp.qf_module {
@@ -4405,7 +4405,7 @@ fn qf_buf_add_line(
                             && ((*errbuf).b_sfname.is_null()
                                 || path_is_absolute((*errbuf).b_sfname))
                         {
-                            if *dirname == NUL {
+                            if crate::memory::cstr_is_empty(dirname) {
                                 os_dirname(dirname, MAXPATHL);
                             }
                             shorten_buf_fname(&mut *errbuf, dirname, 0);
@@ -4817,14 +4817,14 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         }
 
         let mut p = opt_vars().p_mef;
-        while *p != NUL {
-            if *p == b'#' as c_char && *p.add(1) == b'#' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'#' && *p.add(1) == b'#' as c_char {
                 break;
             }
             p = p.add(1);
         }
 
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             return Some(crate::memory::cstr_to_cstring(opt_vars().p_mef));
         }
 
@@ -5357,7 +5357,7 @@ pub fn ex_cfile(eap: &mut exarg_T) {
         {
             return;
         }
-        if *eap.arg != NUL {
+        if !crate::memory::cstr_is_empty(eap.arg) {
             set_option_direct(kOptErrorfile, cstr_as_obj(eap.arg), 0, 0);
         }
 
@@ -5427,10 +5427,10 @@ fn vgr_get_auname(cmdidx: c_int) -> *const c_char {
 }
 
 fn vgr_init_regmatch(regmatch: &mut regmmatch_T, s: *mut c_char) {
-    unsafe {
+     {
         regmatch.regprog = ptr::null_mut();
 
-        if s.is_null() || *s == NUL {
+        if crate::memory::cstr_is_empty(s) {
             if last_search_pat().is_null() {
                 emsg(gettext(e_noprevre));
                 return;
@@ -5691,7 +5691,7 @@ fn vgr_process_args(eap: &mut exarg_T, args: &mut vgr_args_T) -> bool {
         }
 
         p = skipwhite(p);
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             emsg(gettext(
                 c"E683: File name missing or invalid pattern",
             ));
@@ -5788,9 +5788,9 @@ fn vgr_process_files(
                         wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr());
                         buf = ptr::null_mut();
                     } else if (g_st().cmdmod.cmod_flags & CMOD_HIDE) == 0
-                        || *(*buf).b_p_bh == b'u' as c_char
-                        || *(*buf).b_p_bh == b'w' as c_char
-                        || *(*buf).b_p_bh == b'd' as c_char
+                        || crate::memory::cstr_first_byte((*buf).b_p_bh) == b'u'
+                        || crate::memory::cstr_first_byte((*buf).b_p_bh) == b'w'
+                        || crate::memory::cstr_first_byte((*buf).b_p_bh) == b'd'
                     {
                         if !found_match {
                             wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr());
@@ -7278,7 +7278,7 @@ fn cbuffer_process_args(
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
 
-        if *eap.arg == NUL {
+        if crate::memory::cstr_is_empty(eap.arg) {
             buf = g_st().curbuf;
         } else if *skipwhite(skipdigits(eap.arg)) == NUL {
             buf = buflist_findnr(crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as c_int);
@@ -7608,10 +7608,10 @@ fn hgr_search_files_in_dir(
 }
 
 fn hgr_search_in_rtp(qfl: &mut qf_list_T, p_regmatch: &mut regmatch_T, lang: *const c_char) {
-    unsafe {
+     {
         let mut p = opt_vars().p_rtp;
         let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
-        while *p != NUL && !g_st().got_int {
+        while !crate::memory::cstr_is_empty(p) && !g_st().got_int {
             copy_option_part(&raw mut p, name_buff_ptr, MAXPATHL, c",");
             hgr_search_files_in_dir(qfl, name_buff_ptr, p_regmatch, lang);
         }
@@ -7792,11 +7792,11 @@ fn set_qf_ll_list(wp: *mut win_T,args: &mut [typval_T], rettv: &mut typval_T) {
                 return;
             }
             let act = tv_get_string_chk(&*action_arg);
-            if (*act == b'a' as c_char
-                || *act == b'r' as c_char
-                || *act == b'u' as c_char
-                || *act == b' ' as c_char
-                || *act == b'f' as c_char)
+            if (crate::memory::cstr_first_byte(act) == b'a'
+                || crate::memory::cstr_first_byte(act) == b'r'
+                || crate::memory::cstr_first_byte(act) == b'u'
+                || crate::memory::cstr_first_byte(act) == b' '
+                || crate::memory::cstr_first_byte(act) == b'f')
                 && *act.add(1) == NUL
             {
                 action = *act;

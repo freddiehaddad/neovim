@@ -337,7 +337,7 @@ fn strpncmp_camel(
             let sc_u8 = *sc as u8;
             let b = sc_u8.to_ascii_lowercase() as c_char;
             if sc_u8.is_ascii_uppercase() && prev_lower {
-                if *s != b' ' as c_char {
+                if crate::memory::cstr_first_byte(s) != b' ' {
                     break;
                 }
                 s = s.add(1);

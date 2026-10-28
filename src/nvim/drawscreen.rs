@@ -1138,7 +1138,7 @@ fn win_redraw_signcols(wp: &mut win_T) -> bool {
         let buf = wp.w_buffer;
 
         if !(*buf).b_signcols.autom
-            && (*wp.w_onebuf_opt.wo_stc != NUL
+            && (!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
                 || (wp.w_maxscwidth > 1 && wp.w_minscwidth != wp.w_maxscwidth))
         {
             (*buf).b_signcols.autom = true;
@@ -1153,7 +1153,7 @@ fn win_redraw_signcols(wp: &mut win_T) -> bool {
 
         let mut width = wp.w_maxscwidth.min((*buf).b_signcols.max);
         let rebuild_stc = (*buf).b_signcols.max != (*buf).b_signcols.last_max
-            && *wp.w_onebuf_opt.wo_stc != NUL;
+            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc);
 
         if rebuild_stc {
             wp.w_nrwidth_line_count = 0;
@@ -2546,7 +2546,7 @@ pub fn compute_foldcolumn(wp: &mut win_T, col: c_int) -> c_int {
 }
 
 pub fn number_width(wp: &mut win_T) -> c_int {
-    unsafe {
+     {
         let mut lnum = if wp.w_onebuf_opt.wo_rnu != 0 && wp.w_onebuf_opt.wo_nu == 0 {
             wp.w_view_height
         } else {
@@ -2558,7 +2558,7 @@ pub fn number_width(wp: &mut win_T) -> c_int {
         }
         wp.w_nrwidth_line_count = lnum;
 
-        if *wp.w_onebuf_opt.wo_stc != NUL {
+        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
             wp.w_statuscol_line_count = 0;
             wp.w_nrwidth_width =
                 c_int::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
@@ -2785,8 +2785,8 @@ pub fn win_redraw_last_status(mut frp: *const frame_T) {
 }
 
 pub fn conceal_cursor_line(wp: &win_T) -> bool {
-    unsafe {
-        if *wp.w_onebuf_opt.wo_cocu == NUL {
+     {
+        if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cocu) {
             return false;
         }
         let c = if (get_real_state() & MODE_VISUAL) != 0 {

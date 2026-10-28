@@ -449,7 +449,7 @@ fn draw_virt_text_item(
     mut skip_cells: c_int,
     mut eol_hl: bool,
 ) -> c_int {
-    unsafe {
+     {
         let mut virt_attr: c_int = 0;
         let mut virt_pos: usize = 0;
         eol_hl &= vt
@@ -464,7 +464,7 @@ fn draw_virt_text_item(
 
         while col < max_col {
             debug_assert!(skip_cells >= 0);
-            while *ci.ptr == NUL {
+            while crate::memory::cstr_is_empty(ci.ptr) {
                 if virt_pos >= vt.len() {
                     if eol_hl {
                         ci = utf_ptr2StrCharInfo(c" ");
@@ -480,7 +480,7 @@ fn draw_virt_text_item(
                     ci = utf_ptr2StrCharInfo(next);
                 }
             }
-            if *ci.ptr == NUL {
+            if crate::memory::cstr_is_empty(ci.ptr) {
                 break;
             }
 
@@ -857,7 +857,7 @@ fn draw_lnum_col(wp: &mut win_T, wlv: &mut winlinevars_T) {
                     get_line_number_str(wp, wlv.lnum, buf_ptr, buf.len());
                     if wp.w_skipcol > 0 && wlv.startrow == 0 {
                         let mut c = buf_ptr;
-                        while *c == b' ' as c_char {
+                        while crate::memory::cstr_first_byte(c) == b' ' {
                             *c = b'-' as c_char;
                             c = c.add(1);
                         }
@@ -959,10 +959,10 @@ fn draw_statuscol(wp: &mut win_T,
             },
             stcp,
         );
-        if *wp.w_onebuf_opt.wo_stc == NUL
+        if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
             || (width > stcp.width && stcp.width < MAX_STCWIDTH)
         {
-            if *wp.w_onebuf_opt.wo_stc == NUL {
+            if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
                 wp.w_nrwidth_line_count = 0;
                 wp.w_nrwidth =
                     c_int::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
@@ -1089,7 +1089,7 @@ fn handle_showbreak_and_filler(
     wlv: &mut winlinevars_T,
     gap_decor_attr: c_int,
 ) {
-    unsafe {
+     {
         let remaining = wp.w_view_width - wlv.off;
         if wlv.filler_todo > wlv.filler_lines - wlv.n_virt_lines {
             draw_col_fill(wlv, schar_from_ascii(b' '), remaining, 0);
@@ -1099,7 +1099,7 @@ fn handle_showbreak_and_filler(
         }
 
         let sbr = get_showbreak_value(&mut *wp);
-        if *sbr != NUL && wlv.need_showbreak {
+        if !crate::memory::cstr_is_empty(sbr) && wlv.need_showbreak {
             let mut attr = hl_combine_attr(wlv.cul_attr, gap_decor_attr);
             attr = hl_combine_attr(attr, win_hl_attr(&mut *wp, HLF_AT));
             let vcol_before = wlv.vcol;
@@ -1701,7 +1701,7 @@ pub fn win_line(
         );
 
         let mut statuscol = statuscol_T::new();
-        if *wp.w_onebuf_opt.wo_stc != NUL {
+        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
             statuscol.draw = true;
             statuscol.sattrs = wlv.sattrs;
             statuscol.lnum = lnum;
@@ -1758,7 +1758,7 @@ pub fn win_line(
             let line = ml_get_buf(wp.buf_mut(), lnum);
 
             let ptr_sw = skipwhite(line);
-            if *ptr_sw == NUL {
+            if crate::memory::cstr_is_empty(ptr_sw) {
                 spv.spv_cap_col = 0;
                 spv.spv_capcol_lnum = lnum + 1;
             } else if spv.spv_cap_col == 0 {
@@ -1862,13 +1862,13 @@ pub fn win_line(
                 );
                 vcol += cs.width;
                 prev_ptr = ci.ptr;
-                if *prev_ptr == NUL {
+                if crate::memory::cstr_is_empty(prev_ptr) {
                     break;
                 }
                 ci = cli.next;
                 if wp.w_onebuf_opt.wo_list != 0 {
-                    in_multispace = *prev_ptr == b' ' as c_char
-                        && (*ci.ptr == b' ' as c_char
+                    in_multispace = crate::memory::cstr_first_byte(prev_ptr) == b' '
+                        && (crate::memory::cstr_first_byte(ci.ptr) == b' '
                             || (prev_ptr > line as *const c_char
                                 && *prev_ptr.sub(1) == b' ' as c_char));
                     if !in_multispace {
@@ -2265,7 +2265,7 @@ pub fn win_line(
                         );
                         ptr = line.add(v as usize);
 
-                        if *ptr == NUL {
+                        if crate::memory::cstr_is_empty(ptr) {
                             has_match_conc = 0;
                         }
 
@@ -2361,7 +2361,7 @@ pub fn win_line(
                     && wlv.n_extra == 0
                     && wlv.col < view_width
                     && (has_foldtext
-                        || (*ptr == NUL
+                        || (crate::memory::cstr_is_empty(ptr)
                             && (wp.w_onebuf_opt.wo_list == 0 || !lcs_eol_todo || lcs_eol == 0)))
                 {
                     wlv.sc_extra = wp.w_p_fcs_chars.fold;
@@ -2433,7 +2433,7 @@ pub fn win_line(
                                 search_attr = saved_search_attr;
                                 saved_search_attr = 0;
                             }
-                            if area_attr == 0 && *ptr != NUL {
+                            if area_attr == 0 && !crate::memory::cstr_is_empty(ptr) {
                                 area_attr = saved_area_attr;
                                 saved_area_attr = 0;
                             }
@@ -2465,7 +2465,7 @@ pub fn win_line(
                 } else {
                     let mut prev_ptr = ptr;
 
-                    if *ptr == NUL {
+                    if crate::memory::cstr_is_empty(ptr) {
                         wlv.skip_cells = 0;
                     }
 
@@ -2513,7 +2513,7 @@ pub fn win_line(
                         multi_attr = win_hl_attr(&mut *wp, HLF_AT);
                         ptr = ptr.sub(1);
                         did_decrement_ptr = true;
-                    } else if *ptr != NUL {
+                    } else if !crate::memory::cstr_is_empty(ptr) {
                         ptr = ptr.add((mb_l - 1) as usize);
                     }
 
@@ -2749,7 +2749,7 @@ pub fn win_line(
 
                         if wp.w_onebuf_opt.wo_list != 0 {
                             in_multispace = mb_c == b' ' as c_int
-                                && (*ptr == b' ' as c_char
+                                && (crate::memory::cstr_first_byte(ptr) == b' '
                                     || (prev_ptr > line as *const c_char
                                         && *prev_ptr.sub(1) == b' ' as c_char));
                             if !in_multispace {
@@ -2844,7 +2844,7 @@ pub fn win_line(
                             }
                             let sbr = get_showbreak_value(&mut *wp);
 
-                            if *sbr != NUL
+                            if !crate::memory::cstr_is_empty(sbr)
                                 && wlv.vcol == wlv.vcol_sbr
                                 && wp.w_onebuf_opt.wo_wrap != 0
                             {
@@ -2882,7 +2882,7 @@ pub fn win_line(
                                     *p.add(len) = NUL;
                                     wlv.p_extra = p;
                                     for i in 0..tab_len {
-                                        if *p == NUL {
+                                        if crate::memory::cstr_is_empty(p) {
                                             tab_len = i;
                                             break;
                                         }
@@ -2919,8 +2919,7 @@ pub fn win_line(
                                     lcs_tab1
                                 };
                                 if wp.w_onebuf_opt.wo_lbr != 0
-                                    && !wlv.p_extra.is_null()
-                                    && *wlv.p_extra != NUL
+                                    && !crate::memory::cstr_is_empty(wlv.p_extra)
                                 {
                                     wlv.sc_extra = 0;
                                 } else {
@@ -3321,7 +3320,7 @@ pub fn win_line(
                     && wlv.col == view_width - 1
                     && !has_foldtext
                 {
-                    if has_decor && *ptr == NUL && lcs_eol == 0 && lcs_eol_todo {
+                    if has_decor && crate::memory::cstr_is_empty(ptr) && lcs_eol == 0 && lcs_eol_todo {
                         decor_redraw_col(
                             &mut *wp,
                             ptr.offset_from(line) as colnr_T,
@@ -3331,9 +3330,9 @@ pub fn win_line(
                             decor_provider_end_col - 1,
                         );
                     }
-                    if *ptr != NUL
+                    if !crate::memory::cstr_is_empty(ptr)
                         || (lcs_eol > 0 && lcs_eol_todo)
-                        || (wlv.n_extra > 0 && (wlv.sc_extra != 0 || *wlv.p_extra != NUL))
+                        || (wlv.n_extra > 0 && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra)))
                         || (may_have_inline_virt
                             && has_more_inline_virt(&wlv, ptr.offset_from(line)))
                     {
@@ -3518,12 +3517,12 @@ pub fn win_line(
             if wlv.col >= view_width
                 && (!has_foldtext || wlv.filler_todo > 0)
                 && (wlv.col <= leftcols_width
-                    || *ptr != NUL
+                    || !crate::memory::cstr_is_empty(ptr)
                     || wlv.filler_todo > 0
                     || (wp.w_onebuf_opt.wo_list != 0
                         && wp.w_p_lcs_chars.eol != 0
                         && lcs_eol_todo)
-                    || (wlv.n_extra != 0 && (wlv.sc_extra != 0 || *wlv.p_extra != NUL))
+                    || (wlv.n_extra != 0 && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra)))
                     || (may_have_inline_virt && has_more_inline_virt(&wlv, ptr.offset_from(line))))
             {
                 let grid_width = (*wp.w_grid.target).cols;

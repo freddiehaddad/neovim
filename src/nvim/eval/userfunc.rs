@@ -341,7 +341,7 @@ fn one_function_arg(
     unsafe {
         let mut p = arg;
 
-        while ascii_isalnum(*p as c_int) || *p == b'_' as c_char {
+        while ascii_isalnum(*p as c_int) || crate::memory::cstr_first_byte(p) == b'_' {
             p = p.add(1);
         }
         let len = p.offset_from(arg);
@@ -396,7 +396,7 @@ fn get_function_args(
 
         let mut any_default = false;
         while *p != endchar {
-            if *p == b'.' as c_char && *p.add(1) == b'.' as c_char && *p.add(2) == b'.' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'.' && *p.add(1) == b'.' as c_char && *p.add(2) == b'.' as c_char {
                 if let Some(ref mut p) = varargs {
             **p = 1;
         }
@@ -454,7 +454,7 @@ fn get_function_args(
                     }
                     p = skipwhite(p);
                 }
-                if *p == b',' as c_char {
+                if crate::memory::cstr_first_byte(p) == b',' {
                     p = p.add(1);
                 } else {
                     mustend = true;
@@ -582,7 +582,7 @@ pub fn get_lambda_tv(
             None,
             true,
         );
-        if !ret || *s != b'>' as c_char {
+        if !ret || crate::memory::cstr_first_byte(s) != b'>' {
             return NOTDONE;
         }
 
@@ -761,7 +761,7 @@ fn get_func_arguments(
         while *argcount < MAX_FUNC_ARGS as c_int - partial_argc {
             argp = skipwhite(argp.add(1));
 
-            if *argp == b')' as c_char || *argp == b',' as c_char || *argp == NUL {
+            if crate::memory::cstr_first_byte(argp) == b')' || crate::memory::cstr_first_byte(argp) == b',' || crate::memory::cstr_is_empty(argp) {
                 break;
             }
             if !eval1(&raw mut argp, &mut *argvars.add(*argcount as usize), evalarg.as_deref_mut()) {
@@ -769,13 +769,13 @@ fn get_func_arguments(
                 break;
             }
             *argcount += 1;
-            if *argp != b',' as c_char {
+            if crate::memory::cstr_first_byte(argp) != b',' {
                 break;
             }
         }
 
         argp = skipwhite(argp);
-        if *argp == b')' as c_char {
+        if crate::memory::cstr_first_byte(argp) == b')' {
             argp = argp.add(1);
         } else {
             ret = false;
@@ -850,7 +850,7 @@ pub fn get_func_tv(
 #[inline]
 fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe { *name == b's' as c_char || toupper_asc(*name.add(2) as c_int) == b'I' as c_int }
+    unsafe { crate::memory::cstr_first_byte(name) == b's' || toupper_asc(*name.add(2) as c_int) == b'I' as c_int }
 }
 
 /// In a script transform script-local names into actually used names.
@@ -1573,7 +1573,7 @@ fn func_name_refcount(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
     unsafe {
         (*name as u8).is_ascii_digit()
-            || (*name == b'<' as c_char && *name.add(1) == b'l' as c_char)
+            || (crate::memory::cstr_first_byte(name) == b'<' && *name.add(1) == b'l' as c_char)
     }
 }
 
@@ -1929,7 +1929,7 @@ pub fn call_func(
 
         if !skip_eval && error == FCERR_NONE && funcexe.fe_evaluate {
             let is_global =
-                fp.is_null() && *fname == b'g' as c_char && *fname.add(1) == b':' as c_char;
+                fp.is_null() && crate::memory::cstr_first_byte(fname) == b'g' && *fname.add(1) == b':' as c_char;
             let rfname = if is_global { fname.add(2) } else { fname };
 
             rettv.v_type = VarType::VAR_NUMBER;
@@ -2048,7 +2048,7 @@ pub fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_
             &mut error,
         );
 
-        let is_global = *fname == b'g' as c_char && *fname.add(1) == b':' as c_char;
+        let is_global = crate::memory::cstr_first_byte(fname) == b'g' && *fname.add(1) == b':' as c_char;
         let rfname = if is_global { fname.add(2) } else { fname };
 
         let fp = find_func(rfname);
@@ -2240,7 +2240,7 @@ pub fn trans_function_name(
                 && !(*lv.ll_tv).vval.v_partial().is_null()
             {
                 let pt = (*lv.ll_tv).vval.v_partial();
-                if is_luafunc(pt) && *end == b'.' as c_char {
+                if is_luafunc(pt) && crate::memory::cstr_first_byte(end) == b'.' {
                     len = check_luafunc_name(end.add(1), true);
                     if len == 0 {
                         semsg!(e_invexpr2, c"v:lua");
@@ -2325,7 +2325,7 @@ pub fn trans_function_name(
                 lead = 2;
             }
         } else {
-            if lead == 2 || (*lv.ll_name == b'g' as c_char && *lv.ll_name.add(1) == b':' as c_char)
+            if lead == 2 || (crate::memory::cstr_first_byte(lv.ll_name) == b'g' && *lv.ll_name.add(1) == b':' as c_char)
             {
                 lv.ll_name = lv.ll_name.add(2);
                 lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
@@ -2420,7 +2420,7 @@ pub fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CStri
             c"<SNR>%d_",
             g_st().current_sctx.sc_sid,
         ) as usize;
-        let off = if *funcname == b's' as c_char { 2 } else { 5 };
+        let off = if crate::memory::cstr_first_byte(funcname) == b's' { 2 } else { 5 };
         let newnamesize = sid_buflen + crate::memory::cstr_len(funcname.add(off)) + 1;
         let mut newname = vec![0 as c_char; newnamesize];
         vim_snprintf!(
@@ -2507,7 +2507,7 @@ fn list_functions_matching_pat(eap: &mut exarg_T) -> *mut c_char {
                 vim_regfree(regmatch.regprog);
             }
         }
-        if *p == b'/' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'/' {
             p = p.add(1);
         }
 
@@ -2690,7 +2690,7 @@ fn get_function_body(
                 }
             } else {
                 p = theline;
-                while ascii_iswhite(*p as c_int) || *p == b':' as c_char {
+                while ascii_iswhite(*p as c_int) || crate::memory::cstr_first_byte(p) == b':' {
                     p = p.add(1);
                 }
 
@@ -2698,15 +2698,15 @@ fn get_function_body(
                     let prev_nesting = nesting;
                     nesting -= 1;
                     if prev_nesting == 0 {
-                        if *p == b'!' as c_char {
+                        if crate::memory::cstr_first_byte(p) == b'!' {
                             p = p.add(1);
                         }
                         let mut nextcmd: *mut c_char = ptr::null_mut();
-                        if *p == b'|' as c_char {
+                        if crate::memory::cstr_first_byte(p) == b'|' {
                             nextcmd = p.add(1);
                         } else if !line_arg.is_null() && *skipwhite(line_arg) != NUL {
                             nextcmd = line_arg;
-                        } else if *p != NUL && *p != b'"' as c_char && opt_vars().p_verbose > 0 {
+                        } else if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'"' && opt_vars().p_verbose > 0 {
                             swmsg!(
                                 true,
                                 gettext(c"W22: Text found after :endfunction: %s"),
@@ -2742,7 +2742,7 @@ fn get_function_body(
                 }
 
                 if checkforcmd(&raw mut p, c"function", 2) {
-                    if *p == b'!' as c_char {
+                    if crate::memory::cstr_first_byte(p) == b'!' {
                         p = skipwhite(p.add(1));
                     }
                     p = p.add(eval_fname_script(p) as usize);
@@ -2763,8 +2763,8 @@ fn get_function_body(
                 if (checkforcmd(&raw mut p, c"append", 1)
                     || checkforcmd(&raw mut p, c"change", 1)
                     || checkforcmd(&raw mut p, c"insert", 1))
-                    && (*p == b'!' as c_char
-                        || *p == b'|' as c_char
+                    && (crate::memory::cstr_first_byte(p) == b'!'
+                        || crate::memory::cstr_first_byte(p) == b'|'
                         || ascii_iswhite_nl_or_nul(*p as c_int))
                 {
                     skip_until = Some(c".".to_owned());
@@ -2777,7 +2777,7 @@ fn get_function_body(
                 let p1 = if p0 != 0 { *p.add(1) as u8 } else { 0 };
                 let p2 = if p1 != 0 { *p.add(2) as u8 } else { 0 };
                 let p3 = if p2 != 0 { *p.add(3) as u8 } else { 0 };
-                let is_script_heredoc = *arg == b'<' as c_char
+                let is_script_heredoc = crate::memory::cstr_first_byte(arg) == b'<'
                     && *arg.add(1) == b'<' as c_char
                     && ((p0 == b'p'
                         && p1 == b'y'
@@ -2803,7 +2803,7 @@ fn get_function_body(
                             std::slice::from_raw_parts(theline.cast::<u8>(), heredoc_trimmedlen);
                         heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                     }
-                    if *p == NUL {
+                    if crate::memory::cstr_is_empty(p) {
                         skip_until = Some(c".".to_owned());
                     } else {
                         let slice = std::slice::from_raw_parts(
@@ -2875,7 +2875,7 @@ fn get_function_body(
                 newlines.push(None);
             }
 
-            if !line_arg.is_null() && *line_arg == NUL {
+            if !line_arg.is_null() && crate::memory::cstr_is_empty(line_arg) {
                 line_arg = ptr::null_mut();
             }
         }
@@ -2913,7 +2913,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             return;
         }
 
-        if *eap.arg == b'/' as c_char {
+        if crate::memory::cstr_first_byte(eap.arg) == b'/' {
             let p = list_functions_matching_pat(eap);
             eap.nextcmd = check_nextcmd(p);
             return;
@@ -2979,7 +2979,7 @@ pub fn ex_function(eap: &mut exarg_T) {
         }
 
         p = skipwhite(p);
-        if *p != b'(' as c_char {
+        if crate::memory::cstr_first_byte(p) != b'(' {
             if eap.skip == 0 {
                 semsg!(gettext(c"E124: Missing '(': %s"), eap.arg);
                 ret_free!();
@@ -3077,9 +3077,9 @@ pub fn ex_function(eap: &mut exarg_T) {
             }
         }
 
-        if *p == b'\n' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'\n' {
             line_arg = p.add(1);
-        } else if *p != NUL && *p != b'"' as c_char && eap.skip == 0 && g_st().did_emsg == 0 {
+        } else if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'"' && eap.skip == 0 && g_st().did_emsg == 0 {
             semsg!(gettext(e_trailing_arg), p);
         }
 
@@ -3268,13 +3268,13 @@ pub fn ex_function(eap: &mut exarg_T) {
 /// 2 if `p` starts with `s:`, 0 otherwise.
 pub fn eval_fname_script(p: *const c_char) -> c_int {
     unsafe {
-        if *p == b'<' as c_char
+        if crate::memory::cstr_first_byte(p) == b'<'
             && (mb_strnicmp(p.add(1), c"SID>", 4) == 0
                 || mb_strnicmp(p.add(1), c"SNR>", 4) == 0)
         {
             return 5;
         }
-        if *p == b's' as c_char && *p.add(1) == b':' as c_char {
+        if crate::memory::cstr_first_byte(p) == b's' && *p.add(1) == b':' as c_char {
             return 2;
         }
         0
@@ -3289,7 +3289,7 @@ pub fn translated_function_exists(name: *const c_char) -> bool {
 }
 
 pub fn function_exists(name: *const c_char, no_deref: bool) -> bool {
-    unsafe {
+     {
         let mut nm = name.cast_mut();
         let mut n = false;
         let mut flag = TFN_INT | TFN_QUIET | TFN_NO_AUTOLOAD;
@@ -3301,7 +3301,7 @@ pub fn function_exists(name: *const c_char, no_deref: bool) -> bool {
         nm = skipwhite(nm);
 
         if let Some(ref p) = p
-            && (*nm == NUL || *nm == b'(' as c_char)
+            && (crate::memory::cstr_is_empty(nm) || crate::memory::cstr_first_byte(nm) == b'(')
         {
             n = translated_function_exists(p.as_ptr());
         }
@@ -3511,7 +3511,7 @@ fn can_free_funccal(fc: &funccall_T, copyID: c_int) -> bool {
 
 /// `:return [expr]`
 pub fn ex_return(eap: &mut exarg_T) {
-    unsafe {
+     {
         let arg = eap.arg;
         let mut rettv: typval_T = typval_T::new();
         let mut returning = false;
@@ -3530,7 +3530,7 @@ pub fn ex_return(eap: &mut exarg_T) {
         }
 
         eap.nextcmd = ptr::null_mut();
-        if (*arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char)
+        if (!crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && crate::memory::cstr_first_byte(arg) != b'\n')
             && eval0(arg, &mut rettv, Some(&mut *eap), &mut evalarg)
         {
             if eap.skip == 0 {
@@ -3871,7 +3871,7 @@ pub fn ex_call(eap: &mut exarg_T) {
 
         let startarg = skipwhite(arg);
 
-        if *startarg != b'(' as c_char {
+        if crate::memory::cstr_first_byte(startarg) != b'(' {
             semsg!(gettext(e_missingparen), eap.arg);
             tv_dict_unref(fudi.fd_dict);
             return;
@@ -4305,7 +4305,7 @@ pub fn find_hi_in_scoped_ht(
         uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
-            if !ht.is_null() && *varname != NUL {
+            if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
                 hi = hash_find_len(&*ht, varname, namelen - varname.offset_from(name) as usize);
                 if !hashitem_empty(&*hi) {
                     *pht = ht;
@@ -4340,7 +4340,7 @@ pub fn find_var_in_scoped_ht(
         uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
-            if !ht.is_null() && *varname != NUL {
+            if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
                 v = find_var_in_ht(
                      &mut *ht,
                     *name as c_int,

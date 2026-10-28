@@ -206,7 +206,7 @@ pub fn socket_watcher_init(
                 return UV_EINVAL;
             }
 
-            if *port == NUL {
+            if crate::memory::cstr_is_empty(port) {
                 port = ptr::null_mut();
             }
 

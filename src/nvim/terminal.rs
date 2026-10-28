@@ -1555,7 +1555,7 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
                 buff.clear();
                 buff.reserve(item.size);
                 let mut src = item.data;
-                while *src != NUL {
+                while !crate::memory::cstr_is_empty(src) {
                     let len = utf_ptr2len(src) as usize;
                     let c = utf_ptr2char(src);
                     if !is_filter_char(c) {

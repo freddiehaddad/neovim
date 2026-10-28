@@ -43,7 +43,6 @@ const KEYSET_OPTIDX_pvp__width: u64 = 1;
 const KEYSET_OPTIDX_pvp__border: u64 = 2;
 const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
-use crate::charset::NUL;
 use crate::ex_cmds::kWinPreview;
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
@@ -121,8 +120,7 @@ pub fn win_new_float(
             win_append(lastwin_nofloating(tp), wp, tp);
         }
         (*wp).w_floating = true;
-        (*wp).w_status_height = if !(*wp).w_onebuf_opt.wo_stl.is_null()
-            && *(*wp).w_onebuf_opt.wo_stl != NUL
+        (*wp).w_status_height = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl)
             && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2)
         {
             STATUS_HEIGHT
@@ -140,7 +138,7 @@ pub fn win_new_float(
 }
 
 pub fn win_set_minimal_style(wp: &mut win_T) {
-    unsafe {
+     {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         wp.w_onebuf_opt.wo_nu = 0;
         wp.w_onebuf_opt.wo_rnu = 0;
@@ -152,7 +150,7 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
         // Hide EOB region: use " " fillchar and cleared highlighting
         if wp.w_p_fcs_chars.eob != b' ' as u32 {
             let old = wp.w_onebuf_opt.wo_fcs;
-            wp.w_onebuf_opt.wo_fcs = if *old == NUL {
+            wp.w_onebuf_opt.wo_fcs = if crate::memory::cstr_is_empty(old) {
                 alloc_string_option(c"eob: ")
             } else {
                 alloc_string_option(concat_str(old, c",eob: ").as_ptr())
@@ -161,7 +159,7 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
         }
 
         let old = wp.w_onebuf_opt.wo_winhl;
-        wp.w_onebuf_opt.wo_winhl = if *old == NUL {
+        wp.w_onebuf_opt.wo_winhl = if crate::memory::cstr_is_empty(old) {
             alloc_string_option(c"EndOfBuffer:")
         } else {
             alloc_string_option(concat_str(old, c",EndOfBuffer:").as_ptr())
@@ -171,33 +169,32 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
 
         // signcolumn: use 'auto'
         let scl_len = crate::memory::cstr_len(wp.w_onebuf_opt.wo_scl);
-        if *wp.w_onebuf_opt.wo_scl != b'a' as c_char || scl_len >= 8 {
+        if crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_scl) != b'a' || scl_len >= 8 {
             free_string_option(wp.w_onebuf_opt.wo_scl);
             wp.w_onebuf_opt.wo_scl = alloc_string_option(c"auto");
         }
 
         // foldcolumn: use '0'
-        if *wp.w_onebuf_opt.wo_fdc != b'0' as c_char {
+        if crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdc) != b'0' {
             free_string_option(wp.w_onebuf_opt.wo_fdc);
             wp.w_onebuf_opt.wo_fdc = alloc_string_option(c"0");
         }
 
         // colorcolumn: cleared
-        if !wp.w_onebuf_opt.wo_cc.is_null() && *wp.w_onebuf_opt.wo_cc != NUL {
+        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cc) {
             free_string_option(wp.w_onebuf_opt.wo_cc);
             wp.w_onebuf_opt.wo_cc = alloc_string_option(c"");
         }
 
         // statuscolumn: cleared
-        if !wp.w_onebuf_opt.wo_stc.is_null() && *wp.w_onebuf_opt.wo_stc != NUL {
+        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
             free_string_option(wp.w_onebuf_opt.wo_stc);
             wp.w_onebuf_opt.wo_stc = empty_opt;
         }
 
         // statusline: cleared (for floating windows)
         if wp.w_floating
-            && !wp.w_onebuf_opt.wo_stl.is_null()
-            && *wp.w_onebuf_opt.wo_stl != NUL
+            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
         {
             free_string_option(wp.w_onebuf_opt.wo_stl);
             wp.w_onebuf_opt.wo_stl = empty_opt;
@@ -220,7 +217,7 @@ pub fn win_border_width(wp: &mut win_T) -> c_int {
 pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
     unsafe {
         // Process statusline changes before applying new height from config
-        let show_stl = *wp.w_onebuf_opt.wo_stl != NUL && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+        let show_stl = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl) && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
         if wp.w_status_height != 0 && !show_stl {
             win_remove_status_line(wp, false);
         } else if wp.w_status_height == 0 && show_stl {
@@ -379,7 +376,7 @@ pub fn win_float_update_statusline() {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             let has_status = (*wp).w_status_height > 0;
-            let should_show = *(*wp).w_onebuf_opt.wo_stl != NUL && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+            let should_show = !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
             if should_show != has_status {
                 win_config_float(&mut *wp, (*wp).w_config.clone());
             }

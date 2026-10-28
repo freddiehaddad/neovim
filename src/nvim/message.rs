@@ -571,7 +571,7 @@ pub fn msg_multiline(
         }
 
         // Print the remainder or emit empty event if entire message is empty.
-        if *chunk != NUL || chunk == str_.data.cast_const() {
+        if !crate::memory::cstr_is_empty(chunk) || chunk == str_.data.cast_const() {
             msg_outtrans_len(
                 chunk,
                 (str_.size - (chunk.offset_from(str_.data) as usize)) as c_int,
@@ -771,7 +771,7 @@ pub fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline: bool)
             .map_or(ptr::null(), |k| k.as_ptr());
         if msg_st().is_multihl == 0
             && (s != keep_msg_ptr
-                || (*s != b'<' as c_char
+                || (crate::memory::cstr_first_byte(s) != b'<'
                     && (*hist).back().is_some_and(|last| {
                         crate::memory::cstr_as_bytes(s) != crate::memory::cstr_as_bytes(last.msg.as_slice()[0].text.data)
                     })))
@@ -861,7 +861,7 @@ pub fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: 
         let mut len: c_int = 0;
         let mut e: c_int = 0;
 
-        if *s == NUL {
+        if crate::memory::cstr_is_empty(s) {
             if buflen > 0 {
                 *buf = NUL;
             }
@@ -1656,7 +1656,7 @@ pub fn ex_messages(eap: &mut exarg_T) {
             return;
         }
 
-        if *eap.arg != NUL {
+        if !crate::memory::cstr_is_empty(eap.arg) {
             emsg(gettext(e_invarg));
             return;
         }
@@ -2285,7 +2285,7 @@ pub fn msg_make(mut arg: *const c_char) {
 
         arg = skipwhite(arg);
         let mut i: isize = 5;
-        while *arg != NUL && i >= 0 {
+        while !crate::memory::cstr_is_empty(arg) && i >= 0 {
             if *arg as u8 != STR[i as usize] {
                 break;
             }
@@ -2312,14 +2312,14 @@ pub fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) 
         let mut retval = 0;
         let hl_id = HLF_8;
 
-        while *str_ != NUL {
-            let mut text = if (str_ == strstart || *str_.add(1) == NUL) && *str_ == b' ' as c_char {
+        while !crate::memory::cstr_is_empty(str_) {
+            let mut text = if (str_ == strstart || *str_.add(1) == NUL) && crate::memory::cstr_first_byte(str_) == b' ' {
                 str_ = str_.add(1);
                 c"<Space>".as_ptr()
             } else {
                 str2special(&raw mut str_, from, kFalse, None)
             };
-            if *text != NUL && *text.add(1) == NUL {
+            if !crate::memory::cstr_is_empty(text) && *text.add(1) == NUL {
                 text = transchar_byte_buf(None, c_int::from(*text as u8));
             }
             let len = vim_strsize(text);
@@ -2348,10 +2348,10 @@ pub fn str2special_save(
     replace_spaces: bool,
     replace_others: TriState,
 ) -> std::ffi::CString {
-    unsafe {
+     {
         let mut buf: Vec<u8> = Vec::with_capacity(40);
         let mut p = str_;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             if !s.is_null() {
                 buf.extend_from_slice(crate::memory::cstr_as_bytes(s));
@@ -2371,7 +2371,7 @@ pub fn str2special_arena(
     unsafe {
         let mut p = str_;
         let mut len = 0usize;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             len += crate::memory::cstr_len(s);
         }
@@ -2379,7 +2379,7 @@ pub fn str2special_arena(
         let buf = arena_alloc(arena, len + 1, false).cast::<c_char>();
         let mut pos = 0usize;
         p = str_;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let s = str2special(&raw mut p, replace_spaces, replace_others, None);
             let s_len = crate::memory::cstr_len(s);
             ptr::copy_nonoverlapping(s, buf.add(pos), s_len);
@@ -2441,7 +2441,7 @@ pub fn str2special(
                 *sp = str_.add(1);
             }
         } else {
-            *sp = str_.add(usize::from(*str_ != NUL));
+            *sp = str_.add(usize::from(!crate::memory::cstr_is_empty(str_)));
         }
 
         if special
@@ -2521,14 +2521,14 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                 while ascii_iswhite(*lead as c_int) {
                     lead = lead.add(1);
                 }
-                if *lead == NUL {
+                if crate::memory::cstr_is_empty(lead) {
                     lead = ptr::null();
                 }
             }
         }
 
         // output a space for an empty line, otherwise the line will be overwritten
-        if *s == NUL && !(list && curwin_mut().w_p_lcs_chars.eol != 0) {
+        if crate::memory::cstr_is_empty(s) && !(list && curwin_mut().w_p_lcs_chars.eol != 0) {
             msg_putchar(b' ' as c_int);
         }
 
@@ -2576,7 +2576,7 @@ pub fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     sc_final = 0;
                     if list {
                         in_multispace = c == b' ' as c_int
-                            && (*s == b' ' as c_char || (col > 0 && *s.sub(2) == b' ' as c_char));
+                            && (crate::memory::cstr_first_byte(s) == b' ' || (col > 0 && *s.sub(2) == b' ' as c_char));
                         if !in_multispace {
                             multispace_pos = 0;
                         }
@@ -2728,8 +2728,8 @@ pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: 
         redir_write(str_, len);
 
         // Don't print anything when using ":silent cmd" or empty message.
-        if g_st().msg_silent != 0 || *str_ == NUL {
-            if *str_ == NUL && ui_has(kUIMessages) {
+        if g_st().msg_silent != 0 || crate::memory::cstr_is_empty(str_) {
+            if crate::memory::cstr_is_empty(str_) && ui_has(kUIMessages) {
                 msg_ext_no_fast();
                 ui_call_msg_show(
                     cstr_as_string(c"empty"),
@@ -2910,7 +2910,7 @@ fn msg_puts_display(str_: impl crate::strings::IntoCCharPtr, maxlen: c_int, hl_i
                 }
             }
 
-            if !((maxlen < 0 || (s.offset_from(str_) as c_int) < maxlen) && *s != NUL) {
+            if !((maxlen < 0 || (s.offset_from(str_) as c_int) < maxlen) && !crate::memory::cstr_is_empty(s)) {
                 break;
             }
 
@@ -3376,7 +3376,7 @@ fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
             return;
         }
 
-        while (maxlen < 0 || s.offset_from(str_) < maxlen) && *s != NUL {
+        while (maxlen < 0 || s.offset_from(str_) < maxlen) && !crate::memory::cstr_is_empty(s) {
             let len = utf_ptr2len(s) as usize;
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut p = buf.as_mut_ptr();
@@ -3918,7 +3918,7 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 var_redir_str(s, maxlen as c_int);
             }
 
-            while (maxlen < 0 || (s.offset_from(str_) as c_int) < maxlen as c_int) && *s != NUL {
+            while (maxlen < 0 || (s.offset_from(str_) as c_int) < maxlen as c_int) && !crate::memory::cstr_is_empty(s) {
                 if g_st().redir_reg == 0
                     && !g_st().redir_vname
                     && g_st().capture_ga.is_null()

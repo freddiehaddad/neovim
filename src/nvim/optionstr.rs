@@ -1034,7 +1034,7 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut win_T>) -> bool {
             val = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_scl;
         }
 
-        if *val == NUL {
+        if crate::memory::cstr_is_empty(val) {
             return false;
         }
 
@@ -1062,7 +1062,7 @@ pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut win_T>) -> bool {
                 let n = (*val.add(4) as c_int) - (b'0' as c_int);
                 wp.as_deref_mut().unwrap().w_minscwidth = n;
                 wp.as_deref_mut().unwrap().w_maxscwidth = n;
-            } else if *val == b'y' as c_char {
+            } else if crate::memory::cstr_first_byte(val) == b'y' {
                 wp.as_deref_mut().unwrap().w_minscwidth = 1;
                 wp.as_deref_mut().unwrap().w_maxscwidth = 1;
             } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
@@ -1300,7 +1300,7 @@ fn check_option_listflag(
     let flags = flags.into_c_char_ptr();
     unsafe {
         let mut s = val;
-        while *s != NUL {
+        while !crate::memory::cstr_is_empty(s) {
             if vim_strchr(flags, *s as u8 as c_int).is_null() {
                 return illegal_char(errbuf, *s as u8 as c_int);
             }
@@ -1323,13 +1323,13 @@ fn expand_set_opt_string(
 
         matches.clear();
 
-        if include_orig_val && *option_val != NUL {
+        if include_orig_val && !crate::memory::cstr_is_empty(option_val) {
             matches.push(crate::memory::cstr_to_cstring(option_val));
         }
 
         for &val in values {
             if val.to_bytes().is_empty()
-                || (include_orig_val && *option_val != NUL && (crate::memory::cstr_as_bytes(val.as_ptr()) == crate::memory::cstr_as_bytes(option_val)))
+                || (include_orig_val && !crate::memory::cstr_is_empty(option_val) && (crate::memory::cstr_as_bytes(val.as_ptr()) == crate::memory::cstr_as_bytes(option_val)))
             {
                 continue;
             }
@@ -1400,7 +1400,7 @@ fn expand_set_opt_listflag(
         let option_val = args.oe_opt_value;
         let cmdline_val = args.oe_set_arg;
         let append = args.oe_append;
-        let include_orig_val = args.oe_include_orig_val && (*option_val != NUL);
+        let include_orig_val = args.oe_include_orig_val && (!crate::memory::cstr_is_empty(option_val));
 
         matches.clear();
 
@@ -1409,7 +1409,7 @@ fn expand_set_opt_listflag(
         }
 
         let mut flag = flags;
-        while *flag != NUL {
+        while !crate::memory::cstr_is_empty(flag) {
             if append && !vim_strchr(option_val, *flag as u8 as c_int).is_null() {
                 flag = flag.add(1);
                 continue;
@@ -1495,7 +1495,7 @@ pub fn validate_backspace(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         if ascii_isdigit(*value as c_int) {
-            return if *value == b'2' as c_char {
+            return if crate::memory::cstr_first_byte(value) == b'2' {
                 ptr::null()
             } else {
                 e_invarg.as_ptr()
@@ -1542,7 +1542,7 @@ pub fn did_set_backupcopy(args: &mut optset_T) -> *const c_char {
             (*buf).b_bkc_flags = 0;
         }
 
-        if (opt_flags & OPT_LOCAL) != 0 && *bkc == NUL {
+        if (opt_flags & OPT_LOCAL) != 0 && crate::memory::cstr_is_empty(bkc) {
             *flags = 0;
         } else {
             let errmsg = opt_strings_flags(
@@ -1574,12 +1574,12 @@ pub fn validate_backupext_or_patchmode(args: &mut optset_T) -> *const c_char {
         } else {
             opt_vars().p_pm
         };
-        let bex_s = if *bex == b'.' as c_char {
+        let bex_s = if crate::memory::cstr_first_byte(bex) == b'.' {
             bex.add(1)
         } else {
             bex
         };
-        let pm_s = if *pm == b'.' as c_char { pm.add(1) } else { pm };
+        let pm_s = if crate::memory::cstr_first_byte(pm) == b'.' { pm.add(1) } else { pm };
         if crate::memory::cstr_as_bytes(bex_s) == crate::memory::cstr_as_bytes(pm_s) {
             return E_BACKUPEXT_AND_PATCHMODE_ARE_EQUAL.as_ptr();
         }
@@ -1598,7 +1598,7 @@ pub fn did_set_breakat(_args: &mut optset_T) -> *const c_char {
 
         if !opt_vars().p_breakat.is_null() {
             let mut p = opt_vars().p_breakat;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 *flags_ptr.add(*p as u8 as usize) = 1;
                 p = p.add(1);
             }
@@ -1648,7 +1648,7 @@ pub fn did_set_buftype(args: &mut optset_T) -> *const c_char {
     unsafe {
         let buf = args.os_buf;
         let win = args.os_win;
-        if *(*buf).b_p_bt == b'p' as c_char {
+        if crate::memory::cstr_first_byte((*buf).b_p_bt) == b'p' {
             set_option_direct(
                 kOptComments,
                 Object {
@@ -1681,7 +1681,7 @@ pub fn did_set_buftype(args: &mut optset_T) -> *const c_char {
             (*win).w_redr_status = true;
             redraw_later(win.as_mut(), UPD_VALID);
         }
-        (*buf).b_help = *(*buf).b_p_bt == b'h' as c_char;
+        (*buf).b_help = crate::memory::cstr_first_byte((*buf).b_p_bt) == b'h';
         redraw_titles();
         ptr::null()
     }
@@ -1738,7 +1738,7 @@ fn did_set_global_chars_option(
                 } else {
                     (*wp).w_onebuf_opt.wo_fcs
                 };
-                if *opt == NUL {
+                if crate::memory::cstr_is_empty(opt) {
                     set_chars_option( &mut *wp, opt, what, true, errbuf);
                 }
             }
@@ -1837,11 +1837,11 @@ pub fn validate_comments(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = ptr::null();
         let mut s = args.os_newval.data.string().data;
-        while *s != NUL {
-            while *s != NUL && *s != b':' as c_char {
+        while !crate::memory::cstr_is_empty(s) {
+            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b':' {
                 if vim_strchr(COM_ALL, *s as u8 as c_int).is_null()
                     && !ascii_isdigit(*s as c_int)
-                    && *s != b'-' as c_char
+                    && crate::memory::cstr_first_byte(s) != b'-'
                 {
                     errmsg = illegal_char(args.os_errbuf, *s as u8 as c_int);
                     break;
@@ -1852,14 +1852,14 @@ pub fn validate_comments(args: &mut optset_T) -> *const c_char {
             s = s.add(1);
             if c == NUL {
                 errmsg = c"E524: Missing colon".as_ptr();
-            } else if *s == b',' as c_char || *s == NUL {
+            } else if crate::memory::cstr_first_byte(s) == b',' || crate::memory::cstr_is_empty(s) {
                 errmsg = c"E525: Zero length string".as_ptr();
             }
             if !errmsg.is_null() {
                 break;
             }
-            while *s != NUL && *s != b',' as c_char {
-                if *s == b'\\' as c_char && *s.add(1) != NUL {
+            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
+                if crate::memory::cstr_first_byte(s) == b'\\' && *s.add(1) != NUL {
                     s = s.add(1);
                 }
                 s = s.add(1);
@@ -1872,9 +1872,9 @@ pub fn validate_comments(args: &mut optset_T) -> *const c_char {
 
 /// Validate the 'commentstring' option.
 pub fn validate_commentstring(args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let value = args.os_newval.data.string().data;
-        if *value == NUL || crate::memory::cstr_as_bytes(value).windows(2).any(|w| w == b"%s") {
+        if crate::memory::cstr_is_empty(value) || crate::memory::cstr_as_bytes(value).windows(2).any(|w| w == b"%s") {
             ptr::null()
         } else {
             c"E537: 'commentstring' must be empty or contain %s".as_ptr()
@@ -1889,13 +1889,13 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
         let mut char_before: u8 = 0;
 
         let mut p = args.os_newval.data.string().data;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             buffer.fill(0);
             let mut buf_idx: usize = 0;
             let mut escape = false;
 
-            while *p != NUL && (*p != b',' as c_char || escape) && buf_idx < LSIZE - 1 {
-                if *p == b'\\' as c_char && *p.add(1) == b',' as c_char {
+            while !crate::memory::cstr_is_empty(p) && (crate::memory::cstr_first_byte(p) != b',' || escape) && buf_idx < LSIZE - 1 {
+                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) == b',' as c_char {
                     escape = true;
                     p = p.add(1);
                 } else {
@@ -1921,10 +1921,10 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
                 if !t.is_null() {
                     *t = NUL;
                     t = t.add(1);
-                    if *t == NUL {
+                    if crate::memory::cstr_is_empty(t) {
                         char_before = b'^';
                     } else {
-                        while *t != NUL {
+                        while !crate::memory::cstr_is_empty(t) {
                             if !ascii_isdigit(*t as c_int) {
                                 char_before = b'^';
                                 break;
@@ -1941,7 +1941,7 @@ pub fn validate_complete(args: &mut optset_T) -> *const c_char {
                     c_int::from(char_before),
                 );
             }
-            while *p == b',' as c_char || *p == b' ' as c_char {
+            while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' ' {
                 p = p.add(1);
             }
         }
@@ -1964,13 +1964,13 @@ pub fn did_set_complete(args: &mut optset_T) -> *const c_char {
 
 /// Validate 'completeitemalign' and prepare its column order.
 pub fn validate_completeitemalign(args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let mut p = args.os_newval.data.string().data;
         let mut new_cia_flags: c_uint = 0;
         let mut seen = [false; 3];
         let mut count = 0;
         let mut buf = [0 as c_char; 10];
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
             let item = if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"abbr" {
                 CPT_ABBR
@@ -2083,10 +2083,10 @@ pub fn expand_set_cpoptions(
 }
 
 pub fn validate_cursorlineopt(args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let value = args.os_newval.data.string().data;
         let mut flags: c_uint = 0;
-        if *value == NUL || !fill_culopt_flags(value, &mut flags) {
+        if crate::memory::cstr_is_empty(value) || !fill_culopt_flags(value, &mut flags) {
             return e_invarg.as_ptr();
         }
         args.os_prep = OptSetPrep::Flags(flags);
@@ -2228,8 +2228,8 @@ pub fn validate_eventignore(args: &mut optset_T) -> *const c_char {
 }
 
 fn get_eventignore_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        let subtract = *xp.xp_pattern == b'-' as c_char;
+     {
+        let subtract = crate::memory::cstr_first_byte(xp.xp_pattern) == b'-';
         if !subtract && idx == 0 {
             return c"all".as_ptr().cast_mut();
         }
@@ -2281,7 +2281,7 @@ pub fn did_set_fileformat(args: &mut optset_T) -> *const c_char {
 
         redraw_titles();
         ml_setflags( &mut *buf);
-        if get_fileformat(&*buf) == EOL_MAC || *oldval == b'm' as c_char {
+        if get_fileformat(&*buf) == EOL_MAC || crate::memory::cstr_first_byte(oldval) == b'm' {
             redraw_buf_later(buf, UPD_NOT_VALID);
         }
         ptr::null()
@@ -2423,7 +2423,7 @@ pub fn did_set_helpfile(_args: &mut optset_T) -> *const c_char {
 pub fn validate_helplang(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut s = args.os_newval.data.string().data;
-        while *s != NUL {
+        while !crate::memory::cstr_is_empty(s) {
             if *s.add(1) == NUL
                 || ((*s.add(2) != b',' as c_char || *s.add(3) == NUL) && *s.add(2) != NUL)
             {
@@ -2514,7 +2514,7 @@ pub fn did_set_keymap(args: &mut optset_T) -> *const c_char {
         args.os_value_checked = true;
 
         if errmsg.is_null() {
-            if *(*buf).b_p_keymap != NUL {
+            if !crate::memory::cstr_is_empty((*buf).b_p_keymap) {
                 (*buf).b_p_iminsert = B_IMODE_LMAP;
                 if (*buf).b_p_imsearch != B_IMODE_USE_INSERT {
                     (*buf).b_p_imsearch = B_IMODE_LMAP;
@@ -2547,9 +2547,9 @@ pub fn did_set_keymodel(_args: &mut optset_T) -> *const c_char {
 
 /// Validate the 'lispoptions' option.
 pub fn validate_lispoptions(args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let value = args.os_newval.data.string().data;
-        if *value == NUL
+        if crate::memory::cstr_is_empty(value)
             || crate::memory::cstr_as_bytes(value) == b"expr:0"
             || crate::memory::cstr_as_bytes(value) == b"expr:1"
         {
@@ -2564,23 +2564,23 @@ pub fn validate_lispoptions(args: &mut optset_T) -> *const c_char {
 pub fn validate_matchpairs(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut p = args.os_newval.data.string().data;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let mut x2: c_int = -1;
             let mut x3: c_int = -1;
 
             p = p.add(utfc_ptr2len(p) as usize);
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 x2 = *p as u8 as c_int;
                 p = p.add(1);
             }
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 x3 = utf_ptr2char(p);
                 p = p.add(utfc_ptr2len(p) as usize);
             }
-            if x2 != b':' as c_int || x3 == -1 || (*p != NUL && *p != b',' as c_char) {
+            if x2 != b':' as c_int || x3 == -1 || (!crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',') {
                 return e_invarg.as_ptr();
             }
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 break;
             }
             p = p.add(1);
@@ -2692,30 +2692,30 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
         let mut marks: *mut c_char = ptr::null_mut();
 
         let mut s = value;
-        while *s != NUL {
-            if *s == b'\'' as c_char && marks.is_null() {
+        while !crate::memory::cstr_is_empty(s) {
+            if crate::memory::cstr_first_byte(s) == b'\'' && marks.is_null() {
                 marks = s.add(1);
             }
             if vim_strchr(c"!\"%'/:<@cfhnrs", *s as u8 as c_int).is_null() {
                 return illegal_char(errbuf, *s as u8 as c_int);
             }
-            if *s == b'n' as c_char {
+            if crate::memory::cstr_first_byte(s) == b'n' {
                 break;
-            } else if *s == b'r' as c_char {
+            } else if crate::memory::cstr_first_byte(s) == b'r' {
                 loop {
                     s = s.add(1);
-                    if *s == NUL || *s == b',' as c_char {
+                    if crate::memory::cstr_is_empty(s) || crate::memory::cstr_first_byte(s) == b',' {
                         break;
                     }
                 }
-            } else if *s == b'%' as c_char {
+            } else if crate::memory::cstr_first_byte(s) == b'%' {
                 loop {
                     s = s.add(1);
                     if !ascii_isdigit(*s as c_int) {
                         break;
                     }
                 }
-            } else if *s == b'!' as c_char || *s == b'h' as c_char || *s == b'c' as c_char {
+            } else if crate::memory::cstr_first_byte(s) == b'!' || crate::memory::cstr_first_byte(s) == b'h' || crate::memory::cstr_first_byte(s) == b'c' {
                 s = s.add(1);
             } else {
                 loop {
@@ -2737,9 +2737,9 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
                     }
                 }
             }
-            if *s == b',' as c_char {
+            if crate::memory::cstr_first_byte(s) == b',' {
                 s = s.add(1);
-            } else if *s != NUL {
+            } else if !crate::memory::cstr_is_empty(s) {
                 if errbuf.is_some() {
                     return c"E527: Missing comma".as_ptr();
                 } else {
@@ -2747,7 +2747,7 @@ pub fn validate_shada(args: &mut optset_T) -> *const c_char {
                 }
             }
         }
-        if *value != NUL && (marks.is_null() || (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(marks)) as c_int) < 0) {
+        if !crate::memory::cstr_is_empty(value) && (marks.is_null() || (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(marks)) as c_int) < 0) {
             return c"E528: Must specify a ' value".as_ptr();
         }
         ptr::null()
@@ -2760,8 +2760,8 @@ pub fn validate_shellpipe_redir(args: &mut optset_T) -> *const c_char {
         let mut seen = false;
 
         let mut p = args.os_newval.data.string().data;
-        while *p != NUL {
-            if *p != b'%' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) != b'%' {
                 p = p.add(1);
                 continue;
             }
@@ -2806,7 +2806,7 @@ pub fn validate_shortmess(args: &mut optset_T) -> *const c_char {
 pub fn validate_showbreak(args: &mut optset_T) -> *const c_char {
     unsafe {
         let mut s = args.os_newval.data.string().data;
-        while *s != NUL {
+        while !crate::memory::cstr_is_empty(s) {
             if ptr2cells(s) != 1 {
                 return E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER.as_ptr();
             }
@@ -2847,7 +2847,7 @@ pub fn did_set_signcolumn(args: &mut optset_T) -> *const c_char {
         {
             return e_invarg.as_ptr();
         }
-        if (*oldval == b'n' as c_char && *oldval.add(1) == b'u' as c_char)
+        if (crate::memory::cstr_first_byte(oldval) == b'n' && *oldval.add(1) == b'u' as c_char)
             || (*win).w_minscwidth == SCL_NUM
         {
             (*win).w_nrwidth_line_count = 0;
@@ -3004,7 +3004,7 @@ pub fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
 pub fn validate_statustabline_rulerformat(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
-        if *value == b'%' as c_char && *value.add(1) == b'!' as c_char {
+        if crate::memory::cstr_first_byte(value) == b'%' && *value.add(1) == b'!' as c_char {
             ptr::null()
         } else {
             check_stl_option(value, args.os_errbuf)
@@ -3041,7 +3041,7 @@ fn did_set_statustabline_rulerformat(
 
         if (is_stl || rulerformat)
             && ((args.os_flags & OPT_GLOBAL) != 0 || (args.os_flags & OPT_LOCAL) == 0)
-            && *s == NUL
+            && crate::memory::cstr_is_empty(s)
         {
             free_string_option(*varp);
             let def = get_option_default(args.os_idx, args.os_flags);
@@ -3054,13 +3054,13 @@ fn did_set_statustabline_rulerformat(
             win_config_float(&mut *win, (*win).w_config.clone());
         }
 
-        if rulerformat && !ui_has(kUIMessages) && *s == b'%' as c_char {
+        if rulerformat && !ui_has(kUIMessages) && crate::memory::cstr_first_byte(s) == b'%' {
             s = s.add(1);
-            if *s == b'-' as c_char {
+            if crate::memory::cstr_first_byte(s) == b'-' {
                 s = s.add(1);
             }
             let wid = getdigits_int(&raw mut s, true, 0);
-            if wid != 0 && *s == b'(' as c_char {
+            if wid != 0 && crate::memory::cstr_first_byte(s) == b'(' {
                 g_st().ru_wid = wid;
             }
         }
@@ -3088,7 +3088,7 @@ pub fn did_set_tagcase(args: &mut optset_T) -> *const c_char {
             (opt_vars().p_tc, &raw mut opt_vars().tc_flags)
         };
 
-        if (opt_flags & OPT_LOCAL) != 0 && *p == NUL {
+        if (opt_flags & OPT_LOCAL) != 0 && crate::memory::cstr_is_empty(p) {
             *flags = 0;
         } else {
             let errmsg = opt_strings_flags(
@@ -3134,12 +3134,12 @@ pub fn validate_vartabstop(args: &mut optset_T) -> *const c_char {
     unsafe {
         let value = args.os_newval.data.string().data;
         let mut cp = value;
-        while *cp != NUL {
+        while !crate::memory::cstr_is_empty(cp) {
             if ascii_isdigit(*cp as c_int) {
                 cp = cp.add(1);
                 continue;
             }
-            if *cp == b',' as c_char
+            if crate::memory::cstr_first_byte(cp) == b','
                 && (cp as usize) > (value as usize)
                 && *cp.sub(1) != b',' as c_char
             {
@@ -3204,7 +3204,7 @@ pub fn did_set_virtualedit(args: &mut optset_T) -> *const c_char {
             flags = &raw mut (*win).w_onebuf_opt.wo_ve_flags;
         }
 
-        if (args.os_flags & OPT_LOCAL) != 0 && *ve == NUL {
+        if (args.os_flags & OPT_LOCAL) != 0 && crate::memory::cstr_is_empty(ve) {
             *flags = 0;
         } else {
             let errmsg = opt_strings_flags(
@@ -3352,9 +3352,9 @@ fn opt_strings_flags(
 ) -> *const c_char {
     unsafe {
         let mut new_flags: c_uint = 0;
-        let iter_one = (*val == NUL) && !list;
+        let iter_one = (crate::memory::cstr_is_empty(val)) && !list;
 
-        while *val != NUL || iter_one {
+        while !crate::memory::cstr_is_empty(val) || iter_one {
             let mut matched = false;
             for (i, &v) in values.iter().enumerate() {
                 let len = v.to_bytes().len();
@@ -3448,7 +3448,7 @@ pub fn opt_strings_check(
                 OptSchemaKind::kOptSchemaNum | OptSchemaKind::kOptSchemaSNum => {
                     let mut i: usize = if !v.is_null()
                         && it.kind == OptSchemaKind::kOptSchemaSNum
-                        && *v == b'-' as c_char
+                        && crate::memory::cstr_first_byte(v) == b'-'
                     {
                         1
                     } else {
@@ -3600,7 +3600,7 @@ fn get_encoded_char_adv(p: *mut *const c_char) -> schar_T {
     unsafe {
         let s = *p;
 
-        if *s == b'\\' as c_char
+        if crate::memory::cstr_first_byte(s) == b'\\'
             && (*s.add(1) == b'x' as c_char
                 || *s.add(1) == b'u' as c_char
                 || *s.add(1) == b'U' as c_char)
@@ -3949,12 +3949,12 @@ pub fn set_chars_option(
         let mut lcs_chars = lcs_chars_T::new();
 
         let tab: &[CharsTabEntry] = if what == CharsOption::kListchars {
-            if apply && *wp.w_onebuf_opt.wo_lcs == NUL {
+            if apply && crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_lcs) {
                 value = opt_vars().p_lcs;
             }
             &LCS_TAB
         } else {
-            if apply && *wp.w_onebuf_opt.wo_fcs == NUL {
+            if apply && crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_fcs) {
                 value = opt_vars().p_fcs;
             }
             &FCS_TAB
@@ -3988,7 +3988,7 @@ pub fn set_chars_option(
             }
 
             let mut p = value;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 let mut i: usize = 0;
                 while i < entries {
                     let name_ptr = tab[i].name.as_ptr();
@@ -4005,7 +4005,7 @@ pub fn set_chars_option(
                         if round == 0 {
                             last_multispace = p;
                             multispace_len = 0;
-                            while *s != NUL && *s != b',' as c_char {
+                            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if c1 == 0 {
                                     return opt_error(
@@ -4025,7 +4025,7 @@ pub fn set_chars_option(
                             }
                         } else {
                             let mut multispace_pos: usize = 0;
-                            while *s != NUL && *s != b',' as c_char {
+                            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if p == last_multispace {
                                     lcs_chars.multispace[multispace_pos] = c1;
@@ -4041,7 +4041,7 @@ pub fn set_chars_option(
                         if round == 0 {
                             last_lmultispace = p;
                             lead_multispace_len = 0;
-                            while *s != NUL && *s != b',' as c_char {
+                            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if c1 == 0 {
                                     return opt_error(
@@ -4061,7 +4061,7 @@ pub fn set_chars_option(
                             }
                         } else {
                             let mut multispace_pos: usize = 0;
-                            while *s != NUL && *s != b',' as c_char {
+                            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if p == last_lmultispace {
                                     lcs_chars.leadmultispace[multispace_pos] = c1;
@@ -4073,7 +4073,7 @@ pub fn set_chars_option(
                         break;
                     }
 
-                    if *s == NUL {
+                    if crate::memory::cstr_is_empty(s) {
                         return opt_error(
                             errbuf,
                             E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR,
@@ -4091,7 +4091,7 @@ pub fn set_chars_option(
                     let mut c2: schar_T = 0;
                     let mut c3: schar_T = 0;
                     if matches!(tab[i].target, CharsTarget::LcsTab | CharsTarget::LcsLeadtab) {
-                        if *s == NUL {
+                        if crate::memory::cstr_is_empty(s) {
                             return opt_error(
                                 errbuf,
                                 E_WRONG_NUMBER_OF_CHARACTERS_FOR_FIELD_STR,
@@ -4106,7 +4106,7 @@ pub fn set_chars_option(
                                 name_ptr,
                             );
                         }
-                        if !(*s == b',' as c_char || *s == NUL) {
+                        if !(crate::memory::cstr_first_byte(s) == b',' || crate::memory::cstr_is_empty(s)) {
                             c3 = get_encoded_char_adv(&raw mut s);
                             if c3 == 0 {
                                 return opt_error(
@@ -4123,7 +4123,7 @@ pub fn set_chars_option(
                         }
                     }
 
-                    if *s == b',' as c_char || *s == NUL {
+                    if crate::memory::cstr_first_byte(s) == b',' || crate::memory::cstr_is_empty(s) {
                         if round > 0 {
                             if tab[i].target == CharsTarget::LcsTab {
                                 lcs_chars.tab1 = c1;
@@ -4154,7 +4154,7 @@ pub fn set_chars_option(
                     return e_invarg.as_ptr();
                 }
 
-                if *p == b',' as c_char {
+                if crate::memory::cstr_first_byte(p) == b',' {
                     p = p.add(1);
                 }
             }

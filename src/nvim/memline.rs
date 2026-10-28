@@ -517,7 +517,7 @@ pub fn ml_setname(buf: &mut buf_T) {
         let mut dirp = opt_vars().p_dir;
         let mut found_existing_dir = false;
         loop {
-            if *dirp == NUL {
+            if crate::memory::cstr_is_empty(dirp) {
                 break;
             }
             let mf_fname_ptr = (*mfp)
@@ -607,7 +607,7 @@ pub fn ml_open_file(buf: &mut buf_T) {
         let mut dirp = opt_vars().p_dir;
         let mut found_existing_dir = false;
         loop {
-            if *dirp == NUL {
+            if crate::memory::cstr_is_empty(dirp) {
                 break;
             }
             let fname = findswapname(
@@ -1527,11 +1527,11 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut list_
             size: 0,
         };
         let mut dirp = opt_vars().p_dir;
-        while *dirp != NUL {
+        while !crate::memory::cstr_is_empty(dirp) {
             dir_name.size = copy_option_part(&raw mut dirp, dir_name.data, 31000, c",");
 
             let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
-            if *dir_name.data == b'.' as c_char && *dir_name.data.add(1) == NUL {
+            if crate::memory::cstr_first_byte(dir_name.data) == b'.' && *dir_name.data.add(1) == NUL {
                 if fname.is_null() {
                     names_vec.push(c"*.sw?".to_owned());
                     names_vec.push(c".*.sw?".to_owned());
@@ -1582,7 +1582,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut list_
                 files.retain(|f| !path_equal(cur_p, f.as_ptr(), kPathCmpFull));
             }
 
-            if *dirp == NUL
+            if crate::memory::cstr_is_empty(dirp)
                 && tv_list_len(Some(ret_list)) == 0
                 && files.is_empty()
                 && !fname.is_null()
@@ -1630,7 +1630,7 @@ pub fn make_percent_swname(
             *fixed_data = b'/' as c_char;
         }
         let mut p = fixed_data;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             if vim_ispathsep(*p as u8 as c_int) {
                 *p = b'%' as c_char;
             }
@@ -2054,9 +2054,9 @@ pub fn ml_get_pos_len(pos: &mut pos_T) -> colnr_T {
 
 /// Return length (excluding NUL) of the given line in `buf`.
 pub fn ml_get_buf_len(buf: &mut buf_T, lnum: linenr_T) -> colnr_T {
-    unsafe {
+     {
         let line = ml_get_buf(buf, lnum);
-        if *line == NUL {
+        if crate::memory::cstr_is_empty(line) {
             return 0;
         }
         assert!(buf.b_ml.ml_line_textlen > 0);
@@ -3391,7 +3391,7 @@ pub fn makeswapname(
         let r = modname(
             fname_res,
             c".swp",
-            *dir_name == b'.' as c_char && *dir_name.add(1) == NUL,
+            crate::memory::cstr_first_byte(dir_name) == b'.' && *dir_name.add(1) == NUL,
         )?;
 
         get_file_in_dir(r.as_ptr().cast_mut(), dir_name)
@@ -3403,7 +3403,7 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
     unsafe {
         let tail = cstr_as_string(path_tail(fname));
 
-        if *dname == b'.' as c_char && *dname.add(1) == NUL {
+        if crate::memory::cstr_first_byte(dname) == b'.' && *dname.add(1) == NUL {
             let n = tail.data.offset_from(fname) as usize + tail.size;
             return Some(
                 std::ffi::CString::new(std::slice::from_raw_parts(fname.cast::<u8>(), n))
@@ -3412,7 +3412,7 @@ pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ff
         }
 
         let dname_len = crate::memory::cstr_len(dname);
-        let retval = if *dname == b'.' as c_char && vim_ispathsep(*dname.add(1) as u8 as c_int) {
+        let retval = if crate::memory::cstr_first_byte(dname) == b'.' && vim_ispathsep(*dname.add(1) as u8 as c_int) {
             if tail.data == fname {
                 concat_fnames(
                     NvimString {
@@ -4200,7 +4200,7 @@ pub fn inc(lp: &mut pos_T) -> c_int {
     unsafe {
         if lp.col != MAXCOL {
             let p = ml_get_pos(lp);
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 let l = utfc_ptr2len(p);
                 lp.col += l;
                 return if *p.add(l as usize) != NUL { 0 } else { 2 };

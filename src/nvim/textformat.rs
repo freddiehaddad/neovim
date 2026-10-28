@@ -563,7 +563,7 @@ fn fmt_check_par(
 
         if *leader_len > 0 {
             flags = *leader_flags;
-            while *flags != NUL && *flags != b':' as c_char && *flags != COM_END {
+            while !crate::memory::cstr_is_empty(flags) && crate::memory::cstr_first_byte(flags) != b':' && *flags != COM_END {
                 flags = flags.add(1);
             }
         }
@@ -577,7 +577,7 @@ fn fmt_check_par(
 fn ends_in_white(lnum: linenr_T) -> bool {
     unsafe {
         let s = ml_get(lnum);
-        if *s == NUL {
+        if crate::memory::cstr_is_empty(s) {
             return false;
         }
         let l = ml_get_len(lnum) - 1;
@@ -599,7 +599,7 @@ fn same_leader(
 
         if !leader1_flags.is_null() {
             let mut p = leader1_flags;
-            while *p != NUL && *p != b':' as c_char {
+            while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b':' {
                 if *p == COM_FIRST {
                     return leader2_len == 0;
                 }
@@ -615,7 +615,7 @@ fn same_leader(
                         return false;
                     }
                     let mut p2 = leader2_flags;
-                    while *p2 != NUL && *p2 != b':' as c_char {
+                    while !crate::memory::cstr_is_empty(p2) && crate::memory::cstr_first_byte(p2) != b':' {
                         if *p2 == COM_MIDDLE {
                             return true;
                         }
@@ -655,7 +655,7 @@ fn same_leader(
 }
 
 fn paragraph_start(lnum: linenr_T) -> bool {
-    unsafe {
+     {
         let mut leader_len: c_int = 0;
         let mut leader_flags: *mut c_char = ptr::null_mut();
         let mut next_leader_len: c_int = 0;
@@ -665,7 +665,7 @@ fn paragraph_start(lnum: linenr_T) -> bool {
             return true;
         }
         let p = ml_get(lnum - 1);
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             return true;
         }
         let do_comments = has_format_option(kFoQComs);
@@ -719,7 +719,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         check_auto_format(false);
 
         let wasatend = pos.col == get_cursor_line_len();
-        if *old != NUL && !trailblank && wasatend {
+        if !crate::memory::cstr_is_empty(old) && !trailblank && wasatend {
             dec_cursor();
             let mut cc = gchar_cursor();
             if !whitechar(cc) && curwin_mut().w_cursor.col > 0 && has_format_option(kFoOneLetter) {
@@ -733,7 +733,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             curwin_mut().w_cursor = pos;
         }
 
-        if *old != NUL && !trailblank && !wasatend && pos.col > 0 && (g_st().State & MODE_INSERT) != 0 {
+        if !crate::memory::cstr_is_empty(old) && !trailblank && !wasatend && pos.col > 0 && (g_st().State & MODE_INSERT) != 0 {
             let line = get_cursor_line_ptr();
             if whitechar(*line.add((pos.col - 1) as usize) as c_int) {
                 curwin_mut().w_cursor = pos;

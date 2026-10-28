@@ -336,7 +336,7 @@ fn stl_st() -> &'static mut StatuslineState {
 
 /// Redraw the status line of window `wp`.
 pub fn win_redr_status(wp: &mut win_T) {
-    unsafe {
+     {
         let is_stl_global = global_stl_height() > 0;
 
         if stl_st().redr_status_busy || (g_st().wild_menu_showing != 0 && !ui_has(kUIWildmenu)) {
@@ -356,7 +356,7 @@ pub fn win_redr_status(wp: &mut win_T) {
             g_st().redraw_cmdline = true;
         } else if !redrawing() {
             wp.w_redr_status = true;
-        } else if *wp.w_onebuf_opt.wo_stl != NUL
+        } else if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
             || !wp.w_floating
             || (is_stl_global && is_stl_curwin)
         {
@@ -536,12 +536,12 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             click_defs = (*defs).as_mut_ptr();
         } else if draw_winbar {
             opt_idx = kOptWinbar;
-            stl = if *(*wp).w_onebuf_opt.wo_wbr != NUL {
+            stl = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_wbr) {
                 (*wp).w_onebuf_opt.wo_wbr
             } else {
                 opt_vars().p_wbr
             };
-            opt_scope = if *(*wp).w_onebuf_opt.wo_wbr != NUL {
+            opt_scope = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_wbr) {
                 OPT_LOCAL
             } else {
                 0
@@ -576,9 +576,9 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
         } else if draw_ruler {
             stl = opt_vars().p_ruf;
             opt_idx = kOptRulerformat;
-            if *stl == b'%' as c_char {
+            if crate::memory::cstr_first_byte(stl) == b'%' {
                 stl = stl.add(1);
-                if *stl == b'-' as c_char {
+                if crate::memory::cstr_first_byte(stl) == b'-' {
                     stl = stl.add(1);
                 }
                 if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as c_int != 0 {
@@ -601,13 +601,13 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
             attr = hl_attr(group);
             click_defs = ptr::null_mut();
         } else {
-            stl = if *(*wp).w_onebuf_opt.wo_stl != NUL {
+            stl = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) {
                 (*wp).w_onebuf_opt.wo_stl
             } else {
                 opt_vars().p_stl
             };
             opt_idx = kOptStatusline;
-            opt_scope = if *(*wp).w_onebuf_opt.wo_stl != NUL {
+            opt_scope = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) {
                 OPT_LOCAL
             } else {
                 0
@@ -782,7 +782,7 @@ fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_eve
 }
 
 pub fn win_redr_winbar(wp: &mut win_T) {
-    unsafe {
+     {
         if stl_st().winbar_entered {
             return;
         }
@@ -790,7 +790,7 @@ pub fn win_redr_winbar(wp: &mut win_T) {
 
         if wp.w_winbar_height == 0 || !redrawing() {
             // Do nothing.
-        } else if !crate::memory::cstr_is_empty(opt_vars().p_wbr) || *wp.w_onebuf_opt.wo_wbr != NUL {
+        } else if !crate::memory::cstr_is_empty(opt_vars().p_wbr) || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
             win_redr_stl_expr(&raw mut *wp, true, false, false);
         }
         stl_st().winbar_entered = false;
@@ -1433,7 +1433,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             false
         };
 
-        if *fmt == b'%' as c_char && *fmt.add(1) == b'!' as c_char {
+        if crate::memory::cstr_first_byte(fmt) == b'%' && *fmt.add(1) == b'!' as c_char {
             let mut tv = typval_T {
                 v_type: VarType::VAR_NUMBER,
                 v_lock: 0,
@@ -1467,7 +1467,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         let line_ptr = ml_get_buf((*wp).buf_mut(), lnum);
-        let empty_line = *line_ptr == NUL;
+        let empty_line = crate::memory::cstr_is_empty(line_ptr);
 
         let len = ml_get_buf_len((*wp).buf_mut(), lnum);
         let byteval = if (*wp).w_cursor.col > len {
@@ -1502,30 +1502,30 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         let mut fmt_p = usefmt;
-        while *fmt_p != NUL {
+        while !crate::memory::cstr_is_empty(fmt_p) {
             may_grow_stl_items_len!();
 
-            if *fmt_p != b'%' as c_char {
+            if crate::memory::cstr_first_byte(fmt_p) != b'%' {
                 prevchar_isflag = false;
                 prevchar_isitem = false;
             }
 
-            while *fmt_p != NUL && *fmt_p != b'%' as c_char && out_p < out_end_p {
+            while !crate::memory::cstr_is_empty(fmt_p) && crate::memory::cstr_first_byte(fmt_p) != b'%' && out_p < out_end_p {
                 *out_p = *fmt_p;
                 out_p = out_p.add(1);
                 fmt_p = fmt_p.add(1);
             }
 
-            if *fmt_p == NUL || out_p >= out_end_p {
+            if crate::memory::cstr_is_empty(fmt_p) || out_p >= out_end_p {
                 break;
             }
 
             fmt_p = fmt_p.add(1);
-            if *fmt_p == NUL {
+            if crate::memory::cstr_is_empty(fmt_p) {
                 break;
             }
 
-            if *fmt_p == b'%' as c_char {
+            if crate::memory::cstr_first_byte(fmt_p) == b'%' {
                 *out_p = *fmt_p;
                 out_p = out_p.add(1);
                 fmt_p = fmt_p.add(1);
@@ -1550,7 +1550,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if *fmt_p == b')' as c_char {
+            if crate::memory::cstr_first_byte(fmt_p) == b')' {
                 fmt_p = fmt_p.add(1);
                 if groupdepth < 1 {
                     continue;
@@ -1658,12 +1658,12 @@ pub unsafe extern "C" fn build_stl_str_hl(
             let mut left_align_num = false;
             let mut left_align = false;
 
-            let zeropad = *fmt_p == b'0' as c_char;
+            let zeropad = crate::memory::cstr_first_byte(fmt_p) == b'0';
             if zeropad {
                 fmt_p = fmt_p.add(1);
             }
 
-            if *fmt_p == b'-' as c_char {
+            if crate::memory::cstr_first_byte(fmt_p) == b'-' {
                 fmt_p = fmt_p.add(1);
                 left_align = true;
             }
@@ -1710,7 +1710,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             if *fmt_p == STL_CLICK_FUNC {
                 fmt_p = fmt_p.add(1);
                 let t = fmt_p;
-                while *fmt_p != STL_CLICK_FUNC && *fmt_p != NUL {
+                while *fmt_p != STL_CLICK_FUNC && !crate::memory::cstr_is_empty(fmt_p) {
                     fmt_p = fmt_p.add(1);
                 }
                 if *fmt_p != STL_CLICK_FUNC {
@@ -1731,7 +1731,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if *fmt_p == b'.' as c_char {
+            if crate::memory::cstr_first_byte(fmt_p) == b'.' {
                 fmt_p = fmt_p.add(1);
                 if ascii_isdigit(*fmt_p) {
                     maxwid = getdigits_int(&raw mut fmt_p, false, 50);
@@ -1745,7 +1745,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 minwid = -minwid;
             }
 
-            if *fmt_p == b'(' as c_char {
+            if crate::memory::cstr_first_byte(fmt_p) == b'(' {
                 stl_groupitems!()[groupdepth] = stl_st().curitem;
                 groupdepth += 1;
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Group;
@@ -1757,7 +1757,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            if *fmt_p == b'}' as c_char && evaldepth > 0 {
+            if crate::memory::cstr_first_byte(fmt_p) == b'}' && evaldepth > 0 {
                 fmt_p = fmt_p.add(1);
                 evaldepth -= 1;
                 if groupdepth > 0 {
@@ -1828,7 +1828,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             }
 
             if vim_strchr(STL_ALL, c_int::from(*fmt_p as u8)).is_null() {
-                if *fmt_p == NUL {
+                if crate::memory::cstr_is_empty(fmt_p) {
                     break;
                 }
                 fmt_p = fmt_p.add(1);
@@ -1869,23 +1869,23 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_VIM_EXPR => {
                     let block_start = fmt_p.sub(1);
-                    let reevaluate = *fmt_p == b'%' as c_char;
+                    let reevaluate = crate::memory::cstr_first_byte(fmt_p) == b'%';
                     if reevaluate {
                         fmt_p = fmt_p.add(1);
                     }
                     itemisflag = !zeropad;
 
                     let t = out_p;
-                    while (*fmt_p != b'}' as c_char
+                    while (crate::memory::cstr_first_byte(fmt_p) != b'}'
                         || (reevaluate && *fmt_p.sub(1) != b'%' as c_char))
-                        && *fmt_p != NUL
+                        && !crate::memory::cstr_is_empty(fmt_p)
                         && out_p < out_end_p
                     {
                         *out_p = *fmt_p;
                         out_p = out_p.add(1);
                         fmt_p = fmt_p.add(1);
                     }
-                    if *fmt_p == b'}' as c_char {
+                    if crate::memory::cstr_first_byte(fmt_p) == b'}' {
                         fmt_p = fmt_p.add(1);
                         if reevaluate && out_p > out.data {
                             *out_p.sub(1) = NUL;
@@ -1931,7 +1931,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         do_unlet(c"g:actual_curbuf", "g:actual_curbuf".len(), true);
                         do_unlet(c"g:actual_curwin", "g:actual_curwin".len(), true);
 
-                        if !zeropad && !str.is_null() && *str != NUL && *skipdigits(str) == NUL {
+                        if !zeropad && !crate::memory::cstr_is_empty(str) && *skipdigits(str) == NUL {
                             num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str)) as c_int;
                             owned_str = None;
                             str = ptr::null_mut();
@@ -1939,8 +1939,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         }
 
                         if reevaluate
-                            && !str.is_null()
-                            && *str != NUL
+                            && !crate::memory::cstr_is_empty(str)
                             && !vim_strchr(str, b'%' as c_int).is_null()
                             && evaldepth < MAX_STL_EVAL_DEPTH
                         {
@@ -2121,7 +2120,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_FILETYPE => {
                     let ft = (*wp).buf_mut().b_p_ft;
-                    if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 3 {
+                    if !crate::memory::cstr_is_empty(ft) && crate::memory::cstr_len(ft) < TMPLEN - 3 {
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]", ft);
                         str = buf_tmp.as_mut_ptr();
                     }
@@ -2129,10 +2128,10 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_FILETYPE_ALT => {
                     itemisflag = true;
                     let ft = (*wp).buf_mut().b_p_ft;
-                    if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 2 {
+                    if !crate::memory::cstr_is_empty(ft) && crate::memory::cstr_len(ft) < TMPLEN - 2 {
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s", ft);
                         let mut t = buf_tmp.as_mut_ptr();
-                        while *t != NUL {
+                        while !crate::memory::cstr_is_empty(t) {
                             *t = (*t as u8).to_ascii_uppercase() as c_char;
                             t = t.add(1);
                         }
@@ -2175,7 +2174,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_HIGHLIGHT_COMB | STL_HIGHLIGHT => {
                     let t = fmt_p;
-                    while *fmt_p != opt && *fmt_p != NUL {
+                    while *fmt_p != opt && !crate::memory::cstr_is_empty(fmt_p) {
                         fmt_p = fmt_p.add(1);
                     }
                     if *fmt_p == opt {
@@ -2280,13 +2279,13 @@ pub unsafe extern "C" fn build_stl_str_hl(
             stl_items!()[stl_st().curitem as usize].start = out_p;
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Normal;
 
-            if !str.is_null() && *str != NUL {
+            if !crate::memory::cstr_is_empty(str) {
                 let mut t = str;
                 if itemisflag {
-                    if *t != NUL
+                    if !crate::memory::cstr_is_empty(t)
                         && *t.add(1) != NUL
-                        && ((!prevchar_isitem && *t == b',' as c_char)
-                            || (prevchar_isflag && *t == b' ' as c_char))
+                        && ((!prevchar_isitem && crate::memory::cstr_first_byte(t) == b',')
+                            || (prevchar_isflag && crate::memory::cstr_first_byte(t) == b' '))
                     {
                         t = t.add(1);
                     }
@@ -2334,9 +2333,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     minwid = -minwid;
                 }
 
-                while *t != NUL && out_p < out_end_p {
+                while !crate::memory::cstr_is_empty(t) && out_p < out_end_p {
                     if fillable
-                        && *t == b' ' as c_char
+                        && crate::memory::cstr_first_byte(t) == b' '
                         && (!ascii_isdigit(*t.add(1)) || fillchar != schar_from_ascii(b'-'))
                     {
                         schar_get_adv(&raw mut out_p, fillchar);
@@ -2431,7 +2430,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 stl_items!()[stl_st().curitem as usize].type_ = StlItemType::NormalEmpty;
             }
 
-            if num >= 0 || (!itemisflag && !str.is_null() && *str != NUL) {
+            if num >= 0 || (!itemisflag && !crate::memory::cstr_is_empty(str)) {
                 prevchar_isflag = false;
             }
 

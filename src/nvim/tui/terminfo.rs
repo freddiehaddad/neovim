@@ -3155,10 +3155,10 @@ pub fn terminfo_fmt(
                     if push(c_long::from(ch), None, &mut stack) != 0 {
                         return 0;
                     }
-                    while *str_ != NUL && *str_ != b'\'' as c_char {
+                    while !crate::memory::cstr_is_empty(str_) && crate::memory::cstr_first_byte(str_) != b'\'' {
                         str_ = str_.add(1);
                     }
-                    if *str_ == b'\'' as c_char {
+                    if crate::memory::cstr_first_byte(str_) == b'\'' {
                         str_ = str_.add(1);
                     }
                 }
@@ -3171,10 +3171,10 @@ pub fn terminfo_fmt(
                     if push(val, None, &mut stack) != 0 {
                         return 0;
                     }
-                    while *str_ != NUL && *str_ != b'}' as c_char {
+                    while !crate::memory::cstr_is_empty(str_) && crate::memory::cstr_first_byte(str_) != b'}' {
                         str_ = str_.add(1);
                     }
-                    if *str_ == b'}' as c_char {
+                    if crate::memory::cstr_first_byte(str_) == b'}' {
                         str_ = str_.add(1);
                     }
                 }
@@ -3230,26 +3230,26 @@ pub fn terminfo_fmt(
                     pop(&mut val, None, &mut stack);
                     if val == 0 {
                         let mut l: usize = 0;
-                        while *str_ != NUL {
-                            if *str_ != b'%' as c_char {
+                        while !crate::memory::cstr_is_empty(str_) {
+                            if crate::memory::cstr_first_byte(str_) != b'%' {
                                 str_ = str_.add(1);
                                 continue;
                             }
                             str_ = str_.add(1);
-                            if *str_ == b'?' as c_char {
+                            if crate::memory::cstr_first_byte(str_) == b'?' {
                                 l += 1;
-                            } else if *str_ == b';' as c_char {
+                            } else if crate::memory::cstr_first_byte(str_) == b';' {
                                 if l > 0 {
                                     l -= 1;
                                 } else {
                                     str_ = str_.add(1);
                                     break;
                                 }
-                            } else if *str_ == b'e' as c_char && l == 0 {
+                            } else if crate::memory::cstr_first_byte(str_) == b'e' && l == 0 {
                                 str_ = str_.add(1);
                                 break;
                             }
-                            if *str_ != NUL {
+                            if !crate::memory::cstr_is_empty(str_) {
                                 str_ = str_.add(1);
                             }
                         }
@@ -3257,15 +3257,15 @@ pub fn terminfo_fmt(
                 }
                 b'e' => {
                     let mut l: usize = 0;
-                    while *str_ != NUL {
-                        if *str_ != b'%' as c_char {
+                    while !crate::memory::cstr_is_empty(str_) {
+                        if crate::memory::cstr_first_byte(str_) != b'%' {
                             str_ = str_.add(1);
                             continue;
                         }
                         str_ = str_.add(1);
-                        if *str_ == b'?' as c_char {
+                        if crate::memory::cstr_first_byte(str_) == b'?' {
                             l += 1;
-                        } else if *str_ == b';' as c_char {
+                        } else if crate::memory::cstr_first_byte(str_) == b';' {
                             if l > 0 {
                                 l -= 1;
                             } else {
@@ -3273,7 +3273,7 @@ pub fn terminfo_fmt(
                                 break;
                             }
                         }
-                        if *str_ != NUL {
+                        if !crate::memory::cstr_is_empty(str_) {
                             str_ = str_.add(1);
                         }
                     }

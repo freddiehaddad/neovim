@@ -56,10 +56,10 @@ pub fn ex_help(eap: &mut exarg_T) {
 
         if !eap.arg.is_null() {
             arg = eap.arg;
-            while *arg != NUL {
-                if *arg == b'\n' as c_char
-                    || *arg == b'\r' as c_char
-                    || (*arg == b'|' as c_char
+            while !crate::memory::cstr_is_empty(arg) {
+                if crate::memory::cstr_first_byte(arg) == b'\n'
+                    || crate::memory::cstr_first_byte(arg) == b'\r'
+                    || (crate::memory::cstr_first_byte(arg) == b'|'
                         && *arg.add(1) != NUL
                         && *arg.add(1) != b'|' as c_char)
                 {
@@ -93,10 +93,10 @@ pub fn ex_help(eap: &mut exarg_T) {
         let lang = check_help_lang(arg);
 
         // ":help!" (bang, no args).
-        let helpbang = eap.forceit != 0 && *arg == NUL;
+        let helpbang = eap.forceit != 0 && crate::memory::cstr_is_empty(arg);
 
         // When no argument given go to the index.
-        if *arg == NUL && !helpbang {
+        if crate::memory::cstr_is_empty(arg) && !helpbang {
             arg = c"help.txt".as_ptr().cast_mut();
         }
 
@@ -294,7 +294,7 @@ pub fn help_heuristic(
     unsafe {
         let mut num_letters: c_int = 0;
         let mut p = matched_string;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             if ascii_isalnum(*p) {
                 num_letters += 1;
             }
@@ -312,7 +312,7 @@ pub fn help_heuristic(
         if wrong_case {
             offset += 5000;
         }
-        if *matched_string == b'+' as c_char && *matched_string.add(1) != NUL {
+        if crate::memory::cstr_first_byte(matched_string) == b'+' && *matched_string.add(1) != NUL {
             offset += 100;
         }
         let len = crate::memory::cstr_len(matched_string) as c_int;

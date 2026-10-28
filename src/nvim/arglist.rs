@@ -261,7 +261,7 @@ fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = str_;
         let mut inbacktick = false;
-        while *str_ != NUL {
+        while !crate::memory::cstr_is_empty(str_) {
             if rem_backslash(str_) {
                 *p = *str_;
                 p = p.add(1);
@@ -272,7 +272,7 @@ fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
                 if !inbacktick && ascii_isspace(*str_) {
                     break;
                 }
-                if *str_ == b'`' as c_char {
+                if crate::memory::cstr_first_byte(str_) == b'`' {
                     inbacktick = !inbacktick;
                 }
                 *p = *str_;
@@ -288,10 +288,10 @@ fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
 
 /// Separate the arguments in `str` and return a list of pointers in `gap` (`get_arglist`).
 fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped: bool) {
-    unsafe {
+     {
         gap.clear();
         gap.reserve(20);
-        while *str_ != NUL {
+        while !crate::memory::cstr_is_empty(str_) {
             gap.push(str_);
 
             if !escaped {
@@ -422,7 +422,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
 }
 
 fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> bool {
-    unsafe {
+     {
         let mut new_ga: Vec<*mut c_char> = Vec::new();
         let mut exp_files: Vec<CString> = Vec::new();
         let mut arg_escaped = true;
@@ -431,7 +431,7 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
             return false;
         }
 
-        if what == AL_ADD && *str_ == NUL {
+        if what == AL_ADD && crate::memory::cstr_is_empty(str_) {
             if curbuf_mut().b_ffname.is_null() {
                 return false;
             }
@@ -539,7 +539,7 @@ pub fn ex_args(eap: &mut exarg_T) {
             }
         }
 
-        if *eap.arg != NUL {
+        if !crate::memory::cstr_is_empty(eap.arg) {
             if !check_arglist_locked() {
                 return;
             }
@@ -619,7 +619,7 @@ pub fn ex_argument(eap: &mut exarg_T) {
 /// Edit file `argn` of the argument lists (`do_argfile`).
 pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
     unsafe {
-        let is_split_cmd = *eap.cmd == b's' as c_char;
+        let is_split_cmd = crate::memory::cstr_first_byte(eap.cmd) == b's';
         let old_arg_idx = curwin_mut().w_arg_idx;
         let count = argcount();
 
@@ -699,7 +699,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
 
 /// `:next`, and commands that behave like it (`ex_next`).
 pub fn ex_next(eap: &mut exarg_T) {
-    unsafe {
+     {
         if buf_hide(curbuf_mut())
             || eap.cmdidx == CMD_snext
             || !check_changed(
@@ -707,7 +707,7 @@ pub fn ex_next(eap: &mut exarg_T) {
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
             )
         {
-            let i = if *eap.arg != NUL {
+            let i = if !crate::memory::cstr_is_empty(eap.arg) {
                 if !do_arglist(eap.arg, AL_SET, 0, true) {
                     return;
                 }
@@ -809,7 +809,7 @@ pub fn ex_argdelete(eap: &mut exarg_T) {
             return;
         }
 
-        if eap.addr_count > 0 || *eap.arg == NUL {
+        if eap.addr_count > 0 || crate::memory::cstr_is_empty(eap.arg) {
             if eap.addr_count == 0 {
                 if curwin_mut().w_arg_idx >= argcount() {
                     emsg(gettext(c"E610: No argument to delete"));
@@ -821,7 +821,7 @@ pub fn ex_argdelete(eap: &mut exarg_T) {
                 eap.line2 = argcount();
             }
             let n = eap.line2 - eap.line1 + 1;
-            if *eap.arg != NUL {
+            if !crate::memory::cstr_is_empty(eap.arg) {
                 emsg(gettext(e_invarg));
                 return;
             }
@@ -1204,7 +1204,7 @@ pub fn arg_all() -> CString {
             if !bytes.is_empty() {
                 bytes.push(b' ');
             }
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 let ch = *p as u8;
                 let escape = ch == b' ' || ch == b'`' || (cfg!(not(windows)) && ch == b'\\');
                 if escape {

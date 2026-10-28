@@ -2574,20 +2574,20 @@ fn find_is_eval_item(
     dir: c_int,
 ) -> bool {
     unsafe {
-        if (*ptr == b']' as c_char && dir == BACKWARD) || (*ptr == b'[' as c_char && dir == FORWARD)
+        if (crate::memory::cstr_first_byte(ptr) == b']' && dir == BACKWARD) || (crate::memory::cstr_first_byte(ptr) == b'[' && dir == FORWARD)
         {
             *bnp += 1;
         }
         if *bnp > 0 {
-            if (*ptr == b'[' as c_char && dir == BACKWARD)
-                || (*ptr == b']' as c_char && dir == FORWARD)
+            if (crate::memory::cstr_first_byte(ptr) == b'[' && dir == BACKWARD)
+                || (crate::memory::cstr_first_byte(ptr) == b']' && dir == FORWARD)
             {
                 *bnp -= 1;
             }
             return true;
         }
 
-        if *ptr == b'.' as c_char {
+        if crate::memory::cstr_first_byte(ptr) == b'.' {
             return true;
         }
 
@@ -2944,7 +2944,7 @@ pub fn add_to_showcmd(c: c_int) -> bool {
         let mut mbyte_buf: [c_char; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
         let p: *mut c_char = if c <= 0x7f || !vim_isprintc(c) {
             let tc = transchar(c);
-            if *tc == b' ' as c_char {
+            if crate::memory::cstr_first_byte(tc) == b' ' {
                 crate::memory::cstr_cpy(tc, c"<20>");
             }
             tc
@@ -4319,7 +4319,7 @@ fn nv_K_getcmd(
 
         let mut ptr = *ptr_arg;
 
-        while *ptr == b'-' as c_char && n > 0 {
+        while crate::memory::cstr_first_byte(ptr) == b'-' && n > 0 {
             ptr = ptr.add(1);
             n -= 1;
         }
@@ -4419,14 +4419,14 @@ fn nv_ident(cap: &mut cmdarg_T) {
         };
         let kp_helpbang = crate::memory::cstr_as_opt_bytes(kp) == Some(b":help!");
         let kp_help = kp_helpbang
-            || *kp == NUL
+            || crate::memory::cstr_is_empty(kp)
             || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":he"))
             || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":help"));
         if kp_help && !kp_helpbang && *skipwhite(ptr) == NUL {
             emsg(tr(e_noident));
             return;
         }
-        let kp_ex = *kp == b':' as c_char;
+        let kp_ex = crate::memory::cstr_first_byte(kp) == b':';
         let bufsize = n * 2 + 30 + crate::memory::cstr_len(kp);
         let mut buf_vec = vec![0 as c_char; bufsize];
         let mut buflen: usize = 0;
@@ -4794,7 +4794,7 @@ fn nv_right(cap: &mut cmdarg_T) {
 }
 
 fn nv_left(cap: &mut cmdarg_T) {
-    unsafe {
+     {
         if (g_st().mod_mask & (c_int::from(MOD_MASK_SHIFT) | MOD_MASK_CTRL)) != 0 {
             if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
                 cap.arg = 1;
@@ -4823,7 +4823,7 @@ fn nv_left(cap: &mut cmdarg_T) {
                         && !lineempty(curwin_mut().w_cursor.lnum)
                     {
                         let cp = get_cursor_pos_ptr();
-                        if *cp != NUL {
+                        if !crate::memory::cstr_is_empty(cp) {
                             curwin_mut().w_cursor.col += utfc_ptr2len(cp);
                         }
                         cap.retval |= CA_NO_ADJ_OP_END;
@@ -5502,7 +5502,7 @@ fn buf_has_cstyle_comments() -> bool {
     unsafe {
         let mut part_buf: [c_char; COM_MAX_LEN] = [0; COM_MAX_LEN];
         let mut list = curbuf_mut().b_p_com;
-        while *list != NUL {
+        while !crate::memory::cstr_is_empty(list) {
             copy_option_part(
                 &raw mut list,
                 part_buf.as_mut_ptr(),

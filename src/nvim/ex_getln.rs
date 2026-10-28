@@ -539,16 +539,16 @@ pub fn parse_pattern_and_range(
             || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"snomagic", cmd_len.max(3)))
             || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"vglobal", cmd_len))
         {
-            if *cmd == b's' as c_char && *cmd.add(1) == b'm' as c_char {
+            if crate::memory::cstr_first_byte(cmd) == b's' && *cmd.add(1) == b'm' as c_char {
                 *is_magic = true;
-            } else if *cmd == b's' as c_char && *cmd.add(1) == b'n' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b's' && *cmd.add(1) == b'n' as c_char {
                 *is_magic = false;
             }
         } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"sort", cmd_len.max(3)))
             || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"uniq", cmd_len.max(3)))
         {
             // skip over ! and flags
-            if *p == b'!' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'!' {
                 p = skipwhite(p.add(1));
             }
             loop {
@@ -558,7 +558,7 @@ pub fn parse_pattern_and_range(
                 }
                 p = p.add(1);
             }
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 return false;
             }
         } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"vimgrep", cmd_len.max(3)))
@@ -568,13 +568,13 @@ pub fn parse_pattern_and_range(
             || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"global", cmd_len))
         {
             // skip optional "!"
-            if *p == b'!' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'!' {
                 p = p.add(1);
                 if *skipwhite(p) == NUL {
                     return false;
                 }
             }
-            if *cmd != b'g' as c_char {
+            if crate::memory::cstr_first_byte(cmd) != b'g' {
                 delim_optional = true;
             }
         } else {
@@ -631,7 +631,7 @@ pub fn parse_pattern_and_range(
             // Allow for reverse match.
             g_st().Search.first_line = ea.line2.min(ea.line1);
             g_st().Search.last_line = ea.line2.max(ea.line1);
-        } else if *cmd == b's' as c_char && *cmd.add(1) != b'o' as c_char {
+        } else if crate::memory::cstr_first_byte(cmd) == b's' && *cmd.add(1) != b'o' as c_char {
             // :s defaults to the current line
             g_st().Search.first_line = curwin_mut().w_cursor.lnum;
             g_st().Search.last_line = curwin_mut().w_cursor.lnum;
@@ -1164,9 +1164,9 @@ fn command_line_enter(
 
                 for wp in for_all_windows_mut() {
                     if !crate::memory::cstr_is_empty(opt_vars().p_stl)
-                        || *wp.w_onebuf_opt.wo_stl != NUL
+                        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
                         || !crate::memory::cstr_is_empty(opt_vars().p_wbr)
-                        || *wp.w_onebuf_opt.wo_wbr != NUL
+                        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr)
                     {
                         wp.w_redr_status = true;
                         found_one = true;
@@ -3396,7 +3396,7 @@ pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> bool {
         let mut idx: usize = 0;
 
         let mut p = value;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let mut i: usize = 0;
             while ascii_isalpha(*p.add(i) as c_int) {
                 i += 1;
@@ -3420,10 +3420,10 @@ pub fn check_opt_wim(value: *const c_char, flags: *mut u8) -> bool {
                 return false;
             }
             p = p.add(i);
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 break;
             }
-            if *p == b',' as c_char {
+            if crate::memory::cstr_first_byte(p) == b',' {
                 if idx == 3 {
                     return false;
                 }
@@ -3710,7 +3710,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
 
         (*ccline_colors).colors.clear();
 
-        if colored_ccline.cmdbuff.is_null() || *colored_ccline.cmdbuff == NUL {
+        if crate::memory::cstr_is_empty(colored_ccline.cmdbuff) {
             (*ccline_colors).cmdbuff = None;
             return ret;
         }
@@ -4028,7 +4028,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             content = arena_array(&mut arena, 1);
             let mut len: usize = 0;
             let mut p = getln_st().ccline.cmdbuff;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 p = p.add(utfc_ptr2len(p) as usize);
                 len += 1;
             }
@@ -4435,7 +4435,7 @@ pub fn cmdline_paste_str(s: impl crate::strings::IntoCCharPtr, literally: bool) 
         if literally {
             put_on_cmdline(s, -1, true);
         } else {
-            while *s != NUL {
+            while !crate::memory::cstr_is_empty(s) {
                 let cv = (*s as u8) as c_int;
                 if cv == Ctrl_V && *s.add(1) != NUL {
                     s = s.add(1);
@@ -4619,8 +4619,8 @@ pub fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std::ffi::C
             PATH_ESC_CHARS.as_ptr()
         };
         let mut cp = chars;
-        while *cp != NUL {
-            if (*cp != b'[' as c_char && *cp != b'{' as c_char && *cp != b'!' as c_char)
+        while !crate::memory::cstr_is_empty(cp) {
+            if (crate::memory::cstr_first_byte(cp) != b'[' && crate::memory::cstr_first_byte(cp) != b'{' && crate::memory::cstr_first_byte(cp) != b'!')
                 || !vim_isfilec((*cp as u8) as c_int)
             {
                 buf[j] = *cp;
@@ -4668,7 +4668,7 @@ pub fn escape_fname_cstr(s: &mut std::ffi::CString) {
 /// If `orig_pat` starts with `~/`, replace the home directory with `~`.
 pub fn tilde_replace(orig_pat: *mut c_char, files: &mut [std::ffi::CString]) {
     unsafe {
-        if *orig_pat == b'~' as c_char && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
+        if crate::memory::cstr_first_byte(orig_pat) == b'~' && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
             for f in files {
                 *f = home_replace_save(None, f.as_ptr().cast_mut());
             }
@@ -5030,9 +5030,9 @@ pub fn cmdline_init() {
 
 /// Validate the `'cedit'` option.
 pub fn validate_cedit(args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         let value = args.os_newval.data.string().data;
-        if *value != NUL {
+        if !crate::memory::cstr_is_empty(value) {
             let n = string_to_key(value);
             if n == 0 || vim_isprintc(n) {
                 return e_invarg.as_ptr();
@@ -5160,7 +5160,7 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
     unsafe {
         let mut cmd = eap.arg;
 
-        if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || eap.ea_getline.is_none() {
+        if crate::memory::cstr_first_byte(cmd) != b'<' || *cmd.add(1) != b'<' as c_char || eap.ea_getline.is_none() {
             *lenp = crate::memory::cstr_len(eap.arg);
             return if eap.skip != 0 {
                 None

@@ -490,7 +490,7 @@ pub fn init_sign_text(sp: Option<&sign_T>, sign_text: *mut schar_T, text: *mut c
         let mut endp = text.add(crate::memory::cstr_len(text));
         let mut s = if sp.is_some() { text } else { endp };
         while s.add(1) < endp {
-            if *s == b'\\' as c_char {
+            if crate::memory::cstr_first_byte(s) == b'\\' {
                 let tail_len = crate::memory::cstr_len(s.add(1)) + 1;
                 ptr::copy(s.add(1), s, tail_len);
                 endp = endp.sub(1);
@@ -500,7 +500,7 @@ pub fn init_sign_text(sp: Option<&sign_T>, sign_text: *mut schar_T, text: *mut c
 
         let mut cells: usize = 0;
         let mut ci = utf_ptr2StrCharInfo(text);
-        while *ci.ptr != NUL {
+        while !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
                 if sp.is_some() {
@@ -699,7 +699,7 @@ fn sign_place(
     mut prio: c_int,
 ) -> bool {
     unsafe {
-        if !group.is_null() && (*group == b'*' as c_char || *group == NUL) {
+        if !group.is_null() && (crate::memory::cstr_first_byte(group) == b'*' || crate::memory::cstr_is_empty(group)) {
             return false;
         }
 
@@ -740,12 +740,12 @@ fn sign_unplace_inner(
     group: *mut c_char,
     atlnum: linenr_T,
 ) -> bool {
-    unsafe {
+     {
         if !buf_has_signs( buf) {
             return false;
         }
 
-        if id == 0 || atlnum > 0 || (!group.is_null() && *group == b'*' as c_char) {
+        if id == 0 || atlnum > 0 || (!group.is_null() && crate::memory::cstr_first_byte(group) == b'*') {
             if !buf_delete_signs( buf, group, id, atlnum) {
                 return false;
             }
@@ -827,7 +827,7 @@ fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
 
         loop {
             let arg = skipwhite(cmdline);
-            if *arg == NUL {
+            if crate::memory::cstr_is_empty(arg) {
                 break;
             }
             cmdline = skiptowhite_esc(arg);
@@ -849,7 +849,7 @@ fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
                 semsg!(gettext(e_invarg2), arg);
                 return;
             }
-            if *cmdline == NUL {
+            if crate::memory::cstr_is_empty(cmdline) {
                 break;
             }
             *cmdline = NUL;
@@ -870,13 +870,13 @@ fn sign_place_cmd(
 ) {
     unsafe {
         if id <= 0 {
-            if lnum >= 0 || !name.is_null() || (!group.is_null() && *group == NUL) {
+            if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
                 emsg(gettext(e_invarg));
             } else {
                 sign_list_placed(buf, group);
             }
         } else {
-            if name.is_null() || buf.is_null() || (!group.is_null() && *group == NUL) {
+            if name.is_null() || buf.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
                 emsg(gettext(e_invarg));
                 return;
             }
@@ -894,7 +894,7 @@ fn sign_unplace_cmd(
     group: *mut c_char,
 ) {
     unsafe {
-        if lnum >= 0 || !name.is_null() || (!group.is_null() && *group == NUL) {
+        if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
             emsg(gettext(e_invarg));
             return;
         }
@@ -917,13 +917,13 @@ fn sign_jump_cmd(
     id: c_int,
     group: *mut c_char,
 ) {
-    unsafe {
+     {
         if name.is_null() && group.is_null() && id == -1 {
             emsg(gettext(e_argreq));
             return;
         }
 
-        if buf.is_none() || (!group.is_null() && *group == NUL) || lnum >= 0 || !name.is_null() {
+        if buf.is_none() || (!group.is_null() && crate::memory::cstr_is_empty(group)) || lnum >= 0 || !name.is_null() {
             emsg(gettext(e_invarg));
             return;
         }
@@ -949,7 +949,7 @@ fn parse_sign_cmd_args(
 
         if ascii_isdigit(*arg as c_int) {
             *id = getdigits_int(&raw mut arg, true, 0);
-            if !ascii_iswhite(*arg as c_int) && *arg != NUL {
+            if !ascii_iswhite(*arg as c_int) && !crate::memory::cstr_is_empty(arg) {
                 *id = -1;
                 arg = arg1;
             } else {
@@ -957,7 +957,7 @@ fn parse_sign_cmd_args(
             }
         }
 
-        while *arg != NUL {
+        while !crate::memory::cstr_is_empty(arg) {
             if crate::memory::cstr_prefix_bytes(arg, 5) == &b"line="[..5] {
                 arg = arg.add(5);
                 *lnum = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg)) as c_int;
@@ -974,11 +974,11 @@ fn parse_sign_cmd_args(
                 arg = arg.add(5);
                 let mut namep = arg;
                 arg = skiptowhite(arg);
-                if *arg != NUL {
+                if !crate::memory::cstr_is_empty(arg) {
                     *arg = NUL;
                     arg = arg.add(1);
                 }
-                while *namep == b'0' as c_char && *namep.add(1) != NUL {
+                while crate::memory::cstr_first_byte(namep) == b'0' && *namep.add(1) != NUL {
                     namep = namep.add(1);
                 }
                 *name = namep;
@@ -986,7 +986,7 @@ fn parse_sign_cmd_args(
                 arg = arg.add(6);
                 *group = arg;
                 arg = skiptowhite(arg);
-                if *arg != NUL {
+                if !crate::memory::cstr_is_empty(arg) {
                     *arg = NUL;
                     arg = arg.add(1);
                 }
@@ -1039,20 +1039,20 @@ pub fn ex_sign(eap: &mut exarg_T) {
         arg = skipwhite(p);
 
         if idx <= SIGNCMD_LIST {
-            if idx == SIGNCMD_LIST && *arg == NUL {
+            if idx == SIGNCMD_LIST && crate::memory::cstr_is_empty(arg) {
                 let sm_ptr = &raw mut sign_st().sign_map;
                 for sp in &mut *sm_ptr {
                     sign_list_defined(sp);
                 }
-            } else if *arg == NUL {
+            } else if crate::memory::cstr_is_empty(arg) {
                 emsg(gettext(c"E156: Missing sign name"));
             } else {
                 p = skiptowhite(arg);
-                if *p != NUL {
+                if !crate::memory::cstr_is_empty(p) {
                     *p = NUL;
                     p = p.add(1);
                 }
-                while *arg == b'0' as c_char && *arg.add(1) != NUL {
+                while crate::memory::cstr_first_byte(arg) == b'0' && *arg.add(1) != NUL {
                     arg = arg.add(1);
                 }
 
@@ -1319,7 +1319,7 @@ pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
         xp.xp_pattern = arg;
 
         let end_subcmd = skiptowhite(arg);
-        if *end_subcmd == NUL {
+        if crate::memory::cstr_is_empty(end_subcmd) {
             return;
         }
 
@@ -1332,7 +1332,7 @@ pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
             p = skipwhite(p);
             last = p;
             p = skiptowhite(p);
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 break;
             }
         }
@@ -1396,10 +1396,10 @@ pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
 }
 
 fn sign_define_from_dict(mut name: *mut c_char, dict: Option<&dict_T>) -> c_int {
-    unsafe {
+     {
         if name.is_null() {
             name = tv_dict_get_string(dict, c"name");
-            if name.is_null() || *name == NUL {
+            if crate::memory::cstr_is_empty(name) {
                 return -1;
             }
         }
@@ -1539,7 +1539,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
                     if group.is_null() {
                         return;
                     }
-                    if *group == NUL {
+                    if crate::memory::cstr_is_empty(group) {
                         group = ptr::null();
                     }
                 }
@@ -1569,7 +1569,7 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         if group.is_null() {
             return;
         }
-        if *group == NUL {
+        if crate::memory::cstr_is_empty(group) {
             group = ptr::null_mut();
         }
 
@@ -1621,7 +1621,7 @@ fn sign_place_from_dict(
             if group.is_null() {
                 return -1;
             }
-            if *group == NUL {
+            if crate::memory::cstr_is_empty(group) {
                 group = ptr::null_mut();
             }
         }
@@ -1789,7 +1789,7 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: Option<&dict_T>) ->
         } else {
             tv_dict_get_string(dict, c"group")
         };
-        if !group.is_null() && *group == NUL {
+        if !group.is_null() && crate::memory::cstr_is_empty(group) {
             group = ptr::null_mut();
         }
 

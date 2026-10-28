@@ -75,7 +75,6 @@ const kMouseHelp: c_char = b'h' as c_char;
 const MOUSE_A: &CStr = c"nvich";
 
 use crate::change::HLF_W;
-use crate::charset::NUL;
 use crate::decoration_provider::CB_MAX_ERROR;
 #[cfg(debug_assertions)]
 use crate::log::LOGLVL_DBG;
@@ -505,14 +504,14 @@ pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
 }
 
 pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
-    unsafe {
+     {
         let idx = ext as usize;
         if idx < kUIGlobalCount {
             ui_refresh();
             return;
         }
         let name = ui_ext_names[idx].as_ptr();
-        if *name != b'_' as c_char || active {
+        if crate::memory::cstr_first_byte(name) != b'_' || active {
             remote_ui_option_set(ui, cstr_as_string(name), boolean_obj(active));
         }
         if idx == kUITermColors {
@@ -707,8 +706,8 @@ pub fn ui_check_mouse() {
 pub fn ui_mouse_has(mode: c_int) -> bool {
     unsafe {
         let mut p = opt_vars().p_mouse;
-        while *p != NUL {
-            if *p == b'a' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'a' {
                 if !vim_strchr(MOUSE_A, mode).is_null() {
                     return true;
                 }

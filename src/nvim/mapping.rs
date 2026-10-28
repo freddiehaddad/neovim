@@ -635,8 +635,8 @@ fn str_to_mapargs(
 
         let mut lhs_end = to_parse;
         let do_backslash = vim_strchr(opt_vars().p_cpo, kCpoBslash).is_null();
-        while *lhs_end != NUL && (is_unmap || !ascii_iswhite(*lhs_end as u8 as c_int)) {
-            if (*lhs_end == Ctrl_V as c_char || (do_backslash && *lhs_end == b'\\' as c_char))
+        while !crate::memory::cstr_is_empty(lhs_end) && (is_unmap || !ascii_iswhite(*lhs_end as u8 as c_int)) {
+            if (*lhs_end == Ctrl_V as c_char || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
                 && *lhs_end.add(1) != NUL
             {
                 lhs_end = lhs_end.add(1);
@@ -1144,7 +1144,7 @@ fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
             MODE_LANGMAP
         } else if modec == b'c' {
             MODE_CMDLINE
-        } else if modec == b'n' && *p != b'o' as c_char {
+        } else if modec == b'n' && crate::memory::cstr_first_byte(p) != b'o' {
             MODE_NORMAL
         } else if modec == b'v' {
             MODE_VISUAL | MODE_SELECT
@@ -1171,9 +1171,9 @@ fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
 }
 
 fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, abbr: c_int) {
-    unsafe {
+     {
         let local = crate::memory::cstr_as_bytes(arg) == b"<buffer>";
-        if !local && *arg != NUL {
+        if !local && !crate::memory::cstr_is_empty(arg) {
             emsg(gettext(e_invarg));
             return;
         }
@@ -1765,7 +1765,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
                     }
 
                     let mut p = mp.m_str.as_ptr();
-                    while *p != NUL {
+                    while !crate::memory::cstr_is_empty(p) {
                         if *p as u8 == K_SPECIAL
                             && *p.add(1) as u8 == KS_EXTRA
                             && *p.add(2) as u8 == KE_SNR
@@ -1774,7 +1774,7 @@ pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> bool {
                         }
                         p = p.add(1);
                     }
-                    if *p != NUL {
+                    if !crate::memory::cstr_is_empty(p) {
                         continue;
                     }
 
@@ -1951,7 +1951,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> bool {
             let mut p = mb_unescape(&mut p_in);
             str_ptr = p_in.cast::<u8>();
             if !p.is_null() {
-                while *p != NUL {
+                while !crate::memory::cstr_is_empty(p) {
                     if fputc(*p as u8 as c_int, fd) < 0 {
                         return false;
                     }
@@ -2203,12 +2203,12 @@ fn mapblock_fill_dict(
 }
 
 fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
-    unsafe {
+     {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let keys = tv_get_string(&argvars[0]) as *mut c_char;
-        if *keys == NUL {
+        if crate::memory::cstr_is_empty(keys) {
             return;
         }
 
@@ -2287,7 +2287,7 @@ fn get_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, exact: c_int) {
 
         if !get_dict {
             if !rhs.is_null() {
-                if *rhs == NUL {
+                if crate::memory::cstr_is_empty(rhs) {
                     crate::eval::typval::tv_set_string(&mut *rettv, c"<Nop>");
                 } else {
                     crate::eval::typval::tv_set_string(
@@ -2337,11 +2337,11 @@ fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
         const MASK_MAP: c_int = MODE_VISUAL | MODE_SELECT | MODE_NORMAL | MODE_OP_PENDING;
         const MASK_BANG: c_int = MODE_INSERT | MODE_CMDLINE;
 
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             p = c" ".as_ptr();
         }
         let mut mode: c_int = 0;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let modec = *p as u8;
             p = p.add(1);
             let tmode = match modec {
@@ -2645,25 +2645,25 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
         langmap_init();
 
         let mut p = opt_vars().p_langmap;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let mut p2 = p;
-            while *p2 != NUL && *p2 != b',' as c_char && *p2 != b';' as c_char {
-                if *p2 == b'\\' as c_char && *p2.add(1) != NUL {
+            while !crate::memory::cstr_is_empty(p2) && crate::memory::cstr_first_byte(p2) != b',' && crate::memory::cstr_first_byte(p2) != b';' {
+                if crate::memory::cstr_first_byte(p2) == b'\\' && *p2.add(1) != NUL {
                     p2 = p2.add(1);
                 }
                 p2 = p2.add(utfc_ptr2len(p2) as usize);
             }
-            if *p2 == b';' as c_char {
+            if crate::memory::cstr_first_byte(p2) == b';' {
                 p2 = p2.add(1);
             } else {
                 p2 = ptr::null_mut();
             }
-            while *p != NUL {
-                if *p == b',' as c_char {
+            while !crate::memory::cstr_is_empty(p) {
+                if crate::memory::cstr_first_byte(p) == b',' {
                     p = p.add(1);
                     break;
                 }
-                if *p == b'\\' as c_char && *p.add(1) != NUL {
+                if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != NUL {
                     p = p.add(1);
                 }
                 let from = utf_ptr2char(p);
@@ -2672,15 +2672,15 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
                 let mut to_ptr: *const c_char = c"".as_ptr();
                 if p2.is_null() {
                     p = p.add(utfc_ptr2len(p) as usize);
-                    if *p != b',' as c_char {
-                        if *p == b'\\' as c_char {
+                    if crate::memory::cstr_first_byte(p) != b',' {
+                        if crate::memory::cstr_first_byte(p) == b'\\' {
                             p = p.add(1);
                         }
                         to_ptr = p;
                         to = utf_ptr2char(p);
                     }
-                } else if *p2 != b',' as c_char {
-                    if *p2 == b'\\' as c_char {
+                } else if crate::memory::cstr_first_byte(p2) != b',' {
+                    if crate::memory::cstr_first_byte(p2) == b'\\' {
                         p2 = p2.add(1);
                     }
                     to_ptr = p2;
@@ -2713,10 +2713,10 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
                 p = p.add(utfc_ptr2len(p) as usize);
                 if !p2.is_null() {
                     p2 = p2.add(utfc_ptr2len(p2) as usize);
-                    if *p == b';' as c_char {
+                    if crate::memory::cstr_first_byte(p) == b';' {
                         p = p2;
-                        if *p != NUL {
-                            if *p != b',' as c_char {
+                        if !crate::memory::cstr_is_empty(p) {
+                            if crate::memory::cstr_first_byte(p) != b',' {
                                 return opt_error(
                                     args.os_errbuf,
                                     c"E358: 'langmap': Extra characters after semicolon: %s",
@@ -2736,13 +2736,13 @@ pub fn did_set_langmap(args: &mut optset_T) -> *const c_char {
 }
 
 fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
-    unsafe {
+     {
         let mut cmdp = eap.cmd;
         let mode = get_map_mode(&mut cmdp, eap.forceit != 0 || isabbrev);
 
-        let maptype = if *cmdp == b'n' as c_char {
+        let maptype = if crate::memory::cstr_first_byte(cmdp) == b'n' {
             MAPTYPE_NOREMAP
-        } else if *cmdp == b'u' as c_char {
+        } else if crate::memory::cstr_first_byte(cmdp) == b'u' {
             MAPTYPE_UNMAP
         } else {
             MAPTYPE_MAP
@@ -2909,13 +2909,13 @@ pub fn modify_keymap(
             } else {
                 c"m".as_ptr() as *mut c_char
             };
-            let forceit = *p == b'!' as c_char;
+            let forceit = crate::memory::cstr_first_byte(p) == b'!';
             let mode_val = get_map_mode(&mut p, forceit);
             if forceit {
                 debug_assert!(ptr::eq(p, mode.data));
                 p = p.add(1);
             }
-            let is_abbrev = (mode_val & (MODE_INSERT | MODE_CMDLINE)) != 0 && *p == b'a' as c_char;
+            let is_abbrev = (mode_val & (MODE_INSERT | MODE_CMDLINE)) != 0 && crate::memory::cstr_first_byte(p) == b'a';
             if is_abbrev {
                 p = p.add(1);
             }
@@ -3030,13 +3030,13 @@ pub fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: &mut Arena) -> Arr
         } else {
             c"m".as_ptr() as *mut c_char
         };
-        let forceit = *p == b'!' as c_char;
+        let forceit = crate::memory::cstr_first_byte(p) == b'!';
         let int_mode = get_map_mode(&mut p, forceit);
         if forceit {
             debug_assert!(ptr::eq(p, mode.data));
             p = p.add(1);
         }
-        let is_abbrev = (int_mode & (MODE_INSERT | MODE_CMDLINE)) != 0 && *p == b'a' as c_char;
+        let is_abbrev = (int_mode & (MODE_INSERT | MODE_CMDLINE)) != 0 && crate::memory::cstr_first_byte(p) == b'a';
 
         let buffer_value = if buf.is_null() { 0 } else { (*buf).b_fnum };
 

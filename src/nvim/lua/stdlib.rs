@@ -742,7 +742,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
 
         let mut data = keychord::new();
 
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let keys = str2special(&raw mut p, true, kTrue, Some(&mut data));
 
             lua_createtable(lstate, 0, 3);

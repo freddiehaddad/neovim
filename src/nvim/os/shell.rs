@@ -302,7 +302,7 @@ pub fn os_expand_wildcards(
             while (p as usize) > (command as usize) && ascii_iswhite(*p) {
                 p = p.sub(1);
             }
-            if *p == b'&' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'&' {
                 ampersand = true;
                 *p = b' ' as c_char;
             }
@@ -451,8 +451,8 @@ pub fn os_expand_wildcards(
         if shell_style == STYLE_ECHO {
             *buffer.add(len) = b'\n' as c_char;
             let mut p = buffer;
-            while *p != b'\n' as c_char {
-                while *p != b' ' as c_char && *p != b'\n' as c_char {
+            while crate::memory::cstr_first_byte(p) != b'\n' {
+                while crate::memory::cstr_first_byte(p) != b' ' && crate::memory::cstr_first_byte(p) != b'\n' {
                     p = p.add(1);
                 }
                 p = skipwhite(p);
@@ -464,11 +464,11 @@ pub fn os_expand_wildcards(
         {
             *buffer.add(len) = NUL;
             let mut p = buffer;
-            while *p != NUL {
-                while *p != b'\n' as c_char && *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
+                while crate::memory::cstr_first_byte(p) != b'\n' && !crate::memory::cstr_is_empty(p) {
                     p = p.add(1);
                 }
-                if *p != NUL {
+                if !crate::memory::cstr_is_empty(p) {
                     p = p.add(1);
                 }
                 p = skipwhite(p);
@@ -492,7 +492,7 @@ pub fn os_expand_wildcards(
             }
             let mut p = buffer;
             while (p as usize) < (buffer.add(len) as usize) {
-                if *p == NUL || (*p == b' ' as c_char && check_spaces) {
+                if crate::memory::cstr_is_empty(p) || (crate::memory::cstr_first_byte(p) == b' ' && check_spaces) {
                     count += 1;
                     *p = NUL;
                 }
@@ -521,9 +521,9 @@ pub fn os_expand_wildcards(
                 || shell_style == STYLE_VIMGLOB
                 || shell_style == STYLE_GLOBSTAR
             {
-                while !(shell_style == STYLE_ECHO && *p == b' ' as c_char)
-                    && *p != b'\n' as c_char
-                    && *p != NUL
+                while !(shell_style == STYLE_ECHO && crate::memory::cstr_first_byte(p) == b' ')
+                    && crate::memory::cstr_first_byte(p) != b'\n'
+                    && !crate::memory::cstr_is_empty(p)
                 {
                     p = p.add(1);
                 }
@@ -534,7 +534,7 @@ pub fn os_expand_wildcards(
                     p = skipwhite(p.add(1));
                 }
             } else {
-                while *p != NUL && (p as usize) < (buffer.add(len) as usize) {
+                while !crate::memory::cstr_is_empty(p) && (p as usize) < (buffer.add(len) as usize) {
                     p = p.add(1);
                 }
                 p = p.add(1);
@@ -1080,7 +1080,7 @@ fn out_data_append_to_screen(
         let end = output.add(*count);
         while (p as usize) < (end as usize) {
             let off = (p as usize).wrapping_sub(output as usize);
-            let i = if *p != NUL {
+            let i = if !crate::memory::cstr_is_empty(p) {
                 utfc_ptr2len_len(p, (*count - off) as c_int)
             } else {
                 1
@@ -1125,7 +1125,7 @@ fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
     unsafe {
         let mut p = str_in;
 
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let len = word_length(p);
             argv.push(vim_strnsave_unquoted(std::slice::from_raw_parts(p.cast::<u8>(), len)));
             p = skipwhite(p.add(len));
@@ -1140,10 +1140,10 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
         let mut inquote = false;
         let mut length: usize = 0;
 
-        while *p != NUL && (inquote || (*p != b' ' as c_char && *p != TAB)) {
-            if *p == b'"' as c_char {
+        while !crate::memory::cstr_is_empty(p) && (inquote || (crate::memory::cstr_first_byte(p) != b' ' && *p != TAB)) {
+            if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;
-            } else if *p == b'\\' as c_char && inquote {
+            } else if crate::memory::cstr_first_byte(p) == b'\\' && inquote {
                 p = p.add(1);
                 length += 1;
             }

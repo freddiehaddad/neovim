@@ -3946,8 +3946,8 @@ pub fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
 }
 
 pub fn ex_version(eap: &mut exarg_T) {
-    unsafe {
-        if *eap.arg == NUL {
+     {
+        if crate::memory::cstr_is_empty(eap.arg) {
             if !ui_has(kUIMessages) {
                 msg_putchar(b'\n' as c_int);
             }
@@ -3957,9 +3957,9 @@ pub fn ex_version(eap: &mut exarg_T) {
 }
 
 fn version_msg_wrap(s: *const c_char, wrap: bool) {
-    unsafe {
+     {
         let len = vim_strsize(s) + if wrap { 2 } else { 0 };
-        if !g_st().got_int && len < g_st().Columns && g_st().msg_col + len >= g_st().Columns && *s != b'\n' as c_char {
+        if !g_st().got_int && len < g_st().Columns && g_st().msg_col + len >= g_st().Columns && crate::memory::cstr_first_byte(s) != b'\n' {
             msg_putchar(b'\n' as c_int);
         }
         if !g_st().got_int {
@@ -4183,13 +4183,13 @@ pub fn intro_message(colon: bool) {
                     formatted_cstr
                         .as_ref()
                         .map_or(c"".as_ptr(), |cs| cs.as_ptr())
-                } else if *p != NUL {
+                } else if !crate::memory::cstr_is_empty(p) {
                     gettext(p)
                 } else {
                     c"".as_ptr()
                 };
 
-                if *mesg != NUL && row < g_st().Rows - 1 {
+                if !crate::memory::cstr_is_empty(mesg) && row < g_st().Rows - 1 {
                     do_intro_line(row, mesg, colon, i < 3);
                 }
                 row += 1;
@@ -4220,7 +4220,7 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
         if is_logo {
             let mut seen_diagonal = false;
             let mut p = mesg;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 let clen = utfc_ptr2len(p);
                 let mut attr: c_int = 0;
                 if (*p as u8) >= 0x80 {
@@ -4238,7 +4238,7 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
             return;
         }
 
-        let is_version = *mesg == b'N' as c_char
+        let is_version = crate::memory::cstr_first_byte(mesg) == b'N'
             && *mesg.add(1) == b'V' as c_char
             && *mesg.add(2) == b'I' as c_char
             && *mesg.add(3) == b'M' as c_char;
@@ -4247,7 +4247,7 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
             let clen = if is_sep { 3 } else { 1 };
             let attr = if is_sep { nontext_attr } else { string_attr };
             let mut p = mesg;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 col += grid_line_puts(col, p, clen, attr);
                 p = p.add(clen as usize);
             }
@@ -4257,7 +4257,7 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
 
         let hlf8_attr = crate::highlight::hl_attr(HLF_8 as c_int);
         let mut p = mesg;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let mut l: c_int = 0;
             while *p.add(l as usize) != NUL
                 && (l == 0
@@ -4267,7 +4267,7 @@ fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
                 l += utfc_ptr2len(p.add(l as usize));
             }
 
-            if *p == b'<' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'<' {
                 col += grid_line_puts(col, p, l, hlf8_attr);
             } else {
                 let colon_pos = std::slice::from_raw_parts(p.cast::<u8>(), l as usize).iter().position(|&b| b == b':').map_or(ptr::null(), |i| p.add(i));

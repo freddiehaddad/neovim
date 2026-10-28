@@ -310,8 +310,8 @@ fn ses_escape_fname(name: *mut c_char) -> CString {
             .collect();
 
         let mut p = sname_vec.as_mut_ptr();
-        while *p != NUL {
-            if *p == b'\\' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'\\' {
                 *p = b'/' as c_char;
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -419,8 +419,7 @@ fn put_view(
             let alt = buflist_findnr((*wp).w_alt_fnum);
             if ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
                 && !alt.is_null()
-                && !(*alt).b_fname.is_null()
-                && *(*alt).b_fname != NUL
+                && !crate::memory::cstr_is_empty((*alt).b_fname)
                 && (*alt).b_p_bl != 0
                 && !(bt_terminal(alt.as_ref()) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
                 && (fputs(c"balt ", fd) < 0 || !ses_fname(fd,  &mut *alt, &mut *flagp, true))
@@ -556,10 +555,10 @@ fn store_session_globals(fd: *mut FILE) -> bool {
                         .map(|b| b as c_char)
                         .collect();
                     let mut t = p_vec.as_mut_ptr();
-                    while *t != NUL {
-                        if *t == b'\n' as c_char {
+                    while !crate::memory::cstr_is_empty(t) {
+                        if crate::memory::cstr_first_byte(t) == b'\n' {
                             *t = b'n' as c_char;
-                        } else if *t == b'\r' as c_char {
+                        } else if crate::memory::cstr_first_byte(t) == b'\r' {
                             *t = b'r' as c_char;
                         }
                         t = t.add(1);
@@ -1035,7 +1034,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
 
         let fname: *mut c_char;
         if eap.cmdidx == CMD_mkview
-            && (*eap.arg == NUL
+            && (crate::memory::cstr_is_empty(eap.arg)
                 || (ascii_isdigit(*eap.arg as c_int) && *eap.arg.add(1) == NUL))
         {
             eap.forceit = 1;
@@ -1045,7 +1044,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
             fname = vf.as_ptr().cast_mut();
             view_file = Some(vf);
             using_vdir = true;
-        } else if *eap.arg != NUL {
+        } else if !crate::memory::cstr_is_empty(eap.arg) {
             fname = eap.arg;
         } else if eap.cmdidx == CMD_mkvimrc {
             fname = c".nvimrc".as_ptr().cast_mut();
@@ -1113,11 +1112,11 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                     if !os_dirname(dirnow, MAXPATHL) || os_chdir(dirnow) != 0 {
                         *dirnow = NUL;
                     }
-                    if *dirnow != NUL && (opt_vars().ssop_flags & kOptSsopFlagSesdir) != 0 {
+                    if !crate::memory::cstr_is_empty(dirnow) && (opt_vars().ssop_flags & kOptSsopFlagSesdir) != 0 {
                         if vim_chdirfile(fname, kCdCauseOther) {
                             shorten_fnames(1);
                         }
-                    } else if *dirnow != NUL
+                    } else if !crate::memory::cstr_is_empty(dirnow)
                         && (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0
                         && let Some(ref gdir) = g_st().globaldir
                         && os_chdir(gdir.as_ptr()) == 0
@@ -1127,7 +1126,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
 
                     failed |= !makeopens(fd, dirnow);
 
-                    if *dirnow != NUL
+                    if !crate::memory::cstr_is_empty(dirnow)
                         && ((opt_vars().ssop_flags & kOptSsopFlagSesdir) != 0
                             || ((opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0
                                 && g_st().globaldir.is_some()))
@@ -1196,8 +1195,8 @@ fn get_view_file(c: c_char) -> Option<CString> {
 
         let mut len: usize = 0;
         let mut p = sname;
-        while *p != NUL {
-            if *p == b'=' as c_char || vim_ispathsep(c_int::from(*p as u8)) {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'=' || vim_ispathsep(c_int::from(*p as u8)) {
                 len += 1;
             }
             p = p.add(1);
@@ -1210,8 +1209,8 @@ fn get_view_file(c: c_char) -> Option<CString> {
         add_pathsep(retval);
         let mut s = retval.add(crate::memory::cstr_len(retval));
         p = sname;
-        while *p != NUL {
-            if *p == b'=' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if crate::memory::cstr_first_byte(p) == b'=' {
                 *s = b'=' as c_char;
                 *s.add(1) = b'=' as c_char;
                 s = s.add(2);
@@ -1219,7 +1218,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
                 *s = b'=' as c_char;
                 #[cfg(windows)]
                 {
-                    *s.add(1) = if *p == b':' as c_char {
+                    *s.add(1) = if crate::memory::cstr_first_byte(p) == b':' {
                         b'-' as c_char
                     } else {
                         b'+' as c_char

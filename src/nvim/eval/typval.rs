@@ -1446,7 +1446,7 @@ pub fn tv_list_assign_range(
         src_li = tv_list_first_inline(src);
         while !src_li.is_null() {
             debug_assert!(!dest_li.is_null());
-            if !op.is_null() && *op != b'=' as c_char {
+            if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
                 eexe_mod_op(&mut (*dest_li).li_tv, &(*src_li).li_tv, op);
             } else {
                 tv_clear(&mut (*dest_li).li_tv);
@@ -1580,7 +1580,7 @@ fn tv_string2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
         }
 
         let mut idx: varnumber_T = 0;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let len = utfc_ptr2len(p);
             if len == 0 {
                 break;
@@ -3312,7 +3312,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
         let arg_errmsg = tr(c"extend() argument");
         let arg_errmsg_len = crate::memory::cstr_len(arg_errmsg);
 
-        if *action == b'm' as c_char {
+        if crate::memory::cstr_first_byte(action) == b'm' {
             hash_lock(&mut d2.dv_hashtab);
         }
 
@@ -3328,7 +3328,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
                     break;
                 }
                 if di1.is_null() {
-                    if *action == b'm' as c_char {
+                    if crate::memory::cstr_first_byte(action) == b'm' {
                         let new_di = di2;
                         if tv_dict_add(d1, new_di) {
                             hash_remove(&mut d2.dv_hashtab,  &mut *hi2);
@@ -3352,10 +3352,10 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
                             );
                         }
                     }
-                } else if *action == b'e' as c_char {
+                } else if crate::memory::cstr_first_byte(action) == b'e' {
                     semsg!(tr(c"E737: Key already exists: %s"), key2);
                     break;
-                } else if *action == b'f' as c_char && di2 != di1 {
+                } else if crate::memory::cstr_first_byte(action) == b'f' && di2 != di1 {
                     if value_check_lock((*di1).di_tv.v_lock, arg_errmsg, arg_errmsg_len)
                         || var_check_ro(c_int::from((*di1).di_flags), arg_errmsg, arg_errmsg_len)
                     {
@@ -3387,7 +3387,7 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
             hi2 = hi2.add(1);
         }
 
-        if *action == b'm' as c_char {
+        if crate::memory::cstr_first_byte(action) == b'm' {
             hash_unlock(&mut d2.dv_hashtab);
         }
     }
@@ -4876,7 +4876,7 @@ pub fn tv_check_for_nonempty_string_arg(args: &[typval_T], idx: c_int) -> bool {
         return false;
     }
     let s = args[idx as usize].vval.v_string();
-    if s.is_null() || unsafe { *s == NUL } {
+    if s.is_null() ||  { crate::memory::cstr_is_empty(s) } {
         semsg!(
             tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR),
             idx + 1,

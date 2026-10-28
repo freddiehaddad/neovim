@@ -275,7 +275,7 @@ fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
         let s0 = *s;
         let s1 = if s0 == NUL { NUL } else { *s.add(1) };
 
-        while *macro_p != NUL {
+        while !crate::memory::cstr_is_empty(macro_p) {
             let m0 = *macro_p;
             let m1 = *macro_p.add(1);
             if (m0 == s0 || (m0 == b' ' as c_char && (s0 == NUL || s0 == b' ' as c_char)))
@@ -286,12 +286,12 @@ fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
                 break;
             }
             macro_p = macro_p.add(1);
-            if *macro_p == NUL {
+            if crate::memory::cstr_is_empty(macro_p) {
                 break;
             }
             macro_p = macro_p.add(1);
         }
-        *macro_p != NUL
+        !crate::memory::cstr_is_empty(macro_p)
     }
 }
 
@@ -300,12 +300,12 @@ pub fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool {
     unsafe {
         let s = ml_get(lnum);
         if c_int::from(*s as u8) == para
-            || *s == b'\x0c' as c_char
-            || (both && *s == b'}' as c_char)
+            || crate::memory::cstr_first_byte(s) == b'\x0c'
+            || (both && crate::memory::cstr_first_byte(s) == b'}')
         {
             return true;
         }
-        if *s == b'.' as c_char
+        if crate::memory::cstr_first_byte(s) == b'.'
             && (inmacro(opt_vars().p_sections, s.add(1)) || (para == 0 && inmacro(opt_vars().p_para, s.add(1))))
         {
             return true;
@@ -1083,16 +1083,16 @@ fn in_html_tag(end_tag: bool) -> bool {
         let mut lc: c_int = c_int::from(NUL);
 
         while p > line {
-            if *p == b'<' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'<' {
                 break;
             }
             let off = utf_head_off(line, p.sub(1)) + 1;
             p = p.sub(off as usize);
-            if *p == b'>' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'>' {
                 break;
             }
         }
-        if *p != b'<' as c_char {
+        if crate::memory::cstr_first_byte(p) != b'<' {
             return false;
         }
 
@@ -1104,10 +1104,10 @@ fn in_html_tag(end_tag: bool) -> bool {
 
         p = p.add(utfc_ptr2len(p) as usize);
         if end_tag {
-            return *p == b'/' as c_char;
+            return crate::memory::cstr_first_byte(p) == b'/';
         }
 
-        if *p == b'/' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'/' {
             return false;
         }
 
@@ -1198,7 +1198,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
             inc_cursor();
             let p = get_cursor_pos_ptr();
             let mut cp = p;
-            while *cp != NUL && *cp != b'>' as c_char && !ascii_iswhite(c_int::from(*cp as u8)) {
+            while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b'>' && !ascii_iswhite(c_int::from(*cp as u8)) {
                 cp = cp.add(utfc_ptr2len(cp) as usize);
             }
             let len = cp.offset_from(p) as usize;
@@ -1245,9 +1245,9 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
                 }
             } else {
                 let c = get_cursor_pos_ptr();
-                if *c == b'<' as c_char && !g_st().Visual.active && curwin_mut().w_cursor.col == 0 {
+                if crate::memory::cstr_first_byte(c) == b'<' && !g_st().Visual.active && curwin_mut().w_cursor.col == 0 {
                     is_inclusive = false;
-                } else if *c == b'<' as c_char {
+                } else if crate::memory::cstr_first_byte(c) == b'<' {
                     dec_cursor();
                 }
             }
@@ -1258,11 +1258,11 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
                 curwin_mut().w_cursor = start_pos;
                 while inc_cursor() >= 0 {
                     let p_cur = get_cursor_pos_ptr();
-                    if *p_cur == b'>' as c_char && !in_quotes {
+                    if crate::memory::cstr_first_byte(p_cur) == b'>' && !in_quotes {
                         inc_cursor();
                         start_pos = curwin_mut().w_cursor;
                         break;
-                    } else if *p_cur == b'"' as c_char || *p_cur == b'\'' as c_char {
+                    } else if crate::memory::cstr_first_byte(p_cur) == b'"' || crate::memory::cstr_first_byte(p_cur) == b'\'' {
                         in_quotes = !in_quotes;
                     }
                 }

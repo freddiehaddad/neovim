@@ -392,7 +392,7 @@ fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
         let mut len: usize = 0;
         let mut ptr = key.utf8.as_ptr();
         while *ptr != 0 {
-            if *ptr == b'<' as c_char {
+            if crate::memory::cstr_first_byte(ptr) == b'<' {
                 buf[len..len + 4].copy_from_slice(b"<lt>");
                 len += 4;
             } else {

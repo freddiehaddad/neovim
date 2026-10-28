@@ -457,8 +457,8 @@ pub fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
         if funcs_st().GET_FUNC_NAME_INTIDX < 0 {
             let name = get_user_func_name(xp, idx);
             if !name.is_null() {
-                if *name != NUL
-                    && *name != b'<' as c_char
+                if !crate::memory::cstr_is_empty(name)
+                    && crate::memory::cstr_first_byte(name) != b'<'
                     && (b"g:" == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
                 {
                     return cat_prefix_varname(b'g' as c_int, name);
@@ -1463,10 +1463,10 @@ pub fn tv_get_buf(tv: &mut typval_T, curtab_only: c_int) -> *mut buf_T {
         }
 
         let name = tv.vval.v_string();
-        if name.is_null() || *name == NUL {
+        if crate::memory::cstr_is_empty(name) {
             return g_st().curbuf;
         }
-        if *name == b'$' as c_char && *name.add(1) == NUL {
+        if crate::memory::cstr_first_byte(name) == b'$' && *name.add(1) == NUL {
             return g_st().lastbuf;
         }
 
@@ -1562,7 +1562,7 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             func = tv_get_string(&argvars[0]).cast_mut();
         }
 
-        if func.is_null() || *func == NUL {
+        if crate::memory::cstr_is_empty(func) {
             return;
         }
         let mut tofree: Option<std::ffi::CString> = None;
@@ -1754,7 +1754,7 @@ fn get_col(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) {
                     let p = ml_get_buf(&mut *bp, (*wp).w_cursor.lnum).add((*wp).w_cursor.col as usize);
                     if (*wp).w_cursor.coladd
                         >= win_chartabsize(&mut *wp, p, (*wp).w_virtcol - (*wp).w_cursor.coladd)
-                        && *p != NUL
+                        && !crate::memory::cstr_is_empty(p)
                     {
                         let l = utfc_ptr2len(p);
                         if *p.add(l as usize) == NUL {
@@ -1832,7 +1832,7 @@ pub fn f_confirm(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             }
         }
 
-        if buttons.is_null() || *buttons == NUL {
+        if crate::memory::cstr_is_empty(buttons) {
             buttons = gettext(c"&Ok");
         }
 
@@ -2158,7 +2158,7 @@ pub fn f_getenv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 /// "eval()" function
 pub fn f_eval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let mut s = tv_get_string_chk(&argvars[0]).cast_mut();
         if !s.is_null() {
             s = skipwhite(s);
@@ -2171,7 +2171,7 @@ pub fn f_eval(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             g_st().need_clr_eos = false;
             rettv.v_type = VarType::VAR_NUMBER;
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-        } else if *s != NUL {
+        } else if !crate::memory::cstr_is_empty(s) {
             semsg!(gettext(e_trailing_arg), s);
         }
     }
@@ -2225,7 +2225,7 @@ pub fn execute_common(argvars: &mut [typval_T], rettv: &mut typval_T, arg_off: c
             if s.is_null() {
                 return;
             }
-            if *s == NUL {
+            if crate::memory::cstr_is_empty(s) {
                 echo_output = true;
             }
             if crate::memory::cstr_prefix_bytes(s, 6) == &b"silent"[..6] {
@@ -2292,7 +2292,7 @@ pub fn f_exists(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     unsafe {
         let mut n: c_int = 0;
         let mut p = tv_get_string(&argvars[0]);
-        if *p == b'$' as c_char {
+        if crate::memory::cstr_first_byte(p) == b'$' {
             if os_env_exists(p.add(1), false) {
                 n = 1;
             } else {
@@ -2301,20 +2301,20 @@ pub fn f_exists(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
                     n = 1;
                 }
             }
-        } else if *p == b'&' as c_char || *p == b'+' as c_char {
+        } else if crate::memory::cstr_first_byte(p) == b'&' || crate::memory::cstr_first_byte(p) == b'+' {
             n = c_int::from(eval_option(&raw mut p, None, true));
             if *skipwhite(p) != NUL {
                 n = 0;
             }
-        } else if *p == b'*' as c_char {
+        } else if crate::memory::cstr_first_byte(p) == b'*' {
             n = c_int::from(if crate::memory::cstr_as_bytes(p).starts_with(b"*v:lua.") {
                 nlua_func_exists(p.add(7))
             } else {
                 function_exists(p.add(1), false)
             });
-        } else if *p == b':' as c_char {
+        } else if crate::memory::cstr_first_byte(p) == b':' {
             n = cmd_exists(p.add(1));
-        } else if *p == b'#' as c_char {
+        } else if crate::memory::cstr_first_byte(p) == b'#' {
             if *p.add(1) == b'#' as c_char {
                 n = c_int::from(autocmd_supported(p.add(2)));
             } else {
@@ -2344,7 +2344,7 @@ pub fn f_expand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         }
 
         let s = tv_get_string(&argvars[0]);
-        if *s == b'%' as c_char || *s == b'#' as c_char || *s == b'<' as c_char {
+        if crate::memory::cstr_first_byte(s) == b'%' || crate::memory::cstr_first_byte(s) == b'#' || crate::memory::cstr_first_byte(s) == b'<' {
             if opt_vars().p_verbose == 0 {
                 g_st().emsg_off += 1;
             }
@@ -2448,7 +2448,7 @@ pub fn f_expandcmd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
 
         let arg_str = tv_get_string(&argvars[0]);
-        if *arg_str == NUL {
+        if crate::memory::cstr_is_empty(arg_str) {
             crate::eval::typval::tv_set_string(rettv, arg_str);
             return;
         }
@@ -2470,8 +2470,7 @@ pub fn f_expandcmd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
         if !expand_filename(&mut eap, &raw mut cmdstr, &mut errormsg)
             && !emsgoff
-            && !errormsg.is_null()
-            && *errormsg != NUL
+            && !crate::memory::cstr_is_empty(errormsg)
         {
             emsg(errormsg);
         }
@@ -2637,7 +2636,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                 TFN_INT | TFN_QUIET | TFN_NO_AUTOLOAD | TFN_NO_DEREF,
                 None,
             );
-            if *name != NUL {
+            if !crate::memory::cstr_is_empty(name) {
                 s = ptr::null_mut();
             }
         }
@@ -2645,8 +2644,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
             .as_ref()
             .map_or(ptr::null_mut(), |tn| tn.as_ptr().cast_mut());
         'theend: {
-            if s.is_null()
-                || *s == NUL
+            if crate::memory::cstr_is_empty(s)
                 || (use_string && ascii_isdigit(*s))
                 || (is_funcref && trans_name.is_null())
             {
@@ -2853,17 +2851,17 @@ pub fn f_get(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 if crate::memory::cstr_as_bytes(what) == b"func" || crate::memory::cstr_as_bytes(what) == b"name" {
                     let mut name = partial_name(pt.as_ref());
                     debug_assert!(!name.is_null());
-                    if *what == b'f' as c_char {
+                    if crate::memory::cstr_first_byte(what) == b'f' {
                         func_ref(name);
                     }
-                    if *what == b'n' as c_char
+                    if crate::memory::cstr_first_byte(what) == b'n'
                         && (*pt).pt_name.is_none()
                         && !(*pt).pt_func.is_null()
                     {
                         name = printable_func_name(&mut *(*pt).pt_func);
                     }
                     crate::eval::typval::tv_set_string(rettv, name);
-                    rettv.v_type = if *what == b'f' as c_char {
+                    rettv.v_type = if crate::memory::cstr_first_byte(what) == b'f' {
                         VarType::VAR_FUNC
                     } else {
                         VarType::VAR_STRING
@@ -3254,15 +3252,15 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
         }
 
         let mut block_width: c_int = 0;
-        if *type_str == b'v' as c_char && *type_str.add(1) == NUL {
+        if crate::memory::cstr_first_byte(type_str) == b'v' && *type_str.add(1) == NUL {
             *region_type = kMTCharWise;
-        } else if *type_str == b'V' as c_char && *type_str.add(1) == NUL {
+        } else if crate::memory::cstr_first_byte(type_str) == b'V' && *type_str.add(1) == NUL {
             *region_type = kMTLineWise;
         } else if *type_str == Ctrl_V {
             let mut p = type_str.add(1);
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 block_width = getdigits_int(&raw mut p, false, 0);
-                if block_width <= 0 || *p != NUL {
+                if block_width <= 0 || !crate::memory::cstr_is_empty(p) {
                     semsg!(gettext(e_invargNval), c"type", type_str);
                     return false;
                 }
@@ -3771,7 +3769,7 @@ pub fn f_has(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 let dlen = crate::memory::cstr_as_bytes(s6).iter().take_while(|b| b.is_ascii_digit()).count();
                 let end = s6.add(dlen);
                 let major = std::str::from_utf8_unchecked(std::slice::from_raw_parts(s6.cast::<u8>(), dlen)).parse::<c_int>().unwrap_or(0);
-                if *end == b'.' as c_char
+                if crate::memory::cstr_first_byte(end) == b'.'
                     && ascii_isdigit(*end.add(1))
                     && *end.add(2) == b'.' as c_char
                     && ascii_isdigit(*end.add(3))
@@ -4338,7 +4336,7 @@ pub fn f_islocked(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             FNE_CHECK_START,
         );
         if !end.is_null() && !lv.ll_name.is_null() {
-            if *end != NUL {
+            if !crate::memory::cstr_is_empty(end) {
                 semsg!(
                     gettext(if lv.ll_name_len == 0 {
                         e_invarg2.as_ptr()
@@ -4524,7 +4522,7 @@ pub fn create_environment(
 
         if set_nvim_addr {
             let nvim_addr = get_vim_var_str(VV_SEND_SERVER);
-            if *nvim_addr != NUL {
+            if !crate::memory::cstr_is_empty(nvim_addr) {
                 let dv = tv_dict_find(env.as_ref(), c"NVIM", 4);
                 if !dv.is_null() {
                     tv_dict_item_remove(&mut *env,  &mut *dv);
@@ -4676,7 +4674,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
 
             let new_cwd = tv_dict_get_string(job_opts.as_ref(), c"cwd");
-            if !new_cwd.is_null() && *new_cwd != NUL {
+            if !crate::memory::cstr_is_empty(new_cwd) {
                 cwd = new_cwd;
                 if !os_isdir(cwd) {
                     semsg!(
@@ -4817,7 +4815,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 {
                     *iobuff.add(len - 1) = NUL;
                 }
-                if len == 1 && *iobuff == b'/' as c_char {
+                if len == 1 && crate::memory::cstr_first_byte(iobuff) == b'/' {
                     *iobuff.add(1) = b'.' as c_char;
                     *iobuff.add(2) = NUL;
                 }
@@ -6646,7 +6644,7 @@ fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
         let called_emsg_start = g_st().called_emsg;
 
         if argvars[2].v_type == VarType::VAR_UNKNOWN {
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 semsg!(
                     gettext(e_reduce_of_an_empty_str_with_no_initial_value),
                     c"String",
@@ -6667,7 +6665,7 @@ fn reduce_string(argvars: &mut [typval_T], rettv: &mut typval_T) {
             tv_copy(&argvars[2], &mut *rettv);
         }
 
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
             rettv.v_type = VarType::VAR_UNKNOWN;
@@ -6752,7 +6750,7 @@ pub fn f_reduce(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
         } else {
             tv_get_string(&argvars[1])
         };
-        if func_name.is_null() || *func_name == NUL {
+        if crate::memory::cstr_is_empty(func_name) {
             emsg(gettext(E_MISSING_FUNCTION_ARGUMENT));
             return;
         }
@@ -6778,7 +6776,7 @@ fn get_search_arg(varp: &mut typval_T,mut flagsp: Option<&mut c_int>) -> c_int {
         if flags.is_null() {
             return 0;
         }
-        while *flags != NUL {
+        while !crate::memory::cstr_is_empty(flags) {
             match *flags as u8 {
                 b'b' => dir = BACKWARD,
                 b'w' => opt_vars().p_ws = 1,
@@ -7458,7 +7456,7 @@ pub fn do_searchpair(
             spat,
             epat,
         );
-        let pat3len = if *mpat == NUL {
+        let pat3len = if crate::memory::cstr_is_empty(mpat) {
             ptr::copy_nonoverlapping(pat2, pat3, (pat2len as usize) + 1);
             pat2len
         } else {
@@ -7766,7 +7764,7 @@ fn set_position(argvars: &mut [typval_T], rettv: &mut typval_T, charpos: bool) {
                 pos.col = 0;
             }
         }
-        if *name == b'.' as c_char && *name.add(1) == NUL {
+        if crate::memory::cstr_first_byte(name) == b'.' && *name.add(1) == NUL {
             curwin_mut().w_cursor.lnum = pos.lnum;
             curwin_mut().w_cursor.col = pos.col;
             curwin_mut().w_cursor.coladd = pos.coladd;
@@ -7776,7 +7774,7 @@ fn set_position(argvars: &mut [typval_T], rettv: &mut typval_T, charpos: bool) {
             }
             check_cursor(curwin_mut());
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-        } else if *name == b'\'' as c_char && *name.add(1) != NUL && *name.add(2) == NUL {
+        } else if crate::memory::cstr_first_byte(name) == b'\'' && *name.add(1) != NUL && *name.add(2) == NUL {
             if setmark_pos(
                 c_int::from(*name.add(1) as u8),
                 &mut pos,
@@ -7966,7 +7964,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             if !stropt.is_null() {
                 let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                 stropt = stropt.add(1);
-                if !ret || *stropt != NUL {
+                if !ret || !crate::memory::cstr_is_empty(stropt) {
                     semsg!(gettext(e_invargval), c"value");
                     return;
                 }
@@ -7996,7 +7994,7 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             if stropt.is_null() {
                 return;
             }
-            while *stropt != NUL {
+            while !crate::memory::cstr_is_empty(stropt) {
                 match *stropt as u8 {
                     b'a' | b'A' => append = true,
                     b'u' | b'"' => set_unnamed = true,
@@ -8094,7 +8092,7 @@ pub fn f_settagstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             if actstr.is_null() {
                 return;
             }
-            if (*actstr == b'r' as c_char || *actstr == b'a' as c_char || *actstr == b't' as c_char)
+            if (crate::memory::cstr_first_byte(actstr) == b'r' || crate::memory::cstr_first_byte(actstr) == b'a' || crate::memory::cstr_first_byte(actstr) == b't')
                 && *actstr.add(1) == NUL
             {
                 action = *actstr;
@@ -8293,7 +8291,7 @@ pub fn f_spellbadword(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         }
 
         let ws = curwin_mut().w_s_ptr();
-        if *(*ws).b_p_spl == NUL {
+        if crate::memory::cstr_is_empty((*ws).b_p_spl) {
             emsg(gettext(e_no_spell));
             curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
             return;
@@ -8312,7 +8310,7 @@ pub fn f_spellbadword(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
             let mut str_ = tv_get_string_chk(&argvars[0]);
             let mut capcol: c_int = -1;
             if !str_.is_null() {
-                while *str_ != NUL {
+                while !crate::memory::cstr_is_empty(str_) {
                     len = spell_check(
                         curwin_mut(),
                         str_.cast_mut(),
@@ -8358,7 +8356,7 @@ pub fn f_spellsuggest(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         }
 
         let ws = curwin_mut().w_s_ptr();
-        if *(*ws).b_p_spl == NUL {
+        if crate::memory::cstr_is_empty((*ws).b_p_spl) {
             emsg(gettext(e_no_spell));
             curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
             return;
@@ -8421,7 +8419,7 @@ pub fn f_split(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 keepempty = tv_get_bool_chk(&argvars[2], Some(&mut typeerr)) != 0;
             }
         }
-        if pat.is_null() || *pat == NUL {
+        if crate::memory::cstr_is_empty(pat) {
             pat = c"[\\x01- ]\\+".as_ptr();
         }
 
@@ -8436,8 +8434,8 @@ pub fn f_split(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 rm_ic: false,
             };
             if !regmatch.regprog.is_null() {
-                while *str_ != NUL || keepempty {
-                    let match_found = if *str_ == NUL {
+                while !crate::memory::cstr_is_empty(str_) || keepempty {
+                    let match_found = if crate::memory::cstr_is_empty(str_) {
                         false
                     } else {
                         vim_regexec_nl(&mut regmatch, str_, col)
@@ -8450,7 +8448,7 @@ pub fn f_split(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                     if keepempty
                         || end > str_
                         || (tv_list_len(rettv.vval.v_list().as_ref()) > 0
-                            && *str_ != NUL
+                            && !crate::memory::cstr_is_empty(str_)
                             && match_found
                             && end < regmatch.endp[0].cast_const())
                     {
@@ -8552,8 +8550,8 @@ pub fn f_str2float(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
     unsafe {
         let mut p = skipwhite(tv_get_string(&argvars[0]));
-        let isneg = *p == b'-' as c_char;
-        if *p == b'+' as c_char || *p == b'-' as c_char {
+        let isneg = crate::memory::cstr_first_byte(p) == b'-';
+        if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
             p = skipwhite(p.add(1));
         }
         string2float(p, rettv.vval.v_float_mut());
@@ -9004,7 +9002,7 @@ pub fn f_taglist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     unsafe {
         let tag_pattern = tv_get_string(&argvars[0]);
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-        if *tag_pattern == NUL {
+        if crate::memory::cstr_is_empty(tag_pattern) {
             return;
         }
         let mut fname: *const c_char = ptr::null();

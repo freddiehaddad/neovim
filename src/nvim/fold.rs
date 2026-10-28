@@ -305,20 +305,20 @@ pub fn fold_info(win: &mut win_T, lnum: linenr_T) -> foldinfo_T {
 pub fn foldmethodIsManual(wp: &mut win_T) -> bool {
     unsafe {
         let fdm = wp.w_onebuf_opt.wo_fdm;
-        *fdm != NUL && *fdm.add(3) == b'u' as c_char
+        !crate::memory::cstr_is_empty(fdm) && *fdm.add(3) == b'u' as c_char
     }
 }
 
 /// Return true if 'foldmethod' is "indent".
 pub fn foldmethodIsIndent(wp: &mut win_T) -> bool {
-    unsafe { *wp.w_onebuf_opt.wo_fdm == b'i' as c_char }
+     crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdm) == b'i'
 }
 
 /// Return true if 'foldmethod' is "expr".
 pub fn foldmethodIsExpr(wp: &mut win_T) -> bool {
     unsafe {
         let fdm = wp.w_onebuf_opt.wo_fdm;
-        *fdm != NUL && *fdm.add(1) == b'x' as c_char
+        !crate::memory::cstr_is_empty(fdm) && *fdm.add(1) == b'x' as c_char
     }
 }
 
@@ -326,18 +326,18 @@ pub fn foldmethodIsExpr(wp: &mut win_T) -> bool {
 pub fn foldmethodIsMarker(wp: &mut win_T) -> bool {
     unsafe {
         let fdm = wp.w_onebuf_opt.wo_fdm;
-        *fdm != NUL && *fdm.add(2) == b'r' as c_char
+        !crate::memory::cstr_is_empty(fdm) && *fdm.add(2) == b'r' as c_char
     }
 }
 
 /// Return true if 'foldmethod' is "syntax".
 pub fn foldmethodIsSyntax(wp: &mut win_T) -> bool {
-    unsafe { *wp.w_onebuf_opt.wo_fdm == b's' as c_char }
+     crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdm) == b's'
 }
 
 /// Return true if 'foldmethod' is "diff".
 pub fn foldmethodIsDiff(wp: &mut win_T) -> bool {
-    unsafe { *wp.w_onebuf_opt.wo_fdm == b'd' as c_char }
+     crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdm) == b'd'
 }
 
 /// Close fold for current window at position "pos".
@@ -1378,7 +1378,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
         let line = ml_get_buf(buf, lnum);
         let marker_slice = std::slice::from_raw_parts(marker.cast::<u8>(), markerlen);
         let mut p = line;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let rem_len = crate::memory::cstr_len(p);
             if rem_len < markerlen
                 || std::slice::from_raw_parts(p.cast::<u8>(), markerlen) != marker_slice
@@ -1390,7 +1390,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
             if ascii_isdigit(*p.add(len) as u8 as c_int) {
                 len += 1;
             }
-            if *cms != NUL {
+            if !crate::memory::cstr_is_empty(cms) {
                 let cms2 = crate::memory::cstr_as_bytes(cms).windows(2).position(|w| w == b"%s").map_or(ptr::null_mut(), |i| cms.add(i));
                 if !cms2.is_null() {
                     let prefix_len = (cms2 as usize) - (cms as usize);
@@ -1510,7 +1510,7 @@ pub fn get_foldtext(
             if let Some(t) = text.take() {
                 let mut bytes = t.into_bytes_with_nul();
                 let mut p = bytes.as_mut_ptr().cast::<c_char>();
-                while *p != NUL {
+                while !crate::memory::cstr_is_empty(p) {
                     let len = utfc_ptr2len(p);
                     if len > 1 {
                         if !vim_isprintc(utf_ptr2char(p)) {
@@ -1524,7 +1524,7 @@ pub fn get_foldtext(
                     }
                     p = p.add(1);
                 }
-                text = if *p != NUL {
+                text = if !crate::memory::cstr_is_empty(p) {
                     Some(transstr(bytes.as_ptr().cast::<c_char>(), true))
                 } else {
                     Some(CStr::from_bytes_with_nul(&bytes).unwrap().to_owned())
@@ -1584,7 +1584,7 @@ fn foldtext_cleanup(str_ptr: *mut c_char) {
         let end_slice = std::slice::from_raw_parts(fold_st().foldendmarker.cast::<u8>(), fold_st().foldendmarkerlen);
 
         let mut s = str_ptr;
-        while *s != NUL {
+        while !crate::memory::cstr_is_empty(s) {
             let s_bytes = crate::memory::cstr_as_bytes(s);
             let mut len: usize = 0;
             if s_bytes.starts_with(fmr_slice) {
@@ -2399,7 +2399,7 @@ fn foldlevelIndent(flp: &mut fline_T) {
         let buf = (*flp.wp).w_buffer;
         let s = skipwhite(ml_get_buf(&mut *buf, lnum));
 
-        if *s == NUL || !vim_strchr((*flp.wp).w_onebuf_opt.wo_fdi, *s as u8 as c_int).is_null() {
+        if crate::memory::cstr_is_empty(s) || !vim_strchr((*flp.wp).w_onebuf_opt.wo_fdi, *s as u8 as c_int).is_null() {
             flp.lvl = if lnum == 1 || lnum == (*buf).b_ml.ml_line_count {
                 0
             } else {
@@ -2521,7 +2521,7 @@ fn foldlevelMarker(flp: &mut fline_T) {
         flp.lvl_next = flp.lvl;
 
         let mut s = ml_get_buf(&mut *(*flp.wp).w_buffer, flp.lnum + flp.off);
-        while *s != NUL {
+        while !crate::memory::cstr_is_empty(s) {
             let rem_bytes = crate::memory::cstr_as_bytes(s.add(1));
             if *s == cstart && rem_bytes.starts_with(start_rest) {
                 s = s.add(fold_st().foldstartmarkerlen);
@@ -2738,12 +2738,12 @@ pub fn f_foldtext(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             }
 
             let mut s = skipwhite(ml_get(lnum));
-            if *s == b'/' as c_char && (*s.add(1) == b'*' as c_char || *s.add(1) == b'/' as c_char)
+            if crate::memory::cstr_first_byte(s) == b'/' && (*s.add(1) == b'*' as c_char || *s.add(1) == b'/' as c_char)
             {
                 s = skipwhite(s.add(2));
                 if *skipwhite(s) == NUL && lnum + 1 < foldend {
                     s = skipwhite(ml_get(lnum + 1));
-                    if *s == b'*' as c_char {
+                    if crate::memory::cstr_first_byte(s) == b'*' {
                         s = skipwhite(s.add(1));
                     }
                 }

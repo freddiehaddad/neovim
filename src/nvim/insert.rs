@@ -506,7 +506,7 @@ fn insert_enter(s: &mut InsertState) {
                 || curwin_mut().w_curswant > curwin_mut().w_virtcol
             {
                 let ptr = get_cursor_line_ptr().offset(curwin_mut().w_cursor.col as isize);
-                if *ptr != NUL {
+                if !crate::memory::cstr_is_empty(ptr) {
                     if *ptr.add(1) == NUL {
                         curwin_mut().w_cursor.col += 1;
                     } else {
@@ -773,7 +773,7 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
                 if !is_commit && ins_compl_accept_char(s.c) {
                     if let Some(str_) = do_insert_char_pre(s.c) {
                         let mut p = str_.as_ptr().cast_mut();
-                        while *p != NUL {
+                        while !crate::memory::cstr_is_empty(p) {
                             ins_compl_addleader(utf_ptr2char(p));
                             p = p.add(utfc_ptr2len(p) as usize);
                         }
@@ -1264,9 +1264,9 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             if opt_vars().p_paste == 0 {
                 if let Some(str_) = do_insert_char_pre(s.c) {
                     let str_ptr = str_.as_ptr().cast_mut();
-                    if *str_ptr != NUL && stop_arrow() {
+                    if !crate::memory::cstr_is_empty(str_ptr) && stop_arrow() {
                         let mut p = str_ptr;
-                        while *p != NUL {
+                        while !crate::memory::cstr_is_empty(p) {
                             s.c = utf_ptr2char(p);
                             if s.c == CAR || s.c == K_KENTER || s.c == NL {
                                 ins_eol(s.c);
@@ -1591,7 +1591,7 @@ fn init_prompt(cmdchar_todo: c_int) {
                     prompt_len as usize,
                 ) != std::slice::from_raw_parts(prompt.cast::<u8>(), prompt_len as usize))
         {
-            if *text == NUL {
+            if crate::memory::cstr_is_empty(text) {
                 ml_replace(curbuf_mut().b_prompt_start.mark.lnum, prompt, true);
                 inserted_bytes(curbuf_mut().b_prompt_start.mark.lnum, 0, 0, prompt_len);
             } else {
@@ -1905,7 +1905,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
             let line = get_cursor_line_ptr();
             let mut i = get_leader_len(line, &raw mut p, false, true);
             if i > 0 && !vim_strchr(p, c_int::from(COM_MIDDLE as u8)).is_null() {
-                while *p != NUL && *p.offset(-1) != b':' as c_char {
+                while !crate::memory::cstr_is_empty(p) && *p.offset(-1) != b':' as c_char {
                     p = p.add(1);
                 }
                 let mut middle_len = copy_option_part(
@@ -1920,7 +1920,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
                     middle_len -= 1;
                 }
 
-                while *p != NUL && *p.offset(-1) != b':' as c_char {
+                while !crate::memory::cstr_is_empty(p) && *p.offset(-1) != b':' as c_char {
                     p = p.add(1);
                 }
                 let end_len = copy_option_part(
@@ -2295,7 +2295,7 @@ pub fn oneright() -> bool {
         }
 
         let ptr = get_cursor_pos_ptr();
-        if *ptr == NUL {
+        if crate::memory::cstr_is_empty(ptr) {
             return false;
         }
 
@@ -2487,7 +2487,7 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
 
         if insert.size > 0 {
             let p = insert.data.add(insert.size - 1);
-            if (*p == b'0' as c_char || *p == b'^' as c_char)
+            if (crate::memory::cstr_first_byte(p) == b'0' || crate::memory::cstr_first_byte(p) == b'^')
                 && (no_esc != 0 || (*insert.data == Ctrl_D as c_char && count > 1))
             {
                 last = *p;
@@ -3766,7 +3766,7 @@ fn ins_tab() -> bool {
             if change_col >= 0 {
                 let mut repl_off: c_int = 0;
                 cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, ptr);
-                while vcol < want_vcol && *ptr == b' ' as c_char {
+                while vcol < want_vcol && crate::memory::cstr_first_byte(ptr) == b' ' {
                     vcol += win_charsize(cstype, vcol, ptr, b' ' as i32, &mut csarg, 1).width;
                     ptr = ptr.add(1);
                     repl_off += 1;
@@ -3939,7 +3939,7 @@ pub fn ins_copychar(lnum: linenr_T) -> c_int {
         let cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut vcol: c_int = 0;
-        while vcol < end_vcol && *ci.ptr != NUL {
+        while vcol < end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             vcol += win_charsize(
                 cstype,

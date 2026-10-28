@@ -198,14 +198,14 @@ unsafe extern "system" {
 
 #[inline]
 fn env_name_valid(name: *const c_char) -> bool {
-    unsafe {
+     {
         #[cfg(windows)]
         {
-            *name != NUL && utf_valid_string(name, ptr::null())
+            !crate::memory::cstr_is_empty(name) && utf_valid_string(name, ptr::null())
         }
         #[cfg(not(windows))]
         {
-            *name != NUL
+            !crate::memory::cstr_is_empty(name)
         }
     }
 }
@@ -294,7 +294,7 @@ pub fn os_getenv_buf<S: crate::strings::IntoCCharPtr>(
             }
             assert_ne!(r, UV_EINVAL);
 
-            if r != 0 || size == 0 || *buf == NUL {
+            if r != 0 || size == 0 || crate::memory::cstr_is_empty(buf) {
                 return ptr::null_mut();
             }
             buf
@@ -336,7 +336,7 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
             if overwrite == 0 && os_env_exists(name, true) {
                 return 0;
             }
-            if *value == NUL {
+            if crate::memory::cstr_is_empty(value) {
                 return os_unsetenv(name);
             }
         }
@@ -522,7 +522,7 @@ pub fn init_homedir() {
                     let buf = (&raw mut g_st().os_buf).cast::<c_char>();
                     xstrlcpy(buf, hd.as_ptr(), MAXPATHL);
                     { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), homepath_ptr, _dsize - _dlen); };
-                    if *buf != NUL {
+                    if !crate::memory::cstr_is_empty(buf) {
                         var = buf;
                     }
                 }
@@ -531,7 +531,7 @@ pub fn init_homedir() {
                 var = os_uv_homedir();
             }
 
-            if !var.is_null() && *var == b'%' as c_char {
+            if !var.is_null() && crate::memory::cstr_first_byte(var) == b'%' {
                 let rest = crate::memory::cstr_as_bytes(var.add(1));
                 if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                     let p = var.add(1 + pos);
@@ -549,7 +549,7 @@ pub fn init_homedir() {
                 }
             }
 
-            if var.is_null() || *var == NUL {
+            if crate::memory::cstr_is_empty(var) {
                 var = c"C:/".as_ptr().cast_mut();
             }
         }
@@ -564,7 +564,7 @@ pub fn init_homedir() {
                 var = (&raw mut g_st().IObuff).cast();
             }
 
-            if (var.is_null() || *var == NUL)
+            if (crate::memory::cstr_is_empty(var))
                 && os_dirname((&raw mut g_st().os_buf).cast(), MAXPATHL)
             {
                 var = (&raw mut g_st().os_buf).cast();
@@ -628,11 +628,11 @@ pub fn expand_env_esc(
         let mut src = skipwhite(srcp);
         dstlen -= 1;
         while *src != 0 && dstlen > 0 {
-            if *src == b'`' as c_char && *src.add(1) == b'=' as c_char {
+            if crate::memory::cstr_first_byte(src) == b'`' && *src.add(1) == b'=' as c_char {
                 let var = src;
                 src = src.add(2);
                 let _ = skip_expr(&raw mut src, None);
-                if *src == b'`' as c_char {
+                if crate::memory::cstr_first_byte(src) == b'`' {
                     src = src.add(1);
                 }
                 let mut len = (src as usize) - (var as usize);
@@ -646,12 +646,12 @@ pub fn expand_env_esc(
             }
 
             let mut copy_char = true;
-            if *src == b'$' as c_char || (*src == b'~' as c_char && at_start) {
+            if crate::memory::cstr_first_byte(src) == b'$' || (crate::memory::cstr_first_byte(src) == b'~' && at_start) {
                 let mut var_cstr: Option<std::ffi::CString> = None;
                 let mut tail: *mut c_char;
                 let mut var: *mut c_char;
 
-                if *src != b'~' as c_char {
+                if crate::memory::cstr_first_byte(src) != b'~' {
                     tail = src.add(1);
                     var = dst;
                     #[cfg(not(windows))]
@@ -660,9 +660,9 @@ pub fn expand_env_esc(
                     let c = dstlen - 1;
 
                     #[cfg(not(windows))]
-                    if *tail == b'{' as c_char {
+                    if crate::memory::cstr_first_byte(tail) == b'{' {
                         tail = tail.add(1);
-                        while c > 0 && *tail != NUL && *tail != b'}' as c_char {
+                        while c > 0 && !crate::memory::cstr_is_empty(tail) && crate::memory::cstr_first_byte(tail) != b'}' {
                             c -= 1;
                             *var = *tail;
                             var = var.add(1);
@@ -684,7 +684,7 @@ pub fn expand_env_esc(
                     }
 
                     #[cfg(not(windows))]
-                    if *src.add(1) == b'{' as c_char && *tail != b'}' as c_char {
+                    if *src.add(1) == b'{' as c_char && crate::memory::cstr_first_byte(tail) != b'}' {
                         var = ptr::null_mut();
                     } else {
                         if *src.add(1) == b'{' as c_char {
@@ -738,7 +738,7 @@ pub fn expand_env_esc(
                             tail = tail.add(1);
                         }
                         *var = NUL;
-                        if *dst == NUL {
+                        if crate::memory::cstr_is_empty(dst) {
                             var = ptr::null_mut();
                         } else {
                             var_cstr = os_get_userdir(dst.add(1));
@@ -765,7 +765,7 @@ pub fn expand_env_esc(
                     }
                 }
 
-                if !var.is_null() && *var != NUL {
+                if !crate::memory::cstr_is_empty(var) {
                     let c = crate::memory::cstr_len(var);
                     if c + crate::memory::cstr_len(tail) + 1 < (dstlen as usize) {
                         ptr::copy_nonoverlapping(var, dst, c + 1);
@@ -788,12 +788,12 @@ pub fn expand_env_esc(
 
             if copy_char {
                 at_start = false;
-                if *src == b'\\' as c_char && *src.add(1) != NUL {
+                if crate::memory::cstr_first_byte(src) == b'\\' && *src.add(1) != NUL {
                     *dst = *src;
                     dst = dst.add(1);
                     src = src.add(1);
                     dstlen -= 1;
-                } else if (*src == b' ' as c_char || *src == b',' as c_char) && !one {
+                } else if (crate::memory::cstr_first_byte(src) == b' ' || crate::memory::cstr_first_byte(src) == b',') && !one {
                     at_start = true;
                 }
                 if dstlen > 0 {
@@ -822,8 +822,8 @@ fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
     if vimdir.is_null() {
         return None;
     }
-    unsafe {
-        if *vimdir == NUL {
+     {
+        if crate::memory::cstr_is_empty(vimdir) {
             return None;
         }
         let vimdir_len = crate::memory::cstr_len(vimdir);
@@ -1082,7 +1082,7 @@ pub fn home_replace(
         let mut homedir_env_mod = homedir_env;
         let mut homedir_env_mod_vec: Vec<c_char>;
 
-        if !homedir_env_mod.is_null() && *homedir_env_mod == b'~' as c_char {
+        if !homedir_env_mod.is_null() && crate::memory::cstr_first_byte(homedir_env_mod) == b'~' {
             let mut usedlen: usize = 0;
             let mut flen = crate::memory::cstr_len(homedir_env_mod);
             let mut fbuf: Option<Vec<c_char>> = None;
@@ -1147,7 +1147,7 @@ pub fn home_replace(
             if dstlen == 0 {
                 break;
             }
-            while *src != 0 && (one || (*src != b',' as c_char && *src != b' ' as c_char)) {
+            while *src != 0 && (one || (crate::memory::cstr_first_byte(src) != b',' && crate::memory::cstr_first_byte(src) != b' ')) {
                 dstlen -= 1;
                 if dstlen == 0 {
                     break;
@@ -1159,7 +1159,7 @@ pub fn home_replace(
             if dstlen == 0 {
                 break;
             }
-            while *src == b' ' as c_char || *src == b',' as c_char {
+            while crate::memory::cstr_first_byte(src) == b' ' || crate::memory::cstr_first_byte(src) == b',' {
                 dstlen -= 1;
                 if dstlen == 0 {
                     break;
@@ -1236,8 +1236,8 @@ pub fn os_setenv_append_path(fname: *const c_char) -> bool {
 #[cfg_attr(not(windows), cfg(test))]
 pub fn os_shell_is_cmdexe(sh: impl crate::strings::IntoCCharPtr) -> bool {
     let sh = sh.into_c_char_ptr();
-    unsafe {
-        if *sh == NUL {
+     {
+        if crate::memory::cstr_is_empty(sh) {
             return false;
         }
         if crate::memory::cstr_as_bytes(sh).eq_ignore_ascii_case(b"$COMSPEC") {

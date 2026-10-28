@@ -558,7 +558,7 @@ pub fn ex_align(eap: &mut exarg_T) {
 fn linelen(has_tab: *mut c_int) -> c_int {
     unsafe {
         let line = get_cursor_line_ptr();
-        if *line == NUL {
+        if crate::memory::cstr_is_empty(line) {
             return 0;
         }
         let first = skipwhite(line);
@@ -702,33 +702,33 @@ pub fn ex_sort(eap: &mut exarg_T) {
 
         'sortend: {
             let mut p = eap.arg;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 if ascii_iswhite(*p as c_int) {
                     // Skip
-                } else if *p == b'i' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'i' {
                     excmds_st().sort_ic = true;
-                } else if *p == b'l' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'l' {
                     excmds_st().sort_lc = true;
-                } else if *p == b'r' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'r' {
                     excmds_st().sort_rx = true;
-                } else if *p == b'n' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'n' {
                     excmds_st().sort_nr = 1;
                     format_found += 1;
-                } else if *p == b'f' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'f' {
                     excmds_st().sort_flt = true;
                     format_found += 1;
-                } else if *p == b'b' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'b' {
                     sort_what = STR2NR_BIN + STR2NR_FORCE;
                     format_found += 1;
-                } else if *p == b'o' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'o' {
                     sort_what = STR2NR_OCT + STR2NR_FORCE;
                     format_found += 1;
-                } else if *p == b'x' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'x' {
                     sort_what = STR2NR_HEX + STR2NR_FORCE;
                     format_found += 1;
-                } else if *p == b'u' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'u' {
                     unique = true;
-                } else if *p == b'"' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'"' {
                     break;
                 } else if !check_nextcmd(p).is_null() {
                     eap.nextcmd = check_nextcmd(p);
@@ -801,7 +801,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                         if s > p && *s.sub(1) == b'-' as c_char {
                             s = s.sub(1);
                         }
-                        if *s == NUL {
+                        if crate::memory::cstr_is_empty(s) {
                             SortKey::Num {
                                 is_number: false,
                                 value: 0,
@@ -826,11 +826,11 @@ pub fn ex_sort(eap: &mut exarg_T) {
                         }
                     } else {
                         s = skipwhite(p);
-                        if *s == b'+' as c_char {
+                        if crate::memory::cstr_first_byte(s) == b'+' {
                             s = skipwhite(s.add(1));
                         }
 
-                        if *s == NUL {
+                        if crate::memory::cstr_is_empty(s) {
                             SortKey::Float(-c_double::MAX)
                         } else {
                             SortKey::Float(strtod(s, ptr::null_mut()))
@@ -979,20 +979,20 @@ pub fn ex_uniq(eap: &mut exarg_T) {
 
         'uniqend: {
             let mut p = eap.arg;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 if ascii_iswhite(*p as c_int) {
                     // Skip
-                } else if *p == b'i' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'i' {
                     excmds_st().sort_ic = true;
-                } else if *p == b'l' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'l' {
                     excmds_st().sort_lc = true;
-                } else if *p == b'r' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'r' {
                     excmds_st().sort_rx = true;
-                } else if *p == b'u' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'u' {
                     if !keep_only_not_unique {
                         keep_only_unique = true;
                     }
-                } else if *p == b'"' as c_char {
+                } else if crate::memory::cstr_first_byte(p) == b'"' {
                     break;
                 } else if eap.nextcmd.is_null() && !check_nextcmd(p).is_null() {
                     eap.nextcmd = check_nextcmd(p);
@@ -1542,7 +1542,7 @@ fn do_filter(
     do_in: bool,
     do_out: bool,
 ) {
-    unsafe {
+     {
         let mut itmp_owned: Option<std::ffi::CString> = None;
         let mut otmp_owned: Option<std::ffi::CString> = None;
         let old_curbuf = g_st().curbuf;
@@ -1551,7 +1551,7 @@ fn do_filter(
         let orig_end = curbuf_mut().b_op_end;
         let stmp = opt_vars().p_stmp;
 
-        if *cmd == NUL {
+        if crate::memory::cstr_is_empty(cmd) {
             return;
         }
 
@@ -1836,11 +1836,11 @@ fn find_pipe(cmd: *const c_char) -> *mut c_char {
     unsafe {
         let mut inquote = false;
         let mut p = cmd;
-        while *p != NUL {
-            if !inquote && *p == b'|' as c_char {
+        while !crate::memory::cstr_is_empty(p) {
+            if !inquote && crate::memory::cstr_first_byte(p) == b'|' {
                 return p.cast_mut();
             }
-            if *p == b'"' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'"' {
                 inquote = !inquote;
             } else if rem_backslash(p) {
                 p = p.add(1);
@@ -2073,7 +2073,7 @@ pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
             return false;
         }
         curbuf_mut().b_flags |= BF_NOTEDITED;
-        if !xfname.is_null() && *xfname != NUL {
+        if !crate::memory::cstr_is_empty(xfname) {
             buf = buflist_new(fname, xfname, curwin_mut().w_cursor.lnum, 0);
             if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
                 curwin_mut().w_alt_fnum = (*buf).b_fnum;
@@ -2095,22 +2095,22 @@ pub fn rename_buffer(new_fname: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// `":file[!] [fname]"`.
 pub fn ex_file(eap: &mut exarg_T) {
-    unsafe {
+     {
         if eap.addr_count > 0
-            && (*eap.arg != NUL || eap.line2 > 0 || eap.addr_count > 1)
+            && (!crate::memory::cstr_is_empty(eap.arg) || eap.line2 > 0 || eap.addr_count > 1)
         {
             emsg(gettext(e_invarg));
             return;
         }
 
-        if *eap.arg != NUL || eap.addr_count == 1 {
+        if !crate::memory::cstr_is_empty(eap.arg) || eap.addr_count == 1 {
             if !rename_buffer(eap.arg) {
                 return;
             }
             g_st().redraw_tabline = true;
         }
 
-        if *eap.arg == NUL || !shortmess(kShmFileinfo) {
+        if crate::memory::cstr_is_empty(eap.arg) || !shortmess(kShmFileinfo) {
             fileinfo(0, 0, eap.forceit != 0);
         }
     }
@@ -2180,7 +2180,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
         let other: bool;
 
         'theend: {
-            if *ffname == NUL {
+            if crate::memory::cstr_is_empty(ffname) {
                 if eap.cmdidx == cmdidx_T::CMD_saveas as c_int {
                     emsg(gettext(e_argreq));
                     break 'theend;
@@ -2758,17 +2758,17 @@ pub fn do_ecmd(
                 }
 
                 if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0
-                    && (ffname.is_null() || *ffname == NUL)
+                    && (crate::memory::cstr_is_empty(ffname))
                 {
                     break 'theend;
                 }
 
                 if ffname.is_null() {
                     other_file = true;
-                } else if *ffname == NUL && curbuf_mut().b_ffname.is_null() {
+                } else if crate::memory::cstr_is_empty(ffname) && curbuf_mut().b_ffname.is_null() {
                     other_file = false;
                 } else {
-                    if *ffname == NUL {
+                    if crate::memory::cstr_is_empty(ffname) {
                         ffname = curbuf_mut().b_ffname;
                         sfname = curbuf_mut().b_fname;
                     }
@@ -3265,7 +3265,7 @@ fn delbuf_msg(name: Option<std::ffi::CString>) {
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
 fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
     unsafe {
-        if *eap.arg == b'|' as c_char {
+        if crate::memory::cstr_first_byte(eap.arg) == b'|' {
             let theline = cstr_to_cstring(eap.arg.add(1))
                 .into_bytes_with_nul()
                 .into_iter()
@@ -3286,7 +3286,7 @@ fn get_append_line(eap: &mut exarg_T, indent: c_int) -> Option<Vec<c_char>> {
             if len > 0 {
                 ptr::copy_nonoverlapping(eap.nextcmd, theline.as_mut_ptr(), len);
             }
-            if *p != NUL {
+            if !crate::memory::cstr_is_empty(p) {
                 p = p.add(1);
             } else {
                 p = ptr::null_mut();
@@ -3377,7 +3377,7 @@ pub fn ex_append(eap: &mut exarg_T) {
             let mut vcol: c_int = 0;
             let mut p = theline;
             while indent > vcol {
-                if *p == b' ' as c_char {
+                if crate::memory::cstr_first_byte(p) == b' ' {
                     vcol += 1;
                 } else if *p == TAB as c_char {
                     vcol += 8 - vcol % 8;
@@ -3386,13 +3386,13 @@ pub fn ex_append(eap: &mut exarg_T) {
                 }
                 p = p.add(1);
             }
-            if (*p == b'.' as c_char && *p.add(1) == NUL)
+            if (crate::memory::cstr_first_byte(p) == b'.' && *p.add(1) == NUL)
                 || (!did_undo && !u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }))
             {
                 break;
             }
 
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 *theline = NUL;
             }
 
@@ -3500,15 +3500,15 @@ pub fn ex_z(eap: &mut exarg_T) {
 
         let mut x = eap.arg;
         let kind = x;
-        if *kind == b'-' as c_char
-            || *kind == b'+' as c_char
-            || *kind == b'=' as c_char
-            || *kind == b'^' as c_char
-            || *kind == b'.' as c_char
+        if crate::memory::cstr_first_byte(kind) == b'-'
+            || crate::memory::cstr_first_byte(kind) == b'+'
+            || crate::memory::cstr_first_byte(kind) == b'='
+            || crate::memory::cstr_first_byte(kind) == b'^'
+            || crate::memory::cstr_first_byte(kind) == b'.'
         {
             x = x.add(1);
         }
-        while *x == b'-' as c_char || *x == b'+' as c_char {
+        while crate::memory::cstr_first_byte(x) == b'-' || crate::memory::cstr_first_byte(x) == b'+' {
             x = x.add(1);
         }
 
@@ -3524,12 +3524,12 @@ pub fn ex_z(eap: &mut exarg_T) {
             }
 
             opt_vars().p_window = bigness as c_int as OptInt;
-            if *kind == b'=' as c_char {
+            if crate::memory::cstr_first_byte(kind) == b'=' {
                 bigness += 2;
             }
         }
 
-        if *kind == b'-' as c_char || *kind == b'+' as c_char {
+        if crate::memory::cstr_first_byte(kind) == b'-' || crate::memory::cstr_first_byte(kind) == b'+' {
             x = kind.add(1);
             while *x == *kind {
                 x = x.add(1);
@@ -3564,7 +3564,7 @@ pub fn ex_z(eap: &mut exarg_T) {
 
             _ => {
                 start = lnum;
-                if *kind == b'+' as c_char {
+                if crate::memory::cstr_first_byte(kind) == b'+' {
                     start += (bigness as linenr_T) * (x.offset_from(kind) as linenr_T - 1) + 1;
                 } else if eap.addr_count == 0 {
                     start += 1;
@@ -3647,23 +3647,23 @@ fn sub_joining_lines(
     unsafe {
         if !pat.data.is_null()
             && crate::memory::cstr_as_bytes(pat.data) == b"\\n"
-            && *sub == NUL
-            && (*cmd == NUL
+            && crate::memory::cstr_is_empty(sub)
+            && (crate::memory::cstr_is_empty(cmd)
                 || (*cmd.add(1) == NUL
-                    && (*cmd == b'g' as c_char
-                        || *cmd == b'l' as c_char
-                        || *cmd == b'p' as c_char
-                        || *cmd == b'#' as c_char)))
+                    && (crate::memory::cstr_first_byte(cmd) == b'g'
+                        || crate::memory::cstr_first_byte(cmd) == b'l'
+                        || crate::memory::cstr_first_byte(cmd) == b'p'
+                        || crate::memory::cstr_first_byte(cmd) == b'#')))
         {
             if eap.skip != 0 {
                 return true;
             }
             curwin_mut().w_cursor.lnum = eap.line1;
-            if *cmd == b'l' as c_char {
+            if crate::memory::cstr_first_byte(cmd) == b'l' {
                 eap.flags = EXFLAG_LIST;
-            } else if *cmd == b'#' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'#' {
                 eap.flags = EXFLAG_NR;
-            } else if *cmd == b'p' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'p' {
                 eap.flags = EXFLAG_PRINT;
             }
 
@@ -3774,7 +3774,7 @@ fn sub_parse_flags(
     which_pat: &mut c_int,
 ) -> *mut c_char {
     unsafe {
-        if *cmd == b'&' as c_char {
+        if crate::memory::cstr_first_byte(cmd) == b'&' {
             cmd = cmd.add(1);
         } else {
             subflags_arg.do_all = opt_vars().p_gd != 0;
@@ -3786,28 +3786,28 @@ fn sub_parse_flags(
             subflags_arg.do_number = false;
             subflags_arg.do_ic = SubIgnoreType::kSubHonorOptions;
         }
-        while *cmd != NUL {
-            if *cmd == b'g' as c_char {
+        while !crate::memory::cstr_is_empty(cmd) {
+            if crate::memory::cstr_first_byte(cmd) == b'g' {
                 subflags_arg.do_all = !subflags_arg.do_all;
-            } else if *cmd == b'c' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'c' {
                 subflags_arg.do_ask = !subflags_arg.do_ask;
-            } else if *cmd == b'n' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'n' {
                 subflags_arg.do_count = true;
-            } else if *cmd == b'e' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'e' {
                 subflags_arg.do_error = !subflags_arg.do_error;
-            } else if *cmd == b'r' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'r' {
                 *which_pat = RE_LAST;
-            } else if *cmd == b'p' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'p' {
                 subflags_arg.do_print = true;
-            } else if *cmd == b'#' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'#' {
                 subflags_arg.do_print = true;
                 subflags_arg.do_number = true;
-            } else if *cmd == b'l' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'l' {
                 subflags_arg.do_print = true;
                 subflags_arg.do_list = true;
-            } else if *cmd == b'i' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'i' {
                 subflags_arg.do_ic = SubIgnoreType::kSubIgnoreCase;
-            } else if *cmd == b'I' as c_char {
+            } else if crate::memory::cstr_first_byte(cmd) == b'I' {
                 subflags_arg.do_ic = SubIgnoreType::kSubMatchCase;
             } else {
                 break;
@@ -3827,13 +3827,13 @@ fn sub_parse_flags(
 fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
     unsafe {
         let mut p = start;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             if *p as c_int == delimiter {
                 *p = NUL;
                 p = p.add(1);
                 break;
             }
-            if *p == b'\\' as c_char && *p.add(1) != 0 {
+            if crate::memory::cstr_first_byte(p) == b'\\' && *p.add(1) != 0 {
                 p = p.add(1);
             }
             p = p.add(utfc_ptr2len(p) as usize);
@@ -3920,8 +3920,8 @@ fn do_sub(
             which_pat = RE_SUBST;
         }
 
-        if *eap.cmd == b's' as c_char
-            && *cmd != NUL
+        if crate::memory::cstr_first_byte(eap.cmd) == b's'
+            && !crate::memory::cstr_is_empty(cmd)
             && !ascii_iswhite(*cmd as c_int)
             && vim_strchr(c"0123456789cegriIp|\"", (*cmd as u8) as c_int).is_null()
         {
@@ -3929,13 +3929,13 @@ fn do_sub(
                 return 0;
             }
 
-            if *cmd == b'\\' as c_char {
+            if crate::memory::cstr_first_byte(cmd) == b'\\' {
                 cmd = cmd.add(1);
                 if vim_strchr(c"/?&", (*cmd as u8) as c_int).is_null() {
                     emsg(gettext(e_backslash));
                     return 0;
                 }
-                if *cmd != b'&' as c_char {
+                if crate::memory::cstr_first_byte(cmd) != b'&' {
                     which_pat = RE_SEARCH;
                 }
                 pat = NvimString {
@@ -4026,7 +4026,7 @@ fn do_sub(
         }
 
         cmd = skipwhite(cmd);
-        if *cmd != NUL && *cmd != b'"' as c_char {
+        if !crate::memory::cstr_is_empty(cmd) && crate::memory::cstr_first_byte(cmd) != b'"' {
             eap.nextcmd = check_nextcmd(cmd);
             if eap.nextcmd.is_null() {
                 semsg!(gettext(e_trailing_arg), cmd);
@@ -4077,7 +4077,7 @@ fn do_sub(
 
         debug_assert!(!sub.is_null());
 
-        if !(*sub == b'\\' as c_char && *sub.add(1) == b'=' as c_char)
+        if !(crate::memory::cstr_first_byte(sub) == b'\\' && *sub.add(1) == b'=' as c_char)
             && let Some(new_sub) = regtilde(sub, opt_vars().p_magic, cmdpreview_ns > 0)
         {
             sub = new_sub.as_ptr().cast_mut();
@@ -4184,7 +4184,7 @@ fn do_sub(
                             }
                             g_st().sub_nsubs += 1;
                             did_sub = true;
-                            if !(*sub == b'\\' as c_char && *sub.add(1) == b'=' as c_char) {
+                            if !(crate::memory::cstr_first_byte(sub) == b'\\' && *sub.add(1) == b'=' as c_char) {
                                 break 'skip;
                             }
                         }
@@ -4479,8 +4479,8 @@ fn do_sub(
                             let lnum_before_newlines = lnum;
 
                             let mut p1 = new_end;
-                            while *p1 != NUL {
-                                if *p1 == b'\\' as c_char && *p1.add(1) != NUL {
+                            while !crate::memory::cstr_is_empty(p1) {
+                                if crate::memory::cstr_first_byte(p1) == b'\\' && *p1.add(1) != NUL {
                                     sublen -= 1;
                                     n = new_start.size - p1.offset_from(new_start.data()) as usize;
                                     ptr::copy(p1.add(1), p1, n + 1);
@@ -4833,10 +4833,10 @@ pub fn do_sub_msg(count_only: bool) -> bool {
 }
 
 fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
-    unsafe {
+     {
         curwin_mut().w_cursor.lnum = lnum;
         curwin_mut().w_cursor.col = 0;
-        if *cmd == NUL || *cmd == b'\n' as c_char {
+        if crate::memory::cstr_is_empty(cmd) || crate::memory::cstr_first_byte(cmd) == b'\n' {
             do_cmdline(
                 c"p",
                 crate::cmdexpand::LineGetter::None,
@@ -4873,13 +4873,13 @@ pub fn ex_global(eap: &mut exarg_T) {
         cmd = eap.arg;
         let mut which_pat = RE_LAST;
 
-        if *cmd == b'\\' as c_char {
+        if crate::memory::cstr_first_byte(cmd) == b'\\' {
             cmd = cmd.add(1);
             if vim_strchr(c"/?&", (*cmd as u8) as c_int).is_null() {
                 emsg(gettext(e_backslash));
                 return;
             }
-            if *cmd == b'&' as c_char {
+            if crate::memory::cstr_first_byte(cmd) == b'&' {
                 which_pat = RE_SUBST;
             } else {
                 which_pat = RE_SEARCH;
@@ -4887,7 +4887,7 @@ pub fn ex_global(eap: &mut exarg_T) {
             cmd = cmd.add(1);
             pat = c"".as_ptr().cast_mut();
             patlen = 0;
-        } else if *cmd == NUL {
+        } else if crate::memory::cstr_is_empty(cmd) {
             emsg(gettext(
                 c"E148: Regular expression missing from global",
             ));
@@ -5239,7 +5239,7 @@ pub fn ex_substitute_preview(
     cmdpreview_bufnr: handle_T,
 ) -> c_int {
     unsafe {
-        if *eap.arg != NUL && !ascii_isalnum(*eap.arg as c_int) {
+        if !crate::memory::cstr_is_empty(eap.arg) && !ascii_isalnum(*eap.arg as c_int) {
             let save_eap = eap.arg;
             let retv = do_sub(
                 eap,
@@ -5267,7 +5267,7 @@ pub fn skip_vimgrep_pat(
                 *s = p;
             }
             p = skiptowhite(p);
-            if !s.is_null() && *p != NUL {
+            if !s.is_null() && !crate::memory::cstr_is_empty(p) {
                 *p = NUL;
                 p = p.add(1);
             }
@@ -5286,11 +5286,11 @@ pub fn skip_vimgrep_pat(
             }
             p = p.add(1);
 
-            while *p == b'g' as c_char || *p == b'j' as c_char || *p == b'f' as c_char {
+            while crate::memory::cstr_first_byte(p) == b'g' || crate::memory::cstr_first_byte(p) == b'j' || crate::memory::cstr_first_byte(p) == b'f' {
                 if let Some(ref mut flags) = flags {
-                    if *p == b'g' as c_char {
+                    if crate::memory::cstr_first_byte(p) == b'g' {
                         **flags |= VGR_GLOBAL;
-                    } else if *p == b'j' as c_char {
+                    } else if crate::memory::cstr_first_byte(p) == b'j' {
                         **flags |= VGR_NOJUMP;
                     } else {
                         **flags |= VGR_FUZZY;

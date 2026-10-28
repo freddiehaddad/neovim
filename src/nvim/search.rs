@@ -355,7 +355,7 @@ pub fn search_regcomp(
     unsafe {
         g_st().rc_did_emsg = false;
 
-        if pat.is_null() || *pat == NUL {
+        if crate::memory::cstr_is_empty(pat) {
             let i = if pat_use == RE_LAST {
                 srch().last_idx
             } else {
@@ -566,7 +566,7 @@ pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
             Some(&mut magic_val),
         );
 
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             let l = utfc_ptr2len(p);
 
             if l > 1 {
@@ -574,7 +574,7 @@ pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
                     return true;
                 }
                 p = p.add(l as usize);
-            } else if *p == b'\\' as c_char && magic_val <= MAGIC_ON {
+            } else if crate::memory::cstr_first_byte(p) == b'\\' && magic_val <= MAGIC_ON {
                 if (*p.add(1) == b'_' as c_char || *p.add(1) == b'%' as c_char) && *p.add(2) != NUL
                 {
                     p = p.add(3);
@@ -583,7 +583,7 @@ pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
                 } else {
                     p = p.add(1);
                 }
-            } else if (*p == b'%' as c_char || *p == b'_' as c_char) && magic_val == MAGIC_ALL {
+            } else if (crate::memory::cstr_first_byte(p) == b'%' || crate::memory::cstr_first_byte(p) == b'_') && magic_val == MAGIC_ALL {
                 if *p.add(1) != NUL {
                     p = p.add(2);
                 } else {
@@ -641,10 +641,10 @@ pub fn reset_search_dir() {
 }
 
 pub fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: bool) {
-    unsafe {
+     {
         let i = idx as usize;
         free_spat(&mut srch().spats[i]);
-        if *s == NUL {
+        if crate::memory::cstr_is_empty(s) {
             srch().spats[i].pat = None;
         } else {
             srch().spats[i].pat = Some(crate::memory::cstr_to_cstring(s));
@@ -1205,22 +1205,22 @@ pub fn parse_search_pattern_offset(
         offset.line = false;
         offset.end = false;
         offset.off = 0;
-        if *p == b'+' as c_char || *p == b'-' as c_char || ascii_isdigit(*p) {
+        if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' || ascii_isdigit(*p) {
             offset.line = true;
         } else if (options & SEARCH_OPT) != 0
-            && (*p == b'e' as c_char || *p == b's' as c_char || *p == b'b' as c_char)
+            && (crate::memory::cstr_first_byte(p) == b'e' || crate::memory::cstr_first_byte(p) == b's' || crate::memory::cstr_first_byte(p) == b'b')
         {
-            if *p == b'e' as c_char {
+            if crate::memory::cstr_first_byte(p) == b'e' {
                 offset.end = true;
             }
             p = p.add(1);
         }
-        if ascii_isdigit(*p) || *p == b'+' as c_char || *p == b'-' as c_char {
+        if ascii_isdigit(*p) || crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
             if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
                 {
                     offset.off = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as std::ffi::c_long as _;
                 }
-            } else if *p == b'-' as c_char {
+            } else if crate::memory::cstr_first_byte(p) == b'-' {
                 offset.off = -1;
             } else {
                 offset.off = 1;
@@ -1307,7 +1307,7 @@ pub fn do_search(
             searchstrlen = patlen;
 
             dircp = ptr::null_mut();
-            if pat.is_null() || *pat == NUL || c_int::from(*pat as u8) == search_delim {
+            if crate::memory::cstr_is_empty(pat) || c_int::from(*pat as u8) == search_delim {
                 if srch().spats[RE_SEARCH as usize].pat.is_none() {
                     if srch().spats[RE_SUBST as usize].pat.is_none() {
                         emsg(tr(e_noprevre));
@@ -1323,7 +1323,7 @@ pub fn do_search(
                 }
             }
 
-            if !pat.is_null() && *pat != NUL {
+            if !crate::memory::cstr_is_empty(pat) {
                 let prev_searchstr = searchstr;
                 let prev_searchstrlen = searchstrlen;
                 g_st().Search.cmdlen += parse_search_pattern_offset(
@@ -1337,7 +1337,7 @@ pub fn do_search(
                     &raw mut dircp,
                     &mut srch().spats[0].off,
                 );
-                if *searchstr == NUL {
+                if crate::memory::cstr_is_empty(searchstr) {
                     searchstr = prev_searchstr;
                     searchstrlen = prev_searchstrlen;
                 }
@@ -1380,7 +1380,7 @@ pub fn do_search(
                     }
                 }
 
-                let (p, plen) = if *searchstr == NUL {
+                let (p, plen) = if crate::memory::cstr_is_empty(searchstr) {
                     (srch().spats[0].pat_ptr(), srch().spats[0].patlen())
                 } else {
                     (searchstr, searchstrlen)
@@ -1443,7 +1443,7 @@ pub fn do_search(
                             .collect();
                         msgbuf = msgbuf_vec.as_mut_ptr();
                         let mut r = msgbuf;
-                        while *r == b' ' as c_char {
+                        while crate::memory::cstr_first_byte(r) == b' ' {
                             r = r.add(1);
                         }
                         let pat_len = msgbuf.add(msgbuflen).offset_from(r) as usize;
@@ -1518,7 +1518,7 @@ pub fn do_search(
                             + SEARCH_HIS
                             + SEARCH_MSG
                             + SEARCH_START
-                            + if !pat.is_null() && *pat == b';' as c_char {
+                            + if !pat.is_null() && crate::memory::cstr_first_byte(pat) == b';' {
                                 0
                             } else {
                                 SEARCH_NOOF
@@ -1556,7 +1556,7 @@ pub fn do_search(
                 );
             }
 
-            if (options & SEARCH_NOOF) == 0 || (!pat.is_null() && *pat == b';' as c_char) {
+            if (options & SEARCH_NOOF) == 0 || (!pat.is_null() && crate::memory::cstr_first_byte(pat) == b';') {
                 let org_pos = pos;
 
                 if srch().spats[0].off.line {
@@ -1616,7 +1616,7 @@ pub fn do_search(
                 );
             }
 
-            if (options & SEARCH_OPT) == 0 || pat.is_null() || *pat != b';' as c_char {
+            if (options & SEARCH_OPT) == 0 || pat.is_null() || crate::memory::cstr_first_byte(pat) != b';' {
                 break;
             }
 
@@ -1700,7 +1700,7 @@ pub fn search_for_exact_line(
                 if mb_strcmp_ic(opt_vars().p_ic != 0, p, pat) == 0 {
                     return true;
                 }
-            } else if *p != NUL {
+            } else if !crate::memory::cstr_is_empty(p) {
                 debug_assert!(compl_len >= 0);
                 let eq = if opt_vars().p_ic != 0 {
                     mb_strnicmp(p, pat, compl_len as usize) == 0
@@ -1828,7 +1828,7 @@ fn find_rawstring_end(
 ) -> bool {
     unsafe {
         let mut p = linep.add((startpos.col + 1) as usize);
-        while *p != NUL && *p != b'(' as c_char {
+        while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'(' {
             p = p.add(1);
         }
 
@@ -1847,11 +1847,11 @@ fn find_rawstring_end(
             } else {
                 0
             });
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 if lnum == endpos.lnum && (p.offset_from(line) as colnr_T) >= endpos.col {
                     break;
                 }
-                if *p == b')' as c_char
+                if crate::memory::cstr_first_byte(p) == b')'
                     && (crate::memory::cstr_prefix_bytes(delim_copy.as_ptr(), delim_len) == crate::memory::cstr_prefix_bytes(p.add(1), delim_len))
                     && *p.add(delim_len + 1) == b'"' as c_char
                 {
@@ -1877,7 +1877,7 @@ fn find_mps_values(
     unsafe {
         let mut ptr_mps = curbuf_mut().b_p_mps;
 
-        while *ptr_mps != NUL {
+        while !crate::memory::cstr_is_empty(ptr_mps) {
             if utf_ptr2char(ptr_mps) == *initc {
                 if switchit {
                     *findc = *initc;
@@ -1903,7 +1903,7 @@ fn find_mps_values(
                 return;
             }
             ptr_mps = ptr_mps.add(utfc_ptr2len(ptr_mps) as usize);
-            if *ptr_mps == b',' as c_char {
+            if crate::memory::cstr_first_byte(ptr_mps) == b',' {
                 ptr_mps = ptr_mps.add(1);
             }
         }
@@ -1971,7 +1971,7 @@ pub fn findmatchlimit(
             } else {
                 if !cpo_match {
                     ptr_line = skipwhite(linep);
-                    if *ptr_line == b'#' as c_char
+                    if crate::memory::cstr_first_byte(ptr_line) == b'#'
                         && srch().findmatch_pos.col <= (ptr_line.offset_from(linep) as colnr_T)
                     {
                         ptr_line = skipwhite(ptr_line.add(1));
@@ -2067,7 +2067,7 @@ pub fn findmatchlimit(
                     linep = ml_get(srch().findmatch_pos.lnum);
                     line_breakcheck();
                     ptr_line = skipwhite(linep);
-                    if *ptr_line != b'#' as c_char {
+                    if crate::memory::cstr_first_byte(ptr_line) != b'#' {
                         continue;
                     }
                     srch().findmatch_pos.col = ptr_line.offset_from(linep) as colnr_T;
@@ -2222,7 +2222,7 @@ pub fn findmatchlimit(
 
             if srch().findmatch_pos.col == 0
                 && (flags & FM_BLOCKSTOP) != 0
-                && (*linep == b'{' as c_char || *linep == b'}' as c_char)
+                && (crate::memory::cstr_first_byte(linep) == b'{' || crate::memory::cstr_first_byte(linep) == b'}')
             {
                 if c_int::from(*linep as u8) == findc && count == 0 {
                     return &raw mut srch().findmatch_pos;
@@ -2295,19 +2295,19 @@ pub fn findmatchlimit(
             } else if do_quotes == -1 {
                 at_start = do_quotes;
                 ptr_line = linep;
-                while *ptr_line != NUL {
+                while !crate::memory::cstr_is_empty(ptr_line) {
                     if ptr_line == linep.add((srch().findmatch_pos.col + c_int::from(backwards)) as usize)
                     {
                         at_start = do_quotes & 1;
                     }
-                    if *ptr_line == b'"' as c_char
+                    if crate::memory::cstr_first_byte(ptr_line) == b'"'
                         && (ptr_line == linep
                             || *ptr_line.sub(1) != b'\'' as c_char
                             || *ptr_line.add(1) != b'\'' as c_char)
                     {
                         do_quotes += 1;
                     }
-                    if *ptr_line == b'\\' as c_char && *ptr_line.add(1) != NUL {
+                    if crate::memory::cstr_first_byte(ptr_line) == b'\\' && *ptr_line.add(1) != NUL {
                         ptr_line = ptr_line.add(1);
                     }
                     ptr_line = ptr_line.add(1);
@@ -2329,7 +2329,7 @@ pub fn findmatchlimit(
                     }
                     if srch().findmatch_pos.lnum > 1 {
                         ptr_line = ml_get(srch().findmatch_pos.lnum - 1);
-                        if *ptr_line != NUL
+                        if !crate::memory::cstr_is_empty(ptr_line)
                             && *ptr_line.add((ml_get_len(srch().findmatch_pos.lnum - 1) - 1) as usize)
                                 == b'\\' as c_char
                         {
@@ -2477,7 +2477,7 @@ pub fn showmatch(c: c_int) {
         };
 
         let mut p = curbuf_mut().b_p_mps;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
                 break;
             }
@@ -2486,12 +2486,12 @@ pub fn showmatch(c: c_int) {
                 break;
             }
             p = p.add(utfc_ptr2len(p) as usize);
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 return;
             }
             p = p.add(1);
         }
-        if *p == NUL {
+        if crate::memory::cstr_is_empty(p) {
             return;
         }
 
@@ -2786,9 +2786,9 @@ fn is_zero_width(
 }
 
 pub fn linewhite(lnum: linenr_T) -> bool {
-    unsafe {
+     {
         let p = skipwhite(ml_get(lnum));
-        *p == NUL
+        crate::memory::cstr_is_empty(p)
     }
 }
 
@@ -3116,7 +3116,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         save_incsearch_state();
         let mut do_update = true;
         if !pattern.is_null() {
-            if *pattern == NUL {
+            if crate::memory::cstr_is_empty(pattern) {
                 do_update = false;
             } else {
                 srch().spats[srch().last_idx as usize].pat = Some(crate::memory::cstr_to_cstring(pattern));
@@ -3239,7 +3239,7 @@ pub fn find_pattern_in_path(
         } else {
             curbuf_mut().b_p_inc
         };
-        if *inc_opt != NUL {
+        if !crate::memory::cstr_is_empty(inc_opt) {
             incl_regmatch.regprog = vim_regcomp(inc_opt, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
             if incl_regmatch.regprog.is_null() {
                 vim_regfree(regmatch.regprog);
@@ -3380,7 +3380,7 @@ pub fn find_pattern_in_path(
                                     as c_int;
                             } else {
                                 p = incl_regmatch.endp[0];
-                                while *p != NUL && !vim_isfilec(c_int::from(*p as u8)) {
+                                while !crate::memory::cstr_is_empty(p) && !vim_isfilec(c_int::from(*p as u8)) {
                                     p = p.add(1);
                                 }
                                 i = 0;
@@ -3475,7 +3475,7 @@ pub fn find_pattern_in_path(
                         && vim_regexec(&mut def_regmatch, line, 0)
                     {
                         p = def_regmatch.endp[0];
-                        while *p != NUL && !vim_iswordc(c_int::from(*p as u8)) {
+                        while !crate::memory::cstr_is_empty(p) && !vim_iswordc(c_int::from(*p as u8)) {
                             p = p.add(1);
                         }
                         define_matched = true;
@@ -3502,7 +3502,7 @@ pub fn find_pattern_in_path(
                             matched = true;
                             startp = regmatch.startp[0];
                             if skip_comments {
-                                if (*line != b'#' as c_char
+                                if (crate::memory::cstr_first_byte(line) != b'#'
                                     || !(crate::memory::cstr_prefix_bytes(skipwhite(line.add(1)), 6) == &b"define"[..6]))
                                     && get_leader_len(line, ptr::null_mut(), false, true) != 0
                                 {
@@ -3511,13 +3511,13 @@ pub fn find_pattern_in_path(
 
                                 p = skipwhite(line);
                                 if matched
-                                    || (*p == b'/' as c_char && *p.add(1) == b'*' as c_char)
-                                    || *p == b'*' as c_char
+                                    || (crate::memory::cstr_first_byte(p) == b'/' && *p.add(1) == b'*' as c_char)
+                                    || crate::memory::cstr_first_byte(p) == b'*'
                                 {
                                     p = line;
-                                    while *p != NUL && p < startp {
+                                    while !crate::memory::cstr_is_empty(p) && p < startp {
                                         if matched
-                                            && *p == b'/' as c_char
+                                            && crate::memory::cstr_first_byte(p) == b'/'
                                             && (*p.add(1) == b'*' as c_char
                                                 || *p.add(1) == b'/' as c_char)
                                         {
@@ -3527,7 +3527,7 @@ pub fn find_pattern_in_path(
                                             }
                                             p = p.add(1);
                                         } else if !matched
-                                            && *p == b'*' as c_char
+                                            && crate::memory::cstr_first_byte(p) == b'*'
                                             && *p.add(1) == b'/' as c_char
                                         {
                                             matched = true;
@@ -3598,7 +3598,7 @@ pub fn find_pattern_in_path(
                                         p = find_word_start(p);
                                         p = find_word_end(p);
                                         if p > aux {
-                                            if *aux != b')' as c_char
+                                            if crate::memory::cstr_first_byte(aux) != b')'
                                                 && g_st().IObuff[(i - 1) as usize] != TAB
                                             {
                                                 if g_st().IObuff[(i - 1) as usize] != b' ' as c_char {
@@ -3803,7 +3803,7 @@ pub fn find_pattern_in_path(
                     if def_regmatch.regprog.is_null()
                         && action == ACTION_EXPAND
                         && !compl_status_sol()
-                        && *startp != NUL
+                        && !crate::memory::cstr_is_empty(startp)
                         && *startp.add(utfc_ptr2len(startp) as usize) != NUL
                     {
                         p = startp.add(utfc_ptr2len(startp) as usize);
@@ -3917,10 +3917,10 @@ fn show_pat_in_path(
                 line.sub(1)
             };
             if !fp.is_null() {
-                if p >= line && *p == b'\n' as c_char {
+                if p >= line && crate::memory::cstr_first_byte(p) == b'\n' {
                     p = p.sub(1);
                 }
-                if p >= line && *p == b'\r' as c_char {
+                if p >= line && crate::memory::cstr_first_byte(p) == b'\r' {
                     p = p.sub(1);
                 }
                 *p.add(1) = NUL;
@@ -3935,7 +3935,7 @@ fn show_pat_in_path(
             }
             msg_prt_line(line, false);
 
-            if g_st().got_int || type_ != FIND_DEFINE || p < line || *p != b'\\' as c_char {
+            if g_st().got_int || type_ != FIND_DEFINE || p < line || crate::memory::cstr_first_byte(p) != b'\\' {
                 break;
             }
 

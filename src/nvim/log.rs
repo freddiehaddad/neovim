@@ -163,7 +163,7 @@ pub use logmsg;
 fn log_try_create(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr();
     unsafe {
-        if fname.is_null() || *fname == NUL {
+        if crate::memory::cstr_is_empty(fname) {
             return false;
         }
         {
@@ -189,7 +189,7 @@ fn log_path_init() {
         );
         let user_set = crate::memory::cstr_as_bytes(path_ptr) != b"$NVIM_LOG_FILE";
 
-        if !user_set || *path_ptr == NUL || os_isdir(path_ptr) || !log_try_create(path_ptr) {
+        if !user_set || crate::memory::cstr_is_empty(path_ptr) || os_isdir(path_ptr) || !log_try_create(path_ptr) {
             if user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT", path_ptr, 1);
             }
@@ -368,7 +368,7 @@ pub fn open_log_file() -> *mut FILE {
     unsafe {
         let path_ptr = (&raw const log_st().LOG_FILE_PATH).cast::<c_char>();
         let mut errnum: c_int = 0;
-        if *path_ptr != NUL {
+        if !crate::memory::cstr_is_empty(path_ptr) {
             let f = fopen(path_ptr, c"a".as_ptr());
             if !f.is_null() {
                 return f;
@@ -451,11 +451,11 @@ fn do_log_to_file_str(
             ));
             let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
             let mut formatted = Vec::with_capacity(32);
-            if !parent.is_null() && *parent != NUL {
+            if !crate::memory::cstr_is_empty(parent) {
                 let p = crate::memory::cstr_as_bytes(parent);
                 formatted.extend_from_slice(if ui { b"ui/c/" } else { b"c/" });
                 formatted.extend_from_slice(p);
-            } else if !serv.is_null() && *serv != NUL {
+            } else if !crate::memory::cstr_is_empty(serv) {
                 let s = crate::memory::cstr_as_bytes(serv);
                 if ui {
                     formatted.extend_from_slice(b"ui/");

@@ -296,7 +296,8 @@ pub fn cstr_prefix_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S, n: usize) ->
 
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline]
-pub fn cstr_len(s: *const c_char) -> usize {
+pub fn cstr_len<S: crate::strings::IntoCCharPtr>(s: S) -> usize {
+    let s = s.into_c_char_ptr();
     if s.is_null() {
         0
     } else {
@@ -306,13 +307,15 @@ pub fn cstr_len(s: *const c_char) -> usize {
 
 /// Return true if `s` is null or starts with a NUL byte (`*s == NUL`).
 #[inline]
-pub fn cstr_is_empty(s: *const c_char) -> bool {
+pub fn cstr_is_empty<S: crate::strings::IntoCCharPtr>(s: S) -> bool {
+    let s = s.into_c_char_ptr();
     s.is_null() || unsafe { *s == 0 }
 }
 
 /// Return the first byte of `s` (or `0` if `s` is null).
 #[inline]
-pub fn cstr_first_byte(s: *const c_char) -> u8 {
+pub fn cstr_first_byte<S: crate::strings::IntoCCharPtr>(s: S) -> u8 {
+    let s = s.into_c_char_ptr();
     if s.is_null() {
         0
     } else {
@@ -430,7 +433,8 @@ pub fn xstrlcpy<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S, dsize
 }
 
 /// Copy a NUL-terminated C string (or NULL) into an owned `CString`.
-pub fn cstr_to_cstring(ptr: *const c_char) -> CString {
+pub fn cstr_to_cstring<S: crate::strings::IntoCCharPtr>(ptr: S) -> CString {
+    let ptr = ptr.into_c_char_ptr();
     if ptr.is_null() {
         CString::default()
     } else {

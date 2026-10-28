@@ -2053,7 +2053,7 @@ pub fn nlua_exec(
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
         let top = lua_gettop(lstate);
-        let name = if !chunkname.is_null() && *chunkname != NUL {
+        let name = if !crate::memory::cstr_is_empty(chunkname) {
             chunkname
         } else {
             c"<nvim>".as_ptr()
@@ -2303,7 +2303,7 @@ pub fn nlua_is_deferred_safe() -> bool {
 
 pub fn ex_lua(eap: &mut exarg_T) {
     unsafe {
-        if *eap.arg == NUL {
+        if crate::memory::cstr_is_empty(eap.arg) {
             if eap.addr_count > 0 {
                 cmd_source_buffer(Some(eap), true);
             } else {
@@ -2703,7 +2703,7 @@ pub fn nlua_set_sctx(current: &mut sctx_T) {
             if lua_getinfo(lstate, c"nSl", &raw mut info) == 0 {
                 break;
             }
-            if *info.what == b'C' as c_char || *info.source != b'@' as c_char {
+            if crate::memory::cstr_first_byte(info.what) == b'C' || crate::memory::cstr_first_byte(info.source) != b'@' {
                 level += 1;
                 continue;
             }
@@ -2748,7 +2748,7 @@ pub fn nlua_do_ucmd(cmd: &mut ucmd_T, eap: &mut exarg_T, preview: bool) -> c_int
 
         if (cmd.uc_argt & EX_NOSPC) != 0 {
             lua_createtable(lstate, 1, 0);
-            if (cmd.uc_argt & EX_NEEDARG) != 0 || *eap.arg != NUL {
+            if (cmd.uc_argt & EX_NEEDARG) != 0 || !crate::memory::cstr_is_empty(eap.arg) {
                 lua_pushstring(lstate, eap.arg);
                 lua_rawseti(lstate, -2, 1);
             }
@@ -2819,7 +2819,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
             } else {
                 let mut ar = lua_Debug::new();
                 if lua_getinfo(lstate, c">S", &raw mut ar) != 0
-                    && *ar.source == b'@' as c_char
+                    && crate::memory::cstr_first_byte(ar.source) == b'@'
                     && ar.linedefined >= 0
                 {
                     let src = home_replace_save(None, ar.source.add(1));

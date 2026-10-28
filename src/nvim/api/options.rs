@@ -498,8 +498,8 @@ pub fn nvim__option_to_object(
         } else {
             let mut nparts: usize = 1;
             let mut p = str_ptr;
-            while *p != NUL {
-                if *p == b',' as c_char {
+            while !crate::memory::cstr_is_empty(p) {
+                if crate::memory::cstr_first_byte(p) == b',' {
                     nparts += 1;
                 }
                 p = p.add(1);
@@ -521,9 +521,9 @@ pub fn nvim__option_to_object(
             let mut item_buf = vec![0 as c_char; str_len + 1];
             let item = item_buf.as_mut_ptr();
             p = str_ptr;
-            while *p != NUL {
+            while !crate::memory::cstr_is_empty(p) {
                 copy_option_part(&raw mut p, item, str_len + 1, c",");
-                if *item == NUL {
+                if crate::memory::cstr_is_empty(item) {
                     continue;
                 }
                 if !as_map {

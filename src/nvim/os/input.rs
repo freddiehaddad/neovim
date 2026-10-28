@@ -402,16 +402,16 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
                 continue;
             }
 
-            if *ptr_cur == b'<' as c_char {
+            if crate::memory::cstr_first_byte(ptr_cur) == b'<' {
                 let old_ptr = ptr_cur;
                 // Invalid or incomplete key sequence, skip until the next '>' or *end.
                 loop {
                     ptr_cur = ptr_cur.add(1);
-                    if (ptr_cur as usize) >= (end as usize) || *ptr_cur == b'>' as c_char {
+                    if (ptr_cur as usize) >= (end as usize) || crate::memory::cstr_first_byte(ptr_cur) == b'>' {
                         break;
                     }
                 }
-                if (ptr_cur as usize) >= (end as usize) || *ptr_cur != b'>' as c_char {
+                if (ptr_cur as usize) >= (end as usize) || crate::memory::cstr_first_byte(ptr_cur) != b'>' {
                     // Incomplete key sequence, return without consuming.
                     ptr_cur = old_ptr;
                     break;

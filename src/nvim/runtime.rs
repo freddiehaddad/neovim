@@ -654,10 +654,10 @@ pub fn ex_runtime(eap: &mut exarg_T) {
 
 /// Set the completion context for the :runtime command.
 pub fn set_context_in_runtime_cmd(xp: &mut expand_T, mut arg: *const c_char) {
-    unsafe {
+     {
         let mut p = skiptowhite(arg);
         let mut arg_mut = arg as *mut c_char;
-        rt_st().runtime_expand_flags = if *p != NUL {
+        rt_st().runtime_expand_flags = if !crate::memory::cstr_is_empty(p) {
             get_runtime_cmd_flags(&mut arg_mut, (p as usize) - (arg as usize))
         } else {
             0
@@ -665,7 +665,7 @@ pub fn set_context_in_runtime_cmd(xp: &mut expand_T, mut arg: *const c_char) {
         arg = arg_mut;
         loop {
             p = skiptowhite_esc(arg);
-            if *p == NUL {
+            if crate::memory::cstr_is_empty(p) {
                 break;
             }
             if rt_st().runtime_expand_flags == 0 {
@@ -773,7 +773,7 @@ pub fn do_in_path(
             let do_all = (flags & DIP_ALL) != 0;
 
             let mut rtp = rtp_copy.as_ptr().cast_mut();
-            while *rtp != NUL && (do_all || !did_one) {
+            while !crate::memory::cstr_is_empty(rtp) && (do_all || !did_one) {
                 let buflen = copy_option_part(&mut rtp, buf, MAXPATHL, c",");
 
                 if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0 {
@@ -798,7 +798,7 @@ pub fn do_in_path(
                         let tail = buf.add(crate::memory::cstr_len(buf));
 
                         let mut np = name;
-                        while *np != NUL && (do_all || !did_one) {
+                        while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
                             let tail_off = (tail as usize) - (buf as usize);
                             debug_assert!(MAXPATHL >= tail_off);
                             copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ");
@@ -922,7 +922,7 @@ fn do_in_cached_path(
                     .add(crate::memory::cstr_len(buf.as_ptr()));
 
                 let mut np = name;
-                while *np != NUL && (do_all || !did_one) {
+                while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
                     let tail_off = (tail as usize) - (buf.as_ptr() as usize);
                     debug_assert!(MAXPATHL >= tail_off);
                     copy_option_part(&mut np, tail, MAXPATHL - tail_off, c"\t ");
@@ -1094,11 +1094,11 @@ pub fn do_in_path_and_pp(
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
-    unsafe {
+     {
         let mut done = false;
 
         if (flags & DIP_NORTP) == 0 {
-            let name_arg = if !name.is_null() && *name == NUL {
+            let name_arg = if !name.is_null() && crate::memory::cstr_is_empty(name) {
                 ptr::null_mut()
             } else {
                 name
@@ -1165,12 +1165,12 @@ fn expand_rtp_entry(
     after: bool,
     pos_in_rtp: usize,
 ) {
-    unsafe {
+     {
         if rtp_used.contains(crate::memory::cstr_as_bytes(entry)) {
             return;
         }
 
-        if *entry == NUL {
+        if crate::memory::cstr_is_empty(entry) {
             push_path(search_path, rtp_used, entry, after, pos_in_rtp);
         }
 
@@ -1233,7 +1233,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
 
         let buf = (&raw mut rt_st().build_rtp_buf).cast::<c_char>();
         let mut entry = opt_vars().p_pp;
-        while *entry != NUL {
+        while !crate::memory::cstr_is_empty(entry) {
             let cur_entry = entry;
             let buflen = copy_option_part(&mut entry, buf, MAXPATHL, c",");
 
@@ -1250,7 +1250,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         }
 
         let mut rtp_entry = opt_vars().p_rtp;
-        while *rtp_entry != NUL {
+        while !crate::memory::cstr_is_empty(rtp_entry) {
             let cur_entry = rtp_entry;
             let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",");
 
@@ -1303,7 +1303,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
             );
         }
 
-        while *rtp_entry != NUL {
+        while !crate::memory::cstr_is_empty(rtp_entry) {
             let cur_entry = rtp_entry;
             let buflen = copy_option_part(&mut rtp_entry, buf, MAXPATHL, c",");
             let pos_in_rtp = (cur_entry as usize) - (opt_vars().p_rtp as usize);
@@ -1370,10 +1370,10 @@ pub fn do_in_runtimepath(
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let name = name.into_c_char_ptr().cast_mut();
-    unsafe {
+     {
         let mut success = false;
         if (flags & DIP_NORTP) == 0 {
-            let name_arg = if !name.is_null() && *name == NUL {
+            let name_arg = if !name.is_null() && crate::memory::cstr_is_empty(name) {
                 ptr::null_mut()
             } else {
                 name
@@ -1437,7 +1437,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
         let mut p3 = p1;
         let mut p4 = p1;
         let mut p = p1;
-        while *p != NUL {
+        while !crate::memory::cstr_is_empty(p) {
             if vim_ispathsep_nocolon(*p as u8 as c_int) {
                 p4 = p3;
                 p3 = p2;
@@ -1472,7 +1472,7 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
             let mut after_insp: *const c_char = ptr::null();
             let mut p_rtp_len: usize = 0;
             let mut entry: *mut c_char = opt_vars().p_rtp;
-            while *entry != NUL {
+            while !crate::memory::cstr_is_empty(entry) {
                 let cur_entry = entry;
                 buf.size = copy_option_part(&mut entry, buf.data, MAXPATHL, c",");
 
@@ -1540,14 +1540,14 @@ fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> bool {
             let mut first_pos = keep;
             ptr::copy(opt_vars().p_rtp, new_rtp.data, keep);
             new_rtp.size = keep;
-            if *insp == NUL {
+            if crate::memory::cstr_is_empty(insp) {
                 *new_rtp.data.add(new_rtp.size) = b',' as c_char;
                 new_rtp.size += 1;
                 first_pos += 1;
             }
             ptr::copy(fname, new_rtp.data.add(new_rtp.size), fname_len);
             new_rtp.size += fname_len;
-            if *insp != NUL {
+            if !crate::memory::cstr_is_empty(insp) {
                 *new_rtp.data.add(new_rtp.size) = b',' as c_char;
                 new_rtp.size += 1;
             }
@@ -1696,7 +1696,7 @@ fn add_pack_plugins(
     all: bool,
     action: PackAddAction,
 ) {
-    unsafe {
+     {
         let mut did_one = false;
 
         if action != PackAddAction::Load {
@@ -1705,7 +1705,7 @@ fn add_pack_plugins(
                 let fname = fname_cstr.as_ptr().cast_mut();
                 let mut found = false;
                 let mut p: *mut c_char = opt_vars().p_rtp;
-                while *p != NUL {
+                while !crate::memory::cstr_is_empty(p) {
                     copy_option_part(&mut p, buf.as_mut_ptr(), MAXPATHL, c",");
                     if path_equal(buf.as_ptr(), fname, kPathCmpLiteral) {
                         found = true;
@@ -1915,8 +1915,8 @@ fn ExpandRTDir_int(
             let buf = buf_vec.as_mut_ptr();
             let mut glob_flags: c_int = 0;
             let mut expand_dirs = false;
-            let dir_str = if *dir != NUL { dir } else { c"".as_ptr() };
-            let slash_str = if *dir != NUL {
+            let dir_str = if !crate::memory::cstr_is_empty(dir) { dir } else { c"".as_ptr() };
+            let slash_str = if !crate::memory::cstr_is_empty(dir) {
                 c"/".as_ptr()
             } else {
                 c"".as_ptr()
@@ -1990,7 +1990,7 @@ fn ExpandRTDir_int(
                     globpath(opt_vars().p_pp, buf, gap, glob_flags, expand_dirs);
                 }
 
-                if *dir == NUL && !expand_dirs {
+                if crate::memory::cstr_is_empty(dir) && !expand_dirs {
                     vim_snprintf!(buf, buf_len, c"%s*", pat);
                     glob_flags = WILD_ADD_SLASH;
                     expand_dirs = true;
@@ -2163,7 +2163,7 @@ fn compute_double_env_sep_len(
     single_suf_len: usize,
 ) -> usize {
     unsafe {
-        if val.is_null() || *val == NUL {
+        if crate::memory::cstr_is_empty(val) {
             return 0;
         }
         let mut ret: usize = 0;
@@ -2200,7 +2200,7 @@ fn add_env_sep_dirs(
     let suf1 = suf1.into_c_char_ptr();
     let suf2 = suf2.into_c_char_ptr();
     unsafe {
-        if val.is_null() || *val == NUL {
+        if crate::memory::cstr_is_empty(val) {
             return dest;
         }
         let mut iter: *const c_char = ptr::null();
@@ -2512,12 +2512,12 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
 fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut exarg_T>) {
     let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
-        if *fname != NUL && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
+        if !crate::memory::cstr_is_empty(fname) && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
             emsg(gettext(e_norange));
             return;
         }
 
-        if eap.is_some() && *fname == NUL {
+        if eap.is_some() && crate::memory::cstr_is_empty(fname) {
             if eap.as_deref_mut().unwrap().forceit != 0 {
                 emsg(gettext(e_argreq));
             } else {
@@ -2691,7 +2691,7 @@ fn do_source_buffer_init(
 fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
     unsafe {
         sp.buflines.clear();
-        while *str_ptr != NUL {
+        while !crate::memory::cstr_is_empty(str_ptr) {
             let eol = skip_to_newline(str_ptr);
             let slice = std::slice::from_raw_parts(
                 str_ptr.cast::<u8>(),
@@ -2700,7 +2700,7 @@ fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
             sp
                 .buflines
                 .push(std::ffi::CString::new(slice).unwrap_or_default());
-            str_ptr = eol.add(usize::from(*eol != NUL));
+            str_ptr = eol.add(usize::from(!crate::memory::cstr_is_empty(eol)));
         }
         sp.buf_lnum = 0;
         sp.source_from_buf_or_str = true;
@@ -2826,10 +2826,10 @@ fn do_source_ext(
             }
             if cookie.fp.is_none() && check_other {
                 let p = path_tail(fname_exp);
-                if *p == b'.' as c_char || *p == b'_' as c_char {
+                if crate::memory::cstr_first_byte(p) == b'.' || crate::memory::cstr_first_byte(p) == b'_' {
                     let rest = crate::memory::cstr_as_bytes(p.add(1));
                     if rest.eq_ignore_ascii_case(b"nvimrc") || rest.eq_ignore_ascii_case(b"exrc") {
-                        *p = if *p == b'_' as c_char {
+                        *p = if crate::memory::cstr_first_byte(p) == b'_' {
                             b'.' as c_char
                         } else {
                             b'_' as c_char
@@ -3134,7 +3134,7 @@ pub fn ex_scriptnames(eap: &mut exarg_T) {
     unsafe {
         let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
         let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
-        if eap.addr_count > 0 || *eap.arg != NUL {
+        if eap.addr_count > 0 || !crate::memory::cstr_is_empty(eap.arg) {
             if eap.addr_count > 0 && !script_id_valid(eap.line2) {
                 emsg(gettext(e_invarg));
             } else {
@@ -3381,8 +3381,8 @@ pub fn getsourceline(
             sp.nextline = get_one_sourceline(sp);
             if let Some(ref next) = sp.nextline {
                 let p = skipwhite(next.as_ptr());
-                if *p == b'\\' as c_char
-                    || (*p == b'"' as c_char
+                if crate::memory::cstr_first_byte(p) == b'\\'
+                    || (crate::memory::cstr_first_byte(p) == b'"'
                         && *p.add(1) == b'\\' as c_char
                         && *p.add(2) == b' ' as c_char)
                 {
@@ -3570,7 +3570,7 @@ pub fn ex_scriptencoding(eap: &mut exarg_T) {
         };
 
         let name_owned: Option<std::ffi::CString>;
-        let name = if *eap.arg != NUL {
+        let name = if !crate::memory::cstr_is_empty(eap.arg) {
             name_owned = Some(enc_canonize(eap.arg));
             name_owned.as_ref().unwrap().as_ptr().cast_mut()
         } else {

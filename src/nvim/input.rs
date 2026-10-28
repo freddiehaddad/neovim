@@ -762,7 +762,7 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
     unsafe {
         let mut s = str_;
         while if len < 0 {
-            *s != NUL as c_char
+            !crate::memory::cstr_is_empty(s)
         } else {
             s.offset_from(str_) < len as isize
         } {
@@ -774,7 +774,7 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
                 s = s.add(1);
             }
 
-            if *s == NUL as c_char && (*s.sub(1) == b'0' as c_char || *s.sub(1) == b'^' as c_char) {
+            if crate::memory::cstr_is_empty(s) && (*s.sub(1) == b'0' as c_char || *s.sub(1) == b'^' as c_char) {
                 s = s.sub(1);
             }
             if s > start {
@@ -782,19 +782,19 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
                 buf.extend_from_slice(std::slice::from_raw_parts(start, n));
             }
 
-            if *s == NUL as c_char || (len >= 0 && s.offset_from(str_) >= len as isize) {
+            if crate::memory::cstr_is_empty(s) || (len >= 0 && s.offset_from(str_) >= len as isize) {
                 break;
             }
 
             let c = mb_cptr2char_adv(&raw mut s);
             if c < b' ' as c_int
                 || c == DEL
-                || (*s == NUL as c_char && (c == b'0' as c_int || c == b'^' as c_int))
+                || (crate::memory::cstr_is_empty(s) && (c == b'0' as c_int || c == b'^' as c_int))
             {
                 sb_add_char(buf, Ctrl_V);
             }
 
-            if *s == NUL as c_char && c == b'0' as c_int {
+            if crate::memory::cstr_is_empty(s) && c == b'0' as c_int {
                 buf.extend_from_slice(std::slice::from_raw_parts(c"048".as_ptr(), 3));
             } else {
                 sb_add_char(buf, c);
@@ -817,7 +817,7 @@ pub fn redo_append_lit(str_: *const c_char, len: c_int) {
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
 pub fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
     unsafe {
-        while *s != NUL as c_char {
+        while !crate::memory::cstr_is_empty(s) {
             if *s as u8 == K_SPECIAL && *s.add(1) != NUL as c_char && *s.add(2) != NUL as c_char {
                 buf.extend_from_slice(std::slice::from_raw_parts(s, 3));
                 s = s.add(3);
@@ -875,7 +875,7 @@ pub fn stuffReadbuffLen(s: impl crate::strings::IntoCCharPtr, len: isize) {
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
 pub fn stuffReadbuffSpecial(mut s: *const c_char) {
     unsafe {
-        while *s != NUL as c_char {
+        while !crate::memory::cstr_is_empty(s) {
             if *s as u8 == K_SPECIAL && *s.add(1) != NUL as c_char && *s.add(2) != NUL as c_char {
                 stuffReadbuffLen(s, 3);
                 s = s.add(3);
@@ -903,7 +903,7 @@ pub fn stuffnumReadbuff(n: c_int) {
 /// Stuff a string into the typeahead buffer.
 pub fn stuffescaped(mut arg: *const c_char, literally: bool) {
     unsafe {
-        while *arg != NUL as c_char {
+        while !crate::memory::cstr_is_empty(arg) {
             let start = arg;
             while (*arg >= b' ' as c_char && (*arg as u8) < DEL as u8)
                 || (*arg as u8 == K_SPECIAL && !literally)
@@ -914,7 +914,7 @@ pub fn stuffescaped(mut arg: *const c_char, literally: bool) {
                 stuffReadbuffLen(start, arg.offset_from(start));
             }
 
-            if *arg != NUL as c_char {
+            if !crate::memory::cstr_is_empty(arg) {
                 let c = mb_cptr2char_adv(&raw mut arg);
                 if literally && ((c < b' ' as c_int && c != TAB) || c == DEL) {
                     stuffcharReadbuff(Ctrl_V);
@@ -978,7 +978,7 @@ pub fn start_redo_ins() -> bool {
                 continue;
             }
             if !vim_strchr(c"AaIiRrOo", *p as u8 as c_int).is_null() {
-                if *p == b'O' as c_char || *p == b'o' as c_char {
+                if crate::memory::cstr_first_byte(p) == b'O' || crate::memory::cstr_first_byte(p) == b'o' {
                     add_buff(&mut inp_st().readbuf2, NL_STR, -1);
                 }
                 p = p.add(1);
@@ -3307,7 +3307,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
             let start = s;
             while s < str_end
                 && *s as u8 != K_SPECIAL
-                && *s != NUL as c_char
+                && !crate::memory::cstr_is_empty(s)
                 && *s != NL as c_char
                 && !(crlf && *s == CAR as c_char)
             {

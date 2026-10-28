@@ -1920,7 +1920,7 @@ fn parse_win_config(
             }
 
             if has_key(mask, KEYSET_OPTIDX_win_config__style) {
-                if *config.style.data == NUL {
+                if crate::memory::cstr_is_empty(config.style.data) {
                     fconfig.style = kWinStyleUnused;
                 } else if crate::memory::cstr_as_opt_bytes(config.style.data).is_some_and(|b| b.eq_ignore_ascii_case(b"minimal")) {
                     fconfig.style = kWinStyleMinimal;

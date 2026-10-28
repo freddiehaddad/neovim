@@ -762,7 +762,7 @@ fn diff_write_buffer(
         for lnum in start..=end {
             let mut s = ml_get_buf(buf, lnum);
             if (diff_st().diff_flags & DIFF_ICASE) != 0 {
-                while *s != NUL {
+                while !crate::memory::cstr_is_empty(s) {
                     let c: c_int;
                     let mut c_len: c_int = 1;
                     let mut cbuf: [c_char; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
@@ -1546,14 +1546,14 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
                     }
                     free_string_option((*wp).w_onebuf_opt.wo_fdm);
                     (*wp).w_onebuf_opt.wo_fdm =
-                        alloc_string_option(if *(*wp).w_onebuf_opt.wo_fdm_save != NUL {
+                        alloc_string_option(if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdm_save) {
                             (*wp).w_onebuf_opt.wo_fdm_save
                         } else {
                             c"manual".as_ptr()
                         });
                     free_string_option((*wp).w_onebuf_opt.wo_fdc);
                     (*wp).w_onebuf_opt.wo_fdc =
-                        alloc_string_option(if *(*wp).w_onebuf_opt.wo_fdc_save != NUL {
+                        alloc_string_option(if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_fdc_save) {
                             (*wp).w_onebuf_opt.wo_fdc_save
                         } else {
                             c"0".as_ptr()
@@ -2218,7 +2218,7 @@ fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
         }
         let mut p1: *const c_char = s1;
         let mut p2: *const c_char = s2;
-        while *p1 != NUL && *p2 != NUL {
+        while !crate::memory::cstr_is_empty(p1) && !crate::memory::cstr_is_empty(p2) {
             if ((diff_st().diff_flags & DIFF_IWHITE) != 0 && ascii_iswhite(*p1) && ascii_iswhite(*p2))
                 || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
                     && (ascii_iswhite(*p1) || ascii_iswhite(*p2)))
@@ -2236,7 +2236,7 @@ fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
         }
         p1 = skipwhite(p1);
         p2 = skipwhite(p2);
-        if *p1 != NUL || *p2 != NUL {
+        if !crate::memory::cstr_is_empty(p1) || !crate::memory::cstr_is_empty(p2) {
             return 1;
         }
         0
@@ -2307,7 +2307,7 @@ fn parse_diffanchors(
     num_anchors: Option<&mut c_int>,
 ) -> bool {
     unsafe {
-        let mut dia = if *(*buf).b_p_dia == NUL {
+        let mut dia = if crate::memory::cstr_is_empty((*buf).b_p_dia) {
             opt_vars().p_dia
         } else {
             (*buf).b_p_dia
@@ -2324,7 +2324,7 @@ fn parse_diffanchors(
                 }
                 bw = (*bw).w_next;
             }
-            if bw.is_null() && *dia != NUL {
+            if bw.is_null() && !crate::memory::cstr_is_empty(dia) {
                 emsg(gettext(
                     e_diff_anchors_with_hidden_windows,
                 ));
@@ -2333,8 +2333,8 @@ fn parse_diffanchors(
             bw
         };
         let mut i: usize = 0;
-        while i < MAX_DIFF_ANCHORS && *dia != NUL {
-            if *dia == b',' as c_char {
+        while i < MAX_DIFF_ANCHORS && !crate::memory::cstr_is_empty(dia) {
+            if crate::memory::cstr_first_byte(dia) == b',' {
                 return false;
             }
             g_st().curbuf = buf;
@@ -2358,7 +2358,7 @@ fn parse_diffanchors(
             if dia.is_null() {
                 return false;
             }
-            if *dia != b',' as c_char && *dia != NUL {
+            if crate::memory::cstr_first_byte(dia) != b',' && !crate::memory::cstr_is_empty(dia) {
                 return false;
             }
             if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > (*buf).b_ml.ml_line_count + 1)
@@ -2369,12 +2369,12 @@ fn parse_diffanchors(
             if !anchors.is_null() {
                 *anchors.add(i) = lnum;
             }
-            if *dia == b',' as c_char {
+            if crate::memory::cstr_first_byte(dia) == b',' {
                 dia = dia.add(1);
             }
             i += 1;
         }
-        if i == MAX_DIFF_ANCHORS && *dia != NUL {
+        if i == MAX_DIFF_ANCHORS && !crate::memory::cstr_is_empty(dia) {
             semsg!(
                 gettext(e_cannot_have_more_than_nr_diff_anchors),
                 MAX_DIFF_ANCHORS as c_int,
@@ -2878,7 +2878,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     let mut eol_linemap_len: c_int = -1;
                     let mut eol_numlines: linenr_T = -1;
                     let mut s = curline;
-                    while *s != NUL {
+                    while !crate::memory::cstr_is_empty(s) {
                         let mut new_in_keyword = false;
                         if (diff_st().diff_flags & DIFF_INLINE_WORD) != 0 {
                             new_in_keyword = mb_get_class_tab(
@@ -3228,7 +3228,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
             return;
         }
         let idx_cur = idx_cur_i as usize;
-        if *eap.arg == NUL {
+        if crate::memory::cstr_is_empty(eap.arg) {
             let mut found_not_ma = false;
             let mut idx = 0;
             while idx < DB_COUNT {
@@ -3370,7 +3370,7 @@ pub fn ex_diffgetput(eap: &mut exarg_T) {
         if curtab_mut().tp_diffs.is_empty() {
             for wp in for_all_windows_mut() {
                 if wp.w_onebuf_opt.wo_diff != 0
-                    && *wp.w_onebuf_opt.wo_fdm == b'd' as c_char
+                    && crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdm) == b'd'
                     && wp.w_onebuf_opt.wo_fen != 0
                 {
                     foldUpdateAll(wp);
@@ -3695,19 +3695,19 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
     unsafe {
         let mut p = line;
         let f1 = getdigits_int32(&raw mut p, true, 0);
-        let l1 = if *p == b',' as c_char {
+        let l1 = if crate::memory::cstr_first_byte(p) == b',' {
             p = p.add(1);
             getdigits_int(&raw mut p, true, 0)
         } else {
             f1
         };
-        if *p != b'a' as c_char && *p != b'c' as c_char && *p != b'd' as c_char {
+        if crate::memory::cstr_first_byte(p) != b'a' && crate::memory::cstr_first_byte(p) != b'c' && crate::memory::cstr_first_byte(p) != b'd' {
             return false;
         }
         let difftype = *p as u8;
         p = p.add(1);
         let f2 = getdigits_int(&raw mut p, true, 0);
-        let l2 = if *p == b',' as c_char {
+        let l2 = if crate::memory::cstr_first_byte(p) == b',' {
             p = p.add(1);
             getdigits_int(&raw mut p, true, 0)
         } else {
@@ -3736,23 +3736,23 @@ fn parse_diff_ed(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
 fn parse_diff_unified(line: *mut c_char, hunk: &mut diffhunk_T) -> bool {
     unsafe {
         let mut p = line;
-        if *p == b'@' as c_char
+        if crate::memory::cstr_first_byte(p) == b'@'
             && *p.add(1) == b'@' as c_char
             && *p.add(2) == b' ' as c_char
             && *p.add(3) == b'-' as c_char
         {
             p = p.add(4);
             let mut oldline = getdigits_int32(&raw mut p, true, 0);
-            let oldcount = if *p == b',' as c_char {
+            let oldcount = if crate::memory::cstr_first_byte(p) == b',' {
                 p = p.add(1);
                 getdigits_int(&raw mut p, true, 0)
             } else {
                 1
             };
-            if *p == b' ' as c_char && *p.add(1) == b'+' as c_char {
+            if crate::memory::cstr_first_byte(p) == b' ' && *p.add(1) == b'+' as c_char {
                 p = p.add(2);
                 let mut newline = getdigits_int(&raw mut p, true, 0);
-                let newcount = if *p == b',' as c_char {
+                let newcount = if crate::memory::cstr_first_byte(p) == b',' {
                     p = p.add(1);
                     getdigits_int(&raw mut p, true, 0)
                 } else {

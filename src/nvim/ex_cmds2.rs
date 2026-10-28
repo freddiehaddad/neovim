@@ -50,7 +50,6 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::charset::NUL;
 use crate::cursor::linenr_T;
 use crate::eval::funcs::VIM_QUESTION;
 use crate::math::OK;
@@ -714,10 +713,10 @@ pub fn ex_listdo(eap: &mut exarg_T) {
 
 /// `:compiler[!] {name}` (`ex_compiler`).
 pub fn ex_compiler(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut old_cur_comp: Option<std::ffi::CString> = None;
 
-        if *eap.arg == NUL {
+        if crate::memory::cstr_is_empty(eap.arg) {
             do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')");
             do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.lua')");
             return;

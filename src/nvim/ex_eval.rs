@@ -395,7 +395,7 @@ enum ExceptionValue {
 pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> CString {
     unsafe {
         let mut out: Vec<u8> = Vec::new();
-        if !cmdname.is_null() && *cmdname != NUL {
+        if !crate::memory::cstr_is_empty(cmdname) {
             out.extend_from_slice(b"Vim(");
             out.extend_from_slice(crate::memory::cstr_as_bytes(cmdname));
             out.extend_from_slice(b"):");
@@ -405,18 +405,18 @@ pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> 
 
         let mut p = mesg;
         loop {
-            if *p == NUL
-                || (*p == b'E' as c_char
+            if crate::memory::cstr_is_empty(p)
+                || (crate::memory::cstr_first_byte(p) == b'E'
                     && ascii_isdigit(*p.add(1))
                     && (*p.add(2) == b':' as c_char
                         || (ascii_isdigit(*p.add(2))
                             && (*p.add(3) == b':' as c_char
                                 || (ascii_isdigit(*p.add(3)) && *p.add(4) == b':' as c_char)))))
             {
-                if *p == NUL || ptr::eq(p, mesg) {
+                if crate::memory::cstr_is_empty(p) || ptr::eq(p, mesg) {
                     out.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
                 } else {
-                    if *mesg != b'"' as c_char
+                    if crate::memory::cstr_first_byte(mesg) != b'"'
                         || (p as usize) < (mesg.add(3) as usize)
                         || *p.sub(2) != b'"' as c_char
                         || *p.sub(1) != b' ' as c_char
@@ -930,7 +930,7 @@ pub fn ex_else(eap: &mut exarg_T) {
             let mut result = false;
             let mut error = false;
             if skip
-                && *eap.arg != b'"' as c_char
+                && crate::memory::cstr_first_byte(eap.arg) != b'"'
                 && ends_excmd(c_int::from(*eap.arg as u8)) != 0
             {
                 semsg!(gettext(e_invexpr2), eap.arg);
@@ -1104,9 +1104,9 @@ pub fn ex_endwhile(eap: &mut exarg_T) {
 }
 
 pub fn ex_throw(eap: &mut exarg_T) {
-    unsafe {
+     {
         let arg = eap.arg;
-        let value = if *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
+        let value = if !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && crate::memory::cstr_first_byte(arg) != b'\n' {
             eval_to_string_skip(arg, eap, eap.skip != 0)
         } else {
             emsg(gettext(e_argreq));
@@ -1229,8 +1229,7 @@ pub fn ex_catch(eap: &mut exarg_T) {
                 && ((*cstack).cs_flags[u_idx] & CSF_THROWN) != 0
                 && ((*cstack).cs_flags[u_idx] & CSF_CAUGHT) == 0
             {
-                if !end.is_null()
-                    && *end != NUL
+                if !crate::memory::cstr_is_empty(end)
                     && ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8)) == 0
                 {
                     semsg!(gettext(e_trailing_arg), end);
@@ -1709,7 +1708,7 @@ pub fn ex_endfunction(_eap: &mut exarg_T) {
 pub fn has_loop_cmd(mut p: *mut c_char) -> bool {
     unsafe {
         loop {
-            while *p == b' ' as c_char || *p == b'\t' as c_char || *p == b':' as c_char {
+            while crate::memory::cstr_first_byte(p) == b' ' || crate::memory::cstr_first_byte(p) == b'\t' || crate::memory::cstr_first_byte(p) == b':' {
                 p = p.add(1);
             }
             let len = modifier_len(p);
@@ -1718,7 +1717,7 @@ pub fn has_loop_cmd(mut p: *mut c_char) -> bool {
             }
             p = p.add(len as usize);
         }
-        (*p == b'w' as c_char && *p.add(1) == b'h' as c_char)
-            || (*p == b'f' as c_char && *p.add(1) == b'o' as c_char && *p.add(2) == b'r' as c_char)
+        (crate::memory::cstr_first_byte(p) == b'w' && *p.add(1) == b'h' as c_char)
+            || (crate::memory::cstr_first_byte(p) == b'f' && *p.add(1) == b'o' as c_char && *p.add(2) == b'r' as c_char)
     }
 }

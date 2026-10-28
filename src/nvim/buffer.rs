@@ -1809,7 +1809,7 @@ fn free_buffer_stuff(buf: &mut buf_T, free_flags: c_int) {
 
 /// Go to another buffer. Handles the result of the ATTENTION dialog.
 pub fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
-    unsafe {
+     {
         let save_sea = g_st().swap_exists_action;
         let skip_help_buf = matches!(
             cmdidx_T::from_raw(eap.cmdidx),
@@ -1828,7 +1828,7 @@ pub fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
             g_st().swap_exists_action = SEA_DIALOG;
         }
         let _ = do_buffer_ext(
-            if *eap.cmd == b's' as c_char {
+            if crate::memory::cstr_first_byte(eap.cmd) == b's' {
                 DOBUF_SPLIT
             } else {
                 DOBUF_GOTO
@@ -1843,7 +1843,7 @@ pub fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
             }) | (if skip_help_buf { DOBUF_SKIPHELP } else { 0 }),
         );
 
-        if g_st().swap_exists_action == SEA_QUIT && *eap.cmd == b's' as c_char {
+        if g_st().swap_exists_action == SEA_QUIT && crate::memory::cstr_first_byte(eap.cmd) == b's' {
             let mut cs: cleanup_T = cleanup_T::new();
             enter_cleanup(&mut cs);
             win_close(curwin_ptr(), true, false);
@@ -1921,7 +1921,7 @@ pub fn do_bufdel(
             do_buffer(command, DOBUF_CURRENT, FORWARD, 0, forceit);
         } else {
             if addr_count == 2 {
-                if *arg != NUL {
+                if !crate::memory::cstr_is_empty(arg) {
                     return ex_errmsg(e_trailing_arg, arg);
                 }
                 bnr = start_bnr;
@@ -1943,7 +1943,7 @@ pub fn do_bufdel(
                     }
                 } else {
                     arg = skipwhite(arg);
-                    if *arg == NUL {
+                    if crate::memory::cstr_is_empty(arg) {
                         break;
                     }
                     if !ascii_isdigit(*arg as c_int) {
@@ -3149,9 +3149,9 @@ pub fn buflist_findpat(
         let mut match_fnum = -1;
 
         if pattern_end == pattern.add(1)
-            && (*pattern == b'%' as c_char || *pattern == b'#' as c_char)
+            && (crate::memory::cstr_first_byte(pattern) == b'%' || crate::memory::cstr_first_byte(pattern) == b'#')
         {
-            match_fnum = if *pattern == b'%' as c_char {
+            match_fnum = if crate::memory::cstr_first_byte(pattern) == b'%' {
                 curbuf_mut().b_fnum
             } else {
                 curwin_mut().w_alt_fnum
@@ -3172,7 +3172,7 @@ pub fn buflist_findpat(
                 .collect();
             let pat = pat_vec.as_mut_ptr();
             let patend = pat.add(crate::memory::cstr_len(pat).saturating_sub(1));
-            let toggledollar = patend > pat && *patend == b'$' as c_char;
+            let toggledollar = patend > pat && crate::memory::cstr_first_byte(patend) == b'$';
 
             let mut find_listed = 1;
             loop {
@@ -3181,7 +3181,7 @@ pub fn buflist_findpat(
                         *patend = if attempt < 2 { NUL } else { b'$' as c_char };
                     }
                     let mut p = pat;
-                    if *p == b'^' as c_char && (attempt & 1) == 0 {
+                    if crate::memory::cstr_first_byte(p) == b'^' && (attempt & 1) == 0 {
                         p = p.add(1);
                     }
 
@@ -3268,12 +3268,12 @@ pub fn ExpandBufnames(
         let mut regmatch: regmatch_T = regmatch_T::new();
 
         if !fuzzy {
-            let patc: *const c_char = if *pat == b'^' as c_char && *pat.add(1) != NUL {
+            let patc: *const c_char = if crate::memory::cstr_first_byte(pat) == b'^' && *pat.add(1) != NUL {
                 let pc = cstr_to_cstring(pat.add(1));
                 let ptr = pc.as_ptr();
                 patc_owned = Some(pc);
                 ptr
-            } else if *pat == b'^' as c_char {
+            } else if crate::memory::cstr_first_byte(pat) == b'^' {
                 c"".as_ptr()
             } else {
                 pat
@@ -3783,7 +3783,7 @@ pub fn setfname(
         let mut file_id: FileID = FileID::new();
         let mut file_id_valid = false;
 
-        if ffname.is_null() || *ffname == NUL {
+        if crate::memory::cstr_is_empty(ffname) {
             buf.clear_fnames();
         } else {
             let Some(ffname_cstr) = fname_expand(&raw mut *buf, &raw mut ffname, &raw mut sfname) else {
@@ -3931,7 +3931,7 @@ fn otherfile_buf(
     mut file_id_valid: bool,
 ) -> bool {
     unsafe {
-        if ffname.is_null() || *ffname == NUL || buf.b_ffname.is_null() {
+        if crate::memory::cstr_is_empty(ffname) || buf.b_ffname.is_null() {
             return true;
         }
         if path_equal(ffname, buf.b_ffname, kPathCmpLiteral) {
@@ -4656,14 +4656,14 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
         let mut prev: c_int = -1;
         let mut s = ml_get(lnum);
         let mut line_end = s.add(ml_get_len(lnum) as usize);
-        while *s != NUL {
+        while !crate::memory::cstr_is_empty(s) {
             if prev == -1 || ascii_isspace(prev) {
                 if (prev != -1 && (crate::memory::cstr_prefix_bytes(s, 3) == &b"ex:"[..3]))
                     || (crate::memory::cstr_prefix_bytes(s, 3) == &b"vi:"[..3])
                 {
                     break;
                 }
-                if (*s == b'v' as c_char || *s == b'V' as c_char)
+                if (crate::memory::cstr_first_byte(s) == b'v' || crate::memory::cstr_first_byte(s) == b'V')
                     && *s.add(1) == b'i' as c_char
                     && *s.add(2) == b'm' as c_char
                 {
@@ -4681,8 +4681,8 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
                     }
 
                     let vim_version = i64::from(min_vim_version());
-                    if *e == b':' as c_char
-                        && (*s != b'V' as c_char
+                    if crate::memory::cstr_first_byte(e) == b':'
+                        && (crate::memory::cstr_first_byte(s) != b'V'
                             || (crate::memory::cstr_prefix_bytes(skipwhite(e.add(1)), 3) == &b"set"[..3]))
                         && (s3 == b':' as c_char
                             || (vim_version >= vers && (s3 as u8).is_ascii_digit())
@@ -4698,7 +4698,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
             s = s.add(1);
         }
 
-        if *s == NUL {
+        if crate::memory::cstr_is_empty(s) {
             return retval;
         }
 
@@ -4724,24 +4724,24 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
         let mut end = false;
         while !end {
             s = skipwhite(s);
-            if *s == NUL {
+            if crate::memory::cstr_is_empty(s) {
                 break;
             }
 
             e = s;
-            while *e != b':' as c_char && *e != NUL {
-                if *e == b'\\' as c_char && *e.add(1) == b':' as c_char {
+            while crate::memory::cstr_first_byte(e) != b':' && !crate::memory::cstr_is_empty(e) {
+                if crate::memory::cstr_first_byte(e) == b'\\' && *e.add(1) == b':' as c_char {
                     ptr::copy(e.add(1), e, line_end.offset_from(e.add(1)) as usize + 1);
                     line_end = line_end.sub(1);
                 }
                 e = e.add(1);
             }
-            if *e == NUL {
+            if crate::memory::cstr_is_empty(e) {
                 end = true;
             }
 
             if (crate::memory::cstr_prefix_bytes(s, 4) == &b"set "[..4]) || (crate::memory::cstr_prefix_bytes(s, 3) == &b"se "[..3]) {
-                if *e != b':' as c_char {
+                if crate::memory::cstr_first_byte(e) != b':' {
                     break;
                 }
                 end = true;
@@ -4749,7 +4749,7 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> bool {
             }
             *e = NUL;
 
-            if *s != NUL {
+            if !crate::memory::cstr_is_empty(s) {
                 let secure_save = g_st().secure;
                 let save_current_sctx = g_st().current_sctx;
                 g_st().current_sctx.sc_sid = SID_MODELINE;

@@ -418,7 +418,7 @@ fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
         let below_buffer = mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut mpos.lnum);
 
         if !below_buffer
-            && *(*wp).w_onebuf_opt.wo_stc != NUL
+            && !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stc)
             && (if (*wp).w_onebuf_opt.wo_rl != 0 {
                 wincol >= (*wp).w_view_width - win_col_off(wp)
             } else {
@@ -1487,7 +1487,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
             && !mouse_st().on_status_line
             && !mouse_st().on_sep_line
             && !mouse_st().on_winbar
-            && *(*wp).w_onebuf_opt.wo_stc != NUL
+            && !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stc)
             && (if (*wp).w_onebuf_opt.wo_rl != 0 {
                 col >= (*wp).w_view_width - win_col_off(wp)
             } else {
@@ -2047,7 +2047,7 @@ pub fn vcol2col(
         let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
         let mut ci = utf_ptr2StrCharInfo(line);
         let mut cur_vcol: c_int = 0;
-        while cur_vcol < vcol && *ci.ptr != NUL {
+        while cur_vcol < vcol && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_ClusterInfo(ci);
             let next_vcol = cur_vcol
                 + win_charsize(
@@ -2089,11 +2089,11 @@ fn scroll_line_len(lnum: linenr_T) -> colnr_T {
     unsafe {
         let mut col: colnr_T = 0;
         let mut line = ml_get(lnum);
-        if *line != NUL {
+        if !crate::memory::cstr_is_empty(line) {
             loop {
                 let numchar = win_chartabsize(curwin_mut(), line, col);
                 line = line.add(utfc_ptr2len(line) as usize);
-                if *line == NUL {
+                if crate::memory::cstr_is_empty(line) {
                     break;
                 }
                 col += numchar;

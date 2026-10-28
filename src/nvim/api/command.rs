@@ -222,7 +222,7 @@ fn parse_map_cmd(arg_str: *const c_char, arena: &mut Arena) -> Array {
         add_c(&mut args, string_obj(cstrn_as_string(lhs_start, lhs_len)));
 
         let rhs_start = skipwhite(lhs_end);
-        if *rhs_start != NUL {
+        if !crate::memory::cstr_is_empty(rhs_start) {
             let rhs_len = crate::memory::cstr_len(rhs_start);
             add_c(&mut args, string_obj(cstrn_as_string(rhs_start, rhs_len)));
         }
@@ -334,11 +334,11 @@ pub fn nvim_parse_cmd(
 
         if ea.cmdidx != CMD_SIZE
             && is_map_cmd(crate::cmdexpand::cmdidx_T::from_raw(ea.cmdidx))
-            && *ea.arg != NUL
+            && !crate::memory::cstr_is_empty(ea.arg)
         {
             args = parse_map_cmd(ea.arg, arena);
         } else if (ea.argt & EX_NOSPC) != 0 {
-            if *ea.arg != NUL {
+            if !crate::memory::cstr_is_empty(ea.arg) {
                 args = arena_array(arena, 1);
                 add_c(&mut args, string_obj(cstrn_as_string(ea.arg, length)));
             }
@@ -643,7 +643,7 @@ pub fn nvim_cmd(
                 break 'end;
             }
 
-            if *cmd.cmd.data == NUL
+            if crate::memory::cstr_is_empty(cmd.cmd.data)
                 && !((has_key(mask, KEYSET_OPTIDX_cmd__range) && cmd.range.size > 0)
                     || has_key(mask, KEYSET_OPTIDX_cmd__mods))
             {
@@ -676,12 +676,12 @@ pub fn nvim_cmd(
             }
 
             let range_only = ea.cmdidx == CMD_SIZE
-                && *cmd.cmd.data == NUL
+                && crate::memory::cstr_is_empty(cmd.cmd.data)
                 && has_key(mask, KEYSET_OPTIDX_cmd__range)
                 && cmd.range.size > 0;
 
             if ea.cmdidx == CMD_SIZE
-                && *cmd.cmd.data == NUL
+                && crate::memory::cstr_is_empty(cmd.cmd.data)
                 && (!has_key(mask, KEYSET_OPTIDX_cmd__range) || cmd.range.size == 0)
                 && has_key(mask, KEYSET_OPTIDX_cmd__mods)
             {
@@ -1069,7 +1069,7 @@ pub fn nvim_cmd(
                         KEYSET_OPTIDX_cmd_mods_filter__pattern,
                     ) {
                         cmod.cmod_filter_force = filter.force;
-                        if *filter.pattern.data != NUL || cmod.cmod_filter_force {
+                        if !crate::memory::cstr_is_empty(filter.pattern.data) || cmod.cmod_filter_force {
                             let pat = cstr_from_bytes(std::slice::from_raw_parts(
                                 filter.pattern.data.cast::<u8>(),
                                 filter.pattern.size,
@@ -1098,7 +1098,7 @@ pub fn nvim_cmd(
                 }
 
                 if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__split) {
-                    if *mods.split.data == NUL {
+                    if crate::memory::cstr_is_empty(mods.split.data) {
                         // Empty string
                     } else if (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"aboveleft"))
                         || (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"leftabove"))
@@ -1231,7 +1231,7 @@ pub fn nvim_cmd(
 
             if !error_set(err) && opts.output && capture_local.len() > 1 {
                 retv = cbuf_to_arena_str(arena, capture_local.as_ptr(), capture_local.len());
-                if *retv.data == b'\n' as c_char {
+                if crate::memory::cstr_first_byte(retv.data) == b'\n' {
                     retv.data = retv.data.add(1);
                     retv.size -= 1;
                 }
