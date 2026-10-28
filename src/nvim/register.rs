@@ -1139,7 +1139,7 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
         if orig_motion == MotionType::kMTCharWise
             && oap.start.col == 0
             && !oap.inclusive
-            && (!oap.is_VIsual || *opt_vars().p_sel == b'o' as c_char)
+            && (!oap.is_VIsual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
             && oap.end.col == 0
             && yanklines > 1
         {

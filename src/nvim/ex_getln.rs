@@ -1064,7 +1064,7 @@ fn command_line_enter(
             clear_cmdline_orig();
 
             g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl != 0
-                && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char
+                && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
                 && ((*s).firstc == b'/' as c_int || (*s).firstc == b'?' as c_int);
 
             msg_grid_validate();
@@ -1163,9 +1163,9 @@ fn command_line_enter(
                 let mut found_one = false;
 
                 for wp in for_all_windows_mut() {
-                    if *opt_vars().p_stl != NUL
+                    if !crate::memory::cstr_is_empty(opt_vars().p_stl)
                         || *wp.w_onebuf_opt.wo_stl != NUL
-                        || *opt_vars().p_wbr != NUL
+                        || !crate::memory::cstr_is_empty(opt_vars().p_wbr)
                         || *wp.w_onebuf_opt.wo_wbr != NUL
                     {
                         wp.w_redr_status = true;
@@ -1173,7 +1173,7 @@ fn command_line_enter(
                     }
                 }
 
-                if *opt_vars().p_tal != NUL {
+                if !crate::memory::cstr_is_empty(opt_vars().p_tal) {
                     g_st().redraw_tabline = true;
                     found_one = true;
                 }
@@ -3148,7 +3148,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
             std::mem::swap(&mut ea.line1, &mut ea.line2);
         }
 
-        let mut icm_split = *opt_vars().p_icm == b's' as c_char;
+        let mut icm_split = crate::memory::cstr_first_byte(opt_vars().p_icm) == b's';
         let mut cmdpreview_buf: *mut buf_T = ptr::null_mut();
         let mut cmdpreview_win: *mut win_T = ptr::null_mut();
 
@@ -3257,11 +3257,11 @@ fn do_autocmd_cmdlinechanged(firstc: c_int) {
 }
 
 fn command_line_changed(s: &mut CommandLineState) -> c_int {
-    unsafe {
+     {
         let prev_cmdpreview = g_st().cmdpreview;
         if s.firstc == b':' as c_int
             && g_st().current_sctx.sc_sid == 0
-            && *opt_vars().p_icm != NUL
+            && !crate::memory::cstr_is_empty(opt_vars().p_icm)
             && g_st().cmdline_star == 0
             && vpeekc_any() == 0
             && cmdpreview_may_show(s)
@@ -5044,8 +5044,8 @@ pub fn validate_cedit(args: &mut optset_T) -> *const c_char {
 
 /// The `'cedit'` option is changed.
 pub fn did_set_cedit(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        getln_st().cedit_key = if *opt_vars().p_cedit == NUL {
+     {
+        getln_st().cedit_key = if crate::memory::cstr_is_empty(opt_vars().p_cedit) {
             -1
         } else {
             string_to_key(opt_vars().p_cedit)

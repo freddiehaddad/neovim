@@ -1983,8 +1983,8 @@ pub fn do_join(
             curr_start = ml_get(curwin_mut().w_cursor.lnum + t);
             curr = curr_start;
             if t == 0 && setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-                (*curwin_mut().w_buffer).b_op_start.lnum = curwin_mut().w_cursor.lnum;
-                (*curwin_mut().w_buffer).b_op_start.col =
+                curwin_mut().buf_mut().b_op_start.lnum = curwin_mut().w_cursor.lnum;
+                curwin_mut().buf_mut().b_op_start.col =
                     crate::memory::cstr_len(curr) as colnr_T;
             }
             if remove_comments {
@@ -2111,8 +2111,8 @@ pub fn do_join(
             drop(newp_vec);
 
             if setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-                (*curwin_mut().w_buffer).b_op_end.lnum = curwin_mut().w_cursor.lnum;
-                (*curwin_mut().w_buffer).b_op_end.col = sumsize;
+                curwin_mut().buf_mut().b_op_end.lnum = curwin_mut().w_cursor.lnum;
+                curwin_mut().buf_mut().b_op_end.col = sumsize;
             }
 
             changed_lines(
@@ -3121,7 +3121,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                     min_pos = curwin_mut().w_cursor;
                     max_pos = g_st().Visual.start;
                 }
-                if *opt_vars().p_sel == b'e' as c_char && max_pos.col > 0 {
+                if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && max_pos.col > 0 {
                     max_pos.col -= 1;
                 }
 
@@ -3401,7 +3401,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
 }
 
 fn op_colon(oap: &mut oparg_T) {
-    unsafe {
+     {
         if oap.is_VIsual {
             stuffReadbuff(c"'<,'>");
         } else {
@@ -3441,9 +3441,9 @@ fn op_colon(oap: &mut oparg_T) {
             stuffReadbuff(get_equalprg());
             stuffReadbuff(c"\n");
         } else if oap.op_type == OP_FORMAT {
-            if *curbuf_mut().b_p_fp != NUL {
+            if !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp) {
                 stuffReadbuff(curbuf_mut().b_p_fp);
-            } else if *opt_vars().p_fp != NUL {
+            } else if !crate::memory::cstr_is_empty(opt_vars().p_fp) {
                 stuffReadbuff(opt_vars().p_fp);
             } else {
                 stuffReadbuff(c"fmt");
@@ -3529,7 +3529,7 @@ fn op_function(oap: &oparg_T) {
 }
 
 fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
-    unsafe {
+     {
         let mut start: colnr_T = 0;
         let mut end: colnr_T = 0;
 
@@ -3558,7 +3558,7 @@ fn get_op_vcol(oap: &mut oparg_T, initial: bool) {
 
         oap.start_vcol = oap.start_vcol.min(start);
         if end > oap.end_vcol {
-            if initial && *opt_vars().p_sel == b'e' as c_char && start >= 1 && start > oap.end_vcol {
+            if initial && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && start >= 1 && start > oap.end_vcol {
                 oap.end_vcol = start - 1;
             } else {
                 oap.end_vcol = end;
@@ -3629,7 +3629,7 @@ fn op_ins_visual(oap: &mut oparg_T, cap: &mut cmdarg_T) -> VisualIns {
 
 pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
     unsafe {
-        let oap = &mut *cap.oap;
+        let oap = cap.oap_mut();
         let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr != 0;
 
         let old_cursor = curwin_mut().w_cursor;
@@ -3671,7 +3671,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
 
                 if g_st().Visual.select
                     && g_st().Visual.mode == b'V' as c_int
-                    && (*cap.oap).op_type != OP_DELETE
+                    && cap.oap_mut().op_type != OP_DELETE
                 {
                     if lt(g_st().Visual.start, curwin_mut().w_cursor) {
                         g_st().Visual.start.col = 0;
@@ -3742,7 +3742,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                 oap.start = curwin_mut().w_cursor;
             }
 
-            check_pos(&mut *curwin_mut().w_buffer, &mut oap.end);
+            check_pos(curwin_mut().buf_mut(), &mut oap.end);
             oap.line_count = oap.end.lnum - oap.start.lnum + 1;
 
             g_st().virtual_op = TriState::from(virtual_active(curwin_ptr()));
@@ -3795,7 +3795,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                         && (include_line_break || g_st().virtual_op == 0)
                     {
                         oap.inclusive = false;
-                        if *opt_vars().p_sel != b'o' as c_char
+                        if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o'
                             && op_on_lines(oap.op_type) == 0
                             && oap.end.lnum < curbuf_mut().b_ml.ml_line_count
                         {
@@ -3853,7 +3853,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                 && !oap.inclusive
                 && (cap.retval & CA_NO_ADJ_OP_END) == 0
                 && oap.end.col == 0
-                && (!oap.is_VIsual || *opt_vars().p_sel == b'o' as c_char)
+                && (!oap.is_VIsual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
                 && oap.line_count > 1
             {
                 oap.end_adjusted = true;
@@ -3996,7 +3996,7 @@ pub fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: bool) {
                 OP_FORMAT => {
                     if curbuf_mut().b_p_fex.cb_type() != kCallbackNone {
                         op_formatexpr(oap);
-                    } else if *opt_vars().p_fp != NUL || *curbuf_mut().b_p_fp != NUL {
+                    } else if !crate::memory::cstr_is_empty(opt_vars().p_fp) || !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp) {
                         op_colon(oap);
                     } else {
                         op_format(oap, false);

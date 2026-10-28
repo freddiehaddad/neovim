@@ -4288,7 +4288,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                 re_st().rex.reg_win
                             };
                             if op == 1 && col - 1 > t_st.val && col > 100 {
-                                let mut ts = (*(*wp).w_buffer).b_p_ts;
+                                let mut ts = (*wp).buf_mut().b_p_ts;
                                 if ts < 4 {
                                     ts = 4;
                                 }
@@ -4301,7 +4301,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                                     1
                                 };
                                 if REG_MULTI()
-                                    && (lnum <= 0 || lnum > (*(*wp).w_buffer).b_ml.ml_line_count)
+                                    && (lnum <= 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count)
                                 {
                                     lnum = 1;
                                 }

@@ -1508,7 +1508,7 @@ pub fn win_line(
             check_decor_providers = true;
 
             wlv.color_cols =
-                if !(*wp.w_buffer).terminal.is_null() || wp.w_p_cc_cols.is_empty() {
+                if !wp.buf_mut().terminal.is_null() || wp.w_p_cc_cols.is_empty() {
                     &[]
                 } else {
                     std::slice::from_raw_parts(wp.w_p_cc_cols.as_ptr(), wp.w_p_cc_cols.len())
@@ -1549,14 +1549,14 @@ pub fn win_line(
                         }
                     }
                     if g_st().Visual.mode != b'V' as c_int && lnum == (*bot).lnum {
-                        if *opt_vars().p_sel == b'e' as c_char && (*bot).col == 0 && (*bot).coladd == 0 {
+                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && (*bot).col == 0 && (*bot).coladd == 0 {
                             wlv.fromcol = -10;
                             wlv.tocol = MAXCOL;
                         } else if (*bot).col == MAXCOL {
                             wlv.tocol = MAXCOL;
                         } else {
                             let mut pos = *bot;
-                            if *opt_vars().p_sel == b'e' as c_char {
+                            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                                 getvvcol(
                                     &raw mut *wp,
                                     &mut pos,
@@ -1757,7 +1757,7 @@ pub fn win_line(
             spv.spv_checked_lnum = 0;
 
             nextline[SPWORDLEN] = NUL;
-            if lnum < (*wp.w_buffer).b_ml.ml_line_count {
+            if lnum < wp.buf_mut().b_ml.ml_line_count {
                 let line = ml_get_buf(wp.w_buffer, lnum + 1);
                 spell_cat_line(nextline_ptr.add(SPWORDLEN), line, SPWORDLEN as c_int);
             }
@@ -2003,9 +2003,9 @@ pub fn win_line(
         let mut leftcols_width: c_int = 0;
 
         let mut term_attrs = [0 as c_int; TERM_ATTRS_MAX];
-        if !(*wp.w_buffer).terminal.is_null() {
+        if !wp.buf_mut().terminal.is_null() {
             terminal_get_line_attributes(
-                &mut *(*wp.w_buffer).terminal,
+                &mut *wp.buf_mut().terminal,
                 lnum,
                 (&raw mut term_attrs).cast::<c_int>(),
             );
@@ -2013,7 +2013,7 @@ pub fn win_line(
         }
 
         let may_have_inline_virt =
-            !has_foldtext && buf_meta_total(&*wp.w_buffer, kMTMetaInline) > 0;
+            !has_foldtext && buf_meta_total(wp.buf_mut(), kMTMetaInline) > 0;
         let mut has_virt_line = false;
         let mut virt_line_flags: c_int = 0;
         let mut virt_line_index: c_int = 0;
@@ -2666,7 +2666,7 @@ pub fn win_line(
                             wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
                         }
 
-                        if !(*wp.w_buffer).terminal.is_null() {
+                        if !wp.buf_mut().terminal.is_null() {
                             wlv.char_attr = hl_combine_attr(
                                 if (wlv.vcol as usize) < TERM_ATTRS_MAX {
                                     term_attrs[wlv.vcol as usize]
@@ -2734,8 +2734,8 @@ pub fn win_line(
                             if mb_c == c_int::from(TAB) && wlv.n_extra + wlv.col > view_width {
                                 wlv.n_extra = tabstop_padding(
                                     wlv.vcol,
-                                    (*wp.w_buffer).b_p_ts,
-                                    &(*wp.w_buffer).b_p_vts_array,
+                                    wp.buf_mut().b_p_ts,
+                                    &wp.buf_mut().b_p_vts_array,
                                 ) - 1;
                             }
                             wlv.sc_extra =
@@ -2858,8 +2858,8 @@ pub fn win_line(
                             }
                             tab_len = tabstop_padding(
                                 vcol_adjusted,
-                                (*wp.w_buffer).b_p_ts,
-                                &(*wp.w_buffer).b_p_vts_array,
+                                wp.buf_mut().b_p_ts,
+                                &wp.buf_mut().b_p_vts_array,
                             ) - 1;
 
                             if wp.w_onebuf_opt.wo_lbr == 0 || wp.w_onebuf_opt.wo_list == 0 {
@@ -3233,7 +3233,7 @@ pub fn win_line(
                         || wlv.line_attr_lowprio != 0
                         || wlv.line_attr != 0
                         || wlv.diff_hlf != 0
-                        || !(*wp.w_buffer).terminal.is_null()
+                        || !wp.buf_mut().terminal.is_null()
                     {
                         let mut rightmost_vcol = get_rightmost_vcol(wp, wlv.color_cols);
                         let cuc_attr = win_hl_attr(&raw mut *wp, HLF_CUC);
@@ -3253,7 +3253,7 @@ pub fn win_line(
                         let base_attr = hl_combine_attr(wlv.line_attr_lowprio, diff_attr);
                         if base_attr != 0
                             || wlv.line_attr != 0
-                            || !(*wp.w_buffer).terminal.is_null()
+                            || !wp.buf_mut().terminal.is_null()
                         {
                             rightmost_vcol = c_int::MAX;
                         }
@@ -3276,7 +3276,7 @@ pub fn win_line(
                                 col_attr = hl_combine_attr(col_attr, mc_attr);
                             }
 
-                            if !(*wp.w_buffer).terminal.is_null()
+                            if !wp.buf_mut().terminal.is_null()
                                 && (wlv.vcol as usize) < TERM_ATTRS_MAX
                             {
                                 col_attr = hl_combine_attr(col_attr, term_attrs[wlv.vcol as usize]);

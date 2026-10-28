@@ -296,7 +296,7 @@ pub fn win_config_float(wp: &mut win_T, mut fconfig: WinConfig) {
                 if wp.w_config.bufpos.lnum >= 0 {
                     let mut pos = pos_T {
                         lnum: (wp.w_config.bufpos.lnum + 1)
-                            .min((*(*parent).w_buffer).b_ml.ml_line_count),
+                            .min((*parent).buf_mut().b_ml.ml_line_count),
                         col: wp.w_config.bufpos.col,
                         coladd: 0,
                     };
@@ -561,15 +561,15 @@ pub fn win_float_update_preview(wp: &mut win_T) {
         }
 
         // Title is the previewed file's name, only known once it is loaded.
-        if wp.w_config.border && !(*wp.w_buffer).b_fname.is_null() {
+        if wp.w_config.border && !wp.buf_mut().b_fname.is_null() {
             let mut dirname = [0 as c_char; MAXPATHL];
             os_dirname(dirname.as_mut_ptr(), MAXPATHL);
-            shorten_buf_fname(&mut *wp.w_buffer, dirname.as_mut_ptr(), 0);
+            shorten_buf_fname(wp.buf_mut(), dirname.as_mut_ptr(), 0);
 
             wp.w_config.title_chunks.clear();
             let mut err = error_init();
             parse_bordertext(
-                cstr_as_obj((*wp.w_buffer).b_fname),
+                cstr_as_obj(wp.buf_mut().b_fname),
                 kBorderTextTitle,
                 &mut wp.w_config,
                 &mut err,
@@ -596,7 +596,7 @@ pub fn win_float_update_preview(wp: &mut win_T) {
         };
 
         // If a dimension is not given in 'previewpopup', autosize to the content.
-        let last: linenr_T = (*wp.w_buffer).b_ml.ml_line_count;
+        let last: linenr_T = wp.buf_mut().b_ml.ml_line_count;
         if want_w == 0 {
             want_w = win_max_displaywidth(&mut *wp, 1, last, g_st().Columns).max(1);
         }
@@ -659,7 +659,7 @@ pub fn win_previewpopup_config(value: *const c_char, config: &mut WinConfig) -> 
         let mut border: *mut c_char = ptr::null_mut();
         if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__border) {
             border = (*v).border.as_mut_ptr();
-        } else if *opt_vars().p_winborder != NUL {
+        } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder) {
             border = opt_vars().p_winborder;
         }
         if !border.is_null() {

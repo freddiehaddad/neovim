@@ -699,7 +699,7 @@ pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> 
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
 pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -> c_int {
-    unsafe {
+     {
         let mut wait_time: proftime_T = 0;
 
         if opt_vars().p_verbose > 3 {
@@ -719,7 +719,7 @@ pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -
             prof_child_enter(&mut wait_time);
         }
 
-        let retval = if *opt_vars().p_sh == NUL {
+        let retval = if crate::memory::cstr_is_empty(opt_vars().p_sh) {
             emsg(gettext(e_shellempty));
             -1
         } else {
@@ -1239,13 +1239,13 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
 }
 
 fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
-    unsafe {
-        if *opt_vars().p_sxq == NUL {
+     {
+        if crate::memory::cstr_is_empty(opt_vars().p_sxq) {
             return crate::memory::cstr_to_cstring(cmd);
         }
 
         let sxq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_sxq);
-        let owned_ecmd = if *opt_vars().p_sxe != NUL && sxq_bytes == b"(" {
+        let owned_ecmd = if !crate::memory::cstr_is_empty(opt_vars().p_sxe) && sxq_bytes == b"(" {
             Some(vim_strsave_escaped_ext(cmd, opt_vars().p_sxe, b'^' as c_char, false))
         } else {
             None

@@ -1192,7 +1192,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
         }
 
         if retval == NOTDONE
-            && *curbuf_mut().b_p_ft == NUL
+            && crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
             && !curbuf_mut().b_ffname.is_null()
             && after_pathsep(
                 curbuf_mut().b_ffname,
@@ -2254,7 +2254,7 @@ fn do_buffer_ext(
             }
 
             while buf == g_st().curbuf
-                && !(win_locked(curwin_mut()) != 0 || (*curwin_mut().w_buffer).b_locked > 0)
+                && !(win_locked(curwin_mut()) != 0 || curwin_mut().buf_mut().b_locked > 0)
                 && (is_ctx_win(g_st().lastwin) || !last_window(curwin_ptr()))
             {
                 if !win_close(curwin_ptr(), false, false) {
@@ -2569,7 +2569,7 @@ fn enter_buffer(buf: *mut buf_T) {
         }
 
         if !curwin_mut().w_buffer.is_null() {
-            (*curwin_mut().w_buffer).b_nwindows -= 1;
+            curwin_mut().buf_mut().b_nwindows -= 1;
         }
 
         curwin_mut().w_buffer = buf;
@@ -2599,7 +2599,7 @@ fn enter_buffer(buf: *mut buf_T) {
         curwin_mut().w_valid = 0;
 
         if curbuf_mut().b_ml.ml_mfp.is_none() {
-            if *curbuf_mut().b_p_ft == NUL {
+            if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
                 curbuf_mut().b_did_filetype = false;
             }
             open_buffer(false, None, 0);
@@ -4169,7 +4169,7 @@ pub fn maketitle() {
                 maxlen = ((opt_vars().p_titlelen * i64::from(g_st().Columns) / 100) as c_int).max(10);
             }
 
-            if *opt_vars().p_titlestring != NUL {
+            if !crate::memory::cstr_is_empty(opt_vars().p_titlestring) {
                 if (g_st().stl_syntax & STL_IN_TITLE) != 0 {
                     build_stl_str_hl(
                         curwin_ptr(),
@@ -4222,7 +4222,7 @@ pub fn maketitle() {
 
         if opt_vars().p_icon != 0 {
             icon_str = buf.as_mut_ptr();
-            if *opt_vars().p_iconstring != NUL {
+            if !crate::memory::cstr_is_empty(opt_vars().p_iconstring) {
                 if (g_st().stl_syntax & STL_IN_ICON) != 0 {
                     build_stl_str_hl(
                         curwin_ptr(),
@@ -4307,7 +4307,7 @@ pub fn free_titles() {
 
 /// Get relative cursor position in window into `buf[]`.
 pub fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
-    unsafe {
+     {
         if buflen < 3 {
             return 0;
         }
@@ -4317,7 +4317,7 @@ pub fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
         if wp.w_topline == 1 && wp.w_topfill >= 1 {
             above = 0;
         }
-        let below = (*wp.w_buffer).b_ml.ml_line_count - wp.w_botline + 1;
+        let below = wp.buf_mut().b_ml.ml_line_count - wp.w_botline + 1;
         if below <= 0 {
             return vim_snprintf_safelen!(
                 buf,
@@ -4479,12 +4479,12 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
                 } else {
                     (*wp).w_width != g_st().Columns
                 };
-                if ((*(*wp).w_buffer).b_nwindows > 1
+                if ((*wp).buf_mut().b_nwindows > 1
                     || (*wp).w_floating
                     || size_mismatch
                     || (had_tab > 0 && wp != g_st().firstwin))
                     && g_st().firstwin != g_st().lastwin
-                    && !(win_locked(&mut *wp) != 0 || (*(*wp).w_buffer).b_locked > 0)
+                    && !(win_locked(&mut *wp) != 0 || (*wp).buf_mut().b_locked > 0)
                     && !is_ctx_win(wp)
                 {
                     if !win_close(wp, false, false) {
@@ -4591,14 +4591,14 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
 
         let mut wp = g_st().lastwin;
         while open_wins > count {
-            let r = (buf_hide(&*(*wp).w_buffer)
-                || !buf_is_changed(&*(*wp).w_buffer)
-                || autowrite(&mut *(*wp).w_buffer, false))
+            let r = (buf_hide((*wp).buf_mut())
+                || !buf_is_changed((*wp).buf_mut())
+                || autowrite((*wp).buf_mut(), false))
                 && !is_ctx_win(wp);
             if !win_valid(wp) {
                 wp = g_st().lastwin;
             } else if r {
-                win_close(wp, !buf_hide(&*(*wp).w_buffer), false);
+                win_close(wp, !buf_hide((*wp).buf_mut()), false);
                 open_wins -= 1;
                 wp = g_st().lastwin;
             } else {

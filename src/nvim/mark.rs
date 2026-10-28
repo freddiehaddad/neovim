@@ -2119,7 +2119,7 @@ pub fn set_last_cursor(win: *mut win_T) {
     unsafe {
         if !(*win).w_buffer.is_null() {
             reset_fmark(
-                &mut (*(*win).w_buffer).b_last_cursor,
+                &mut (*win).buf_mut().b_last_cursor,
                 (*win).w_cursor,
                 0,
                 INIT_FMARKV,

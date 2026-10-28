@@ -3017,7 +3017,7 @@ pub fn apply_autocmds_group(
             au_st().filechangeshell_busy = event == EVENT_FILECHANGEDSHELL;
             au_st().apply_autocmds_nesting += 1;
 
-            if event == EVENT_FILETYPE && *curbuf_mut().b_p_ft != NUL {
+            if event == EVENT_FILETYPE && !crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
                 curbuf_mut().b_did_filetype = true;
             }
 

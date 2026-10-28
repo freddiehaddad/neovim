@@ -2874,7 +2874,7 @@ fn jump_to_help_window(qi: &mut qf_info_T, newwin: bool, opened_window: &mut boo
             qf_find_help_win()
         };
 
-        if !wp.is_null() && (*(*wp).w_buffer).b_nwindows > 0 {
+        if !wp.is_null() && (*wp).buf_mut().b_nwindows > 0 {
             win_enter(wp, true);
         } else {
             let mut flags = WSP_HELP;
@@ -2934,7 +2934,7 @@ fn qf_goto_tabwin_with_file(fnum: c_int) -> bool {
     unsafe {
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_ptr(tab_firstwin(tp)) {
-                if (*(*wp).w_buffer).b_fnum == fnum {
+                if (*wp).buf_mut().b_fnum == fnum {
                     goto_tabpage_win(tp, wp);
                     return true;
                 }
@@ -2969,7 +2969,7 @@ fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: *mut qf
 
         if win.is_null() {
             for win2 in win_iter_ptr(tab_firstwin(curtab_mut())) {
-                if (*(*win2).w_buffer).b_fnum == qf_fnum {
+                if (*win2).buf_mut().b_fnum == qf_fnum {
                     win = win2;
                     break;
                 }
@@ -3004,7 +3004,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
         let mut win = curwin_ptr();
         let mut altwin: *mut win_T = ptr::null_mut();
         loop {
-            if (*(*win).w_buffer).b_fnum == qf_fnum {
+            if (*win).buf_mut().b_fnum == qf_fnum {
                 break;
             }
             if (*win).w_prev.is_null() {
@@ -4181,8 +4181,8 @@ pub fn ex_cbottom(eap: &mut exarg_T) {
         }
 
         let win = qf_find_win(&*qi);
-        if !win.is_null() && (*win).w_cursor.lnum != (*(*win).w_buffer).b_ml.ml_line_count {
-            qf_win_goto(win, (*(*win).w_buffer).b_ml.ml_line_count);
+        if !win.is_null() && (*win).w_cursor.lnum != (*win).buf_mut().b_ml.ml_line_count {
+            qf_win_goto(win, (*win).buf_mut().b_ml.ml_line_count);
         }
     }
 }
@@ -4206,7 +4206,7 @@ fn qf_win_pos_update(qi: &mut qf_info_T, old_qf_index: c_int) -> bool {
 
         let win = qf_find_win(qi);
         if !win.is_null()
-            && qf_index <= (*(*win).w_buffer).b_ml.ml_line_count
+            && qf_index <= (*win).buf_mut().b_ml.ml_line_count
             && old_qf_index != qf_index
         {
             (*win).w_redraw_top = old_qf_index.min(qf_index);
@@ -4659,8 +4659,8 @@ fn qf_jump_first(qi: &mut qf_info_T, save_qfid: c_uint, forceit: c_int) {
 }
 
 pub fn grep_internal(cmdidx: c_int) -> c_int {
-    unsafe {
-        let gp = if *curbuf_mut().b_p_gp == NUL {
+     {
+        let gp = if crate::memory::cstr_is_empty(curbuf_mut().b_p_gp) {
             opt_vars().p_gp
         } else {
             curbuf_mut().b_p_gp
@@ -4688,16 +4688,16 @@ fn make_get_auname(cmdidx: c_int) -> *const c_char {
 }
 
 fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::CString {
-    unsafe {
+     {
         let mut len = crate::memory::cstr_len(opt_vars().p_shq) * 2 + crate::memory::cstr_len(makecmd) + 1;
-        if *opt_vars().p_sp != NUL {
+        if !crate::memory::cstr_is_empty(opt_vars().p_sp) {
             len += crate::memory::cstr_len(opt_vars().p_sp) + crate::memory::cstr_len(fname) + 3;
         }
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
         vim_snprintf!(cmd, len, c"%s%s%s", opt_vars().p_shq, makecmd, opt_vars().p_shq);
 
-        if *opt_vars().p_sp != NUL {
+        if !crate::memory::cstr_is_empty(opt_vars().p_sp) {
             append_redir(cmd, len, opt_vars().p_sp, fname);
         }
 
@@ -4714,7 +4714,7 @@ fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::C
 
 pub fn ex_make(eap: &mut exarg_T) {
     unsafe {
-        let enc = if *curbuf_mut().b_p_menc != NUL {
+        let enc = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_menc) {
             curbuf_mut().b_p_menc
         } else {
             opt_vars().p_menc
@@ -4758,7 +4758,7 @@ pub fn ex_make(eap: &mut exarg_T) {
         incr_quickfix_busy();
 
         let errorformat = if eap.cmdidx != CMD_make && eap.cmdidx != CMD_lmake {
-            if *curbuf_mut().b_p_gefm != NUL {
+            if !crate::memory::cstr_is_empty(curbuf_mut().b_p_gefm) {
                 curbuf_mut().b_p_gefm
             } else {
                 opt_vars().p_gefm
@@ -4809,7 +4809,7 @@ pub fn ex_make(eap: &mut exarg_T) {
 
 fn get_mef_name() -> Option<std::ffi::CString> {
     unsafe {
-        if *opt_vars().p_mef == NUL {
+        if crate::memory::cstr_is_empty(opt_vars().p_mef) {
             let name = vim_tempname();
             if name.is_none() {
                 emsg(gettext(e_notmp));
@@ -5362,7 +5362,7 @@ pub fn ex_cfile(eap: &mut exarg_T) {
             set_option_direct(kOptErrorfile, cstr_as_obj(eap.arg), 0, 0);
         }
 
-        let enc = if *curbuf_mut().b_p_menc != NUL {
+        let enc = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_menc) {
             curbuf_mut().b_p_menc
         } else {
             opt_vars().p_menc
@@ -7117,7 +7117,7 @@ fn qf_free_stack(mut wp: *mut win_T, qi: &mut qf_info_T) {
             qi.qf_listcount = 0;
         } else if !qfwin.is_null() {
             let new_ll = qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as c_int);
-            (*new_ll).qf_bufnr = (*(*qfwin).w_buffer).b_fnum;
+            (*new_ll).qf_bufnr = (*qfwin).buf_mut().b_fnum;
 
             ll_free_all(&raw mut (*qfwin).w_llist_ref);
 
@@ -7673,7 +7673,7 @@ pub fn ex_helpgrep(eap: &mut exarg_T) {
         if opt_vars().p_cpo == empty_string_option.as_ptr().cast::<c_char>() {
             opt_vars().p_cpo = save_cpo;
         } else {
-            if *opt_vars().p_cpo == NUL {
+            if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
                 set_option_value_give_err(kOptCpoptions, cstr_as_obj(save_cpo), 0);
             }
             free_string_option(save_cpo);

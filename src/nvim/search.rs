@@ -383,7 +383,7 @@ pub fn search_regcomp(
         }
 
         srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl != 0
-            && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char
+            && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
         {
             Some(reverse_text(pat))
         } else {
@@ -1432,7 +1432,7 @@ pub fn do_search(
                     }
 
                     if curwin_mut().w_onebuf_opt.wo_rl != 0
-                        && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char
+                        && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
                     {
                         let rev = reverse_text(msgbuf);
                         msgbuflen = rev.as_bytes().len();
@@ -1752,7 +1752,7 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
             }
         }
 
-        (*cap.oap).inclusive = dir != BACKWARD;
+        cap.oap_mut().inclusive = dir != BACKWARD;
 
         let p = get_cursor_line_ptr();
         let mut col = curwin_mut().w_cursor.col;
@@ -2558,11 +2558,11 @@ pub fn showmatch(c: c_int) {
 }
 
 pub fn current_search(count: c_int, forward: bool) -> bool {
-    unsafe {
+     {
         let old_p_ws = opt_vars().p_ws;
         let save_VIsual = g_st().Visual.start;
 
-        if g_st().Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(g_st().Visual.start, curwin_mut().w_cursor) {
+        if g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && lt(g_st().Visual.start, curwin_mut().w_cursor) {
             dec_cursor();
         }
 
@@ -2639,8 +2639,8 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
                 if forward {
                     clearpos(&mut pos);
                 } else {
-                    pos.lnum = (*curwin_mut().w_buffer).b_ml.ml_line_count;
-                    pos.col = ml_get_len((*curwin_mut().w_buffer).b_ml.ml_line_count);
+                    pos.lnum = curwin_mut().buf_mut().b_ml.ml_line_count;
+                    pos.col = ml_get_len(curwin_mut().buf_mut().b_ml.ml_line_count);
                 }
             }
         }
@@ -2664,7 +2664,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
         g_st().Visual.active = true;
         g_st().Visual.mode = b'v' as c_int;
 
-        if *opt_vars().p_sel == b'e' as c_char {
+        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
             if forward && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
                 inc_cursor();
             } else if !forward && ltoreq(curwin_mut().w_cursor, g_st().Visual.start) {
@@ -2823,7 +2823,7 @@ fn cmdline_search_stat(
         let t_ptr = (&raw mut t).cast::<c_char>();
         let mut len: usize;
 
-        if curwin_mut().w_onebuf_opt.wo_rl != 0 && *curwin_mut().w_onebuf_opt.wo_rlc == b's' as c_char {
+        if curwin_mut().w_onebuf_opt.wo_rl != 0 && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's' {
             if stat.incomplete == 1 {
                 len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
             } else if stat.cnt > maxcount && stat.cur > maxcount {
@@ -3234,7 +3234,7 @@ pub fn find_pattern_in_path(
                 return;
             }
         }
-        let inc_opt = if *curbuf_mut().b_p_inc == NUL {
+        let inc_opt = if crate::memory::cstr_is_empty(curbuf_mut().b_p_inc) {
             opt_vars().p_inc
         } else {
             curbuf_mut().b_p_inc
@@ -3247,9 +3247,9 @@ pub fn find_pattern_in_path(
             }
             incl_regmatch.rm_ic = false;
         }
-        if type_ == FIND_DEFINE && (*curbuf_mut().b_p_def != NUL || *opt_vars().p_def != NUL) {
+        if type_ == FIND_DEFINE && (!crate::memory::cstr_is_empty(curbuf_mut().b_p_def) || !crate::memory::cstr_is_empty(opt_vars().p_def)) {
             def_regmatch.regprog = vim_regcomp(
-                if *curbuf_mut().b_p_def == NUL {
+                if crate::memory::cstr_is_empty(curbuf_mut().b_p_def) {
                     opt_vars().p_def
                 } else {
                     curbuf_mut().b_p_def
@@ -3729,7 +3729,7 @@ pub fn find_pattern_in_path(
                             } else {
                                 if l_g_do_tagpreview != 0 {
                                     curwin_save = curwin_ptr();
-                                    prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
+                                    prepare_tagpreview(true, !crate::memory::cstr_is_empty(opt_vars().p_pvp));
                                 }
                                 if action == ACTION_SPLIT {
                                     if !win_split(0, 0) {
@@ -3743,7 +3743,7 @@ pub fn find_pattern_in_path(
                                         if l_g_do_tagpreview != 0 {
                                             if !win_valid(curwin_save)
                                                 || !getfile_success(getfile(
-                                                    (*(*curwin_save).w_buffer).b_fnum,
+                                                    (*curwin_save).buf_mut().b_fnum,
                                                     ptr::null_mut(),
                                                     ptr::null_mut(),
                                                     true,

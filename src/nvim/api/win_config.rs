@@ -435,7 +435,7 @@ pub fn nvim_open_win(
                     }
                 }
             } else {
-                if (*curwin_mut().w_buffer).b_locked_split != 0 {
+                if curwin_mut().buf_mut().b_locked_split != 0 {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -1920,7 +1920,7 @@ fn parse_win_config(
                         break 'fail;
                     }
                 }
-            } else if *opt_vars().p_winborder != NUL
+            } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder)
                 && (wp.is_null() || !(*wp).w_floating)
                 && !parse_winborder(Some(&mut *fconfig), opt_vars().p_winborder, err)
             {

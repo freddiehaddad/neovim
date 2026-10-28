@@ -181,7 +181,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                     }
                 }
             }
-            if !wp.is_null() && (*(*wp).w_buffer).b_nwindows > 0 {
+            if !wp.is_null() && (*wp).buf_mut().b_nwindows > 0 {
                 win_enter(wp, true);
             } else {
                 let helpfd = os_fopen(opt_vars().p_hf, c"rb");
@@ -401,7 +401,7 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
     unsafe {
         let mut buf = [0u8; 3];
         let has_default_lang =
-            *opt_vars().p_hlg != NUL && (*opt_vars().p_hlg != b'e' as c_char || *opt_vars().p_hlg.add(1) != b'n' as c_char);
+            !crate::memory::cstr_is_empty(opt_vars().p_hlg) && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e' || *opt_vars().p_hlg.add(1) != b'n' as c_char);
         if has_default_lang {
             buf[0] = b'@';
             buf[1] = *opt_vars().p_hlg as u8;

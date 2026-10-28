@@ -199,7 +199,7 @@ pub fn init_charsize_arg(
 
         if lnum > 0
             && marktree_itr_get_filter(
-                &(*(*wp).w_buffer).b_marktree,
+                &(*wp).buf_mut().b_marktree,
                 lnum - 1,
                 0,
                 lnum,
@@ -230,10 +230,10 @@ pub fn init_charsize_arg_skip_cur_text(
     lnum: linenr_T,
     line: *mut c_char,
 ) -> CSType {
-    unsafe {
+     {
         let mut cstype = init_charsize_arg(csarg, &raw mut *wp, 0, line);
         csarg.skip_cur_text = true;
-        if lnum > 0 && (*wp.w_buffer).b_marktree.meta_root[kMTMetaInline] > 0 {
+        if lnum > 0 && wp.buf_mut().b_marktree.meta_root[kMTMetaInline] > 0 {
             csarg.virt_row = lnum - 1;
             cstype = kCharsizeRegular;
         }
@@ -337,7 +337,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                     }
                 }
                 marktree_itr_next_filter(
-                    &(*(*wp).w_buffer).b_marktree,
+                    &(*wp).buf_mut().b_marktree,
                     &mut csarg.iter,
                     csarg.virt_row + 1,
                     0,
@@ -528,8 +528,8 @@ fn charsize_fast_impl(
             CharSize {
                 width: tabstop_padding(
                     vcol,
-                    (*(*wp).w_buffer).b_p_ts,
-                    &(*(*wp).w_buffer).b_p_vts_array,
+                    (*wp).buf_mut().b_p_ts,
+                    &(*wp).buf_mut().b_p_vts_array,
                 ),
                 head: 0,
                 tail: 0,
@@ -776,7 +776,7 @@ pub fn getvcol(
                 && (g_st().State & MODE_NORMAL) != 0
                 && wp.w_onebuf_opt.wo_list == 0
                 && !virtual_active(wp)
-                && !(g_st().Visual.active && (*opt_vars().p_sel == b'e' as c_char || ltoreq(*pos, g_st().Visual.start)))
+                && !(g_st().Visual.active && (crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' || ltoreq(*pos, g_st().Visual.start)))
             {
                 *cursor.as_deref_mut().unwrap() = vcol + incr - 1;
             } else {
@@ -853,7 +853,7 @@ pub fn getvcols(
     right: &mut colnr_T,
     flags: c_int,
 ) {
-    unsafe {
+     {
         let mut from1: colnr_T = 0;
         let mut from2: colnr_T = 0;
         let mut to1: colnr_T = 0;
@@ -870,7 +870,7 @@ pub fn getvcols(
         *left = from1.min(from2);
 
         if to2 > to1 {
-            if *opt_vars().p_sel == b'e' as c_char && from2 > to1 {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && from2 > to1 {
                 *right = from2 - 1;
             } else {
                 *right = to2;
@@ -882,9 +882,9 @@ pub fn getvcols(
 }
 
 pub fn win_may_fill(wp: &mut win_T) -> bool {
-    unsafe {
+     {
         (wp.w_onebuf_opt.wo_diff != 0 && diffopt_filler())
-            || (*wp.w_buffer).b_marktree.meta_root[kMTMetaLines] != 0
+            || wp.buf_mut().b_marktree.meta_root[kMTMetaLines] != 0
     }
 }
 
@@ -1044,14 +1044,14 @@ pub fn plines_m_win(
     last: linenr_T,
     max: c_int,
 ) -> c_int {
-    unsafe {
+     {
         let mut count = 0;
         while first <= last && count < max {
             let mut next = first;
             count += plines_win_full(&raw mut *wp, first, Some(&mut next), None, false, false);
             first = next + 1;
         }
-        if first == (*wp.w_buffer).b_ml.ml_line_count + 1 {
+        if first == wp.buf_mut().b_ml.ml_line_count + 1 {
             count += win_get_fill(&raw mut *wp, first);
         }
         max.min(count)

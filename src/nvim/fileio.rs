@@ -1091,7 +1091,7 @@ pub fn readfile(
                             retval = FAIL;
                         }
 
-                        if retval == OK && !curbuf_mut().b_au_did_filetype && *curbuf_mut().b_p_ft != NUL
+                        if retval == OK && !curbuf_mut().b_au_did_filetype && !crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
                         {
                             apply_autocmds(
                                 EVENT_FILETYPE,
@@ -1510,7 +1510,7 @@ pub fn readfile(
             } else if curbuf_mut().b_help {
                 fenc_next = c"latin1".as_ptr().cast_mut();
                 fenc = c"utf-8".as_ptr().cast_mut();
-            } else if *opt_vars().p_fencs == NUL {
+            } else if crate::memory::cstr_is_empty(opt_vars().p_fencs) {
                 fenc = curbuf_mut().b_p_fenc;
             } else {
                 fenc_next = opt_vars().p_fencs;
@@ -1548,7 +1548,7 @@ pub fn readfile(
                     try_mac = 0;
                 } else if curbuf_mut().b_p_bin != 0 {
                     fileformat = EOL_UNIX;
-                } else if *opt_vars().p_ffs == NUL {
+                } else if crate::memory::cstr_is_empty(opt_vars().p_ffs) {
                     fileformat = get_fileformat(curbuf_mut());
                 } else {
                     fileformat = EOL_UNKNOWN;
@@ -2738,7 +2738,7 @@ pub fn readfile(
                         (eap.is_some()).then(||  { eap.unwrap() }),
                     );
 
-                    if !curbuf_mut().b_au_did_filetype && *curbuf_mut().b_p_ft != NUL {
+                    if !curbuf_mut().b_au_did_filetype && !crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
                         apply_autocmds(
                             EVENT_FILETYPE,
                             curbuf_mut().b_p_ft,
@@ -2749,7 +2749,7 @@ pub fn readfile(
                     }
 
                     if !did_bufrp
-                        && *curbuf_mut().b_p_ft == NUL
+                        && crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
                         && augroup_exists(c"filetypedetect")
                     {
                         apply_autocmds_group(
@@ -2855,11 +2855,11 @@ pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
 
 /// Set default or forced 'fileformat' and 'binary'.
 pub fn set_file_options(set_options: bool,eap: Option<&exarg_T>) {
-    unsafe {
+     {
         if set_options {
             if eap.is_some() && eap.unwrap().force_ff != 0 {
                 set_fileformat(get_fileformat_force(g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() })), OPT_LOCAL);
-            } else if *opt_vars().p_ffs != NUL {
+            } else if !crate::memory::cstr_is_empty(opt_vars().p_ffs) {
                 set_fileformat(default_fileformat(), OPT_LOCAL);
             }
         }
@@ -2955,7 +2955,7 @@ fn readfile_charconvert(
 
 /// Set the name of the current buffer.
 pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
-    unsafe {
+     {
         let buf = g_st().curbuf;
 
         if curbuf_mut().b_p_bl != 0 {
@@ -3006,7 +3006,7 @@ pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
             return false;
         }
 
-        if *curbuf_mut().b_p_ft == NUL {
+        if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
             if augroup_exists(c"filetypedetect") {
                 do_doautocmd(
                     c"filetypedetect BufRead",

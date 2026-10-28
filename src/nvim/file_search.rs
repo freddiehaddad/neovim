@@ -1133,13 +1133,13 @@ pub fn find_file_in_path(
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<ff_search_ctx_T>,
 ) -> Option<std::ffi::CString> {
-    unsafe {
+     {
         find_file_in_path_option(
             ptr,
             len,
             options,
             first,
-            if *curbuf_mut().b_p_path == NUL {
+            if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
                 opt_vars().p_path
             } else {
                 curbuf_mut().b_p_path

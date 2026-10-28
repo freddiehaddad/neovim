@@ -482,10 +482,10 @@ pub fn editing_arg_idx(win: &mut win_T) -> bool {
             return false;
         }
         let entry = warglist(&raw mut *win).add(idx as usize);
-        if (*win.w_buffer).b_fnum == (*entry).ae_fnum {
+        if win.buf_mut().b_fnum == (*entry).ae_fnum {
             return true;
         }
-        let ffname = (*win.w_buffer).b_ffname;
+        let ffname = win.buf_mut().b_ffname;
         !ffname.is_null() && path_equal(alist_name(&*entry), ffname, kPathCmpExpand | kPathCmpFull)
     }
 }
@@ -682,7 +682,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
             ptr::null_mut(),
             Some(&*eap),
             ECMD_LAST,
-            (if buf_hide(&*curwin_mut().w_buffer) {
+            (if buf_hide(curwin_mut().buf_mut()) {
                 ECMD_HIDE
             } else {
                 0
@@ -1084,7 +1084,7 @@ fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
                     ptr::null_mut(),
                     None,
                     ECMD_ONE,
-                    (if buf_hide(&*curwin_mut().w_buffer) || bufIsChanged(&mut *curwin_mut().w_buffer) {
+                    (if buf_hide(curwin_mut().buf_mut()) || bufIsChanged(curwin_mut().buf_mut()) {
                         ECMD_HIDE
                     } else {
                         0

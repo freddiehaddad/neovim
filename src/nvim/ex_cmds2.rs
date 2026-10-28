@@ -330,14 +330,14 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
         for wp in for_all_windows_mut() {
             if wp.w_buffer != g_st().curbuf {
-                add_bufnum(&mut bufnrs, (*wp.w_buffer).b_fnum);
+                add_bufnum(&mut bufnrs, wp.buf_mut().b_fnum);
             }
         }
 
         for tp in for_all_tabpages_ptr() {
             if tp != g_st().curtab {
                 for wp2 in win_iter_mut(first_win_in_tab(tp)) {
-                    add_bufnum(&mut bufnrs, (*wp2.w_buffer).b_fnum);
+                    add_bufnum(&mut bufnrs, wp2.buf_mut().b_fnum);
                 }
             }
         }

@@ -1046,7 +1046,7 @@ pub fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
 }
 
 fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
-    unsafe {
+     {
         if attrs.rgb_bg_color == -1 {
             attrs.rgb_bg_color = g_st().normal_bg;
         }
@@ -1056,7 +1056,7 @@ fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
         if attrs.rgb_sp_color == -1 {
             attrs.rgb_sp_color = g_st().normal_sp;
         }
-        let dark = *opt_vars().p_bg == b'd' as c_char;
+        let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
         if attrs.rgb_fg_color == -1 {
             attrs.rgb_fg_color = if dark { 0xFFFFFF } else { 0x000000 };
         }

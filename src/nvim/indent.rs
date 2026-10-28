@@ -1872,7 +1872,7 @@ pub fn get_lisp_indent() -> c_int {
 fn lisp_match(p: *const c_char) -> bool {
     unsafe {
         let mut buf = [0 as c_char; 512];
-        let mut word = if *curbuf_mut().b_p_lw != NUL {
+        let mut word = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
             curbuf_mut().b_p_lw
         } else {
             opt_vars().p_lispwords

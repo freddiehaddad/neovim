@@ -2760,8 +2760,8 @@ pub fn did_set_arabic(args: &mut optset_T) -> *const c_char {
                 changed_window_setting(&mut *win);
             }
 
-            (*(*win).w_buffer).b_p_iminsert = B_IMODE_NONE;
-            (*(*win).w_buffer).b_p_imsearch = B_IMODE_USE_INSERT;
+            (*win).buf_mut().b_p_iminsert = B_IMODE_NONE;
+            (*win).buf_mut().b_p_imsearch = B_IMODE_USE_INSERT;
         }
 
         errmsg
@@ -7126,8 +7126,8 @@ pub fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_T) -> *
 
 /// Get the value of 'equalprg', either the buffer-local one or the global one.
 pub fn get_equalprg() -> *mut c_char {
-    unsafe {
-        if *curbuf_mut().b_p_ep == NUL {
+     {
+        if crate::memory::cstr_is_empty(curbuf_mut().b_p_ep) {
             opt_vars().p_ep
         } else {
             curbuf_mut().b_p_ep
@@ -7570,7 +7570,7 @@ pub fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
 
                 if dont_do_help {
                     (*buf).b_p_isk = save_p_isk;
-                    if !opt_vars().p_vts.is_null() && *opt_vars().p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
+                    if !opt_vars().p_vts.is_null() && !crate::memory::cstr_is_empty(opt_vars().p_vts) && (*buf).b_p_vts_array.is_empty() {
                         tabstop_set(opt_vars().p_vts, &mut (*buf).b_p_vts_array, None);
                     } else {
                         (*buf).b_p_vts_array.clear();
@@ -7583,7 +7583,7 @@ pub fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     copy_opt_sctx(&mut *buf, kBufOptTabstop);
                     (*buf).b_p_vts = alloc_string_option(opt_vars().p_vts);
                     copy_opt_sctx(&mut *buf, kBufOptVartabstop);
-                    if !opt_vars().p_vts.is_null() && *opt_vars().p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
+                    if !opt_vars().p_vts.is_null() && !crate::memory::cstr_is_empty(opt_vars().p_vts) && (*buf).b_p_vts_array.is_empty() {
                         tabstop_set(opt_vars().p_vts, &mut (*buf).b_p_vts_array, None);
                     } else {
                         (*buf).b_p_vts_array.clear();
@@ -8291,7 +8291,7 @@ fn didset_options_sctx(opt_flags: c_int, opts: &[c_int]) {
 
 /// Check if backspacing over something is allowed.
 pub fn can_bs(what: c_int) -> bool {
-    unsafe {
+     {
         if what == BS_START && bt_prompt(g_st().curbuf) {
             return false;
         }
@@ -8300,7 +8300,7 @@ pub fn can_bs(what: c_int) -> bool {
             return false;
         }
 
-        if *opt_vars().p_bs == b'2' as c_char {
+        if crate::memory::cstr_first_byte(opt_vars().p_bs) == b'2' {
             return what != BS_NOSTOP;
         }
 
@@ -8569,7 +8569,7 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
 /// Return the effective 'scrolloff' value for the current window.
 pub fn get_scrolloff_value(wp: *mut win_T) -> i64 {
     unsafe {
-        if (g_st().State & MODE_TERMINAL) != 0 && !(*(*wp).w_buffer).terminal.is_null() {
+        if (g_st().State & MODE_TERMINAL) != 0 && !(*wp).buf_mut().terminal.is_null() {
             return 0;
         }
         if (*wp).w_onebuf_opt.wo_so < 0 {

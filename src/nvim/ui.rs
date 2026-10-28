@@ -638,7 +638,7 @@ pub fn ui_flush() {
                 size: 0,
             };
             let style = mode_style_array(&mut arena);
-            let enabled = *opt_vars().p_guicursor != NUL;
+            let enabled = !crate::memory::cstr_is_empty(opt_vars().p_guicursor);
             ui_call_mode_info_set(enabled, style);
             arena_mem_free(arena_finish(&mut arena));
             ui_state().pending_mode_info_update = false;
@@ -678,9 +678,9 @@ pub fn ui_flush() {
 }
 
 pub fn ui_check_mouse() {
-    unsafe {
+     {
         ui_state().has_mouse = false;
-        if *opt_vars().p_mouse == NUL {
+        if crate::memory::cstr_is_empty(opt_vars().p_mouse) {
             return;
         }
 

@@ -814,12 +814,12 @@ fn compl_shows_dir_backward() -> bool {
 
 /// Check that the 'dictionary' or 'thesaurus' option can be used.
 pub fn check_compl_option(dict_opt: bool) -> bool {
-    unsafe {
+     {
         let empty = if dict_opt {
-            *curbuf_mut().b_p_dict == NUL && *opt_vars().p_dict == NUL && curwin_mut().w_onebuf_opt.wo_spell == 0
+            crate::memory::cstr_is_empty(curbuf_mut().b_p_dict) && crate::memory::cstr_is_empty(opt_vars().p_dict) && curwin_mut().w_onebuf_opt.wo_spell == 0
         } else {
-            *curbuf_mut().b_p_tsr == NUL
-                && *opt_vars().p_tsr == NUL
+            crate::memory::cstr_is_empty(curbuf_mut().b_p_tsr)
+                && crate::memory::cstr_is_empty(opt_vars().p_tsr)
                 && curbuf_mut().b_p_tsrfu.cb_type() == kCallbackNone
                 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) == kCallbackNone
         };
@@ -3120,7 +3120,7 @@ fn ins_compl_next_buf(mut buf: *mut buf_T, flag: c_int) -> *mut buf_T {
                 };
                 insexp().next_buf_wp = next_wp;
                 if ptr::eq(next_wp, curwin_ptr())
-                    || (!(*(*next_wp).w_buffer).b_scanned && (*next_wp).w_config.focusable)
+                    || (!(*next_wp).buf_mut().b_scanned && (*next_wp).w_config.focusable)
                 {
                     break;
                 }
@@ -3925,7 +3925,7 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                     tv_dict_add_nr(
                         retdict,
                         c"preview_bufnr",
-                        varnumber_T::from((*(*wp).w_buffer).b_fnum),
+                        varnumber_T::from((*wp).buf_mut().b_fnum),
                     );
                 }
             }
@@ -4157,19 +4157,19 @@ fn get_next_include_file_completion(compl_type: c_int) {
 }
 
 fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dict_f: c_int) {
-    unsafe {
+     {
         if thesaurus_func_complete(compl_type) {
             expand_by_function(compl_type, compl_pattern_ptr(), ptr::null_mut());
         } else {
             let dict_arg = if !dict.is_null() {
                 dict
             } else if compl_type == CTRL_X_THESAURUS {
-                if *curbuf_mut().b_p_tsr == NUL {
+                if crate::memory::cstr_is_empty(curbuf_mut().b_p_tsr) {
                     opt_vars().p_tsr
                 } else {
                     curbuf_mut().b_p_tsr
                 }
-            } else if *curbuf_mut().b_p_dict == NUL {
+            } else if crate::memory::cstr_is_empty(curbuf_mut().b_p_dict) {
                 opt_vars().p_dict
             } else {
                 curbuf_mut().b_p_dict
@@ -4370,7 +4370,7 @@ fn get_next_filename_completion() {
         tilde_replace(compl_pattern_ptr(), &mut matches);
         #[cfg(windows)]
         {
-            if (*curbuf_mut().b_p_csl == NUL && opt_vars().p_ssl == 0) || *curbuf_mut().b_p_csl == b'b' as c_char {
+            if (crate::memory::cstr_is_empty(curbuf_mut().b_p_csl) && opt_vars().p_ssl == 0) || crate::memory::cstr_first_byte(curbuf_mut().b_p_csl) == b'b' {
                 for slot in &mut matches {
                     if slot.as_bytes().contains(&b'/') {
                         let bytes: Vec<u8> = slot

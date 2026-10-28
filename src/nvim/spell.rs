@@ -1153,7 +1153,7 @@ pub fn spell_move_to(
                 }
                 let empty_line = *skipwhite(line) == NUL;
                 crate::memory::cstr_cpy(buf, line);
-                if lnum < (*wp.w_buffer).b_ml.ml_line_count {
+                if lnum < wp.buf_mut().b_ml.ml_line_count {
                     spell_cat_line(
                         buf.add(crate::memory::cstr_len(buf)),
                         ml_get_buf(wp.w_buffer, lnum + 1),
@@ -1245,7 +1245,7 @@ pub fn spell_move_to(
                     } else if opt_vars().p_ws == 0 {
                         break;
                     } else {
-                        lnum = (*wp.w_buffer).b_ml.ml_line_count;
+                        lnum = wp.buf_mut().b_ml.ml_line_count;
                         wrapped = true;
                         if !shortmess(kShmSearch) {
                             give_warning(gettext(top_bot_msg), true, false);
@@ -1253,7 +1253,7 @@ pub fn spell_move_to(
                     }
                     capcol = -1;
                 } else {
-                    if lnum < (*wp.w_buffer).b_ml.ml_line_count {
+                    if lnum < wp.buf_mut().b_ml.ml_line_count {
                         lnum += 1;
                     } else if opt_vars().p_ws == 0 {
                         break;

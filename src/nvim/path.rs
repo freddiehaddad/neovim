@@ -1159,9 +1159,9 @@ fn expand_in_path(
     pattern: *mut c_char,
     flags: c_int,
 ) -> c_int {
-    unsafe {
+     {
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
-        let path_option = if *curbuf_mut().b_p_path == NUL {
+        let path_option = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
             opt_vars().p_path
         } else {
             curbuf_mut().b_p_path
@@ -1271,7 +1271,7 @@ pub fn gen_expand_wildcards_vec(
     unsafe {
         file.clear();
         let mut did_expand_in_path = false;
-        let path_option = if *curbuf_mut().b_p_path == NUL {
+        let path_option = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
             opt_vars().p_path
         } else {
             curbuf_mut().b_p_path
@@ -1383,14 +1383,14 @@ pub fn expand_wildcards_vec(
     files: &mut Vec<std::ffi::CString>,
     flags: c_int,
 ) -> bool {
-    unsafe {
+     {
         let retval = gen_expand_wildcards_vec(num_pat, pat, files, flags);
 
         if (flags & EW_KEEPALL) != 0 || !retval {
             return retval;
         }
 
-        if *opt_vars().p_wig != NUL {
+        if !crate::memory::cstr_is_empty(opt_vars().p_wig) {
             files.retain(|fi_cstr| {
                 let fi = fi_cstr.as_ptr().cast_mut();
                 let ffname = FullName_save(fi, false).unwrap_or_default();

@@ -186,12 +186,12 @@ fn win_id2win(argvars: &mut [typval_T]) -> c_int {
 }
 
 pub fn win_findbuf(argvars: &mut [typval_T], list: *mut list_T) {
-    unsafe {
+     {
         let bufnr = tv_get_number(&argvars[0]) as c_int;
 
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(first_win_in_tab(tp)) {
-                if (*wp.w_buffer).b_fnum == bufnr {
+                if wp.buf_mut().b_fnum == bufnr {
                     tv_list_append_number(list, wp.handle as varnumber_T);
                 }
             }
@@ -434,7 +434,7 @@ fn get_win_info(wp: &mut win_T, tpnr: i16, winnr: i16) -> *mut dict_T {
         tv_dict_add_nr(
             dict,
             c"bufnr",
-            (*wp.w_buffer).b_fnum as varnumber_T,
+            wp.buf_mut().b_fnum as varnumber_T,
         );
         tv_dict_add_nr(
             dict,
@@ -874,7 +874,7 @@ pub fn f_winbufnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
             -1
         } else {
-            (*(*wp).w_buffer).b_fnum as varnumber_T
+            (*wp).buf_mut().b_fnum as varnumber_T
         });
     }
 }

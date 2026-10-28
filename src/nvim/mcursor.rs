@@ -1247,7 +1247,7 @@ pub fn mc_vsel_refresh() {
                 &mut s,
                 &mut e,
                 r_type,
-                *opt_vars().p_sel == b'e' as c_char,
+                crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e',
                 0,
                 &mut inclusive,
                 &mut oa,
@@ -1580,9 +1580,9 @@ fn mc_zq_run(
 }
 
 pub fn mc_zq_start(cap: &mut cmdarg_T) {
-    unsafe {
-        (*cap.oap).from_visual = g_st().Visual.active;
-        (*cap.oap).motion_type = kMTUnknown;
+     {
+        cap.oap_mut().from_visual = g_st().Visual.active;
+        cap.oap_mut().motion_type = kMTUnknown;
         if g_st().Visual.active {
             atom_visual_reset();
             end_visual_mode();

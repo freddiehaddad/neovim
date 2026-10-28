@@ -436,7 +436,7 @@ pub fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) ->
         curwin_mut().w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
 
-        if *opt_vars().p_sel == b'e' as c_char
+        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
             && g_st().Visual.active
             && g_st().Visual.mode == b'v' as c_int
             && g_st().Visual.select_exclu_adj
@@ -601,7 +601,7 @@ pub fn current_word(
     include: bool,
     bigword: bool,
 ) -> bool {
-    unsafe {
+     {
         let mut start_pos = pos_T {
             lnum: 0,
             col: 0,
@@ -613,7 +613,7 @@ pub fn current_word(
         tobj_st().CLS_BIGWORD = bigword;
         clearpos(&mut start_pos);
 
-        if g_st().Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(g_st().Visual.start, curwin_mut().w_cursor) {
+        if g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && lt(g_st().Visual.start, curwin_mut().w_cursor) {
             dec_cursor();
         }
 
@@ -699,7 +699,7 @@ pub fn current_word(
         }
 
         if g_st().Visual.active {
-            if *opt_vars().p_sel == b'e' as c_char && inclusive && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && inclusive && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
                 inc_cursor();
             }
             if g_st().Visual.mode == b'V' as c_int {
@@ -764,7 +764,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
         if g_st().Visual.active {
             g_st().Visual.start = start_pos;
             curwin_mut().w_cursor = end_pos;
-            if *opt_vars().p_sel == b'e' as c_char && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && ltoreq(g_st().Visual.start, curwin_mut().w_cursor) {
                 inc_cursor();
             }
             g_st().Visual.mode = b'v' as c_int;
@@ -783,7 +783,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
 
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
 pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> bool {
-    unsafe {
+     {
         let mut start_pos = curwin_mut().w_cursor;
         let mut pos = start_pos;
         findsent(FORWARD, 1);
@@ -831,7 +831,7 @@ pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> bool 
 
             if g_st().Visual.active {
                 if !equalpos(start_pos, curwin_mut().w_cursor) {
-                    if *opt_vars().p_sel == b'e' as c_char {
+                    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                         curwin_mut().w_cursor.col += 1;
                     }
                     g_st().Visual.start = start_pos;
@@ -910,7 +910,7 @@ pub fn current_sent(oap: &mut oparg_T, mut count: c_int, include: bool) -> bool 
                 count *= 2;
             }
             findsent_forward(count, at_start_sent);
-            if *opt_vars().p_sel == b'e' as c_char {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 curwin_mut().w_cursor.col += 1;
             }
         }
@@ -1048,7 +1048,7 @@ pub fn current_block(
         }
 
         if g_st().Visual.active {
-            if *opt_vars().p_sel == b'e' as c_char {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 inc(&mut curwin_mut().w_cursor);
             }
             if sol && gchar_cursor() != c_int::from(NUL) {
@@ -1139,7 +1139,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
         let old_pos = curwin_mut().w_cursor;
         let mut old_end = curwin_mut().w_cursor;
         let mut old_start = old_end;
-        if !g_st().Visual.active || *opt_vars().p_sel == b'e' as c_char {
+        if !g_st().Visual.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
             decl(&mut old_end);
         }
 
@@ -1279,7 +1279,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
             if g_st().Visual.active {
                 if lt(end_pos, start_pos) {
                     curwin_mut().w_cursor = start_pos;
-                } else if *opt_vars().p_sel == b'e' as c_char {
+                } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                     inc_cursor();
                 }
                 g_st().Visual.start = start_pos;
@@ -1552,7 +1552,7 @@ pub fn current_quote(
         let mut restore_vis_bef = false;
 
         let abort_search = |did_exclusive_adj: bool, restore_vis_bef: bool| -> bool {
-            if g_st().Visual.active && *opt_vars().p_sel == b'e' as c_char {
+            if g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 if did_exclusive_adj {
                     inc_cursor();
                 }
@@ -1570,7 +1570,7 @@ pub fn current_quote(
 
             vis_bef_curs = lt(g_st().Visual.start, curwin_mut().w_cursor);
             vis_empty = equalpos(g_st().Visual.start, curwin_mut().w_cursor);
-            if *opt_vars().p_sel == b'e' as c_char {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 if vis_bef_curs {
                     dec_cursor();
                     did_exclusive_adj = true;
@@ -1724,7 +1724,7 @@ pub fn current_quote(
         }
         if g_st().Visual.active {
             if vis_empty || vis_bef_curs {
-                if *opt_vars().p_sel != b'e' as c_char {
+                if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e' {
                     dec_cursor();
                 }
             } else {

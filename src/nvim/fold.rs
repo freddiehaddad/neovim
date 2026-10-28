@@ -147,9 +147,9 @@ pub fn copyFoldingState(wp_from: &mut win_T, wp_to: &mut win_T) {
 
 /// True if there may be folded lines in window `win`.
 pub fn hasAnyFolding(win: &mut win_T) -> c_int {
-    unsafe {
+     {
         c_int::from(
-            (*win.w_buffer).terminal.is_null()
+            win.buf_mut().terminal.is_null()
                 && win.w_onebuf_opt.wo_fen != 0
                 && !mc_replaying()
                 && (!foldmethodIsManual(win) || !win.w_folds.is_empty()),
@@ -243,7 +243,7 @@ pub fn hasFoldingWin(
             return false;
         }
 
-        last = last.min((*(*win).w_buffer).b_ml.ml_line_count);
+        last = last.min((*win).buf_mut().b_ml.ml_line_count);
         if !lastp.is_null() {
             *lastp = last;
         }
@@ -444,8 +444,8 @@ fn newFoldLevelWin(wp: &mut win_T) {
 
 /// Apply 'foldlevel' to all folds that don't contain the cursor.
 pub fn foldCheckClose() {
-    unsafe {
-        if *opt_vars().p_fcl == NUL {
+     {
+        if crate::memory::cstr_is_empty(opt_vars().p_fcl) {
             return;
         }
 
@@ -886,7 +886,7 @@ pub fn foldAdjustVisual() {
         }
 
         (*end).col = ml_get_len((*end).lnum);
-        if (*end).col > 0 && *opt_vars().p_sel == b'o' as c_char {
+        if (*end).col > 0 && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o' {
             (*end).col -= 1;
         }
         mb_adjust_cursor();
@@ -1347,20 +1347,20 @@ fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: 
 }
 
 fn deleteFoldMarkers(wp: &mut win_T, fp: &mut fold_T, recursive: bool, lnum_off: linenr_T) {
-    unsafe {
+     {
         if recursive {
             for child in &mut fp.fd_nested {
                 deleteFoldMarkers(wp, child, true, lnum_off + fp.fd_top);
             }
         }
         foldDelMarker(
-            &mut *wp.w_buffer,
+            wp.buf_mut(),
             fp.fd_top + lnum_off,
             wp.w_onebuf_opt.wo_fmr,
             fold_st().foldstartmarkerlen,
         );
         foldDelMarker(
-            &mut *wp.w_buffer,
+            wp.buf_mut(),
             fp.fd_top + lnum_off + fp.fd_len - 1,
             fold_st().foldendmarker,
             fold_st().foldendmarkerlen,
@@ -1656,7 +1656,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
 
         if (*wp).w_foldinvalid {
             top = 1;
-            bot = (*(*wp).w_buffer).b_ml.ml_line_count;
+            bot = (*wp).buf_mut().b_ml.ml_line_count;
             (*wp).w_foldinvalid = false;
 
             setSmallMaybe(&mut (*wp).w_folds);
@@ -1671,7 +1671,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
             bot += g_st().diff_context;
         }
 
-        top = top.min((*(*wp).w_buffer).b_ml.ml_line_count);
+        top = top.min((*wp).buf_mut().b_ml.ml_line_count);
 
         fold_st().fold_changed = false;
         let mut fline = fline_T {
@@ -1770,12 +1770,12 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
 
         let mut start = fline.lnum;
         let mut end = bot;
-        if start > end && end < (*(*wp).w_buffer).b_ml.ml_line_count {
+        if start > end && end < (*wp).buf_mut().b_ml.ml_line_count {
             end = start;
         }
 
         while !g_st().got_int {
-            if fline.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
+            if fline.lnum > (*wp).buf_mut().b_ml.ml_line_count {
                 break;
             }
             if fline.lnum > end {
@@ -1819,7 +1819,7 @@ fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
                 );
                 start = fline.lnum;
             } else {
-                if fline.lnum == (*(*wp).w_buffer).b_ml.ml_line_count {
+                if fline.lnum == (*wp).buf_mut().b_ml.ml_line_count {
                     break;
                 }
                 fline.lnum += 1;

@@ -1249,7 +1249,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
         }
 
         if goto_do_complete {
-            if *curbuf_mut().b_p_cpt == NUL
+            if crate::memory::cstr_is_empty(curbuf_mut().b_p_cpt)
                 && (ctrl_x_mode_normal() || ctrl_x_mode_whole_line())
                 && !compl_status_local()
             {
@@ -2396,9 +2396,9 @@ pub fn cursor_up(n: linenr_T, upd_topline: bool) -> bool {
 
 /// Move the cursor down `n` lines in window `wp`.
 pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
-    unsafe {
+     {
         let mut lnum = wp.w_cursor.lnum;
-        let line_count = (*wp.w_buffer).b_ml.ml_line_count;
+        let line_count = wp.buf_mut().b_ml.ml_line_count;
 
         if lnum + n >= line_count {
             lnum = line_count;
@@ -2435,7 +2435,7 @@ pub fn cursor_down_inner(wp: &mut win_T, mut n: c_int, skip_conceal: bool) {
 }
 
 pub fn cursor_down(n: c_int, upd_topline: bool) -> bool {
-    unsafe {
+     {
         let mut lnum = curwin_mut().w_cursor.lnum;
         hasFoldingWin(
             curwin_ptr(),
@@ -2445,7 +2445,7 @@ pub fn cursor_down(n: c_int, upd_topline: bool) -> bool {
             true,
             None,
         );
-        if n > 0 && lnum >= (*curwin_mut().w_buffer).b_ml.ml_line_count {
+        if n > 0 && lnum >= curwin_mut().buf_mut().b_ml.ml_line_count {
             return false;
         }
         cursor_down_inner(curwin_mut(), n, false);
@@ -4000,10 +4000,10 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
 
 /// Get the value that `w_virtcol` would have when `'list'` is off.
 pub fn get_nolist_virtcol() -> colnr_T {
-    unsafe {
+     {
         if curwin_mut().w_buffer.is_null()
-            || (*curwin_mut().w_buffer).b_ml.ml_mfp.is_none()
-            || curwin_mut().w_cursor.lnum > (*curwin_mut().w_buffer).b_ml.ml_line_count
+            || curwin_mut().buf_mut().b_ml.ml_mfp.is_none()
+            || curwin_mut().w_cursor.lnum > curwin_mut().buf_mut().b_ml.ml_line_count
         {
             return 0;
         }

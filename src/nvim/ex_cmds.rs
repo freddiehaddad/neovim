@@ -1496,7 +1496,7 @@ pub fn do_bang(
                 redo_append_str(c"\n", 1);
                 g_st().bangredo = false;
             }
-            if *opt_vars().p_shq != NUL {
+            if !crate::memory::cstr_is_empty(opt_vars().p_shq) {
                 let prev_ptr = (&raw const excmds_st().prevcmd)
                     .as_ref()
                     .unwrap()
@@ -1936,7 +1936,7 @@ pub fn make_filter_cmd(
             {
                 xstrlcpy(buf, cmd, len);
                 if !itmp.is_null() {
-                    if *opt_vars().p_shq == NUL {
+                    if crate::memory::cstr_is_empty(opt_vars().p_shq) {
                         let p = find_pipe(buf);
                         if !p.is_null() {
                             *p = NUL;
@@ -1944,7 +1944,7 @@ pub fn make_filter_cmd(
                     }
                     { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ", _dsize - _dlen); };
                     { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
-                    if *opt_vars().p_shq == NUL {
+                    if crate::memory::cstr_is_empty(opt_vars().p_shq) {
                         let p = find_pipe(cmd);
                         if !p.is_null() {
                             { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c" ", _dsize - _dlen); };
@@ -2302,7 +2302,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
                         break 'theend;
                     }
 
-                    if *curbuf_mut().b_p_ft == NUL {
+                    if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
                         if augroup_exists(c"filetypedetect") {
                             do_doautocmd(
                                 c"filetypedetect BufRead",
@@ -2359,7 +2359,7 @@ pub fn check_overwrite(
     ffname: *mut c_char,
     other: bool,
 ) -> bool {
-    unsafe {
+     {
         if (other
             || (!bt_nofilename(&raw mut *buf)
                 && ((buf.b_flags & BF_NOTEDITED) != 0
@@ -2396,7 +2396,7 @@ pub fn check_overwrite(
 
             if other && g_st().emsg_silent == 0 {
                 let mut dir = [0 as c_char; MAXPATHL];
-                if *opt_vars().p_dir == NUL {
+                if crate::memory::cstr_is_empty(opt_vars().p_dir) {
                     dir[0] = b'.' as c_char;
                     dir[1] = NUL;
                 } else {
@@ -2966,7 +2966,7 @@ pub fn do_ecmd(
                             auto_buf = true;
                         } else {
                             if !curwin_mut().w_buffer.is_null() {
-                                (*curwin_mut().w_buffer).b_nwindows -= 1;
+                                curwin_mut().buf_mut().b_nwindows -= 1;
                             }
 
                             curwin_mut().w_buffer = buf;
@@ -4753,7 +4753,7 @@ fn do_sub(
         if cmdpreview_ns > 0 && !aborting() {
             if got_quit || profile_passed_limit(tm) {
                 set_option_direct(kOptInccommand, cstr_as_obj(c""), 0, SID_NONE);
-            } else if *opt_vars().p_icm != NUL && !pat.data.is_null() {
+            } else if !crate::memory::cstr_is_empty(opt_vars().p_icm) && !pat.data.is_null() {
                 if excmds_st().pre_hl_id == 0 {
                     excmds_st().pre_hl_id = syn_check_group(c"Substitute", 10);
                 }
@@ -5128,7 +5128,7 @@ fn show_sub(
         update_topline(curwin_ptr());
 
         let mut col_width: c_int = 0;
-        let preview = (*opt_vars().p_icm == b's' as c_char)
+        let preview = (crate::memory::cstr_first_byte(opt_vars().p_icm) == b's')
             && (eap.line1 != old_cusr.lnum || eap.line2 != old_cusr.lnum);
 
         if preview {

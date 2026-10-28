@@ -3879,7 +3879,7 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             return;
         }
 
-        if *opt_vars().p_vfile != NUL && msg_st().verbose_fd.is_none() {
+        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) && msg_st().verbose_fd.is_none() {
             verbose_open();
         }
 
@@ -3947,10 +3947,10 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
 }
 
 pub fn redirecting() -> c_int {
-    unsafe {
+     {
         c_int::from(
             has_redir_fd()
-                || *opt_vars().p_vfile != NUL
+                || !crate::memory::cstr_is_empty(opt_vars().p_vfile)
                 || g_st().redir_reg != 0
                 || g_st().redir_vname
                 || !g_st().capture_ga.is_null(),
@@ -3961,8 +3961,8 @@ pub fn redirecting() -> c_int {
 /// Before giving verbose message.
 /// Must always be called paired with verbose_leave()!
 pub fn verbose_enter() {
-    unsafe {
-        if *opt_vars().p_vfile != NUL {
+     {
+        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
             g_st().msg_silent += 1;
         }
         if !g_st().msg_ext_skip_verbose {
@@ -3978,8 +3978,8 @@ pub fn verbose_enter() {
 /// After giving verbose message.
 /// Must always be called paired with verbose_enter()!
 pub fn verbose_leave() {
-    unsafe {
-        if *opt_vars().p_vfile != NUL {
+     {
+        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
             g_st().msg_silent -= 1;
             if g_st().msg_silent < 0 {
                 g_st().msg_silent = 0;
@@ -3994,9 +3994,9 @@ pub fn verbose_leave() {
 
 /// Like verbose_enter() and set msg_scroll when displaying the message.
 pub fn verbose_enter_scroll() {
-    unsafe {
+     {
         verbose_enter();
-        if *opt_vars().p_vfile == NUL {
+        if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
             g_st().msg_scroll = 1;
         }
     }
@@ -4004,9 +4004,9 @@ pub fn verbose_enter_scroll() {
 
 /// Like verbose_leave() and set cmdline_row when displaying the message.
 pub fn verbose_leave_scroll() {
-    unsafe {
+     {
         verbose_leave();
-        if *opt_vars().p_vfile == NUL {
+        if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
             g_st().cmdline_row = g_st().msg_row;
         }
     }

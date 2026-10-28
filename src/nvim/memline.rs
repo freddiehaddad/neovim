@@ -637,7 +637,7 @@ pub fn ml_open_file(buf: &mut buf_T) {
             }
         }
 
-        if *opt_vars().p_dir != NUL && (*mfp).mf_fname.is_none() {
+        if !crate::memory::cstr_is_empty(opt_vars().p_dir) && (*mfp).mf_fname.is_none() {
             g_st().need_wait_return = true;
             g_st().no_wait_return += 1;
             let sp = buf_spname(buf);

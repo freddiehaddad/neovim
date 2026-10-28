@@ -407,8 +407,8 @@ fn pum_compute_horizontal_placement(
 
 #[inline]
 fn pum_border_width() -> c_int {
-    unsafe {
-        if *opt_vars().p_pumborder == NUL || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[7].as_ptr())) {
+     {
+        if crate::memory::cstr_is_empty(opt_vars().p_pumborder) || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[7].as_ptr())) {
             0
         } else if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[3].as_ptr()) {
             1
@@ -1249,7 +1249,7 @@ fn pum_preview_set_text(
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
 fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
-    unsafe {
+     {
         let border_width = pum_border_width();
         let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
         let right_extra = g_st().Columns - col;
@@ -1277,7 +1277,7 @@ fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
             });
         }
         wp.w_config.anchor = 0;
-        let count = (*wp.w_buffer).b_ml.ml_line_count;
+        let count = wp.buf_mut().b_ml.ml_line_count;
         wp.w_view_width = wp.w_config.width;
         wp.w_config.height = plines_m_win(wp, wp.w_topline, count, g_st().Rows);
         wp.w_config.row = f64::from(pum().row);
@@ -1418,7 +1418,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         && curbuf_mut().b_nwindows == 1
                         && curbuf_mut().b_fname.is_null()
                         && bt_nofile(g_st().curbuf)
-                        && *curbuf_mut().b_p_bh == b'w' as c_char
+                        && crate::memory::cstr_first_byte(curbuf_mut().b_p_bh) == b'w'
                     {
                         buf_clear();
                     } else {

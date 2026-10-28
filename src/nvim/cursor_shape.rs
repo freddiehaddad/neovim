@@ -280,9 +280,9 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
         let tbl = &mut *std::ptr::addr_of_mut!((*shape_table_mut()));
 
         for round in 1..=2 {
-            if round == 2 || *opt_vars().p_guicursor == 0 {
+            if round == 2 || crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
                 clear_shape_table();
-                if *opt_vars().p_guicursor == 0 {
+                if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
                     ui_mode_info_set();
                     return std::ptr::null();
                 }
@@ -461,7 +461,7 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> c_int {
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
 pub fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
     unsafe {
-        if *opt_vars().p_guicursor == 0 {
+        if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
             return false;
         }
         let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
@@ -476,7 +476,7 @@ pub fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
 pub fn cursor_get_mode_idx() -> c_int {
-    unsafe {
+     {
         if g_st().State == MODE_SHOWMATCH {
             SHAPE_IDX_SM as c_int
         } else if g_st().State == MODE_TERMINAL {
@@ -496,7 +496,7 @@ pub fn cursor_get_mode_idx() -> c_int {
         } else if g_st().finish_op {
             SHAPE_IDX_O as c_int
         } else if g_st().Visual.active {
-            if *opt_vars().p_sel as u8 == b'e' {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                 SHAPE_IDX_VE as c_int
             } else {
                 SHAPE_IDX_V as c_int

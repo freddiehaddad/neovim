@@ -1066,7 +1066,7 @@ pub fn terminal_check_size(term: &mut Terminal) {
             for wp in for_all_windows_in_tab_ptr(tp) {
                 if !is_ctx_win(wp)
                     && !(*wp).w_buffer.is_null()
-                    && (*(*wp).w_buffer).terminal == term
+                    && (*wp).buf_mut().terminal == term
                 {
                     let win_width = ((*wp).w_view_width - win_col_off(wp)).max(0) as u16;
                     width = width.max(win_width);
@@ -1136,7 +1136,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
         let wp = handle_get_window(s.save_curwin_handle);
         if !wp.is_null() {
             let mut winopts: *mut winopt_T = ptr::null_mut();
-            if (*(*wp).w_buffer).b_fnum != (*s.term).buf_handle {
+            if (*wp).buf_mut().b_fnum != (*s.term).buf_handle {
                 let buf = handle_get_buffer((*s.term).buf_handle);
                 if !buf.is_null() {
                     for wip in &mut (*buf).b_wininfo {
@@ -1943,8 +1943,8 @@ fn term_bell(_data: *mut Terminal) -> c_int {
 }
 
 fn term_theme(dark: &mut bool, _data: *mut Terminal) -> c_int {
-    unsafe {
-        *dark = *opt_vars().p_bg == b'd' as c_char;
+     {
+        *dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
     }
     1
 }
@@ -2254,7 +2254,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
             if !term.suspended
                 && !term.closed
                 && term.forward_mouse
-                && (*(*mouse_win).w_buffer).terminal == term
+                && (*mouse_win).buf_mut().terminal == term
                 && row >= 0
                 && (grid > 1 || row + (*mouse_win).w_winbar_height < (*mouse_win).w_height)
                 && {
@@ -2318,7 +2318,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: c_int) -> bool {
 
         if (c == K_LEFTRELEASE
             && !mouse_win.is_null()
-            && (*(*mouse_win).w_buffer).terminal == term)
+            && (*mouse_win).buf_mut().terminal == term)
             || c == K_MOUSEMOVE
         {
             return false;

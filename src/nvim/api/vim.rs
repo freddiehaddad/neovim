@@ -2925,7 +2925,7 @@ pub fn nvim_eval_statusline(
         {
             statuscol_lnum = opts.use_statuscol_lnum as c_int;
             if !validate_range(
-                statuscol_lnum > 0 && statuscol_lnum <= (*(*wp).w_buffer).b_ml.ml_line_count,
+                statuscol_lnum > 0 && statuscol_lnum <= (*wp).buf_mut().b_ml.ml_line_count,
                 c"use_statuscol_lnum",
                 err,
             ) {
@@ -3159,7 +3159,7 @@ pub fn nvim__complete_set(
                 put_c(
                     &mut rv,
                     c"bufnr",
-                    buffer_obj((*(*wp).w_buffer).b_fnum),
+                    buffer_obj((*wp).buf_mut().b_fnum),
                 );
             }
         }

@@ -2877,7 +2877,7 @@ fn do_source_ext(
 
             #[cfg(windows)]
             {
-                if *opt_vars().p_ffs == NUL {
+                if crate::memory::cstr_is_empty(opt_vars().p_ffs) {
                     cookie.fileformat = EOL_DOS;
                 } else {
                     cookie.fileformat = EOL_UNKNOWN;

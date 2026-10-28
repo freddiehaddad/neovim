@@ -6813,7 +6813,7 @@ pub fn do_string_sub(
         if opt_vars().p_cpo == empty_opt {
             opt_vars().p_cpo = save_cpo;
         } else {
-            if *opt_vars().p_cpo == NUL {
+            if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
                 let obj = Object {
                     obj_type: ObjectType::kObjectTypeString,
                     data: ObjectData::String(cstr_as_string(save_cpo)),

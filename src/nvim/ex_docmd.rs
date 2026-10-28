@@ -8165,12 +8165,12 @@ pub fn replace_makeprg(
             && !(eap.cmdidx >= 0 && grep_internal(eap.cmdidx) != 0)
         {
             let program = if isgrep {
-                if *curbuf_mut().b_p_gp == NUL {
+                if crate::memory::cstr_is_empty(curbuf_mut().b_p_gp) {
                     opt_vars().p_gp
                 } else {
                     curbuf_mut().b_p_gp
                 }
-            } else if *curbuf_mut().b_p_mp == NUL {
+            } else if crate::memory::cstr_is_empty(curbuf_mut().b_p_mp) {
                 opt_vars().p_mp
             } else {
                 curbuf_mut().b_p_mp
@@ -8995,7 +8995,7 @@ pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bo
 
         if !win_valid(wp)
             || curbuf_locked()
-            || ((*(*wp).w_buffer).b_nwindows == 1 && (*(*wp).w_buffer).b_locked > 0)
+            || ((*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0)
         {
             set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
             return true;
@@ -9056,9 +9056,9 @@ fn ex_quit(eap: &mut exarg_T) {
         if check_more(false, eap.forceit != 0) && only_one_window() {
             g_st().exiting = true;
         }
-        if (!buf_hide(&*(*wp).w_buffer)
+        if (!buf_hide((*wp).buf_mut())
             && check_changed(
-                &mut *(*wp).w_buffer,
+                (*wp).buf_mut(),
                 (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                     | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
                     | CCGD_EXCMD,
@@ -9074,7 +9074,7 @@ fn ex_quit(eap: &mut exarg_T) {
             not_exiting(save_exiting);
             win_close(
                 wp,
-                !buf_hide(&*(*wp).w_buffer) || eap.forceit != 0,
+                !buf_hide((*wp).buf_mut()) || eap.forceit != 0,
                 eap.forceit != 0,
             );
         }
@@ -9834,7 +9834,7 @@ fn ex_stop(eap: &mut exarg_T) {
 }
 
 fn ex_exit(eap: &mut exarg_T) {
-    unsafe {
+     {
         if text_locked() {
             text_locked_msg();
             return;
@@ -9856,7 +9856,7 @@ fn ex_exit(eap: &mut exarg_T) {
                 getout(0);
             }
             not_exiting(save_exiting);
-            win_close(curwin_ptr(), !buf_hide(&*curwin_mut().w_buffer), eap.forceit != 0);
+            win_close(curwin_ptr(), !buf_hide(curwin_mut().buf_mut()), eap.forceit != 0);
         }
     }
 }
@@ -10280,7 +10280,7 @@ fn ex_tabs(_eap: &mut exarg_T) {
                     b' ' as c_int
                 });
                 msg_putchar(b' ' as c_int);
-                msg_putchar(if bufIsChanged(&mut *(*wp).w_buffer) {
+                msg_putchar(if bufIsChanged((*wp).buf_mut()) {
                     b'+' as c_int
                 } else {
                     b' ' as c_int
@@ -10292,7 +10292,7 @@ fn ex_tabs(_eap: &mut exarg_T) {
                 } else {
                     home_replace(
                         (*wp).w_buffer,
-                        (*(*wp).w_buffer).b_fname,
+                        (*wp).buf_mut().b_fname,
                         (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
                         true,
@@ -10671,7 +10671,7 @@ fn ex_syncbind(_eap: &mut exarg_T) {
             let mut vt = get_vtopline(curwin_mut());
             for wp in for_all_windows_ptr() {
                 if (*wp).w_onebuf_opt.wo_scb != 0 && !(*wp).w_buffer.is_null() {
-                    let y = plines_m_win_fill(wp, 1, (*(*wp).w_buffer).b_ml.ml_line_count)
+                    let y = plines_m_win_fill(wp, 1, (*wp).buf_mut().b_ml.ml_line_count)
                         - (get_scrolloff_value(curwin_ptr()) as c_int);
                     vt = vt.min(y);
                 }
@@ -11964,9 +11964,9 @@ fn ex_pbuffer(eap: &mut exarg_T) {
 }
 
 fn prepare_preview_window() {
-    unsafe {
+     {
         g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
-        prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
+        prepare_tagpreview(true, !crate::memory::cstr_is_empty(opt_vars().p_pvp));
     }
 }
 
@@ -12429,9 +12429,9 @@ pub fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
 }
 
 fn ex_shada(eap: &mut exarg_T) {
-    unsafe {
+     {
         let save_shada = opt_vars().p_shada;
-        if *opt_vars().p_shada == NUL {
+        if crate::memory::cstr_is_empty(opt_vars().p_shada) {
             opt_vars().p_shada = c"'100".as_ptr().cast_mut();
         }
         if eap.cmdidx == cmdidx_T::CMD_rviminfo as c_int
@@ -12712,7 +12712,7 @@ fn ex_terminal(eap: &mut exarg_T) {
                 None,
             );
         } else {
-            if *opt_vars().p_sh == NUL {
+            if crate::memory::cstr_is_empty(opt_vars().p_sh) {
                 let _ = emsg(gettext(e_shellempty));
                 return;
             }

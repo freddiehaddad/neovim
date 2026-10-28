@@ -98,11 +98,11 @@ pub fn plines_correct_topline(
 
 /// Compute `wp->w_botline` for the current `wp->w_topline`.
 fn comp_botline(wp: &mut win_T) {
-    unsafe {
+     {
         check_cursor_moved(wp);
 
         let use_cache = redrawing()
-            && !(*wp.w_buffer).b_mod_set
+            && !wp.buf_mut().b_mod_set
             && g_st().dollar_vcol == -1
             && wp.w_skipcol == 0
             && !win_may_fill(wp)
@@ -122,7 +122,7 @@ fn comp_botline(wp: &mut win_T) {
             }
         }
 
-        while lnum <= (*wp.w_buffer).b_ml.ml_line_count {
+        while lnum <= wp.buf_mut().b_ml.ml_line_count {
             let mut valid = false;
             if use_cache && i < wp.w_lines_valid {
                 let wl = (&wp.w_lines)[i as usize];
@@ -277,7 +277,7 @@ fn scrolloffpad_eof_pressure(wp: *mut win_T, lnum: linenr_T, so: OptInt) -> bool
             return false;
         }
 
-        i64::from(lnum) > i64::from((*(*wp).w_buffer).b_ml.ml_line_count) - so
+        i64::from(lnum) > i64::from((*wp).buf_mut().b_ml.ml_line_count) - so
     }
 }
 
@@ -318,7 +318,7 @@ pub fn update_topline(wp: *mut win_T) {
         let old_topline = (*wp).w_topline;
         let old_topfill = (*wp).w_topfill;
 
-        if buf_is_empty(&mut *(*wp).w_buffer) {
+        if buf_is_empty((*wp).buf_mut()) {
             if (*wp).w_topline != 1 {
                 redraw_later(wp, UPD_NOT_VALID);
             }
@@ -363,7 +363,7 @@ pub fn update_topline(wp: *mut win_T) {
                     n = 0;
                     let mut lnum = (*wp).w_cursor.lnum;
                     while i64::from(lnum) < i64::from((*wp).w_topline) + *so_ptr {
-                        if lnum >= (*(*wp).w_buffer).b_ml.ml_line_count {
+                        if lnum >= (*wp).buf_mut().b_ml.ml_line_count {
                             break;
                         }
                         n += i64::from(!decor_conceal_line(wp, lnum, false));
@@ -402,7 +402,7 @@ pub fn update_topline(wp: *mut win_T) {
                 validate_botline_win(wp);
             }
 
-            if (*wp).w_botline <= (*(*wp).w_buffer).b_ml.ml_line_count || use_scrolloffpad(wp) {
+            if (*wp).w_botline <= (*wp).buf_mut().b_ml.ml_line_count || use_scrolloffpad(wp) {
                 if (*wp).w_cursor.lnum < (*wp).w_botline {
                     if i64::from((*wp).w_cursor.lnum) >= i64::from((*wp).w_botline) - *so_ptr
                         || win_lines_concealed(&mut *wp)
@@ -612,13 +612,13 @@ pub fn changed_window_setting_all() {
 
 /// Set `wp->w_topline` to a certain number.
 pub fn set_topline(wp: &mut win_T, mut lnum: linenr_T) {
-    unsafe {
+     {
         let prev_topline = wp.w_topline;
 
         hasFolding(wp, lnum, Some(&mut lnum), ptr::null_mut());
         wp.w_botline += lnum - wp.w_topline;
-        if wp.w_botline > (*wp.w_buffer).b_ml.ml_line_count + 1 {
-            wp.w_botline = (*wp.w_buffer).b_ml.ml_line_count + 1;
+        if wp.w_botline > wp.buf_mut().b_ml.ml_line_count + 1 {
+            wp.w_botline = wp.buf_mut().b_ml.ml_line_count + 1;
         }
         wp.w_topline = lnum;
         wp.w_topline_was_set = true;
@@ -711,7 +711,7 @@ pub fn validate_cursor(wp: *mut win_T) {
 
 /// Compute `wp->w_cline_row` and `wp->w_cline_height`, based on `wp->w_topline`.
 fn curs_rows(wp: &mut win_T) {
-    unsafe {
+     {
         let all_invalid = !redrawing()
             || wp.w_lines_valid == 0
             || (&wp.w_lines)[0].wl_lnum > wp.w_topline;
@@ -727,9 +727,9 @@ fn curs_rows(wp: &mut win_T) {
                     continue;
                 }
                 if wl.wl_lnum == lnum {
-                    if !(*wp.w_buffer).b_mod_set
+                    if !wp.buf_mut().b_mod_set
                         || wl.wl_lastlnum < wp.w_cursor.lnum
-                        || (*wp.w_buffer).b_mod_top > wl.wl_lastlnum + 1
+                        || wp.buf_mut().b_mod_top > wl.wl_lastlnum + 1
                     {
                         valid = true;
                     }
@@ -1140,7 +1140,7 @@ pub fn textpos2screenpos(
             row = wp.w_view_height - 1;
         }
 
-        let existing_row = lnum > 0 && lnum <= (*wp.w_buffer).b_ml.ml_line_count;
+        let existing_row = lnum > 0 && lnum <= wp.buf_mut().b_ml.ml_line_count;
 
         if (local || visible_row) && existing_row {
             let off = win_col_off(&raw mut *wp);
@@ -1223,7 +1223,7 @@ pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             col: (tv_get_number(&argvars[2]) as colnr_T - 1).max(0),
             coladd: 0,
         };
-        if pos.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
+        if pos.lnum > (*wp).buf_mut().b_ml.ml_line_count {
             semsg!(tr(e_invalid_line_number_nr), pos.lnum);
             return;
         }
@@ -1293,7 +1293,7 @@ pub fn f_virtcol2col(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         let mut error = false;
         let lnum = tv_get_number_chk(&argvars[1], Some(&mut error)) as linenr_T;
-        if error || lnum < 0 || lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
+        if error || lnum < 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count {
             return;
         }
 
@@ -1387,7 +1387,7 @@ fn cursor_correct_sms(wp: *mut win_T) {
                 !(VALID_WROW | VALID_WCOL | VALID_CHEIGHT | VALID_CROW | VALID_VIRTCOL);
             if !rc
                 && (*wp).w_skipcol > 0
-                && (*wp).w_cursor.lnum < (*(*wp).w_buffer).b_ml.ml_line_count
+                && (*wp).w_cursor.lnum < (*wp).buf_mut().b_ml.ml_line_count
             {
                 validate_virtcol(wp);
                 if (*wp).w_virtcol < (*wp).w_skipcol + overlap {
@@ -1608,14 +1608,14 @@ pub fn scrollup(wp: &mut win_T, line_count: linenr_T, byfold: bool) -> bool {
                         let add = if wp.w_skipcol > 0 { width2 } else { width1 };
                         wp.w_skipcol += add;
                         if wp.w_skipcol >= size {
-                            if lnum == (*wp.w_buffer).b_ml.ml_line_count {
+                            if lnum == wp.buf_mut().b_ml.ml_line_count {
                                 wp.w_skipcol -= add;
                                 break;
                             }
                             lnum += 1;
                         }
                     } else {
-                        if lnum >= (*wp.w_buffer).b_ml.ml_line_count {
+                        if lnum >= wp.buf_mut().b_ml.ml_line_count {
                             break;
                         }
                         lnum += 1;
@@ -1642,10 +1642,10 @@ pub fn scrollup(wp: &mut win_T, line_count: linenr_T, byfold: bool) -> bool {
             wp.w_botline += line_count;
         }
 
-        wp.w_topline = wp.w_topline.min((*wp.w_buffer).b_ml.ml_line_count);
+        wp.w_topline = wp.w_topline.min(wp.buf_mut().b_ml.ml_line_count);
         wp.w_botline = wp
             .w_botline
-            .min((*wp.w_buffer).b_ml.ml_line_count + 1);
+            .min(wp.buf_mut().b_ml.ml_line_count + 1);
 
         check_topfill(wp, false);
 
@@ -1874,7 +1874,7 @@ fn botline_forw(wp: *mut win_T, lp: &mut lineoff_T) {
         } else {
             lp.lnum += 1;
             lp.fill = 0;
-            if lp.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
+            if lp.lnum > (*wp).buf_mut().b_ml.ml_line_count {
                 lp.height = MAXCOL;
             } else if hasFolding(wp, lp.lnum, None, &raw mut lp.lnum) {
                 lp.height = c_int::from(!decor_conceal_line(wp, lp.lnum - 1, false));
@@ -1931,7 +1931,7 @@ pub fn scroll_cursor_top(wp: &mut win_T, min_scroll: c_int, always: c_int) {
             }
 
             used += i;
-            if i64::from(extra + i) <= off && bot < (*wp.w_buffer).b_ml.ml_line_count {
+            if i64::from(extra + i) <= off && bot < wp.buf_mut().b_ml.ml_line_count {
                 used += plines_win_full(wp, bot, Some(&mut bot), None, true, true);
             }
             if used > wp.w_view_height {
@@ -1990,13 +1990,13 @@ pub fn scroll_cursor_top(wp: &mut win_T, min_scroll: c_int, always: c_int) {
 
 /// Set `w_empty_rows` and `w_filler_rows` for window `wp`.
 pub fn set_empty_rows(wp: &mut win_T, used: c_int) {
-    unsafe {
+     {
         wp.w_filler_rows = 0;
         if used == 0 {
             wp.w_empty_rows = 0;
         } else {
             wp.w_empty_rows = wp.w_view_height - used;
-            if wp.w_botline <= (*wp.w_buffer).b_ml.ml_line_count {
+            if wp.w_botline <= wp.buf_mut().b_ml.ml_line_count {
                 wp.w_filler_rows = win_get_fill(wp, wp.w_botline);
                 if wp.w_empty_rows > wp.w_filler_rows {
                     wp.w_empty_rows -= wp.w_filler_rows;
@@ -2120,7 +2120,7 @@ pub fn scroll_cursor_bot(wp: &mut win_T, min_scroll: c_int, set_topbot: bool) {
         };
         while loff.lnum > 1 {
             if (((scrolled <= 0 || scrolled >= min_scroll) && i64::from(extra) >= eff_so)
-                || boff.lnum + 1 > (*wp.w_buffer).b_ml.ml_line_count)
+                || boff.lnum + 1 > wp.buf_mut().b_ml.ml_line_count)
                 && loff.lnum <= wp.w_botline
                 && (loff.lnum < wp.w_botline || loff.fill >= fill_below_window)
             {
@@ -2146,7 +2146,7 @@ pub fn scroll_cursor_bot(wp: &mut win_T, min_scroll: c_int, set_topbot: bool) {
                 }
             }
 
-            if boff.lnum < (*wp.w_buffer).b_ml.ml_line_count {
+            if boff.lnum < wp.buf_mut().b_ml.ml_line_count {
                 let boff_lnum_before = boff.lnum;
                 botline_forw(wp, &mut boff);
                 used += boff.height;
@@ -2217,7 +2217,7 @@ pub fn scroll_cursor_bot(wp: &mut win_T, min_scroll: c_int, set_topbot: bool) {
 
 /// Recompute topline to put the cursor halfway across the window.
 pub fn scroll_cursor_halfway(wp: &mut win_T, atend: bool, prefer_above: bool) {
-    unsafe {
+     {
         let old_topline = wp.w_topline;
         let mut loff = lineoff_T {
             lnum: wp.w_cursor.lnum,
@@ -2255,7 +2255,7 @@ pub fn scroll_cursor_halfway(wp: &mut win_T, atend: bool, prefer_above: bool) {
                     break;
                 }
                 used += loff.height;
-                if !atend && boff.lnum < (*wp.w_buffer).b_ml.ml_line_count {
+                if !atend && boff.lnum < wp.buf_mut().b_ml.ml_line_count {
                     botline_forw(wp, &mut boff);
                     used += boff.height;
                 }
@@ -2279,7 +2279,7 @@ pub fn scroll_cursor_halfway(wp: &mut win_T, atend: bool, prefer_above: bool) {
                 } else {
                     round == 1 && below <= above
                 } {
-                    if boff.lnum < (*wp.w_buffer).b_ml.ml_line_count {
+                    if boff.lnum < wp.buf_mut().b_ml.ml_line_count {
                         botline_forw(wp, &mut boff);
                         used += boff.height;
                         if used > wp.w_view_height {
@@ -2344,7 +2344,7 @@ pub fn scroll_cursor_halfway(wp: &mut win_T, atend: bool, prefer_above: bool) {
 /// Correct the cursor position so that it is in a part of the screen at least
 /// `'so'` lines from the top and bottom, if possible.
 pub fn cursor_correct(wp: &mut win_T) {
-    unsafe {
+     {
         let mut above_wanted = get_scrolloff_value(&raw mut *wp);
         let mut below_wanted = get_scrolloff_value(&raw mut *wp);
         if g_st().mouse_dragging > 0 {
@@ -2357,7 +2357,7 @@ pub fn cursor_correct(wp: &mut win_T) {
             below_wanted = below_wanted.min(max_off);
         }
         validate_botline_win(&raw mut *wp);
-        if wp.w_botline == (*wp.w_buffer).b_ml.ml_line_count + 1 && g_st().mouse_dragging == 0 {
+        if wp.w_botline == wp.buf_mut().b_ml.ml_line_count + 1 && g_st().mouse_dragging == 0 {
             below_wanted = 0;
             let max_off = i64::from((wp.w_view_height - 1) / 2);
             above_wanted = above_wanted.min(max_off);
@@ -2405,7 +2405,7 @@ pub fn cursor_correct(wp: &mut win_T) {
                 wp.w_cursor.lnum = topline;
                 wp.w_valid &= !(VALID_WROW | VALID_WCOL | VALID_CHEIGHT | VALID_CROW);
             }
-            if cln > botline && wp.w_botline <= (*wp.w_buffer).b_ml.ml_line_count {
+            if cln > botline && wp.w_botline <= wp.buf_mut().b_ml.ml_line_count {
                 wp.w_cursor.lnum = botline;
                 wp.w_valid &= !(VALID_WROW | VALID_WCOL | VALID_CHEIGHT | VALID_CROW);
             }

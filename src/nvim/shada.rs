@@ -1681,7 +1681,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_mut(tp) {
                     if cl_bufs.contains(&wp.w_buffer) {
-                        wp.w_changelistidx = (*wp.w_buffer).b_changelistlen;
+                        wp.w_changelistidx = wp.buf_mut().b_changelistlen;
                     }
                 }
             }
@@ -1710,7 +1710,7 @@ fn shada_get_default_file() -> *const c_char {
 fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if file.is_null() || *file == NUL {
-            if !opt_vars().p_shadafile.is_null() && *opt_vars().p_shadafile != NUL {
+            if !opt_vars().p_shadafile.is_null() && !crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
                 if !(crate::memory::cstr_as_opt_bytes(opt_vars().p_shadafile) == Some(b"NONE")) {
                     file = opt_vars().p_shadafile;
                 } else {

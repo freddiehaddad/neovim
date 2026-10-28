@@ -2116,10 +2116,10 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
 pub fn keymap_init() -> *mut c_char {
-    unsafe {
+     {
         curbuf_mut().b_kmap_state &= !KEYMAP_INIT;
 
-        if *curbuf_mut().b_p_keymap == NUL {
+        if crate::memory::cstr_is_empty(curbuf_mut().b_p_keymap) {
             keymap_unload();
             do_cmdline_cmd(c"unlet! b:keymap_name");
         } else {
@@ -2245,7 +2245,7 @@ pub fn get_keymap_str(
     len: c_int,
 ) -> c_int {
     unsafe {
-        if (*(*wp).w_buffer).b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
+        if (*wp).buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
             return 0;
         }
 
@@ -2265,8 +2265,8 @@ pub fn get_keymap_str(
         g_st().curbuf = old_curbuf;
         set_curwin(old_curwin);
         if p.is_null() || *p == NUL {
-            if ((*(*wp).w_buffer).b_kmap_state & KEYMAP_LOADED) != 0 {
-                p = (*(*wp).w_buffer).b_p_keymap;
+            if ((*wp).buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
+                p = (*wp).buf_mut().b_p_keymap;
             } else {
                 p = c"lang".as_ptr();
             }

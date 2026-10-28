@@ -689,7 +689,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             opt_vars().p_ut = 1;
         }
 
-        if *opt_vars().p_shada != NUL {
+        if !crate::memory::cstr_is_empty(opt_vars().p_shada) {
             shada_read_everything(ptr::null(), false, true);
             time_msg_if_enabled(c"reading ShaDa");
         }
@@ -1000,7 +1000,7 @@ pub fn getout(mut exitval: c_int) -> ! {
             }
         }
 
-        if !mem_st().entered_free_all_mem && !opt_vars().p_shada.is_null() && *opt_vars().p_shada != NUL {
+        if !mem_st().entered_free_all_mem && !opt_vars().p_shada.is_null() && !crate::memory::cstr_is_empty(opt_vars().p_shada) {
             shada_write_file(ptr::null(), false);
         }
 
@@ -1040,7 +1040,7 @@ pub fn getout(mut exitval: c_int) -> ! {
             wait_return(0);
         }
 
-        if opt_vars().p_title != 0 && *opt_vars().p_titleold != NUL {
+        if opt_vars().p_title != 0 && !crate::memory::cstr_is_empty(opt_vars().p_titleold) {
             ui_call_set_title(cstr_as_string(opt_vars().p_titleold));
         }
 
@@ -1523,7 +1523,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             g_st().silent_mode = true;
                             g_st().exmode_active = true;
                             parmp.no_swap_file = 1;
-                            if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
+                            if opt_vars().p_shadafile.is_null() || crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
                                 set_option_value_give_err(
                                     kOptShadafile,
                                     cstr_as_obj(c"NONE"),
@@ -1663,7 +1663,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                             if parmp.use_vimrc.is_none() {
                                 parmp.use_vimrc = Some(c"NONE".to_owned());
                             }
-                            if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
+                            if opt_vars().p_shadafile.is_null() || crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
                                 set_option_value_give_err(
                                     kOptShadafile,
                                     cstr_as_obj(c"NONE"),

@@ -304,6 +304,22 @@ pub fn cstr_len(s: *const c_char) -> usize {
     }
 }
 
+/// Return true if `s` is null or starts with a NUL byte (`*s == NUL`).
+#[inline]
+pub fn cstr_is_empty(s: *const c_char) -> bool {
+    s.is_null() || unsafe { *s == 0 }
+}
+
+/// Return the first byte of `s` (or `0` if `s` is null).
+#[inline]
+pub fn cstr_first_byte(s: *const c_char) -> u8 {
+    if s.is_null() {
+        0
+    } else {
+        unsafe { *s as u8 }
+    }
+}
+
 /// Copy NUL-terminated C string `src` (including trailing NUL) to `dst`.
 #[inline]
 pub fn cstr_cpy<S: crate::strings::IntoCCharPtr>(dst: *mut c_char, src: S) {

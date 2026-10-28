@@ -1538,7 +1538,7 @@ pub fn show_popupmenu() {
 
 /// Execute `menu` (`execute_menu`).
 pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
-    unsafe {
+     {
         let mut idx = mode_idx;
 
         if idx < 0 {
@@ -1581,7 +1581,7 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
 
                 check_cursor(curwin_ptr());
 
-                if *opt_vars().p_sel == b'e' as c_char && gchar_cursor() != c_int::from(NUL) {
+                if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && gchar_cursor() != c_int::from(NUL) {
                     curwin_mut().w_cursor.col += 1;
                 }
             }

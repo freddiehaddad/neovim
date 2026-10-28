@@ -178,7 +178,7 @@ fn coladvance2(
             (g_st().State & MODE_INSERT) != 0
                 || (g_st().State & MODE_TERMINAL) != 0
                 || g_st().restart_edit != 0
-                || (g_st().Visual.active && *opt_vars().p_sel != b'o' as c_char)
+                || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
                 || ((get_ve_flags(wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
         );
 
@@ -387,7 +387,7 @@ pub fn check_cursor_lnum(win: &mut win_T) {
 
 /// Make sure `win->w_cursor.col` is valid (`check_cursor_col`).
 pub fn check_cursor_col(win: &mut win_T) {
-    unsafe {
+     {
         let oldcol = win.w_cursor.col;
         let oldcoladd = win.w_cursor.col + win.w_cursor.coladd;
         let cur_ve_flags = get_ve_flags(win);
@@ -399,7 +399,7 @@ pub fn check_cursor_col(win: &mut win_T) {
             if (g_st().State & MODE_INSERT) != 0
                 || g_st().restart_edit != 0
                 || (g_st().State & MODE_TERMINAL) != 0
-                || (g_st().Visual.active && *opt_vars().p_sel != b'o' as c_char)
+                || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
                 || (cur_ve_flags & kOptVeFlagOnemore) != 0
                 || virtual_active(win)
             {
@@ -468,9 +468,9 @@ pub fn check_visual_pos() {
 
 /// Make sure `curwin->w_cursor` is not on the NUL at the end of the line (`adjust_cursor_col`).
 pub fn adjust_cursor_col() {
-    unsafe {
+     {
         if curwin_mut().w_cursor.col > 0
-            && (!g_st().Visual.active || *opt_vars().p_sel == b'o' as c_char)
+            && (!g_st().Visual.active || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
             && gchar_cursor() == 0
         {
             curwin_mut().w_cursor.col -= 1;

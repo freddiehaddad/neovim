@@ -639,7 +639,7 @@ pub fn f_filewritable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int) {
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
-        let mut path = if *curbuf_mut().b_p_path == NUL {
+        let mut path = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
             opt_vars().p_path
         } else {
             curbuf_mut().b_p_path

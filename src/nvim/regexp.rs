@@ -2141,7 +2141,7 @@ pub(super) fn reg_match_visual() -> bool {
         let col = re_st().rex.input.offset_from(re_st().rex.line) as colnr_T;
         if mode == b'v' as c_int {
             if (lnum == top.lnum && col < top.col)
-                || (lnum == bot.lnum && col >= bot.col + colnr_T::from(*opt_vars().p_sel != b'e' as c_char))
+                || (lnum == bot.lnum && col >= bot.col + colnr_T::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
             {
                 return false;
             }
@@ -2182,7 +2182,7 @@ pub(super) fn reg_match_visual() -> bool {
             re_st().rex.input = re_st().rex.line.add(col as usize);
 
             let cols = win_linetabsize(wp, re_st().rex.reg_firstlnum + re_st().rex.lnum, re_st().rex.line.cast(), col);
-            if cols < start || cols > end - colnr_T::from(*opt_vars().p_sel == b'e' as c_char) {
+            if cols < start || cols > end - colnr_T::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e') {
                 return false;
             }
         }

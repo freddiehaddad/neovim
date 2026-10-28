@@ -390,8 +390,8 @@ fn put_view(
                 {
                     return false;
                 }
-            } else if !(*(*wp).w_buffer).b_ffname.is_null()
-                && (!bt_nofilename((*wp).w_buffer) || !(*(*wp).w_buffer).terminal.is_null())
+            } else if !(*wp).buf_mut().b_ffname.is_null()
+                && (!bt_nofilename((*wp).w_buffer) || !(*wp).buf_mut().terminal.is_null())
             {
                 let fesc = cstr_to_str(fname_esc.as_ptr());
                 if !write_fmt(
@@ -406,7 +406,7 @@ fn put_view(
                 if !put_line(fd, c"enew") {
                     return false;
                 }
-                if !(*(*wp).w_buffer).b_ffname.is_null()
+                if !(*wp).buf_mut().b_ffname.is_null()
                     && !write_fmt(fd, format!("file {}\n", cstr_to_str(fname_esc.as_ptr())))
                 {
                     return false;
@@ -458,7 +458,7 @@ fn put_view(
         }
 
         if (*flagp & kOptSsopFlagFolds) != 0
-            && !(*(*wp).w_buffer).b_ffname.is_null()
+            && !(*wp).buf_mut().b_ffname.is_null()
             && (bt_normal((*wp).w_buffer) || bt_help((*wp).w_buffer))
             && !put_folds(fd, wp)
         {
@@ -824,7 +824,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
             let mut wp = tab_firstwin;
             while !wp.is_null() {
                 if ses_do_win(&mut *wp) != 0
-                    && !(*(*wp).w_buffer).b_ffname.is_null()
+                    && !(*wp).buf_mut().b_ffname.is_null()
                     && !bt_help((*wp).w_buffer)
                     && !bt_nofilename((*wp).w_buffer)
                 {

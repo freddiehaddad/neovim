@@ -290,7 +290,7 @@ pub fn f_appendbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 /// Trim lines above the prompt to enforce `'scrollback'` limit (`prompt_trim_scrollback`).
 fn prompt_trim_scrollback(buf: &mut buf_T) {
-    unsafe {
+     {
         if buf.b_p_scbk <= 0 {
             return;
         }
@@ -325,8 +325,8 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
                     } else {
                         wp.w_cursor.lnum - to_delete
                     };
-                    if wp.w_cursor.lnum > (*wp.w_buffer).b_ml.ml_line_count {
-                        wp.w_cursor.lnum = (*wp.w_buffer).b_ml.ml_line_count;
+                    if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count {
+                        wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count;
                     }
                 }
             }
@@ -693,8 +693,8 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
                         } else if wp.w_cursor.lnum > first {
                             wp.w_cursor.lnum = first;
                         }
-                        if wp.w_cursor.lnum > (*wp.w_buffer).b_ml.ml_line_count {
-                            wp.w_cursor.lnum = (*wp.w_buffer).b_ml.ml_line_count;
+                        if wp.w_cursor.lnum > wp.buf_mut().b_ml.ml_line_count {
+                            wp.w_cursor.lnum = wp.buf_mut().b_ml.ml_line_count;
                         }
                     }
                 }

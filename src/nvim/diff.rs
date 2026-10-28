@@ -2278,11 +2278,11 @@ pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
             }
         } else {
             towin.w_topline =
-                (*towin.w_buffer).b_ml.ml_line_count - ((*frombuf).b_ml.ml_line_count - lnum);
+                towin.buf_mut().b_ml.ml_line_count - ((*frombuf).b_ml.ml_line_count - lnum);
         }
         towin.w_botfill = false;
-        if towin.w_topline > (*towin.w_buffer).b_ml.ml_line_count {
-            towin.w_topline = (*towin.w_buffer).b_ml.ml_line_count;
+        if towin.w_topline > towin.buf_mut().b_ml.ml_line_count {
+            towin.w_topline = towin.buf_mut().b_ml.ml_line_count;
             towin.w_botfill = true;
         }
         if towin.w_topline < 1 {
@@ -3666,7 +3666,7 @@ pub fn diff_get_corresponding_line(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_
     }
 }
 pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
-    unsafe {
+     {
         let idx = diff_buf_idx(g_st().curbuf, curtab_mut());
         if idx == DB_COUNT as c_int {
             return 0;
@@ -3680,7 +3680,7 @@ pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
             .iter()
             .find(|dp| lnum <= dp.df_lnum[u_idx] + dp.df_count[u_idx])
         else {
-            return (*wp.w_buffer).b_ml.ml_line_count - (curbuf_mut().b_ml.ml_line_count - lnum);
+            return wp.buf_mut().b_ml.ml_line_count - (curbuf_mut().b_ml.ml_line_count - lnum);
         };
         let i = diff_buf_idx(wp.w_buffer, curtab_mut());
         if i == DB_COUNT as c_int {

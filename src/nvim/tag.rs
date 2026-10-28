@@ -2472,7 +2472,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
 
             let len = (*tf).len() as c_int;
             if tnp.tn_hf_idx >= len {
-                if tnp.tn_hf_idx > len || *opt_vars().p_hf == NUL {
+                if tnp.tn_hf_idx > len || crate::memory::cstr_is_empty(opt_vars().p_hf) {
                     return false;
                 }
                 tnp.tn_hf_idx += 1;
@@ -2496,7 +2496,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
         }
 
         if first != 0 {
-            let src = if *curbuf_mut().b_p_tags != NUL {
+            let src = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_tags) {
                 curbuf_mut().b_p_tags
             } else {
                 opt_vars().p_tags
@@ -2773,7 +2773,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-                    prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
+                    prepare_tagpreview(true, !crate::memory::cstr_is_empty(opt_vars().p_pvp));
                 }
             }
 

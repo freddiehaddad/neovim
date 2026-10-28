@@ -99,6 +99,11 @@ impl cmdarg_T {
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
+
+    #[inline]
+    pub fn oap_mut(&self) -> &'static mut oparg_T {
+        unsafe { &mut *self.oap }
+    }
 }
 
 impl Default for cmdarg_T {
@@ -453,10 +458,10 @@ pub fn atom_free_all() {
 }
 
 pub fn atom_cmd_spec(cap: &cmdarg_T) -> CmdSpec {
-    unsafe {
+     {
         let operand = nv_is(cap.cmdchar, NV_LANG | NV_NCH_ARG);
         CmdSpec {
-            regname: (*cap.oap).regname,
+            regname: cap.oap_mut().regname,
             count: c_long::from(cap.count0),
             cmd: cap.cmdchar,
             cmd2: if operand { NUL } else { cap.nchar },

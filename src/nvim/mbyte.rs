@@ -1122,7 +1122,7 @@ fn prop_is_emojilike(prop: &utf8proc_property_t) -> bool {
 }
 
 pub fn utf_char2cells(c: c_int) -> c_int {
-    unsafe {
+     {
         if c < 0x80 {
             return 1;
         }
@@ -1141,7 +1141,7 @@ pub fn utf_char2cells(c: c_int) -> c_int {
         if prop.charwidth() == 2 {
             return 2;
         }
-        if !opt_vars().p_ambw.is_null() && *opt_vars().p_ambw == b'd' as c_char && prop.ambiguous_width() {
+        if !opt_vars().p_ambw.is_null() && crate::memory::cstr_first_byte(opt_vars().p_ambw) == b'd' && prop.ambiguous_width() {
             return 2;
         }
 

@@ -4381,7 +4381,7 @@ fn expand_files_and_dirs(
         #[cfg(windows)]
         if ((options & WILD_USE_SHELLSLASH) != 0 && opt_vars().p_ssl == 0)
             || ((options & WILD_USE_COMPLETESLASH) != 0
-                && ((*opt_vars().p_csl == NUL && opt_vars().p_ssl == 0) || *opt_vars().p_csl == b'b' as c_char))
+                && ((crate::memory::cstr_is_empty(opt_vars().p_csl) && opt_vars().p_ssl == 0) || crate::memory::cstr_first_byte(opt_vars().p_csl) == b'b'))
         {
             for slot in matches.iter_mut() {
                 if slot.as_bytes().contains(&(PATHSEP as u8)) {

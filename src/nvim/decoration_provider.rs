@@ -192,7 +192,7 @@ pub fn decor_providers_invoke_spell(wp: &mut win_T,
     end_row: c_int,
     end_col: c_int,
 ) {
-    unsafe {
+     {
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -200,7 +200,7 @@ pub fn decor_providers_invoke_spell(wp: &mut win_T,
                 let spell_nav = p.spell_nav;
                 let mut args_buf = [
                     integer_obj(wp.handle as Integer),
-                    integer_obj((*wp.w_buffer).b_fnum as Integer),
+                    integer_obj(wp.buf_mut().b_fnum as Integer),
                     integer_obj(start_row as Integer),
                     integer_obj(start_col as Integer),
                     integer_obj(end_row as Integer),
@@ -227,8 +227,8 @@ pub fn decor_providers_invoke_spell(wp: &mut win_T,
 
 /// Return whether a provider placed any marks in the callback (`decor_providers_invoke_conceal_line`).
 pub fn decor_providers_invoke_conceal_line(wp: &mut win_T, row: c_int) -> bool {
-    unsafe {
-        let keys = (*wp.w_buffer).b_marktree.n_keys;
+     {
+        let keys = wp.buf_mut().b_marktree.n_keys;
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -236,7 +236,7 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut win_T, row: c_int) -> bool {
                 let conceal_line = p.conceal_line;
                 let mut args_buf = [
                     integer_obj(wp.handle as Integer),
-                    integer_obj((*wp.w_buffer).b_fnum as Integer),
+                    integer_obj(wp.buf_mut().b_fnum as Integer),
                     integer_obj(row as Integer),
                 ];
                 let args = Array {
@@ -255,7 +255,7 @@ pub fn decor_providers_invoke_conceal_line(wp: &mut win_T, row: c_int) -> bool {
             }
             i += 1;
         }
-        (*wp.w_buffer).b_marktree.n_keys > keys
+        wp.buf_mut().b_marktree.n_keys > keys
     }
 }
 
@@ -305,7 +305,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
         if !providers_mut().is_empty() {
             validate_botline_win(&raw mut *wp);
         }
-        let botline: linenr_T = wp.w_botline.min((*wp.w_buffer).b_ml.ml_line_count);
+        let botline: linenr_T = wp.w_botline.min(wp.buf_mut().b_ml.ml_line_count);
 
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -321,7 +321,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
                 let redraw_win = p.redraw_win;
                 let mut args_buf = [
                     window_obj(wp.handle),
-                    buffer_obj((*wp.w_buffer).b_fnum),
+                    buffer_obj(wp.buf_mut().b_fnum),
                     integer_obj((wp.w_topline - 1) as Integer),
                     integer_obj((botline - 1) as Integer),
                 ];
@@ -348,7 +348,7 @@ pub fn decor_providers_invoke_win(wp: &mut win_T) {
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
 pub fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
-    unsafe {
+     {
         g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
         while i < providers_mut().len() {
@@ -357,7 +357,7 @@ pub fn decor_providers_invoke_line(wp: &mut win_T, row: c_int) {
                 let redraw_line = p.redraw_line;
                 let mut args_buf = [
                     window_obj(wp.handle),
-                    buffer_obj((*wp.w_buffer).b_fnum),
+                    buffer_obj(wp.buf_mut().b_fnum),
                     integer_obj(row as Integer),
                 ];
                 let args = Array {
@@ -407,7 +407,7 @@ pub fn decor_providers_invoke_range(
                 let redraw_range = p.redraw_range;
                 let mut args_buf = [
                     window_obj(wp.handle),
-                    buffer_obj((*wp.w_buffer).b_fnum),
+                    buffer_obj(wp.buf_mut().b_fnum),
                     integer_obj(start_row as Integer),
                     integer_obj(start_col as Integer),
                     integer_obj(end_row as Integer),

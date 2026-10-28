@@ -251,7 +251,7 @@ fn find_start_of_word(pos: &mut pos_T) {
 fn find_end_of_word(pos: &mut pos_T) {
     unsafe {
         let line = ml_get(pos.lnum);
-        if *opt_vars().p_sel == b'e' as c_char && pos.col > 0 {
+        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && pos.col > 0 {
             pos.col -= 1;
             pos.col -= utf_head_off(line, line.add(pos.col as usize));
         }
@@ -259,7 +259,7 @@ fn find_end_of_word(pos: &mut pos_T) {
         while *line.add(pos.col as usize) != NUL {
             let col = pos.col + utfc_ptr2len(line.add(pos.col as usize));
             if get_mouse_class(line.add(col as usize)) != cclass {
-                if *opt_vars().p_sel == b'e' as c_char {
+                if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                     pos.col = col;
                 }
                 break;
@@ -1137,7 +1137,7 @@ pub fn do_mouse(
                             curwin_mut().w_cursor = *pos;
                             if (*oap).motion_type == kMTLineWise {
                                 g_st().Visual.mode = b'V' as c_int;
-                            } else if *opt_vars().p_sel == b'e' as c_char {
+                            } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                                 if lt(curwin_mut().w_cursor, g_st().Visual.start) {
                                     g_st().Visual.start.col += 1;
                                 } else {
@@ -1154,7 +1154,7 @@ pub fn do_mouse(
                         find_end_of_word(&mut g_st().Visual.start);
                     } else {
                         find_start_of_word(&mut g_st().Visual.start);
-                        if *opt_vars().p_sel == b'e' as c_char && *get_cursor_pos_ptr() != NUL {
+                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && *get_cursor_pos_ptr() != NUL {
                             curwin_mut().w_cursor.col += utfc_ptr2len(get_cursor_pos_ptr());
                         }
                         find_end_of_word(&mut curwin_mut().w_cursor);
@@ -1388,7 +1388,7 @@ pub fn is_mouse_key(c: c_int) -> bool {
 
 /// Return true when 'mousemodel' is set to "popup" or "popup_setpos".
 fn mouse_model_popup() -> bool {
-    unsafe { *opt_vars().p_mousem == b'p' as c_char }
+     crate::memory::cstr_first_byte(opt_vars().p_mousem) == b'p'
 }
 
 /// Reset the window being dragged. To be called when switching tab page.
@@ -1679,7 +1679,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                 row = curwin_mut().w_view_height - 1;
             } else if row == 0
                 && g_st().mouse_dragging > 0
-                && curwin_mut().w_cursor.lnum == (*curwin_mut().w_buffer).b_ml.ml_line_count
+                && curwin_mut().w_cursor.lnum == curwin_mut().buf_mut().b_ml.ml_line_count
                 && curwin_mut().w_cursor.lnum == curwin_mut().w_topline
             {
                 curwin_mut().w_valid &= !VALID_TOPLINE;
@@ -1845,7 +1845,7 @@ pub fn mouse_comp_pos(
 
             hasFolding(&raw mut *win, lnum, None, &raw mut lnum);
 
-            if lnum == (*win.w_buffer).b_ml.ml_line_count {
+            if lnum == win.buf_mut().b_ml.ml_line_count {
                 retval = true;
                 break;
             }
@@ -1891,7 +1891,7 @@ pub fn mouse_comp_pos(
 
         row -= virt_lines + diff_fill - skip_fill;
 
-        while lnum < (*win.w_buffer).b_ml.ml_line_count
+        while lnum < win.buf_mut().b_ml.ml_line_count
             && decor_conceal_line(&raw mut *win, lnum - 1, false)
         {
             lnum += 1;

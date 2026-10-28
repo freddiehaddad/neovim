@@ -337,8 +337,8 @@ pub fn mb_byte2len_check(b: c_int) -> c_int {
 
 #[inline]
 pub(crate) fn langmap_adjust(c: &mut c_int, condition: bool) {
-    unsafe {
-        if *opt_vars().p_langmap != 0
+     {
+        if !crate::memory::cstr_is_empty(opt_vars().p_langmap)
             && condition
             && (opt_vars().p_lrm != 0
                 || if g_st().vgetc_busy != 0 {

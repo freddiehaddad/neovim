@@ -219,7 +219,7 @@ fn changed_lines_invalidate_win(
     mut lnume: linenr_T,
     xtra: linenr_T,
 ) {
-    unsafe {
+     {
         if wp.w_cursor.lnum <= lnum {
             let i = find_wl_entry(&mut *wp, lnum);
             if i >= 0 && wp.w_cursor.lnum > (&wp.w_lines)[i as usize].wl_lnum {
@@ -242,8 +242,8 @@ fn changed_lines_invalidate_win(
 
         if (xtra < 0
             && wp.w_onebuf_opt.wo_wrap != 0
-            && buf_meta_total(&*wp.w_buffer, kMTMetaInline) != 0)
-            || (xtra != 0 && buf_meta_total(&*wp.w_buffer, kMTMetaLines) != 0)
+            && buf_meta_total(wp.buf_mut(), kMTMetaInline) != 0)
+            || (xtra != 0 && buf_meta_total(wp.buf_mut(), kMTMetaLines) != 0)
         {
             lnume += 1;
         }

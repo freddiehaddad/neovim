@@ -1026,9 +1026,9 @@ pub fn remote_ui_default_colors_set(
     cterm_fg: Integer,
     cterm_bg: Integer,
 ) {
-    unsafe {
+     {
         if !ui.ui_ext[kUITermColors] {
-            let dark = *opt_vars().p_bg == b'd' as c_char;
+            let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
             if rgb_fg == -1 {
                 rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
             }

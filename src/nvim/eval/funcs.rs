@@ -3244,14 +3244,14 @@ fn getregionpos(argvars: &mut [typval_T],rettv: &mut typval_T,
             is_select_exclusive = tv_dict_get_bool(
                 d,
                 c"exclusive",
-                c_int::from(*opt_vars().p_sel == b'e' as c_char),
+                c_int::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'),
             ) != 0;
             type_str = tv_dict_get_string(d, c"type");
             if type_str.is_null() {
                 type_str = default_type.as_mut_ptr();
             }
         } else {
-            is_select_exclusive = *opt_vars().p_sel == b'e' as c_char;
+            is_select_exclusive = crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e';
             type_str = default_type.as_mut_ptr();
         }
 
@@ -5200,7 +5200,7 @@ pub fn f_line(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             let mut tp: *mut tabpage_T = ptr::null_mut();
             let wp = win_id2wp_tp(id, &raw mut tp);
             if !wp.is_null() && !tp.is_null() {
-                if *opt_vars().p_spk != b'c' as c_char
+                if crate::memory::cstr_first_byte(opt_vars().p_spk) != b'c'
                     || ((*wp).w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_diff != 0)
                 {
                     g_st().skip_update_topline = true;
@@ -7604,7 +7604,7 @@ pub fn do_searchpair(
         if opt_vars().p_cpo == empty_string_option.as_ptr().cast() {
             opt_vars().p_cpo = save_cpo;
         } else {
-            if *opt_vars().p_cpo == NUL {
+            if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
                 set_option_value_give_err(
                     kOptCpoptions,
                     Object {
@@ -8983,7 +8983,7 @@ pub fn f_tabpagebuflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
             while !wp.is_null() {
                 tv_list_append_number(
                     rettv.vval.v_list(),
-                    varnumber_T::from((*(*wp).w_buffer).b_fnum),
+                    varnumber_T::from((*wp).buf_mut().b_fnum),
                 );
                 wp = (*wp).w_next;
             }

@@ -887,7 +887,7 @@ pub fn decor_find_virttext(buf: &mut buf_T, row: c_int, ns_id: u64) -> *mut Deco
 }
 
 pub fn decor_redraw_reset(wp: &mut win_T, state: &mut DecorState) -> bool {
-    unsafe {
+     {
         state.row = -1;
         state.win = wp;
 
@@ -898,7 +898,7 @@ pub fn decor_redraw_reset(wp: &mut win_T, state: &mut DecorState) -> bool {
         state.future_begin = 0;
         state.new_range_ordering = 0;
 
-        (*wp.w_buffer).b_marktree.n_keys != 0
+        wp.buf_mut().b_marktree.n_keys != 0
     }
 }
 
@@ -971,13 +971,13 @@ fn decor_state_pack(state: &mut DecorState) {
 }
 
 pub fn decor_redraw_line(wp: &mut win_T, row: c_int, state: &mut DecorState) {
-    unsafe {
+     {
         decor_state_pack(state);
 
         if state.row == -1 {
             decor_redraw_start(wp, row, state);
         } else if !state.itr_valid {
-            marktree_itr_get(&(*wp.w_buffer).b_marktree, row, 0, &mut state.itr);
+            marktree_itr_get(&wp.buf_mut().b_marktree, row, 0, &mut state.itr);
             state.itr_valid = true;
         }
 
@@ -1414,13 +1414,13 @@ pub fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> boo
             return false;
         }
 
-        if buf_meta_total(&*(*wp).w_buffer, kMTMetaConcealLines) == 0 {
+        if buf_meta_total((*wp).buf_mut(), kMTMetaConcealLines) == 0 {
             return decor_providers_invoke_conceal_line(&mut *wp, row);
         }
 
         let mut pair: MTPair = MTPair::new();
         let mut itr = MarkTreeIter::new();
-        let b = &(*(*wp).w_buffer).b_marktree;
+        let b = &(*wp).buf_mut().b_marktree;
         marktree_itr_get_overlap(b, row, 0, &mut itr);
         while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
             if mt_conceal_lines(pair.start) && ns_in_win(pair.start.ns, wp) {

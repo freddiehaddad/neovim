@@ -790,7 +790,7 @@ pub fn win_redr_winbar(wp: &mut win_T) {
 
         if wp.w_winbar_height == 0 || !redrawing() {
             // Do nothing.
-        } else if *opt_vars().p_wbr != NUL || *wp.w_onebuf_opt.wo_wbr != NUL {
+        } else if !crate::memory::cstr_is_empty(opt_vars().p_wbr) || *wp.w_onebuf_opt.wo_wbr != NUL {
             win_redr_stl_expr(&raw mut *wp, true, false, false);
         }
         stl_st().winbar_entered = false;
@@ -818,7 +818,7 @@ pub fn redraw_ruler() {
             return;
         }
 
-        if (*wp).w_cursor.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
+        if (*wp).w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count {
             return;
         }
 
@@ -973,7 +973,7 @@ pub fn draw_tabline() {
         debug_assert!((*defs).len() >= g_st().Columns as usize);
         stl_clear_click_defs(&mut *defs);
 
-        if *opt_vars().p_tal != NUL {
+        if !crate::memory::cstr_is_empty(opt_vars().p_tal) {
             win_redr_stl_expr(ptr::null_mut(), false, false, false);
         } else {
             let mut tabcount: c_int = 0;
@@ -1028,7 +1028,7 @@ pub fn draw_tabline() {
                 while !wp.is_null() {
                     if !(*wp).w_config.focusable || (*wp).w_config.hide {
                         wincount -= 1;
-                    } else if bufIsChanged(&mut *(*wp).w_buffer) {
+                    } else if bufIsChanged((*wp).buf_mut()) {
                         modified = true;
                     }
                     wp = (*wp).w_next;
@@ -1100,7 +1100,7 @@ pub fn draw_tabline() {
             let c = if use_sep_chars { b'_' } else { b' ' };
             grid_line_fill(col, g_st().Columns, schar_from_ascii(c), attr_fill);
 
-            if opt_vars().p_sc != 0 && *opt_vars().p_sloc == b't' as c_char {
+            if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b't' {
                 let n = g_st().Columns - col - c_int::from(tabcount > 1) * 3;
                 let sc_width = 10.min(n);
 
@@ -1461,8 +1461,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         let mut lnum = (*wp).w_cursor.lnum;
-        if lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
-            lnum = (*(*wp).w_buffer).b_ml.ml_line_count;
+        if lnum > (*wp).buf_mut().b_ml.ml_line_count {
+            lnum = (*wp).buf_mut().b_ml.ml_line_count;
             (*wp).w_cursor.lnum = lnum;
         }
 
@@ -1854,9 +1854,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         xstrlcpy(name_buff, name, MAXPATHL);
                     } else {
                         let t = if opt == STL_FULLPATH {
-                            (*(*wp).w_buffer).b_ffname
+                            (*wp).buf_mut().b_ffname
                         } else {
-                            (*(*wp).w_buffer).b_fname
+                            (*wp).buf_mut().b_fname
                         };
                         home_replace((*wp).w_buffer, t, name_buff, MAXPATHL, true);
                     }
@@ -1996,7 +1996,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             }
                         }
                     } else if stcp.is_null() {
-                        num = if ((*(*wp).w_buffer).b_ml.ml_flags & ML_EMPTY) != 0 {
+                        num = if ((*wp).buf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
                             0
                         } else {
                             (*wp).w_cursor.lnum
@@ -2004,7 +2004,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     }
                 }
                 STL_NUMLINES => {
-                    num = (*(*wp).w_buffer).b_ml.ml_line_count;
+                    num = (*wp).buf_mut().b_ml.ml_line_count;
                 }
                 STL_COLUMN => {
                     num = if (g_st().State & MODE_INSERT) == 0 && empty_line {
@@ -2027,7 +2027,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_PERCENTAGE => {
                     num = calc_percentage(
                         i64::from((*wp).w_cursor.lnum),
-                        i64::from((*(*wp).w_buffer).b_ml.ml_line_count),
+                        i64::from((*wp).buf_mut().b_ml.ml_line_count),
                     );
                 }
                 STL_ALTPERCENT => {
@@ -2062,19 +2062,19 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     num = 0;
                 }
                 STL_BUFNO => {
-                    num = (*(*wp).w_buffer).b_fnum;
+                    num = (*wp).buf_mut().b_fnum;
                 }
                 STL_OFFSET_X | STL_OFFSET => {
                     if opt == STL_OFFSET_X {
                         base = NumberBase::kNumBaseHexadecimal;
                     }
                     let l = ml_find_line_or_offset(
-                        &mut *(*wp).w_buffer,
+                        (*wp).buf_mut(),
                         (*wp).w_cursor.lnum,
                         None,
                         false,
                     );
-                    num = if ((*(*wp).w_buffer).b_ml.ml_flags & ML_EMPTY) != 0 || l < 0 {
+                    num = if ((*wp).buf_mut().b_ml.ml_flags & ML_EMPTY) != 0 || l < 0 {
                         0
                     } else {
                         l + 1
@@ -2092,13 +2092,13 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     num = byteval;
                     if num == NL {
                         num = 0;
-                    } else if num == CAR && get_fileformat(&*(*wp).w_buffer) == EOL_MAC {
+                    } else if num == CAR && get_fileformat((*wp).buf_mut()) == EOL_MAC {
                         num = NL;
                     }
                 }
                 STL_ROFLAG | STL_ROFLAG_ALT => {
                     itemisflag = true;
-                    if (*(*wp).w_buffer).b_p_ro != 0 {
+                    if (*wp).buf_mut().b_p_ro != 0 {
                         str = if opt == STL_ROFLAG_ALT {
                             c",RO".as_ptr().cast_mut()
                         } else {
@@ -2108,7 +2108,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_HELPFLAG | STL_HELPFLAG_ALT => {
                     itemisflag = true;
-                    if (*(*wp).w_buffer).b_help {
+                    if (*wp).buf_mut().b_help {
                         str = if opt == STL_HELPFLAG_ALT {
                             c",HLP".as_ptr().cast_mut()
                         } else {
@@ -2120,7 +2120,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     handle_stcsign = true;
                 }
                 STL_FILETYPE => {
-                    let ft = (*(*wp).w_buffer).b_p_ft;
+                    let ft = (*wp).buf_mut().b_p_ft;
                     if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 3 {
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]", ft);
                         str = buf_tmp.as_mut_ptr();
@@ -2128,7 +2128,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_FILETYPE_ALT => {
                     itemisflag = true;
-                    let ft = (*(*wp).w_buffer).b_p_ft;
+                    let ft = (*wp).buf_mut().b_p_ft;
                     if *ft != NUL && crate::memory::cstr_len(ft) < TMPLEN - 2 {
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s", ft);
                         let mut t = buf_tmp.as_mut_ptr();
@@ -2161,8 +2161,8 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_MODIFIED | STL_MODIFIED_ALT => {
                     itemisflag = true;
                     let code = c_int::from(opt == STL_MODIFIED_ALT)
-                        + c_int::from(bufIsChanged(&mut *(*wp).w_buffer)) * 2
-                        + c_int::from((*(*wp).w_buffer).b_p_ma == 0) * 4;
+                        + c_int::from(bufIsChanged((*wp).buf_mut())) * 2
+                        + c_int::from((*wp).buf_mut().b_p_ma == 0) * 4;
                     str = match code {
                         2 => c"[+]".as_ptr().cast_mut(),
                         3 => c",+".as_ptr().cast_mut(),

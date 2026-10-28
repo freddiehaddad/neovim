@@ -2790,7 +2790,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                 1
                             };
                             if REG_MULTI()
-                                && (lnum <= 0 || lnum > (*(*wp).w_buffer).b_ml.ml_line_count)
+                                && (lnum <= 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count)
                             {
                                 lnum = 1;
                             }

@@ -864,7 +864,7 @@ pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
 }
 
 pub fn init_highlight(both: bool, reset: bool) {
-    unsafe {
+     {
         let p = get_var_value(c"g:colors_name");
         if !p.is_null() {
             let copy_p = crate::memory::cstr_to_cstring(p);
@@ -883,7 +883,7 @@ pub fn init_highlight(both: bool, reset: bool) {
             return;
         }
 
-        let pp = if *opt_vars().p_bg == b'l' as c_char {
+        let pp = if crate::memory::cstr_first_byte(opt_vars().p_bg) == b'l' {
             &HIGHLIGHT_INIT_LIGHT
         } else {
             &HIGHLIGHT_INIT_DARK
@@ -1497,7 +1497,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                                         -1
                                     };
                                     if dark != -1
-                                        && (dark != 0) != (*opt_vars().p_bg == b'd' as c_char)
+                                        && (dark != 0) != (crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd')
                                         && !option_was_set(kOptBackground)
                                     {
                                         set_option_value_give_err(

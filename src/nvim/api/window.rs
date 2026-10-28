@@ -77,7 +77,7 @@ pub fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
         if w.is_null() {
             return 0;
         }
-        (*(*w).w_buffer).b_fnum
+        (*w).buf_mut().b_fnum
     }
 }
 
@@ -163,7 +163,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
         let row = pos[0].data.integer();
         let col = pos[1].data.integer();
 
-        if row <= 0 || row > i64::from((*(*w).w_buffer).b_ml.ml_line_count) {
+        if row <= 0 || row > i64::from((*w).buf_mut().b_ml.ml_line_count) {
             api_err_range(err, c"cursor line");
             return;
         }

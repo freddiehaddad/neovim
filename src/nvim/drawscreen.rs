@@ -617,7 +617,7 @@ pub fn update_screen() -> bool {
         if curwin_mut().w_redr_type < UPD_NOT_VALID {
             let curwin_nrw = if curwin_mut().w_onebuf_opt.wo_nu != 0
                 || curwin_mut().w_onebuf_opt.wo_rnu != 0
-                || *curwin_mut().w_onebuf_opt.wo_stc != 0
+                || !crate::memory::cstr_is_empty(curwin_mut().w_onebuf_opt.wo_stc)
             {
                 number_width(curwin_ptr())
             } else {
@@ -735,7 +735,7 @@ pub fn update_screen() -> bool {
 
         wp = g_st().firstwin;
         while !wp.is_null() {
-            (*(*wp).w_buffer).b_mod_set = false;
+            (*wp).buf_mut().b_mod_set = false;
             wp = (*wp).w_next;
         }
 
@@ -841,7 +841,7 @@ pub fn show_cursor_info_later(force: bool) {
             || curwin_mut().w_virtcol != curwin_mut().w_stl_virtcol
             || curwin_mut().w_cursor.coladd != curwin_mut().w_stl_cursor.coladd
             || curwin_mut().w_topline != curwin_mut().w_stl_topline
-            || (*curwin_mut().w_buffer).b_ml.ml_line_count != curwin_mut().w_stl_line_count
+            || curwin_mut().buf_mut().b_ml.ml_line_count != curwin_mut().w_stl_line_count
             || curwin_mut().w_topfill != curwin_mut().w_stl_topfill
             || (empty_line as c_char) != curwin_mut().w_stl_empty
             || g_st().reg_recording != curwin_mut().w_stl_recording
@@ -858,7 +858,7 @@ pub fn show_cursor_info_later(force: bool) {
                 g_st().redraw_cmdline = true;
             }
 
-            if *opt_vars().p_wbr != NUL || *curwin_mut().w_onebuf_opt.wo_wbr != NUL {
+            if !crate::memory::cstr_is_empty(opt_vars().p_wbr) || !crate::memory::cstr_is_empty(curwin_mut().w_onebuf_opt.wo_wbr) {
                 curwin_mut().w_redr_status = true;
             }
 
@@ -869,7 +869,7 @@ pub fn show_cursor_info_later(force: bool) {
         curwin_mut().w_stl_virtcol = curwin_mut().w_virtcol;
         curwin_mut().w_stl_empty = empty_line as c_char;
         curwin_mut().w_stl_topline = curwin_mut().w_topline;
-        curwin_mut().w_stl_line_count = (*curwin_mut().w_buffer).b_ml.ml_line_count;
+        curwin_mut().w_stl_line_count = curwin_mut().buf_mut().b_ml.ml_line_count;
         curwin_mut().w_stl_topfill = curwin_mut().w_topfill;
         curwin_mut().w_stl_recording = g_st().reg_recording;
         curwin_mut().w_stl_state = state;
@@ -1102,7 +1102,7 @@ fn recording_mode(hl_id: c_int) {
 }
 
 pub fn comp_col() {
-    unsafe {
+     {
         let last_has_status = last_stl_height(false) > 0;
 
         g_st().sc_col = 0;
@@ -1113,7 +1113,7 @@ pub fn comp_col() {
                 g_st().sc_col = g_st().ru_col;
             }
         }
-        if opt_vars().p_sc != 0 && *opt_vars().p_sloc == b'l' as c_char {
+        if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b'l' {
             g_st().sc_col += SHOWCMD_COLS;
             if opt_vars().p_ru == 0 || last_has_status {
                 g_st().sc_col += 1;
@@ -2550,7 +2550,7 @@ pub fn number_width(wp: *mut win_T) -> c_int {
         let mut lnum = if (*wp).w_onebuf_opt.wo_rnu != 0 && (*wp).w_onebuf_opt.wo_nu == 0 {
             (*wp).w_view_height
         } else {
-            (*(*wp).w_buffer).b_ml.ml_line_count
+            (*wp).buf_mut().b_ml.ml_line_count
         };
 
         if lnum == (*wp).w_nrwidth_line_count {
@@ -2578,7 +2578,7 @@ pub fn number_width(wp: *mut win_T) -> c_int {
         n = n.max(((*wp).w_onebuf_opt.wo_nuw as c_int) - 1);
 
         if n < 2
-            && buf_meta_total(&*(*wp).w_buffer, kMTMetaSignText) != 0
+            && buf_meta_total((*wp).buf_mut(), kMTMetaSignText) != 0
             && (*wp).w_minscwidth == SCL_NUM
         {
             n = 2;

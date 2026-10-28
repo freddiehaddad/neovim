@@ -1463,11 +1463,11 @@ pub fn did_set_background(args: &mut optset_T) -> *const c_char {
             return ptr::null();
         }
 
-        let dark = *opt_vars().p_bg == b'd' as c_char;
+        let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
 
         init_highlight(false, false);
 
-        if dark != (*opt_vars().p_bg == b'd' as c_char) && !get_var_value(c"g:colors_name").is_null()
+        if dark != (crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd') && !get_var_value(c"g:colors_name").is_null()
         {
             do_unlet(c"g:colors_name", 13, true);
             free_string_option(opt_vars().p_bg);
@@ -3182,9 +3182,9 @@ pub fn did_set_vartabstop(args: &mut optset_T) -> *const c_char {
 
 /// The 'verbosefile' option is changed.
 pub fn did_set_verbosefile(_args: &mut optset_T) -> *const c_char {
-    unsafe {
+     {
         verbose_stop();
-        if *opt_vars().p_vfile != NUL && !verbose_open() {
+        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) && !verbose_open() {
             return e_invarg.as_ptr();
         }
         ptr::null()

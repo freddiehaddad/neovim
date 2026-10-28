@@ -953,7 +953,7 @@ fn buf_write_make_backup(
             }
         }
 
-        let backup_ext = if *opt_vars().p_bex == NUL {
+        let backup_ext = if crate::memory::cstr_is_empty(opt_vars().p_bex) {
             c".bak".as_ptr().cast_mut()
         } else {
             opt_vars().p_bex
@@ -1298,8 +1298,8 @@ pub fn buf_write(
                     acl = os_get_acl(fname);
                 }
 
-                let mut dobackup = opt_vars().p_wb != 0 || opt_vars().p_bk != 0 || *opt_vars().p_pm != NUL;
-                if dobackup && *opt_vars().p_bsk != NUL && match_file_list(opt_vars().p_bsk, sfname, ffname) {
+                let mut dobackup = opt_vars().p_wb != 0 || opt_vars().p_bk != 0 || !crate::memory::cstr_is_empty(opt_vars().p_pm);
+                if dobackup && !crate::memory::cstr_is_empty(opt_vars().p_bsk) && match_file_list(opt_vars().p_bsk, sfname, ffname) {
                     dobackup = false;
                 }
 
@@ -1308,7 +1308,7 @@ pub fn buf_write(
                 g_st().got_int = false;
                 (*buf).b_saving = true;
 
-                if !(append && *opt_vars().p_pm == NUL)
+                if !(append && crate::memory::cstr_is_empty(opt_vars().p_pm))
                     && !filtering
                     && perm >= 0
                     && dobackup
@@ -1942,7 +1942,7 @@ pub fn buf_write(
                         }
                     }
 
-                    if *opt_vars().p_pm != 0 && dobackup {
+                    if !crate::memory::cstr_is_empty(opt_vars().p_pm) && dobackup {
                         let org = modname(fname, opt_vars().p_pm, false);
                         if let Some(ref bk) = backup {
                             match org {
