@@ -356,7 +356,7 @@ pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: impl crate::strings::In
         let messages = std::mem::take(list);
         if throw_exception(ExceptionValue::Error(messages), cmdname) {
             if let Some(cstack) = cstack {
-                do_throw(&raw mut *cstack);
+                do_throw(&mut *cstack);
             } else {
                 g_st().need_rethrow = true;
             }
@@ -384,7 +384,7 @@ pub fn do_intthrow(cstack: *mut Cstack) -> bool {
             ExceptionValue::Interrupt(c"Vim:Interrupt".to_owned()),
             ptr::null_mut(),
         ) {
-            do_throw(cstack);
+            do_throw(unsafe { &mut *(cstack) });
         }
 
         true
@@ -1118,25 +1118,25 @@ pub fn ex_throw(eap: &mut Exarg) {
             && eap.skip == 0
             && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut())
         {
-            do_throw(eap.cstack.cast());
+            do_throw(unsafe { &mut *(eap.cstack.cast()) });
         }
     }
 }
 
-pub fn do_throw(cstack: *mut Cstack) {
-    unsafe {
+pub fn do_throw(cstack: &mut Cstack) {
+    {
         let idx = cleanup_conditionals(&mut *cstack, 0, 0);
         if idx >= 0 {
             let u_idx = idx as usize;
-            if ((*cstack).cs_flags[u_idx] & CSF_CAUGHT) == 0 {
-                if ((*cstack).cs_flags[u_idx] & CSF_ACTIVE) != 0 {
-                    (*cstack).cs_flags[u_idx] |= CSF_THROWN;
+            if (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0 {
+                if (cstack.cs_flags[u_idx] & CSF_ACTIVE) != 0 {
+                    cstack.cs_flags[u_idx] |= CSF_THROWN;
                 } else {
-                    (*cstack).cs_flags[u_idx] &= !CSF_THROWN;
+                    cstack.cs_flags[u_idx] &= !CSF_THROWN;
                 }
             }
-            (*cstack).cs_flags[u_idx] &= !CSF_ACTIVE;
-            (&mut (*cstack).cs_exception)[u_idx] = g_st().current_exception.clone();
+            cstack.cs_flags[u_idx] &= !CSF_ACTIVE;
+            (&mut cstack.cs_exception)[u_idx] = g_st().current_exception.clone();
         }
 
         g_st().did_throw = true;

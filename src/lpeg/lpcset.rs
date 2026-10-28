@@ -73,13 +73,13 @@ pub fn getbytefromcharset(info: &CharsetInfo, index: c_int) -> LpegByte {
     }
 }
 
-pub fn tocharset(tree: *mut TTree, cs: &mut Charset) -> c_int {
+pub fn tocharset(tree: &mut TTree, cs: &mut Charset) -> c_int {
     unsafe {
-        match (*tree).tag {
+        match tree.tag {
             TCHAR => {
-                debug_assert!(0 <= (*tree).u.n && (*tree).u.n <= c_int::from(u8::MAX));
+                debug_assert!(0 <= tree.u.n && tree.u.n <= c_int::from(u8::MAX));
                 clearset(&mut cs.cs);
-                setchar(&mut cs.cs, (*tree).u.n as usize);
+                setchar(&mut cs.cs, tree.u.n as usize);
                 1
             }
             TANY => {
@@ -91,10 +91,10 @@ pub fn tocharset(tree: *mut TTree, cs: &mut Charset) -> c_int {
                 1
             }
             TSET => {
-                fillset(&mut cs.cs, (*tree).u.set.deflt);
+                fillset(&mut cs.cs, tree.u.set.deflt);
                 let tb = treebuffer(tree);
-                for i in 0..((*tree).u.set.size as usize) {
-                    cs.cs[((*tree).u.set.offset as usize) + i] = *tb.add(i);
+                for i in 0..(tree.u.set.size as usize) {
+                    cs.cs[(tree.u.set.offset as usize) + i] = *tb.add(i);
                 }
                 1
             }

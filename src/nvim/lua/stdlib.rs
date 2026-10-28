@@ -607,7 +607,7 @@ unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
             return luaL_error(lstate, c"invalid bot".as_ptr());
         }
 
-        fold_update(win, top, bot);
+        fold_update(&mut *(win), top, bot);
         0
     }
 }

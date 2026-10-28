@@ -4069,7 +4069,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
         }
 
         if reload != RELOAD_NONE {
-            buf_reload(&raw mut *buf, orig_mode, reload == RELOAD_DETECT);
+            buf_reload(&mut *buf, orig_mode, reload == RELOAD_DETECT);
             if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
                 let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
                 u_compute_hash(buf, hash.as_mut_ptr());
@@ -4091,10 +4091,10 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
 }
 
 /// Reload a buffer that is already loaded.
-pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
+pub fn buf_reload(buf: &mut FileBuf, orig_mode: c_int, reload_options: bool) {
     unsafe {
         let mut ea: Exarg = Exarg::new();
-        let old_ro = (*buf).b_p_ro;
+        let old_ro = buf.b_p_ro;
         let savebuf: *mut FileBuf;
         let mut bufref: Bufref = Bufref::new();
         let mut saved = OK;
@@ -4135,7 +4135,7 @@ pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
         } else {
             savebuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
             set_bufref(&mut bufref, savebuf);
-            if !savebuf.is_null() && buf == g_st().curbuf {
+            if !savebuf.is_null() && ptr::eq(buf, g_st().curbuf) {
                 g_st().curbuf = savebuf;
                 curwin_mut().w_buffer = savebuf;
                 saved = if ml_open(curbuf_mut()) { OK } else { FAIL };
@@ -4144,12 +4144,12 @@ pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
             }
             if savebuf.is_null()
                 || saved == FAIL
-                || buf != g_st().curbuf
+                || !ptr::eq(buf, g_st().curbuf)
                 || !move_lines(&mut *buf, savebuf)
             {
                 semsg!(
                     tr(c"E462: Could not prepare for reloading \"%s\""),
-                    (*buf).b_fname,
+                    buf.b_fname,
                 );
                 saved = FAIL;
             }
@@ -4159,8 +4159,8 @@ pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
             curbuf_mut().b_flags |= BF_CHECK_RO;
             curbuf_mut().b_keep_filetype = true;
             if readfile(
-                (*buf).b_ffname,
-                (*buf).b_fname,
+                buf.b_ffname,
+                buf.b_fname,
                 0,
                 0,
                 MAXLNUM,
@@ -4170,17 +4170,18 @@ pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
             ) != OK
             {
                 if !aborting() {
-                    semsg!(tr(c"E321: Could not reload \"%s\""), (*buf).b_fname,);
+                    semsg!(tr(c"E321: Could not reload \"%s\""), buf.b_fname,);
                 }
-                if !savebuf.is_null() && bufref_valid(Some(&bufref)) && buf == g_st().curbuf {
+                if !savebuf.is_null() && bufref_valid(Some(&bufref)) && ptr::eq(buf, g_st().curbuf)
+                {
                     while !buf_is_empty(curbuf_mut()) {
-                        if !ml_delete((*buf).b_ml.ml_line_count) {
+                        if !ml_delete(buf.b_ml.ml_line_count) {
                             break;
                         }
                     }
                     move_lines(&mut *savebuf, buf);
                 }
-            } else if buf == g_st().curbuf {
+            } else if ptr::eq(buf, g_st().curbuf) {
                 unchanged(&mut *buf, true, true);
                 if (flags & READ_KEEP_UNDO) == 0 {
                     u_clearallandblockfree(&mut *buf);

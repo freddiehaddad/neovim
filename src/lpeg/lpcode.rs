@@ -194,7 +194,7 @@ fn getfirst(mut tree: *mut TTree, mut follow: &Charset, firstset: &mut Charset) 
         loop {
             match (*tree).tag {
                 TCHAR | TSET | TANY | TFALSE => {
-                    tocharset(tree, firstset);
+                    tocharset(&mut *(tree), firstset);
                     return 0;
                 }
                 TUTFR => {
@@ -261,7 +261,7 @@ fn getfirst(mut tree: *mut TTree, mut follow: &Charset, firstset: &mut Charset) 
                     return e;
                 }
                 TNOT => {
-                    if tocharset(sib1(tree), firstset) != 0 {
+                    if tocharset(&mut *(sib1(tree)), firstset) != 0 {
                         cs_complement(firstset);
                         return 1;
                     }
@@ -338,11 +338,11 @@ fn needfollow(mut tree: *mut TTree) -> bool {
     }
 }
 
-pub fn sizei(i: *const Instruction) -> c_int {
+pub fn sizei(i: &Instruction) -> c_int {
     unsafe {
-        match (*i).i.code {
-            ISET | ISPAN => 1 + c_int::from((*i).i.aux2.set.size),
-            ITEST_SET => 2 + c_int::from((*i).i.aux2.set.size),
+        match i.i.code {
+            ISET | ISPAN => 1 + c_int::from(i.i.aux2.set.size),
+            ITEST_SET => 2 + c_int::from(i.i.aux2.set.size),
             ITEST_CHAR | ITEST_ANY | ICHOICE | IJMP | ICALL | IOPEN_CALL | ICOMMIT
             | IPARTIAL_COMMIT | IBACK_COMMIT | IUTFR => 2,
             _ => 1,
@@ -392,7 +392,7 @@ fn addinstruction(compst: &mut CompileState, op: Opcode, aux: c_int) -> c_int {
 fn addoffsetinst(compst: &mut CompileState, op: Opcode) -> c_int {
     let i = addinstruction(compst, op, 0);
     addinstruction(compst, 0, 0);
-    debug_assert!(op == ITEST_SET || sizei(getinstr(compst, i)) == 2);
+    debug_assert!(op == ITEST_SET || sizei(unsafe { &*(getinstr(compst, i)) }) == 2);
     i
 }
 
@@ -471,19 +471,19 @@ fn addcharset(compst: &mut CompileState, inst: c_int, info: &CharsetInfo) {
     }
 }
 
-fn cs_equal(p: *const Instruction, info: &CharsetInfo) -> bool {
+fn cs_equal(p: &Instruction, info: &CharsetInfo) -> bool {
     unsafe {
-        if (*p).i.code != ITEST_SET {
+        if p.i.code != ITEST_SET {
             return false;
         }
         let isize = instsize(info.size);
-        if c_int::from((*p).i.aux2.set.offset) != info.offset * 8
-            || c_int::from((*p).i.aux2.set.size) != isize
-            || c_int::from((*p).i.aux1) != info.deflt
+        if c_int::from(p.i.aux2.set.offset) != info.offset * 8
+            || c_int::from(p.i.aux2.set.size) != isize
+            || c_int::from(p.i.aux1) != info.deflt
         {
             return false;
         }
-        let buff = p.add(2).cast::<LpegByte>();
+        let buff = (p as *const Instruction).add(2).cast::<LpegByte>();
         for i in 0..((isize as usize) * size_of::<Instruction>()) {
             if *buff.add(i) != getbytefromcharset(info, i as c_int) {
                 return false;
@@ -496,7 +496,7 @@ fn cs_equal(p: *const Instruction, info: &CharsetInfo) -> bool {
 fn codecharset(compst: &mut CompileState, tree: &mut TTree, tt: c_int) {
     let mut info = CharsetInfo::new();
     tree2cset(tree, &mut info);
-    if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
+    if tt >= 0 && cs_equal(unsafe { &*(getinstr(compst, tt)) }, &info) {
         addinstruction(compst, IANY, 0);
     } else {
         let i = addinstruction(compst, ISET, 0);
@@ -741,7 +741,7 @@ fn correctcalls(compst: &mut CompileState, positions: &[c_int; MAXRULES], from: 
                 }
                 jumptothere(compst, i, rule);
             }
-            i += sizei(inst);
+            i += sizei(&*(inst));
         }
         debug_assert_eq!(i, to);
     }
@@ -914,7 +914,7 @@ fn peephole(compst: &mut CompileState) {
                     _ => break,
                 }
             }
-            i += sizei(code.add(i as usize));
+            i += sizei(&*(code.add(i as usize)));
         }
         debug_assert_eq!((*code.add((i - 1) as usize)).i.code, IEND);
     }

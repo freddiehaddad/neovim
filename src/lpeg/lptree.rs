@@ -50,24 +50,24 @@ fn val2str(l: *mut lua_State, idx: c_int) -> *const c_char {
     }
 }
 
-fn fixonecall(l: *mut lua_State, postable: c_int, g: *mut TTree, t: *mut TTree) {
+fn fixonecall(l: *mut lua_State, postable: c_int, g: *mut TTree, t: &mut TTree) {
     unsafe {
-        lua_rawgeti(l, -1, c_int::from((*t).key));
+        lua_rawgeti(l, -1, c_int::from(t.key));
         lua_gettable(l, postable);
         let n = lua_tonumber(l, -1) as c_int;
         lua_pop(l, 1);
         if n == 0 {
-            lua_rawgeti(l, -1, c_int::from((*t).key));
+            lua_rawgeti(l, -1, c_int::from(t.key));
             luaL_error(
                 l,
                 c"rule '%s' undefined in given grammar".as_ptr(),
                 val2str(l, -1),
             );
         }
-        (*t).tag = TCALL;
-        (*t).u.ps = n - (t.offset_from(g) as c_int);
+        t.tag = TCALL;
+        t.u.ps = n - ((t as *mut TTree).offset_from(g) as c_int);
         debug_assert_eq!((*sib2(t)).tag, TRULE);
-        (*sib2(t)).key = (*t).key;
+        (*sib2(t)).key = t.key;
     }
 }
 
@@ -94,7 +94,7 @@ fn finalfix(l: *mut lua_State, postable: c_int, g: *mut TTree, mut t: *mut TTree
                 TGRAMMAR => return,
                 TOPEN_CALL => {
                     if !g.is_null() {
-                        fixonecall(l, postable, g, t);
+                        fixonecall(l, postable, g, &mut *(t));
                     } else {
                         lua_rawgeti(l, -1, c_int::from((*t).key));
                         luaL_error(
@@ -500,7 +500,7 @@ unsafe extern "C-unwind" fn lp_choice(l: *mut lua_State) -> c_int {
         let mut st2 = Charset::new();
         let t1 = getpatt(l, 1, None);
         let t2 = getpatt(l, 2, None);
-        if tocharset(t1, &mut st1) != 0 && tocharset(t2, &mut st2) != 0 {
+        if tocharset(&mut *(t1), &mut st1) != 0 && tocharset(&mut *(t2), &mut st2) != 0 {
             for i in 0..CHARSETSIZE {
                 st1.cs[i] |= st2.cs[i];
             }
@@ -571,7 +571,7 @@ unsafe extern "C-unwind" fn lp_sub(l: *mut lua_State) -> c_int {
         let mut s2: c_int = 0;
         let t1 = getpatt(l, 1, Some(&mut s1));
         let t2 = getpatt(l, 2, Some(&mut s2));
-        if tocharset(t1, &mut st1) != 0 && tocharset(t2, &mut st2) != 0 {
+        if tocharset(&mut *(t1), &mut st1) != 0 && tocharset(&mut *(t2), &mut st2) != 0 {
             for i in 0..CHARSETSIZE {
                 st1.cs[i] &= !st2.cs[i];
             }
@@ -625,8 +625,8 @@ unsafe extern "C-unwind" fn lp_range(l: *mut lua_State) -> c_int {
     }
 }
 
-fn codeutftree(l: *mut lua_State, t: *mut TTree, cpu: lua_Unsigned, arg: c_int) {
-    unsafe {
+fn codeutftree(l: *mut lua_State, t: &mut TTree, cpu: lua_Unsigned, arg: c_int) {
+    {
         let cp = cpu as c_int;
         let (len, fb) = if cp <= 0x7f {
             (1, cp)
@@ -638,9 +638,9 @@ fn codeutftree(l: *mut lua_State, t: *mut TTree, cpu: lua_Unsigned, arg: c_int) 
             luaL_argcheck(l, cpu <= 0x10ffff, arg, c"invalid code point");
             (4, 0xF0 | (cp >> 18))
         };
-        (*t).u.n = cp;
-        (*t).cap = len as LpegByte;
-        (*t).key = fb as c_ushort;
+        t.u.n = cp;
+        t.cap = len as LpegByte;
+        t.key = fb as c_ushort;
     }
 }
 
@@ -659,9 +659,9 @@ unsafe extern "C-unwind" fn lp_utfr(l: *mut lua_State) -> c_int {
         } else {
             let tree = newtree(l, 2);
             (*tree).tag = TUTFR;
-            codeutftree(l, tree, from, 1);
+            codeutftree(l, &mut *(tree), from, 1);
             (*sib1(tree)).tag = TXINFO;
-            codeutftree(l, sib1(tree), to, 2);
+            codeutftree(l, &mut *(sib1(tree)), to, 2);
         }
         1
     }

@@ -1329,7 +1329,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                     if cur {
                                         let mut vcol: Colnr = 0;
                                         getvvcol(
-                                            crate::globals::curwin_ptr(),
+                                            &mut *(crate::globals::curwin_ptr()),
                                             &mut crate::globals::curwin_mut().w_cursor,
                                             None,
                                             None,

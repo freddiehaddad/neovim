@@ -868,7 +868,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
                     let mut buf_num_anchors: c_int = 0;
                     if !parse_diffanchors(
                         false,
-                        curtab_mut().tp_diffbuf[idx],
+                        &mut *(curtab_mut().tp_diffbuf[idx]),
                         (&raw mut anchors[idx]).cast(),
                         Some(&mut buf_num_anchors),
                     ) {
@@ -2303,15 +2303,15 @@ pub fn diff_set_topline(fromwin: &mut WinInfoInfo, towin: &mut WinInfoInfo) {
 }
 fn parse_diffanchors(
     check_only: bool,
-    buf: *mut FileBuf,
+    buf: &mut FileBuf,
     anchors: *mut Linenr,
     num_anchors: Option<&mut c_int>,
 ) -> bool {
     unsafe {
-        let mut dia = if crate::memory::cstr_is_empty((*buf).b_p_dia) {
+        let mut dia = if crate::memory::cstr_is_empty(buf.b_p_dia) {
             opt_vars().p_dia
         } else {
-            (*buf).b_p_dia
+            buf.b_p_dia
         };
         let orig_curbuf = g_st().curbuf;
         let orig_curwin = curwin_ptr();
@@ -2320,7 +2320,7 @@ fn parse_diffanchors(
         } else {
             let mut bw = g_st().firstwin;
             while !bw.is_null() {
-                if (*bw).w_buffer == buf && (*bw).w_onebuf_opt.wo_diff != 0 {
+                if ptr::eq((*bw).w_buffer, buf) && (*bw).w_onebuf_opt.wo_diff != 0 {
                     break;
                 }
                 bw = (*bw).w_next;
@@ -2360,8 +2360,7 @@ fn parse_diffanchors(
             if crate::memory::cstr_first_byte(dia) != b',' && !crate::memory::cstr_is_empty(dia) {
                 return false;
             }
-            if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > (*buf).b_ml.ml_line_count + 1)
-            {
+            if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > buf.b_ml.ml_line_count + 1) {
                 emsg(gettext(E_INVRANGE));
                 return false;
             }
@@ -2388,7 +2387,7 @@ fn parse_diffanchors(
 }
 pub fn diffanchors_changed(buflocal: bool) -> bool {
     {
-        let result = parse_diffanchors(true, g_st().curbuf, ptr::null_mut(), None);
+        let result = parse_diffanchors(true, curbuf_mut(), ptr::null_mut(), None);
         if result && (diff_st().diff_flags & DIFF_ANCHOR) != 0 {
             for tp in for_all_tabpages_mut() {
                 if !buflocal {
@@ -3603,7 +3602,7 @@ fn diff_fold_update(df_lnum: &[Linenr; DB_COUNT], df_count: &[Linenr; DB_COUNT],
         for wp in for_all_windows_ptr() {
             for i in 0..DB_COUNT {
                 if curtab_mut().tp_diffbuf[i] == (*wp).w_buffer && i != skip_idx {
-                    fold_update(wp, df_lnum[i], df_lnum[i] + df_count[i]);
+                    fold_update(&mut *(wp), df_lnum[i], df_lnum[i] + df_count[i]);
                 }
             }
         }

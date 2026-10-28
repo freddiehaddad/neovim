@@ -3046,7 +3046,7 @@ pub fn did_set_laststatus(args: &mut Optset) -> *const c_char {
 
         if value == 3 && old_value != 3 {
             frame_new_height(
-                g_st().topframe,
+                &mut *(g_st().topframe),
                 (*g_st().topframe).fr_height - STATUS_HEIGHT,
                 false,
                 false,
@@ -3057,7 +3057,7 @@ pub fn did_set_laststatus(args: &mut Optset) -> *const c_char {
         }
         if old_value == 3 && value != 3 {
             frame_new_height(
-                g_st().topframe,
+                &mut *(g_st().topframe),
                 (*g_st().topframe).fr_height + STATUS_HEIGHT,
                 false,
                 false,

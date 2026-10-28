@@ -1770,29 +1770,30 @@ impl Drop for FileBuf {
 
 fn free_buffer(buf: *mut FileBuf) {
     unsafe {
-        g_st().buffer_handles.remove(&(*buf).b_fnum);
+        let buf = &mut *buf;
+        g_st().buffer_handles.remove(&buf.b_fnum);
         buf_st().buf_free_count += 1;
         free_buffer_stuff(&mut *buf, K_BFF_CLEAR_WIN_INFO);
         if (*buf).b_vars().dv_refcount > DO_NOT_FREE_CNT {
             tv_dict_add(
                 &mut *(*buf).b_vars(),
-                tv_dict_item_copy(&mut *(&raw mut (*buf).changedtick_di).cast()),
+                tv_dict_item_copy(&mut *(&raw mut buf.changedtick_di).cast()),
             );
         }
         unref_var_dict(&mut *(*buf).b_vars());
         aubuflocal_remove(&mut *buf);
         if g_st().autocmd_busy {
-            (*buf).additional_data = None;
-            (*buf).b_prompt_text = None;
-            callback_free(&mut (*buf).b_prompt_callback);
-            callback_free(&mut (*buf).b_prompt_interrupt);
-            clear_fmark(&mut (*buf).b_last_cursor, 0);
-            clear_fmark(&mut (*buf).b_last_insert, 0);
-            clear_fmark(&mut (*buf).b_last_change, 0);
-            clear_fmark(&mut (*buf).b_prompt_start, 0);
-            (*buf).b_changelistlen = 0;
-            (*buf).b_namedm.fill(Fmark::new());
-            (*buf).b_changelist.fill(Fmark::new());
+            buf.additional_data = None;
+            buf.b_prompt_text = None;
+            callback_free(&mut buf.b_prompt_callback);
+            callback_free(&mut buf.b_prompt_interrupt);
+            clear_fmark(&mut buf.b_last_cursor, 0);
+            clear_fmark(&mut buf.b_last_insert, 0);
+            clear_fmark(&mut buf.b_last_change, 0);
+            clear_fmark(&mut buf.b_prompt_start, 0);
+            buf.b_changelistlen = 0;
+            buf.b_namedm.fill(Fmark::new());
+            buf.b_changelist.fill(Fmark::new());
             g_st().au_pending_free_buf.push(Box::from_raw(buf));
         } else {
             drop(Box::from_raw(buf));
@@ -3673,7 +3674,7 @@ pub fn buflist_list(eap: &mut Exarg) {
                 continue;
             }
 
-            let name = buf_spname(buf);
+            let name = buf_spname(&*(buf));
             let namebuff_ptr = g_st().name_buff.as_mut_ptr();
             if !name.is_null() {
                 xstrlcpy(namebuff_ptr, name, MAXPATHL);
@@ -4011,7 +4012,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
         *buffer.add(bufferlen) = b'"' as c_char;
         bufferlen += 1;
 
-        let mut name = buf_spname(g_st().curbuf);
+        let mut name = buf_spname(&*(g_st().curbuf));
         if !name.is_null() {
             bufferlen +=
                 vim_snprintf_safelen!(buffer.add(bufferlen), IOSIZE - bufferlen, c"%s", name,);
@@ -4261,7 +4262,7 @@ pub fn maketitle() {
                     icon_str = opt_vars().p_iconstring;
                 }
             } else {
-                let mut name = buf_spname(g_st().curbuf);
+                let mut name = buf_spname(&*(g_st().curbuf));
                 if name.is_null() {
                     name = path_tail(curbuf_mut().b_ffname);
                 }
@@ -4889,28 +4890,28 @@ pub fn buf_hide(buf: &FileBuf) -> bool {
 }
 
 /// Return special buffer name or NULL when the buffer has a normal file name.
-pub fn buf_spname(buf: *mut FileBuf) -> *mut c_char {
-    unsafe {
-        if bt_quickfix(buf.as_ref()) {
-            if (*buf).b_fnum == qf_stack_get_bufnr() {
+pub fn buf_spname(buf: &FileBuf) -> *mut c_char {
+    {
+        if bt_quickfix(Some(buf)) {
+            if buf.b_fnum == qf_stack_get_bufnr() {
                 return gettext(MSG_QFLIST);
             }
             return gettext(MSG_LOCLIST);
         }
-        if bt_nofilename(buf.as_ref()) {
-            if !(*buf).b_fname.is_null() {
-                return (*buf).b_fname;
+        if bt_nofilename(Some(buf)) {
+            if !buf.b_fname.is_null() {
+                return buf.b_fname;
             }
             if bt_cmdwin(buf) {
                 return gettext(c"[Command Line]");
             }
-            if bt_prompt(buf.as_ref()) {
+            if bt_prompt(Some(buf)) {
                 return gettext(c"[Prompt]");
             }
             return gettext(c"[Scratch]");
         }
-        if (*buf).b_fname.is_null() {
-            return buf_get_fname(&*buf);
+        if buf.b_fname.is_null() {
+            return buf_get_fname(buf);
         }
         ptr::null_mut()
     }

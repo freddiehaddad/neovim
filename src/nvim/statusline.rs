@@ -385,7 +385,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
 pub fn get_trans_bufname(buf: &mut FileBuf) {
     {
         let name_buff = g_st().name_buff.as_mut_ptr();
-        let sp = buf_spname(&raw mut *buf);
+        let sp = buf_spname(&*buf);
         if !sp.is_null() {
             xstrlcpy(name_buff, sp, MAXPATHL);
         } else {
@@ -1873,7 +1873,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             match opt {
                 STL_FILEPATH | STL_FULLPATH | STL_FILENAME => {
                     fillable = false;
-                    let name = buf_spname(wp.w_buffer);
+                    let name = buf_spname(&*(wp.w_buffer));
                     if !name.is_null() {
                         xstrlcpy(name_buff, name, MAXPATHL);
                     } else {

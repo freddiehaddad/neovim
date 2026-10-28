@@ -1857,7 +1857,7 @@ pub fn mouse_comp_pos(
             } else {
                 win_get_fill(win, lnum)
             };
-            let mut count = plines_win_nofill(&raw mut *win, lnum, false);
+            let mut count = plines_win_nofill(&mut *win, lnum, false);
 
             if win.w_skipcol > 0 && lnum == win.w_topline {
                 let width1 = win.w_view_width - win_col_off(&raw mut *win);
@@ -1922,7 +1922,7 @@ pub fn mouse_comp_pos(
         row -= virt_lines + diff_fill - skip_fill;
 
         while lnum < win.buf_mut().b_ml.ml_line_count
-            && decor_conceal_line(&raw mut *win, lnum - 1, false)
+            && decor_conceal_line(&mut *win, lnum - 1, false)
         {
             lnum += 1;
             has_folding(&raw mut *win, lnum, None, &raw mut lnum);

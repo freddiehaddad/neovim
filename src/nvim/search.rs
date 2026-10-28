@@ -706,7 +706,7 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
 pub fn searchit(
     win: *mut WinInfoInfo,
     buf: &mut FileBuf,
-    pos: *mut CursorPos,
+    pos: &mut CursorPos,
     mut end_pos: Option<&mut CursorPos>,
     dir: Direction,
     pat: impl crate::strings::IntoCCharPtr,
@@ -761,17 +761,14 @@ pub fn searchit(
         let search_from_match_end = !vim_strchr(opt_vars().p_cpo, K_CPO_SEARCH).is_null();
 
         loop {
-            if (*pos).col == MAXCOL {
+            if pos.col == MAXCOL {
                 start_char_len = 0;
-            } else if (*pos).lnum >= 1
-                && (*pos).lnum <= buf.b_ml.ml_line_count
-                && (*pos).col < MAXCOL - 2
-            {
-                ptr_line = ml_get_buf(buf, (*pos).lnum);
-                if ml_get_buf_len(buf, (*pos).lnum) <= (*pos).col {
+            } else if pos.lnum >= 1 && pos.lnum <= buf.b_ml.ml_line_count && pos.col < MAXCOL - 2 {
+                ptr_line = ml_get_buf(buf, pos.lnum);
+                if ml_get_buf_len(buf, pos.lnum) <= pos.col {
                     start_char_len = 1;
                 } else {
-                    start_char_len = utfc_ptr2len(ptr_line.add((*pos).col as usize));
+                    start_char_len = utfc_ptr2len(ptr_line.add(pos.col as usize));
                 }
             } else {
                 start_char_len = 1;
@@ -793,17 +790,17 @@ pub fn searchit(
             let start_pos = *pos;
             found = 0;
             let mut at_first_line = true;
-            if (*pos).lnum == 0 {
-                (*pos).lnum = 1;
-                (*pos).col = 0;
+            if pos.lnum == 0 {
+                pos.lnum = 1;
+                pos.col = 0;
                 at_first_line = false;
             }
 
             if dir == BACKWARD && start_pos.col == 0 && (options & SEARCH_START) == 0 {
-                lnum = (*pos).lnum - 1;
+                lnum = pos.lnum - 1;
                 at_first_line = false;
             } else {
-                lnum = (*pos).lnum;
+                lnum = pos.lnum;
             }
 
             for loop_idx in 0..=1 {
@@ -822,7 +819,7 @@ pub fn searchit(
                     }
 
                     let col = if at_first_line && (options & SEARCH_COL) != 0 {
-                        (*pos).col
+                        pos.col
                     } else {
                         0
                     };
@@ -1008,19 +1005,19 @@ pub fn searchit(
                             && (options & SEARCH_NOOF) == 0
                             && !(matchpos.lnum == endpos.lnum && matchpos.col == endpos.col)
                         {
-                            (*pos).lnum = lnum + endpos.lnum;
-                            (*pos).col = endpos.col;
+                            pos.lnum = lnum + endpos.lnum;
+                            pos.col = endpos.col;
                             if endpos.col == 0 {
-                                if (*pos).lnum > 1 {
-                                    (*pos).lnum -= 1;
-                                    (*pos).col = ml_get_buf_len(buf, (*pos).lnum);
+                                if pos.lnum > 1 {
+                                    pos.lnum -= 1;
+                                    pos.col = ml_get_buf_len(buf, pos.lnum);
                                 }
                             } else {
-                                (*pos).col -= 1;
-                                if (*pos).lnum <= buf.b_ml.ml_line_count {
-                                    ptr_line = ml_get_buf(buf, (*pos).lnum);
-                                    (*pos).col -=
-                                        utf_head_off(ptr_line, ptr_line.add((*pos).col as usize));
+                                pos.col -= 1;
+                                if pos.lnum <= buf.b_ml.ml_line_count {
+                                    ptr_line = ml_get_buf(buf, pos.lnum);
+                                    pos.col -=
+                                        utf_head_off(ptr_line, ptr_line.add(pos.col as usize));
                                 }
                             }
                             if let Some(end_pos) = end_pos.as_deref_mut() {
@@ -1028,14 +1025,14 @@ pub fn searchit(
                                 end_pos.col = matchpos.col;
                             }
                         } else {
-                            (*pos).lnum = lnum + matchpos.lnum;
-                            (*pos).col = matchpos.col;
+                            pos.lnum = lnum + matchpos.lnum;
+                            pos.col = matchpos.col;
                             if let Some(end_pos) = end_pos.as_deref_mut() {
                                 end_pos.lnum = lnum + endpos.lnum;
                                 end_pos.col = endpos.col;
                             }
                         }
-                        (*pos).coladd = 0;
+                        pos.coladd = 0;
                         if let Some(end_pos) = end_pos.as_deref_mut() {
                             end_pos.coladd = 0;
                         }
@@ -1052,7 +1049,7 @@ pub fn searchit(
                     }
 
                     if (options & SEARCH_PEEK) != 0
-                        && ((lnum - (*pos).lnum) & 0x3f) == 0
+                        && ((lnum - pos.lnum) & 0x3f) == 0
                         && char_avail()
                     {
                         break_loop = true;
@@ -1140,11 +1137,11 @@ pub fn searchit(
             return FAIL;
         }
 
-        if (*pos).lnum > buf.b_ml.ml_line_count {
-            (*pos).lnum = buf.b_ml.ml_line_count;
-            (*pos).col = ml_get_buf_len(buf, (*pos).lnum);
-            if (*pos).col > 0 {
-                (*pos).col -= 1;
+        if pos.lnum > buf.b_ml.ml_line_count {
+            pos.lnum = buf.b_ml.ml_line_count;
+            pos.col = ml_get_buf_len(buf, pos.lnum);
+            if pos.col > 0 {
+                pos.col -= 1;
             }
         }
 
@@ -1539,7 +1536,7 @@ pub fn do_search(
             c = i64::from(searchit(
                 curwin_ptr(),
                 curbuf_mut(),
-                &raw mut pos,
+                &mut pos,
                 None,
                 if dirc == b'/' as c_int {
                     FORWARD
@@ -2692,7 +2689,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             result = searchit(
                 curwin_ptr(),
                 curbuf_mut(),
-                &raw mut pos,
+                &mut pos,
                 Some(&mut end_pos),
                 if dir { FORWARD } else { BACKWARD },
                 srch().spats[srch().last_idx as usize].pat_ptr(),
@@ -2812,7 +2809,7 @@ fn is_zero_width(
         if searchit(
             curwin_ptr(),
             curbuf_mut(),
-            &raw mut pos,
+            &mut pos,
             None,
             direction,
             pattern,
@@ -3024,7 +3021,7 @@ fn update_search_stat(
                 && searchit(
                     curwin_ptr(),
                     curbuf_mut(),
-                    &raw mut srch().stat_lastpos,
+                    &mut srch().stat_lastpos,
                     Some(&mut endpos),
                     FORWARD,
                     ptr::null_mut(),

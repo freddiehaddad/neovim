@@ -1668,7 +1668,7 @@ fn pum_enough_matches() -> bool {
 fn ins_compl_dict_alloc(match_: *mut Compl) -> &'static mut TvDict {
     let dict = tv_dict_alloc_lock(VAR_FIXED);
     {
-        fill_complete_info_dict(&mut *dict, match_, false);
+        fill_complete_info_dict(&mut *dict, unsafe { &mut *(match_) }, false);
     }
     dict
 }
@@ -3783,78 +3783,56 @@ fn ins_compl_update_sequence_numbers() {
     }
 }
 
-fn fill_complete_info_dict(di: &mut TvDict, match_: *mut Compl, add_match: bool) {
-    unsafe {
-        tv_dict_add_str_len(
-            di,
-            c"word",
-            (*match_).cp_str.data,
-            (*match_).cp_str.size as c_int,
-        );
+fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool) {
+    {
+        tv_dict_add_str_len(di, c"word", match_.cp_str.data, match_.cp_str.size as c_int);
         tv_dict_add_str(
             di,
             c"abbr",
-            (*match_).cp_text[CPT_ABBR]
+            match_.cp_text[CPT_ABBR]
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
         tv_dict_add_str(
             di,
             c"menu",
-            (*match_).cp_text[CPT_MENU].as_ref().map_or_else(
-                || {
-                    (*match_)
-                        .cp_fname
-                        .as_ref()
-                        .map_or(ptr::null(), |s| s.as_ptr())
-                },
+            match_.cp_text[CPT_MENU].as_ref().map_or_else(
+                || match_.cp_fname.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                 |s| s.as_ptr(),
             ),
         );
         tv_dict_add_str(
             di,
             c"kind",
-            (*match_).cp_text[CPT_KIND]
+            match_.cp_text[CPT_KIND]
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
         tv_dict_add_str(
             di,
             c"info",
-            (*match_).cp_text[CPT_INFO]
+            match_.cp_text[CPT_INFO]
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
-        tv_dict_add_str(
-            di,
-            c"abbr_hlgroup",
-            syn_id2name((*match_).cp_user_abbr_hl_id),
-        );
-        tv_dict_add_str(
-            di,
-            c"kind_hlgroup",
-            syn_id2name((*match_).cp_user_kind_hl_id),
-        );
+        tv_dict_add_str(di, c"abbr_hlgroup", syn_id2name(match_.cp_user_abbr_hl_id));
+        tv_dict_add_str(di, c"kind_hlgroup", syn_id2name(match_.cp_user_kind_hl_id));
         if add_match {
-            tv_dict_add_bool(
-                di,
-                c"match",
-                if (*match_).cp_in_match_array { 1 } else { 0 },
-            );
+            tv_dict_add_bool(di, c"match", if match_.cp_in_match_array { 1 } else { 0 });
         }
-        if ((*match_).cp_flags & CP_EQUAL) != 0 {
+        if (match_.cp_flags & CP_EQUAL) != 0 {
             tv_dict_add_nr(di, c"equal", 1);
         }
-        if (*match_).cp_preselect {
+        if match_.cp_preselect {
             tv_dict_add_nr(di, c"preselect", 1);
         }
-        if let Some(ref commit_chars) = (*match_).cp_commit_chars {
+        if let Some(ref commit_chars) = match_.cp_commit_chars {
             tv_dict_add_str(di, c"commit_chars", commit_chars.as_ptr());
         }
-        if (*match_).cp_user_data.v_type == VAR_UNKNOWN {
+        if match_.cp_user_data.v_type == VAR_UNKNOWN {
             tv_dict_add_str_len(di, c"user_data", c"", 0);
         } else {
-            tv_dict_add_tv(di, c"user_data", 9, &mut (*match_).cp_user_data);
+            tv_dict_add_tv(di, c"user_data", 9, &mut match_.cp_user_data);
         }
     }
 }
@@ -3982,7 +3960,11 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
             }
             if ret && selected_idx != -1 && has_completed {
                 let di = tv_dict_alloc();
-                fill_complete_info_dict(&mut *di, compl_opt(insexp().compl_curr_idx), false);
+                fill_complete_info_dict(
+                    &mut *di,
+                    &mut *(compl_opt(insexp().compl_curr_idx)),
+                    false,
+                );
                 let _ = tv_dict_add_dict(retdict, c"completed", di);
             }
         }
@@ -4093,7 +4075,7 @@ fn process_next_cpt_value(
             if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
                 let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                 let name = if (*st.ins_buf).b_fname.is_null() {
-                    buf_spname(st.ins_buf)
+                    buf_spname(&*(st.ins_buf))
                 } else if (*st.ins_buf).b_sfname.is_null() {
                     (*st.ins_buf).b_fname
                 } else {

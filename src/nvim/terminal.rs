@@ -1028,7 +1028,7 @@ pub fn terminal_state_change_event(buf_handle: ObjHandle) {
     unsafe {
         let buf = handle_get_buffer(buf_handle);
         if !buf.is_null() && !(*buf).terminal.is_null() {
-            redraw_buf_line_later(buf, (*buf).b_ml.ml_line_count, false);
+            redraw_buf_line_later(&*(buf), (*buf).b_ml.ml_line_count, false);
         }
     }
 }

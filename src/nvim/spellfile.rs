@@ -5365,7 +5365,7 @@ pub fn spell_add_word(
             mkspell(&[crate::memory::cstr_to_cstring(fname)], false, true, true);
 
             if !buf.is_null() {
-                buf_reload(buf, (*buf).b_orig_mode, false);
+                buf_reload(&mut *(buf), (*buf).b_orig_mode, false);
             }
 
             redraw_all_later(UPD_SOME_VALID);

@@ -683,8 +683,8 @@ pub fn clear_folding(win: &mut WinInfoInfo) {
 }
 
 /// Update folds for changes in the buffer of a window.
-pub fn fold_update(wp: *mut WinInfoInfo, top: Linenr, bot: Linenr) {
-    unsafe {
+pub fn fold_update(wp: &mut WinInfoInfo, top: Linenr, bot: Linenr) {
+    {
         if g_st().disable_fold_update != 0
             || ((g_st().state_global & MODE_INSERT) != 0 && !foldmethod_is_indent(&mut *wp))
         {
@@ -695,11 +695,11 @@ pub fn fold_update(wp: *mut WinInfoInfo, top: Linenr, bot: Linenr) {
             return;
         }
 
-        if !(*wp).w_folds.is_empty() {
+        if !wp.w_folds.is_empty() {
             let maybe_small_start = top.min(bot);
             let maybe_small_end = top.max(bot);
 
-            let folds = &mut (*wp).w_folds;
+            let folds = &mut wp.w_folds;
             let (_, mut idx) = fold_find(folds, maybe_small_start);
             while idx < folds.len() && folds[idx].fd_top <= maybe_small_end {
                 folds[idx].fd_small = K_NONE;
@@ -963,7 +963,7 @@ fn checkupdate(wp: &mut WinInfoInfo) {
             return;
         }
 
-        fold_update((&raw mut *wp), 1, MAXLNUM);
+        fold_update(wp, 1, MAXLNUM);
         wp.w_foldinvalid = false;
     }
 }
@@ -2666,7 +2666,8 @@ pub fn put_folds(fd: *mut FILE, wp: &mut WinInfoInfo) -> bool {
         }
 
         if wp.w_fold_manual {
-            return put_foldopen_recurse(fd, (&raw mut *wp), &wp.w_folds, 0);
+            let wp_ptr: *mut WinInfoInfo = wp;
+            return put_foldopen_recurse(fd, unsafe { &mut *wp_ptr }, &wp.w_folds, 0);
         }
 
         true
@@ -2697,7 +2698,7 @@ fn put_folds_recurse(fd: *mut FILE, gap: &[FoldEntry], off: Linenr) -> bool {
 
 fn put_foldopen_recurse(
     fd: *mut FILE,
-    wp: *mut WinInfoInfo,
+    wp: &mut WinInfoInfo,
     gap: &[FoldEntry],
     off: Linenr,
 ) -> bool {
@@ -2726,8 +2727,8 @@ fn put_foldopen_recurse(
                     }
                 } else {
                     let level = i64::from(fold_level_win(&mut *wp, off + fp.fd_top));
-                    if ((fp.fd_flags == FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl >= level)
-                        || (fp.fd_flags != FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl < level))
+                    if ((fp.fd_flags == FD_CLOSED && wp.w_onebuf_opt.wo_fdl >= level)
+                        || (fp.fd_flags != FD_CLOSED && wp.w_onebuf_opt.wo_fdl < level))
                         && !put_fold_open_close(fd, fp, off)
                     {
                         return false;

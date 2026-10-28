@@ -1242,7 +1242,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         if cur {
                             let mut vcol: Colnr = 0;
                             getvvcol(
-                                crate::globals::curwin_ptr(),
+                                unsafe { &mut *(crate::globals::curwin_ptr()) },
                                 &mut crate::globals::curwin_mut().w_cursor,
                                 None,
                                 None,

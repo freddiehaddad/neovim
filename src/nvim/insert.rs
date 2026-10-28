@@ -2379,7 +2379,7 @@ pub fn cursor_up_inner(wp: &mut WinInfoInfo, mut n: Linenr, skip_conceal: bool) 
             if lnum <= 1 {
                 break;
             }
-            if skip_conceal && decor_conceal_line(&raw mut *wp, lnum - 1, true) {
+            if skip_conceal && decor_conceal_line(&mut *wp, lnum - 1, true) {
                 n += 1;
             }
             if n > 0
@@ -2431,7 +2431,7 @@ pub fn cursor_down_inner(wp: &mut WinInfoInfo, mut n: c_int, skip_conceal: bool)
                 if lnum >= line_count {
                     break;
                 }
-                if skip_conceal && decor_conceal_line(&raw mut *wp, lnum - 1, true) {
+                if skip_conceal && decor_conceal_line(&mut *wp, lnum - 1, true) {
                     n += 1;
                 }
             }

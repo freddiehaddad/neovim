@@ -820,7 +820,14 @@ pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
 
         curwin_mut().w_onebuf_opt.wo_list = 0;
         if posp.coladd != 0 {
-            getvvcol(curwin_ptr(), posp, None, Some(&mut vcol), None, 0);
+            getvvcol(
+                unsafe { &mut *(curwin_ptr()) },
+                posp,
+                None,
+                Some(&mut vcol),
+                None,
+                0,
+            );
         } else {
             getvcol(curwin_mut(), posp, None, Some(&mut vcol), None, 0);
         }
@@ -830,7 +837,7 @@ pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
 }
 
 pub fn getvvcol(
-    wp: *mut WinInfoInfo,
+    wp: &mut WinInfoInfo,
     pos: &mut CursorPos,
     mut start: Option<&mut Colnr>,
     mut cursor: Option<&mut Colnr>,
@@ -896,11 +903,39 @@ pub fn getvcols(
         let mut to2: Colnr = 0;
 
         if lt(*pos1, *pos2) {
-            getvvcol(wp, pos1, Some(&mut from1), None, Some(&mut to1), flags);
-            getvvcol(wp, pos2, Some(&mut from2), None, Some(&mut to2), flags);
+            getvvcol(
+                unsafe { &mut *(wp) },
+                pos1,
+                Some(&mut from1),
+                None,
+                Some(&mut to1),
+                flags,
+            );
+            getvvcol(
+                unsafe { &mut *(wp) },
+                pos2,
+                Some(&mut from2),
+                None,
+                Some(&mut to2),
+                flags,
+            );
         } else {
-            getvvcol(wp, pos2, Some(&mut from1), None, Some(&mut to1), flags);
-            getvvcol(wp, pos1, Some(&mut from2), None, Some(&mut to2), flags);
+            getvvcol(
+                unsafe { &mut *(wp) },
+                pos2,
+                Some(&mut from1),
+                None,
+                Some(&mut to1),
+                flags,
+            );
+            getvvcol(
+                unsafe { &mut *(wp) },
+                pos1,
+                Some(&mut from2),
+                None,
+                Some(&mut to2),
+                flags,
+            );
         }
 
         *left = from1.min(from2);
@@ -929,21 +964,21 @@ pub fn win_get_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
 }
 
 pub fn plines_win(wp: *mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> c_int {
-    plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(unsafe { &mut *wp }, lnum)
+    plines_win_nofill(unsafe { &mut *(wp) }, lnum, limit_winheight)
+        + win_get_fill(unsafe { &mut *wp }, lnum)
 }
 
-pub fn plines_win_nofill(wp: *mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> c_int {
-    unsafe {
+pub fn plines_win_nofill(wp: &mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> c_int {
+    {
         if decor_conceal_line(wp, lnum - 1, false) {
             return 0;
         }
-        if (*wp).w_onebuf_opt.wo_wrap == 0 || (*wp).w_view_width == 0 || line_folded(&mut *wp, lnum)
-        {
+        if wp.w_onebuf_opt.wo_wrap == 0 || wp.w_view_width == 0 || line_folded(&mut *wp, lnum) {
             return 1;
         }
         let lines = plines_win_nofold(&mut *wp, lnum);
-        if limit_winheight && lines > (*wp).w_view_height {
-            (*wp).w_view_height
+        if limit_winheight && lines > wp.w_view_height {
+            wp.w_view_height
         } else {
             lines
         }
@@ -1043,14 +1078,14 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: c_long) -> c_i
 }
 
 pub fn plines_win_full(
-    wp: *mut WinInfoInfo,
+    wp: &mut WinInfoInfo,
     mut lnum: Linenr,
     nextp: Option<&mut Linenr>,
     mut foldedp: Option<&mut bool>,
     cache: bool,
     limit_winheight: bool,
 ) -> c_int {
-    unsafe {
+    {
         let folded = has_folding_win(
             &mut *wp,
             lnum,
@@ -1063,8 +1098,8 @@ pub fn plines_win_full(
             **p = folded;
         }
 
-        let filler_lines = if lnum == (*wp).w_topline {
-            (*wp).w_topfill
+        let filler_lines = if lnum == wp.w_topline {
+            wp.w_topfill
         } else {
             win_get_fill(&mut *wp, lnum)
         };
@@ -1086,7 +1121,7 @@ pub fn plines_m_win(wp: &mut WinInfoInfo, mut first: Linenr, last: Linenr, max: 
         let mut count = 0;
         while first <= last && count < max {
             let mut next = first;
-            count += plines_win_full(&raw mut *wp, first, Some(&mut next), None, false, false);
+            count += plines_win_full(&mut *wp, first, Some(&mut next), None, false, false);
             first = next + 1;
         }
         if first == wp.buf_mut().b_ml.ml_line_count + 1 {
@@ -1135,7 +1170,7 @@ pub fn win_text_height(
         if start_vcol >= 0 {
             let mut lnum_next = lnum;
             cur_folded = has_folding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
-            height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
+            height_cur_nofill = i64::from(plines_win_nofill(&mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;
             let row_off = if start_vcol < i64::from(width1) || width2 <= 0 {
                 0
@@ -1150,7 +1185,7 @@ pub fn win_text_height(
             let mut lnum_next = lnum;
             cur_folded = has_folding(&raw mut *wp, lnum, Some(&mut lnum), &mut lnum_next);
             height_sum_fill += i64::from(win_get_fill(wp, lnum));
-            height_cur_nofill = i64::from(plines_win_nofill(&raw mut *wp, lnum, false));
+            height_cur_nofill = i64::from(plines_win_nofill(&mut *wp, lnum, false));
             height_sum_nofill += height_cur_nofill;
             cur_lnum = lnum;
             lnum = lnum_next + 1;

@@ -394,12 +394,12 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                         || ((*wp).w_topline >= lnum
                             && (*wp).w_topline < lnume
                             && linetabsize_eol(&mut *wp, (*wp).w_topline)
-                                <= (*wp).w_skipcol + sms_marker_overlap(wp, -1)))
+                                <= (*wp).w_skipcol + sms_marker_overlap(&mut *(wp), -1)))
                 {
                     (*wp).w_skipcol = 0;
                 }
 
-                fold_update(wp, lnum, last);
+                fold_update(&mut *(wp), lnum, last);
 
                 let mut folded = has_folding_win(
                     &mut *wp,

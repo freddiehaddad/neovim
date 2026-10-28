@@ -6338,7 +6338,7 @@ fn expand_pattern_in_buf(
             let found_new_match = searchit(
                 ptr::null_mut(),
                 curbuf_mut(),
-                &raw mut cur_match_pos,
+                &mut cur_match_pos,
                 Some(&mut end_match_pos),
                 dir,
                 pat,

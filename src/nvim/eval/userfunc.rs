@@ -1203,7 +1203,7 @@ pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> &'static mut Fun
 
 /// Call a user function.
 pub fn call_user_func(
-    fp: *mut UserFunc,
+    fp: &mut UserFunc,
     argcount: c_int,
     argvars: *mut TypVal,
     rettv: &mut TypVal,
@@ -1239,7 +1239,7 @@ pub fn call_user_func(
             save_redobuff(&mut save_redo);
             did_save_redo = true;
         }
-        (*fp).uf_calls += 1;
+        fp.uf_calls += 1;
         line_breakcheck();
 
         let fc = create_funccal(fp, rettv);
@@ -1271,9 +1271,9 @@ pub fn call_user_func(
             &mut *(&raw mut fc.fc_l_avars_var).cast(),
             VAR_SCOPE,
         );
-        let uf_args_len = (*fp).uf_args.len() as c_int;
-        let uf_def_args_len = (*fp).uf_def_args.len() as c_int;
-        if ((*fp).uf_flags & FC_NOARGS) == 0 {
+        let uf_args_len = fp.uf_args.len() as c_int;
+        let uf_def_args_len = fp.uf_def_args.len() as c_int;
+        if (fp.uf_flags & FC_NOARGS) == 0 {
             add_nr_var(
                 &mut fc.fc_l_avars,
                 c"0",
@@ -1285,7 +1285,7 @@ pub fn call_user_func(
             );
         }
         fc.fc_l_avars.dv_lock = VAR_FIXED;
-        if ((*fp).uf_flags & FC_NOARGS) == 0 {
+        if (fp.uf_flags & FC_NOARGS) == 0 {
             let v = tv_dict_item_alloc_len(c"000", 3);
             v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             v.di_tv.v_type = VarType::VarList;
@@ -1296,7 +1296,7 @@ pub fn call_user_func(
         tv_list_init_static(&mut fc.fc_l_varlist);
         tv_list_set_lock(Some(&mut fc.fc_l_varlist), VAR_FIXED);
 
-        if ((*fp).uf_flags & FC_NOARGS) == 0 {
+        if (fp.uf_flags & FC_NOARGS) == 0 {
             add_nr_var(&mut fc.fc_l_avars, c"firstline", Varnumber::from(firstline));
             add_nr_var(&mut fc.fc_l_avars, c"lastline", Varnumber::from(lastline));
         }
@@ -1321,7 +1321,7 @@ pub fn call_user_func(
                     def_rettv.v_type = VarType::VarNumber;
                     def_rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-                    let mut default_expr = (&(*fp).uf_def_args)[(ai + uf_def_args_len) as usize]
+                    let mut default_expr = (&fp.uf_def_args)[(ai + uf_def_args_len) as usize]
                         .as_ptr()
                         .cast_mut();
                     if !eval1(
@@ -1336,7 +1336,7 @@ pub fn call_user_func(
 
                 namelen = crate::memory::cstr_len(name);
             } else {
-                if ((*fp).uf_flags & FC_NOARGS) != 0 {
+                if (fp.uf_flags & FC_NOARGS) != 0 {
                     break;
                 }
                 namelen = vim_snprintf!(numbuf.as_mut_ptr(), NUMBUFLEN, c"%d", ai + 1) as usize;
@@ -1376,7 +1376,7 @@ pub fn call_user_func(
 
         g_st().redrawing_disabled += 1;
 
-        if ((*fp).uf_flags & FC_SANDBOX) != 0 {
+        if (fp.uf_flags & FC_SANDBOX) != 0 {
             using_sandbox = true;
             g_st().sandbox += 1;
         }
@@ -1419,9 +1419,8 @@ pub fn call_user_func(
         }
 
         let do_profiling_yes = g_st().do_profiling == PROF_YES;
-        let func_not_yet_profiling_but_should = do_profiling_yes
-            && (*fp).uf_profiling == 0
-            && has_profiling(false, uf2hikey(&*fp), None);
+        let func_not_yet_profiling_but_should =
+            do_profiling_yes && fp.uf_profiling == 0 && has_profiling(false, uf2hikey(&*fp), None);
 
         if func_not_yet_profiling_but_should {
             started_profiling = true;
@@ -1429,13 +1428,13 @@ pub fn call_user_func(
         }
 
         let func_or_func_caller_profiling = do_profiling_yes
-            && ((*fp).uf_profiling != 0
+            && (fp.uf_profiling != 0
                 || (!fc.fc_caller.is_null() && (*(*fc.fc_caller).fc_func).uf_profiling != 0));
 
         if func_or_func_caller_profiling {
-            (*fp).uf_tm_count += 1;
+            fp.uf_tm_count += 1;
             call_start = profile_start();
-            (*fp).uf_tm_children = profile_zero();
+            fp.uf_tm_children = profile_zero();
         }
 
         if do_profiling_yes {
@@ -1443,14 +1442,14 @@ pub fn call_user_func(
         }
 
         let save_current_sctx = g_st().current_sctx;
-        g_st().current_sctx = (*fp).uf_script_ctx;
+        g_st().current_sctx = fp.uf_script_ctx;
         let save_did_emsg = g_st().did_emsg;
         g_st().did_emsg = 0;
 
-        if default_arg_err && (((*fp).uf_flags & FC_ABORT) != 0 || g_st().trylevel > 0) {
+        if default_arg_err && ((fp.uf_flags & FC_ABORT) != 0 || g_st().trylevel > 0) {
             g_st().did_emsg = 1;
         } else if islambda {
-            let mut p = (&(*fp).uf_lines)[0]
+            let mut p = (&fp.uf_lines)[0]
                 .as_ref()
                 .unwrap()
                 .as_ptr()
@@ -1471,7 +1470,7 @@ pub fn call_user_func(
 
         g_st().redrawing_disabled -= 1;
 
-        if (g_st().did_emsg != 0 && ((*fp).uf_flags & FC_ABORT) != 0)
+        if (g_st().did_emsg != 0 && (fp.uf_flags & FC_ABORT) != 0)
             || rettv.v_type == VarType::VarUnknown
         {
             tv_clear(rettv);
@@ -1482,8 +1481,8 @@ pub fn call_user_func(
         if func_or_func_caller_profiling {
             call_start = profile_end(call_start);
             call_start = profile_sub_wait(wait_start, call_start);
-            (*fp).uf_tm_total = profile_add((*fp).uf_tm_total, call_start);
-            (*fp).uf_tm_self = profile_self((*fp).uf_tm_self, call_start, (*fp).uf_tm_children);
+            fp.uf_tm_total = profile_add(fp.uf_tm_total, call_start);
+            fp.uf_tm_self = profile_self(fp.uf_tm_self, call_start, fp.uf_tm_children);
             if !fc.fc_caller.is_null() && (*(*fc.fc_caller).fc_func).uf_profiling != 0 {
                 let caller_fp = (*fc.fc_caller).fc_func;
                 (*caller_fp).uf_tm_children = profile_add((*caller_fp).uf_tm_children, call_start);
@@ -1491,7 +1490,7 @@ pub fn call_user_func(
                     profile_add((*caller_fp).uf_tml_children, call_start);
             }
             if started_profiling {
-                (*fp).uf_profiling = 0;
+                fp.uf_profiling = 0;
             }
         }
 
@@ -1554,8 +1553,8 @@ pub fn call_user_func(
         }
         cleanup_function_call(&mut *fc);
 
-        (*fp).uf_calls -= 1;
-        if (*fp).uf_calls <= 0 && (*fp).uf_refcount <= 0 {
+        fp.uf_calls -= 1;
+        if fp.uf_calls <= 0 && fp.uf_refcount <= 0 {
             func_clear_free(fp, false);
         }
         if did_save_redo {
@@ -1610,7 +1609,7 @@ fn call_user_func_check(
             error = FCERR_DICT;
         } else {
             call_user_func(
-                (&raw mut *fp),
+                fp,
                 argcount,
                 argvars,
                 rettv,

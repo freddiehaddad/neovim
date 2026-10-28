@@ -1371,13 +1371,13 @@ pub fn decor_redraw_col_impl(
     }
 }
 
-pub fn decor_conceal_line(wp: *mut WinInfoInfo, row: c_int, check_cursor: bool) -> bool {
-    unsafe {
+pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: c_int, check_cursor: bool) -> bool {
+    {
         if row < 0
-            || (*wp).w_onebuf_opt.wo_cole < 2
+            || wp.w_onebuf_opt.wo_cole < 2
             || (!check_cursor
                 && ptr::eq(wp, curwin_ptr())
-                && row + 1 == (*wp).w_cursor.lnum
+                && row + 1 == wp.w_cursor.lnum
                 && !conceal_cursor_line(&*wp))
         {
             return false;
@@ -1457,6 +1457,8 @@ pub fn decor_redraw_signs(
     mut num_id: Option<&mut c_int>,
 ) {
     unsafe {
+        let wp = &mut *wp;
+        let buf = &mut *buf;
         if !buf_has_signs(&*buf) {
             return;
         }
@@ -1465,7 +1467,7 @@ pub fn decor_redraw_signs(
         let mut num_text: c_int = 0;
         let mut itr = MarkTreeIter::new();
         let mut signs: Vec<SignItem<'_>> = Vec::new();
-        let b = &(*buf).b_marktree;
+        let b = &buf.b_marktree;
 
         marktree_itr_get_overlap(b, row, 0, &mut itr);
         while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
@@ -1503,10 +1505,10 @@ pub fn decor_redraw_signs(
         }
 
         if !signs.is_empty() {
-            let width = if (*wp).w_minscwidth == SCL_NUM {
+            let width = if wp.w_minscwidth == SCL_NUM {
                 1
             } else {
-                (*wp).w_scwidth
+                wp.w_scwidth
             };
             let len = width.min(num_text);
             let mut idx: usize = 0;

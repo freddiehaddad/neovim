@@ -900,7 +900,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
                 }
 
                 if !last_valid.is_null() && lnum == (*last_valid).sst_lnum {
-                    load_current_state(last_valid);
+                    load_current_state(&*(last_valid));
                     break;
                 }
 
@@ -1370,15 +1370,15 @@ fn store_current_state() -> Option<usize> {
     }
 }
 
-fn load_current_state(from: *const Synstate) {
-    unsafe {
+fn load_current_state(from: &Synstate) {
+    {
         clear_current_state();
         validate_current_state();
         syn_st().keepend_level = -1;
-        let stacksize = (*from).sst_stack.len() as c_int;
+        let stacksize = from.sst_stack.len() as c_int;
         if stacksize != 0 {
             syn_st().current_state.reserve(stacksize as usize);
-            for (i, b) in (*from).sst_stack.iter().enumerate() {
+            for (i, b) in from.sst_stack.iter().enumerate() {
                 let i_c = i as c_int;
                 let mut item = Stateitem::new();
                 item.si_idx = b.bs_idx;
@@ -1402,9 +1402,9 @@ fn load_current_state(from: *const Synstate) {
                 update_si_attr(i_c);
             }
         }
-        syn_st().current_next_list = (*from).sst_next_list.clone();
-        syn_st().current_next_flags = (*from).sst_next_flags;
-        syn_st().current_lnum = (*from).sst_lnum;
+        syn_st().current_next_list = from.sst_next_list.clone();
+        syn_st().current_next_flags = from.sst_next_flags;
+        syn_st().current_lnum = from.sst_lnum;
     }
 }
 

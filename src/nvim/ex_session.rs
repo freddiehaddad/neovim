@@ -335,7 +335,7 @@ fn ses_put_fname(
 
 fn put_view(
     fd: *mut FILE,
-    wp: *mut WinInfoInfo,
+    wp: &mut WinInfoInfo,
     tp: &mut TabPageInfo,
     add_edit: bool,
     flagp: &mut c_uint,
@@ -346,7 +346,7 @@ fn put_view(
         let mut do_cursor = ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
             || (*flagp & K_OPT_SSOP_FLAG_CURSOR) != 0;
 
-        if (*wp).w_alist.is_none() {
+        if wp.w_alist.is_none() {
             if !put_line(fd, c"argglobal") {
                 return false;
             }
@@ -359,7 +359,7 @@ fn put_view(
                 ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
                     || (*flagp & K_OPT_SSOP_FLAG_CURDIR) == 0
                     || tp.tp_localdir.is_some()
-                    || (*wp).w_localdir.is_some(),
+                    || wp.w_localdir.is_some(),
                 &mut *flagp,
             ) {
                 return false;
@@ -367,22 +367,22 @@ fn put_view(
         }
 
         let wargcount = crate::arglist::win_alist(&*wp).al_ga.len() as c_int;
-        if (*wp).w_arg_idx != current_arg_idx
-            && (*wp).w_arg_idx < wargcount
+        if wp.w_arg_idx != current_arg_idx
+            && wp.w_arg_idx < wargcount
             && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
         {
-            if !write_fmt(fd, format!("{}argu\n", i64::from((*wp).w_arg_idx) + 1)) {
+            if !write_fmt(fd, format!("{}argu\n", i64::from(wp.w_arg_idx) + 1)) {
                 return false;
             }
             did_next = true;
         }
 
-        if add_edit && (!did_next || (*wp).w_arg_idx_invalid) {
+        if add_edit && (!did_next || wp.w_arg_idx_invalid) {
             let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
-            if bt_help(((*wp).w_buffer).as_ref()) {
+            if bt_help((wp.w_buffer).as_ref()) {
                 let mut curtag: *const c_char = c"".as_ptr();
-                if 0 < (*wp).w_tagstackidx && (*wp).w_tagstackidx <= (*wp).w_tagstacklen {
-                    curtag = (*wp).w_tagstack[((*wp).w_tagstackidx - 1) as usize]
+                if 0 < wp.w_tagstackidx && wp.w_tagstackidx <= wp.w_tagstacklen {
+                    curtag = wp.w_tagstack[(wp.w_tagstackidx - 1) as usize]
                         .tagname
                         .as_ref()
                         .map_or(c"".as_ptr(), |s| s.as_ptr());
@@ -395,8 +395,7 @@ fn put_view(
                     return false;
                 }
             } else if !(*wp).buf_mut().b_ffname.is_null()
-                && (!bt_nofilename(((*wp).w_buffer).as_ref())
-                    || !(*wp).buf_mut().terminal.is_null())
+                && (!bt_nofilename((wp.w_buffer).as_ref()) || !(*wp).buf_mut().terminal.is_null())
             {
                 let fesc = cstr_to_str(fname_esc.as_ptr());
                 if !write_fmt(
@@ -420,8 +419,8 @@ fn put_view(
             }
         }
 
-        if (*wp).w_alt_fnum != 0 {
-            let alt = buflist_findnr((*wp).w_alt_fnum);
+        if wp.w_alt_fnum != 0 {
+            let alt = buflist_findnr(wp.w_alt_fnum);
             if ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
                 && !alt.is_null()
                 && !crate::memory::cstr_is_empty((*alt).b_fname)
@@ -435,7 +434,7 @@ fn put_view(
         }
 
         if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
-            && !makemap(fd, (*wp).w_buffer)
+            && !makemap(fd, wp.w_buffer)
         {
             return false;
         }
@@ -465,25 +464,25 @@ fn put_view(
 
         if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0
             && !(*wp).buf_mut().b_ffname.is_null()
-            && (bt_normal(((*wp).w_buffer).as_ref()) || bt_help(((*wp).w_buffer).as_ref()))
+            && (bt_normal((wp.w_buffer).as_ref()) || bt_help((wp.w_buffer).as_ref()))
             && !put_folds(fd, &mut *wp)
         {
             return false;
         }
 
         if do_cursor {
-            if (*wp).w_view_height <= 0 {
-                if !write_fmt(fd, format!("let s:l = {}\n", (*wp).w_cursor.lnum)) {
+            if wp.w_view_height <= 0 {
+                if !write_fmt(fd, format!("let s:l = {}\n", wp.w_cursor.lnum)) {
                     return false;
                 }
             } else if !write_fmt(
                 fd,
                 format!(
                     "let s:l = {} - (({} * winheight(0) + {}) / {})\n",
-                    (*wp).w_cursor.lnum,
-                    (*wp).w_cursor.lnum - (*wp).w_topline,
-                    (*wp).w_view_height / 2,
-                    (*wp).w_view_height
+                    wp.w_cursor.lnum,
+                    wp.w_cursor.lnum - wp.w_topline,
+                    wp.w_view_height / 2,
+                    wp.w_view_height
                 ),
             ) {
                 return false;
@@ -492,24 +491,24 @@ fn put_view(
                 fd,
                 format!(
                     "if s:l < 1 | let s:l = 1 | endif\nkeepjumps exe s:l\nnormal! zt\nkeepjumps {}\n",
-                    (*wp).w_cursor.lnum
+                    wp.w_cursor.lnum
                 ),
             ) {
                 return false;
             }
-            if (*wp).w_cursor.col == 0 {
+            if wp.w_cursor.col == 0 {
                 if !put_line(fd, c"normal! 0") {
                     return false;
                 }
-            } else if (*wp).w_onebuf_opt.wo_wrap == 0 && (*wp).w_leftcol > 0 && (*wp).w_width > 0 {
-                let vcol1 = i64::from((*wp).w_virtcol) + 1;
+            } else if wp.w_onebuf_opt.wo_wrap == 0 && wp.w_leftcol > 0 && wp.w_width > 0 {
+                let vcol1 = i64::from(wp.w_virtcol) + 1;
                 if !write_fmt(
                     fd,
                     format!(
                         "let s:c = {vcol1} - (({} * winwidth(0) + {}) / {})\nif s:c > 0\n  exe 'normal! ' . s:c . '|zs' . {vcol1} . '|'\nelse\n",
-                        i64::from((*wp).w_virtcol - (*wp).w_leftcol),
-                        i64::from((*wp).w_width / 2),
-                        i64::from((*wp).w_width),
+                        i64::from(wp.w_virtcol - wp.w_leftcol),
+                        i64::from(wp.w_width / 2),
+                        i64::from(wp.w_width),
                     ),
                 ) || put_view_curpos(fd, &*wp, "  ") == FAIL
                     || !put_line(fd, c"endif")
@@ -521,7 +520,7 @@ fn put_view(
             }
         }
 
-        if let Some(ref w_localdir) = (*wp).w_localdir
+        if let Some(ref w_localdir) = wp.w_localdir
             && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags)
                 || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
         {
@@ -903,7 +902,7 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 }
                 if !put_view(
                     fd,
-                    wp,
+                    &mut *(wp),
                     &mut *tp,
                     !ptr::eq(wp, edited_win),
                     &mut opt_vars().ssop_flags,
@@ -1114,8 +1113,14 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |=
-                        !put_view(fd, curwin_ptr(), curtab_mut(), !using_vdir, &mut *flagp, -1);
+                    failed |= !put_view(
+                        fd,
+                        &mut *(curwin_ptr()),
+                        curtab_mut(),
+                        !using_vdir,
+                        &mut *flagp,
+                        -1,
+                    );
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;

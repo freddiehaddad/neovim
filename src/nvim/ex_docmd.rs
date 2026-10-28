@@ -7974,7 +7974,7 @@ pub fn get_address(
                             if searchit(
                                 curwin_ptr(),
                                 curbuf_mut(),
-                                &raw mut pos,
+                                &mut pos,
                                 None,
                                 if crate::memory::cstr_first_byte(cmd) == b'?' {
                                     BACKWARD
@@ -10373,7 +10373,7 @@ fn ex_tabs(_eap: &mut Exarg) {
                     b' ' as c_int
                 });
                 msg_putchar(b' ' as c_int);
-                let spname = buf_spname((*wp).w_buffer);
+                let spname = buf_spname(&*((*wp).w_buffer));
                 if !spname.is_null() {
                     xstrlcpy(g_st().iobuff.as_mut_ptr(), spname, IOSIZE);
                 } else {

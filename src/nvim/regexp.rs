@@ -2162,9 +2162,16 @@ pub(super) fn reg_match_visual() -> bool {
             let mut end2: Colnr = 0;
             let mut top_copy = top;
             let mut bot_copy = bot;
-            getvvcol(wp, &mut top_copy, Some(&mut start), None, Some(&mut end), 0);
             getvvcol(
-                wp,
+                &mut *(wp),
+                &mut top_copy,
+                Some(&mut start),
+                None,
+                Some(&mut end),
+                0,
+            );
+            getvvcol(
+                &mut *(wp),
                 &mut bot_copy,
                 Some(&mut start2),
                 None,

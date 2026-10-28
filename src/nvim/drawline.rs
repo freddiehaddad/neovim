@@ -807,7 +807,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> c_int {
             if wlv.prev_num_attr == -1 {
                 decor_redraw_signs(
                     wp,
-                    wp.w_buffer,
+                    unsafe { &mut *(wp.w_buffer) },
                     wlv.lnum - 2,
                     ptr::null_mut(),
                     None,
@@ -1532,14 +1532,7 @@ pub fn win_line(
                         if g_st().visual_global.mode == b'V' as c_int {
                             wlv.fromcol = 0;
                         } else {
-                            getvvcol(
-                                &raw mut *wp,
-                                &mut *top,
-                                Some(&mut wlv.fromcol),
-                                None,
-                                None,
-                                0,
-                            );
+                            getvvcol(&mut *wp, &mut *top, Some(&mut wlv.fromcol), None, None, 0);
                             if gchar_pos(&mut *top) == c_int::from(NUL) {
                                 wlv.tocol = wlv.fromcol + 1;
                             }
@@ -1557,23 +1550,9 @@ pub fn win_line(
                         } else {
                             let mut pos = *bot;
                             if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-                                getvvcol(
-                                    &raw mut *wp,
-                                    &mut pos,
-                                    Some(&mut wlv.tocol),
-                                    None,
-                                    None,
-                                    0,
-                                );
+                                getvvcol(&mut *wp, &mut pos, Some(&mut wlv.tocol), None, None, 0);
                             } else {
-                                getvvcol(
-                                    &raw mut *wp,
-                                    &mut pos,
-                                    None,
-                                    None,
-                                    Some(&mut wlv.tocol),
-                                    0,
-                                );
+                                getvvcol(&mut *wp, &mut pos, None, None, Some(&mut wlv.tocol), 0);
                                 wlv.tocol += 1;
                             }
                         }

@@ -2037,7 +2037,7 @@ fn may_do_command_line_next_incsearch(
         let found = searchit(
             curwin_ptr(),
             curbuf_mut(),
-            &raw mut t,
+            &mut t,
             None,
             if next_match { FORWARD } else { BACKWARD },
             searchstr,

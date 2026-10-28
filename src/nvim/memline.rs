@@ -1056,7 +1056,7 @@ pub fn ml_recover(checkext: bool) {
         home_replace(None, mf_fname_ptr, namebuff_ptr, MAXPATHL, true);
         smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
 
-        let sp = buf_spname(g_st().curbuf);
+        let sp = buf_spname(&*(g_st().curbuf));
         if !sp.is_null() {
             xstrlcpy(namebuff_ptr, sp, MAXPATHL);
         } else {

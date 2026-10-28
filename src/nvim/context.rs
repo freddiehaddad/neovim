@@ -640,7 +640,7 @@ fn ctx_localdirs_restore(
 fn ctx_dirs_save(
     cs: &mut CtxSwitch,
     wp: &mut WinInfoInfo,
-    tp: *mut TabPageInfo,
+    tp: &mut TabPageInfo,
     buf: *mut FileBuf,
 ) {
     unsafe {
@@ -652,10 +652,10 @@ fn ctx_dirs_save(
 
         if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
             let target_buf = if !buf.is_null() { buf } else { wp.w_buffer };
-            cs.cs_dirs_tab = (*tp).handle;
+            cs.cs_dirs_tab = tp.handle;
             cs.cs_w_localdir = wp.w_localdir.clone();
             cs.cs_b_localdir = (*target_buf).b_localdir.clone();
-            cs.cs_tp_localdir = (*tp).tp_localdir.clone();
+            cs.cs_tp_localdir = tp.tp_localdir.clone();
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
@@ -854,8 +854,12 @@ pub fn ctx_switch(
             ctx_dirs_save(
                 cs,
                 &mut *wp,
-                if tp.is_null() { g_st().curtab } else { tp },
-                buf,
+                if tp.is_null() {
+                    &mut *(g_st().curtab)
+                } else {
+                    &mut *(tp)
+                },
+                &mut *(buf),
             );
         }
 

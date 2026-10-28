@@ -6863,7 +6863,7 @@ fn search_cmn(
                 subpatnum = searchit(
                     curwin_ptr(),
                     curbuf_mut(),
-                    pos.cast(),
+                    unsafe { &mut *(pos.cast()) },
                     None,
                     dir,
                     pat.cast_mut(),
@@ -7448,7 +7448,7 @@ pub fn do_searchpair(
             let n = searchit(
                 curwin_ptr(),
                 curbuf_mut(),
-                pos.cast(),
+                &mut *(pos.cast()),
                 None,
                 dir,
                 pat,
@@ -9093,7 +9093,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     }
                 }
                 getvvcol(
-                    wp,
+                    &mut *(wp),
                     &mut *fp,
                     Some(&mut vcol_start),
                     None,

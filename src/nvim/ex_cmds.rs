@@ -1741,7 +1741,7 @@ fn do_filter(
                         }
                         write_lnum_adjust(-linecount);
                         fold_update(
-                            curwin_ptr(),
+                            unsafe { &mut *(curwin_ptr()) },
                             curbuf_mut().b_op_start.lnum,
                             curbuf_mut().b_op_end.lnum,
                         );
