@@ -2,7 +2,7 @@
 
 use crate::api::private::helpers::{
     MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
-    cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle, has_key,
+    cstr_as_string, dict_obj, error_set, find_window_by_handle, has_key,
     integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{
@@ -392,12 +392,11 @@ pub fn nvim_buf_get_extmark_by_id(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+     {
         let rv = Array::new();
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
-        }
+        };
 
         if !ns_initialized(ns_id as u32) {
             api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
@@ -414,7 +413,7 @@ pub fn nvim_buf_get_extmark_by_id(
             true
         };
 
-        let extmark = extmark_from_id(&mut *b, ns_id as u32, id as u32);
+        let extmark = extmark_from_id(b, ns_id as u32, id as u32);
         if extmark.start.pos.row < 0 {
             return rv;
         }
@@ -493,12 +492,11 @@ pub fn nvim_buf_get_extmarks(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
+     {
         let mut rv = Array::new();
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
-        }
+        };
 
         if ns_id != -1 && !ns_initialized(ns_id as u32) {
             api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
@@ -548,13 +546,13 @@ pub fn nvim_buf_get_extmarks(
 
         let mut l_row: c_int = 0;
         let mut l_col: colnr_T = 0;
-        if !extmark_get_index_from_obj( &mut *b, ns_id, start, &mut l_row, &mut l_col, err) {
+        if !extmark_get_index_from_obj( b, ns_id, start, &mut l_row, &mut l_col, err) {
             return rv;
         }
 
         let mut u_row: c_int = 0;
         let mut u_col: colnr_T = 0;
-        if !extmark_get_index_from_obj( &mut *b, ns_id, end, &mut u_row, &mut u_col, err) {
+        if !extmark_get_index_from_obj( b, ns_id, end, &mut u_row, &mut u_col, err) {
             return rv;
         }
 
@@ -567,7 +565,7 @@ pub fn nvim_buf_get_extmarks(
         }
 
         let marks = extmark_get(
-            &mut *b,
+            b,
             ns_id as u32,
             l_row,
             l_col,
@@ -755,10 +753,9 @@ pub fn nvim_buf_set_extmark(
         let mut has_hl_multiple = false;
 
         'error: {
-            let b = find_buffer_by_handle(buf, err);
-            if b.is_null() {
+            let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
                 break 'error;
-            }
+            };
 
             if !ns_initialized(ns_id as u32) {
                 api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
@@ -805,7 +802,7 @@ pub fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__end_row) || did_end_line {
                 let val = opts.end_row;
-                if val < 0 || (val > i64::from((*b).b_ml.ml_line_count) && strict) {
+                if val < 0 || (val > i64::from(b.b_ml.ml_line_count) && strict) {
                     api_err_range(err, c"end_row");
                     break 'error;
                 }
@@ -1113,17 +1110,17 @@ pub fn nvim_buf_set_extmark(
                 break 'error;
             }
 
-            if line > i64::from((*b).b_ml.ml_line_count) {
+            if line > i64::from(b.b_ml.ml_line_count) {
                 if strict {
                     api_err_range(err, c"line");
                     break 'error;
                 }
-                line = i64::from((*b).b_ml.ml_line_count);
-            } else if line < i64::from((*b).b_ml.ml_line_count) {
+                line = i64::from(b.b_ml.ml_line_count);
+            } else if line < i64::from(b.b_ml.ml_line_count) {
                 len = if opts.ephemeral {
                     MAXCOL as colnr_T
                 } else {
-                    ml_get_buf_len(b, (line as linenr_T) + 1)
+                    ml_get_buf_len((&raw mut *b), (line as linenr_T) + 1)
                 };
             }
 
@@ -1141,13 +1138,13 @@ pub fn nvim_buf_set_extmark(
             }
 
             if col2 >= 0 {
-                if line2 >= 0 && line2 < (*b).b_ml.ml_line_count {
+                if line2 >= 0 && line2 < b.b_ml.ml_line_count {
                     len = if opts.ephemeral {
                         MAXCOL as colnr_T
                     } else {
-                        ml_get_buf_len(b, line2 + 1)
+                        ml_get_buf_len((&raw mut *b), line2 + 1)
                     };
-                } else if line2 == (*b).b_ml.ml_line_count {
+                } else if line2 == b.b_ml.ml_line_count {
                     len = 0;
                 } else {
                     line2 = line as c_int;
@@ -1163,7 +1160,7 @@ pub fn nvim_buf_set_extmark(
                 col2 = 0;
             }
 
-            if opts.ephemeral && !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == b {
+            if opts.ephemeral && !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == (&raw mut *b) {
                 let r = line as c_int;
                 let c = col as c_int;
                 if line2 == -1 {
@@ -1310,7 +1307,7 @@ pub fn nvim_buf_set_extmark(
                 };
 
                 extmark_set(
-                    &mut *b,
+                    b,
                     ns_id as u32,
                     Some(&mut id),
                     line as c_int,
@@ -1352,16 +1349,15 @@ pub fn nvim_buf_del_extmark(
     id: Integer,
     err: &mut Error,
 ) -> Boolean {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return false;
-        }
+        };
         if !ns_initialized(ns_id as u32) {
             api_err_invalid(err, c"ns_id", ptr::null(), ns_id, false);
             return false;
         }
-        extmark_del_id(&mut *b, ns_id as u32, id as u32)
+        extmark_del_id(b, ns_id as u32, id as u32)
     }
 }
 
@@ -1387,10 +1383,9 @@ pub fn nvim_buf_clear_namespace(
     mut line_end: Integer,
     err: &mut Error,
 ) {
-    let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
-        }
+        };
 
         if !(0..MAXLNUM).contains(&line_start) {
             api_err_range(err, c"line number");
@@ -1401,7 +1396,7 @@ pub fn nvim_buf_clear_namespace(
             line_end = MAXLNUM;
         }
         extmark_clear(
-            unsafe { &mut *b },
+             b,
             if ns_id < 0 { 0 } else { ns_id as u32 },
             line_start as c_int,
             0,
@@ -1685,15 +1680,14 @@ pub fn nvim__buf_debug_extmarks(
     dot: Boolean,
     err: &mut Error,
 ) -> NvimString {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return NvimString {
                 data: ptr::null_mut(),
                 size: 0,
             };
-        }
-        mt_inspect(&(*b).b_marktree, keys, dot)
+        };
+        mt_inspect(&b.b_marktree, keys, dot)
     }
 }
 

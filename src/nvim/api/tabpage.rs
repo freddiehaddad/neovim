@@ -1,8 +1,7 @@
 //! Tabpage API functions (`src/nvim/api/tabpage.c`).
 
 use crate::api::private::helpers::{
-    TryState, api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,
-    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, nil_obj, try_enter,
+    TryState, api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set, find_tab_by_handle, find_window_by_handle, has_key, nil_obj, try_enter,
     try_leave, window_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, Object};
@@ -92,12 +91,11 @@ pub fn nvim_tabpage_get_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        let tab = find_tab_by_handle(tabpage, err);
-        if tab.is_null() {
+     {
+        let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return nil_obj();
-        }
-        dict_get_value((*tab).tp_vars(), name, Some(arena), err)
+        };
+        dict_get_value(tab.tp_vars(), name, Some(arena), err)
     }
 }
 
@@ -116,12 +114,11 @@ pub fn nvim_tabpage_set_var(
     err: &mut Error,
 ) {
     unsafe {
-        let tab = find_tab_by_handle(tabpage, err);
-        if tab.is_null() {
+        let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return;
-        }
+        };
         dict_set_var(
-            &mut *(*tab).tp_vars(),
+            &mut *tab.tp_vars(),
             name,
             value,
             false,
@@ -140,12 +137,11 @@ pub fn nvim_tabpage_set_var(
 // DLLEXPORT void nvim_tabpage_del_var(Tabpage tabpage, String name, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error) {
     unsafe {
-        let tab = find_tab_by_handle(tabpage, err);
-        if tab.is_null() {
+        let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return;
-        }
+        };
         dict_set_var(
-            &mut *(*tab).tp_vars(),
+            &mut *tab.tp_vars(),
             name,
             nil_obj(),
             true,
@@ -188,31 +184,30 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
 // DLLEXPORT void nvim_tabpage_set_win(Tabpage tabpage, Window win, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     unsafe {
-        let tp = find_tab_by_handle(tabpage, err);
-        if tp.is_null() {
+        let Some(tp) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return;
-        }
+        };
         let wp = find_window_by_handle(win, err);
         if wp.is_null() {
             return;
         }
-        if !tabpage_win_valid(tp, wp) {
+        if !tabpage_win_valid((&raw mut *tp), wp) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Window does not belong to tabpage %d",
-                (*tp).handle,
+                tp.handle,
             );
             return;
         }
-        if tp == g_st().curtab {
+        if (&raw mut *tp) == g_st().curtab {
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
             win_goto(wp);
             try_leave(&tstate, err);
-        } else if (*tp).tp_curwin != wp {
-            (*tp).tp_prevwin = (*tp).tp_curwin;
-            (*tp).tp_curwin = wp;
+        } else if tp.tp_curwin != wp {
+            tp.tp_prevwin = tp.tp_curwin;
+            tp.tp_curwin = wp;
         }
     }
 }
@@ -262,10 +257,9 @@ pub fn nvim_open_tabpage(
     err: &mut Error,
 ) -> Tabpage {
     unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return 0;
-        }
+        };
 
         let after: c_int = if has_key(
             config.is_set__tabpage_config_,
@@ -302,13 +296,13 @@ pub fn nvim_open_tabpage(
             return 0;
         }
 
-        if tabpage_win_valid(tp, wp) && (*wp).w_buffer != b {
+        if tabpage_win_valid(tp, wp) && (*wp).w_buffer != (&raw mut *b) {
             let au_no_enter_leave = curwin_ptr() != wp;
             if au_no_enter_leave {
                 g_st().autocmd_no_enter += 1;
                 g_st().autocmd_no_leave += 1;
             }
-            win_set_buf(&mut *wp, &mut *b, err);
+            win_set_buf(&mut *wp, b, err);
             if au_no_enter_leave {
                 g_st().autocmd_no_enter -= 1;
                 g_st().autocmd_no_leave -= 1;

@@ -125,13 +125,12 @@ use crate::state::MODE_INSERT;
 /// Ensures that a buffer is loaded.
 // DLLEXPORT buf_T *api_buf_ensure_loaded(Buffer buf, Error *err);
 pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return ptr::null_mut();
-        }
+        };
 
-        if (*b).b_ml.ml_mfp.is_none() && !buf_ensure_loaded(&mut *b) {
+        if b.b_ml.ml_mfp.is_none() && !buf_ensure_loaded(b) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -140,7 +139,7 @@ pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut buf_T {
             return ptr::null_mut();
         }
 
-        b
+        (&raw mut *b)
     }
 }
 
@@ -243,11 +242,10 @@ pub fn nvim_buf_attach(
     opts: &mut KeyDict_buf_attach,
     err: &mut Error,
 ) -> Boolean {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return false;
-        }
+        };
 
         let mut cb = BufUpdateCallbacks {
             on_lines: LUA_NOREF,
@@ -285,7 +283,7 @@ pub fn nvim_buf_attach(
             cb.preview = opts.preview;
         }
 
-        buf_updates_register(&mut *b, channel_id, cb, send_buffer)
+        buf_updates_register(b, channel_id, cb, send_buffer)
     }
 }
 
@@ -302,12 +300,11 @@ pub fn nvim_buf_attach(
 // DLLEXPORT Boolean nvim_buf_detach(uint64_t channel_id, Buffer buf, Error *err)
 //   FUNC_API_SINCE(4) FUNC_API_REMOTE_ONLY;
 pub fn nvim_buf_detach(channel_id: u64, buf: Buffer, err: &mut Error) -> Boolean {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return false;
-        }
-        buf_updates_unregister(&mut *b, channel_id);
+        };
+        buf_updates_unregister(b, channel_id);
         true
     }
 }
@@ -346,19 +343,18 @@ pub fn nvim_buf_get_lines(
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
-        }
+        };
 
-        if (*b).b_ml.ml_mfp.is_none() {
+        if b.b_ml.ml_mfp.is_none() {
             init_line_array(lstate, &mut rv, 0, arena);
             return rv;
         }
 
         let mut oob = false;
-        start = normalize_index(&mut *b, start, true, &mut oob);
-        end = normalize_index(&mut *b, end, true, &mut oob);
+        start = normalize_index(b, start, true, &mut oob);
+        end = normalize_index(b, end, true, &mut oob);
 
         if strict_indexing && oob {
             api_set_error!(
@@ -379,7 +375,7 @@ pub fn nvim_buf_get_lines(
         init_line_array(lstate, &mut rv, size, arena);
 
         buf_collect_lines(
-            b,
+            (&raw mut *b),
             size,
             start as linenr_T,
             0,
@@ -1012,19 +1008,18 @@ pub fn nvim_buf_get_text(
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
-        }
+        };
 
-        if (*b).b_ml.ml_mfp.is_none() {
+        if b.b_ml.ml_mfp.is_none() {
             init_line_array(lstate, &mut rv, 0, arena);
             return rv;
         }
 
         let mut oob = false;
-        start_row = normalize_index(&mut *b, start_row, false, &mut oob);
-        end_row = normalize_index(&mut *b, end_row, false, &mut oob);
+        start_row = normalize_index(b, start_row, false, &mut oob);
+        end_row = normalize_index(b, end_row, false, &mut oob);
 
         if oob {
             api_set_error!(
@@ -1052,7 +1047,7 @@ pub fn nvim_buf_get_text(
         init_line_array(lstate, &mut rv, size, arena);
 
         if start_row == end_row {
-            let line = buf_get_text(b, start_row, start_col, end_col, err);
+            let line = buf_get_text((&raw mut *b), start_row, start_col, end_col, err);
             if error_set(err) {
                 return Array::new();
             }
@@ -1060,7 +1055,7 @@ pub fn nvim_buf_get_text(
             return rv;
         }
 
-        let mut str_val = buf_get_text(b, start_row, start_col, MAXCOL - 1, err);
+        let mut str_val = buf_get_text((&raw mut *b), start_row, start_col, MAXCOL - 1, err);
         if error_set(err) {
             return Array::new();
         }
@@ -1077,7 +1072,7 @@ pub fn nvim_buf_get_text(
 
         if size > 2 {
             buf_collect_lines(
-                b,
+                (&raw mut *b),
                 size - 2,
                 (start_row as linenr_T) + 1,
                 1,
@@ -1088,7 +1083,7 @@ pub fn nvim_buf_get_text(
             );
         }
 
-        str_val = buf_get_text(b, end_row, 0, end_col, err);
+        str_val = buf_get_text((&raw mut *b), end_row, 0, end_col, err);
         if error_set(err) {
             return Array::new();
         }
@@ -1133,16 +1128,15 @@ pub fn nvim_buf_get_offset(
     err: &mut Error,
 ) -> Integer {
     unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return 0;
-        }
+        };
 
-        if (*b).b_ml.ml_mfp.is_none() {
+        if b.b_ml.ml_mfp.is_none() {
             return -1;
         }
 
-        if index < 0 || index > i64::from((*b).b_ml.ml_line_count) {
+        if index < 0 || index > i64::from(b.b_ml.ml_line_count) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
@@ -1153,7 +1147,7 @@ pub fn nvim_buf_get_offset(
         }
 
         i64::from(ml_find_line_or_offset(
-            &mut *b,
+            b,
             (index as linenr_T) + 1,
             None,
             true,
@@ -1175,12 +1169,11 @@ pub fn nvim_buf_get_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return OBJECT_NIL;
-        }
-        dict_get_value((*b).b_vars(), name, Some(arena), err)
+        };
+        dict_get_value(b.b_vars(), name, Some(arena), err)
     }
 }
 
@@ -1193,12 +1186,11 @@ pub fn nvim_buf_get_var(
 // DLLEXPORT Integer nvim_buf_get_changedtick(Buffer buf, Error *err)
 //   FUNC_API_SINCE(2);
 pub fn nvim_buf_get_changedtick(buf: Buffer, err: &mut Error) -> Integer {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return -1;
-        }
-        (*b).changedtick_di.di_tv.vval.v_number()
+        };
+        b.changedtick_di.di_tv.vval.v_number()
     }
 }
 
@@ -1301,11 +1293,10 @@ pub fn nvim_buf_set_var(
     err: &mut Error,
 ) {
     unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
-        }
-        dict_set_var(&mut *(*b).b_vars(), name, value, false, false, None, err);
+        };
+        dict_set_var(&mut *b.b_vars(), name, value, false, false, None, err);
     }
 }
 
@@ -1318,12 +1309,11 @@ pub fn nvim_buf_set_var(
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
     unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
-        }
+        };
         dict_set_var(
-            &mut *(*b).b_vars(),
+            &mut *b.b_vars(),
             name,
             OBJECT_NIL,
             true,
@@ -1439,11 +1429,10 @@ pub fn nvim_buf_delete(
     opts: &mut KeyDict_buf_delete,
     err: &mut Error,
 ) {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if error_set(err) {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
-        }
+        };
 
         let force = opts.force;
         let unload = opts.unload;
@@ -1452,7 +1441,7 @@ pub fn nvim_buf_delete(
             if unload { DOBUF_UNLOAD } else { DOBUF_WIPE },
             DOBUF_FIRST,
             FORWARD,
-            (*b).b_fnum,
+            b.b_fnum,
             c_int::from(force),
         );
 
@@ -1500,10 +1489,9 @@ pub fn nvim_buf_del_mark(
 ) -> Boolean {
     unsafe {
         let mut res = false;
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return res;
-        }
+        };
 
         if name.size != 1 {
             api_err_invalid(
@@ -1517,7 +1505,7 @@ pub fn nvim_buf_del_mark(
         }
 
         let fm = mark_get(
-            &mut *b,
+            b,
             curwin_ptr(),
             None,
             kMarkAllNoResolve,
@@ -1528,8 +1516,8 @@ pub fn nvim_buf_del_mark(
             return res;
         }
 
-        if (*fm).mark.lnum != 0 && (*fm).fnum == (*b).b_fnum {
-            res = set_mark(b, name, 0, 0, err);
+        if (*fm).mark.lnum != 0 && (*fm).fnum == b.b_fnum {
+            res = set_mark((&raw mut *b), name, 0, 0, err);
         }
 
         res
@@ -1604,10 +1592,9 @@ pub fn nvim_buf_get_mark(
 ) -> Array {
     unsafe {
         let mut rv = Array::new();
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return rv;
-        }
+        };
 
         if name.size != 1 {
             api_err_invalid(
@@ -1621,13 +1608,13 @@ pub fn nvim_buf_get_mark(
         }
 
         let mark = c_int::from(*name.data.cast::<u8>());
-        let fm = mark_get(&mut *b, curwin_ptr(), None, kMarkAllNoResolve, mark);
+        let fm = mark_get(b, curwin_ptr(), None, kMarkAllNoResolve, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
             return rv;
         }
 
-        let (lnum, col) = if (*fm).fnum != (*b).b_fnum {
+        let (lnum, col) = if (*fm).fnum != b.b_fnum {
             (0, 0)
         } else {
             ((*fm).mark.lnum, (*fm).mark.col)
@@ -1694,50 +1681,49 @@ pub fn nvim_buf_call(
 /// @nodoc
 // DLLEXPORT Dict nvim__buf_stats(Buffer buf, Arena *arena, Error *err);
 pub fn nvim__buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return Dict::new();
-        }
+        };
 
         let mut rv = arena_dict(arena, 7);
         put_c(
             &mut rv,
             c"flush_count",
-            integer_obj(i64::from((*b).flush_count)),
+            integer_obj(i64::from(b.flush_count)),
         );
         put_c(
             &mut rv,
             c"current_lnum",
-            integer_obj(i64::from((*b).b_ml.ml_line_lnum)),
+            integer_obj(i64::from(b.b_ml.ml_line_lnum)),
         );
         put_c(
             &mut rv,
             c"line_dirty",
-            boolean_obj(((*b).b_ml.ml_flags & ML_LINE_DIRTY) != 0),
+            boolean_obj((b.b_ml.ml_flags & ML_LINE_DIRTY) != 0),
         );
         put_c(
             &mut rv,
             c"dirty_bytes",
-            integer_obj((*b).deleted_bytes as Integer),
+            integer_obj(b.deleted_bytes as Integer),
         );
         put_c(
             &mut rv,
             c"dirty_bytes2",
-            integer_obj((*b).deleted_bytes2 as Integer),
+            integer_obj(b.deleted_bytes2 as Integer),
         );
         put_c(
             &mut rv,
             c"virt_blocks",
-            integer_obj((*b).b_marktree.meta_root[kMTMetaLines] as Integer),
+            integer_obj(b.b_marktree.meta_root[kMTMetaLines] as Integer),
         );
 
-        let uhp = (*b).b_u_curhead.or((*b).b_u_newhead);
+        let uhp = b.b_u_curhead.or(b.b_u_newhead);
         if let Some(uh) = uhp {
             put_c(
                 &mut rv,
                 c"uhp_extmark_size",
-                integer_obj(uhp_ref(&*b, uh).uh_extmark.len() as Integer),
+                integer_obj(uhp_ref(b, uh).uh_extmark.len() as Integer),
             );
         }
 

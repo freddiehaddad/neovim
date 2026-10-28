@@ -691,6 +691,27 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut tabpage_T {
     }
 }
 
+#[inline]
+pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static mut buf_T> {
+    let b = find_buffer_by_handle(buffer, err);
+    (!b.is_null()).then(|| unsafe { &mut *b })
+}
+
+#[inline]
+pub fn find_window_by_handle_mut(window: Window, err: &mut Error) -> Option<&'static mut win_T> {
+    let w = find_window_by_handle(window, err);
+    (!w.is_null()).then(|| unsafe { &mut *w })
+}
+
+#[inline]
+pub fn find_tab_by_handle_mut(
+    tabpage: Tabpage,
+    err: &mut Error,
+) -> Option<&'static mut tabpage_T> {
+    let t = find_tab_by_handle(tabpage, err);
+    (!t.is_null()).then(|| unsafe { &mut *t })
+}
+
 pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
     let str_ = str_.into_c_char_ptr();
      {

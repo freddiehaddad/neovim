@@ -4,7 +4,7 @@ use crate::api::buffer::KeyDict_keymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
     ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
-    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, find_buffer_by_handle, has_key,
+    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, has_key,
     integer_obj, luaref_obj, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
@@ -2841,10 +2841,9 @@ pub fn modify_keymap(
         if global {
             buffer = 0;
         }
-        let target_buf = find_buffer_by_handle(buffer, err);
-        if target_buf.is_null() {
+        let Some(target_buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return;
-        }
+        };
 
         let save_current_sctx = api_set_sctx(channel_id);
 
@@ -2977,7 +2976,7 @@ pub fn modify_keymap(
                 maptype = MAPTYPE_NOREMAP;
             }
 
-            match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, &mut *target_buf) {
+            match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, target_buf) {
                 0 => {}
                 1 => {
                     api_set_error!(err, ErrorType::kErrorTypeException, e_invarg, 0);

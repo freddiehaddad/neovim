@@ -1410,11 +1410,10 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
         let gap = if buf == -1 {
             &raw mut (*ucmds_mut())
         } else {
-            let b = find_buffer_by_handle(buf, err);
-            if error_set(err) {
+            let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
                 return;
-            }
-            &raw mut (*b).b_ucmds
+            };
+            &raw mut b.b_ucmds
         };
 
         let name_bytes = crate::memory::cstr_as_bytes(name.data);

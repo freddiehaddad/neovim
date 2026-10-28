@@ -4,7 +4,7 @@ use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, cbuf_to_string, cstr_as_string, cstr_to_obj, cstrn_as_string,
-    error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj, object_to_hl_id,
+    error_set, find_window_by_handle, has_key, integer_obj, object_to_hl_id,
     string_obj, try_wrap,
 };
 use crate::api::private::validate::{
@@ -336,10 +336,9 @@ pub fn nvim_open_win(
     err: &mut Error,
 ) -> Window {
     unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return 0;
-        }
+        };
 
         let mask = config.is_set__win_config_;
         let is_split = has_key(mask, KEYSET_OPTIDX_win_config__split)
@@ -465,7 +464,7 @@ pub fn nvim_open_win(
                 br_fnum: 0,
                 br_buf_free_count: 0,
             };
-            set_bufref(&mut bufref, b);
+            set_bufref(&mut bufref, (&raw mut *b));
             if !fconfig.noautocmd {
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
                 let result = ctx_switch(&mut switchwin, wp, tp, ptr::null_mut(), kCtxNoDisplay);
@@ -486,13 +485,13 @@ pub fn nvim_open_win(
                 goto_tabpage_win(&mut *tp, wp);
                 tp = win_find_tabpage(wp);
             }
-            if !tp.is_null() && bufref_valid(Some(&bufref)) && b != (*wp).w_buffer {
+            if !tp.is_null() && bufref_valid(Some(&bufref)) && (&raw mut *b) != (*wp).w_buffer {
                 let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
                 if au_no_enter_leave {
                     g_st().autocmd_no_enter += 1;
                     g_st().autocmd_no_leave += 1;
                 }
-                win_set_buf(&mut *wp, &mut *b, err);
+                win_set_buf(&mut *wp, b, err);
                 if !fconfig.noautocmd {
                     tp = win_find_tabpage(wp);
                 }
@@ -526,7 +525,7 @@ pub fn nvim_open_win(
     }
 }
 
-fn win_split_dir(win: &mut win_T) -> WinSplit {
+fn win_split_dir(win: &win_T) -> WinSplit {
     unsafe {
         if win.w_frame.is_null() || (*win.w_frame).fr_parent.is_null() {
             return kWinSplitLeft;
@@ -1029,18 +1028,17 @@ pub fn nvim_win_set_config(
     config: &mut KeyDict_win_config,
     err: &mut Error,
 ) {
-    unsafe {
-        let w = find_window_by_handle(win, err);
-        if w.is_null() {
+     {
+        let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return;
-        }
+        };
 
-        let was_split = !(*w).w_floating;
+        let was_split = !w.w_floating;
         let mask = config.is_set__win_config_;
         let has_split = has_key(mask, KEYSET_OPTIDX_win_config__split);
         let has_vertical = has_key(mask, KEYSET_OPTIDX_win_config__vertical);
-        let old_style = (*w).w_config.style;
-        let mut fconfig = (*w).w_config.clone();
+        let old_style = w.w_config.style;
+        let mut fconfig = w.w_config.clone();
 
         let to_split = config.relative.size == 0
             && !(has_key(mask, KEYSET_OPTIDX_win_config__external) && config.external)
@@ -1049,7 +1047,7 @@ pub fn nvim_win_set_config(
             (!was_split && !to_split) || config.relative.size > 0 || config.external;
 
         if !parse_win_config(
-            w,
+            (&raw mut *w),
             &mut *config,
             &mut fconfig,
             !was_split || to_split,
@@ -1060,21 +1058,21 @@ pub fn nvim_win_set_config(
         }
 
         if to_split {
-            if !win_config_split( &mut *w, &*config, &mut fconfig, err) {
+            if !win_config_split( w, &*config, &mut fconfig, err) {
                 return;
             }
-        } else if !win_config_float_tp( &mut *w, &*config, &fconfig, err) {
+        } else if !win_config_float_tp( w, &*config, &fconfig, err) {
             return;
         }
 
         if fconfig.style == kWinStyleMinimal && old_style != fconfig.style {
-            win_set_minimal_style(&mut *w);
-            didset_window_options( &mut *w, true);
-            changed_window_setting(&mut *w);
+            win_set_minimal_style(w);
+            didset_window_options( w, true);
+            changed_window_setting(w);
         }
         if fconfig._cmdline_offset < c_int::MAX {
-            g_st().cmdline_win = w;
-        } else if w == g_st().cmdline_win && fconfig._cmdline_offset == c_int::MAX {
+            g_st().cmdline_win = (&raw mut *w);
+        } else if (&raw mut *w) == g_st().cmdline_win && fconfig._cmdline_offset == c_int::MAX {
             g_st().cmdline_win = ptr::null_mut();
         }
     }
@@ -1146,12 +1144,11 @@ pub fn nvim_win_get_config(
 
         let mut rv = KeyDict_win_config::default();
 
-        let wp = find_window_by_handle(win, err);
-        if wp.is_null() {
+        let Some(wp) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return rv;
-        }
+        };
 
-        let config = &(*wp).w_config;
+        let config = &wp.w_config;
 
         rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__focusable;
         rv.focusable = config.focusable;
@@ -1164,7 +1161,7 @@ pub fn nvim_win_get_config(
         rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__style;
         rv.style = cstr_as_string(WIN_STYLE_STR[config.style as usize].as_ptr());
 
-        if (*wp).w_floating {
+        if wp.w_floating {
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__width;
             rv.width = i64::from(config.width);
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__height;
@@ -1219,15 +1216,15 @@ pub fn nvim_win_get_config(
             }
         } else if !config.external {
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__width;
-            rv.width = i64::from((*wp).w_width);
+            rv.width = i64::from(wp.w_width);
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__height;
-            rv.height = i64::from((*wp).w_height);
-            let split = win_split_dir( &mut *wp);
+            rv.height = i64::from(wp.w_height);
+            let split = win_split_dir( wp);
             rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__split;
             rv.split = cstr_as_string(WIN_SPLIT_STR[split as usize].as_ptr());
         }
 
-        let rel = if (*wp).w_floating && !config.external {
+        let rel = if wp.w_floating && !config.external {
             FLOAT_RELATIVE_STR[config.relative as usize].as_ptr()
         } else {
             c"".as_ptr()
@@ -1814,11 +1811,10 @@ fn parse_win_config(
                     && (*wp).w_floating
                     && fconfig.relative == kFloatRelativeWindow)
             {
-                let target_win = find_window_by_handle(config.win, err);
-                if target_win.is_null() {
+                let Some(target_win) = crate::api::private::helpers::find_window_by_handle_mut(config.win, err) else {
                     break 'fail;
-                }
-                if target_win == wp {
+                };
+                if (&raw mut *target_win) == wp {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -1826,7 +1822,7 @@ fn parse_win_config(
                     );
                     break 'fail;
                 }
-                fconfig.window = (*target_win).handle;
+                fconfig.window = target_win.handle;
             } else {
                 if has_key(mask, KEYSET_OPTIDX_win_config__win) {
                     if !is_split && !has_relative && (wp.is_null() || !(*wp).w_floating) {

@@ -1,7 +1,7 @@
 //! Floating window creation, configuration, and layout (`src/nvim/winfloat.c`).
 
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, cstr_as_obj, error_init, error_set, find_buffer_by_handle,
+    api_clear_error, api_set_error, cstr_as_obj, error_init, error_set,
     find_window_by_handle, has_key,
 };
 use crate::api::private::validate::{Error, ErrorType};
@@ -508,19 +508,18 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_
             if b == 0 {
                 return win_float_special_fail(wp, &mut err);
             }
-            let buf = find_buffer_by_handle(b, &mut err);
-            if buf.is_null() {
+            let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(b, &mut err) else {
                 return win_float_special_fail(wp, &mut err);
-            }
-            (*buf).b_p_bl = 0; // unlist
+            };
+            buf.b_p_bl = 0; // unlist
             set_option_direct_for(
                 kOptBufhidden,
                 cstr_as_obj(c"wipe"),
                 OPT_LOCAL,
                 0,
-                OptTarget::Buf(buf),
+                OptTarget::Buf(&raw mut *buf),
             );
-            win_set_buf(&mut *wp, &mut *buf, &mut err);
+            win_set_buf(&mut *wp, buf, &mut err);
             if error_set(&err) {
                 return win_float_special_fail(wp, &mut err);
             }

@@ -495,13 +495,12 @@ pub fn nvim_set_hl(
 /// @return Namespace id, or -1
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
-    unsafe {
+     {
         if (opts.is_set__get_ns_ & (1u64 << KEYSET_OPTIDX_get_ns__winid)) != 0 {
-            let win = find_window_by_handle(opts.winid, err);
-            if win.is_null() {
+            let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(opts.winid, err) else {
                 return 0;
-            }
-            Integer::from((*win).w_ns_hl)
+            };
+            Integer::from(win.w_ns_hl)
         } else {
             Integer::from(g_st().ns_hl_global)
         }
@@ -1432,14 +1431,13 @@ pub fn nvim_get_current_buf() -> Buffer {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_buf(Buffer buf, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() {
+     {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
-        }
+        };
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, (*b).b_fnum, 0);
+        do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, b.b_fnum, 0);
         try_leave(&tstate, err);
     }
 }
@@ -1486,16 +1484,15 @@ pub fn nvim_get_current_win() -> Window {
 // DLLEXPORT void nvim_set_current_win(Window win, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_win(win: Window, err: &mut Error) {
     unsafe {
-        let w = find_window_by_handle(win, err);
-        if w.is_null() {
+        let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
             return;
-        }
+        };
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        if (*w).w_buffer != g_st().curbuf {
+        if w.w_buffer != g_st().curbuf {
             reset_VIsual_and_resel();
         }
-        goto_tabpage_win(&mut *win_find_tabpage(w), w);
+        goto_tabpage_win(&mut *win_find_tabpage(&raw mut *w), (&raw mut *w));
         try_leave(&tstate, err);
     }
 }

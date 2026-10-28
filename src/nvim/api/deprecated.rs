@@ -6,7 +6,7 @@ use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{
     MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
-    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
+    error_set, find_buffer_by_handle, find_window_by_handle, integer_obj,
     static_cstr_as_string, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
@@ -126,12 +126,11 @@ pub fn nvim_execute_lua(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(2);
 pub fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
-    unsafe {
-        let buf = find_buffer_by_handle(buffer, err);
-        if buf.is_null() {
+     {
+        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return 0;
-        }
-        i64::from((*buf).b_fnum)
+        };
+        i64::from(buf.b_fnum)
     }
 }
 
@@ -203,11 +202,10 @@ pub fn nvim_buf_add_highlight(
     mut col_end: Integer,
     err: &mut Error,
 ) -> Integer {
-    unsafe {
-        let buf = find_buffer_by_handle(buffer, err);
-        if buf.is_null() {
+     {
+        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return 0;
-        }
+        };
 
         if !(0..MAXLNUM).contains(&line) {
             api_err_range(err, c"line number");
@@ -224,7 +222,7 @@ pub fn nvim_buf_add_highlight(
 
         let ns = src2ns(&mut ns_id);
 
-        if line >= i64::from((*buf).b_ml.ml_line_count) {
+        if line >= i64::from(buf.b_ml.ml_line_count) {
             return ns_id;
         }
 
@@ -246,7 +244,7 @@ pub fn nvim_buf_add_highlight(
         decor.data.hl_mut().hl_id = hl_id;
 
         extmark_set(
-            &mut *buf,
+            buf,
             ns,
             None,
             line as c_int,
@@ -291,10 +289,9 @@ pub fn nvim_buf_set_virtual_text(
     err: &mut Error,
 ) -> Integer {
     unsafe {
-        let buf = find_buffer_by_handle(buffer, err);
-        if buf.is_null() {
+        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return 0;
-        }
+        };
 
         if !(0..MAXLNUM).contains(&line) {
             api_set_error!(
@@ -313,7 +310,7 @@ pub fn nvim_buf_set_virtual_text(
             return 0;
         }
 
-        let existing = decor_find_virttext(&mut *buf, line as c_int, u64::from(ns_id));
+        let existing = decor_find_virttext(buf, line as c_int, u64::from(ns_id));
         if !existing.is_null() {
             (*existing).data = DecorVirtTextData::VirtText(virt_text);
             (*existing).width = width;
@@ -342,7 +339,7 @@ pub fn nvim_buf_set_virtual_text(
         };
 
         extmark_set(
-            &mut *buf,
+            buf,
             ns_id,
             None,
             line as c_int,
@@ -613,11 +610,10 @@ pub fn buffer_set_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let buf = find_buffer_by_handle(buffer, err);
-        if buf.is_null() {
+        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return OBJECT_NIL;
-        }
-        dict_set_var(&mut *(*buf).b_vars(), name, value, false, true, Some(arena), err)
+        };
+        dict_set_var(&mut *buf.b_vars(), name, value, false, true, Some(arena), err)
     }
 }
 
@@ -638,11 +634,10 @@ pub fn buffer_del_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let buf = find_buffer_by_handle(buffer, err);
-        if buf.is_null() {
+        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
             return OBJECT_NIL;
-        }
-        dict_set_var(&mut *(*buf).b_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
+        };
+        dict_set_var(&mut *buf.b_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
     }
 }
 
@@ -665,11 +660,10 @@ pub fn window_set_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let win = find_window_by_handle(window, err);
-        if win.is_null() {
+        let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
             return OBJECT_NIL;
-        }
-        dict_set_var(&mut *(*win).w_vars(), name, value, false, true, Some(arena), err)
+        };
+        dict_set_var(&mut *win.w_vars(), name, value, false, true, Some(arena), err)
     }
 }
 
@@ -690,11 +684,10 @@ pub fn window_del_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let win = find_window_by_handle(window, err);
-        if win.is_null() {
+        let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
             return OBJECT_NIL;
-        }
-        dict_set_var(&mut *(*win).w_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
+        };
+        dict_set_var(&mut *win.w_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
     }
 }
 
@@ -718,11 +711,10 @@ pub fn tabpage_set_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let tab = find_tab_by_handle(tabpage, err);
-        if tab.is_null() {
+        let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return OBJECT_NIL;
-        }
-        dict_set_var(&mut *(*tab).tp_vars(), name, value, false, true, Some(arena), err)
+        };
+        dict_set_var(&mut *tab.tp_vars(), name, value, false, true, Some(arena), err)
     }
 }
 
@@ -743,11 +735,10 @@ pub fn tabpage_del_var(
     err: &mut Error,
 ) -> Object {
     unsafe {
-        let tab = find_tab_by_handle(tabpage, err);
-        if tab.is_null() {
+        let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
             return OBJECT_NIL;
-        }
-        dict_set_var(&mut *(*tab).tp_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
+        };
+        dict_set_var(&mut *tab.tp_vars(), name, OBJECT_NIL, true, true, Some(arena), err)
     }
 }
 

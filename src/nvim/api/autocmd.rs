@@ -310,15 +310,14 @@ fn get_patterns_from_pattern_or_buf(
                 };
             }
         } else if has_buf {
-            let b = find_buffer_by_handle(buf, err);
-            if error_set(err) {
+            let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
                 return Array {
                     items: std::ptr::null_mut(),
                     size: 0,
                     capacity: 0,
                 };
-            }
-            patterns.push(string_obj(format_buflocal_arena(arena, (*b).b_fnum)));
+            };
+            patterns.push(string_obj(format_buflocal_arena(arena, b.b_fnum)));
         } else {
             patterns.push(string_obj(cstr_as_string(fallback.as_ptr())));
         }
@@ -546,11 +545,10 @@ pub fn nvim_get_autocmds(
             if buf.obj_type == ObjectType::kObjectTypeInteger
                 || buf.obj_type == ObjectType::kObjectTypeBuffer
             {
-                let b = find_buffer_by_handle(buf.data.integer() as Buffer, err);
-                if error_set(err) {
+                let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf.data.integer() as Buffer, err) else {
                     break 'body;
-                }
-                let pat = format_buflocal_arena(arena, (*b).b_fnum);
+                };
+                let pat = format_buflocal_arena(arena, b.b_fnum);
                 buffers = arena_array(arena, 1);
                 add_c(&mut buffers, string_obj(pat));
             } else if buf.obj_type == ObjectType::kObjectTypeArray {
@@ -577,13 +575,12 @@ pub fn nvim_get_autocmds(
                         );
                         break 'body;
                     }
-                    let b = find_buffer_by_handle(bufnr.data.integer() as Buffer, err);
-                    if error_set(err) {
+                    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(bufnr.data.integer() as Buffer, err) else {
                         break 'body;
-                    }
+                    };
                     add_c(
                         &mut buffers,
-                        string_obj(format_buflocal_arena(arena, (*b).b_fnum)),
+                        string_obj(format_buflocal_arena(arena, b.b_fnum)),
                     );
                 }
             } else if has_buf {
