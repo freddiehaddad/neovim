@@ -1181,14 +1181,14 @@ pub fn tv_list_drop_items(l: &mut list_T, item: *mut listitem_T, item2: &mut lis
 }
 
 /// Like tv_list_drop_items, but also frees all removed items.
-pub fn tv_list_remove_items(l: *mut list_T, item: *mut listitem_T, item2: *mut listitem_T) {
+pub fn tv_list_remove_items(l: &mut list_T, item: *mut listitem_T, item2: &mut listitem_T) {
     unsafe {
-        tv_list_drop_items( &mut *l, item,  &mut *item2);
+        tv_list_drop_items( l, item,  item2);
         let mut li = item;
         loop {
             let nli = (*li).li_next;
             drop(Box::from_raw(li));
-            if li == item2 {
+            if li == (&raw mut *item2) {
                 break;
             }
             li = nli;
@@ -5316,7 +5316,7 @@ mod tests {
             // remove_items range
             let first_item = (*l2).lv_first;
             let second_item = (*first_item).li_next;
-            tv_list_remove_items(l2, first_item, second_item);
+            tv_list_remove_items( &mut *l2, first_item,  &mut *second_item);
             assert_eq!(tv_list_len_inline(l2), 4);
 
             tv_list_unref(l2_copy);

@@ -345,15 +345,15 @@ pub fn tabstop_first(ts: &[colnr_T]) -> c_int {
 }
 
 /// Return the effective shiftwidth value for current buffer (`get_sw_value`).
-pub fn get_sw_value(buf: *mut buf_T) -> c_int {
-    get_sw_value_col(unsafe { &mut *buf }, 0, false)
+pub fn get_sw_value(buf: &mut buf_T) -> c_int {
+    get_sw_value_col( buf, 0, false)
 }
 
-fn get_sw_value_pos(buf: *mut buf_T, pos: &pos_T, left: bool) -> c_int {
+fn get_sw_value_pos(buf: &mut buf_T, pos: &pos_T, left: bool) -> c_int {
      {
         let save_cursor = curwin_mut().w_cursor;
         curwin_mut().w_cursor = *pos;
-        let sw_value = get_sw_value_col(unsafe { &mut *buf }, get_nolist_virtcol(), left);
+        let sw_value = get_sw_value_col( buf, get_nolist_virtcol(), left);
         curwin_mut().w_cursor = save_cursor;
         sw_value
     }
@@ -364,7 +364,7 @@ pub fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
      {
         let mut pos = curwin_mut().w_cursor;
         pos.col = getwhitecols_curline() as colnr_T;
-        get_sw_value_pos(buf, &pos, left)
+        get_sw_value_pos(unsafe { &mut *buf }, &pos, left)
     }
 }
 
@@ -383,7 +383,7 @@ pub fn get_sw_value_col(buf: &mut buf_T, col: colnr_T, left: bool) -> c_int {
 pub fn get_sts_value() -> c_int {
      {
         if curbuf_mut().b_p_sts < 0 {
-            get_sw_value(g_st().curbuf)
+            get_sw_value(curbuf_mut())
         } else {
             curbuf_mut().b_p_sts as c_int
         }
@@ -677,7 +677,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
             ml_replace(curwin_mut().w_cursor.lnum, newline, true);
             if (flags & SIN_NOMARK) == 0 {
                 extmark_splice_cols(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     curwin_mut().w_cursor.lnum - 1,
                     skipcols,
                     old_offset - skipcols,
@@ -986,7 +986,7 @@ pub fn op_reindent(oap: &mut oparg_T, how: Indenter) {
 
         if last_changed != 0 {
             changed_lines(
-                g_st().curbuf,
+                curbuf_mut(),
                 first_changed,
                 0,
                 if oap.is_VIsual {
@@ -1281,7 +1281,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
 
             let delta = orig_col - new_col;
             extmark_splice_cols(
-                g_st().curbuf,
+                curbuf_mut(),
                 curwin_mut().w_cursor.lnum - 1,
                 new_col,
                 if delta < 0 { -delta } else { 0 },
@@ -1522,7 +1522,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
                             if ml_replace(lnum, new_line, true) {
                                 new_line = curbuf_mut().b_ml.ml_line_ptr;
                                 extmark_splice_cols(
-                                    g_st().curbuf,
+                                    curbuf_mut(),
                                     lnum - 1,
                                     0,
                                     old_len,
@@ -1572,7 +1572,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
         }
 
         if first_line != 0 {
-            changed_lines(g_st().curbuf, first_line, 0, last_line + 1, 0, true);
+            changed_lines(curbuf_mut(), first_line, 0, last_line + 1, 0, true);
         }
 
         curwin_mut().w_onebuf_opt.wo_list = save_list;

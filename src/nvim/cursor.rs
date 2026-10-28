@@ -552,7 +552,7 @@ pub fn char_before_cursor() -> c_int {
 /// Write a character at the current cursor position (`pchar_cursor`).
 pub fn pchar_cursor(c: c_char) {
     unsafe {
-        *ml_get_buf_mut(g_st().curbuf, curwin_mut().w_cursor.lnum).add(curwin_mut().w_cursor.col as usize) = c;
+        *ml_get_buf_mut(curbuf_mut(), curwin_mut().w_cursor.lnum).add(curwin_mut().w_cursor.col as usize) = c;
     }
 }
 

@@ -728,7 +728,7 @@ fn get_buffer_info(buf: &mut buf_T) -> *mut dict_T {
         let lnum = if ptr::eq(buf, g_st().curbuf) {
             curwin_mut().w_cursor.lnum
         } else {
-            buflist_findlnum(&raw mut *buf)
+            buflist_findlnum(buf)
         };
         tv_dict_add_nr(dict, c"lnum", lnum as varnumber_T);
         tv_dict_add_nr(
@@ -1076,7 +1076,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
             if !prefix_matches {
                 ml_replace_buf(buf, prompt_lno, new_prompt.cast_mut(), true, false);
                 extmark_splice_cols(
-                    buf,
+                     &mut *buf,
                     prompt_lno - 1,
                     0,
                     old_line_len,
@@ -1088,7 +1088,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
                 let new_line = concat_str(new_prompt, old_line.add(mark_col as usize));
                 let _ = ml_replace_buf(buf, prompt_lno, new_line.as_ptr().cast_mut(), true, false);
                 extmark_splice_cols(
-                    buf,
+                     &mut *buf,
                     prompt_lno - 1,
                     0,
                     mark_col,
@@ -1102,7 +1102,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
                 curwin_mut().w_cursor.col = cursor_col;
                 check_cursor_col(curwin_mut());
             }
-            changed_lines(buf, prompt_lno, 0, prompt_lno + 1, 0, true);
+            changed_lines( &mut *buf, prompt_lno, 0, prompt_lno + 1, 0, true);
             u_clearallandblockfree(&mut *buf);
         }
 

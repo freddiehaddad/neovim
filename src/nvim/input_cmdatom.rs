@@ -519,13 +519,13 @@ fn atom_origin_undoseq(origin: CmdOrigin) -> c_int {
     }
 }
 
-pub fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
-    unsafe {
+pub fn atom_origin_pos(buf: &mut buf_T) -> pos_T {
+     {
         let o = atom_st().composite.origin;
         if atom_st().composite.open
-            && o.buf.br_buf == buf
+            && o.buf.br_buf == (&raw mut *buf)
             && bufref_valid(Some(&o.buf))
-            && buf_get_changedtick(&*buf) == o.tick
+            && buf_get_changedtick(buf) == o.tick
         {
             return o.pos;
         }

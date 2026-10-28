@@ -2062,7 +2062,7 @@ pub fn do_put(
                     ml_replace(curwin_mut().w_cursor.lnum, newp, true);
                     drop(newp_vec);
                     extmark_splice_cols(
-                        g_st().curbuf,
+                        curbuf_mut(),
                         curwin_mut().w_cursor.lnum - 1,
                         bd.textcol,
                         delcount,
@@ -2077,7 +2077,7 @@ pub fn do_put(
                 }
 
                 changed_lines(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     lnum,
                     0,
                     curbuf_mut().b_op_start.lnum + (y_size as linenr_T) - nr_lines,
@@ -2194,7 +2194,7 @@ pub fn do_put(
                             }
                             changed_bytes(lnum, col);
                             extmark_splice_cols(
-                                g_st().curbuf,
+                                curbuf_mut(),
                                 lnum - 1,
                                 col,
                                 0,
@@ -2377,7 +2377,7 @@ pub fn do_put(
 
                     if y_type == MotionType::kMTCharWise {
                         changed_lines(
-                            g_st().curbuf,
+                            curbuf_mut(),
                             curwin_mut().w_cursor.lnum,
                             col,
                             curwin_mut().w_cursor.lnum + 1,
@@ -2386,7 +2386,7 @@ pub fn do_put(
                         );
                     } else {
                         changed_lines(
-                            g_st().curbuf,
+                            curbuf_mut(),
                             curbuf_mut().b_op_start.lnum,
                             0,
                             curbuf_mut().b_op_start.lnum,

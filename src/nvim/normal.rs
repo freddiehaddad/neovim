@@ -5955,7 +5955,7 @@ fn n_swapchar(cap: &mut cmdarg_T) {
         curwin_mut().w_set_curswant = true;
         if did_change {
             changed_lines(
-                g_st().curbuf,
+                curbuf_mut(),
                 startpos.lnum,
                 startpos.col,
                 curwin_mut().w_cursor.lnum + 1,

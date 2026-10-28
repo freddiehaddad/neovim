@@ -3359,8 +3359,8 @@ pub fn close_windows(buf: *mut buf_T, keep_curwin: bool) {
     }
 }
 
-pub fn last_window(win: *mut win_T) -> bool {
-    unsafe { one_window( &mut *win, ptr::null_mut()) && (*g_st().first_tabpage).tp_next.is_null() }
+pub fn last_window(win: &mut win_T) -> bool {
+    unsafe { one_window( win, ptr::null_mut()) && (*g_st().first_tabpage).tp_next.is_null() }
 }
 
 pub fn one_window(win: &mut win_T, tp: *mut tabpage_T) -> bool {
@@ -3513,7 +3513,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
         };
         let had_diffmode = (*win).w_onebuf_opt.wo_diff != 0;
 
-        if last_window(win) {
+        if last_window( &mut *win) {
             emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
             return false;
         }
@@ -3544,7 +3544,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                 if !win_valid_any_tab(win) {
                     return false;
                 }
-                if last_window(win) {
+                if last_window( &mut *win) {
                     emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
                     return false;
                 }
@@ -3603,7 +3603,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                     return false;
                 }
                 (*win).w_locked -= 1;
-                if last_window(win) {
+                if last_window( &mut *win) {
                     return false;
                 }
             }
@@ -3619,7 +3619,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
                 return false;
             }
             (*win).w_locked -= 1;
-            if last_window(win) {
+            if last_window( &mut *win) {
                 return false;
             }
             if aborting() {
@@ -3637,7 +3637,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
 
         win_close_buffer( &mut *win, if free_buf { DOBUF_UNLOAD } else { 0 }, true);
 
-        if win_valid(win) && (*win).w_buffer.is_null() && !(*win).w_floating && last_window(win) {
+        if win_valid(win) && (*win).w_buffer.is_null() && !(*win).w_floating && last_window( &mut *win) {
             if curwin_mut().w_buffer.is_null() {
                 curwin_mut().w_buffer = g_st().curbuf;
             }

@@ -656,7 +656,7 @@ pub fn deleteFold(
         }
 
         if last_lnum > 0 {
-            changed_lines(wp.w_buffer, first_lnum, 0, last_lnum, 0, false);
+            changed_lines(wp.buf_mut(), first_lnum, 0, last_lnum, 0, false);
 
             let num_changed = i64::from(last_lnum - first_lnum);
             buf_updates_send_changes(wp.buf_mut(), first_lnum, num_changed, num_changed);
@@ -1291,7 +1291,7 @@ fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
         foldAddMarker(&mut *buf, start, wp.w_onebuf_opt.wo_fmr, fold_st().foldstartmarkerlen);
         foldAddMarker(&mut *buf, end, fold_st().foldendmarker, fold_st().foldendmarkerlen);
 
-        changed_lines(buf, start.lnum, 0, end.lnum, 0, false);
+        changed_lines( &mut *buf, start.lnum, 0, end.lnum, 0, false);
 
         let num_changed = 1 + i64::from(end.lnum - start.lnum);
         buf_updates_send_changes( &mut *buf, start.lnum, num_changed, num_changed);
@@ -1335,7 +1335,7 @@ fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: 
         ml_replace_buf(&raw mut *buf, lnum, newline, true, false);
         if added != 0 {
             extmark_splice_cols(
-                &raw mut *buf,
+                buf,
                 lnum - 1,
                 line_len as colnr_T,
                 0,
@@ -1419,7 +1419,7 @@ fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerl
                 ptr::copy_nonoverlapping(after, newline.add(before_len), after_len + 1);
                 ml_replace_buf(&raw mut *buf, lnum, newline, true, false);
                 extmark_splice_cols(
-                    &raw mut *buf,
+                    buf,
                     lnum - 1,
                     before_len as colnr_T,
                     len as colnr_T,
@@ -2406,7 +2406,7 @@ fn foldlevelIndent(flp: &mut fline_T) {
                 -1
             };
         } else {
-            flp.lvl = get_indent_buf(&mut *buf, lnum) / get_sw_value(buf);
+            flp.lvl = get_indent_buf(&mut *buf, lnum) / get_sw_value( &mut *buf);
         }
         flp.lvl = flp.lvl.min((*flp.wp).w_onebuf_opt.wo_fdn.max(0) as c_int);
     }

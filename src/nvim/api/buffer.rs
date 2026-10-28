@@ -608,7 +608,7 @@ pub fn nvim_buf_set_lines(
             );
 
             changed_lines(
-                b,
+                 &mut *b,
                 start as linenr_T,
                 0,
                 end as linenr_T,
@@ -939,7 +939,7 @@ pub fn nvim_buf_set_text(
             );
 
             changed_lines(
-                b,
+                 &mut *b,
                 start_row as linenr_T,
                 start_col as colnr_T,
                 (end_row as linenr_T) + 1,

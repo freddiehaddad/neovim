@@ -988,7 +988,7 @@ pub fn extmark_splice_impl(
 }
 
 pub fn extmark_splice_cols(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     start_row: c_int,
     start_col: colnr_T,
     old_col: colnr_T,
@@ -996,7 +996,7 @@ pub fn extmark_splice_cols(
     undo: ExtmarkOp,
 ) {
     extmark_splice(
-            unsafe { &mut *buf },
+             buf,
             start_row,
             start_col,
             0,

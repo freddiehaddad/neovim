@@ -320,7 +320,7 @@ fn margin_columns_win(wp: &mut win_T, left_col: &mut c_int, right_col: &mut c_in
 /// and don't advance `*pp`.
 fn draw_virt_text(
     wp: &mut win_T,
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     col_off: c_int,
     end_col: &mut c_int,
     win_row: c_int,
@@ -417,7 +417,7 @@ fn draw_virt_text(
             if !vt.is_null() {
                 let vcol = (*item).draw_col - col_off;
                 let col = draw_virt_text_item(
-                     &mut *buf,
+                     buf,
                     (*item).draw_col,
                     (*vt).data.virt_text(),
                     (*vt).hl_mode,
@@ -2159,7 +2159,7 @@ pub fn win_line(
                 }
 
                 if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= wp.w_virtcol {
-                    draw_virt_text(wp, buf, win_col_offset, &mut wlv.col, wlv.row);
+                    draw_virt_text(wp,  &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
                     wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
                     if wp.w_onebuf_opt.wo_cuc != 0 {
                         wlv.row = wp.w_cline_row + wp.w_cline_height;
@@ -3301,7 +3301,7 @@ pub fn win_line(
                             false,
                         );
                     }
-                    draw_virt_text(wp, buf, win_col_offset, &mut wlv.col, wlv.row);
+                    draw_virt_text(wp,  &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
                     wlv_put_linebuf(wp, &wlv, wlv.col, true, bg_attr, SLF_INC_VCOL);
                     wlv.row += 1;
 
@@ -3573,7 +3573,7 @@ pub fn win_line(
                         true,
                     );
                 } else if wlv.filler_todo <= 0 {
-                    draw_virt_text(wp, buf, win_col_offset, &mut draw_col, wlv.row);
+                    draw_virt_text(wp,  &mut *buf, win_col_offset, &mut draw_col, wlv.row);
                 }
 
                 wlv_put_linebuf(

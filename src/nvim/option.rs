@@ -717,8 +717,8 @@ fn get_opt_idx(opt: *mut vimoption_T) -> OptIndex {
 }
 
 #[inline]
-fn get_varp(p: *mut vimoption_T) -> *mut c_void {
-     get_varp_from(unsafe { &mut *p }, curbuf_mut(), curwin_mut())
+fn get_varp(p: &mut vimoption_T) -> *mut c_void {
+     get_varp_from( p, curbuf_mut(), curwin_mut())
 }
 
 pub fn set_init_tablocal() {
@@ -1870,7 +1870,7 @@ pub fn get_option_newval(
                 opt_from_varp(
                     opt_idx,
                     if oldval_is_global {
-                        get_varp(opt)
+                        get_varp( &mut *opt)
                     } else {
                         varp
                     },
@@ -2423,7 +2423,7 @@ pub fn check_options() {
                 && !(*opt).immutable
                 && !(*opt).var.is_null()
             {
-                check_string_option(get_varp(opt).cast::<*mut c_char>());
+                check_string_option(get_varp( &mut *opt).cast::<*mut c_char>());
             }
         }
     }
@@ -3504,7 +3504,7 @@ pub fn did_set_xhistory(args: &mut optset_T) -> *const c_char {
         if is_p_chi {
             qf_resize_stack(*arg as c_int);
         } else {
-            ll_resize_stack(args.os_win, *arg as c_int);
+            ll_resize_stack( &mut *args.os_win, *arg as c_int);
         }
 
         ptr::null()
@@ -3771,8 +3771,8 @@ fn validate_num_option(
 }
 
 /// Called after an option changed: check if something needs to be redrawn.
-pub fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
-    unsafe {
+pub fn check_redraw_for(buf: *mut buf_T, win: &mut win_T, flags: u32) {
+     {
         let all = (flags & kOptFlagRedrAll) == kOptFlagRedrAll;
 
         if (flags & kOptFlagRedrStat) != 0 || all {
@@ -3785,9 +3785,9 @@ pub fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
 
         if (flags & kOptFlagRedrBuf) != 0 || (flags & kOptFlagRedrWin) != 0 || all {
             if (flags & kOptFlagHLOnly) != 0 {
-                redraw_later(win, UPD_NOT_VALID);
+                redraw_later((&raw mut *win), UPD_NOT_VALID);
             } else {
-                changed_window_setting(&mut *win);
+                changed_window_setting(win);
             }
         }
         if (flags & kOptFlagRedrBuf) != 0 {
@@ -3801,7 +3801,7 @@ pub fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
 
 pub fn check_redraw(flags: u32) {
      {
-        check_redraw_for(g_st().curbuf, curwin_ptr(), flags);
+        check_redraw_for(g_st().curbuf, curwin_mut(), flags);
     }
 }
 
@@ -5904,7 +5904,7 @@ fn set_option(
                 optval_snapshot_varp(opt_idx, varp_local)
             };
             saved_used_value = if scope_local && is_opt_local_unset {
-                optval_snapshot_varp(opt_idx, get_varp(opt))
+                optval_snapshot_varp(opt_idx, get_varp( &mut *opt))
             } else {
                 optval_snapshot(old_value)
             };
@@ -6273,7 +6273,7 @@ fn showoptions(all: bool, opt_flags: c_int) {
                         varp = get_varp_scope(opt, opt_flags);
                     }
                 } else {
-                    varp = get_varp(opt);
+                    varp = get_varp( &mut *opt);
                 }
                 if !varp.is_null() && (all || optval_default(opt_idx, varp) == 0) {
                     let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
@@ -6736,10 +6736,10 @@ pub fn get_varp_scope(p: *mut vimoption_T, opt_flags: c_int) -> *mut c_void {
 pub fn get_option_varp_scope_from(
     opt_idx: OptIndex,
     opt_flags: c_int,
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     win: *mut win_T,
 ) -> *mut c_void {
-    get_varp_scope_from(get_option(opt_idx), opt_flags, unsafe { &mut *buf }, unsafe { &mut *win })
+    get_varp_scope_from(get_option(opt_idx), opt_flags,  buf, unsafe { &mut *win })
 }
 
 pub fn get_varp_from(p: &mut vimoption_T, buf: &mut buf_T, win: &mut win_T) -> *mut c_void {
@@ -8055,7 +8055,7 @@ pub fn ExpandSettingSubtract(
         }
 
         let option_val =
-            *(get_option_varp_scope_from(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS, g_st().curbuf, curwin_ptr())
+            *(get_option_varp_scope_from(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS, curbuf_mut(), curwin_ptr())
                 .cast::<*mut c_char>());
 
         let option_flags = (*get_option(opt_st().EXPAND_OPTION_IDX)).flags;
@@ -8546,7 +8546,7 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
             if (bufopt != 0 && option_has_scope(opt_idx, kOptScopeBuf))
                 || (bufopt == 0 && option_has_scope(opt_idx, kOptScopeWin))
             {
-                let varp = get_varp(opt);
+                let varp = get_varp( &mut *opt);
                 if !varp.is_null() {
                     let ov = opt_from_varp(opt_idx, varp);
                     let mut opt_tv = opt_to_tv(ov, true);

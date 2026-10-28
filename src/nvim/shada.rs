@@ -2086,7 +2086,7 @@ fn shada_check_status(
 }
 
 fn shada_read_when_writing(
-    sd_reader: *mut FileDescriptor,
+    sd_reader: &mut FileDescriptor,
     srni_flags: c_uint,
     max_kbyte: usize,
     wms: &mut WriteMergerState,
@@ -2097,7 +2097,7 @@ fn shada_read_when_writing(
         let mut entry = MISSING_ENTRY;
 
         loop {
-            let srni_ret = shada_read_next_item( &mut *sd_reader, &mut entry, srni_flags, max_kbyte);
+            let srni_ret = shada_read_next_item( sd_reader, &mut entry, srni_flags, max_kbyte);
             if srni_ret == ShaDaReadResult::kSDReadStatusFinished {
                 break;
             }
@@ -2983,7 +2983,7 @@ fn shada_write(
 
             if !sd_reader.is_null() {
                 let srww_ret =
-                    shada_read_when_writing(sd_reader, srni_flags, max_kbyte,  &mut *wms, &mut packer);
+                    shada_read_when_writing( &mut *sd_reader, srni_flags, max_kbyte,  &mut *wms, &mut packer);
                 if srww_ret != ShaDaWriteResult::kSDWriteSuccessful {
                     ret = srww_ret;
                 }

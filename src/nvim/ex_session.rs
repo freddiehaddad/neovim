@@ -293,8 +293,8 @@ fn ses_get_fname(buf: &mut buf_T, flagp: &c_uint) -> *mut c_char {
     }
 }
 
-fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: &mut c_uint, add_eol: bool) -> bool {
-    let name = ses_get_fname(unsafe { &mut *buf }, flagp);
+fn ses_fname(fd: *mut FILE, buf: &mut buf_T, flagp: &mut c_uint, add_eol: bool) -> bool {
+    let name = ses_get_fname( buf, flagp);
         if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
             return false;
         }
@@ -423,7 +423,7 @@ fn put_view(
                 && *(*alt).b_fname != NUL
                 && (*alt).b_p_bl != 0
                 && !(bt_terminal(alt) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
-                && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, alt, &mut *flagp, true))
+                && (fputs(c"balt ", fd) < 0 || !ses_fname(fd,  &mut *alt, &mut *flagp, true))
             {
                 return false;
             }
@@ -690,7 +690,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     .first()
                     .map_or(1i64, |wi| i64::from(wi.wi_mark.mark.lnum));
                 if !write_fmt(fd, format!("badd +{lnum} "))
-                    || !ses_fname(fd, buf, &mut opt_vars().ssop_flags, true)
+                    || !ses_fname(fd,  &mut *buf, &mut opt_vars().ssop_flags, true)
                 {
                     return false;
                 }
@@ -834,7 +834,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
                     need_tabnext = false;
 
                     if fputs(c"edit ", fd) < 0
-                        || !ses_fname(fd, (*wp).w_buffer, &mut opt_vars().ssop_flags, true)
+                        || !ses_fname(fd, (*wp).buf_mut(), &mut opt_vars().ssop_flags, true)
                     {
                         return false;
                     }

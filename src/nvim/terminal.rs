@@ -2650,7 +2650,7 @@ fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
         let change_end = change_start + changed;
         term.invalid_start = c_int::MAX;
         term.invalid_end = -1;
-        changed_lines(&raw mut *buf, change_start, 0, change_end, added, true);
+        changed_lines(buf, change_start, 0, change_end, added, true);
 }
 
 fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {

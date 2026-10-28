@@ -493,7 +493,7 @@ pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
 /// Insert/delete bytes at column.
 pub fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_col: c_int) {
     if g_st().curbuf_splice_pending == 0 {
-            extmark_splice_cols(g_st().curbuf, lnum - 1, start_col, old_col, new_col, kExtmarkUndo);
+            extmark_splice_cols(curbuf_mut(), lnum - 1, start_col, old_col, new_col, kExtmarkUndo);
         }
 
         changed_bytes(lnum, start_col);
@@ -501,7 +501,7 @@ pub fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_co
 
 /// Appended `count` lines below line `lnum` in the given buffer.
 pub fn appended_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
-    changed_lines(buf, lnum + 1, 0, lnum + 1, count, true);
+    changed_lines(unsafe { &mut *buf }, lnum + 1, 0, lnum + 1, count, true);
 }
 
 /// Appended `count` lines below line `lnum` in the current buffer.
@@ -512,12 +512,12 @@ pub fn appended_lines(lnum: linenr_T, count: linenr_T) {
 /// Like `appended_lines()`, but adjust marks first.
 pub fn appended_lines_mark(lnum: linenr_T, count: c_int) {
     mark_adjust(lnum + 1, MAXLNUM, count, 0, kExtmarkUndo);
-        changed_lines(g_st().curbuf, lnum + 1, 0, lnum + 1, count, true);
+        changed_lines(curbuf_mut(), lnum + 1, 0, lnum + 1, count, true);
 }
 
 /// Deleted `count` lines at line `lnum` in the given buffer.
 pub fn deleted_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T) {
-    changed_lines(buf, lnum, 0, lnum + count, -count, true);
+    changed_lines(unsafe { &mut *buf }, lnum, 0, lnum + count, -count, true);
 }
 
 /// Deleted `count` lines at line `lnum` in the current buffer.
@@ -539,7 +539,7 @@ pub fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
             -count + c_int::from(made_empty),
             kExtmarkUndo,
         );
-        changed_lines(g_st().curbuf, lnum, 0, lnum + count, -count, true);
+        changed_lines(curbuf_mut(), lnum, 0, lnum + count, -count, true);
     }
 }
 
@@ -574,7 +574,7 @@ pub fn changed_lines_redraw_buf(
 
 /// Changed lines for a buffer.
 pub fn changed_lines(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     lnum: linenr_T,
     col: colnr_T,
     lnume: linenr_T,
@@ -582,11 +582,11 @@ pub fn changed_lines(
     do_buf_event: bool,
 ) {
     unsafe {
-        changed_lines_redraw_buf( &mut *buf, lnum, lnume, xtra);
+        changed_lines_redraw_buf( buf, lnum, lnume, xtra);
 
         if xtra == 0
             && curwin_mut().w_onebuf_opt.wo_diff != 0
-            && curwin_mut().w_buffer == buf
+            && curwin_mut().w_buffer == (&raw mut *buf)
             && diff_internal() == 0
         {
             for wp in for_all_windows_ptr() {
@@ -600,12 +600,12 @@ pub fn changed_lines(
             }
         }
 
-        changed_common( &mut *buf, lnum, col, lnume, xtra);
+        changed_common( buf, lnum, col, lnume, xtra);
 
         if do_buf_event {
             let num_added = i64::from(lnume + xtra - lnum);
             let num_removed = i64::from(lnume - lnum);
-            buf_updates_send_changes( &mut *buf, lnum, num_added, num_removed);
+            buf_updates_send_changes( buf, lnum, num_added, num_removed);
         }
     }
 }
@@ -1635,7 +1635,7 @@ pub fn open_line(
             if newindent != 0 || g_st().Ins.did_si {
                 curwin_mut().w_cursor.lnum += 1;
                 if g_st().Ins.did_si {
-                    let sw = get_sw_value(g_st().curbuf);
+                    let sw = get_sw_value(curbuf_mut());
                     if opt_vars().p_sr != 0 {
                         newindent -= newindent % sw;
                     }
@@ -1685,7 +1685,7 @@ pub fn open_line(
                     let mut cols_spliced: c_int = 0;
                     if new_len < curwin_mut().w_cursor.col {
                         extmark_splice_cols(
-                            g_st().curbuf,
+                            curbuf_mut(),
                             curwin_mut().w_cursor.lnum - 1,
                             new_len,
                             curwin_mut().w_cursor.col - new_len,
@@ -1711,7 +1711,7 @@ pub fn open_line(
                         );
 
                         changed_lines(
-                            g_st().curbuf,
+                            curbuf_mut(),
                             curwin_mut().w_cursor.lnum,
                             curwin_mut().w_cursor.col,
                             curwin_mut().w_cursor.lnum + 1,
@@ -1751,7 +1751,7 @@ pub fn open_line(
                     kExtmarkUndo,
                 );
                 changed_lines(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     curwin_mut().w_cursor.lnum,
                     0,
                     curwin_mut().w_cursor.lnum,

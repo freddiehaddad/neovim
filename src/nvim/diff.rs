@@ -3530,7 +3530,7 @@ fn diffgetput(
                     }
                 }
                 extmark_adjust(curbuf_mut(), lnum, lnum + count - 1, MAXLNUM, added, kExtmarkUndo);
-                changed_lines(g_st().curbuf, lnum, 0, lnum + count, added, true);
+                changed_lines(curbuf_mut(), lnum, 0, lnum + count, added, true);
                 if did_free {
                     diff_fold_update(&dfree_lnum, &dfree_count, idx_to);
                 }

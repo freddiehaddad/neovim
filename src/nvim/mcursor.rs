@@ -284,8 +284,8 @@ fn mc_mark_upd(buf: *mut buf_T, mark: &mut u32, pos: pos_T) {
     extmark_set_pos(unsafe { &mut *buf }, mc_ns(), mark, pos, true, false, true);
 }
 
-fn mc_track_upd(buf: *mut buf_T, mark: &mut u32, pos: pos_T) {
-    extmark_set_pos(unsafe { &mut *buf }, mc_session_ns(), mark, pos, true, true, false);
+fn mc_track_upd(buf: &mut buf_T, mark: &mut u32, pos: pos_T) {
+    extmark_set_pos( buf, mc_session_ns(), mark, pos, true, true, false);
 }
 
 fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
@@ -298,11 +298,11 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
             kCtxCursor | kCtxVisual | kCtxMarks | if save_regs { kCtxRegs } else { 0 },
         );
         sb.cursor_mark = 0;
-        mc_track_upd(g_st().curbuf, &mut sb.cursor_mark, sb.primary.pos);
+        mc_track_upd(curbuf_mut(), &mut sb.cursor_mark, sb.primary.pos);
         save_viewstate(curwin_mut(), &mut sb.view);
         sb.topline_mark = 0;
         mc_track_upd(
-            g_st().curbuf,
+            curbuf_mut(),
             &mut sb.topline_mark,
             pos_T {
                 lnum: sb.view.vs_topline,
@@ -848,7 +848,7 @@ fn mc_ins_preview_set(new_text: &NvimString) {
      {
         let saved = mc_ins_save_state();
         let mut primary: u32 = 0;
-        mc_track_upd(g_st().curbuf, &mut primary, curwin_mut().w_cursor);
+        mc_track_upd(curbuf_mut(), &mut primary, curwin_mut().w_cursor);
         let save_cmod_flags = g_st().cmdmod.cmod_flags;
         g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
         set_vim_var_bool(VV_CASCADING, kBoolVarTrue);

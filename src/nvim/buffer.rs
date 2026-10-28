@@ -2255,7 +2255,7 @@ fn do_buffer_ext(
 
             while buf == g_st().curbuf
                 && !(win_locked(curwin_mut()) != 0 || curwin_mut().buf_mut().b_locked > 0)
-                && (is_ctx_win(g_st().lastwin) || !last_window(curwin_ptr()))
+                && (is_ctx_win(g_st().lastwin) || !last_window(curwin_mut()))
             {
                 if !win_close(curwin_ptr(), false, false) {
                     break;
@@ -2578,7 +2578,7 @@ fn enter_buffer(buf: *mut buf_T) {
 
         buf_copy_options( &mut *buf, BCO_ENTER | BCO_NOHELP);
         if !(*buf).b_help {
-            get_winopts(buf);
+            get_winopts( &mut *buf);
         } else {
             clearFolding(curwin_mut());
         }
@@ -3526,16 +3526,16 @@ fn find_wininfo(
 }
 
 /// Reset the local window options to the values last used in this window.
-pub fn get_winopts(buf: *mut buf_T) {
+pub fn get_winopts(buf: &mut buf_T) {
     unsafe {
         clear_winopt(&mut curwin_mut().w_onebuf_opt);
         clearFolding(curwin_mut());
 
-        let wip = find_wininfo(&mut *buf, true, true);
+        let wip = find_wininfo(buf, true, true);
         if !wip.is_null()
             && (*wip).wi_win != curwin_ptr()
             && !(*wip).wi_win.is_null()
-            && (*(*wip).wi_win).w_buffer == buf
+            && (*(*wip).wi_win).w_buffer == (&raw mut *buf)
             && (*(*wip).wi_win).w_config.style != kWinStyleMinimal
         {
             let wp = (*wip).wi_win;
@@ -3588,8 +3588,8 @@ pub fn buflist_findfmark(buf: &mut buf_T) -> *mut fmark_T {
 }
 
 /// Find the lnum for the buffer `buf` for the current window.
-pub fn buflist_findlnum(buf: *mut buf_T) -> linenr_T {
-    unsafe { (*buflist_findfmark( &mut *buf)).mark.lnum }
+pub fn buflist_findlnum(buf: &mut buf_T) -> linenr_T {
+    unsafe { (*buflist_findfmark( buf)).mark.lnum }
 }
 
 /// List all known file names (for `:files` and `:buffers` command).
@@ -3619,12 +3619,12 @@ pub fn buflist_list(eap: &mut exarg_T) {
             let is_terminal = !(*buf).terminal.is_null();
             let job_running = is_terminal && terminal_running(&*(*buf).terminal);
 
-            let mut next_buf = || {
+            let mut next_buf = |b: *mut buf_T| {
                 if use_buflist {
                     buflist_idx += 1;
                     buflist.get(buflist_idx).copied().unwrap_or(ptr::null_mut())
                 } else {
-                    (*buf).b_next
+                    (*b).b_next
                 }
             };
 
@@ -3650,7 +3650,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
                 || (!vim_strchr(eap.arg, b'#' as c_int).is_null()
                     && (buf == g_st().curbuf || curwin_mut().w_alt_fnum != (*buf).b_fnum))
             {
-                buf = next_buf();
+                buf = next_buf(buf);
                 continue;
             }
 
@@ -3663,7 +3663,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
             }
 
             if message_filtered(namebuff_ptr) {
-                buf = next_buf();
+                buf = next_buf(buf);
                 continue;
             }
 
@@ -3742,14 +3742,14 @@ pub fn buflist_list(eap: &mut exarg_T) {
                     if buf == g_st().curbuf {
                         i64::from(curwin_mut().w_cursor.lnum)
                     } else {
-                        i64::from(buflist_findlnum(buf))
+                        i64::from(buflist_findlnum( &mut *buf))
                     },
                 );
             }
 
             msg_outtrans(iobuff_ptr, 0, false);
             line_breakcheck();
-            buf = next_buf();
+            buf = next_buf(buf);
         }
     }
 }
@@ -3763,7 +3763,7 @@ pub fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: &mut linenr_T
         }
 
         *fname = (*buf).b_fname;
-        *lnum = buflist_findlnum(buf);
+        *lnum = buflist_findlnum( &mut *buf);
 
         true
     }

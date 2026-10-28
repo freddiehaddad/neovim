@@ -8166,7 +8166,7 @@ pub fn f_shiftwidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(get_sw_value_col(curbuf_mut(), col, false)));
             return;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(get_sw_value(g_st().curbuf)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(get_sw_value(curbuf_mut())));
     }
 }
 

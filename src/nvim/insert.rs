@@ -3221,7 +3221,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
                 let mut want_vcol = if vcol > 0 { vcol - 1 } else { 0 };
                 if opt_vars().p_sta != 0 && in_indent {
-                    want_vcol -= want_vcol % (get_sw_value(g_st().curbuf) as colnr_T);
+                    want_vcol -= want_vcol % (get_sw_value(curbuf_mut()) as colnr_T);
                 } else {
                     want_vcol = tabstop_start(
                         want_vcol,
@@ -3624,9 +3624,9 @@ fn ins_tab() -> bool {
                 && ind
                 && ((tabstop_count(&curbuf_mut().b_p_vts_array) > 1)
                     || (tabstop_count(&curbuf_mut().b_p_vts_array) == 1
-                        && tabstop_first(&curbuf_mut().b_p_vts_array) != get_sw_value(g_st().curbuf))
+                        && tabstop_first(&curbuf_mut().b_p_vts_array) != get_sw_value(curbuf_mut()))
                     || (tabstop_count(&curbuf_mut().b_p_vts_array) == 0
-                        && curbuf_mut().b_p_ts != i64::from(get_sw_value(g_st().curbuf)))))
+                        && curbuf_mut().b_p_ts != i64::from(get_sw_value(curbuf_mut())))))
             && tabstop_count(&curbuf_mut().b_p_vsts_array) == 0
             && get_sts_value() == 0
         {
@@ -3644,7 +3644,7 @@ fn ins_tab() -> bool {
         redo_append_str(c"\t", 1);
 
         let mut temp: c_int = if opt_vars().p_sta != 0 && ind {
-            let sw = get_sw_value(g_st().curbuf);
+            let sw = get_sw_value(curbuf_mut());
             sw - (get_nolist_virtcol() % sw)
         } else if tabstop_count(&curbuf_mut().b_p_vsts_array) > 0 || curbuf_mut().b_p_sts != 0 {
             tabstop_padding(

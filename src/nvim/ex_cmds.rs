@@ -548,7 +548,7 @@ pub fn ex_align(eap: &mut exarg_T) {
             set_indent(new_indent, 0);
             curwin_mut().w_cursor.lnum += 1;
         }
-        changed_lines(g_st().curbuf, eap.line1, 0, eap.line2 + 1, 0, true);
+        changed_lines(curbuf_mut(), eap.line1, 0, eap.line2 + 1, 0, true);
         curwin_mut().w_cursor = save_curpos;
         beginline(BL_WHITE | BL_FIX);
     }
@@ -935,7 +935,7 @@ pub fn ex_sort(eap: &mut exarg_T) {
                     new_count,
                     kExtmarkUndo,
                 );
-                changed_lines(g_st().curbuf, eap.line1, 0, eap.line2 + 1, -deleted, true);
+                changed_lines(curbuf_mut(), eap.line1, 0, eap.line2 + 1, -deleted, true);
             }
 
             curwin_mut().w_cursor.lnum = eap.line1;
@@ -1146,7 +1146,7 @@ pub fn ex_uniq(eap: &mut exarg_T) {
             msgmore(-deleted);
 
             if change_occurred {
-                changed_lines(g_st().curbuf, eap.line1, 0, eap.line2 + 1, -deleted, true);
+                changed_lines(curbuf_mut(), eap.line1, 0, eap.line2 + 1, -deleted, true);
             }
 
             curwin_mut().w_cursor.lnum = eap.line1;
@@ -1208,7 +1208,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
 
         g_st().disable_fold_update += 1;
         changed_lines(
-            g_st().curbuf,
+            curbuf_mut(),
             last_line - num_lines + 1,
             0,
             last_line + 1,
@@ -1262,7 +1262,7 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
 
         g_st().disable_fold_update += 1;
         changed_lines(
-            g_st().curbuf,
+            curbuf_mut(),
             last_line - num_lines + 1,
             0,
             last_line + 1,
@@ -1316,9 +1316,9 @@ pub fn do_move(line1: linenr_T, line2: linenr_T, mut dest: linenr_T) -> bool {
             dest += num_lines + 1;
             last_line = curbuf_mut().b_ml.ml_line_count;
             dest = dest.min(last_line + 1);
-            changed_lines(g_st().curbuf, line1, 0, dest, 0, false);
+            changed_lines(curbuf_mut(), line1, 0, dest, 0, false);
         } else {
-            changed_lines(g_st().curbuf, dest + 1, 0, line1 + num_lines, 0, false);
+            changed_lines(curbuf_mut(), dest + 1, 0, line1 + num_lines, 0, false);
         }
 
         buf_updates_send_changes(curbuf_mut(), line1 + extra, 0, num_lines as i64);
@@ -2981,7 +2981,7 @@ pub fn do_ecmd(
                             }
                         }
 
-                        get_winopts(g_st().curbuf);
+                        get_winopts(curbuf_mut());
                         did_get_winopts = true;
                     }
                     new_name = None;
@@ -4679,7 +4679,7 @@ fn do_sub(
 
         if first_line != 0 {
             i = curbuf_mut().b_ml.ml_line_count - old_line_count;
-            changed_lines(g_st().curbuf, first_line, 0, last_line - i, i, false);
+            changed_lines(curbuf_mut(), first_line, 0, last_line - i, i, false);
 
             let num_added = (last_line - first_line) as i64;
             let num_removed = num_added - i as i64;

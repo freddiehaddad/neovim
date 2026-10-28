@@ -2114,7 +2114,7 @@ fn tv_list_unlet_range(
             }
             li_last = li;
         }
-        tv_list_remove_items(l, li_first, li_last);
+        tv_list_remove_items( &mut *l, li_first,  &mut *li_last);
     }
 }
 
@@ -2167,7 +2167,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
                     tv_copy(&(*di).di_tv, &mut oldtv);
                 }
 
-                delete_var(&mut *ht, hi);
+                delete_var(&mut *ht,  &mut *hi);
 
                 if watched {
                     tv_dict_watcher_notify(&mut *dict, varname, ptr::null_mut(), Some(&oldtv));
@@ -2250,7 +2250,7 @@ pub fn del_menutrans_vars() {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 if crate::memory::cstr_prefix_bytes((&*hi).key_ptr(), 10) == &b"menutrans_"[..10] {
-                    delete_var(&mut *ht, hi);
+                    delete_var(&mut *ht,  &mut *hi);
                 }
             }
             hi = hi.add(1);
@@ -2912,9 +2912,9 @@ pub fn vars_clear_ext(ht: &mut hashtab_T, free_val: bool) {
 }
 
 /// Delete a variable from hashtab "ht" at item "hi".
-fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
-    let di = tv_dict_hi2di(hi);
-        hash_remove(ht, unsafe { &mut *hi });
+fn delete_var(ht: &mut hashtab_T, hi: &mut hashitem_T) {
+    let di = tv_dict_hi2di(&raw mut *hi);
+        hash_remove(ht,  hi);
         crate::eval::typval::tv_dict_item_free(di);
 }
 

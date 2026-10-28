@@ -226,10 +226,10 @@ pub fn multiqueue_free(this: *mut MultiQueue) {
     }
 }
 
-fn multiqueue_remove(this: *mut MultiQueue) -> Event {
-    assert!(!multiqueue_empty(this));
+fn multiqueue_remove(this: &mut MultiQueue) -> Event {
+    assert!(!multiqueue_empty(&raw mut *this));
     unsafe {
-        let q = &mut *this;
+        let q = this;
         let entry = q.items.pop_front().unwrap();
         q.size = q.size.wrapping_sub(1);
         match entry {
@@ -243,12 +243,13 @@ fn multiqueue_remove(this: *mut MultiQueue) -> Event {
                 }
             }
             QueueEntry::Event(ev) => {
+                let q_ptr: *mut MultiQueue = &raw mut *q;
                 if !q.parent.is_null() {
                     let parent = &mut *q.parent;
                     if let Some(pos) = parent
                         .items
                         .iter()
-                        .position(|e| matches!(e, &QueueEntry::Child(child) if child == this))
+                        .position(|e| matches!(e, &QueueEntry::Child(child) if child == q_ptr))
                     {
                         parent.items.remove(pos);
                     }
@@ -259,12 +260,13 @@ fn multiqueue_remove(this: *mut MultiQueue) -> Event {
     }
 }
 
-fn multiqueue_push(this: *mut MultiQueue, event: Event) {
+fn multiqueue_push(this: &mut MultiQueue, event: Event) {
     unsafe {
-        let q = &mut *this;
+        let q = this;
+        let q_ptr: *mut MultiQueue = &raw mut *q;
         q.items.push_back(QueueEntry::Event(event));
         if !q.parent.is_null() {
-            (*q.parent).items.push_back(QueueEntry::Child(this));
+            (*q.parent).items.push_back(QueueEntry::Child(q_ptr));
         }
         q.size = q.size.wrapping_add(1);
     }
@@ -278,7 +280,7 @@ pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
     if multiqueue_empty(&raw mut *this) {
             Event::nil()
         } else {
-            multiqueue_remove(&raw mut *this)
+            multiqueue_remove(this)
         }
 }
 
@@ -289,7 +291,7 @@ pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
 pub fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
     assert!(!this.is_null());
     unsafe {
-        multiqueue_push(this, event);
+        multiqueue_push( &mut *this, event);
         let parent = (*this).parent;
         if !parent.is_null() && !(*parent).notify_loop.is_null() {
             crate::event::r#loop::loop_on_put(&mut *(*parent).notify_loop);
@@ -315,7 +317,7 @@ pub fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
 pub fn multiqueue_process_events(this: *mut MultiQueue) {
     assert!(!this.is_null());
     while !multiqueue_empty(this) {
-            let event = multiqueue_remove(this);
+            let event = multiqueue_remove(unsafe { &mut *this });
             event.dispatch();
         }
 }
@@ -327,7 +329,7 @@ pub fn multiqueue_process_events(this: *mut MultiQueue) {
 pub fn multiqueue_purge_events(this: *mut MultiQueue) {
     assert!(!this.is_null());
     while !multiqueue_empty(this) {
-            let _ = multiqueue_remove(this);
+            let _ = multiqueue_remove(unsafe { &mut *this });
         }
 }
 

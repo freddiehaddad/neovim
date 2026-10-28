@@ -503,9 +503,9 @@ fn cs_equal(p: *const Instruction, info: &charsetinfo) -> bool {
     }
 }
 
-fn codecharset(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
+fn codecharset(compst: &mut CompileState, tree: &mut TTree, tt: c_int) {
     let mut info = charsetinfo::new();
-    tree2cset(unsafe { &mut *tree }, &mut info);
+    tree2cset( tree, &mut info);
     if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
         addinstruction(compst, IAny, 0);
     } else {
@@ -832,7 +832,7 @@ fn codegen(
                     return;
                 }
                 TSet => {
-                    codecharset(compst, tree, tt);
+                    codecharset(compst,  &mut *tree, tt);
                     return;
                 }
                 TTrue => return,

@@ -1508,7 +1508,7 @@ fn find_last_paren(l: *const c_char, start: c_char, end: c_char) -> bool {
 pub fn parse_cino(buf: &mut buf_T) {
     unsafe {
         let mut fraction: c_int = 0;
-        let sw = get_sw_value(buf);
+        let sw = get_sw_value( &mut *buf);
         buf.b_ind_level = sw;
         buf.b_ind_open_imag = 0;
         buf.b_ind_no_brace = 0;

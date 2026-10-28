@@ -303,11 +303,11 @@ fn do_ft_buf(filetype: *const c_char, aco: &mut CtxSwitch, err: &mut Error) -> *
             SID_NONE,
         );
         assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
-        *(get_option_varp_scope_from(kOptSwapfile, OPT_LOCAL, ftbuf, ptr::null_mut())
+        *(get_option_varp_scope_from(kOptSwapfile, OPT_LOCAL,  &mut *ftbuf, ptr::null_mut())
             as *mut c_int) = 0;
-        *(get_option_varp_scope_from(kOptModeline, OPT_LOCAL, ftbuf, ptr::null_mut())
+        *(get_option_varp_scope_from(kOptModeline, OPT_LOCAL,  &mut *ftbuf, ptr::null_mut())
             as *mut c_int) = 0;
-        *(get_option_varp_scope_from(kOptFiletype, OPT_LOCAL, ftbuf, ptr::null_mut())
+        *(get_option_varp_scope_from(kOptFiletype, OPT_LOCAL,  &mut *ftbuf, ptr::null_mut())
             as *mut *mut c_char) = crate::optionstr::alloc_string_option(filetype);
 
         if !has_event(EVENT_FILETYPE) {

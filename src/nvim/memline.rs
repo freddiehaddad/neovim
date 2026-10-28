@@ -2033,8 +2033,8 @@ pub fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
 }
 
 /// Like `ml_get_buf`, but allow the line to be mutated in place.
-pub fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
-    ml_get_buf_impl(unsafe { &mut *buf }, lnum, true)
+pub fn ml_get_buf_mut(buf: &mut buf_T, lnum: linenr_T) -> *mut c_char {
+    ml_get_buf_impl( buf, lnum, true)
 }
 
 /// Return pointer to position `pos`.

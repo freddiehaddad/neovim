@@ -46,8 +46,8 @@ fn pushluaval(cs: &mut CapState) {
 }
 
 #[inline]
-fn skipclose(cs: &mut CapState, head: *const Capture) {
-    if isopencap(unsafe { &*head }) {
+fn skipclose(cs: &mut CapState, head: &Capture) {
+    if isopencap( head) {
         debug_assert!(isclosecap(cs.cap));
         cs.cap = unsafe { cs.cap.add(1) };
     }
@@ -66,8 +66,8 @@ fn capsize(cap: &Capture, close: *const Capture) -> Index_t {
 }
 
 #[inline]
-fn closesize(cs: &CapState, head: *const Capture) -> Index_t {
-    capsize(unsafe { &*head }, cs.cap)
+fn closesize(cs: &CapState, head: &Capture) -> Index_t {
+    capsize( head, cs.cap)
 }
 
 fn updatecache(cs: &mut CapState, v: c_int) -> c_int {
@@ -138,11 +138,11 @@ fn pushnestedvalues(cs: &mut CapState, addextra: bool) -> c_int {
             lua_pushlstring(
                 cs.L,
                 cs.s.add((*head).index as usize),
-                closesize(cs, head) as usize,
+                closesize(cs,  &*head) as usize,
             );
             n += 1;
         }
-        skipclose(cs, head);
+        skipclose(cs,  &*head);
         n
     }
 }
@@ -237,7 +237,7 @@ fn tablecap(cs: &mut CapState) -> c_int {
                 n += k;
             }
         }
-        skipclose(cs, head);
+        skipclose(cs,  &*head);
         1
     }
 }
@@ -280,7 +280,7 @@ fn foldcap(cs: &mut CapState) -> c_int {
             n = pushcapture(cs);
             lua_call(l, n + 1, 1);
         }
-        skipclose(cs, head);
+        skipclose(cs,  &*head);
         1
     }
 }
@@ -413,9 +413,9 @@ fn getstrcaps(cs: &mut CapState, cps: &mut [StrAux; MAXSTRCAPS], mut n: c_int) -
         }
         cps[k] = StrAux::Span {
             idx: head_idx,
-            siz: closesize(cs, head),
+            siz: closesize(cs,  &*head),
         };
-        skipclose(cs, head);
+        skipclose(cs,  &*head);
         n
     }
 }
@@ -483,9 +483,9 @@ fn substcap(b: &mut luaL_Buffer, cs: &mut CapState) {
                 curr = caps;
             }
         }
-        let end = cs.s.add(((*head).index + closesize(cs, head)) as usize);
+        let end = cs.s.add(((*head).index + closesize(cs,  &*head)) as usize);
         luaL_addlstring(b, curr, end.offset_from(curr) as usize);
-        skipclose(cs, head);
+        skipclose(cs,  &*head);
     }
 }
 

@@ -459,7 +459,7 @@ pub fn u_savecommon(
             uhp_mut(buf, uhp).uh_walk = 0;
             uhp_mut(buf, uhp).uh_entries.clear();
             uhp_mut(buf, uhp).uh_getbot_entry = false;
-            let origin_cursor = atom_origin_pos(&raw mut *buf);
+            let origin_cursor = atom_origin_pos(buf);
             uhp_mut(buf, uhp).uh_cursor = origin_cursor;
             if virtual_active(curwin_ptr())
                 && curwin_mut().w_cursor.coladd > 0
@@ -2181,7 +2181,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             }
 
             if oldsize > 0 || newsize > 0 {
-                changed_lines(g_st().curbuf, top + 1, 0, bot, newsize - oldsize, do_buf_event);
+                changed_lines(curbuf_mut(), top + 1, 0, bot, newsize - oldsize, do_buf_event);
                 if spell_check_window(curwin_mut()) && bot <= curbuf_mut().b_ml.ml_line_count {
                     redrawWinline(curwin_ptr(), bot);
                 }
@@ -2892,7 +2892,7 @@ pub fn u_undoline() {
         let new_line_len = new_line.as_bytes().len() as colnr_T;
         ml_replace(curbuf_mut().b_u_line_lnum, new_line.as_ptr().cast_mut(), true);
         extmark_splice_cols(
-            g_st().curbuf,
+            curbuf_mut(),
             curbuf_mut().b_u_line_lnum - 1,
             0,
             oldp.as_bytes().len() as colnr_T,

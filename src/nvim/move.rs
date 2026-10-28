@@ -265,15 +265,15 @@ fn reset_skipcol(wp: &mut win_T) {
 }
 
 /// Return true when `'scrolloffpad'` may augment `'scrolloff'`.
-fn use_scrolloffpad(wp: *mut win_T) -> bool {
-    get_scrolloff_value(unsafe { &mut *wp }) > 0 && get_scrolloffpad_value(unsafe { &mut *wp }) > 0
+fn use_scrolloffpad(wp: &mut win_T) -> bool {
+    get_scrolloff_value( wp) > 0 && get_scrolloffpad_value( wp) > 0
 }
 
 /// Return true when there are not enough real buffer lines below `lnum` to
 /// satisfy the requested `so` context.
 fn scrolloffpad_eof_pressure(wp: *mut win_T, lnum: linenr_T, so: OptInt) -> bool {
     unsafe {
-        if !use_scrolloffpad(wp) || so <= 0 {
+        if !use_scrolloffpad( &mut *wp) || so <= 0 {
             return false;
         }
 
@@ -402,7 +402,7 @@ pub fn update_topline(wp: &mut win_T) {
                 validate_botline_win( wp);
             }
 
-            if wp.w_botline <= wp.buf_mut().b_ml.ml_line_count || use_scrolloffpad(&raw mut *wp) {
+            if wp.w_botline <= wp.buf_mut().b_ml.ml_line_count || use_scrolloffpad(wp) {
                 if wp.w_cursor.lnum < wp.w_botline {
                     if i64::from(wp.w_cursor.lnum) >= i64::from(wp.w_botline) - *so_ptr
                         || win_lines_concealed(wp)

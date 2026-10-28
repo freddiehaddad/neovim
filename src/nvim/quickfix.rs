@@ -2341,15 +2341,15 @@ pub fn qf_resize_stack(n: c_int) {
     }
 }
 
-pub fn ll_resize_stack(wp: *mut win_T, n: c_int) {
+pub fn ll_resize_stack(wp: &mut win_T, n: c_int) {
     unsafe {
-        if is_ll_window(&*wp) {
-            qf_sync_llw_to_win(&mut *wp);
+        if is_ll_window(wp) {
+            qf_sync_llw_to_win(wp);
         } else {
-            qf_sync_win_to_llw(&mut *wp);
+            qf_sync_win_to_llw(wp);
         }
 
-        let qi = ll_get_or_alloc_list( &mut *wp);
+        let qi = ll_get_or_alloc_list( wp);
         qf_resize_stack_base(&mut *qi, n);
     }
 }
@@ -4336,7 +4336,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
                 kExtmarkNoUndo,
             );
             changed_lines(
-                buf,
+                 &mut *buf,
                 1,
                 0,
                 if old_line_count > 0 {
@@ -4363,7 +4363,7 @@ fn qf_update_buffer(qi: &mut qf_info_T, old_count: usize) {
                 new_byte_count,
                 kExtmarkNoUndo,
             );
-            changed_lines(buf, start_lnum, 0, start_lnum, delta, true);
+            changed_lines( &mut *buf, start_lnum, 0, start_lnum, delta, true);
         }
         (*buf).b_changed = 0;
 

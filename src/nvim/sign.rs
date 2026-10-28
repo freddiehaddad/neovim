@@ -735,23 +735,23 @@ fn sign_place(
 }
 
 fn sign_unplace_inner(
-    buf: *mut buf_T,
+    buf: &mut buf_T,
     id: c_int,
     group: *mut c_char,
     atlnum: linenr_T,
 ) -> bool {
     unsafe {
-        if !buf_has_signs( &*buf) {
+        if !buf_has_signs( buf) {
             return false;
         }
 
         if id == 0 || atlnum > 0 || (!group.is_null() && *group == b'*' as c_char) {
-            if !buf_delete_signs( &mut *buf, group, id, atlnum) {
+            if !buf_delete_signs( buf, group, id, atlnum) {
                 return false;
             }
         } else {
             let ns = group_get_ns(group);
-            if ns < 0 || !extmark_del_id(&mut *buf, ns as u32, id as u32) {
+            if ns < 0 || !extmark_del_id(buf, ns as u32, id as u32) {
                 return false;
             }
         }
@@ -763,11 +763,11 @@ fn sign_unplace_inner(
 fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T) -> bool {
      {
         if !buf.is_null() {
-            sign_unplace_inner(buf, id, group, atlnum)
+            sign_unplace_inner(unsafe { &mut *buf }, id, group, atlnum)
         } else {
             let mut retval = true;
             for cbuf in for_all_buffers_ptr() {
-                if !sign_unplace_inner(cbuf, id, group, atlnum) {
+                if !sign_unplace_inner(unsafe { &mut *cbuf }, id, group, atlnum) {
                     retval = false;
                 }
             }

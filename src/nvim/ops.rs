@@ -349,7 +349,7 @@ pub fn op_shift(oap: &mut oparg_T, curs_top: bool, amount: c_int) {
             }
         }
 
-        changed_lines(g_st().curbuf, oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+        changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
     }
 }
 
@@ -661,7 +661,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
         drop(newp_vec);
         changed_bytes(curwin_mut().w_cursor.lnum, bd.textcol);
         extmark_splice_cols(
-            g_st().curbuf,
+            curbuf_mut(),
             curwin_mut().w_cursor.lnum - 1,
             startcol,
             oldlen,
@@ -779,7 +779,7 @@ fn block_insert(
             ml_replace(lnum, newp, true);
             drop(newp_vec);
             extmark_splice_cols(
-                g_st().curbuf,
+                curbuf_mut(),
                 lnum - 1,
                 startcol,
                 skipped,
@@ -801,7 +801,7 @@ fn block_insert(
 
         if oap.start.lnum < oap.end.lnum {
             changed_lines(
-                g_st().curbuf,
+                curbuf_mut(),
                 oap.start.lnum + 1,
                 0,
                 oap.end.lnum + 1,
@@ -940,7 +940,7 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
                     drop(newp_vec);
 
                     extmark_splice_cols(
-                        g_st().curbuf,
+                        curbuf_mut(),
                         lnum - 1,
                         bd.textcol,
                         bd.textlen,
@@ -951,7 +951,7 @@ pub fn op_delete(oap: &mut oparg_T) -> bool {
 
                 check_cursor_col(curwin_mut());
                 changed_lines(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     curwin_mut().w_cursor.lnum,
                     curwin_mut().w_cursor.col,
                     oap.end.lnum + 1,
@@ -1149,7 +1149,7 @@ fn mb_adjust_opend(oap: &mut oparg_T) {
 fn pbyte(mut lp: pos_T, c: c_int) {
     unsafe {
         debug_assert!(c <= u8::MAX as c_int);
-        let p = ml_get_buf_mut(g_st().curbuf, lp.lnum);
+        let p = ml_get_buf_mut(curbuf_mut(), lp.lnum);
         let len = curbuf_mut().b_ml.ml_line_textlen;
 
         if lp.col >= len {
@@ -1157,7 +1157,7 @@ fn pbyte(mut lp: pos_T, c: c_int) {
         }
         *p.add(lp.col as usize) = c as c_char;
         if g_st().curbuf_splice_pending == 0 {
-            extmark_splice_cols(g_st().curbuf, lp.lnum - 1, lp.col, 1, 1, kExtmarkUndo);
+            extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, kExtmarkUndo);
         }
     }
 }
@@ -1390,7 +1390,7 @@ fn op_replace(oap: &mut oparg_T, mut c: c_int) -> bool {
         curwin_mut().w_cursor = oap.start;
         check_cursor(curwin_mut());
         changed_lines(
-            g_st().curbuf,
+            curbuf_mut(),
             oap.start.lnum,
             oap.start.col,
             oap.end.lnum + 1,
@@ -1427,7 +1427,7 @@ pub fn op_tilde(oap: &mut oparg_T) {
                 pos.lnum += 1;
             }
             if did_change {
-                changed_lines(g_st().curbuf, oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+                changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
             }
         } else {
             if oap.motion_type == kMTLineWise {
@@ -1459,7 +1459,7 @@ pub fn op_tilde(oap: &mut oparg_T) {
             }
             if did_change {
                 changed_lines(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     oap.start.lnum,
                     oap.start.col,
                     oap.end.lnum + 1,
@@ -1833,7 +1833,7 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
                         ml_replace(linenr, newp, true);
                         drop(newp_vec);
                         extmark_splice_cols(
-                            g_st().curbuf,
+                            curbuf_mut(),
                             linenr - 1,
                             bd.textcol,
                             0,
@@ -1844,7 +1844,7 @@ pub fn op_change(oap: &mut oparg_T) -> c_int {
                 }
                 check_cursor(curwin_mut());
                 changed_lines(
-                    g_st().curbuf,
+                    curbuf_mut(),
                     oap.start.lnum + 1,
                     0,
                     oap.end.lnum + 1,
@@ -2116,7 +2116,7 @@ pub fn do_join(
             }
 
             changed_lines(
-                g_st().curbuf,
+                curbuf_mut(),
                 curwin_mut().w_cursor.lnum,
                 currsize,
                 curwin_mut().w_cursor.lnum + 1,
@@ -2533,7 +2533,7 @@ pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
             change_cnt = isize::from(do_addsub(oap.op_type, &mut pos, 0, amount));
             g_st().disable_fold_update -= 1;
             if change_cnt != 0 {
-                changed_lines(g_st().curbuf, pos.lnum, 0, pos.lnum + 1, 0, true);
+                changed_lines(curbuf_mut(), pos.lnum, 0, pos.lnum + 1, 0, true);
             }
         } else {
             let mut length: c_int;
@@ -2590,7 +2590,7 @@ pub fn op_addsub(oap: &mut oparg_T, Prenum1: linenr_T, g_cmd: bool) {
 
             g_st().disable_fold_update -= 1;
             if change_cnt != 0 {
-                changed_lines(g_st().curbuf, oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+                changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
             }
 
             if change_cnt == 0 && oap.is_VIsual {
