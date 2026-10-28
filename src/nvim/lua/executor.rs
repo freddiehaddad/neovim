@@ -2393,7 +2393,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
 
         let was_curbuf = g_st().curbuf;
         for l in eap.line1..=eap.line2 {
-            if l > (*g_st().curbuf).b_ml.ml_line_count {
+            if l > curbuf_mut().b_ml.ml_line_count {
                 break;
             }
 
@@ -2407,7 +2407,7 @@ pub fn ex_luado(eap: &mut exarg_T) {
                 break;
             }
 
-            if !ptr::eq(g_st().curbuf, was_curbuf) || l > (*g_st().curbuf).b_ml.ml_line_count {
+            if !ptr::eq(g_st().curbuf, was_curbuf) || l > curbuf_mut().b_ml.ml_line_count {
                 break;
             }
 

@@ -702,7 +702,7 @@ pub fn free_all_mem() {
         free_signs();
         set_expr_line(None);
         if !g_st().curtab.is_null() {
-            diff_clear(&mut *g_st().curtab);
+            diff_clear(curtab_mut());
         }
         clear_sb_text(true);
 

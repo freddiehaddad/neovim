@@ -1153,7 +1153,7 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |= !put_view(fd, curwin_ptr(), &mut *g_st().curtab, !using_vdir, &mut *flagp, -1);
+                    failed |= !put_view(fd, curwin_ptr(), curtab_mut(), !using_vdir, &mut *flagp, -1);
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;
@@ -1202,11 +1202,11 @@ pub fn ex_mkrc(eap: &mut exarg_T) {
 
 fn get_view_file(c: c_char) -> Option<CString> {
     unsafe {
-        if (*g_st().curbuf).b_ffname.is_null() {
+        if curbuf_mut().b_ffname.is_null() {
             emsg(gettext(e_noname));
             return None;
         }
-        let sname_cstr = home_replace_save(ptr::null_mut(), (*g_st().curbuf).b_ffname);
+        let sname_cstr = home_replace_save(ptr::null_mut(), curbuf_mut().b_ffname);
         let sname = sname_cstr.as_ptr();
 
         let mut len: usize = 0;

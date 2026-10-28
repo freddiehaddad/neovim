@@ -307,7 +307,7 @@ fn changed_common(
         while !win.is_null() {
             if (*win).w_buffer == buf {
                 if (*win).w_onebuf_opt.wo_diff != 0 && diff_internal() != 0 {
-                    (*g_st().curtab).tp_diff_update = 1;
+                    curtab_mut().tp_diff_update = 1;
                     diff_update_line(lnum);
                 }
 
@@ -480,7 +480,7 @@ pub fn changed_bytes(lnum: linenr_T, col: colnr_T) {
         changed_lines_redraw_buf(g_st().curbuf, lnum, lnum + 1, 0);
         changed_common(g_st().curbuf, lnum, col, lnum + 1, 0);
         if spell_check_window(curwin_mut())
-            && lnum < (*g_st().curbuf).b_ml.ml_line_count
+            && lnum < curbuf_mut().b_ml.ml_line_count
             && vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
         {
             redrawWinline(curwin_ptr(), lnum + 1);
@@ -540,8 +540,8 @@ pub fn deleted_lines(lnum: linenr_T, count: linenr_T) {
 
 /// Like `deleted_lines()`, but adjust marks first.
 pub fn deleted_lines_mark(lnum: linenr_T, count: c_int) {
-    unsafe {
-        let made_empty = count > 0 && ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0;
+     {
+        let made_empty = count > 0 && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
 
         mark_adjust(lnum, lnum + count - 1, MAXLNUM, -count, kExtmarkNOOP);
         extmark_adjust(
@@ -939,7 +939,7 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
         let alloc_newp = ml_line_alloced() == 0;
         let mut newp_vec: Vec<c_char> = Vec::new();
         let newp: *mut c_char = if !alloc_newp {
-            ml_add_deleted_len((*g_st().curbuf).b_ml.ml_line_ptr, oldlen as isize);
+            ml_add_deleted_len(curbuf_mut().b_ml.ml_line_ptr, oldlen as isize);
             oldp
         } else {
             newp_vec = vec![0 as c_char; newlen as usize + 1];
@@ -955,7 +955,7 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
         if alloc_newp {
             ml_replace(lnum, newp, true);
         } else {
-            (*g_st().curbuf).b_ml.ml_line_textlen = newlen + 1;
+            curbuf_mut().b_ml.ml_line_textlen = newlen + 1;
         }
         drop(newp_vec);
 
@@ -990,7 +990,7 @@ pub fn open_line(
         let do_si = may_do_si();
         let mut no_si = false;
         let mut first_char: c_int = 0;
-        let saved_pi = (*g_st().curbuf).b_p_pi;
+        let saved_pi = curbuf_mut().b_p_pi;
 
         let lnum = curwin_mut().w_cursor.lnum;
         let mincol = curwin_mut().w_cursor.col + 1;
@@ -1030,7 +1030,7 @@ pub fn open_line(
             *p_extra = NUL;
         }
 
-        u_clearline(&mut *g_st().curbuf);
+        u_clearline(curbuf_mut());
         g_st().Ins.did_si = false;
         g_st().Ins.ai_col = 0;
 
@@ -1040,8 +1040,8 @@ pub fn open_line(
 
         if (flags & OPENLINE_FORCE_INDENT) != 0 {
             newindent = second_line_indent;
-        } else if (*g_st().curbuf).b_p_ai != 0 || do_si {
-            newindent = indent_size_ts(saved_line, (*g_st().curbuf).b_p_ts, &(*g_st().curbuf).b_p_vts_array);
+        } else if curbuf_mut().b_p_ai != 0 || do_si {
+            newindent = indent_size_ts(saved_line, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
             if newindent == 0 && (flags & OPENLINE_COM_LIST) == 0 {
                 newindent = second_line_indent;
             }
@@ -1132,7 +1132,7 @@ pub fn open_line(
                         let mut was_backslashed = false;
 
                         while (*ptr == b'#' as c_char || was_backslashed)
-                            && curwin_mut().w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count
+                            && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
                         {
                             was_backslashed = *ptr != NUL
                                 && *ptr.add(crate::memory::cstr_len(ptr) - 1)
@@ -1163,7 +1163,7 @@ pub fn open_line(
         }
 
         let do_cindent = opt_vars().p_paste == 0
-            && ((*g_st().curbuf).b_p_cin != 0 || (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone)
+            && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != kCallbackNone)
             && in_cinkeys(
                 if dir == FORWARD {
                     KEY_OPEN_FORW
@@ -1179,7 +1179,7 @@ pub fn open_line(
         if (flags & OPENLINE_DO_COM) != 0 {
             lead_len = get_leader_len(saved_line, &raw mut lead_flags, dir == BACKWARD, true);
             if lead_len == 0
-                && (*g_st().curbuf).b_p_cin != 0
+                && curbuf_mut().b_p_cin != 0
                 && do_cindent
                 && dir == FORWARD
                 && (!has_format_option(kFoNoOpenComs) || (flags & OPENLINE_FORMAT) != 0)
@@ -1306,11 +1306,11 @@ pub fn open_line(
                         break;
                     }
 
-                    while p > (*g_st().curbuf).b_p_com && *p != b',' as c_char {
+                    while p > curbuf_mut().b_p_com && *p != b',' as c_char {
                         p = p.sub(1);
                     }
                     lead_repl = p;
-                    while lead_repl > (*g_st().curbuf).b_p_com && *lead_repl.sub(1) != b':' as c_char {
+                    while lead_repl > curbuf_mut().b_p_com && *lead_repl.sub(1) != b':' as c_char {
                         lead_repl = lead_repl.sub(1);
                     }
                     lead_repl_len = p.offset_from(lead_repl) as c_int;
@@ -1490,9 +1490,9 @@ pub fn open_line(
                         *p = NUL;
                     }
 
-                    if (*g_st().curbuf).b_p_ai != 0 || do_si {
+                    if curbuf_mut().b_p_ai != 0 || do_si {
                         newindent =
-                            indent_size_ts(leader, (*g_st().curbuf).b_p_ts, &(*g_st().curbuf).b_p_vts_array);
+                            indent_size_ts(leader, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     }
 
                     if newindent + off < 0 {
@@ -1539,7 +1539,7 @@ pub fn open_line(
             } else if !comment_end.is_null()
                 && *comment_end == b'*' as c_char
                 && *comment_end.add(1) == b'/' as c_char
-                && ((*g_st().curbuf).b_p_ai != 0 || do_si)
+                && (curbuf_mut().b_p_ai != 0 || do_si)
             {
                 let old_cursor = curwin_mut().w_cursor;
                 curwin_mut().w_cursor.col = comment_end.offset_from(saved_line) as colnr_T;
@@ -1558,7 +1558,7 @@ pub fn open_line(
             if replace_normal(g_st().State) {
                 replace_push_nul();
             }
-            if (*g_st().curbuf).b_p_ai != 0 || (flags & OPENLINE_DELSPACES) != 0 {
+            if curbuf_mut().b_p_ai != 0 || (flags & OPENLINE_DELSPACES) != 0 {
                 while (*p_extra == b' ' as c_char || *p_extra == b'\t' as c_char)
                     && !utf_iscomposing_first(utf_ptr2char(p_extra.add(1)))
                 {
@@ -1601,7 +1601,7 @@ pub fn open_line(
         let mut prompt_moved: Option<std::ffi::CString> = None;
 
         if dir == BACKWARD {
-            if bt_prompt(g_st().curbuf) && curwin_mut().w_cursor.lnum == (*g_st().curbuf).b_prompt_start.mark.lnum {
+            if bt_prompt(g_st().curbuf) && curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum {
                 let prompt_line = ml_get(curwin_mut().w_cursor.lnum);
                 let prompt = prompt_text();
                 let prompt_len = crate::memory::cstr_len(prompt);
@@ -1656,9 +1656,9 @@ pub fn open_line(
                     }
                     newindent += sw;
                 }
-                if (*g_st().curbuf).b_p_ci != 0 {
+                if curbuf_mut().b_p_ci != 0 {
                     copy_indent(newindent, saved_line);
-                    (*g_st().curbuf).b_p_pi = 1;
+                    curbuf_mut().b_p_pi = 1;
                 } else {
                     set_indent(newindent, SIN_INSERT | SIN_NOMARK);
                 }
@@ -1790,12 +1790,12 @@ pub fn open_line(
             if opt_vars().p_paste == 0 {
                 if leader.is_null()
                     && !use_indentexpr_for_lisp()
-                    && (*g_st().curbuf).b_p_lisp != 0
-                    && (*g_st().curbuf).b_p_ai != 0
+                    && curbuf_mut().b_p_lisp != 0
+                    && curbuf_mut().b_p_ai != 0
                 {
                     fixthisline(get_lisp_indent);
                     g_st().Ins.ai_col = getwhitecols_curline() as colnr_T;
-                } else if do_cindent || ((*g_st().curbuf).b_p_ai != 0 && use_indentexpr_for_lisp()) {
+                } else if do_cindent || (curbuf_mut().b_p_ai != 0 && use_indentexpr_for_lisp()) {
                     do_c_expr_indent();
                     g_st().Ins.ai_col = getwhitecols_curline() as colnr_T;
                 }
@@ -1820,7 +1820,7 @@ pub fn open_line(
             retval = true;
         }
 
-        (*g_st().curbuf).b_p_pi = saved_pi;
+        curbuf_mut().b_p_pi = saved_pi;
         drop(saved_line_vec);
         drop(next_line_vec);
         drop(allocated_vec);
@@ -1858,7 +1858,7 @@ pub fn truncate_line(fixpos: c_int) {
 
 /// Delete `nlines` lines at the cursor.
 pub fn del_lines(nlines: linenr_T, undo: bool) {
-    unsafe {
+     {
         let first = curwin_mut().w_cursor.lnum;
 
         if nlines <= 0 {
@@ -1871,14 +1871,14 @@ pub fn del_lines(nlines: linenr_T, undo: bool) {
 
         let mut n: c_int = 0;
         while n < nlines {
-            if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
+            if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
                 break;
             }
 
             ml_delete_flags(first, ML_DEL_MESSAGE);
             n += 1;
 
-            if first > (*g_st().curbuf).b_ml.ml_line_count {
+            if first > curbuf_mut().b_ml.ml_line_count {
                 break;
             }
         }
@@ -1911,7 +1911,7 @@ pub fn get_leader_len(
 
         while *line.add(i) != NUL {
             let mut found_one = false;
-            let mut list = (*g_st().curbuf).b_p_com;
+            let mut list = curbuf_mut().b_p_com;
             while *list != NUL {
                 if !got_com && !flags.is_null() {
                     *flags = list;
@@ -2034,7 +2034,7 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
             i >= lower_check_bound
         } {
             let mut found_one = false;
-            let mut list = (*g_st().curbuf).b_p_com;
+            let mut list = curbuf_mut().b_p_com;
             while *list != NUL {
                 let flags_save = list;
 
@@ -2108,7 +2108,7 @@ pub fn get_last_leader_offset(line: *mut c_char, flags: *mut *mut c_char) -> c_i
                 }
                 let len1 = crate::memory::cstr_len(com_leader) as c_int;
 
-                let mut list = (*g_st().curbuf).b_p_com;
+                let mut list = curbuf_mut().b_p_com;
                 while *list != NUL {
                     let flags_save = list;
 

@@ -537,12 +537,12 @@ pub fn ignorecase(pat: *mut c_char) -> c_int {
 }
 
 pub fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int {
-    unsafe {
+     {
         let mut ic = ic_in;
         if ic != 0
             && !g_st().Search.no_smartcase
             && scs != 0
-            && !(ctrl_x_mode_not_default() && (*g_st().curbuf).b_p_inf != 0)
+            && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf != 0)
         {
             ic = c_int::from(!pat_has_uppercase(pat));
         }
@@ -1492,7 +1492,7 @@ pub fn do_search(
                         c += 1;
                     }
                     if c != 0 {
-                        pos.lnum = (*g_st().curbuf).b_ml.ml_line_count + 1;
+                        pos.lnum = curbuf_mut().b_ml.ml_line_count + 1;
                         pos.col = 0;
                     }
                 }
@@ -1563,8 +1563,8 @@ pub fn do_search(
                     c = i64::from(pos.lnum) + srch().spats[0].off.off;
                     if c < 1 {
                         pos.lnum = 1;
-                    } else if c > i64::from((*g_st().curbuf).b_ml.ml_line_count) {
-                        pos.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+                    } else if c > i64::from(curbuf_mut().b_ml.ml_line_count) {
+                        pos.lnum = curbuf_mut().b_ml.ml_line_count;
                     } else {
                         pos.lnum = c as linenr_T;
                     }
@@ -1875,7 +1875,7 @@ fn find_mps_values(
     switchit: bool,
 ) {
     unsafe {
-        let mut ptr_mps = (*g_st().curbuf).b_p_mps;
+        let mut ptr_mps = curbuf_mut().b_p_mps;
 
         while *ptr_mps != NUL {
             if utf_ptr2char(ptr_mps) == *initc {
@@ -1930,7 +1930,7 @@ pub fn findmatchlimit(
         let mut match_escaped: c_int = 0;
         let mut comment_col: c_int = MAXCOL;
         let mut lispcomm = false;
-        let lisp = (*g_st().curbuf).b_p_lisp != 0;
+        let lisp = curbuf_mut().b_p_lisp != 0;
         let skip_comments = (flags & FM_SKIPCOMM) != 0;
         let mut in_block_comment = false;
 
@@ -2057,7 +2057,7 @@ pub fn findmatchlimit(
                 srch().findmatch_pos.col = 0;
                 while !g_st().got_int {
                     if hash_dir > 0 {
-                        if srch().findmatch_pos.lnum == (*g_st().curbuf).b_ml.ml_line_count {
+                        if srch().findmatch_pos.lnum == curbuf_mut().b_ml.ml_line_count {
                             break;
                         }
                     } else if srch().findmatch_pos.lnum == 1 {
@@ -2167,7 +2167,7 @@ pub fn findmatchlimit(
             } else if *linep.add(srch().findmatch_pos.col as usize) == NUL
                 || (lisp && comment_col != MAXCOL && srch().findmatch_pos.col == comment_col)
             {
-                if srch().findmatch_pos.lnum == (*g_st().curbuf).b_ml.ml_line_count || lispcomm {
+                if srch().findmatch_pos.lnum == curbuf_mut().b_ml.ml_line_count || lispcomm {
                     break;
                 }
                 srch().findmatch_pos.lnum += 1;
@@ -2409,7 +2409,7 @@ pub fn findmatchlimit(
                 }
 
                 if !skipped_single_quote {
-                    if (*g_st().curbuf).b_p_lisp != 0
+                    if curbuf_mut().b_p_lisp != 0
                         && !vim_strchr(c"(){}[]", c).is_null()
                         && srch().findmatch_pos.col > 1
                         && check_prevcol(linep, srch().findmatch_pos.col, b'\\' as c_int, None)
@@ -2476,7 +2476,7 @@ pub fn showmatch(c: c_int) {
             &raw mut opt_vars().p_siso
         };
 
-        let mut p = (*g_st().curbuf).b_p_mps;
+        let mut p = curbuf_mut().b_p_mps;
         while *p != NUL {
             if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0)) {
                 break;
@@ -2906,7 +2906,7 @@ fn update_search_stat(
     maxcount: c_int,
     timeout: c_int,
 ) {
-    unsafe {
+     {
         let save_ws = opt_vars().p_ws;
         let p = *pos;
 
@@ -2924,7 +2924,7 @@ fn update_search_stat(
         let wraparound = (dirc == b'?' as c_int && lt(srch().stat_lastpos, p))
             || (dirc == b'/' as c_int && lt(p, srch().stat_lastpos));
 
-        if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(&*g_st().curbuf)
+        if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(curbuf_mut())
             && srch().stat_lastpat.is_some()
             && srch().stat_lastpat.as_deref()
                 == srch().spats[srch().last_idx as usize].pat.as_deref()
@@ -3013,7 +3013,7 @@ fn update_search_stat(
             }
             if done_search {
                 srch().stat_lastpat = srch().spats[srch().last_idx as usize].pat.clone();
-                srch().stat_chgtick = buf_get_changedtick(&*g_st().curbuf) as c_int;
+                srch().stat_chgtick = buf_get_changedtick(curbuf_mut()) as c_int;
                 srch().stat_lbuf = g_st().curbuf;
                 srch().stat_lastpos = p;
             }
@@ -3193,7 +3193,7 @@ pub fn find_pattern_in_path(
         let mut max_path_depth: c_int = 50;
         let mut match_count: c_int = 1;
 
-        let mut curr_fname = (*g_st().curbuf).b_fname;
+        let mut curr_fname = curbuf_mut().b_fname;
         let mut prev_fname: *mut c_char = ptr::null_mut();
         let mut p: *mut c_char;
         let mut define_matched: bool;
@@ -3234,10 +3234,10 @@ pub fn find_pattern_in_path(
                 return;
             }
         }
-        let inc_opt = if *(*g_st().curbuf).b_p_inc == NUL {
+        let inc_opt = if *curbuf_mut().b_p_inc == NUL {
             opt_vars().p_inc
         } else {
-            (*g_st().curbuf).b_p_inc
+            curbuf_mut().b_p_inc
         };
         if *inc_opt != NUL {
             incl_regmatch.regprog = vim_regcomp(inc_opt, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
@@ -3247,12 +3247,12 @@ pub fn find_pattern_in_path(
             }
             incl_regmatch.rm_ic = false;
         }
-        if type_ == FIND_DEFINE && (*(*g_st().curbuf).b_p_def != NUL || *opt_vars().p_def != NUL) {
+        if type_ == FIND_DEFINE && (*curbuf_mut().b_p_def != NUL || *opt_vars().p_def != NUL) {
             def_regmatch.regprog = vim_regcomp(
-                if *(*g_st().curbuf).b_p_def == NUL {
+                if *curbuf_mut().b_p_def == NUL {
                     opt_vars().p_def
                 } else {
-                    (*g_st().curbuf).b_p_def
+                    curbuf_mut().b_p_def
                 },
                 if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
             );
@@ -3270,14 +3270,14 @@ pub fn find_pattern_in_path(
         let mut depth: c_int = -1;
         let mut depth_displayed: c_int = -1;
 
-        end_lnum = end_lnum.min((*g_st().curbuf).b_ml.ml_line_count);
+        end_lnum = end_lnum.min(curbuf_mut().b_ml.ml_line_count);
         let mut lnum = start_lnum.min(end_lnum);
         let mut line = get_line_and_copy(lnum, file_line);
 
         loop {
             if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line, 0) {
-                let p_fname = if curr_fname == (*g_st().curbuf).b_fname {
-                    (*g_st().curbuf).b_ffname
+                let p_fname = if curr_fname == curbuf_mut().b_fname {
+                    curbuf_mut().b_ffname
                 } else {
                     curr_fname
                 };
@@ -3642,7 +3642,7 @@ pub fn find_pattern_in_path(
                                         aux,
                                         i,
                                         opt_vars().p_ic != 0,
-                                        if curr_fname == (*g_st().curbuf).b_fname {
+                                        if curr_fname == curbuf_mut().b_fname {
                                             ptr::null_mut()
                                         } else {
                                             path_try_shorten_fname(curr_fname)
@@ -3833,7 +3833,7 @@ pub fn find_pattern_in_path(
                 files[old_files as usize].matched = files[depth as usize].matched;
                 depth -= 1;
                 curr_fname = if depth == -1 {
-                    (*g_st().curbuf).b_fname
+                    curbuf_mut().b_fname
                 } else {
                     files[depth as usize].name_ptr()
                 };
@@ -3947,7 +3947,7 @@ fn show_pat_in_path(
                 *lnum += 1;
             } else {
                 *lnum += 1;
-                if *lnum > (*g_st().curbuf).b_ml.ml_line_count {
+                if *lnum > curbuf_mut().b_ml.ml_line_count {
                     break;
                 }
                 line = ml_get(*lnum);

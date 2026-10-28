@@ -2117,19 +2117,19 @@ pub(super) fn reg_match_visual() -> bool {
             };
             (t, b, g_st().Visual.mode, (*wp).w_curswant)
         } else {
-            let (t, mut b) = if lt((*g_st().curbuf).b_visual.vi_start, (*g_st().curbuf).b_visual.vi_end) {
-                ((*g_st().curbuf).b_visual.vi_start, (*g_st().curbuf).b_visual.vi_end)
+            let (t, mut b) = if lt(curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end) {
+                (curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end)
             } else {
-                ((*g_st().curbuf).b_visual.vi_end, (*g_st().curbuf).b_visual.vi_start)
+                (curbuf_mut().b_visual.vi_end, curbuf_mut().b_visual.vi_start)
             };
-            if b.lnum > (*g_st().curbuf).b_ml.ml_line_count {
-                b.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            if b.lnum > curbuf_mut().b_ml.ml_line_count {
+                b.lnum = curbuf_mut().b_ml.ml_line_count;
             }
             (
                 t,
                 b,
-                (*g_st().curbuf).b_visual.vi_mode,
-                (*g_st().curbuf).b_visual.vi_curswant,
+                curbuf_mut().b_visual.vi_mode,
+                curbuf_mut().b_visual.vi_curswant,
             )
         };
 
@@ -2581,7 +2581,7 @@ pub fn vim_regsub_multi(
     destlen: c_int,
     flags: c_int,
 ) -> c_int {
-    unsafe {
+     {
         let mut rex_save = regexec_T::new();
         let rex_in_use_save = re_st().rex_in_use;
 
@@ -2594,7 +2594,7 @@ pub fn vim_regsub_multi(
         re_st().rex.reg_mmatch = rmp;
         re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_firstlnum = lnum;
-        re_st().rex.reg_maxline = (*g_st().curbuf).b_ml.ml_line_count - lnum;
+        re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
         re_st().rex.reg_line_lbr = false;
         let result = vim_regsub_both(source, ptr::null_mut(), dest, destlen, flags);
 

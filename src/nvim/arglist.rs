@@ -436,10 +436,10 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
         }
 
         if what == AL_ADD && *str_ == NUL {
-            if (*g_st().curbuf).b_ffname.is_null() {
+            if curbuf_mut().b_ffname.is_null() {
                 return false;
             }
-            str_ = (*g_st().curbuf).b_fname;
+            str_ = curbuf_mut().b_fname;
             arg_escaped = false;
         }
 
@@ -639,7 +639,7 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
         }
 
         if !is_split_cmd
-            && (*arglist().add(argn as usize)).ae_fnum != (*g_st().curbuf).b_fnum
+            && (*arglist().add(argn as usize)).ae_fnum != curbuf_mut().b_fnum
             && !check_can_set_curbuf_forceit(eap.forceit)
         {
             return;
@@ -655,16 +655,16 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
             curwin_mut().w_onebuf_opt.wo_crb = 0;
         } else {
             let mut other = true;
-            if buf_hide(&*g_st().curbuf) {
+            if buf_hide(curbuf_mut()) {
                 let p = fix_fname(alist_name(&*arglist().add(argn as usize)));
                 other = otherfile(
                     p.as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                 );
             }
-            if (!buf_hide(&*g_st().curbuf) || !other)
+            if (!buf_hide(curbuf_mut()) || !other)
                 && check_changed(
-                    &mut *g_st().curbuf,
+                    curbuf_mut(),
                     CCGD_AW
                         | if other { 0 } else { CCGD_MULTWIN }
                         | if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }
@@ -704,10 +704,10 @@ pub fn do_argfile(eap: &mut exarg_T, argn: c_int) {
 /// `:next`, and commands that behave like it (`ex_next`).
 pub fn ex_next(eap: &mut exarg_T) {
     unsafe {
-        if buf_hide(&*g_st().curbuf)
+        if buf_hide(curbuf_mut())
             || eap.cmdidx == CMD_snext
             || !check_changed(
-                &mut *g_st().curbuf,
+                curbuf_mut(),
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
             )
         {
@@ -764,7 +764,7 @@ pub fn ex_argdedupe(_eap: &mut exarg_T) {
 
 /// `:argedit` (`ex_argedit`).
 pub fn ex_argedit(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut i = if eap.addr_count != 0 {
             eap.line2
         } else {
@@ -778,8 +778,8 @@ pub fn ex_argedit(eap: &mut exarg_T) {
         maketitle();
 
         if curwin_mut().w_arg_idx == 0
-            && ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0
-            && ((*g_st().curbuf).b_ffname.is_null() || curbuf_is_reusable)
+            && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0
+            && (curbuf_mut().b_ffname.is_null() || curbuf_is_reusable)
         {
             i = 0;
         }
@@ -893,8 +893,8 @@ fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
 
         g_st().tabpage_move_disallowed += 1;
         loop {
-            let mut tpnext = (*g_st().curtab).tp_next;
-            let mut wp = if (*g_st().lastwin).w_floating {
+            let mut tpnext = curtab_mut().tp_next;
+            let mut wp = if lastwin_mut().w_floating {
                 g_st().lastwin
             } else {
                 g_st().firstwin
@@ -979,7 +979,7 @@ fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
                         set_bufref(&mut bufref, buf);
                         autowrite(&mut *buf, false);
                         if !win_valid(wp) || !bufref_valid(Some(&bufref)) {
-                            wp = if (*g_st().lastwin).w_floating {
+                            wp = if lastwin_mut().w_floating {
                                 g_st().lastwin
                             } else {
                                 g_st().firstwin
@@ -994,7 +994,7 @@ fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
                     } else {
                         win_close(wp, !buf_hide(&*buf) && !bufIsChanged(&mut *buf), false);
                         if !win_valid(wpnext) {
-                            wpnext = if (*g_st().lastwin).w_floating {
+                            wpnext = if lastwin_mut().w_floating {
                                 g_st().lastwin
                             } else {
                                 g_st().firstwin
@@ -1024,10 +1024,10 @@ fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
         let mut tab_drop_empty_window = false;
 
         if aall.keep_tabs
-            && buf_is_empty(&mut *g_st().curbuf)
-            && (*g_st().curbuf).b_nwindows == 1
-            && (*g_st().curbuf).b_ffname.is_null()
-            && (*g_st().curbuf).b_changed == 0
+            && buf_is_empty(curbuf_mut())
+            && curbuf_mut().b_nwindows == 1
+            && curbuf_mut().b_ffname.is_null()
+            && curbuf_mut().b_changed == 0
         {
             aall.use_firstwin = true;
             tab_drop_empty_window = true;

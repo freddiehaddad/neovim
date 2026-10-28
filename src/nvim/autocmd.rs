@@ -2373,12 +2373,12 @@ pub fn autocmd_register(
                 let save_curtab = g_st().curtab;
                 let mut tp = g_st().first_tabpage;
                 while !tp.is_null() {
-                    unuse_tabpage(&mut *g_st().curtab);
+                    unuse_tabpage(curtab_mut());
                     use_tabpage(tp);
                     snapshot_windows_scroll_size();
                     tp = (*tp).tp_next;
                 }
-                unuse_tabpage(&mut *g_st().curtab);
+                unuse_tabpage(curtab_mut());
                 use_tabpage(save_curtab);
             }
 
@@ -3000,7 +3000,7 @@ pub fn apply_autocmds_group(
                 ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
             }
 
-            let save_changed = (*g_st().curbuf).b_changed;
+            let save_changed = curbuf_mut().b_changed;
             let old_curbuf = g_st().curbuf;
 
             g_st().autocmd_match = (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
@@ -3023,15 +3023,15 @@ pub fn apply_autocmds_group(
                     save_redobuff(&mut save_redo);
                     did_save_redobuff = true;
                 }
-                (*g_st().curbuf).b_did_filetype = (*g_st().curbuf).b_keep_filetype;
+                curbuf_mut().b_did_filetype = curbuf_mut().b_keep_filetype;
             }
 
             g_st().autocmd_busy = true;
             au_st().filechangeshell_busy = event == EVENT_FILECHANGEDSHELL;
             au_st().apply_autocmds_nesting += 1;
 
-            if event == EVENT_FILETYPE && *(*g_st().curbuf).b_p_ft != NUL {
-                (*g_st().curbuf).b_did_filetype = true;
+            if event == EVENT_FILETYPE && *curbuf_mut().b_p_ft != NUL {
+                curbuf_mut().b_did_filetype = true;
             }
 
             let acs = &raw const au_st().autocmds[event as usize];
@@ -3127,7 +3127,7 @@ pub fn apply_autocmds_group(
                 if did_save_redobuff {
                     restore_redobuff(&mut save_redo);
                 }
-                (*g_st().curbuf).b_did_filetype = false;
+                curbuf_mut().b_did_filetype = false;
                 let pending_buf = &raw mut g_st().au_pending_free_buf;
                 (*pending_buf).clear();
                 let pending_win = &raw mut g_st().au_pending_free_win;
@@ -3141,10 +3141,10 @@ pub fn apply_autocmds_group(
                     || event == EVENT_VIMLEAVE
                     || event == EVENT_VIMLEAVEPRE)
             {
-                if (*g_st().curbuf).b_changed != save_changed {
+                if curbuf_mut().b_changed != save_changed {
                     g_st().need_maketitle = true;
                 }
-                (*g_st().curbuf).b_changed = save_changed;
+                curbuf_mut().b_changed = save_changed;
             }
 
             au_cleanup();
@@ -3155,7 +3155,7 @@ pub fn apply_autocmds_group(
         }
 
         if retval && event == EVENT_FILETYPE {
-            (*g_st().curbuf).b_au_did_filetype = true;
+            curbuf_mut().b_au_did_filetype = true;
         }
 
         ctx_restore(&mut aco);
@@ -3730,7 +3730,7 @@ pub fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int {
         assert!(aupat_is_buflocal(pat, patlen));
 
         if patlen == 8 {
-            return (*g_st().curbuf).b_fnum;
+            return curbuf_mut().b_fnum;
         }
 
         if patlen > 9 && *pat.add(7) == b'=' as c_char {
@@ -3758,7 +3758,7 @@ pub fn aupat_normalize_buflocal_pat(
         assert!(aupat_is_buflocal(pat, patlen));
 
         if buflocal_nr == 0 {
-            buflocal_nr = (*g_st().curbuf).b_fnum;
+            buflocal_nr = curbuf_mut().b_fnum;
         }
 
         let s = format!("<buffer={buflocal_nr}>");
@@ -3901,7 +3901,7 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
 
 pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
     unsafe {
-        if *starting.as_ptr() == NO_SCREEN || au_st().uienter_recursive {
+        if starting_val() == NO_SCREEN || au_st().uienter_recursive {
             return;
         }
         au_st().uienter_recursive = true;

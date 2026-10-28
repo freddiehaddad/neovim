@@ -362,7 +362,7 @@ pub fn nvim_parse_cmd(
             let u = &raw mut (*ucmds_mut());
             Some(&(&*u)[ea.useridx as usize])
         } else if ea.cmdidx == CMD_USER_BUF {
-            Some(&(&(*g_st().curbuf).b_ucmds)[ea.useridx as usize])
+            Some(&(&curbuf_mut().b_ucmds)[ea.useridx as usize])
         } else {
             None
         };

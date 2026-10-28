@@ -83,7 +83,7 @@ use crate::keycodes::ctrl_chr;
 pub fn check_linecomment(line: *const c_char) -> c_int {
     unsafe {
         let mut p = line;
-        if (*g_st().curbuf).b_p_lisp != 0 {
+        if curbuf_mut().b_p_lisp != 0 {
             if !vim_strchr(p, b';' as c_int).is_null() {
                 let mut in_str = false;
                 while {
@@ -139,7 +139,7 @@ pub fn check_linecomment(line: *const c_char) -> c_int {
     }
 }
 fn ind_find_start_comment() -> *mut pos_T {
-    unsafe { find_start_comment((*g_st().curbuf).b_ind_maxcomment) }
+     find_start_comment(curbuf_mut().b_ind_maxcomment)
 }
 pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
     unsafe {
@@ -164,12 +164,12 @@ pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
 }
 fn ind_find_start_CORS(is_raw: Option<&mut linenr_T>) -> *mut pos_T {
     unsafe {
-        let mut comment_pos = find_start_comment((*g_st().curbuf).b_ind_maxcomment);
+        let mut comment_pos = find_start_comment(curbuf_mut().b_ind_maxcomment);
         if !comment_pos.is_null() {
             indc_st().comment_pos_copy = *comment_pos;
             comment_pos = &raw mut indc_st().comment_pos_copy;
         }
-        let rs_pos = find_start_rawstring((*g_st().curbuf).b_ind_maxcomment);
+        let rs_pos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
         if comment_pos.is_null() || (!rs_pos.is_null() && lt(*rs_pos, *comment_pos)) {
             if !rs_pos.is_null()
                 && let Some(is_raw) = is_raw
@@ -282,10 +282,10 @@ pub fn is_pos_in_string(line: *const c_char, col: colnr_T) -> c_int {
 pub fn cin_is_cinword(mut line: *const c_char) -> bool {
     unsafe {
         let mut retval = false;
-        let cinw_len = crate::memory::cstr_len((*g_st().curbuf).b_p_cinw) + 1;
+        let cinw_len = crate::memory::cstr_len(curbuf_mut().b_p_cinw) + 1;
         let mut cinw_buf = vec![0 as c_char; cinw_len];
         line = skipwhite(line);
-        let mut cinw = (*g_st().curbuf).b_p_cinw;
+        let mut cinw = curbuf_mut().b_p_cinw;
         while *cinw != NUL {
             let len = copy_option_part(
                 &raw mut cinw,
@@ -305,8 +305,8 @@ pub fn cin_is_cinword(mut line: *const c_char) -> bool {
     }
 }
 pub fn cindent_on() -> bool {
-    unsafe {
-        opt_vars().p_paste == 0 && ((*g_st().curbuf).b_p_cin != 0 || (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone)
+     {
+        opt_vars().p_paste == 0 && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != kCallbackNone)
     }
 }
 fn cin_skipcomment(mut s: *const c_char) -> *const c_char {
@@ -314,7 +314,7 @@ fn cin_skipcomment(mut s: *const c_char) -> *const c_char {
         while *s != NUL {
             let prev_s = s;
             s = skipwhite(s);
-            if (*g_st().curbuf).b_ind_hash_comment != 0 && s != prev_s && *s == b'#' as c_char {
+            if curbuf_mut().b_ind_hash_comment != 0 && s != prev_s && *s == b'#' as c_char {
                 s = s.add(crate::memory::cstr_len(s));
                 break;
             }
@@ -598,10 +598,10 @@ fn cin_isdefault(mut s: *const c_char) -> bool {
 fn cin_isscopedecl(p: *const c_char) -> bool {
     unsafe {
         let s = cin_skipcomment(p);
-        let cinsd_len = crate::memory::cstr_len((*g_st().curbuf).b_p_cinsd) + 1;
+        let cinsd_len = crate::memory::cstr_len(curbuf_mut().b_p_cinsd) + 1;
         let mut cinsd_buf = vec![0 as c_char; cinsd_len];
         let mut found = false;
-        let mut cinsd = (*g_st().curbuf).b_p_cinsd;
+        let mut cinsd = curbuf_mut().b_p_cinsd;
         while *cinsd != NUL {
             let len = copy_option_part(
                 &raw mut cinsd,
@@ -926,7 +926,7 @@ fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum: linenr
         let mut just_started = true;
         curwin_mut().w_cursor.lnum = lnum;
         if find_last_paren(s, b'(' as c_char, b')' as c_char) {
-            let trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+            let trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
             if !trypos.is_null() {
                 lnum = (*trypos).lnum;
                 if lnum < min_lnum {
@@ -978,7 +978,7 @@ fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum: linenr
                 {
                     let comma = *s == b',' as c_char;
                     loop {
-                        if lnum >= (*g_st().curbuf).b_ml.ml_line_count {
+                        if lnum >= curbuf_mut().b_ml.ml_line_count {
                             break;
                         }
                         lnum += 1;
@@ -987,7 +987,7 @@ fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum: linenr
                             break;
                         }
                     }
-                    if lnum >= (*g_st().curbuf).b_ml.ml_line_count {
+                    if lnum >= curbuf_mut().b_ml.ml_line_count {
                         break;
                     }
                     s = skipwhite(s);
@@ -1043,7 +1043,7 @@ fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
                 ptr::null_mut(),
                 0,
                 FM_SKIPCOMM,
-                (*g_st().curbuf).b_ind_maxparen as i64,
+                curbuf_mut().b_ind_maxparen as i64,
             );
             if !trypos.is_null() && *cin_skipcomment(ml_get_pos(&*trypos).add(1)) == b';' as c_char {
                 retval = true;
@@ -1103,7 +1103,7 @@ fn cin_iswhileofdo_end(terminated: c_int) -> bool {
                 if *s == b';' as c_char && cin_nocode(s.add(1)) {
                     let i = p.offset_from(line) as colnr_T;
                     curwin_mut().w_cursor.col = i;
-                    let trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                    let trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                     if !trypos.is_null() {
                         let mut s2 = cin_skipcomment(ml_get((*trypos).lnum));
                         if *s2 == b'}' as c_char {
@@ -1257,13 +1257,13 @@ fn get_baseclass_amount(col: colnr_T) -> c_int {
         if col == 0 {
             amount = get_indent();
             if find_last_paren(get_cursor_line_ptr(), b'(' as c_char, b')' as c_char) {
-                let trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                let trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                 if !trypos.is_null() {
                     amount = get_indent_lnum((*trypos).lnum);
                 }
             }
             if !cin_ends_in(get_cursor_line_ptr(), c",") {
-                amount += (*g_st().curbuf).b_ind_cpp_baseclass;
+                amount += curbuf_mut().b_ind_cpp_baseclass;
             }
         } else {
             curwin_mut().w_cursor.col = col;
@@ -1277,8 +1277,8 @@ fn get_baseclass_amount(col: colnr_T) -> c_int {
             );
             amount = vcol;
         }
-        if amount < (*g_st().curbuf).b_ind_cpp_baseclass {
-            amount = (*g_st().curbuf).b_ind_cpp_baseclass;
+        if amount < curbuf_mut().b_ind_cpp_baseclass {
+            amount = curbuf_mut().b_ind_cpp_baseclass;
         }
         amount
     }
@@ -1469,12 +1469,12 @@ fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut pos_T {
     }
 }
 fn corr_ind_maxparen(startpos: &pos_T) -> c_int {
-    unsafe {
+     {
         let n = startpos.lnum - curwin_mut().w_cursor.lnum;
-        if n > 0 && n < (*g_st().curbuf).b_ind_maxparen / 2 {
-            return (*g_st().curbuf).b_ind_maxparen - n;
+        if n > 0 && n < curbuf_mut().b_ind_maxparen / 2 {
+            return curbuf_mut().b_ind_maxparen - n;
         }
-        (*g_st().curbuf).b_ind_maxparen
+        curbuf_mut().b_ind_maxparen
     }
 }
 fn find_last_paren(l: *const c_char, start: c_char, end: c_char) -> bool {
@@ -1664,7 +1664,7 @@ pub fn get_c_indent() -> c_int {
                 col: 0,
             },
         };
-        let mut ind_continuation = (*g_st().curbuf).b_ind_continuation;
+        let mut ind_continuation = curbuf_mut().b_ind_continuation;
         let cur_curpos = curwin_mut().w_cursor;
         if cur_curpos.lnum == 1 {
             return 0;
@@ -1686,7 +1686,7 @@ pub fn get_c_indent() -> c_int {
             tryposCopy = *comment_pos;
             comment_pos = &raw mut tryposCopy;
         }
-        trypos = find_start_rawstring((*g_st().curbuf).b_ind_maxcomment);
+        trypos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
         'laterend: {
             if !trypos.is_null() && (comment_pos.is_null() || lt(*trypos, *comment_pos)) {
                 amount = -1;
@@ -1698,15 +1698,15 @@ pub fn get_c_indent() -> c_int {
                         || in_cinkeys(b'#' as c_int, b' ' as c_int, true))
                 {
                     let directive = skipwhite(theline.add(1));
-                    if (*g_st().curbuf).b_ind_pragma == 0 || !(crate::memory::cstr_prefix_bytes(directive, 6) == &b"pragma"[..6])
+                    if curbuf_mut().b_ind_pragma == 0 || !(crate::memory::cstr_prefix_bytes(directive, 6) == &b"pragma"[..6])
                     {
-                        amount = (*g_st().curbuf).b_ind_hash_comment;
+                        amount = curbuf_mut().b_ind_hash_comment;
                         break 'theend;
                     }
                 }
                 if original_line_islabel
-                    && (*g_st().curbuf).b_ind_js == 0
-                    && (*g_st().curbuf).b_ind_jump_label < 0
+                    && curbuf_mut().b_ind_js == 0
+                    && curbuf_mut().b_ind_jump_label < 0
                 {
                     amount = 0;
                     break 'theend;
@@ -1760,7 +1760,7 @@ pub fn get_c_indent() -> c_int {
                     amount = col;
                     lead_start[0] = NUL;
                     lead_middle[0] = NUL;
-                    let mut p = (*g_st().curbuf).b_p_com;
+                    let mut p = curbuf_mut().b_p_com;
                     while *p != NUL {
                         let mut align: c_int = 0;
                         let mut off: c_int = 0;
@@ -1854,7 +1854,7 @@ pub fn get_c_indent() -> c_int {
                             break;
                         }
                         if amount == -1 {
-                            if (*g_st().curbuf).b_ind_in_comment2 == 0 {
+                            if curbuf_mut().b_ind_in_comment2 == 0 {
                                 start = ml_get((*comment_pos).lnum);
                                 look = start.add((*comment_pos).col as usize + 2);
                                 if *look != NUL {
@@ -1871,23 +1871,23 @@ pub fn get_c_indent() -> c_int {
                                 0,
                             );
                             amount = col;
-                            if (*g_st().curbuf).b_ind_in_comment2 != 0 || *look == NUL {
-                                amount += (*g_st().curbuf).b_ind_in_comment;
+                            if curbuf_mut().b_ind_in_comment2 != 0 || *look == NUL {
+                                amount += curbuf_mut().b_ind_in_comment;
                             }
                         }
                     }
                     break 'theend;
                 }
                 if *skipwhite(theline) == b']' as c_char && {
-                    trypos = find_match_char(b'[' as c_char, (*g_st().curbuf).b_ind_maxparen);
+                    trypos = find_match_char(b'[' as c_char, curbuf_mut().b_ind_maxparen);
                     !trypos.is_null()
                 } {
                     amount = get_indent_lnum((*trypos).lnum);
                     break 'theend;
                 }
                 if ({
-                    trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
-                    !trypos.is_null() && (*g_st().curbuf).b_ind_java == 0
+                    trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                    !trypos.is_null() && curbuf_mut().b_ind_java == 0
                 }) || ({
                     tryposBrace = find_start_brace();
                     !tryposBrace.is_null()
@@ -1906,7 +1906,7 @@ pub fn get_c_indent() -> c_int {
                     }
                     if !trypos.is_null() {
                         our_paren_pos = *trypos;
-                        if *theline == b')' as c_char && (*g_st().curbuf).b_ind_paren_prev != 0 {
+                        if *theline == b')' as c_char && curbuf_mut().b_ind_paren_prev != 0 {
                             amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
                         } else {
                             amount = -1;
@@ -1947,7 +1947,7 @@ pub fn get_c_indent() -> c_int {
                         if amount == -1 {
                             let mut ignore_paren_col: c_int = 0;
                             let mut is_if_for_while: c_int = 0;
-                            if (*g_st().curbuf).b_ind_if_for_while != 0 {
+                            if curbuf_mut().b_ind_if_for_while != 0 {
                                 let cursor_save = curwin_mut().w_cursor;
                                 let mut outermost: pos_T;
                                 trypos = &raw mut our_paren_pos;
@@ -1955,7 +1955,7 @@ pub fn get_c_indent() -> c_int {
                                     outermost = *trypos;
                                     curwin_mut().w_cursor.lnum = outermost.lnum;
                                     curwin_mut().w_cursor.col = outermost.col;
-                                    trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                                    trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                                     if trypos.is_null() || (*trypos).lnum != outermost.lnum {
                                         break;
                                     }
@@ -1977,7 +1977,7 @@ pub fn get_c_indent() -> c_int {
                                     ptr::null_mut(),
                                     b')' as c_int,
                                     FM_SKIPCOMM,
-                                    (*g_st().curbuf).b_ind_maxparen as i64,
+                                    curbuf_mut().b_ind_maxparen as i64,
                                 );
                                 if !trypos.is_null()
                                     && (*trypos).lnum == our_paren_pos.lnum
@@ -1989,15 +1989,15 @@ pub fn get_c_indent() -> c_int {
                                 look = ml_get(our_paren_pos.lnum).add(look_col as usize);
                             }
                             if *theline == b')' as c_char
-                                || ((*g_st().curbuf).b_ind_unclosed == 0 && is_if_for_while == 0)
-                                || ((*g_st().curbuf).b_ind_unclosed_noignore == 0
+                                || (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
+                                || (curbuf_mut().b_ind_unclosed_noignore == 0
                                     && *look == b'(' as c_char
                                     && ignore_paren_col == 0)
                             {
                                 if *theline != b')' as c_char {
                                     cur_amount = MAXCOL;
                                     l = ml_get(our_paren_pos.lnum);
-                                    if (*g_st().curbuf).b_ind_unclosed_wrapped != 0
+                                    if curbuf_mut().b_ind_unclosed_wrapped != 0
                                         && cin_ends_in(l, c"(")
                                     {
                                         n = 1;
@@ -2011,8 +2011,8 @@ pub fn get_c_indent() -> c_int {
                                             col += 1;
                                         }
                                         our_paren_pos.col = 0;
-                                        amount += n * (*g_st().curbuf).b_ind_unclosed_wrapped;
-                                    } else if (*g_st().curbuf).b_ind_unclosed_whiteok != 0 {
+                                        amount += n * curbuf_mut().b_ind_unclosed_wrapped;
+                                    } else if curbuf_mut().b_ind_unclosed_whiteok != 0 {
                                         our_paren_pos.col += 1;
                                     } else {
                                         col = our_paren_pos.col + 1;
@@ -2040,10 +2040,10 @@ pub fn get_c_indent() -> c_int {
                                     }
                                 }
                             }
-                            if *theline == b')' as c_char && (*g_st().curbuf).b_ind_matching_paren != 0 {
+                            if *theline == b')' as c_char && curbuf_mut().b_ind_matching_paren != 0 {
                                 // Line up with the start of the matching paren line.
-                            } else if ((*g_st().curbuf).b_ind_unclosed == 0 && is_if_for_while == 0)
-                                || ((*g_st().curbuf).b_ind_unclosed_noignore == 0
+                            } else if (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
+                                || (curbuf_mut().b_ind_unclosed_noignore == 0
                                     && *look == b'(' as c_char
                                     && ignore_paren_col == 0)
                             {
@@ -2056,29 +2056,29 @@ pub fn get_c_indent() -> c_int {
                                     our_paren_pos.col -= 1;
                                     match *ml_get_pos(&our_paren_pos) as u8 {
                                         b'(' => {
-                                            amount += (*g_st().curbuf).b_ind_unclosed2;
+                                            amount += curbuf_mut().b_ind_unclosed2;
                                             col = our_paren_pos.col;
                                         }
                                         b')' => {
-                                            amount -= (*g_st().curbuf).b_ind_unclosed2;
+                                            amount -= curbuf_mut().b_ind_unclosed2;
                                             col = MAXCOL;
                                         }
                                         _ => {}
                                     }
                                 }
                                 if col == MAXCOL {
-                                    amount += (*g_st().curbuf).b_ind_unclosed;
+                                    amount += curbuf_mut().b_ind_unclosed;
                                 } else {
                                     curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
                                     curwin_mut().w_cursor.col = col;
-                                    if !find_match_paren_after_brace((*g_st().curbuf).b_ind_maxparen)
+                                    if !find_match_paren_after_brace(curbuf_mut().b_ind_maxparen)
                                         .is_null()
                                     {
-                                        amount += (*g_st().curbuf).b_ind_unclosed2;
+                                        amount += curbuf_mut().b_ind_unclosed2;
                                     } else if is_if_for_while != 0 {
-                                        amount += (*g_st().curbuf).b_ind_if_for_while;
+                                        amount += curbuf_mut().b_ind_if_for_while;
                                     } else {
-                                        amount += (*g_st().curbuf).b_ind_unclosed;
+                                        amount += curbuf_mut().b_ind_unclosed;
                                     }
                                 }
                                 if cur_amount < amount {
@@ -2087,7 +2087,7 @@ pub fn get_c_indent() -> c_int {
                             }
                         }
                         if cin_iscomment(theline) {
-                            amount += (*g_st().curbuf).b_ind_comment;
+                            amount += curbuf_mut().b_ind_comment;
                         }
                     } else {
                         tryposCopy = *tryposBrace;
@@ -2115,29 +2115,29 @@ pub fn get_c_indent() -> c_int {
                             curwin_mut().w_cursor.lnum = ourscope;
                             lnum = ourscope;
                             if find_last_paren(start, b'(' as c_char, b')' as c_char) {
-                                trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                                 if !trypos.is_null() {
                                     lnum = (*trypos).lnum;
                                 }
                             }
-                            if ((*g_st().curbuf).b_ind_js != 0 || (*g_st().curbuf).b_ind_keep_case_label != 0)
+                            if (curbuf_mut().b_ind_js != 0 || curbuf_mut().b_ind_keep_case_label != 0)
                                 && cin_iscase(skipwhite(get_cursor_line_ptr()), false)
                             {
                                 amount = get_indent();
-                            } else if (*g_st().curbuf).b_ind_js != 0 {
+                            } else if curbuf_mut().b_ind_js != 0 {
                                 amount = get_indent_lnum(lnum);
                             } else {
                                 amount = skip_label(lnum, &raw mut l);
                             }
                             start_brace = BRACE_AT_END;
                         }
-                        let mut js_cur_has_key = if (*g_st().curbuf).b_ind_js != 0 {
+                        let mut js_cur_has_key = if curbuf_mut().b_ind_js != 0 {
                             cin_has_js_key(theline)
                         } else {
                             false
                         };
                         if *theline == b'}' as c_char {
-                            amount += (*g_st().curbuf).b_ind_close_extra;
+                            amount += curbuf_mut().b_ind_close_extra;
                         } else {
                             lookfor = LOOKFOR_INITIAL;
                             if cin_iselse(theline) {
@@ -2153,20 +2153,20 @@ pub fn get_c_indent() -> c_int {
                                 }
                             }
                             if start_brace == BRACE_IN_COL0 {
-                                amount = (*g_st().curbuf).b_ind_open_left_imag;
+                                amount = curbuf_mut().b_ind_open_left_imag;
                                 lookfor_cpp_namespace = true;
                             } else if start_brace == BRACE_AT_START && lookfor_cpp_namespace {
                                 lookfor_cpp_namespace = true;
                             } else if start_brace == BRACE_AT_END {
-                                amount += (*g_st().curbuf).b_ind_open_imag;
+                                amount += curbuf_mut().b_ind_open_imag;
                                 l = skipwhite(get_cursor_line_ptr());
                                 if cin_is_cpp_namespace(l) {
-                                    amount += (*g_st().curbuf).b_ind_cpp_namespace;
+                                    amount += curbuf_mut().b_ind_cpp_namespace;
                                 } else if cin_is_cpp_extern_c(l) {
-                                    amount += (*g_st().curbuf).b_ind_cpp_extern_c;
+                                    amount += curbuf_mut().b_ind_cpp_extern_c;
                                 }
                             } else {
-                                amount -= (*g_st().curbuf).b_ind_open_extra;
+                                amount -= curbuf_mut().b_ind_open_extra;
                                 if amount < 0 {
                                     amount = 0;
                                 }
@@ -2174,16 +2174,16 @@ pub fn get_c_indent() -> c_int {
                             lookfor_break = false;
                             if cin_iscase(theline, false) {
                                 lookfor = LOOKFOR_CASE;
-                                amount += (*g_st().curbuf).b_ind_case;
+                                amount += curbuf_mut().b_ind_case;
                             } else if cin_isscopedecl(theline) {
                                 lookfor = LOOKFOR_SCOPEDECL;
-                                amount += (*g_st().curbuf).b_ind_scopedecl;
+                                amount += curbuf_mut().b_ind_scopedecl;
                             } else {
-                                if (*g_st().curbuf).b_ind_case_break != 0 && cin_isbreak(theline) {
+                                if curbuf_mut().b_ind_case_break != 0 && cin_isbreak(theline) {
                                     lookfor_break = true;
                                 }
                                 lookfor = LOOKFOR_INITIAL;
-                                amount += (*g_st().curbuf).b_ind_level;
+                                amount += curbuf_mut().b_ind_level;
                             }
                             scope_amount = amount;
                             whilelevel = 0;
@@ -2195,11 +2195,11 @@ pub fn get_c_indent() -> c_int {
                                     if lookfor == LOOKFOR_ENUM_OR_INIT {
                                         if curwin_mut().w_cursor.lnum == 0
                                             || curwin_mut().w_cursor.lnum
-                                                < ourscope - (*g_st().curbuf).b_ind_maxparen
+                                                < ourscope - curbuf_mut().b_ind_maxparen
                                         {
                                             if cont_amount > 0 {
                                                 amount = cont_amount;
-                                            } else if (*g_st().curbuf).b_ind_js == 0 {
+                                            } else if curbuf_mut().b_ind_js == 0 {
                                                 amount += ind_continuation;
                                             }
                                             break;
@@ -2242,7 +2242,7 @@ pub fn get_c_indent() -> c_int {
                                         if terminated != b';' as c_char {
                                             trypos = ptr::null_mut();
                                             if find_last_paren(l, b'(' as c_char, b')' as c_char) {
-                                                trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                                                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                                             }
                                             if trypos.is_null()
                                                 && find_last_paren(
@@ -2277,8 +2277,8 @@ pub fn get_c_indent() -> c_int {
                                         {
                                             amount = scope_amount;
                                             if *theline == b'{' as c_char {
-                                                amount += (*g_st().curbuf).b_ind_open_extra;
-                                                added_to_amount = (*g_st().curbuf).b_ind_open_extra;
+                                                amount += curbuf_mut().b_ind_open_extra;
+                                                added_to_amount = curbuf_mut().b_ind_open_extra;
                                             }
                                         }
                                         if lookfor_cpp_namespace {
@@ -2307,11 +2307,11 @@ pub fn get_c_indent() -> c_int {
                                             }
                                             if cin_is_cpp_namespace(l) {
                                                 amount +=
-                                                    (*g_st().curbuf).b_ind_cpp_namespace - added_to_amount;
+                                                    curbuf_mut().b_ind_cpp_namespace - added_to_amount;
                                                 break;
                                             } else if cin_is_cpp_extern_c(l) {
                                                 amount +=
-                                                    (*g_st().curbuf).b_ind_cpp_extern_c - added_to_amount;
+                                                    curbuf_mut().b_ind_cpp_extern_c - added_to_amount;
                                                 break;
                                             }
                                             if cin_nocode(l) {
@@ -2370,21 +2370,21 @@ pub fn get_c_indent() -> c_int {
                                         l = after_label(get_cursor_line_ptr());
                                         if !l.is_null() && cin_is_cinword(l) {
                                             if *theline == b'{' as c_char {
-                                                amount += (*g_st().curbuf).b_ind_open_extra;
+                                                amount += curbuf_mut().b_ind_open_extra;
                                             } else {
-                                                amount += (*g_st().curbuf).b_ind_level
-                                                    + (*g_st().curbuf).b_ind_no_brace;
+                                                amount += curbuf_mut().b_ind_level
+                                                    + curbuf_mut().b_ind_no_brace;
                                             }
                                         }
                                         break;
                                     }
                                     scope_amount = get_indent()
                                         + if iscase {
-                                            (*g_st().curbuf).b_ind_case_code
+                                            curbuf_mut().b_ind_case_code
                                         } else {
-                                            (*g_st().curbuf).b_ind_scopedecl_code
+                                            curbuf_mut().b_ind_scopedecl_code
                                         };
-                                    lookfor = if (*g_st().curbuf).b_ind_case_break != 0 {
+                                    lookfor = if curbuf_mut().b_ind_case_break != 0 {
                                         LOOKFOR_NOBREAK
                                     } else {
                                         LOOKFOR_ANY
@@ -2401,7 +2401,7 @@ pub fn get_c_indent() -> c_int {
                                     }
                                     continue;
                                 }
-                                if (*g_st().curbuf).b_ind_js == 0 && cin_islabel() {
+                                if curbuf_mut().b_ind_js == 0 && cin_islabel() {
                                     l = after_label(get_cursor_line_ptr());
                                     if l.is_null() || cin_nocode(l) {
                                         continue;
@@ -2417,7 +2417,7 @@ pub fn get_c_indent() -> c_int {
                                     continue;
                                 }
                                 n = 0;
-                                if lookfor != LOOKFOR_TERM && (*g_st().curbuf).b_ind_cpp_baseclass > 0 {
+                                if lookfor != LOOKFOR_TERM && curbuf_mut().b_ind_cpp_baseclass > 0 {
                                     n = c_int::from(cin_is_cpp_baseclass(
                                         &mut cache_cpp_baseclass,
                                     ));
@@ -2448,7 +2448,7 @@ pub fn get_c_indent() -> c_int {
                                 terminated = cin_isterminated(l, false, true);
                                 if js_cur_has_key {
                                     js_cur_has_key = false;
-                                    if (*g_st().curbuf).b_ind_js != 0 && terminated == b',' as c_char {
+                                    if curbuf_mut().b_ind_js != 0 && terminated == b',' as c_char {
                                         lookfor = LOOKFOR_JS_KEY;
                                     }
                                 }
@@ -2518,7 +2518,7 @@ pub fn get_c_indent() -> c_int {
                                         }
                                         l = get_cursor_line_ptr();
                                     }
-                                    if (*g_st().curbuf).b_ind_js != 0 {
+                                    if curbuf_mut().b_ind_js != 0 {
                                         cur_amount = get_indent();
                                     } else {
                                         cur_amount =
@@ -2530,10 +2530,10 @@ pub fn get_c_indent() -> c_int {
                                     {
                                         amount = cur_amount;
                                         if *skipwhite(l) != b'{' as c_char {
-                                            amount += (*g_st().curbuf).b_ind_open_extra;
+                                            amount += curbuf_mut().b_ind_open_extra;
                                         }
-                                        if (*g_st().curbuf).b_ind_cpp_baseclass != 0
-                                            && (*g_st().curbuf).b_ind_js == 0
+                                        if curbuf_mut().b_ind_cpp_baseclass != 0
+                                            && curbuf_mut().b_ind_js == 0
                                         {
                                             lookfor = LOOKFOR_CPP_BASECLASS;
                                             continue;
@@ -2553,11 +2553,11 @@ pub fn get_c_indent() -> c_int {
                                         }
                                         amount = cur_amount;
                                         if *theline == b'{' as c_char {
-                                            amount += (*g_st().curbuf).b_ind_open_extra;
+                                            amount += curbuf_mut().b_ind_open_extra;
                                         }
                                         if lookfor != LOOKFOR_TERM {
                                             amount +=
-                                                (*g_st().curbuf).b_ind_level + (*g_st().curbuf).b_ind_no_brace;
+                                                curbuf_mut().b_ind_level + curbuf_mut().b_ind_no_brace;
                                             break;
                                         }
                                         l = skipwhite(get_cursor_line_ptr());
@@ -2587,7 +2587,7 @@ pub fn get_c_indent() -> c_int {
                                         break;
                                     } else if lookfor == LOOKFOR_ENUM_OR_INIT {
                                         if terminated == b',' as c_char {
-                                            if (*g_st().curbuf).b_ind_cpp_baseclass == 0 {
+                                            if curbuf_mut().b_ind_cpp_baseclass == 0 {
                                                 break;
                                             }
                                             lookfor = LOOKFOR_CPP_BASECLASS;
@@ -2600,7 +2600,7 @@ pub fn get_c_indent() -> c_int {
                                         l = get_cursor_line_ptr();
                                         amount = cur_amount;
                                         n = crate::memory::cstr_len(l) as c_int;
-                                        if (*g_st().curbuf).b_ind_js != 0
+                                        if curbuf_mut().b_ind_js != 0
                                             && terminated == b',' as c_char
                                             && (*skipwhite(l) == b']' as c_char
                                                 || (n >= 2
@@ -2611,14 +2611,14 @@ pub fn get_c_indent() -> c_int {
                                         if lookfor == LOOKFOR_INITIAL
                                             && terminated == b',' as c_char
                                         {
-                                            if (*g_st().curbuf).b_ind_js != 0 {
+                                            if curbuf_mut().b_ind_js != 0 {
                                                 if cin_iscomment(skipwhite(l)) {
                                                     break;
                                                 }
                                                 lookfor = LOOKFOR_COMMA;
                                                 trypos = find_match_char(
                                                     b'[' as c_char,
-                                                    (*g_st().curbuf).b_ind_maxparen,
+                                                    curbuf_mut().b_ind_maxparen,
                                                 );
                                                 if !trypos.is_null() {
                                                     if (*trypos).lnum == curwin_mut().w_cursor.lnum - 1
@@ -2662,7 +2662,7 @@ pub fn get_c_indent() -> c_int {
                                         lookfor = LOOKFOR_TERM;
                                         amount = get_indent();
                                         if *theline == b'{' as c_char {
-                                            amount += (*g_st().curbuf).b_ind_open_extra;
+                                            amount += curbuf_mut().b_ind_open_extra;
                                         }
                                     }
                                     whilelevel += 1;
@@ -2698,7 +2698,7 @@ pub fn get_c_indent() -> c_int {
                                         loop {
                                             l = get_cursor_line_ptr();
                                             if find_last_paren(l, b'(' as c_char, b')' as c_char) {
-                                                trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                                                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                                                 if !trypos.is_null() {
                                                     curwin_mut().w_cursor = *trypos;
                                                     l = get_cursor_line_ptr();
@@ -2709,16 +2709,16 @@ pub fn get_c_indent() -> c_int {
                                                     }
                                                 }
                                             }
-                                            iscase = (*g_st().curbuf).b_ind_keep_case_label != 0
+                                            iscase = curbuf_mut().b_ind_keep_case_label != 0
                                                 && cin_iscase(l, false);
                                             amount =
                                                 skip_label(curwin_mut().w_cursor.lnum, &raw mut l);
                                             if *theline == b'{' as c_char {
-                                                amount += (*g_st().curbuf).b_ind_open_extra;
+                                                amount += curbuf_mut().b_ind_open_extra;
                                             }
                                             l = skipwhite(l);
                                             if *l == b'{' as c_char {
-                                                amount -= (*g_st().curbuf).b_ind_open_extra;
+                                                amount -= curbuf_mut().b_ind_open_extra;
                                             }
                                             lookfor =
                                                 if iscase { LOOKFOR_ANY } else { LOOKFOR_TERM };
@@ -2756,18 +2756,18 @@ pub fn get_c_indent() -> c_int {
                         }
                     }
                     if cin_iscomment(theline) {
-                        amount += (*g_st().curbuf).b_ind_comment;
+                        amount += curbuf_mut().b_ind_comment;
                     }
-                    if (*g_st().curbuf).b_ind_jump_label > 0 && original_line_islabel {
-                        amount -= (*g_st().curbuf).b_ind_jump_label;
+                    if curbuf_mut().b_ind_jump_label > 0 && original_line_islabel {
+                        amount -= curbuf_mut().b_ind_jump_label;
                     }
                     break 'theend;
                 }
                 if *theline == b'{' as c_char {
-                    amount = (*g_st().curbuf).b_ind_first_open;
+                    amount = curbuf_mut().b_ind_first_open;
                     break 'theend;
                 }
-                if cur_curpos.lnum < (*g_st().curbuf).b_ml.ml_line_count
+                if cur_curpos.lnum < curbuf_mut().b_ml.ml_line_count
                     && !cin_nocode(theline)
                     && vim_strchr(theline, b'{' as c_int).is_null()
                     && vim_strchr(theline, b'}' as c_int).is_null()
@@ -2776,7 +2776,7 @@ pub fn get_c_indent() -> c_int {
                     && cin_isfuncdecl(ptr::null_mut(), cur_curpos.lnum + 1, cur_curpos.lnum + 1)
                     && cin_isterminated(theline, false, true) == 0
                 {
-                    amount = (*g_st().curbuf).b_ind_func_type;
+                    amount = curbuf_mut().b_ind_func_type;
                     break 'theend;
                 }
                 amount = 0;
@@ -2792,7 +2792,7 @@ pub fn get_c_indent() -> c_int {
                         continue;
                     }
                     n = 0;
-                    if (*g_st().curbuf).b_ind_cpp_baseclass != 0 {
+                    if curbuf_mut().b_ind_cpp_baseclass != 0 {
                         n = c_int::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
                         l = get_cursor_line_ptr();
                     }
@@ -2817,7 +2817,7 @@ pub fn get_c_indent() -> c_int {
                         })
                     {
                         if find_last_paren(l, b'(' as c_char, b')' as c_char) {
-                            trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                            trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                             if !trypos.is_null() {
                                 curwin_mut().w_cursor = *trypos;
                             }
@@ -2875,7 +2875,7 @@ pub fn get_c_indent() -> c_int {
                         curwin_mut().w_cursor = curpos_save;
                     }
                     if cin_isfuncdecl(&raw mut l, curwin_mut().w_cursor.lnum, 0) {
-                        amount = (*g_st().curbuf).b_ind_param;
+                        amount = curbuf_mut().b_ind_param;
                         break;
                     }
                     if cin_ends_in(l, c";") {
@@ -2888,7 +2888,7 @@ pub fn get_c_indent() -> c_int {
                         l = get_cursor_line_ptr();
                     }
                     let _ = find_last_paren(l, b'(' as c_char, b')' as c_char);
-                    trypos = find_match_paren((*g_st().curbuf).b_ind_maxparen);
+                    trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                     if !trypos.is_null() {
                         curwin_mut().w_cursor = *trypos;
                     }
@@ -2896,7 +2896,7 @@ pub fn get_c_indent() -> c_int {
                     break;
                 }
                 if cin_iscomment(theline) {
-                    amount += (*g_st().curbuf).b_ind_comment;
+                    amount += curbuf_mut().b_ind_comment;
                 }
                 if cur_curpos.lnum > 1 {
                     l = ml_get(cur_curpos.lnum - 1);
@@ -2987,10 +2987,10 @@ pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
         if keytyped == NUL as c_int {
             return false;
         }
-        let mut look: *const c_char = if (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone {
-            (*g_st().curbuf).b_p_indk
+        let mut look: *const c_char = if curbuf_mut().b_p_inde.cb_type() != kCallbackNone {
+            curbuf_mut().b_p_indk
         } else {
-            (*g_st().curbuf).b_p_cink
+            curbuf_mut().b_p_cink
         };
         while *look != NUL {
             let mut try_match = match when as u8 {
@@ -3159,8 +3159,8 @@ pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
 }
 /// Do C or expression indenting on the current line.
 pub fn do_c_expr_indent() {
-    unsafe {
-        if (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone {
+     {
+        if curbuf_mut().b_p_inde.cb_type() != kCallbackNone {
             fixthisline(get_expr_indent);
         } else {
             fixthisline(get_c_indent);
@@ -3170,10 +3170,10 @@ pub fn do_c_expr_indent() {
 /// "cindent(lnum)" function
 pub fn f_cindent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let pos = curwin_mut().w_cursor;
         let lnum = tv_get_lnum(&argvars[0]);
-        if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
+        if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
             curwin_mut().w_cursor.lnum = lnum;
             rettv.vval = crate::eval::typval::TypvalVval::Number(get_c_indent() as i64);
             curwin_mut().w_cursor = pos;

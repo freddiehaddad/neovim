@@ -290,7 +290,7 @@ pub fn get_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
 pub fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
-    unsafe { (*g_st().curbuf).b_maphash[map_hash(state, c as u8)].as_slice() }
+     curbuf_mut().b_maphash[map_hash(state, c as u8)].as_slice()
 }
 
 #[inline]
@@ -1117,12 +1117,12 @@ fn buf_do_map(
 /// Set or remove a mapping or an abbreviation in the current buffer, OR
 /// display (matching) mappings/abbreviations.
 pub fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) -> c_int {
-    unsafe {
+     {
         let mut parsed_args = MapArguments::new();
         let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
             0 => {
-                result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, &mut *g_st().curbuf);
+                result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, curbuf_mut());
             }
             1 => {}
             _ => {
@@ -1591,7 +1591,7 @@ pub fn check_abbr(
             let mut len = col - scol;
             let mut mp_opt: Option<&mapblock_T> = None;
             let first_abbr_slice = map_st().first_abbr.as_slice();
-            for cand in (*g_st().curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
+            for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
                 let mut qlen = cand.m_keylen;
                 let mut q_vec: Vec<c_char>;
                 let mut q = cand.m_keys.as_ptr().cast_mut();
@@ -2475,7 +2475,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             &mut unmap_args,
             mode,
             is_abbr != 0,
-            &mut *g_st().curbuf,
+            curbuf_mut(),
         );
 
         let alt = (!lhsrawalt.is_null()).then(|| {
@@ -2484,7 +2484,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
             })
         });
         map_add(
-            &mut *g_st().curbuf,
+            curbuf_mut(),
             buffer,
             lhsraw,
             &args,
@@ -2498,7 +2498,7 @@ pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFunc
         );
         if !lhsrawalt.is_null() {
             map_add(
-                &mut *g_st().curbuf,
+                curbuf_mut(),
                 buffer,
                 lhsrawalt,
                 &args,
@@ -2594,7 +2594,7 @@ pub fn f_mapcheck(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// Add a mapping.
 pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: c_int, buffer: bool) {
-    unsafe {
+     {
         let mut args = MapArguments::new();
         set_maparg_lhs_rhs(
             lhs.as_ptr().cast_mut(),
@@ -2607,7 +2607,7 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: c_int, buffer: 
         );
         args.buffer = buffer;
 
-        buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, &mut *g_st().curbuf);
+        buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, curbuf_mut());
     }
 }
 
@@ -2751,7 +2751,7 @@ fn do_exmap(eap: &mut exarg_T, isabbrev: bool) {
         let mut parsed_args = MapArguments::new();
         let result = str_to_mapargs(eap.arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
-            0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, &mut *g_st().curbuf) {
+            0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, curbuf_mut()) {
                 1 => {
                     emsg(gettext(e_invarg));
                 }

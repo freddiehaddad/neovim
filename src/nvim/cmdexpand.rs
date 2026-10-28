@@ -2342,7 +2342,7 @@ fn redraw_wildmenu(
                     }
                     g_st().wild_menu_showing = WM_SCROLLED;
                 } else {
-                    if (*g_st().lastwin).w_status_height == 0 && global_stl_height() == 0 {
+                    if lastwin_mut().w_status_height == 0 && global_stl_height() == 0 {
                         g_st().save_p_ls = opt_vars().p_ls as c_int;
                         g_st().save_p_wmh = opt_vars().p_wmh as c_int;
                         opt_vars().p_ls = 2;
@@ -6256,7 +6256,7 @@ fn expand_pattern_in_buf(
                 return false;
             }
 
-            if end_match_pos.lnum > (*g_st().curbuf).b_ml.ml_line_count {
+            if end_match_pos.lnum > curbuf_mut().b_ml.ml_line_count {
                 cur_match_pos.lnum = 1;
                 cur_match_pos.col = 0;
                 cur_match_pos.coladd = 0;

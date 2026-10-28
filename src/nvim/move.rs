@@ -1820,7 +1820,7 @@ pub fn scrolldown_clamp() {
 /// Scroll the screen one line up, without moving the cursor off the screen.
 pub fn scrollup_clamp() {
     unsafe {
-        if curwin_mut().w_topline == (*g_st().curbuf).b_ml.ml_line_count && curwin_mut().w_topfill == 0 {
+        if curwin_mut().w_topline == curbuf_mut().b_ml.ml_line_count && curwin_mut().w_topfill == 0 {
             return;
         }
 
@@ -2426,12 +2426,12 @@ pub fn cursor_correct(wp: &mut win_T) {
 
 /// Decide how much overlap to use for page-up or page-down scrolling.
 fn get_scroll_overlap(dir: Direction) -> c_int {
-    unsafe {
+     {
         let min_height = curwin_mut().w_view_height - 2;
 
         validate_botline_win(curwin_ptr());
         if (dir == BACKWARD && curwin_mut().w_topline == 1)
-            || (dir == FORWARD && curwin_mut().w_botline > (*g_st().curbuf).b_ml.ml_line_count)
+            || (dir == FORWARD && curwin_mut().w_botline > curbuf_mut().b_ml.ml_line_count)
         {
             return min_height + 2;
         }
@@ -2536,9 +2536,9 @@ fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> b
 
 /// Move screen `count` (half) pages up (`dir` is `BACKWARD`) or down (`dir` is `FORWARD`).
 pub fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> bool {
-    unsafe {
+     {
         let mut did_move = false;
-        let buflen = (*g_st().curbuf).b_ml.ml_line_count;
+        let buflen = curbuf_mut().b_ml.ml_line_count;
         let prev_col = curwin_mut().w_cursor.col;
         let prev_curswant = curwin_mut().w_curswant;
         let prev_lnum = curwin_mut().w_cursor.lnum;
@@ -2663,14 +2663,14 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
         debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.is_null());
         if curwin_ptr() == move_cb_st().prev_curwin
             && g_st().curbuf == move_cb_st().prev_curbuf
-            && buf_get_changedtick(&*g_st().curbuf) == move_cb_st().prev_changedtick
+            && buf_get_changedtick(curbuf_mut()) == move_cb_st().prev_changedtick
             && equalpos(curwin_mut().w_cursor, move_cb_st().prev_cursor)
         {
             return;
         }
         move_cb_st().prev_curwin = curwin_ptr();
         move_cb_st().prev_curbuf = g_st().curbuf;
-        move_cb_st().prev_changedtick = buf_get_changedtick(&*g_st().curbuf);
+        move_cb_st().prev_changedtick = buf_get_changedtick(curbuf_mut());
         move_cb_st().prev_cursor = curwin_mut().w_cursor;
 
         let line = curwin_mut().w_cursor.lnum;

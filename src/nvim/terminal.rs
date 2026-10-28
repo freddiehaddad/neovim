@@ -1214,7 +1214,7 @@ pub fn terminal_enter() -> bool {
         ui_cursor_shape();
 
         terminal_focus(&mut *s.term, true);
-        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
+        curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
 
         (*s.term).refcount += 1;
         apply_autocmds(
@@ -1246,9 +1246,9 @@ pub fn terminal_enter() -> bool {
         unset_terminal_winopts(&mut s);
 
         terminal_focus(&mut *s.term, false);
-        (*g_st().curbuf).b_last_changedtick = buf_get_changedtick(&*g_st().curbuf);
+        curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
 
-        if (*g_st().curbuf).terminal == s.term && !s.close {
+        if curbuf_mut().terminal == s.term && !s.close {
             terminal_check_cursor();
         }
         if g_st().restart_edit != 0 {
@@ -1284,18 +1284,18 @@ pub fn terminal_enter() -> bool {
 
 fn terminal_check_cursor() {
     unsafe {
-        let term = &mut *(*g_st().curbuf).terminal;
-        curwin_mut().w_cursor.lnum = (*g_st().curbuf)
+        let term = &mut *curbuf_mut().terminal;
+        curwin_mut().w_cursor.lnum = curbuf_mut()
             .b_ml
             .ml_line_count
             .min(row_to_linenr(term, term.cursor.row));
-        let topline = ((*g_st().curbuf).b_ml.ml_line_count - curwin_mut().w_view_height + 1).max(1);
+        let topline = (curbuf_mut().b_ml.ml_line_count - curwin_mut().w_view_height + 1).max(1);
         if topline != curwin_mut().w_topline {
             set_topline(curwin_mut(), topline);
         }
         if term.suspended && (g_st().State & MODE_TERMINAL) != 0 {
             curwin_mut().w_cursor = pos_T {
-                lnum: (*g_st().curbuf).b_ml.ml_line_count,
+                lnum: curbuf_mut().b_ml.ml_line_count,
                 col: 0,
                 coladd: 0,
             };
@@ -1314,7 +1314,7 @@ fn terminal_check_cursor() {
 
 fn terminal_check_focus(s: &mut TerminalState) -> bool {
     unsafe {
-        if (*g_st().curbuf).terminal.is_null() {
+        if curbuf_mut().terminal.is_null() {
             return false;
         }
 
@@ -1322,7 +1322,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
             unset_terminal_winopts(s);
             set_terminal_winopts(s);
         }
-        let cur_term = &mut *(*g_st().curbuf).terminal;
+        let cur_term = &mut *curbuf_mut().terminal;
         if !std::ptr::eq(s.term, cur_term) {
             terminal_focus(&mut *s.term, false);
             if s.close {
@@ -1345,7 +1345,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
         debug_assert!(
             !s.close
                 || ((*s.term).buf_handle == 0
-                    && s.term != (*g_st().curbuf).terminal)
+                    && s.term != curbuf_mut().terminal)
         );
 
         if g_st().Ins.stop_insert_mode || !terminal_check_focus(&mut *s) {
@@ -1359,7 +1359,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
 
         (*s.term).refcount += 1;
         if has_event(EVENT_TEXTCHANGEDT)
-            && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(&*g_st().curbuf)
+            && curbuf_mut().b_last_changedtick_i != buf_get_changedtick(curbuf_mut())
         {
             apply_autocmds(
                 EVENT_TEXTCHANGEDT,
@@ -1368,7 +1368,7 @@ fn terminal_check(s: &mut TerminalState) -> c_int {
                 false,
                 g_st().curbuf,
             );
-            (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
+            curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
         }
         may_trigger_win_scrolled_resized();
         (*s.term).refcount -= 1;
@@ -1531,7 +1531,7 @@ fn is_filter_char(c: c_int) -> bool {
 pub fn terminal_set_streamed_paste(term: &mut Terminal, streamed: bool) {
     unsafe {
         if term.streamed_paste != streamed {
-            let cur_term = &mut *(*g_st().curbuf).terminal;
+            let cur_term = &mut *curbuf_mut().terminal;
             if streamed {
                 vterm_keyboard_start_paste(&mut cur_term.vt);
             } else {
@@ -1547,7 +1547,7 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
         if y_size == 0 {
             return;
         }
-        let cur_term = &mut *(*g_st().curbuf).terminal;
+        let cur_term = &mut *curbuf_mut().terminal;
         if !cur_term.streamed_paste {
             vterm_keyboard_start_paste(&mut cur_term.vt);
         }
@@ -1555,7 +1555,7 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
         for _ in 0..count {
             for j in 0..y_size {
                 if j > 0 {
-                    let term_now = &mut *(*g_st().curbuf).terminal;
+                    let term_now = &mut *curbuf_mut().terminal;
                     #[cfg(windows)]
                     terminal_send(term_now, c"\r\n", 2);
                     #[cfg(not(windows))]
@@ -1573,11 +1573,11 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
                     }
                     src = src.add(len);
                 }
-                let term_now = &mut *(*g_st().curbuf).terminal;
+                let term_now = &mut *curbuf_mut().terminal;
                 terminal_send(term_now, buff.as_ptr(), buff.len());
             }
         }
-        let term_end = &mut *(*g_st().curbuf).terminal;
+        let term_end = &mut *curbuf_mut().terminal;
         if !term_end.streamed_paste {
             vterm_keyboard_end_paste(&mut term_end.vt);
         }
@@ -2732,7 +2732,7 @@ fn linenr_to_row(term: &mut Terminal, linenr: c_int) -> c_int {
 
 #[inline]
 fn is_focused(term: &mut Terminal) -> bool {
-    unsafe { (g_st().State & MODE_TERMINAL) != 0 && (*g_st().curbuf).terminal == term }
+     (g_st().State & MODE_TERMINAL) != 0 && curbuf_mut().terminal == term
 }
 
 fn get_config_string(buf: &mut buf_T, key: *mut c_char) -> *mut c_char {

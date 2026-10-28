@@ -289,7 +289,7 @@ pub fn get_mode(buf: *mut c_char) {
                 i += 1;
                 *buf.add(i) = g_st().motion_force as c_char;
                 i += 1;
-            } else if !(*g_st().curbuf).terminal.is_null() {
+            } else if !curbuf_mut().terminal.is_null() {
                 *buf.add(i) = b't' as c_char;
                 i += 1;
                 if g_st().restart_edit == b'I' as c_int {

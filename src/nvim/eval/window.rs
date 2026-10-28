@@ -963,8 +963,8 @@ pub fn f_winline(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 /// `winnr()` function (`f_winnr`).
 pub fn f_winnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(get_winnr(&mut *g_st().curtab, &mut argvars[0]) as varnumber_T);
+     {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(get_winnr(curtab_mut(), &mut argvars[0]) as varnumber_T);
     }
 }
 
@@ -1046,8 +1046,8 @@ pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: Eva
         if curwin_mut().w_topline <= 0 {
             curwin_mut().w_topline = 1;
         }
-        if curwin_mut().w_topline > (*g_st().curbuf).b_ml.ml_line_count {
-            curwin_mut().w_topline = (*g_st().curbuf).b_ml.ml_line_count;
+        if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
+            curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
         }
         check_topfill(curwin_ptr(), true);
     }

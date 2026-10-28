@@ -942,7 +942,7 @@ fn ui_ext_tabline_update() {
             buf = (*buf).b_next;
         }
 
-        ui_call_tabline_update((*g_st().curtab).handle, tabs, (*g_st().curbuf).b_fnum, buffers);
+        ui_call_tabline_update(curtab_mut().handle, tabs, curbuf_mut().b_fnum, buffers);
         arena_mem_free(arena_finish(&mut arena));
     }
 }
@@ -1899,7 +1899,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
                             c"%d",
-                            (*g_st().curbuf).b_fnum,
+                            curbuf_mut().b_fnum,
                         );
                         set_internal_string_var(c"g:actual_curbuf", buf_tmp.as_mut_ptr());
                         vim_snprintf!(

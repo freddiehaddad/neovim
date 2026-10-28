@@ -1555,13 +1555,13 @@ pub fn execute_menu(eap: &exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
                 idx = MENU_INDEX_VISUAL;
 
                 let tpos: pos_T;
-                if (*g_st().curbuf).b_visual.vi_start.lnum == eap.line1
-                    && (*g_st().curbuf).b_visual.vi_end.lnum == eap.line2
+                if curbuf_mut().b_visual.vi_start.lnum == eap.line1
+                    && curbuf_mut().b_visual.vi_end.lnum == eap.line2
                 {
-                    g_st().Visual.mode = (*g_st().curbuf).b_visual.vi_mode;
-                    tpos = (*g_st().curbuf).b_visual.vi_end;
-                    curwin_mut().w_cursor = (*g_st().curbuf).b_visual.vi_start;
-                    curwin_mut().w_curswant = (*g_st().curbuf).b_visual.vi_curswant;
+                    g_st().Visual.mode = curbuf_mut().b_visual.vi_mode;
+                    tpos = curbuf_mut().b_visual.vi_end;
+                    curwin_mut().w_cursor = curbuf_mut().b_visual.vi_start;
+                    curwin_mut().w_curswant = curbuf_mut().b_visual.vi_curswant;
                 } else {
                     g_st().Visual.mode = b'V' as c_int;
                     curwin_mut().w_cursor.lnum = eap.line1;

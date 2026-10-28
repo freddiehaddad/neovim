@@ -200,7 +200,7 @@ pub fn check_changed(buf: &mut buf_T, flags: c_int) -> bool {
             if (flags & CCGD_EXCMD) != 0 {
                 no_write_message();
             } else {
-                no_write_message_nobang(&*g_st().curbuf);
+                no_write_message_nobang(curbuf_mut());
             }
             return true;
         }
@@ -332,7 +332,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         }
 
         let mut bufnrs = Vec::with_capacity(bufcount);
-        bufnrs.push((*g_st().curbuf).b_fnum);
+        bufnrs.push(curbuf_mut().b_fnum);
 
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -446,8 +446,8 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
 /// Return `FAIL` if there is no file name, `OK` if there is one (`check_fname`).
 pub fn check_fname() -> bool {
-    unsafe {
-        if (*g_st().curbuf).b_ffname.is_null() {
+     {
+        if curbuf_mut().b_ffname.is_null() {
             emsg(gettext(e_noname));
             return false;
         }
@@ -522,9 +522,9 @@ pub fn ex_listdo(eap: &mut exarg_T) {
 
         if eap.cmdidx == CMD_windo
             || eap.cmdidx == CMD_tabdo
-            || buf_hide(&*g_st().curbuf)
+            || buf_hide(curbuf_mut())
             || !check_changed(
-                &mut *g_st().curbuf,
+                curbuf_mut(),
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
             )
         {
@@ -625,7 +625,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                     tp = (*tp).tp_next;
                 } else if eap.cmdidx == CMD_bufdo {
                     next_fnum = -1;
-                    let mut bp = (*g_st().curbuf).b_next;
+                    let mut bp = curbuf_mut().b_next;
                     while !bp.is_null() {
                         if (*bp).b_p_bl != 0 {
                             next_fnum = (*bp).b_fnum;
@@ -660,7 +660,7 @@ pub fn ex_listdo(eap: &mut exarg_T) {
 
                     goto_buffer(eap, DOBUF_FIRST, FORWARD, next_fnum);
 
-                    if (*g_st().curbuf).b_fnum != next_fnum {
+                    if curbuf_mut().b_fnum != next_fnum {
                         break;
                     }
                 }
@@ -715,8 +715,8 @@ pub fn ex_listdo(eap: &mut exarg_T) {
                     if buf == g_st().curbuf {
                         apply_autocmds(
                             EVENT_SYNTAX,
-                            (*g_st().curbuf).b_p_syn,
-                            (*g_st().curbuf).b_fname,
+                            curbuf_mut().b_p_syn,
+                            curbuf_mut().b_fname,
                             true,
                             g_st().curbuf,
                         );
@@ -880,13 +880,13 @@ pub fn ex_drop(eap: &mut exarg_T) {
                 if (*wp).w_buffer == buf {
                     goto_tabpage_win(&mut *tp, wp);
                     curwin_mut().w_arg_idx = 0;
-                    if !bufIsChanged(&mut *g_st().curbuf) {
-                        let save_ar = (*g_st().curbuf).b_p_ar;
-                        (*g_st().curbuf).b_p_ar = 1;
-                        buf_check_timestamp(&mut *g_st().curbuf);
-                        (*g_st().curbuf).b_p_ar = save_ar;
+                    if !bufIsChanged(curbuf_mut()) {
+                        let save_ar = curbuf_mut().b_p_ar;
+                        curbuf_mut().b_p_ar = 1;
+                        buf_check_timestamp(curbuf_mut());
+                        curbuf_mut().b_p_ar = save_ar;
                     }
-                    if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
+                    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
                         ex_rewind(eap);
                     }
 
@@ -908,9 +908,9 @@ pub fn ex_drop(eap: &mut exarg_T) {
             tp = (*tp).tp_next;
         }
 
-        if !buf_hide(&*g_st().curbuf) {
+        if !buf_hide(curbuf_mut()) {
             g_st().emsg_off += 1;
-            split = check_changed(&mut *g_st().curbuf, CCGD_AW | CCGD_EXCMD);
+            split = check_changed(curbuf_mut(), CCGD_AW | CCGD_EXCMD);
             g_st().emsg_off -= 1;
         }
 

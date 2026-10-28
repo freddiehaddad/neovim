@@ -897,7 +897,7 @@ pub fn init_highlight(both: bool, reset: bool) {
 }
 
 pub fn load_colors(name: *mut c_char) -> bool {
-    unsafe {
+     {
         if hlg_st().load_colors_recursive {
             return true;
         }
@@ -905,13 +905,13 @@ pub fn load_colors(name: *mut c_char) -> bool {
         hlg_st().load_colors_recursive = true;
         let name_bytes = crate::memory::cstr_as_bytes(name);
         let mut buf = Vec::with_capacity(name_bytes.len() + 12);
-        apply_autocmds(EVENT_COLORSCHEMEPRE, name, (*g_st().curbuf).b_fname, false, g_st().curbuf);
+        apply_autocmds(EVENT_COLORSCHEMEPRE, name, curbuf_mut().b_fname, false, g_st().curbuf);
         buf.extend_from_slice(b"colors/");
         buf.extend_from_slice(name_bytes);
         buf.extend_from_slice(b".*\0");
         let retval = source_runtime_vim_lua(buf.as_mut_ptr().cast::<c_char>(), DIP_START + DIP_OPT);
         if retval {
-            apply_autocmds(EVENT_COLORSCHEME, name, (*g_st().curbuf).b_fname, false, g_st().curbuf);
+            apply_autocmds(EVENT_COLORSCHEME, name, curbuf_mut().b_fname, false, g_st().curbuf);
         }
 
         hlg_st().load_colors_recursive = false;
@@ -1581,7 +1581,7 @@ pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         if !error && is_normal_group {
             highlight_attr_set_all();
 
-            if !ui_has(kUILinegrid) && *starting.as_ptr() == 0 {
+            if !ui_has(kUILinegrid) && starting_val() == 0 {
                 ui_refresh();
             } else {
                 ui_default_colors_set();

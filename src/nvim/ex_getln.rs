@@ -479,11 +479,11 @@ fn init_incsearch_state(s: &mut incsearch_state_T) {
 }
 
 fn set_search_match(t: &mut pos_T) {
-    unsafe {
+     {
         t.lnum += g_st().Search.match_lines;
         t.col = g_st().Search.match_endcol;
-        if t.lnum > (*g_st().curbuf).b_ml.ml_line_count {
-            t.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+        if t.lnum > curbuf_mut().b_ml.ml_line_count {
+            t.lnum = curbuf_mut().b_ml.ml_line_count;
             coladvance(curwin_mut(), MAXCOL);
         }
     }
@@ -734,9 +734,9 @@ fn may_do_incsearch_highlighting(firstc: c_int, count: c_int, s: &mut incsearch_
         if g_st().Search.first_line == 0 {
             // start at the original cursor position
             curwin_mut().w_cursor = s.search_start;
-        } else if g_st().Search.first_line > (*g_st().curbuf).b_ml.ml_line_count {
+        } else if g_st().Search.first_line > curbuf_mut().b_ml.ml_line_count {
             // start after the last line
-            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
             curwin_mut().w_cursor.col = MAXCOL;
         } else {
             // start at the first line in the range
@@ -1100,10 +1100,10 @@ fn command_line_enter(
                 || (*s).firstc == b'?' as c_int
                 || (*s).firstc == b'@' as c_int
             {
-                let (use_insert, im_val) = if (*g_st().curbuf).b_p_imsearch == B_IMODE_USE_INSERT {
-                    (true, (*g_st().curbuf).b_p_iminsert)
+                let (use_insert, im_val) = if curbuf_mut().b_p_imsearch == B_IMODE_USE_INSERT {
+                    (true, curbuf_mut().b_p_iminsert)
                 } else {
-                    (false, (*g_st().curbuf).b_p_imsearch)
+                    (false, curbuf_mut().b_p_imsearch)
                 };
                 (*s).b_im_use_insert = Some(use_insert);
                 (*s).b_im_ptr_buf = g_st().curbuf;
@@ -2193,9 +2193,9 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
 
         if let Some(use_insert) = use_insert_opt {
             if use_insert && ptr::eq(s.b_im_ptr_buf, g_st().curbuf) {
-                set_iminsert_global(&mut *g_st().curbuf);
+                set_iminsert_global(curbuf_mut());
             } else {
-                set_imsearch_global(&mut *g_st().curbuf);
+                set_imsearch_global(curbuf_mut());
             }
         }
         ui_cursor_shape();
@@ -2962,9 +2962,9 @@ fn cmdpreview_open_buf() -> *mut buf_T {
             kCtxKeepDirs,
         );
         buf_clear();
-        (*g_st().curbuf).b_p_ma = 1;
-        (*g_st().curbuf).b_p_ul = -1;
-        (*g_st().curbuf).b_p_tw = 0;
+        curbuf_mut().b_p_ma = 1;
+        curbuf_mut().b_p_ul = -1;
+        curbuf_mut().b_p_tw = 0;
         ctx_restore(&mut aco);
         getln_st().cmdpreview_bufnr = (*cmdpreview_buf).b_fnum;
 
@@ -3476,8 +3476,8 @@ pub fn text_or_buf_locked() -> bool {
 
 /// Check if `curbuf->b_ro_locked` or `allbuf_lock` is set.
 pub fn curbuf_locked() -> bool {
-    unsafe {
-        if (*g_st().curbuf).b_ro_locked > 0 {
+     {
+        if curbuf_mut().b_ro_locked > 0 {
             emsg(gettext(e_cannot_edit_other_buf));
             return true;
         }

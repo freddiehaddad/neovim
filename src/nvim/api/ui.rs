@@ -616,7 +616,7 @@ fn ui_set_option(
                 );
                 return;
             }
-            if *starting.as_ptr() != NO_SCREEN {
+            if starting_val() != NO_SCREEN {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,

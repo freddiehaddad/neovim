@@ -273,12 +273,12 @@ fn reset_xfmark(
 
 /// Set named mark `c` at current cursor position (`setmark`).
 pub fn setmark(c: c_int) -> bool {
-    unsafe {
+     {
         let view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
         setmark_pos(
             c,
             &mut curwin_mut().w_cursor,
-            (*g_st().curbuf).b_fnum,
+            curbuf_mut().b_fnum,
             Some(&view),
         )
     }
@@ -516,7 +516,7 @@ pub fn setpcmark() {
         let fm = &raw mut (*curwin_ptr()).w_jumplist[(curwin_mut().w_jumplistlen - 1) as usize];
 
         let view = mark_view_make(curwin_mut(), curwin_mut().w_pcmark);
-        set_xfmark(&mut *fm, curwin_mut().w_pcmark, (*g_st().curbuf).b_fnum, view, None);
+        set_xfmark(&mut *fm, curwin_mut().w_pcmark, curbuf_mut().b_fnum, view, None);
     }
 }
 
@@ -562,7 +562,7 @@ pub fn get_jumplist(win: &mut win_T, mut count: c_int) -> *mut fmark_T {
             if (*jmp).fmark.fnum == 0 {
                 fname2fnum(&mut *jmp);
             }
-            if (*jmp).fmark.fnum != (*g_st().curbuf).b_fnum && buflist_findnr((*jmp).fmark.fnum).is_null()
+            if (*jmp).fmark.fnum != curbuf_mut().b_fnum && buflist_findnr((*jmp).fmark.fnum).is_null()
             {
                 count += if count < 0 { -1 } else { 1 };
                 continue;
@@ -595,7 +595,7 @@ pub fn get_changelist(buf: &mut buf_T, win: &mut win_T, count: c_int) -> *mut fm
         }
         win.w_changelistidx = n;
         let fm = &raw mut buf.b_changelist[n as usize];
-        (*fm).fnum = (*g_st().curbuf).b_fnum;
+        (*fm).fnum = curbuf_mut().b_fnum;
         fm
     }
 }
@@ -763,7 +763,7 @@ pub fn pos_to_mark(buf: *mut buf_T, fmp: Option<&mut fmark_T>, pos: pos_T) -> *m
 
 fn switch_to_mark_buf(fm: *mut fmark_T, pcmark_on_switch: bool) -> MarkMoveRes {
     unsafe {
-        if (*fm).fnum != (*g_st().curbuf).b_fnum {
+        if (*fm).fnum != curbuf_mut().b_fnum {
             let getfile_flag = if pcmark_on_switch { GETF_SETMARK } else { 0 };
             let res = buflist_getfile((*fm).fnum, (*fm).mark.lnum, getfile_flag, 0);
             return if res {
@@ -788,7 +788,7 @@ pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
             return kMarkMoveFailed;
         }
 
-        if (*fm).fnum != (*g_st().curbuf).b_fnum {
+        if (*fm).fnum != curbuf_mut().b_fnum {
             mark_st().MARK_MOVE_TO_FM_COPY = (*fm).clone();
             fm = &raw mut mark_st().MARK_MOVE_TO_FM_COPY;
             res |= switch_to_mark_buf(fm, (flags & kMarkJumpList) == 0);
@@ -869,15 +869,15 @@ pub fn getnextmark(startpos: &mut pos_T, dir: c_int, begin_line: c_int) -> *mut 
         }
 
         for i in 0..NMARKS {
-            if (*g_st().curbuf).b_namedm[i].mark.lnum > 0 {
+            if curbuf_mut().b_namedm[i].mark.lnum > 0 {
                 if dir == FORWARD {
-                    if (result.is_null() || lt((*g_st().curbuf).b_namedm[i].mark, (*result).mark))
-                        && lt(pos, (*g_st().curbuf).b_namedm[i].mark)
+                    if (result.is_null() || lt(curbuf_mut().b_namedm[i].mark, (*result).mark))
+                        && lt(pos, curbuf_mut().b_namedm[i].mark)
                     {
                         result = &raw mut (*g_st().curbuf).b_namedm[i];
                     }
-                } else if (result.is_null() || lt((*result).mark, (*g_st().curbuf).b_namedm[i].mark))
-                    && lt((*g_st().curbuf).b_namedm[i].mark, pos)
+                } else if (result.is_null() || lt((*result).mark, curbuf_mut().b_namedm[i].mark))
+                    && lt(curbuf_mut().b_namedm[i].mark, pos)
                 {
                     result = &raw mut (*g_st().curbuf).b_namedm[i];
                 }
@@ -966,7 +966,7 @@ pub fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool {
             }
             return false;
         }
-        if (*fm).fnum == (*g_st().curbuf).b_fnum && !mark_check_line_bounds(g_st().curbuf, fm, errormsg) {
+        if (*fm).fnum == curbuf_mut().b_fnum && !mark_check_line_bounds(g_st().curbuf, fm, errormsg) {
             return false;
         }
         true
@@ -1007,8 +1007,8 @@ pub fn clrallmarks(buf: &mut buf_T, timestamp: Timestamp) {
 
 /// Get name of file from a filemark (`fm_getname`).
 pub fn fm_getname(fmark: &mut fmark_T, lead_len: c_int) -> Option<std::ffi::CString> {
-    unsafe {
-        if fmark.fnum == (*g_st().curbuf).b_fnum {
+     {
+        if fmark.fnum == curbuf_mut().b_fnum {
             return Some(mark_line(&mut fmark.mark, lead_len));
         }
         buflist_nr2name(fmark.fnum, 0, 1)
@@ -1018,7 +1018,7 @@ pub fn fm_getname(fmark: &mut fmark_T, lead_len: c_int) -> Option<std::ffi::CStr
 /// Return the line at mark `mp`, truncated to fit in window (`mark_line`).
 fn mark_line(mp: &mut pos_T, lead_len: c_int) -> std::ffi::CString {
     unsafe {
-        if mp.lnum == 0 || mp.lnum > (*g_st().curbuf).b_ml.ml_line_count {
+        if mp.lnum == 0 || mp.lnum > curbuf_mut().b_ml.ml_line_count {
             return c"-invalid-".to_owned();
         }
         debug_assert!(g_st().Columns >= 0);
@@ -1064,26 +1064,26 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
 
         if *eap.arg == NUL && eap.forceit != 0 {
             for i in 0..NMARKS {
-                if (*g_st().curbuf).b_namedm[i].mark.lnum != 0 {
+                if curbuf_mut().b_namedm[i].mark.lnum != 0 {
                     do_markset_autocmd((i as u8 + b'a') as c_char, &pos, g_st().curbuf);
                 }
             }
-            if (*g_st().curbuf).b_last_cursor.mark.lnum != 0 {
+            if curbuf_mut().b_last_cursor.mark.lnum != 0 {
                 do_markset_autocmd(b'"' as c_char, &pos, g_st().curbuf);
             }
-            if (*g_st().curbuf).b_last_insert.mark.lnum != 0 {
+            if curbuf_mut().b_last_insert.mark.lnum != 0 {
                 do_markset_autocmd(b'^' as c_char, &pos, g_st().curbuf);
             }
-            if (*g_st().curbuf).b_last_change.mark.lnum != 0 {
+            if curbuf_mut().b_last_change.mark.lnum != 0 {
                 do_markset_autocmd(b'.' as c_char, &pos, g_st().curbuf);
             }
-            if (*g_st().curbuf).b_op_start.lnum != 0 {
+            if curbuf_mut().b_op_start.lnum != 0 {
                 do_markset_autocmd(b'[' as c_char, &pos, g_st().curbuf);
             }
-            if (*g_st().curbuf).b_op_end.lnum != 0 {
+            if curbuf_mut().b_op_end.lnum != 0 {
                 do_markset_autocmd(b']' as c_char, &pos, g_st().curbuf);
             }
-            clrallmarks(&mut *g_st().curbuf, os_time());
+            clrallmarks(curbuf_mut(), os_time());
         } else if eap.forceit != 0 {
             emsg(gettext(e_invarg));
         } else if *eap.arg == NUL {
@@ -1121,11 +1121,11 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
                     for i in from..=to {
                         if lower {
                             let idx = (i - b'a' as c_int) as usize;
-                            if (*g_st().curbuf).b_namedm[idx].mark.lnum != 0 {
+                            if curbuf_mut().b_namedm[idx].mark.lnum != 0 {
                                 do_markset_autocmd(i as c_char, &pos, g_st().curbuf);
                             }
-                            (*g_st().curbuf).b_namedm[idx].mark.lnum = 0;
-                            (*g_st().curbuf).b_namedm[idx].timestamp = timestamp;
+                            curbuf_mut().b_namedm[idx].mark.lnum = 0;
+                            curbuf_mut().b_namedm[idx].timestamp = timestamp;
                         } else {
                             let n = if digit {
                                 (i - b'0' as c_int) as usize + NMARKS
@@ -1148,47 +1148,47 @@ pub fn ex_delmarks(eap: &mut exarg_T) {
                 } else {
                     match *p as u8 {
                         b'"' => {
-                            if (*g_st().curbuf).b_last_cursor.mark.lnum != 0 {
+                            if curbuf_mut().b_last_cursor.mark.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            clear_fmark(&mut (*g_st().curbuf).b_last_cursor, timestamp);
+                            clear_fmark(&mut curbuf_mut().b_last_cursor, timestamp);
                         }
                         b'^' => {
-                            if (*g_st().curbuf).b_last_insert.mark.lnum != 0 {
+                            if curbuf_mut().b_last_insert.mark.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            clear_fmark(&mut (*g_st().curbuf).b_last_insert, timestamp);
+                            clear_fmark(&mut curbuf_mut().b_last_insert, timestamp);
                         }
                         b':' => {}
                         b'.' => {
-                            if (*g_st().curbuf).b_last_change.mark.lnum != 0 {
+                            if curbuf_mut().b_last_change.mark.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            clear_fmark(&mut (*g_st().curbuf).b_last_change, timestamp);
+                            clear_fmark(&mut curbuf_mut().b_last_change, timestamp);
                         }
                         b'[' => {
-                            if (*g_st().curbuf).b_op_start.lnum != 0 {
+                            if curbuf_mut().b_op_start.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            (*g_st().curbuf).b_op_start.lnum = 0;
+                            curbuf_mut().b_op_start.lnum = 0;
                         }
                         b']' => {
-                            if (*g_st().curbuf).b_op_end.lnum != 0 {
+                            if curbuf_mut().b_op_end.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            (*g_st().curbuf).b_op_end.lnum = 0;
+                            curbuf_mut().b_op_end.lnum = 0;
                         }
                         b'<' => {
-                            if (*g_st().curbuf).b_visual.vi_start.lnum != 0 {
+                            if curbuf_mut().b_visual.vi_start.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            (*g_st().curbuf).b_visual.vi_start.lnum = 0;
+                            curbuf_mut().b_visual.vi_start.lnum = 0;
                         }
                         b'>' => {
-                            if (*g_st().curbuf).b_visual.vi_end.lnum != 0 {
+                            if curbuf_mut().b_visual.vi_end.lnum != 0 {
                                 do_markset_autocmd(*p, &pos, g_st().curbuf);
                             }
-                            (*g_st().curbuf).b_visual.vi_end.lnum = 0;
+                            curbuf_mut().b_visual.vi_end.lnum = 0;
                         }
                         b' ' => {}
                         _ => {
@@ -1252,7 +1252,7 @@ pub fn ex_jumps(_eap: &mut exarg_T) {
                 msg_outtrans(&raw const g_st().IObuff[0], 0, false);
                 msg_outtrans(
                     name_cstr.as_ptr(),
-                    if curwin_mut().w_jumplist[idx].fmark.fnum == (*g_st().curbuf).b_fnum {
+                    if curwin_mut().w_jumplist[idx].fmark.fnum == curbuf_mut().b_fnum {
                         HLF_D
                     } else {
                         0
@@ -1284,9 +1284,9 @@ pub fn ex_changes(_eap: &mut exarg_T) {
         msg_puts_title(gettext(c"\nchange line  col text"));
 
         let mut i: c_int = 0;
-        while i < (*g_st().curbuf).b_changelistlen && !g_st().got_int {
+        while i < curbuf_mut().b_changelistlen && !g_st().got_int {
             let idx = i as usize;
-            if (*g_st().curbuf).b_changelist[idx].mark.lnum != 0 {
+            if curbuf_mut().b_changelist[idx].mark.lnum != 0 {
                 msg_putchar(b'\n' as c_int);
                 if g_st().got_int {
                     break;
@@ -1297,8 +1297,8 @@ pub fn ex_changes(_eap: &mut exarg_T) {
                     ' '
                 };
                 let dist = (i - curwin_mut().w_changelistidx).abs();
-                let lnum = (*g_st().curbuf).b_changelist[idx].mark.lnum;
-                let col = (*g_st().curbuf).b_changelist[idx].mark.col;
+                let lnum = curbuf_mut().b_changelist[idx].mark.lnum;
+                let col = curbuf_mut().b_changelist[idx].mark.col;
                 let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
                 let bytes = s.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
@@ -1310,13 +1310,13 @@ pub fn ex_changes(_eap: &mut exarg_T) {
                 g_st().IObuff[copy_len] = NUL;
 
                 msg_outtrans(&raw const g_st().IObuff[0], 0, false);
-                let name = mark_line(&mut (*g_st().curbuf).b_changelist[idx].mark, 17);
+                let name = mark_line(&mut curbuf_mut().b_changelist[idx].mark, 17);
                 msg_outtrans(name.as_ptr(), HLF_D, false);
                 os_breakcheck();
             }
             i += 1;
         }
-        if curwin_mut().w_changelistidx == (*g_st().curbuf).b_changelistlen {
+        if curwin_mut().w_changelistidx == curbuf_mut().b_changelistlen {
             msg_puts(c"\n>");
         }
     }
@@ -1388,9 +1388,9 @@ pub fn mark_adjust(
     amount_after: linenr_T,
     op: ExtmarkOp,
 ) {
-    unsafe {
+     {
         mark_adjust_buf(
-            &mut *g_st().curbuf,
+            curbuf_mut(),
             line1,
             line2,
             amount,
@@ -1410,9 +1410,9 @@ pub fn mark_adjust_nofold(
     amount_after: linenr_T,
     op: ExtmarkOp,
 ) {
-    unsafe {
+     {
         mark_adjust_buf(
-            &mut *g_st().curbuf,
+            curbuf_mut(),
             line1,
             line2,
             amount,
@@ -1739,7 +1739,7 @@ pub fn mark_col_adjust(
     spaces_removed: c_int,
 ) {
     unsafe {
-        let fnum = (*g_st().curbuf).b_fnum;
+        let fnum = curbuf_mut().b_fnum;
 
         if (col_amount == 0 && lnum_amount == 0) || (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
             return;
@@ -1748,7 +1748,7 @@ pub fn mark_col_adjust(
         let fm_base = (&raw mut g_st().namedfm).cast::<xfmark_T>();
         for i in 0..NMARKS {
             col_adjust(
-                &mut (*g_st().curbuf).b_namedm[i].mark,
+                &mut curbuf_mut().b_namedm[i].mark,
                 lnum,
                 mincol,
                 lnum_amount,
@@ -1782,7 +1782,7 @@ pub fn mark_col_adjust(
         }
 
         col_adjust(
-            &mut (*g_st().curbuf).b_last_insert.mark,
+            &mut curbuf_mut().b_last_insert.mark,
             lnum,
             mincol,
             lnum_amount,
@@ -1790,7 +1790,7 @@ pub fn mark_col_adjust(
             spaces_removed,
         );
         col_adjust(
-            &mut (*g_st().curbuf).b_last_change.mark,
+            &mut curbuf_mut().b_last_change.mark,
             lnum,
             mincol,
             lnum_amount,
@@ -1800,7 +1800,7 @@ pub fn mark_col_adjust(
 
         if bt_prompt(g_st().curbuf) {
             col_adjust(
-                &mut (*g_st().curbuf).b_prompt_start.mark,
+                &mut curbuf_mut().b_prompt_start.mark,
                 lnum,
                 mincol,
                 lnum_amount,
@@ -1809,9 +1809,9 @@ pub fn mark_col_adjust(
             );
         }
 
-        for i in 0..((*g_st().curbuf).b_changelistlen as usize) {
+        for i in 0..(curbuf_mut().b_changelistlen as usize) {
             col_adjust(
-                &mut (*g_st().curbuf).b_changelist[i].mark,
+                &mut curbuf_mut().b_changelist[i].mark,
                 lnum,
                 mincol,
                 lnum_amount,
@@ -1821,7 +1821,7 @@ pub fn mark_col_adjust(
         }
 
         col_adjust(
-            &mut (*g_st().curbuf).b_visual.vi_start,
+            &mut curbuf_mut().b_visual.vi_start,
             lnum,
             mincol,
             lnum_amount,
@@ -1829,7 +1829,7 @@ pub fn mark_col_adjust(
             spaces_removed,
         );
         col_adjust(
-            &mut (*g_st().curbuf).b_visual.vi_end,
+            &mut curbuf_mut().b_visual.vi_end,
             lnum,
             mincol,
             lnum_amount,
@@ -1909,7 +1909,7 @@ pub fn mark_col_adjust(
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
 pub fn cleanup_jumplist(wp: &mut win_T, loadfiles: bool) {
-    unsafe {
+     {
         if loadfiles {
             for i in 0..(wp.w_jumplistlen as usize) {
                 if wp.w_jumplist[i].fmark.fnum == 0 && wp.w_jumplist[i].fmark.mark.lnum != 0 {
@@ -1961,7 +1961,7 @@ pub fn cleanup_jumplist(wp: &mut win_T, loadfiles: bool) {
 
         if loadfiles && wp.w_jumplistlen != 0 && wp.w_jumplistidx == wp.w_jumplistlen {
             let last_idx = (wp.w_jumplistlen - 1) as usize;
-            if wp.w_jumplist[last_idx].fmark.fnum == (*g_st().curbuf).b_fnum
+            if wp.w_jumplist[last_idx].fmark.fnum == curbuf_mut().b_fnum
                 && wp.w_jumplist[last_idx].fmark.mark.lnum == wp.w_cursor.lnum
             {
                 wp.w_jumplist[last_idx].fname = None;
@@ -2218,7 +2218,7 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).
 pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
-    unsafe {
+     {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 
         for i in 0..NMARKS {
@@ -2236,7 +2236,7 @@ pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
             l,
             c"''",
             &curwin_mut().w_pcmark,
-            (*g_st().curbuf).b_fnum,
+            curbuf_mut().b_fnum,
             ptr::null(),
         );
         add_mark(

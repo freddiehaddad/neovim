@@ -434,8 +434,8 @@ fn buf_write_do_autocmds(
             did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, (eap.is_some()).then(||  { eap.unwrap() }));
             if did_cmd {
                 if was_changed && !curbufIsChanged() {
-                    u_unchanged(&mut *g_st().curbuf);
-                    u_update_save_nr(&mut *g_st().curbuf);
+                    u_unchanged(curbuf_mut());
+                    u_update_save_nr(curbuf_mut());
                 }
             } else if overwriting && bt_nofilename(g_st().curbuf) {
                 nofile_err = true;
@@ -481,7 +481,7 @@ fn buf_write_do_autocmds(
             if nofile_err {
                 let _ = semsg!(
                     gettext(c"E676: No matching autocommands for buftype=%s buffer"),
-                    (*g_st().curbuf).b_p_bt,
+                    curbuf_mut().b_p_bt,
                 );
             }
 
@@ -559,9 +559,9 @@ fn buf_write_do_post_autocmds(
     reset_changed: bool,
     whole: bool,
 ) {
-    unsafe {
+     {
         let mut aco: CtxSwitch = CtxSwitch::new();
-        (*g_st().curbuf).b_no_eol_lnum = 0;
+        curbuf_mut().b_no_eol_lnum = 0;
 
         let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 

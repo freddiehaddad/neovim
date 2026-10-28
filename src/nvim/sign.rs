@@ -806,7 +806,7 @@ fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
                 ptr::null_mut(),
                 None,
                 lnum,
-                if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 },
+                if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 },
                 curwin_ptr(),
             )
             {

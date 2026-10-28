@@ -942,7 +942,7 @@ pub fn get_spec_reg(
                 if errmsg {
                     check_fname();
                 }
-                *argp = (*g_st().curbuf).b_fname;
+                *argp = curbuf_mut().b_fname;
                 true
             }
             x if x == c_int::from(b'#') => {
@@ -1303,14 +1303,14 @@ pub fn op_yank_reg(oap: &mut oparg_T, message: bool, mut reg: *mut yankreg_T, ap
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = oap.start;
-            (*g_st().curbuf).b_op_end = oap.end;
+            curbuf_mut().b_op_start = oap.start;
+            curbuf_mut().b_op_end = oap.end;
             if yank_type == MotionType::kMTLineWise {
-                (*g_st().curbuf).b_op_start.col = 0;
-                (*g_st().curbuf).b_op_end.col = MAXCOL;
+                curbuf_mut().b_op_start.col = 0;
+                curbuf_mut().b_op_end.col = MAXCOL;
             }
             if yank_type == MotionType::kMTCharWise && !oap.inclusive {
-                decl(&mut (*g_st().curbuf).b_op_end);
+                decl(&mut curbuf_mut().b_op_end);
             }
         }
     }
@@ -1559,16 +1559,16 @@ pub fn do_put(
         let mut expr_y_array: Vec<NvimString> = Vec::new();
         let mut y_allocated = true;
         let mut nr_lines: linenr_T = 0;
-        let orig_start = (*g_st().curbuf).b_op_start;
-        let orig_end = (*g_st().curbuf).b_op_end;
+        let orig_start = curbuf_mut().b_op_start;
+        let orig_end = curbuf_mut().b_op_end;
         let cur_ve_flags = get_ve_flags(curwin_ptr());
 
         if ins_compl_preinsert_effect() {
             ins_compl_delete(false);
         }
 
-        (*g_st().curbuf).b_op_start = curwin_mut().w_cursor;
-        (*g_st().curbuf).b_op_end = curwin_mut().w_cursor;
+        curbuf_mut().b_op_start = curwin_mut().w_cursor;
+        curbuf_mut().b_op_end = curwin_mut().w_cursor;
 
         if regname == c_int::from(b'.') && reg.is_null() {
             let non_linewise_vis = g_st().Visual.active && g_st().Visual.mode != c_int::from(b'V');
@@ -1644,7 +1644,7 @@ pub fn do_put(
                     let ve_allows =
                         cur_ve_flags == kOptVeFlagAll || cur_ve_flags == kOptVeFlagOnemore;
                     let eof =
-                        (*g_st().curbuf).b_ml.ml_line_count == curwin_mut().w_cursor.lnum && one_past_line;
+                        curbuf_mut().b_ml.ml_line_count == curwin_mut().w_cursor.lnum && one_past_line;
                     if ve_allows || !(eol || eof) {
                         stuffcharReadbuff(c_int::from(b'l'));
                     }
@@ -1680,7 +1680,7 @@ pub fn do_put(
             return;
         }
 
-        if (*g_st().curbuf).terminal.is_null()
+        if curbuf_mut().terminal.is_null()
             && !u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1)
         {
             return;
@@ -1752,7 +1752,7 @@ pub fn do_put(
         }
 
         'end: {
-            if !(*g_st().curbuf).terminal.is_null() {
+            if !curbuf_mut().terminal.is_null() {
                 terminal_paste(count, y_array, y_size);
                 break 'end;
             }
@@ -1790,11 +1790,11 @@ pub fn do_put(
                     buf_updates_send_changes(g_st().curbuf, curwin_mut().w_cursor.lnum, 1, 1);
                 }
                 if (flags & PUT_LINE_FORWARD) != 0 {
-                    curwin_mut().w_cursor = (*g_st().curbuf).b_visual.vi_end;
+                    curwin_mut().w_cursor = curbuf_mut().b_visual.vi_end;
                     dir = FORWARD;
                 }
-                (*g_st().curbuf).b_op_start = curwin_mut().w_cursor;
-                (*g_st().curbuf).b_op_end = curwin_mut().w_cursor;
+                curbuf_mut().b_op_start = curwin_mut().w_cursor;
+                curbuf_mut().b_op_end = curwin_mut().w_cursor;
             }
 
             if (flags & PUT_LINE) != 0 {
@@ -1815,7 +1815,7 @@ pub fn do_put(
 
             if y_type == MotionType::kMTBlockWise {
                 lnum = curwin_mut().w_cursor.lnum + (y_size as linenr_T) + 1;
-                lnum = lnum.min((*g_st().curbuf).b_ml.ml_line_count + 1);
+                lnum = lnum.min(curbuf_mut().b_ml.ml_line_count + 1);
                 if !u_save(curwin_mut().w_cursor.lnum - 1, lnum) {
                     break 'end;
                 }
@@ -1829,7 +1829,7 @@ pub fn do_put(
                 if dir == FORWARD {
                     lnum += 1;
                 }
-                let save_res = if buf_is_empty(&mut *g_st().curbuf) {
+                let save_res = if buf_is_empty(curbuf_mut()) {
                     u_save(0, 2)
                 } else {
                     u_save(lnum - 1, lnum)
@@ -1842,7 +1842,7 @@ pub fn do_put(
                 } else {
                     curwin_mut().w_cursor.lnum = lnum;
                 }
-                (*g_st().curbuf).b_op_start = curwin_mut().w_cursor;
+                curbuf_mut().b_op_start = curwin_mut().w_cursor;
             } else if !u_save_cursor() {
                 break 'end;
             }
@@ -1850,9 +1850,9 @@ pub fn do_put(
             if cur_ve_flags == kOptVeFlagAll && y_type == MotionType::kMTCharWise {
                 if gchar_cursor() == TAB {
                     let viscol = getviscol();
-                    let ts = (*g_st().curbuf).b_p_ts;
+                    let ts = curbuf_mut().b_p_ts;
                     let cond = if dir == FORWARD {
-                        tabstop_padding(viscol, ts, &(*g_st().curbuf).b_p_vts_array) != 1
+                        tabstop_padding(viscol, ts, &curbuf_mut().b_p_vts_array) != 1
                     } else {
                         curwin_mut().w_cursor.coladd > 0
                     };
@@ -1938,9 +1938,9 @@ pub fn do_put(
                     bd.endspaces = 0;
                     let mut delcount: c_int = 0;
 
-                    if curwin_mut().w_cursor.lnum > (*g_st().curbuf).b_ml.ml_line_count {
+                    if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count {
                         if !ml_append(
-                            (*g_st().curbuf).b_ml.ml_line_count,
+                            curbuf_mut().b_ml.ml_line_count,
                             c"",
                             1,
                             false,
@@ -2080,19 +2080,19 @@ pub fn do_put(
                     g_st().curbuf,
                     lnum,
                     0,
-                    (*g_st().curbuf).b_op_start.lnum + (y_size as linenr_T) - nr_lines,
+                    curbuf_mut().b_op_start.lnum + (y_size as linenr_T) - nr_lines,
                     nr_lines,
                     true,
                 );
 
-                (*g_st().curbuf).b_op_start = curwin_mut().w_cursor;
-                (*g_st().curbuf).b_op_start.lnum = lnum;
+                curbuf_mut().b_op_start = curwin_mut().w_cursor;
+                curbuf_mut().b_op_start.lnum = lnum;
 
-                (*g_st().curbuf).b_op_end.lnum = curwin_mut().w_cursor.lnum - 1;
-                (*g_st().curbuf).b_op_end.col = (bd.textcol + (totlen as colnr_T) - 1).max(0);
-                (*g_st().curbuf).b_op_end.coladd = 0;
+                curbuf_mut().b_op_end.lnum = curwin_mut().w_cursor.lnum - 1;
+                curbuf_mut().b_op_end.col = (bd.textcol + (totlen as colnr_T) - 1).max(0);
+                curbuf_mut().b_op_end.coladd = 0;
                 if (flags & PUT_CURSEND) != 0 {
-                    curwin_mut().w_cursor = (*g_st().curbuf).b_op_end;
+                    curwin_mut().w_cursor = curbuf_mut().b_op_end;
                     curwin_mut().w_cursor.col += 1;
 
                     let len = get_cursor_line_len();
@@ -2109,10 +2109,10 @@ pub fn do_put(
                         col += bytelen;
                         if yanklen != 0 {
                             curwin_mut().w_cursor.col += bytelen;
-                            (*g_st().curbuf).b_op_end.col += bytelen;
+                            curbuf_mut().b_op_end.col += bytelen;
                         }
                     }
-                    (*g_st().curbuf).b_op_start = curwin_mut().w_cursor;
+                    curbuf_mut().b_op_start = curwin_mut().w_cursor;
                 } else if dir == BACKWARD {
                     lnum -= 1;
                 }
@@ -2124,11 +2124,11 @@ pub fn do_put(
                     let mut first_byte_off: c_int = 0;
 
                     if g_st().Visual.active {
-                        end_lnum = (*g_st().curbuf)
+                        end_lnum = curbuf_mut()
                             .b_visual
                             .vi_end
                             .lnum
-                            .max((*g_st().curbuf).b_visual.vi_start.lnum);
+                            .max(curbuf_mut().b_visual.vi_start.lnum);
                         if end_lnum > start_lnum {
                             let mut pos = pos_T {
                                 lnum,
@@ -2210,8 +2210,8 @@ pub fn do_put(
                         }
                     }
 
-                    (*g_st().curbuf).b_op_end = curwin_mut().w_cursor;
-                    (*g_st().curbuf).b_op_end.col -= first_byte_off;
+                    curbuf_mut().b_op_end = curwin_mut().w_cursor;
+                    curbuf_mut().b_op_end.col -= first_byte_off;
 
                     if totlen != 0 && (g_st().restart_edit != 0 || (flags & PUT_CURSEND) != 0) {
                         curwin_mut().w_cursor.col += 1;
@@ -2354,9 +2354,9 @@ pub fn do_put(
                     }
 
                     if y_type == MotionType::kMTLineWise {
-                        (*g_st().curbuf).b_op_start.col = 0;
+                        curbuf_mut().b_op_start.col = 0;
                         if dir == FORWARD {
-                            (*g_st().curbuf).b_op_start.lnum += 1;
+                            curbuf_mut().b_op_start.lnum += 1;
                         }
                     }
 
@@ -2367,7 +2367,7 @@ pub fn do_put(
                         kExtmarkNOOP
                     };
                     mark_adjust(
-                        (*g_st().curbuf).b_op_start.lnum
+                        curbuf_mut().b_op_start.lnum
                             + linenr_T::from(y_type == MotionType::kMTCharWise),
                         MAXLNUM,
                         nr_lines,
@@ -2387,27 +2387,27 @@ pub fn do_put(
                     } else {
                         changed_lines(
                             g_st().curbuf,
-                            (*g_st().curbuf).b_op_start.lnum,
+                            curbuf_mut().b_op_start.lnum,
                             0,
-                            (*g_st().curbuf).b_op_start.lnum,
+                            curbuf_mut().b_op_start.lnum,
                             nr_lines,
                             true,
                         );
                     }
 
-                    (*g_st().curbuf).b_op_end.lnum = new_lnum;
+                    curbuf_mut().b_op_end.lnum = new_lnum;
                     let last_item = *y_array.add(y_size - 1);
                     col = ((last_item.size as colnr_T) - lendiff).max(0);
                     if col > 1 {
-                        (*g_st().curbuf).b_op_end.col = col - 1;
+                        curbuf_mut().b_op_end.col = col - 1;
                         if last_item.size > 0 {
-                            (*g_st().curbuf).b_op_end.col -= utf_head_off(
+                            curbuf_mut().b_op_end.col -= utf_head_off(
                                 last_item.data,
                                 last_item.data.add(last_item.size - 1),
                             );
                         }
                     } else {
-                        (*g_st().curbuf).b_op_end.col = 0;
+                        curbuf_mut().b_op_end.col = 0;
                     }
 
                     if (flags & PUT_CURSLINE) != 0 {
@@ -2415,8 +2415,8 @@ pub fn do_put(
                         beginline(BL_WHITE | BL_FIX);
                     } else if (flags & PUT_CURSEND) != 0 {
                         if y_type == MotionType::kMTLineWise {
-                            if lnum >= (*g_st().curbuf).b_ml.ml_line_count {
-                                curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+                            if lnum >= curbuf_mut().b_ml.ml_line_count {
+                                curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
                             } else {
                                 curwin_mut().w_cursor.lnum = lnum + 1;
                             }
@@ -2424,9 +2424,9 @@ pub fn do_put(
                         } else {
                             curwin_mut().w_cursor.lnum = new_lnum;
                             curwin_mut().w_cursor.col = col;
-                            (*g_st().curbuf).b_op_end = curwin_mut().w_cursor;
+                            curbuf_mut().b_op_end = curwin_mut().w_cursor;
                             if col > 1 {
-                                (*g_st().curbuf).b_op_end.col = col - 1;
+                                curbuf_mut().b_op_end.col = col - 1;
                             }
                         }
                     } else if y_type == MotionType::kMTLineWise {
@@ -2454,8 +2454,8 @@ pub fn do_put(
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
-            (*g_st().curbuf).b_op_start = orig_start;
-            (*g_st().curbuf).b_op_end = orig_end;
+            curbuf_mut().b_op_start = orig_start;
+            curbuf_mut().b_op_end = orig_end;
         }
 
         if has_event(EVENT_TEXTPUTPOST) {
@@ -2474,7 +2474,7 @@ pub fn do_put(
 
         drop(insert_string_owned);
 
-        if (*g_st().curbuf).terminal.is_null() {
+        if curbuf_mut().terminal.is_null() {
             g_st().Visual.active = false;
         }
 
@@ -2618,13 +2618,13 @@ pub fn ex_display(eap: &mut exarg_T) {
             dis_msg(last_cmd.as_ptr(), false);
         }
 
-        if !(*g_st().curbuf).b_fname.is_null()
+        if !curbuf_mut().b_fname.is_null()
             && (arg.is_null() || !vim_strchr(arg, c_int::from(b'%')).is_null())
             && !g_st().got_int
-            && !message_filtered((*g_st().curbuf).b_fname)
+            && !message_filtered(curbuf_mut().b_fname)
         {
             msg_puts(c"\n  c  \"%   ");
-            dis_msg((*g_st().curbuf).b_fname, false);
+            dis_msg(curbuf_mut().b_fname, false);
         }
 
         if (arg.is_null() || !vim_strchr(arg, c_int::from(b'#')).is_null()) && !g_st().got_int {

@@ -102,7 +102,7 @@ pub fn find_buffer(avar: &mut typval_T) -> *mut buf_T {
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 fn find_win_for_curbuf() {
     unsafe {
-        for wip in &(*g_st().curbuf).b_wininfo {
+        for wip in &curbuf_mut().b_wininfo {
             if !wip.wi_win.is_null() && (*wip.wi_win).w_buffer == g_st().curbuf {
                 set_curwin(wip.wi_win);
                 break;
@@ -172,7 +172,7 @@ fn set_buffer_lines(
         let append_lnum = if append {
             lnum - 1
         } else {
-            (*g_st().curbuf).b_ml.ml_line_count
+            curbuf_mut().b_ml.ml_line_count
         };
 
         let mut l: *mut list_T = ptr::null_mut();
@@ -204,7 +204,7 @@ fn set_buffer_lines(
             let Some(ref line_cstr) = line else {
                 break;
             };
-            if lnum > (*g_st().curbuf).b_ml.ml_line_count + 1 {
+            if lnum > curbuf_mut().b_ml.ml_line_count + 1 {
                 break;
             }
 
@@ -213,7 +213,7 @@ fn set_buffer_lines(
                 u_sync(true);
             }
 
-            if !append && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
+            if !append && lnum <= curbuf_mut().b_ml.ml_line_count {
                 let old_len = crate::memory::cstr_len(ml_get(lnum)) as c_int;
                 if u_savesub(lnum)
                     && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true)
@@ -348,8 +348,8 @@ fn prompt_trim_scrollback(buf: &mut buf_T) {
 /// Invokes the user-defined callback defined for the current prompt-buffer (`prompt_invoke_callback`).
 pub fn prompt_invoke_callback() {
     unsafe {
-        let lnum = (*g_st().curbuf).b_ml.ml_line_count;
-        let Some(user_input) = prompt_get_input(&mut *g_st().curbuf) else {
+        let lnum = curbuf_mut().b_ml.ml_line_count;
+        let Some(user_input) = prompt_get_input(curbuf_mut()) else {
             return;
         };
 
@@ -357,9 +357,9 @@ pub fn prompt_invoke_callback() {
         appended_lines_mark(lnum, 1);
         curwin_mut().w_cursor.lnum = lnum + 1;
         curwin_mut().w_cursor.col = 0;
-        (*g_st().curbuf).b_prompt_start.mark.lnum = lnum + 1;
+        curbuf_mut().b_prompt_start.mark.lnum = lnum + 1;
 
-        if (*g_st().curbuf).b_prompt_callback.cb_type() != kCallbackNone {
+        if curbuf_mut().b_prompt_callback.cb_type() != kCallbackNone {
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
@@ -389,19 +389,19 @@ pub fn prompt_invoke_callback() {
             tv_clear(&raw mut rettv);
         }
 
-        u_clearallandblockfree(&mut *g_st().curbuf);
+        u_clearallandblockfree(curbuf_mut());
 
-        (*g_st().curbuf).b_prompt_start.mark.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-        (*g_st().curbuf).b_prompt_append_new_line = true;
+        curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count;
+        curbuf_mut().b_prompt_append_new_line = true;
 
-        prompt_trim_scrollback(&mut *g_st().curbuf);
+        prompt_trim_scrollback(curbuf_mut());
     }
 }
 
 /// Return true when the interrupt callback was invoked (`invoke_prompt_interrupt`).
 pub fn invoke_prompt_interrupt() -> bool {
     unsafe {
-        if (*g_st().curbuf).b_prompt_interrupt.cb_type() == kCallbackNone {
+        if curbuf_mut().b_prompt_interrupt.cb_type() == kCallbackNone {
             return false;
         }
         let mut rettv = typval_T {
@@ -682,8 +682,8 @@ pub fn f_deletebufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             change_other_buffer_prepare(&mut cob, buf);
         }
 
-        if last > (*g_st().curbuf).b_ml.ml_line_count {
-            last = (*g_st().curbuf).b_ml.ml_line_count;
+        if last > curbuf_mut().b_ml.ml_line_count {
+            last = curbuf_mut().b_ml.ml_line_count;
         }
         let count: c_int = last - first + 1;
 
@@ -1067,7 +1067,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
 
         if bt_prompt(buf) && (*buf).b_ml.ml_mfp.is_some() {
             if (*buf).b_prompt_start.mark.lnum < 1
-                || (*buf).b_prompt_start.mark.lnum > (*g_st().curbuf).b_ml.ml_line_count
+                || (*buf).b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
             {
                 (*buf).b_prompt_start.mark.lnum = (*buf)
                     .b_prompt_start
@@ -1075,7 +1075,7 @@ pub fn f_prompt_setprompt(argvars: &mut [typval_T], _rettv: &mut typval_T,
                     .lnum
                     .min((*buf).b_ml.ml_line_count)
                     .max(1);
-                (*g_st().curbuf).b_prompt_append_new_line = true;
+                curbuf_mut().b_prompt_append_new_line = true;
             }
 
             let prompt_lno = (*buf).b_prompt_start.mark.lnum;

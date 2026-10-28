@@ -51,7 +51,7 @@ fn tobj_st() -> &'static mut TextobjectState {
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).
 pub fn findsent(dir: Direction, mut count: c_int) -> bool {
-    unsafe {
+     {
         let mut c: c_int;
         let func: fn(&mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
         let mut noskip = false;
@@ -82,7 +82,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
             } else if dir == FORWARD && pos.col == 0 && startPS(pos.lnum, c_int::from(NUL), false) {
                 // if on the start of a paragraph or a section and searching forward,
                 // go to the next line
-                if pos.lnum == (*g_st().curbuf).b_ml.ml_line_count {
+                if pos.lnum == curbuf_mut().b_ml.ml_line_count {
                     return false;
                 }
                 pos.lnum += 1;
@@ -234,7 +234,7 @@ pub fn findpar(pincl: &mut bool,
                     curr -= dir;
                 }
                 curr += dir;
-                if curr < 1 || curr > (*g_st().curbuf).b_ml.ml_line_count {
+                if curr < 1 || curr > curbuf_mut().b_ml.ml_line_count {
                     if count != 0 {
                         return false;
                     }
@@ -249,7 +249,7 @@ pub fn findpar(pincl: &mut bool,
             curr += 1;
         }
         curwin_mut().w_cursor.lnum = curr;
-        if curr == (*g_st().curbuf).b_ml.ml_line_count && what != b'}' as c_int && dir == FORWARD {
+        if curr == curbuf_mut().b_ml.ml_line_count && what != b'}' as c_int && dir == FORWARD {
             let line = ml_get(curr);
 
             // Put the cursor on the last character in the last line and make the
@@ -348,7 +348,7 @@ pub fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> bool {
             }
             let sclass = cls();
 
-            let last_line = curwin_mut().w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count;
+            let last_line = curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count;
             let mut i = inc_cursor();
             if i == -1 || (i >= 1 && last_line) {
                 return false;
@@ -733,7 +733,7 @@ pub fn current_line(oap: &mut oparg_T, include: bool) -> bool {
                 oap.start.coladd = 0;
                 oap.motion_type = kMTLineWise;
             }
-            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
             curwin_mut().w_cursor.col = 0;
             curwin_mut().w_cursor.coladd = 0;
             return true;
@@ -1307,7 +1307,7 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
 
 /// Find paragraph under the cursor (`current_par`).
 pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int) -> bool {
-    unsafe {
+     {
         let mut retval = true;
         let mut do_white = false;
 
@@ -1332,7 +1332,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
             }
 
             let mut end_lnum = start_lnum;
-            while end_lnum <= (*g_st().curbuf).b_ml.ml_line_count && linewhite(end_lnum) {
+            while end_lnum <= curbuf_mut().b_ml.ml_line_count && linewhite(end_lnum) {
                 end_lnum += 1;
             }
 
@@ -1346,7 +1346,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                 i -= 1;
                 old != 0
             } {
-                if end_lnum == (*g_st().curbuf).b_ml.ml_line_count {
+                if end_lnum == curbuf_mut().b_ml.ml_line_count {
                     return false;
                 }
 
@@ -1356,7 +1356,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
 
                 if include || !do_white {
                     end_lnum += 1;
-                    while end_lnum < (*g_st().curbuf).b_ml.ml_line_count
+                    while end_lnum < curbuf_mut().b_ml.ml_line_count
                         && !linewhite(end_lnum + 1)
                         && !startPS(end_lnum + 1, 0, false)
                     {
@@ -1369,7 +1369,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                 }
 
                 if include || do_white {
-                    while end_lnum < (*g_st().curbuf).b_ml.ml_line_count && linewhite(end_lnum + 1) {
+                    while end_lnum < curbuf_mut().b_ml.ml_line_count && linewhite(end_lnum + 1) {
                         end_lnum += 1;
                     }
                 }
@@ -1419,7 +1419,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                 == (if dir == BACKWARD {
                     1
                 } else {
-                    (*g_st().curbuf).b_ml.ml_line_count
+                    curbuf_mut().b_ml.ml_line_count
                 })
             {
                 retval = false;
@@ -1439,7 +1439,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                         == (if dir == BACKWARD {
                             1
                         } else {
-                            (*g_st().curbuf).b_ml.ml_line_count
+                            curbuf_mut().b_ml.ml_line_count
                         })
                     {
                         break;
@@ -1459,7 +1459,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
                     == (if dir == BACKWARD {
                         1
                     } else {
-                        (*g_st().curbuf).b_ml.ml_line_count
+                        curbuf_mut().b_ml.ml_line_count
                     })
                 {
                     break;
@@ -1626,7 +1626,7 @@ pub fn current_quote(
                 if col_start < 0 {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
-                col_end = find_next_quote(line, col_start + 1, quotechar, (*g_st().curbuf).b_p_qe);
+                col_end = find_next_quote(line, col_start + 1, quotechar, curbuf_mut().b_p_qe);
                 if col_end < 0 {
                     col_end = col_start;
                     col_start = curwin_mut().w_cursor.col;
@@ -1636,7 +1636,7 @@ pub fn current_quote(
                 if c_int::from(*line.add(col_end as usize) as u8) != quotechar {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
-                col_start = find_prev_quote(line, col_end, quotechar, (*g_st().curbuf).b_p_qe);
+                col_start = find_prev_quote(line, col_end, quotechar, curbuf_mut().b_p_qe);
                 if c_int::from(*line.add(col_start as usize) as u8) != quotechar {
                     col_start = col_end;
                     col_end = curwin_mut().w_cursor.col;
@@ -1658,7 +1658,7 @@ pub fn current_quote(
                 if col_start < 0 || col_start > first_col {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
-                col_end = find_next_quote(line, col_start + 1, quotechar, (*g_st().curbuf).b_p_qe);
+                col_end = find_next_quote(line, col_start + 1, quotechar, curbuf_mut().b_p_qe);
                 if col_end < 0 {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
@@ -1668,7 +1668,7 @@ pub fn current_quote(
                 col_start = col_end + 1;
             }
         } else {
-            col_start = find_prev_quote(line, col_start, quotechar, (*g_st().curbuf).b_p_qe);
+            col_start = find_prev_quote(line, col_start, quotechar, curbuf_mut().b_p_qe);
             if c_int::from(*line.add(col_start as usize) as u8) != quotechar {
                 col_start = find_next_quote(line, col_start, quotechar, ptr::null_mut());
                 if col_start < 0 {
@@ -1676,7 +1676,7 @@ pub fn current_quote(
                 }
             }
 
-            col_end = find_next_quote(line, col_start + 1, quotechar, (*g_st().curbuf).b_p_qe);
+            col_end = find_next_quote(line, col_start + 1, quotechar, curbuf_mut().b_p_qe);
             if col_end < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }

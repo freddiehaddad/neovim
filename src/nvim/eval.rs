@@ -5833,7 +5833,7 @@ pub fn list2fpos(
             }
             if n == 0 {
                 {
-                    n = (*g_st().curbuf).b_fnum;
+                    n = curbuf_mut().b_fnum;
                 }
             }
             *fnump.as_deref_mut().unwrap() = n;
@@ -5855,7 +5855,7 @@ pub fn list2fpos(
             let buf = buflist_findnr(if let Some(fnump) = fnump {
                 *fnump
             } else {
-                (*g_st().curbuf).b_fnum
+                curbuf_mut().b_fnum
             });
             if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                 return false;

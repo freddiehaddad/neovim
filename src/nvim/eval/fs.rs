@@ -463,7 +463,7 @@ pub fn modify_fname(
 /// "chdir(dir)" function
 pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
@@ -501,11 +501,11 @@ pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 semsg!(gettext(e_invargNval), c"scope", s);
                 return;
             }
-        } else if (*g_st().curbuf).b_localdir.is_some() {
+        } else if curbuf_mut().b_localdir.is_some() {
             scope = kCdScopeBuffer;
         } else if curwin_mut().w_localdir.is_some() {
             scope = kCdScopeWindow;
-        } else if (*g_st().curtab).tp_localdir.is_some() {
+        } else if curtab_mut().tp_localdir.is_some() {
             scope = kCdScopeTabpage;
         }
 
@@ -639,10 +639,10 @@ pub fn f_filewritable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int) {
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
-        let mut path = if *(*g_st().curbuf).b_p_path == NUL {
+        let mut path = if *curbuf_mut().b_p_path == NUL {
             opt_vars().p_path
         } else {
-            (*g_st().curbuf).b_p_path
+            curbuf_mut().b_p_path
         };
         let mut count: c_int = 1;
         let mut first = true;
@@ -689,11 +689,11 @@ fn findfilendir(argvars: &mut [typval_T], rettv: &mut typval_T, find_what: c_int
                     c_int::from(first),
                     path,
                     find_what,
-                    (*g_st().curbuf).b_ffname,
+                    curbuf_mut().b_ffname,
                     if find_what == FINDFILE_DIR {
                         c"".as_ptr().cast_mut()
                     } else {
-                        (*g_st().curbuf).b_p_sua
+                        curbuf_mut().b_p_sua
                     },
                     &mut file_to_find,
                     &mut search_ctx,

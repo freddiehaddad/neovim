@@ -1526,12 +1526,12 @@ pub fn get_buf_arg(arg: &mut typval_T) -> *mut buf_T {
 /// "byte2line(byte)" function
 pub fn f_byte2line(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let mut boff = (tv_get_number(&argvars[0]) as c_int) - 1;
         if boff < 0 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(ml_find_line_or_offset(&mut *g_st().curbuf, 0, Some(&mut boff), false) as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(ml_find_line_or_offset(curbuf_mut(), 0, Some(&mut boff), false) as varnumber_T);
         }
     }
 }
@@ -1603,8 +1603,8 @@ pub fn f_call(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
 /// "changenr()" function
 pub fn f_changenr(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from((*g_st().curbuf).b_u_seq_cur));
+     {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(curbuf_mut().b_u_seq_cur));
     }
 }
 
@@ -2081,8 +2081,8 @@ pub fn f_dictwatcherdel(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: 
 
 /// "did_filetype()" function
 pub fn f_did_filetype(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from((*g_st().curbuf).b_did_filetype));
+     {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(curbuf_mut().b_did_filetype));
     }
 }
 
@@ -3420,12 +3420,12 @@ fn add_regionpos_range(rettv: &mut typval_T, p1: pos_T, p2: pos_T) {
         let l3 = tv_list_alloc(4);
         tv_list_append_list(l1, l3);
 
-        tv_list_append_number(l2, varnumber_T::from((*g_st().curbuf).b_fnum));
+        tv_list_append_number(l2, varnumber_T::from(curbuf_mut().b_fnum));
         tv_list_append_number(l2, varnumber_T::from(p1.lnum));
         tv_list_append_number(l2, varnumber_T::from(p1.col));
         tv_list_append_number(l2, varnumber_T::from(p1.coladd));
 
-        tv_list_append_number(l3, varnumber_T::from((*g_st().curbuf).b_fnum));
+        tv_list_append_number(l3, varnumber_T::from(curbuf_mut().b_fnum));
         tv_list_append_number(l3, varnumber_T::from(p2.lnum));
         tv_list_append_number(l3, varnumber_T::from(p2.col));
         tv_list_append_number(l3, varnumber_T::from(p2.coladd));
@@ -3791,7 +3791,7 @@ pub fn f_has(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
             n = has_nvim_version(crate::memory::cstr_as_bytes(name.add(5)));
         } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"vim_starting") {
             x = true;
-            n = *starting.as_ptr() != 0;
+            n = starting_val() != 0;
         } else if crate::memory::cstr_as_bytes(name).eq_ignore_ascii_case(b"ttyin") {
             x = true;
             n = g_st().stdin_isatty;
@@ -4718,21 +4718,21 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                 text_locked_msg();
                 return;
             }
-            if (*g_st().curbuf).b_changed != 0 {
+            if curbuf_mut().b_changed != 0 {
                 emsg(gettext(
                     c"jobstart(...,{term=true}) requires unmodified buffer",
                 ));
                 return;
             }
-            if !(*g_st().curbuf).terminal.is_null() {
-                if terminal_running(&*(*g_st().curbuf).terminal) {
+            if !curbuf_mut().terminal.is_null() {
+                if terminal_running(&*curbuf_mut().terminal) {
                     semsg!(
                         gettext(c"Terminal already connected to buffer %d"),
-                        (*g_st().curbuf).b_fnum,
+                        curbuf_mut().b_fnum,
                     );
                     return;
                 }
-                buf_close_terminal(&mut *g_st().curbuf);
+                buf_close_terminal(curbuf_mut());
             }
             debug_assert!(!rpc);
             term_name = c"xterm-256color".as_ptr();
@@ -5231,12 +5231,12 @@ pub fn f_line(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 /// "line2byte(lnum)" function
 pub fn f_line2byte(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let lnum = tv_get_lnum(&argvars[0]);
-        if lnum < 1 || lnum > (*g_st().curbuf).b_ml.ml_line_count + 1 {
+        if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count + 1 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(ml_find_line_or_offset(&mut *g_st().curbuf, lnum, None, false) as varnumber_T);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(ml_find_line_or_offset(curbuf_mut(), lnum, None, false) as varnumber_T);
         }
         if rettv.vval.v_number() >= 0 {
             *rettv.vval.v_number_mut() += 1;
@@ -6045,7 +6045,7 @@ pub fn f_nextnonblank(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
     unsafe {
         let mut lnum = tv_get_lnum(&argvars[0]);
         loop {
-            if lnum < 0 || lnum > (*g_st().curbuf).b_ml.ml_line_count {
+            if lnum < 0 || lnum > curbuf_mut().b_ml.ml_line_count {
                 lnum = 0;
                 break;
             }
@@ -6116,7 +6116,7 @@ pub fn f_prevnonblank(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 
     unsafe {
         let mut lnum = tv_get_lnum(&argvars[0]);
-        if lnum < 1 || lnum > (*g_st().curbuf).b_ml.ml_line_count {
+        if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
             lnum = 0;
         } else {
             while lnum >= 1 && *skipwhite(ml_get(lnum)) == NUL {
@@ -8332,7 +8332,7 @@ pub fn f_spellbadword(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 word = get_cursor_pos_ptr();
                 curwin_mut().w_set_curswant = true;
             }
-        } else if *(*g_st().curbuf).b_s.b_p_spl != NUL {
+        } else if *curbuf_mut().b_s.b_p_spl != NUL {
             let mut str_ = tv_get_string_chk(&argvars[0]);
             let mut capcol: c_int = -1;
             if !str_.is_null() {
@@ -8789,7 +8789,7 @@ pub fn f_swapname(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 /// "synID(lnum, col, trans)" function
 pub fn f_synID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let lnum = tv_get_lnum(&argvars[0]);
         let col = (tv_get_number(&argvars[1]) as colnr_T) - 1;
 
@@ -8799,7 +8799,7 @@ pub fn f_synID(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
         let mut id: c_int = 0;
         if !transerr
             && lnum >= 1
-            && lnum <= (*g_st().curbuf).b_ml.ml_line_count
+            && lnum <= curbuf_mut().b_ml.ml_line_count
             && col >= 0
             && col < ml_get_len(lnum)
         {
@@ -8910,7 +8910,7 @@ pub fn f_synIDtrans(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 /// "synconcealed(lnum, col)" function
 pub fn f_synconcealed(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let mut syntax_flags: c_int = 0;
         let mut matchid: c_int = 0;
         let mut str_ = [0 as c_char; NUMBUFLEN];
@@ -8921,7 +8921,7 @@ pub fn f_synconcealed(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         let col = (tv_get_number(&argvars[1]) as colnr_T) - 1;
 
         if lnum >= 1
-            && lnum <= (*g_st().curbuf).b_ml.ml_line_count
+            && lnum <= curbuf_mut().b_ml.ml_line_count
             && col >= 0
             && col <= ml_get_len(lnum)
             && curwin_mut().w_onebuf_opt.wo_cole > 0
@@ -8957,13 +8957,13 @@ pub fn f_synconcealed(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 /// "synstack(lnum, col)" function
 pub fn f_synstack(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         tv_list_set_ret(rettv, ptr::null_mut());
 
         let lnum = tv_get_lnum(&argvars[0]);
         let col = (tv_get_number(&argvars[1]) as colnr_T) - 1;
 
-        if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count && col >= 0 && col <= ml_get_len(lnum)
+        if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count && col >= 0 && col <= ml_get_len(lnum)
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
             syn_get_id(curwin_ptr(), lnum, col, 0, None, 1);
@@ -9220,12 +9220,12 @@ pub fn f_virtcol(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 /// "visualmode()" function
 pub fn f_visualmode(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
-        let str_ = [(*g_st().curbuf).b_visual_mode_eval as c_char, NUL];
+     {
+        let str_ = [curbuf_mut().b_visual_mode_eval as c_char, NUL];
         crate::eval::typval::tv_set_string(rettv, str_.as_ptr());
 
         if non_zero_arg(&argvars[0]) {
-            (*g_st().curbuf).b_visual_mode_eval = 0;
+            curbuf_mut().b_visual_mode_eval = 0;
         }
     }
 }

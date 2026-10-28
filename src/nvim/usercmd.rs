@@ -1115,7 +1115,7 @@ pub fn uc_add_command(
 
         let u = &raw mut (*ucmds_mut());
         let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
-            &mut (*g_st().curbuf).b_ucmds
+            &mut curbuf_mut().b_ucmds
         } else {
             &mut *u
         };
@@ -1273,7 +1273,7 @@ pub fn ex_comclear(_eap: &mut exarg_T) {
         let u = &raw mut (*ucmds_mut());
         (*u).clear();
         if !g_st().curbuf.is_null() {
-            (*g_st().curbuf).b_ucmds.clear();
+            curbuf_mut().b_ucmds.clear();
         }
     }
 }
@@ -1291,7 +1291,7 @@ pub fn ex_delcommand(eap: &mut exarg_T) {
         }
 
         let mut is_global = false;
-        let mut gap: &mut Vec<ucmd_T> = &mut (*g_st().curbuf).b_ucmds;
+        let mut gap: &mut Vec<ucmd_T> = &mut curbuf_mut().b_ucmds;
         loop {
             i = 0;
             while (i as usize) < gap.len() {

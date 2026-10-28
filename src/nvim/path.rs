@@ -902,11 +902,11 @@ fn expand_path_option(
 
             if *buf == b'.' as c_char && (*buf.add(1) == NUL || vim_ispathsep(*buf.add(1) as c_int))
             {
-                if (*g_st().curbuf).b_ffname.is_null() {
+                if curbuf_mut().b_ffname.is_null() {
                     continue;
                 }
-                let p = path_tail((*g_st().curbuf).b_ffname);
-                let plen = p.offset_from((*g_st().curbuf).b_ffname) as usize;
+                let p = path_tail(curbuf_mut().b_ffname);
+                let plen = p.offset_from(curbuf_mut().b_ffname) as usize;
                 if plen + crate::memory::cstr_len(buf) >= MAXPATHL {
                     continue;
                 }
@@ -915,7 +915,7 @@ fn expand_path_option(
                 } else {
                     ptr::copy(buf.add(2), buf.add(plen), (buflen - 2) + 1);
                 }
-                ptr::copy((*g_st().curbuf).b_ffname, buf, plen);
+                ptr::copy(curbuf_mut().b_ffname, buf, plen);
                 buflen = simplify_filename(buf);
             } else if *buf == NUL {
                 let c_len = crate::memory::cstr_len(curdir);
@@ -1161,10 +1161,10 @@ fn expand_in_path(
 ) -> c_int {
     unsafe {
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
-        let path_option = if *(*g_st().curbuf).b_p_path == NUL {
+        let path_option = if *curbuf_mut().b_p_path == NUL {
             opt_vars().p_path
         } else {
-            (*g_st().curbuf).b_p_path
+            curbuf_mut().b_p_path
         };
 
         let mut curdir_arr = [0 as c_char; MAXPATHL];
@@ -1271,10 +1271,10 @@ pub fn gen_expand_wildcards_vec(
     unsafe {
         file.clear();
         let mut did_expand_in_path = false;
-        let path_option = if *(*g_st().curbuf).b_p_path == NUL {
+        let path_option = if *curbuf_mut().b_p_path == NUL {
             opt_vars().p_path
         } else {
-            (*g_st().curbuf).b_p_path
+            curbuf_mut().b_p_path
         };
 
         if path_st().EXPAND_RECURSIVE {

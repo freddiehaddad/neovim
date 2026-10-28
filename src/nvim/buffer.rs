@@ -894,7 +894,7 @@ fn buf_is_changed(buf: &buf_T) -> bool {
 
 #[inline]
 fn curbuf_is_changed() -> bool {
-    unsafe { buf_is_changed(&*g_st().curbuf) }
+     buf_is_changed(curbuf_mut())
 }
 
 #[inline]
@@ -949,20 +949,20 @@ pub fn get_highest_fnum() -> c_int {
 
 /// Read data from buffer for retrying.
 fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> bool {
-    unsafe {
+     {
         let silent = shortmess(kShmFileinfo);
 
-        let mut line_count = (*g_st().curbuf).b_ml.ml_line_count;
+        let mut line_count = curbuf_mut().b_ml.ml_line_count;
         let mut retval = readfile(
             if read_stdin {
                 ptr::null_mut()
             } else {
-                (*g_st().curbuf).b_ffname
+                curbuf_mut().b_ffname
             },
             if read_stdin {
                 ptr::null_mut()
             } else {
-                (*g_st().curbuf).b_fname
+                curbuf_mut().b_fname
             },
             line_count,
             0,
@@ -977,7 +977,7 @@ fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> bool {
                 ml_delete(1);
             }
         } else {
-            while (*g_st().curbuf).b_ml.ml_line_count > line_count {
+            while curbuf_mut().b_ml.ml_line_count > line_count {
                 ml_delete(line_count);
             }
         }
@@ -985,7 +985,7 @@ fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> bool {
         curwin_mut().w_cursor.col = 0;
 
         if read_stdin {
-            if !g_st().readonlymode && !buf_is_empty(&mut *g_st().curbuf) {
+            if !g_st().readonlymode && !buf_is_empty(curbuf_mut()) {
                 changed(g_st().curbuf);
             } else if retval == OK {
                 unchanged(g_st().curbuf, false, true);
@@ -1026,7 +1026,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
         let mut flags = flags_arg;
         let mut retval = OK;
         let mut old_curbuf: bufref_T = bufref_T::new();
-        let old_tw = (*g_st().curbuf).b_p_tw;
+        let old_tw = curbuf_mut().b_p_tw;
         #[cfg(unix)]
         let mut read_fifo = false;
         #[cfg(not(unix))]
@@ -1034,13 +1034,13 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
         let silent = shortmess(kShmFileinfo);
 
         if g_st().readonlymode
-            && !(*g_st().curbuf).b_ffname.is_null()
-            && ((*g_st().curbuf).b_flags & BF_NEVERLOADED) != 0
+            && !curbuf_mut().b_ffname.is_null()
+            && (curbuf_mut().b_flags & BF_NEVERLOADED) != 0
         {
-            (*g_st().curbuf).b_p_ro = 1;
+            curbuf_mut().b_p_ro = 1;
         }
 
-        if !ml_open(&mut *g_st().curbuf) {
+        if !ml_open(curbuf_mut()) {
             close_buffer(curwin_ptr(), g_st().curbuf, 0, false, false, false);
 
             g_st().curbuf = ptr::null_mut();
@@ -1065,18 +1065,18 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                 c"E83: Cannot allocate buffer, using other one...",
             ));
             enter_buffer(g_st().curbuf);
-            if old_tw != (*g_st().curbuf).b_p_tw {
+            if old_tw != curbuf_mut().b_p_tw {
                 check_colorcolumn(ptr::null_mut(), curwin_ptr());
             }
             return FAIL;
         }
 
-        if (*g_st().curbuf).b_ml.ml_mfp.is_some() {
-            (*(*g_st().curbuf).b_ml.mfp_ptr()).mf_dirty = MF_DIRTY_YES_NOSYNC;
+        if curbuf_mut().b_ml.ml_mfp.is_some() {
+            (*curbuf_mut().b_ml.mfp_ptr()).mf_dirty = MF_DIRTY_YES_NOSYNC;
         }
 
         set_bufref(&mut old_curbuf, g_st().curbuf);
-        (*g_st().curbuf).b_modified_was_set = false;
+        curbuf_mut().b_modified_was_set = false;
 
         curwin_mut().w_valid = 0;
 
@@ -1084,15 +1084,15 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             flags |= READ_NOFILE;
         }
 
-        if !(*g_st().curbuf).b_ffname.is_null() {
+        if !curbuf_mut().b_ffname.is_null() {
             #[cfg(unix)]
-            let save_bin = (*g_st().curbuf).b_p_bin;
+            let save_bin = curbuf_mut().b_p_bin;
             #[cfg(unix)]
             {
                 const S_IFMT: i32 = 0o170000;
                 const S_IFIFO: i32 = 0o010000;
                 const S_IFSOCK: i32 = 0o140000;
-                let perm = os_getperm((*g_st().curbuf).b_ffname);
+                let perm = os_getperm(curbuf_mut().b_ffname);
                 if perm >= 0 {
                     let fmt = perm & S_IFMT;
                     #[cfg(any(
@@ -1102,7 +1102,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                         target_os = "dragonfly",
                         target_os = "macos"
                     ))]
-                    let is_chr_fd = fmt == 0o020000 && is_dev_fd_file((*g_st().curbuf).b_ffname);
+                    let is_chr_fd = fmt == 0o020000 && is_dev_fd_file(curbuf_mut().b_ffname);
                     #[cfg(not(any(
                         target_os = "freebsd",
                         target_os = "netbsd",
@@ -1117,13 +1117,13 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                     }
                 }
                 if read_fifo {
-                    (*g_st().curbuf).b_p_bin = 1;
+                    curbuf_mut().b_p_bin = 1;
                 }
             }
 
             retval = readfile(
-                (*g_st().curbuf).b_ffname,
-                (*g_st().curbuf).b_fname,
+                curbuf_mut().b_ffname,
+                curbuf_mut().b_fname,
                 0,
                 0,
                 MAXLNUM,
@@ -1133,7 +1133,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             );
             #[cfg(unix)]
             if read_fifo {
-                (*g_st().curbuf).b_p_bin = save_bin;
+                curbuf_mut().b_p_bin = save_bin;
                 if retval == OK {
                     retval = if read_buffer(false, eap, flags) { OK } else { FAIL };
                 }
@@ -1143,9 +1143,9 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                 get_local_additions();
             }
         } else if read_stdin {
-            let save_bin = (*g_st().curbuf).b_p_bin;
+            let save_bin = curbuf_mut().b_p_bin;
 
-            (*g_st().curbuf).b_p_bin = 1;
+            curbuf_mut().b_p_bin = 1;
             retval = readfile(
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -1156,49 +1156,49 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                 flags | (READ_NEW + READ_STDIN),
                 silent,
             );
-            (*g_st().curbuf).b_p_bin = save_bin;
+            curbuf_mut().b_p_bin = save_bin;
             if retval == OK {
                 retval = if read_buffer(true, (eap.is_some()).then(||  { eap.unwrap() }), flags) { OK } else { FAIL };
             }
         }
 
-        if (*g_st().curbuf).b_ml.ml_mfp.is_some() {
-            let mfp = (*g_st().curbuf).b_ml.mfp_ptr();
+        if curbuf_mut().b_ml.ml_mfp.is_some() {
+            let mfp = curbuf_mut().b_ml.mfp_ptr();
             if (*mfp).mf_dirty == MF_DIRTY_YES_NOSYNC {
                 (*mfp).mf_dirty = MF_DIRTY_YES;
             }
         }
 
-        if ((*g_st().curbuf).b_flags & BF_NEVERLOADED) != 0 {
-            buf_init_isk_chartab(&mut *g_st().curbuf);
-            parse_cino(&mut *g_st().curbuf);
+        if (curbuf_mut().b_flags & BF_NEVERLOADED) != 0 {
+            buf_init_isk_chartab(curbuf_mut());
+            parse_cino(curbuf_mut());
         }
 
         if (g_st().got_int && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
-            || (*g_st().curbuf).b_modified_was_set
+            || curbuf_mut().b_modified_was_set
             || (aborting() && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
         {
             changed(g_st().curbuf);
         } else if retval != FAIL && !read_stdin && !read_fifo {
             unchanged(g_st().curbuf, false, true);
         }
-        save_file_ff(&mut *g_st().curbuf);
+        save_file_ff(curbuf_mut());
 
-        let tick = buf_get_changedtick(&*g_st().curbuf);
-        (*g_st().curbuf).b_last_changedtick = tick;
-        (*g_st().curbuf).b_last_changedtick_i = tick;
-        (*g_st().curbuf).b_last_changedtick_pum = tick;
+        let tick = buf_get_changedtick(curbuf_mut());
+        curbuf_mut().b_last_changedtick = tick;
+        curbuf_mut().b_last_changedtick_i = tick;
+        curbuf_mut().b_last_changedtick_pum = tick;
 
         if aborting() {
-            (*g_st().curbuf).b_flags |= BF_READERR;
+            curbuf_mut().b_flags |= BF_READERR;
         }
 
         if retval == NOTDONE
-            && *(*g_st().curbuf).b_p_ft == NUL
-            && !(*g_st().curbuf).b_ffname.is_null()
+            && *curbuf_mut().b_p_ft == NUL
+            && !curbuf_mut().b_ffname.is_null()
             && after_pathsep(
-                (*g_st().curbuf).b_ffname,
-                (*g_st().curbuf).b_ffname.add(crate::memory::cstr_len((*g_st().curbuf).b_ffname)),
+                curbuf_mut().b_ffname,
+                curbuf_mut().b_ffname.add(crate::memory::cstr_len(curbuf_mut().b_ffname)),
             ) != 0
             && augroup_exists(c"filetypedetect")
         {
@@ -1244,7 +1244,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
                 0,
             );
             do_modelines(0);
-            (*g_st().curbuf).b_flags &= !(BF_CHECK_RO | BF_NEVERLOADED);
+            curbuf_mut().b_flags &= !(BF_CHECK_RO | BF_NEVERLOADED);
 
             if (flags & READ_NOWINENTER) == 0 {
                 apply_autocmds_retval(
@@ -1563,11 +1563,11 @@ pub fn buf_clear_file(buf: &mut buf_T) {
 
 /// Clears the current buffer contents.
 pub fn buf_clear() {
-    unsafe {
-        let line_count = (*g_st().curbuf).b_ml.ml_line_count;
-        extmark_free_all(&mut *g_st().curbuf);
+     {
+        let line_count = curbuf_mut().b_ml.ml_line_count;
+        extmark_free_all(curbuf_mut());
         mc_buf_free(g_st().curbuf);
-        while ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) == 0 {
+        while (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
             ml_delete(1);
         }
         deleted_lines_mark(1, line_count);
@@ -1884,7 +1884,7 @@ pub fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
 pub fn handle_swap_exists(mut old_curbuf: Option<&mut bufref_T>) {
     unsafe {
         let mut cs: cleanup_T = cleanup_T::new();
-        let old_tw = (*g_st().curbuf).b_p_tw;
+        let old_tw = curbuf_mut().b_p_tw;
 
         if g_st().swap_exists_action == SEA_QUIT {
             enter_cleanup(&mut cs);
@@ -1905,7 +1905,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut bufref_T>) {
             };
             if !buf.is_null() {
                 enter_buffer(buf);
-                if old_tw != (*g_st().curbuf).b_p_tw {
+                if old_tw != curbuf_mut().b_p_tw {
                     check_colorcolumn(ptr::null_mut(), curwin_ptr());
                 }
             }
@@ -1954,7 +1954,7 @@ pub fn do_bufdel(
             }
 
             while !g_st().got_int {
-                if bnr == (*g_st().curbuf).b_fnum {
+                if bnr == curbuf_mut().b_fnum {
                     do_current = bnr;
                 } else if do_buffer(command, DOBUF_FIRST, FORWARD, bnr, forceit) {
                     deleted += 1;
@@ -2296,7 +2296,7 @@ fn do_buffer_ext(
                 close_windows(buf, false);
                 if buf != g_st().curbuf
                     && bufref_valid(Some(&bufref))
-                    && (*g_st().firstwin).w_buffer == buf
+                    && firstwin_mut().w_buffer == buf
                     && one_window(g_st().firstwin, ptr::null_mut())
                 {
                     debug_assert!(curwin_mut().w_floating);
@@ -2388,17 +2388,17 @@ fn do_buffer_ext(
 
             if buf.is_null() {
                 let mut forward = true;
-                buf = (*g_st().curbuf).b_next;
+                buf = curbuf_mut().b_next;
                 loop {
                     if buf.is_null() {
                         if !forward {
                             break;
                         }
-                        buf = (*g_st().curbuf).b_prev;
+                        buf = curbuf_mut().b_prev;
                         forward = false;
                         continue;
                     }
-                    if (*buf).b_help == (*g_st().curbuf).b_help
+                    if (*buf).b_help == curbuf_mut().b_help
                         && (*buf).b_p_bl != 0
                         && !bt_quickfix(buf)
                         && (*buf).b_locked_split == 0
@@ -2435,10 +2435,10 @@ fn do_buffer_ext(
                 }
             }
             if buf.is_null() {
-                buf = if !(*g_st().curbuf).b_next.is_null() {
-                    (*g_st().curbuf).b_next
+                buf = if !curbuf_mut().b_next.is_null() {
+                    curbuf_mut().b_next
                 } else {
-                    (*g_st().curbuf).b_prev
+                    curbuf_mut().b_prev
                 };
                 if bt_quickfix(buf)
                     || (!buf.is_null() && buf != g_st().curbuf && (*buf).b_locked_split != 0)
@@ -2467,16 +2467,16 @@ fn do_buffer_ext(
             return true;
         }
 
-        if action == DOBUF_GOTO && !can_abandon(&mut *g_st().curbuf, (flags & DOBUF_FORCEIT) != 0) {
+        if action == DOBUF_GOTO && !can_abandon(curbuf_mut(), (flags & DOBUF_FORCEIT) != 0) {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&mut bufref, buf);
-                dialog_changed(&mut *g_st().curbuf, false);
+                dialog_changed(curbuf_mut(), false);
                 if !bufref_valid(Some(&bufref)) {
                     return false;
                 }
             }
-            if buf_is_changed(&*g_st().curbuf) {
+            if buf_is_changed(curbuf_mut()) {
                 no_write_message();
                 return false;
             }
@@ -2516,14 +2516,14 @@ pub fn do_buffer(
 pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
     unsafe {
         let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
-        let old_tw = (*g_st().curbuf).b_p_tw;
+        let old_tw = curbuf_mut().b_p_tw;
 
         if update_jumplist {
             setpcmark();
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-            curwin_mut().w_alt_fnum = (*g_st().curbuf).b_fnum;
+            curwin_mut().w_alt_fnum = curbuf_mut().b_fnum;
         }
         buflist_altfpos(curwin_mut());
 
@@ -2552,7 +2552,7 @@ pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
                 close_windows(prevbuf, false);
             }
             if bufref_valid(Some(&prevbufref)) && !aborting() {
-                if prevbuf == g_st().curbuf && ((g_st().State & MODE_INSERT) == 0 || (*g_st().curbuf).b_nwindows <= 1) {
+                if prevbuf == g_st().curbuf && ((g_st().State & MODE_INSERT) == 0 || curbuf_mut().b_nwindows <= 1) {
                     u_sync(false);
                 }
                 close_buffer(
@@ -2576,7 +2576,7 @@ pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
         let valid = buf_valid(buf);
         if (valid && buf != g_st().curbuf && !aborting()) || curwin_mut().w_buffer.is_null() {
             enter_buffer(if valid { buf } else { g_st().lastbuf });
-            if old_tw != (*g_st().curbuf).b_p_tw {
+            if old_tw != curbuf_mut().b_p_tw {
                 check_colorcolumn(ptr::null_mut(), curwin_ptr());
             }
         }
@@ -2602,7 +2602,7 @@ fn enter_buffer(buf: *mut buf_T) {
 
         curwin_mut().w_buffer = buf;
         g_st().curbuf = buf;
-        (*g_st().curbuf).b_nwindows += 1;
+        curbuf_mut().b_nwindows += 1;
 
         buf_copy_options(buf, BCO_ENTER | BCO_NOHELP);
         if !(*buf).b_help {
@@ -2626,16 +2626,16 @@ fn enter_buffer(buf: *mut buf_T) {
 
         curwin_mut().w_valid = 0;
 
-        if (*g_st().curbuf).b_ml.ml_mfp.is_none() {
-            if *(*g_st().curbuf).b_p_ft == NUL {
-                (*g_st().curbuf).b_did_filetype = false;
+        if curbuf_mut().b_ml.ml_mfp.is_none() {
+            if *curbuf_mut().b_p_ft == NUL {
+                curbuf_mut().b_did_filetype = false;
             }
             open_buffer(false, None, 0);
         } else {
             if g_st().msg_silent == 0 && !shortmess(kShmFileinfo) {
                 g_st().need_fileinfo = true;
             }
-            buf_check_timestamp(&mut *g_st().curbuf);
+            buf_check_timestamp(curbuf_mut());
 
             curwin_mut().w_topline = 1;
             curwin_mut().w_topfill = 0;
@@ -2668,19 +2668,19 @@ fn enter_buffer(buf: *mut buf_T) {
 
         do_autochdir();
 
-        if ((*g_st().curbuf).b_kmap_state & KEYMAP_INIT) != 0 {
+        if (curbuf_mut().b_kmap_state & KEYMAP_INIT) != 0 {
             keymap_init();
         }
-        if !(*g_st().curbuf).b_help
+        if !curbuf_mut().b_help
             && curwin_mut().w_onebuf_opt.wo_spell != 0
             && *(*curwin_mut().w_s_ptr()).b_p_spl != NUL
         {
             parse_spelllang(curwin_ptr());
         }
-        (*g_st().curbuf).b_last_used = os_time() as i64;
+        curbuf_mut().b_last_used = os_time() as i64;
 
-        if !(*g_st().curbuf).terminal.is_null() {
-            terminal_check_size(&mut *(*g_st().curbuf).terminal);
+        if !curbuf_mut().terminal.is_null() {
+            terminal_check_size(&mut *curbuf_mut().terminal);
         }
 
         redraw_later(curwin_ptr(), UPD_NOT_VALID);
@@ -2689,11 +2689,11 @@ fn enter_buffer(buf: *mut buf_T) {
 
 /// Change to the directory of the current buffer.
 pub fn do_autochdir() {
-    unsafe {
+     {
         if opt_vars().p_acd != 0
-            && *starting.as_ptr() == 0
-            && !(*g_st().curbuf).b_ffname.is_null()
-            && vim_chdirfile((*g_st().curbuf).b_ffname, kCdCauseAuto)
+            && starting_val() == 0
+            && !curbuf_mut().b_ffname.is_null()
+            && vim_chdirfile(curbuf_mut().b_ffname, kCdCauseAuto)
         {
             g_st().last_chdir_reason = Some(c"autochdir");
             shorten_fnames(1);
@@ -2715,8 +2715,8 @@ pub fn no_write_message_buf(buf: &mut buf_T) {
 }
 
 pub fn no_write_message() {
-    unsafe {
-        if !(*g_st().curbuf).terminal.is_null() && channel_job_running((*g_st().curbuf).b_p_channel as u64) {
+     {
+        if !curbuf_mut().terminal.is_null() && channel_job_running(curbuf_mut().b_p_channel as u64) {
             emsg(gettext(
                 e_job_still_running_add_bang_to_end_the_job,
             ));
@@ -2843,7 +2843,7 @@ pub fn buflist_new(
             free_buffer_stuff(buf, kBffInitChangedtick);
             (*buf).b_p_initialized = false;
             buf_copy_options(buf, BCO_ENTER);
-            (*g_st().curbuf).b_kmap_state |= KEYMAP_INIT;
+            curbuf_mut().b_kmap_state |= KEYMAP_INIT;
         } else {
             (*buf).b_next = ptr::null_mut();
             if g_st().firstbuf.is_null() {
@@ -2928,12 +2928,12 @@ pub fn buflist_new(
 /// Return true if the current buffer is empty, unnamed, unmodified and used in
 /// only one window.
 pub fn curbuf_reusable() -> bool {
-    unsafe {
+     {
         !g_st().curbuf.is_null()
-            && (*g_st().curbuf).b_ffname.is_null()
-            && (*g_st().curbuf).b_nwindows <= 1
-            && (*g_st().curbuf).terminal.is_null()
-            && ((*g_st().curbuf).b_ml.ml_mfp.is_none() || buf_is_empty(&mut *g_st().curbuf))
+            && curbuf_mut().b_ffname.is_null()
+            && curbuf_mut().b_nwindows <= 1
+            && curbuf_mut().terminal.is_null()
+            && (curbuf_mut().b_ml.ml_mfp.is_none() || buf_is_empty(curbuf_mut()))
             && !bt_quickfix(g_st().curbuf)
             && !curbuf_is_changed()
     }
@@ -3060,7 +3060,7 @@ pub fn buflist_getfile(
 
             if wp.is_null()
                 && (opt_vars().swb_flags & (kOptSwbFlagVsplit | kOptSwbFlagSplit | kOptSwbFlagNewtab)) != 0
-                && !buf_is_empty(&mut *g_st().curbuf)
+                && !buf_is_empty(curbuf_mut())
             {
                 if (opt_vars().swb_flags & kOptSwbFlagNewtab) != 0 {
                     tabpage_new();
@@ -3182,7 +3182,7 @@ pub fn buflist_findpat(
             && (*pattern == b'%' as c_char || *pattern == b'#' as c_char)
         {
             match_fnum = if *pattern == b'%' as c_char {
-                (*g_st().curbuf).b_fnum
+                curbuf_mut().b_fnum
             } else {
                 curwin_mut().w_alt_fnum
             };
@@ -3971,7 +3971,7 @@ pub fn buflist_altfpos(win: &mut win_T) {
 
 /// Check that `ffname` is not the same file as current file.
 pub fn otherfile(ffname: *mut c_char) -> bool {
-    unsafe { otherfile_buf(&mut *g_st().curbuf, ffname, ptr::null_mut(), false) }
+     otherfile_buf(curbuf_mut(), ffname, ptr::null_mut(), false)
 }
 
 fn otherfile_buf(
@@ -4036,7 +4036,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
 
         if fullname > 1 {
             bufferlen =
-                vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ", (*g_st().curbuf).b_fnum);
+                vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ", curbuf_mut().b_fnum);
         }
 
         *buffer.add(bufferlen) = b'"' as c_char;
@@ -4051,10 +4051,10 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
                 name,
             );
         } else {
-            name = if fullname == 0 && !(*g_st().curbuf).b_fname.is_null() {
-                (*g_st().curbuf).b_fname
+            name = if fullname == 0 && !curbuf_mut().b_fname.is_null() {
+                curbuf_mut().b_fname
             } else {
-                (*g_st().curbuf).b_ffname
+                curbuf_mut().b_ffname
             };
             bufferlen += home_replace(
                 if shorthelp != 0 {
@@ -4080,22 +4080,22 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
         } else {
             c" ".as_ptr()
         };
-        let notedited_str = if ((*g_st().curbuf).b_flags & BF_NOTEDITED) != 0 && !dontwrite {
+        let notedited_str = if (curbuf_mut().b_flags & BF_NOTEDITED) != 0 && !dontwrite {
             gettext(c"[Not edited]")
         } else {
             c"".as_ptr()
         };
-        let new_str = if ((*g_st().curbuf).b_flags & BF_NEW) != 0 && !dontwrite {
+        let new_str = if (curbuf_mut().b_flags & BF_NEW) != 0 && !dontwrite {
             gettext(c"[New]")
         } else {
             c"".as_ptr()
         };
-        let readerr_str = if ((*g_st().curbuf).b_flags & BF_READERR) != 0 {
+        let readerr_str = if (curbuf_mut().b_flags & BF_READERR) != 0 {
             gettext(c"[Read errors]")
         } else {
             c"".as_ptr()
         };
-        let ro_str = if (*g_st().curbuf).b_p_ro != 0 {
+        let ro_str = if curbuf_mut().b_p_ro != 0 {
             if shortmess(kShmRo) {
                 gettext(c"[RO]")
             } else {
@@ -4105,7 +4105,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             c"".as_ptr()
         };
         let sep_str =
-            if is_changed || ((*g_st().curbuf).b_flags & BF_WRITE_MASK) != 0 || (*g_st().curbuf).b_p_ro != 0 {
+            if is_changed || (curbuf_mut().b_flags & BF_WRITE_MASK) != 0 || curbuf_mut().b_p_ro != 0 {
                 c" ".as_ptr()
             } else {
                 c"".as_ptr()
@@ -4123,9 +4123,9 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             sep_str,
         );
 
-        let line_count = i64::from((*g_st().curbuf).b_ml.ml_line_count);
+        let line_count = i64::from(curbuf_mut().b_ml.ml_line_count);
         let cur_lnum = i64::from(curwin_mut().w_cursor.lnum);
-        if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
+        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
             bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
@@ -4293,7 +4293,7 @@ pub fn maketitle() {
             } else {
                 let mut name = buf_spname(g_st().curbuf);
                 if name.is_null() {
-                    name = path_tail((*g_st().curbuf).b_ffname);
+                    name = path_tail(curbuf_mut().b_ffname);
                 }
                 let mut namelen = crate::memory::cstr_len(name) as c_int;
                 if namelen > 100 {
@@ -4502,8 +4502,8 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
             goto_tabpage_tp(g_st().first_tabpage, true, true);
         }
         loop {
-            let mut tpnext = (*g_st().curtab).tp_next;
-            let mut wp = if (*g_st().lastwin).w_floating {
+            let mut tpnext = curtab_mut().tp_next;
+            let mut wp = if lastwin_mut().w_floating {
                 g_st().lastwin
             } else {
                 g_st().firstwin
@@ -4540,7 +4540,7 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
                     if !win_close(wp, false, false) {
                         break;
                     }
-                    wpnext = if (*g_st().lastwin).w_floating {
+                    wpnext = if lastwin_mut().w_floating {
                         g_st().lastwin
                     } else {
                         g_st().firstwin
@@ -4663,9 +4663,9 @@ pub fn ex_buffer_all(eap: &mut exarg_T) {
 
 /// Process mode lines for the current file.
 pub fn do_modelines(flags: c_int) {
-    unsafe {
+     {
         let mut nmlines = opt_vars().p_mls as c_int;
-        if (*g_st().curbuf).b_p_ml == 0 || nmlines == 0 {
+        if curbuf_mut().b_p_ml == 0 || nmlines == 0 {
             return;
         }
 
@@ -4675,18 +4675,18 @@ pub fn do_modelines(flags: c_int) {
 
         buf_st().modelines_entered += 1;
         let mut lnum = 1;
-        while (*g_st().curbuf).b_p_ml != 0 && lnum <= (*g_st().curbuf).b_ml.ml_line_count && lnum <= nmlines {
+        while curbuf_mut().b_p_ml != 0 && lnum <= curbuf_mut().b_ml.ml_line_count && lnum <= nmlines {
             if !chk_modeline(lnum, flags) {
                 nmlines = 0;
             }
             lnum += 1;
         }
 
-        lnum = (*g_st().curbuf).b_ml.ml_line_count;
-        while (*g_st().curbuf).b_p_ml != 0
+        lnum = curbuf_mut().b_ml.ml_line_count;
+        while curbuf_mut().b_p_ml != 0
             && lnum > 0
             && lnum > nmlines
-            && lnum > (*g_st().curbuf).b_ml.ml_line_count - nmlines
+            && lnum > curbuf_mut().b_ml.ml_line_count - nmlines
         {
             if !chk_modeline(lnum, flags) {
                 nmlines = 0;
@@ -4946,12 +4946,12 @@ pub fn buf_get_fname(buf: *const buf_T) -> *mut c_char {
 
 /// Set `'buflisted'` for `curbuf` to `on` and trigger autocommands if it changed.
 pub fn set_buflisted(on: c_int) {
-    unsafe {
-        if on == (*g_st().curbuf).b_p_bl {
+     {
+        if on == curbuf_mut().b_p_bl {
             return;
         }
 
-        (*g_st().curbuf).b_p_bl = on;
+        curbuf_mut().b_p_bl = on;
         if on != 0 {
             apply_autocmds(
                 EVENT_BUFADD,
@@ -4990,7 +4990,7 @@ pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
 
         block_autocmds();
 
-        if ml_open(&mut *g_st().curbuf)
+        if ml_open(curbuf_mut())
             && readfile(
                 buf.b_ffname,
                 buf.b_fname,
@@ -5001,10 +5001,10 @@ pub fn buf_contents_changed(buf: &mut buf_T) -> bool {
                 READ_NEW | READ_DUMMY,
                 false,
             ) == OK
-            && buf.b_ml.ml_line_count == (*g_st().curbuf).b_ml.ml_line_count
+            && buf.b_ml.ml_line_count == curbuf_mut().b_ml.ml_line_count
         {
             differ = false;
-            for lnum in 1..=(*g_st().curbuf).b_ml.ml_line_count {
+            for lnum in 1..=curbuf_mut().b_ml.ml_line_count {
                 if crate::memory::cstr_as_bytes(ml_get_buf(buf, lnum)) != crate::memory::cstr_as_bytes(ml_get(lnum)) {
                     differ = true;
                     break;

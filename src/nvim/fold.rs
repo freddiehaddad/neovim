@@ -1555,7 +1555,7 @@ pub fn get_foldtext(
 
 fn foldtext_cleanup(str_ptr: *mut c_char) {
     unsafe {
-        let cms_start = skipwhite((*g_st().curbuf).b_p_cms);
+        let cms_start = skipwhite(curbuf_mut().b_p_cms);
         let mut cms_slen = crate::memory::cstr_len(cms_start);
         while cms_slen > 0 && ascii_iswhite(*cms_start.add(cms_slen - 1) as u8 as c_int) {
             cms_slen -= 1;
@@ -2488,7 +2488,7 @@ fn foldlevelExpr(flp: &mut fline_T) {
                 flp.lvl = 0;
                 flp.lvl_next = 0;
             }
-            if lnum == (*g_st().curbuf).b_ml.ml_line_count {
+            if lnum == curbuf_mut().b_ml.ml_line_count {
                 flp.lvl_next = 0;
             }
         }
@@ -2688,9 +2688,9 @@ fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> bool {
 }
 
 fn foldclosed_both(argvars: &mut [typval_T], rettv: &mut typval_T, end: bool) {
-    unsafe {
+     {
         let lnum = tv_get_lnum(&argvars[0]);
-        if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
+        if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
             let mut first: linenr_T = 0;
             let mut last: linenr_T = 0;
             if hasFoldingWin(curwin_ptr(), lnum, Some(&mut first), &mut last, false, None) {
@@ -2715,9 +2715,9 @@ pub fn f_foldclosedend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 /// "foldlevel()" function
 pub fn f_foldlevel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
-    unsafe {
+     {
         let lnum = tv_get_lnum(&argvars[0]);
-        if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
+        if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count {
             rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(foldLevel(lnum)));
         }
     }
@@ -2732,7 +2732,7 @@ pub fn f_foldtext(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let foldstart = get_vim_var_nr(VV_FOLDSTART) as linenr_T;
         let foldend = get_vim_var_nr(VV_FOLDEND) as linenr_T;
         let dashes = get_vim_var_str(VV_FOLDDASHES);
-        if foldstart > 0 && foldend <= (*g_st().curbuf).b_ml.ml_line_count {
+        if foldstart > 0 && foldend <= curbuf_mut().b_ml.ml_line_count {
             let mut lnum = foldstart;
             while lnum < foldend {
                 if !linewhite(lnum) {

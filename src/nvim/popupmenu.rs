@@ -1417,10 +1417,10 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                 if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == kWinInfo {
                     let mut res = OK;
                     if !resized
-                        && (*g_st().curbuf).b_nwindows == 1
-                        && (*g_st().curbuf).b_fname.is_null()
+                        && curbuf_mut().b_nwindows == 1
+                        && curbuf_mut().b_fname.is_null()
                         && bt_nofile(g_st().curbuf)
-                        && *(*g_st().curbuf).b_p_bh == b'w' as c_char
+                        && *curbuf_mut().b_p_bh == b'w' as c_char
                     {
                         buf_clear();
                     } else {
@@ -1471,12 +1471,12 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             }
                         }
 
-                        (*g_st().curbuf).b_changed = 0;
-                        (*g_st().curbuf).b_p_ma = 0;
+                        curbuf_mut().b_changed = 0;
+                        curbuf_mut().b_p_ma = 0;
                         if pum().selected != prev_selected {
                             curwin_mut().w_topline = 1;
-                        } else if curwin_mut().w_topline > (*g_st().curbuf).b_ml.ml_line_count {
-                            curwin_mut().w_topline = (*g_st().curbuf).b_ml.ml_line_count;
+                        } else if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
+                            curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
                         }
                         curwin_mut().w_cursor.lnum = 1;
                         curwin_mut().w_cursor.col = 0;

@@ -902,12 +902,58 @@ pub fn set_curwin(wp: *mut win_T) {
         *curwin.as_ptr() = wp;
     }
 }
+
+#[inline]
+pub fn curbuf_mut() -> &'static mut buf_T {
+    unsafe { &mut *g_st().curbuf }
+}
+
+#[inline]
+pub fn curtab_mut() -> &'static mut tabpage_T {
+    unsafe { &mut *g_st().curtab }
+}
+
+#[inline]
+pub fn firstwin_mut() -> &'static mut win_T {
+    unsafe { &mut *g_st().firstwin }
+}
+
+#[inline]
+pub fn lastwin_mut() -> &'static mut win_T {
+    unsafe { &mut *g_st().lastwin }
+}
+
 #[unsafe(no_mangle)]
 pub static starting: GlobalState<c_int> = GlobalState::new(NO_SCREEN);
+
+#[inline]
+pub fn starting_val() -> c_int {
+    unsafe { *starting.as_ptr() }
+}
+
+#[inline]
+pub fn set_starting(v: c_int) {
+    unsafe {
+        *starting.as_ptr() = v;
+    }
+}
+
 pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";
 pub const no_lines_msg: &std::ffi::CStr = c"--No lines in buffer--";
 #[unsafe(no_mangle)]
 pub static display_tick: GlobalState<disptick_T> = GlobalState::new(0);
+
+#[inline]
+pub fn display_tick_val() -> disptick_T {
+    unsafe { *display_tick.as_ptr() }
+}
+
+#[inline]
+pub fn inc_display_tick() {
+    unsafe {
+        *display_tick.as_ptr() += 1;
+    }
+}
 #[inline]
 pub fn has_time_fd() -> bool {
     g_st().time_fd.is_some()

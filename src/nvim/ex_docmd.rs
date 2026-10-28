@@ -4906,7 +4906,7 @@ fn restore_dbg_stuff(dsp: &mut dbg_stuff) {
 fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
     unsafe {
         if fnum != 0 {
-            if fnum == (*g_st().curbuf).b_fnum {
+            if fnum == curbuf_mut().b_fnum {
                 return false;
             }
             return true;
@@ -4920,8 +4920,8 @@ fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
             return false;
         }
 
-        if !(*g_st().curbuf).file_id_valid && !(*g_st().curbuf).b_sfname.is_null() && *(*g_st().curbuf).b_sfname != NUL {
-            return !path_equal(ffname, (*g_st().curbuf).b_sfname, kPathCmpLiteral);
+        if !curbuf_mut().file_id_valid && !curbuf_mut().b_sfname.is_null() && *curbuf_mut().b_sfname != NUL {
+            return !path_equal(ffname, curbuf_mut().b_sfname, kPathCmpLiteral);
         }
 
         otherfile(ffname)
@@ -5758,12 +5758,12 @@ pub fn set_cmd_addr_type(eap: &mut exarg_T, p: *mut c_char) {
 }
 
 pub fn get_cmd_default_range(eap: &mut exarg_T) -> linenr_T {
-    unsafe {
+     {
         match eap.addr_type {
-            ADDR_LINES | ADDR_OTHER => curwin_mut().w_cursor.lnum.min((*g_st().curbuf).b_ml.ml_line_count),
+            ADDR_LINES | ADDR_OTHER => curwin_mut().w_cursor.lnum.min(curbuf_mut().b_ml.ml_line_count),
             ADDR_WINDOWS => current_win_nr(curwin_ptr(), None),
             ADDR_ARGUMENTS => (curwin_mut().w_arg_idx + 1).min(argcount()),
-            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => (*g_st().curbuf).b_fnum,
+            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => curbuf_mut().b_fnum,
             ADDR_TABS => current_tab_nr(g_st().curtab),
             ADDR_TABS_RELATIVE | ADDR_UNSIGNED => 1,
             ADDR_QUICKFIX => qf_get_cur_idx(eap) as linenr_T,
@@ -5778,7 +5778,7 @@ pub fn set_cmd_dflall_range(eap: &mut exarg_T) {
         eap.line1 = 1;
         match eap.addr_type {
             ADDR_LINES | ADDR_OTHER => {
-                eap.line2 = (*g_st().curbuf).b_ml.ml_line_count;
+                eap.line2 = curbuf_mut().b_ml.ml_line_count;
             }
             ADDR_LOADED_BUFFERS => {
                 let mut buf = g_st().firstbuf;
@@ -5857,7 +5857,7 @@ fn parse_register(eap: &mut exarg_T) {
 }
 
 pub fn set_cmd_count(eap: &mut exarg_T, count: linenr_T, validate: bool) {
-    unsafe {
+     {
         if eap.addr_type != ADDR_LINES {
             eap.line2 = count;
             if eap.addr_count == 0 {
@@ -5871,8 +5871,8 @@ pub fn set_cmd_count(eap: &mut exarg_T, count: linenr_T, validate: bool) {
                 eap.line2 += count - 1;
             }
             eap.addr_count += 1;
-            if validate && eap.line2 > (*g_st().curbuf).b_ml.ml_line_count {
-                eap.line2 = (*g_st().curbuf).b_ml.ml_line_count;
+            if validate && eap.line2 > curbuf_mut().b_ml.ml_line_count {
+                eap.line2 = curbuf_mut().b_ml.ml_line_count;
             }
         }
     }
@@ -6221,9 +6221,9 @@ pub fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_i
         apply_cmdmod(&mut g_st().cmdmod);
 
         'end: {
-            if (*g_st().curbuf).b_p_ma == 0
+            if curbuf_mut().b_p_ma == 0
                 && (eap.argt & EX_MODIFY) != 0
-                && !(!(*g_st().curbuf).terminal.is_null()
+                && !(!curbuf_mut().terminal.is_null()
                     && (eap.cmdidx == cmdidx_T::CMD_put as c_int
                         || eap.cmdidx == cmdidx_T::CMD_iput as c_int))
             {
@@ -6570,9 +6570,9 @@ fn do_one_cmd(
                     errormsg = gettext(e_sandbox);
                     break 'doend;
                 }
-                if (*g_st().curbuf).b_p_ma == 0
+                if curbuf_mut().b_p_ma == 0
                     && (ea.argt & EX_MODIFY) != 0
-                    && !(!(*g_st().curbuf).terminal.is_null()
+                    && !(!curbuf_mut().terminal.is_null()
                         && (ea.cmdidx == cmdidx_T::CMD_put as c_int
                             || ea.cmdidx == cmdidx_T::CMD_iput as c_int))
                 {
@@ -6826,7 +6826,7 @@ fn ex_range_without_command(eap: &mut exarg_T) -> *mut c_char {
                 ex_print(&mut *eap);
             }
         } else if eap.addr_count != 0 {
-            eap.line2 = eap.line2.min((*g_st().curbuf).b_ml.ml_line_count);
+            eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count);
 
             if eap.line2 < 0 {
                 errormsg = gettext(e_invrange);
@@ -7221,7 +7221,7 @@ pub fn parse_cmd_address(
                         match eap.addr_type {
                             ADDR_LINES | ADDR_OTHER => {
                                 eap.line1 = 1;
-                                eap.line2 = (*g_st().curbuf).b_ml.ml_line_count;
+                                eap.line2 = curbuf_mut().b_ml.ml_line_count;
                             }
                             ADDR_LOADED_BUFFERS => {
                                 let mut buf = g_st().firstbuf;
@@ -7284,12 +7284,12 @@ pub fn parse_cmd_address(
 
                         eap.cmd = eap.cmd.add(1);
                         if eap.skip == 0 {
-                            let fm1 = mark_get_visual(&mut *g_st().curbuf, b'<' as c_int);
+                            let fm1 = mark_get_visual(curbuf_mut(), b'<' as c_int);
                             if !mark_check(fm1, errormsg) {
                                 break 'theend;
                             }
                             eap.line1 = (*fm1).mark.lnum;
-                            let fm2 = mark_get_visual(&mut *g_st().curbuf, b'>' as c_int);
+                            let fm2 = mark_get_visual(curbuf_mut(), b'>' as c_int);
                             if !mark_check(fm2, errormsg) {
                                 break 'theend;
                             }
@@ -7729,7 +7729,7 @@ pub fn get_address(
                             ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
                             ADDR_WINDOWS => lnum = current_win_nr(curwin_ptr(), None),
                             ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
-                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*g_st().curbuf).b_fnum,
+                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
                             ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
                             ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                                 *errormsg = addr_error(addr_type);
@@ -7744,7 +7744,7 @@ pub fn get_address(
                     b'$' => {
                         cmd = cmd.add(1);
                         match addr_type {
-                            ADDR_LINES | ADDR_OTHER => lnum = (*g_st().curbuf).b_ml.ml_line_count,
+                            ADDR_LINES | ADDR_OTHER => lnum = curbuf_mut().b_ml.ml_line_count,
                             ADDR_WINDOWS => lnum = current_win_nr(ptr::null(), Some(&*eap)),
                             ADDR_ARGUMENTS => lnum = argcount(),
                             ADDR_LOADED_BUFFERS => {
@@ -7799,14 +7799,14 @@ pub fn get_address(
                                 kMarkBufLocal
                             };
                             let fm = mark_get(
-                                &mut *g_st().curbuf,
+                                curbuf_mut(),
                                 curwin_ptr(),
                                 None,
                                 flag,
                                 c_int::from(*cmd as u8),
                             );
                             cmd = cmd.add(1);
-                            if !fm.is_null() && (*fm).fnum != (*g_st().curbuf).b_fnum {
+                            if !fm.is_null() && (*fm).fnum != curbuf_mut().b_fnum {
                                 mark_move_to(fm, 0);
                                 lnum = curwin_mut().w_cursor.lnum;
                             } else {
@@ -7834,7 +7834,7 @@ pub fn get_address(
                         } else {
                             let pos = curwin_mut().w_cursor;
                             if lnum > 0 && lnum != MAXLNUM {
-                                curwin_mut().w_cursor.lnum = lnum.min((*g_st().curbuf).b_ml.ml_line_count);
+                                curwin_mut().w_cursor.lnum = lnum.min(curbuf_mut().b_ml.ml_line_count);
                             }
                             curwin_mut().w_cursor.col =
                                 if c == b'/' as c_int && curwin_mut().w_cursor.lnum > 0 {
@@ -7940,7 +7940,7 @@ pub fn get_address(
                             ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
                             ADDR_WINDOWS => lnum = current_win_nr(curwin_ptr(), None),
                             ADDR_ARGUMENTS => lnum = curwin_mut().w_arg_idx + 1,
-                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*g_st().curbuf).b_fnum,
+                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
                             ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
                             ADDR_TABS_RELATIVE => lnum = 1,
                             ADDR_QUICKFIX => lnum = qf_get_cur_idx(&mut *eap) as linenr_T,
@@ -8053,7 +8053,7 @@ pub fn invalid_range(eap: &mut exarg_T) -> *mut c_char {
                         eap.cmdidx == cmdidx_T::CMD_diffget as c_int
                             || eap.cmdidx == cmdidx_T::CMD_diffput as c_int,
                     );
-                    if eap.line2 > (*g_st().curbuf).b_ml.ml_line_count + extra {
+                    if eap.line2 > curbuf_mut().b_ml.ml_line_count + extra {
                         return gettext(e_invrange);
                     }
                 }
@@ -8169,15 +8169,15 @@ pub fn replace_makeprg(
             && !(eap.cmdidx >= 0 && grep_internal(eap.cmdidx) != 0)
         {
             let program = if isgrep {
-                if *(*g_st().curbuf).b_p_gp == NUL {
+                if *curbuf_mut().b_p_gp == NUL {
                     opt_vars().p_gp
                 } else {
-                    (*g_st().curbuf).b_p_gp
+                    curbuf_mut().b_p_gp
                 }
-            } else if *(*g_st().curbuf).b_p_mp == NUL {
+            } else if *curbuf_mut().b_p_mp == NUL {
                 opt_vars().p_mp
             } else {
-                (*g_st().curbuf).b_p_mp
+                curbuf_mut().b_p_mp
             };
 
             arg = skipwhite(arg);
@@ -8896,14 +8896,14 @@ pub fn check_nextcmd(p: *mut c_char) -> *mut c_char {
 }
 
 fn check_more(message: bool, forceit: bool) -> bool {
-    unsafe {
+     {
         let ac = argcount();
         let n = ac - curwin_mut().w_arg_idx - 1;
 
         if !forceit && only_one_window() && ac > 1 && !g_st().arg_had_last && n > 0 && docmd_st().quitmore == 0 {
             if message {
                 if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                    && !(*g_st().curbuf).b_fname.is_null()
+                    && !curbuf_mut().b_fname.is_null()
                 {
                     let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
                     let _ = vim_snprintf!(
@@ -9015,7 +9015,7 @@ pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bo
             );
             if !win_valid(wp)
                 || curbuf_locked()
-                || ((*g_st().curbuf).b_nwindows == 1 && (*g_st().curbuf).b_locked > 0)
+                || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
             {
                 set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
                 return true;
@@ -9705,7 +9705,7 @@ fn ex_tabonly(eap: &mut exarg_T) {
 }
 
 pub fn tabpage_close(forceit: c_int) {
-    unsafe {
+     {
         let mut done: c_int = 0;
 
         if window_layout_locked(cmdidx_T::CMD_tabclose) {
@@ -9713,7 +9713,7 @@ pub fn tabpage_close(forceit: c_int) {
         }
 
         trigger_tabclosedpre(g_st().curtab);
-        (*g_st().curtab).tp_did_tabclosedpre = true;
+        curtab_mut().tp_did_tabclosedpre = true;
         let save_curtab = g_st().curtab;
 
         while curwin_mut().w_floating && {
@@ -9733,7 +9733,7 @@ pub fn tabpage_close(forceit: c_int) {
             ex_win_close(forceit, curwin_mut(), ptr::null_mut());
         }
         if g_st().curtab == save_curtab {
-            (*g_st().curtab).tp_did_tabclosedpre = false;
+            curtab_mut().tp_did_tabclosedpre = false;
         }
     }
 }
@@ -9870,8 +9870,8 @@ fn ex_exit(eap: &mut exarg_T) {
 }
 
 fn ex_print(eap: &mut exarg_T) {
-    unsafe {
-        if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
+     {
+        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
             let _ = emsg(gettext(e_empty_buffer));
         } else {
             let mut line = eap.line1;
@@ -9900,8 +9900,8 @@ fn ex_goto(eap: &mut exarg_T) {
 }
 
 fn ex_preserve(_eap: &mut exarg_T) {
-    unsafe {
-        ml_preserve(&mut *g_st().curbuf, true, true);
+     {
+        ml_preserve(curbuf_mut(), true, true);
     }
 }
 
@@ -9909,7 +9909,7 @@ fn ex_recover(eap: &mut exarg_T) {
     unsafe {
         g_st().recoverymode = true;
         if !check_changed(
-            &mut *g_st().curbuf,
+            curbuf_mut(),
             (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                 | CCGD_MULTWIN
                 | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
@@ -10111,7 +10111,7 @@ pub fn ex_splitview(eap: &mut exarg_T) {
                         crate::memory::cstr_len(eap.arg),
                         FNAME_MESS,
                         c_int::from(true),
-                        (*g_st().curbuf).b_ffname,
+                        curbuf_mut().b_ffname,
                         &mut file_to_find,
                         &mut search_ctx,
                     );
@@ -10145,7 +10145,7 @@ pub fn ex_splitview(eap: &mut exarg_T) {
                         && (*old_curwin).w_buffer != g_st().curbuf
                         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                     {
-                        (*old_curwin).w_alt_fnum = (*g_st().curbuf).b_fnum;
+                        (*old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
                     }
                 }
             } else if win_split(
@@ -10338,7 +10338,7 @@ fn ex_detach(eap: &mut exarg_T) {
         }
 
         if eap.addr_count > 0 {
-            if eap.line1 != 1 || eap.line2 != (*g_st().curbuf).b_ml.ml_line_count {
+            if eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count {
                 let _ = emsg(gettext(e_invrange));
                 return;
             }
@@ -10481,7 +10481,7 @@ fn ex_find(eap: &mut exarg_T) {
                     crate::memory::cstr_len(eap.arg),
                     FNAME_MESS,
                     c_int::from(true),
-                    (*g_st().curbuf).b_ffname,
+                    curbuf_mut().b_ffname,
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10496,7 +10496,7 @@ fn ex_find(eap: &mut exarg_T) {
                             0,
                             FNAME_MESS,
                             c_int::from(false),
-                            (*g_st().curbuf).b_ffname,
+                            curbuf_mut().b_ffname,
                             &mut file_to_find,
                             &mut search_ctx,
                         );
@@ -10581,7 +10581,7 @@ pub fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
             {
                 setpcmark();
             }
-            let ecmd_flags = (if buf_hide(&*g_st().curbuf) { ECMD_HIDE } else { 0 })
+            let ecmd_flags = (if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 })
                 + (if eap.forceit != 0 { ECMD_FORCEIT } else { 0 })
                 + (if !old_curwin.is_null() {
                     ECMD_OLDBUF
@@ -10617,16 +10617,16 @@ pub fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
             )
             {
                 if !old_curwin.is_null() {
-                    let need_hide = curbufIsChanged() && (*g_st().curbuf).b_nwindows <= 1;
-                    if !need_hide || buf_hide(&*g_st().curbuf) {
+                    let need_hide = curbufIsChanged() && curbuf_mut().b_nwindows <= 1;
+                    if !need_hide || buf_hide(curbuf_mut()) {
                         let mut cs: cleanup_T = cleanup_T::new();
                         enter_cleanup(&mut cs);
-                        win_close(curwin_ptr(), !need_hide && !buf_hide(&*g_st().curbuf), false);
+                        win_close(curwin_ptr(), !need_hide && !buf_hide(curbuf_mut()), false);
                         leave_cleanup(&mut cs);
                     }
                 }
-            } else if g_st().readonlymode && (*g_st().curbuf).b_nwindows == 1 {
-                (*g_st().curbuf).b_p_ro = c_int::from(true);
+            } else if g_st().readonlymode && curbuf_mut().b_nwindows == 1 {
+                curbuf_mut().b_p_ro = c_int::from(true);
             }
             g_st().readonlymode = n;
         } else {
@@ -10647,7 +10647,7 @@ pub fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
             && (*old_curwin).w_buffer != g_st().curbuf
             && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
         {
-            (*old_curwin).w_alt_fnum = (*g_st().curbuf).b_fnum;
+            (*old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
         }
     }
 }
@@ -10662,7 +10662,7 @@ fn ex_popup(eap: &mut exarg_T) {
 
 fn ex_swapname(_eap: &mut exarg_T) {
     unsafe {
-        let mfp = (*g_st().curbuf).b_ml.mfp_ptr();
+        let mfp = curbuf_mut().b_ml.mfp_ptr();
         if mfp.is_null() {
             let _ = msg(gettext(c"No swap file"), 0);
         } else if let Some(ref mf_fname) = (*mfp).mf_fname {
@@ -10738,8 +10738,8 @@ fn ex_read(eap: &mut exarg_T) {
                 return;
             }
             readfile(
-                (*g_st().curbuf).b_ffname,
-                (*g_st().curbuf).b_fname,
+                curbuf_mut().b_ffname,
+                curbuf_mut().b_fname,
                 eap.line2,
                 0,
                 MAXLNUM,
@@ -10791,13 +10791,13 @@ fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
 fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     unsafe {
         if scope == kCdScopeBuffer {
-            (*g_st().curbuf).b_localdir = None;
+            curbuf_mut().b_localdir = None;
         }
         if scope >= kCdScopeWindow {
             curwin_mut().w_localdir = None;
         }
         if scope >= kCdScopeTabpage {
-            (*g_st().curtab).tp_localdir = None;
+            curtab_mut().tp_localdir = None;
         }
 
         if scope < kCdScopeGlobal {
@@ -10814,17 +10814,17 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         let cwd_cstr = crate::memory::cstr_to_cstring(cwd.as_ptr());
         match scope {
             kCdScopeGlobal => {
-                g_st().globaldir = if (*g_st().curbuf).b_localdir.is_some() {
+                g_st().globaldir = if curbuf_mut().b_localdir.is_some() {
                     Some(cwd_cstr)
                 } else {
                     None
                 };
             }
             kCdScopeTabpage => {
-                (*g_st().curtab).tp_localdir = Some(cwd_cstr);
+                curtab_mut().tp_localdir = Some(cwd_cstr);
             }
             kCdScopeBuffer => {
-                (*g_st().curbuf).b_localdir = Some(cwd_cstr);
+                curbuf_mut().b_localdir = Some(cwd_cstr);
             }
             kCdScopeWindow => {
                 curwin_mut().w_localdir = Some(cwd_cstr);
@@ -10873,7 +10873,7 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
         let new_dir_owned = to_slash_save(new_dir).unwrap_or_default();
         new_dir = new_dir_owned.as_ptr().cast_mut();
 
-        let bcd_active = scope != kCdScopeBuffer && (*g_st().curbuf).b_localdir.is_some();
+        let bcd_active = scope != kCdScopeBuffer && curbuf_mut().b_localdir.is_some();
 
         let dir_differs = pdir
             .as_ref()
@@ -10894,7 +10894,7 @@ pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
 
         post_chdir(scope, dir_differs && !bcd_active);
         if bcd_active {
-            os_chdir((*g_st().curbuf).b_localdir.as_ref().unwrap().as_ptr());
+            os_chdir(curbuf_mut().b_localdir.as_ref().unwrap().as_ptr());
             shorten_fnames(c_int::from(true));
         }
         ctx_did_chdir();
@@ -10961,18 +10961,18 @@ pub fn ex_cd(eap: &mut exarg_T) {
 }
 
 fn ex_pwd(_eap: &mut exarg_T) {
-    unsafe {
+     {
         if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) {
             #[cfg(windows)]
             slash_adjust((&raw mut g_st().NameBuff).cast());
             if opt_vars().p_verbose > 0 {
                 let context = if let Some(reason) = g_st().last_chdir_reason {
                     reason.as_ptr()
-                } else if (*g_st().curbuf).b_localdir.is_some() {
+                } else if curbuf_mut().b_localdir.is_some() {
                     c"buffer".as_ptr()
                 } else if curwin_mut().w_localdir.is_some() {
                     c"window".as_ptr()
-                } else if (*g_st().curtab).tp_localdir.is_some() {
+                } else if curtab_mut().tp_localdir.is_some() {
                     c"tabpage".as_ptr()
                 } else {
                     c"global".as_ptr()
@@ -11206,7 +11206,7 @@ fn ex_iput(eap: &mut exarg_T) {
 }
 
 fn ex_copymove(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut errormsg: *const c_char = ptr::null();
         let n = get_address(
             eap,
@@ -11227,7 +11227,7 @@ fn ex_copymove(eap: &mut exarg_T) {
         }
         get_flags(eap);
 
-        if n == MAXLNUM || n < 0 || n > (*g_st().curbuf).b_ml.ml_line_count {
+        if n == MAXLNUM || n < 0 || n > curbuf_mut().b_ml.ml_line_count {
             let _ = emsg(gettext(e_invrange));
             return;
         }
@@ -11239,7 +11239,7 @@ fn ex_copymove(eap: &mut exarg_T) {
         } else {
             ex_copy(eap.line1, eap.line2, n);
         }
-        u_clearline(&mut *g_st().curbuf);
+        u_clearline(curbuf_mut());
         beginline(BL_SOL | BL_FIX);
         ex_may_print(eap);
     }
@@ -11259,13 +11259,13 @@ pub fn ex_may_print(eap: &mut exarg_T) {
 }
 
 fn ex_join(eap: &mut exarg_T) {
-    unsafe {
+     {
         curwin_mut().w_cursor.lnum = eap.line1;
         if eap.line1 == eap.line2 {
             if eap.addr_count >= 2 {
                 return;
             }
-            if eap.line2 == (*g_st().curbuf).b_ml.ml_line_count {
+            if eap.line2 == curbuf_mut().b_ml.ml_line_count {
                 beep_flush();
                 return;
             }
@@ -11326,7 +11326,7 @@ fn ex_bang(eap: &mut exarg_T) {
 }
 
 fn ex_undo(eap: &mut exarg_T) {
-    unsafe {
+     {
         if eap.addr_count != 1 {
             if eap.forceit != 0 {
                 u_undo_and_forget(1, true);
@@ -11339,19 +11339,19 @@ fn ex_undo(eap: &mut exarg_T) {
         let step = eap.line2;
 
         if eap.forceit != 0 {
-            if step >= (*g_st().curbuf).b_u_seq_cur {
+            if step >= curbuf_mut().b_u_seq_cur {
                 let _ = emsg(gettext(e_undobang_cannot_redo_or_move_branch));
                 return;
             }
-            let mut uhp = (*g_st().curbuf).b_u_curhead.or((*g_st().curbuf).b_u_newhead);
+            let mut uhp = curbuf_mut().b_u_curhead.or(curbuf_mut().b_u_newhead);
             let mut count: c_int = 0;
             while let Some(uh) = uhp
-                && uhp_ref(&*g_st().curbuf, uh).uh_seq > step
+                && uhp_ref(curbuf_mut(), uh).uh_seq > step
             {
-                uhp = uhp_ref(&*g_st().curbuf, uh).uh_next;
+                uhp = uhp_ref(curbuf_mut(), uh).uh_next;
                 count += 1;
             }
-            if step != 0 && uhp.is_none_or(|uh| uhp_ref(&*g_st().curbuf, uh).uh_seq < step) {
+            if step != 0 && uhp.is_none_or(|uh| uhp_ref(curbuf_mut(), uh).uh_seq < step) {
                 let _ = emsg(gettext(e_undobang_cannot_redo_or_move_branch));
                 return;
             }
@@ -11363,17 +11363,17 @@ fn ex_undo(eap: &mut exarg_T) {
 }
 
 fn ex_wundo(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut hash = [0u8; UNDO_HASH_SIZE];
-        u_compute_hash(&mut *g_st().curbuf, hash.as_mut_ptr());
+        u_compute_hash(curbuf_mut(), hash.as_mut_ptr());
         u_write_undo(eap.arg, eap.forceit != 0, g_st().curbuf, hash.as_mut_ptr());
     }
 }
 
 fn ex_rundo(eap: &mut exarg_T) {
-    unsafe {
+     {
         let mut hash = [0u8; UNDO_HASH_SIZE];
-        u_compute_hash(&mut *g_st().curbuf, hash.as_mut_ptr());
+        u_compute_hash(curbuf_mut(), hash.as_mut_ptr());
         u_read_undo(eap.arg, hash.as_ptr(), ptr::null());
     }
 }
@@ -11701,12 +11701,12 @@ pub fn restore_current_state(sst: &mut save_state_T) {
 }
 
 pub fn expr_map_locked() -> bool {
-    unsafe { g_st().expr_map_lock > 0 && ((*g_st().curbuf).b_flags & BF_DUMMY) == 0 }
+     g_st().expr_map_lock > 0 && (curbuf_mut().b_flags & BF_DUMMY) == 0
 }
 
 fn ex_normal(eap: &mut exarg_T) {
     unsafe {
-        if !(*g_st().curbuf).terminal.is_null() && (g_st().State & MODE_TERMINAL) != 0 {
+        if !curbuf_mut().terminal.is_null() && (g_st().State & MODE_TERMINAL) != 0 {
             let _ = emsg(c"Can't re-enter normal mode from terminal mode");
             return;
         }
@@ -11802,8 +11802,8 @@ fn ex_normal(eap: &mut exarg_T) {
 }
 
 fn ex_startinsert(eap: &mut exarg_T) {
-    unsafe {
-        if (*g_st().curbuf).b_p_ma == 0 && (*g_st().curbuf).terminal.is_null() {
+     {
+        if curbuf_mut().b_p_ma == 0 && curbuf_mut().terminal.is_null() {
             let _ = emsg(gettext(e_modifiable));
             return;
         }
@@ -12142,11 +12142,11 @@ pub fn eval_vars(
         } else {
             match spec_idx {
                 SPEC_PERC => {
-                    if (*g_st().curbuf).b_fname.is_null() {
+                    if curbuf_mut().b_fname.is_null() {
                         result = c"".as_ptr().cast_mut();
                         valid = 0;
                     } else {
-                        result = (*g_st().curbuf).b_fname;
+                        result = curbuf_mut().b_fname;
                         tilde_file = crate::memory::cstr_as_bytes(result) == b"~";
                     }
                     use_shellslash = true;
@@ -12578,7 +12578,7 @@ pub fn filetype_maybe_enable() {
 
 fn ex_setfiletype(eap: &mut exarg_T) {
     unsafe {
-        if (*g_st().curbuf).b_did_filetype {
+        if curbuf_mut().b_did_filetype {
             return;
         }
 
@@ -12589,7 +12589,7 @@ fn ex_setfiletype(eap: &mut exarg_T) {
 
         set_option_value_give_err(kOptFiletype, cstr_as_obj(arg), OPT_LOCAL);
         if arg != eap.arg {
-            (*g_st().curbuf).b_did_filetype = false;
+            curbuf_mut().b_did_filetype = false;
         }
     }
 }

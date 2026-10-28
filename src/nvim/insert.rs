@@ -397,7 +397,7 @@ fn insert_enter(s: &mut InsertState) {
 
             if !equalpos(curwin_mut().w_cursor, save_cursor)
                 && *get_vim_var_str(VV_CHAR) == NUL
-                && save_cursor.lnum <= (*g_st().curbuf).b_ml.ml_line_count
+                && save_cursor.lnum <= curbuf_mut().b_ml.ml_line_count
             {
                 let save_state = g_st().State;
                 curwin_mut().w_cursor = save_cursor;
@@ -465,7 +465,7 @@ fn insert_enter(s: &mut InsertState) {
         } else if s.cmdchar == b'V' as c_int || s.cmdchar == b'v' as c_int {
             g_st().State = MODE_VREPLACE;
             s.replaceState = MODE_VREPLACE;
-            g_st().orig_line_count = (*g_st().curbuf).b_ml.ml_line_count;
+            g_st().orig_line_count = curbuf_mut().b_ml.ml_line_count;
             g_st().vr_lines_changed = 1;
         } else {
             g_st().State = MODE_INSERT;
@@ -474,11 +474,11 @@ fn insert_enter(s: &mut InsertState) {
         may_trigger_modechanged();
         g_st().Ins.stop_insert_mode = false;
 
-        if gchar_cursor() == TAB || buf_meta_total(&*g_st().curbuf, kMTMetaInline) > 0 {
+        if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), kMTMetaInline) > 0 {
             curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
         }
 
-        if (*g_st().curbuf).b_p_iminsert == B_IMODE_LMAP {
+        if curbuf_mut().b_p_iminsert == B_IMODE_LMAP {
             g_st().State |= MODE_LANGMAP;
         }
 
@@ -566,14 +566,14 @@ fn insert_enter(s: &mut InsertState) {
         }
         g_st().did_cursorhold = false;
 
-        if !char_avail() && (*g_st().curbuf).b_last_changedtick_i == buf_get_changedtick(&*g_st().curbuf) {
-            (*g_st().curbuf).b_last_changedtick = buf_get_changedtick(&*g_st().curbuf);
+        if !char_avail() && curbuf_mut().b_last_changedtick_i == buf_get_changedtick(curbuf_mut()) {
+            curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
         }
     }
 }
 
 fn insert_check(s: &mut InsertState) -> c_int {
-    unsafe {
+     {
         mc_ins_cascade();
 
         if g_st().Ins.revins_legal == 0 {
@@ -590,7 +590,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
             g_st().Ins.start_orig = g_st().Ins.start;
         }
 
-        if !(*g_st().curbuf).terminal.is_null() && !g_st().Ins.stop_insert_mode {
+        if !curbuf_mut().terminal.is_null() && !g_st().Ins.stop_insert_mode {
             g_st().Ins.stop_insert_mode = true;
             g_st().restart_edit = b'I' as c_int;
             stuffcharReadbuff(K_NOP);
@@ -627,7 +627,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
             s.cmdchar_todo = NUL as c_int;
         }
 
-        if (*g_st().curbuf).b_mod_set
+        if curbuf_mut().b_mod_set
             && curwin_mut().w_onebuf_opt.wo_wrap != 0
             && curwin_mut().w_onebuf_opt.wo_sms == 0
             && !s.did_backspace
@@ -642,8 +642,8 @@ fn insert_check(s: &mut InsertState) -> c_int {
                 < s.mincol
                     - tabstop_at(
                         get_nolist_virtcol(),
-                        (*g_st().curbuf).b_p_ts,
-                        &(*g_st().curbuf).b_p_vts_array,
+                        curbuf_mut().b_p_ts,
+                        &curbuf_mut().b_p_vts_array,
                         false,
                     )
                 && curwin_mut().w_wrow
@@ -1043,7 +1043,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     br_fnum: 0,
                     br_buf_free_count: 0,
                 };
-                let tick = buf_get_changedtick(&*g_st().curbuf);
+                let tick = buf_get_changedtick(curbuf_mut());
                 set_bufref(&mut save_curbuf, g_st().curbuf);
 
                 if s.c == K_PASTE_START {
@@ -1072,8 +1072,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
 
                 let changed = bufref_valid(Some(&save_curbuf))
                     && g_st().curbuf == save_curbuf.br_buf
-                    && tick != buf_get_changedtick(&*g_st().curbuf);
-                if (*g_st().curbuf).b_u_synced || changed {
+                    && tick != buf_get_changedtick(curbuf_mut());
+                if curbuf_mut().b_u_synced || changed {
                     g_st().Ins.need_undo = true;
                 }
                 if changed && !ins_compl_active() {
@@ -1249,7 +1249,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
         }
 
         if goto_do_complete {
-            if *(*g_st().curbuf).b_p_cpt == NUL
+            if *curbuf_mut().b_p_cpt == NUL
                 && (ctrl_x_mode_normal() || ctrl_x_mode_whole_line())
                 && !compl_status_local()
             {
@@ -1364,8 +1364,8 @@ fn insert_handle_key_post(s: &mut InsertState) {
 
 /// Start inserting text.
 pub fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
-    unsafe {
-        if !(*g_st().curbuf).terminal.is_null() {
+     {
+        if !curbuf_mut().terminal.is_null() {
             if g_st().ex_normal_busy != 0 {
                 g_st().restart_edit = b'i' as c_int;
                 g_st().force_restart_edit = true;
@@ -1395,7 +1395,7 @@ pub fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
 
 /// Redraw for Insert mode.
 pub fn ins_redraw(ready: bool) {
-    unsafe {
+     {
         if char_avail() {
             return;
         }
@@ -1416,11 +1416,11 @@ pub fn ins_redraw(ready: bool) {
 
         if ready
             && has_event(EVENT_TEXTCHANGEDI)
-            && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(&*g_st().curbuf)
+            && curbuf_mut().b_last_changedtick_i != buf_get_changedtick(curbuf_mut())
             && !pum_visible()
         {
             let mut aco = CtxSwitch::new();
-            let tick = buf_get_changedtick(&*g_st().curbuf);
+            let tick = buf_get_changedtick(curbuf_mut());
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
             apply_autocmds(
                 EVENT_TEXTCHANGEDI,
@@ -1430,19 +1430,19 @@ pub fn ins_redraw(ready: bool) {
                 g_st().curbuf,
             );
             ctx_restore(&mut aco);
-            (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(&*g_st().curbuf);
-            if tick != buf_get_changedtick(&*g_st().curbuf) {
+            curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+            if tick != buf_get_changedtick(curbuf_mut()) {
                 u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1);
             }
         }
 
         if ready
             && has_event(EVENT_TEXTCHANGEDP)
-            && (*g_st().curbuf).b_last_changedtick_pum != buf_get_changedtick(&*g_st().curbuf)
+            && curbuf_mut().b_last_changedtick_pum != buf_get_changedtick(curbuf_mut())
             && pum_visible()
         {
             let mut aco = CtxSwitch::new();
-            let tick = buf_get_changedtick(&*g_st().curbuf);
+            let tick = buf_get_changedtick(curbuf_mut());
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
             apply_autocmds(
                 EVENT_TEXTCHANGEDP,
@@ -1452,8 +1452,8 @@ pub fn ins_redraw(ready: bool) {
                 g_st().curbuf,
             );
             ctx_restore(&mut aco);
-            (*g_st().curbuf).b_last_changedtick_pum = buf_get_changedtick(&*g_st().curbuf);
-            if tick != buf_get_changedtick(&*g_st().curbuf) {
+            curbuf_mut().b_last_changedtick_pum = buf_get_changedtick(curbuf_mut());
+            if tick != buf_get_changedtick(curbuf_mut()) {
                 u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1);
             }
         }
@@ -1556,7 +1556,7 @@ pub fn buf_prompt_text(buf: &buf_T) -> *mut c_char {
 
 /// Return the effective prompt for the current buffer.
 pub fn prompt_text() -> *mut c_char {
-    unsafe { buf_prompt_text(&*g_st().curbuf) }
+     buf_prompt_text(curbuf_mut())
 }
 
 fn init_prompt(cmdchar_todo: c_int) {
@@ -1564,66 +1564,66 @@ fn init_prompt(cmdchar_todo: c_int) {
         let prompt = prompt_text();
         let prompt_len = crate::memory::cstr_len(prompt) as colnr_T;
 
-        if (*g_st().curbuf).b_prompt_start.mark.lnum < 1
-            || (*g_st().curbuf).b_prompt_start.mark.lnum > (*g_st().curbuf).b_ml.ml_line_count
+        if curbuf_mut().b_prompt_start.mark.lnum < 1
+            || curbuf_mut().b_prompt_start.mark.lnum > curbuf_mut().b_ml.ml_line_count
         {
-            (*g_st().curbuf).b_prompt_start.mark.lnum = (*g_st().curbuf)
+            curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut()
                 .b_prompt_start
                 .mark
                 .lnum
-                .min((*g_st().curbuf).b_ml.ml_line_count)
+                .min(curbuf_mut().b_ml.ml_line_count)
                 .max(1);
-            (*g_st().curbuf).b_prompt_append_new_line = true;
+            curbuf_mut().b_prompt_append_new_line = true;
         }
 
         curwin_mut().w_cursor.lnum = curwin_mut()
             .w_cursor
             .lnum
-            .max((*g_st().curbuf).b_prompt_start.mark.lnum);
-        let text = ml_get((*g_st().curbuf).b_prompt_start.mark.lnum);
-        let text_len = ml_get_len((*g_st().curbuf).b_prompt_start.mark.lnum);
+            .max(curbuf_mut().b_prompt_start.mark.lnum);
+        let text = ml_get(curbuf_mut().b_prompt_start.mark.lnum);
+        let text_len = ml_get_len(curbuf_mut().b_prompt_start.mark.lnum);
 
-        if (*g_st().curbuf).b_prompt_start.mark.lnum == curwin_mut().w_cursor.lnum
-            && ((*g_st().curbuf).b_prompt_start.mark.col < prompt_len
-                || (*g_st().curbuf).b_prompt_start.mark.col > text_len
+        if curbuf_mut().b_prompt_start.mark.lnum == curwin_mut().w_cursor.lnum
+            && (curbuf_mut().b_prompt_start.mark.col < prompt_len
+                || curbuf_mut().b_prompt_start.mark.col > text_len
                 || std::slice::from_raw_parts(
-                    text.offset(((*g_st().curbuf).b_prompt_start.mark.col - prompt_len) as isize).cast::<u8>(),
+                    text.offset((curbuf_mut().b_prompt_start.mark.col - prompt_len) as isize).cast::<u8>(),
                     prompt_len as usize,
                 ) != std::slice::from_raw_parts(prompt.cast::<u8>(), prompt_len as usize))
         {
             if *text == NUL {
-                ml_replace((*g_st().curbuf).b_prompt_start.mark.lnum, prompt, true);
-                inserted_bytes((*g_st().curbuf).b_prompt_start.mark.lnum, 0, 0, prompt_len);
+                ml_replace(curbuf_mut().b_prompt_start.mark.lnum, prompt, true);
+                inserted_bytes(curbuf_mut().b_prompt_start.mark.lnum, 0, 0, prompt_len);
             } else {
-                let lnum = (*g_st().curbuf).b_ml.ml_line_count;
+                let lnum = curbuf_mut().b_ml.ml_line_count;
                 ml_append(lnum, prompt, 0, false);
                 appended_lines_mark(lnum, 1);
-                (*g_st().curbuf).b_prompt_start.mark.lnum = (*g_st().curbuf).b_ml.ml_line_count;
-                (*g_st().curbuf).b_prompt_append_new_line = true;
-                u_clearallandblockfree(&mut *g_st().curbuf);
+                curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count;
+                curbuf_mut().b_prompt_append_new_line = true;
+                u_clearallandblockfree(curbuf_mut());
             }
-            (*g_st().curbuf).b_prompt_start.mark.col = prompt_len;
-            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curbuf_mut().b_prompt_start.mark.col = prompt_len;
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
             coladvance(curwin_mut(), MAXCOL);
         }
 
-        if g_st().Ins.start_orig.lnum != (*g_st().curbuf).b_prompt_start.mark.lnum
-            || g_st().Ins.start_orig.col != (*g_st().curbuf).b_prompt_start.mark.col
+        if g_st().Ins.start_orig.lnum != curbuf_mut().b_prompt_start.mark.lnum
+            || g_st().Ins.start_orig.col != curbuf_mut().b_prompt_start.mark.col
         {
             set_insstart(
-                (*g_st().curbuf).b_prompt_start.mark.lnum,
-                (*g_st().curbuf).b_prompt_start.mark.col,
+                curbuf_mut().b_prompt_start.mark.lnum,
+                curbuf_mut().b_prompt_start.mark.col,
             );
         }
 
         if cmdchar_todo == b'A' as c_int {
             coladvance(curwin_mut(), MAXCOL);
         }
-        if (*g_st().curbuf).b_prompt_start.mark.lnum == curwin_mut().w_cursor.lnum {
+        if curbuf_mut().b_prompt_start.mark.lnum == curwin_mut().w_cursor.lnum {
             curwin_mut().w_cursor.col = curwin_mut()
                 .w_cursor
                 .col
-                .max((*g_st().curbuf).b_prompt_start.mark.col);
+                .max(curbuf_mut().b_prompt_start.mark.col);
         }
         check_cursor(curwin_ptr());
     }
@@ -1631,10 +1631,10 @@ fn init_prompt(cmdchar_todo: c_int) {
 
 /// Return true if the cursor is in the editable position of the prompt line.
 pub fn prompt_curpos_editable() -> bool {
-    unsafe {
-        curwin_mut().w_cursor.lnum > (*g_st().curbuf).b_prompt_start.mark.lnum
-            || (curwin_mut().w_cursor.lnum == (*g_st().curbuf).b_prompt_start.mark.lnum
-                && curwin_mut().w_cursor.col >= (*g_st().curbuf).b_prompt_start.mark.col)
+     {
+        curwin_mut().w_cursor.lnum > curbuf_mut().b_prompt_start.mark.lnum
+            || (curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum
+                && curwin_mut().w_cursor.col >= curbuf_mut().b_prompt_start.mark.col)
     }
 }
 
@@ -1883,7 +1883,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
             let virtcol = get_nolist_virtcol()
                 + char2cells(if c != NUL as c_int { c } else { gchar_cursor() });
 
-            if (*g_st().curbuf).b_p_fex.cb_type() != kCallbackNone
+            if curbuf_mut().b_p_fex.cb_type() != kCallbackNone
                 && (flags & INSCHAR_NO_FEX) == 0
                 && (force_format || virtcol > textwidth)
             {
@@ -2077,7 +2077,7 @@ fn check_spell_redraw() {
 }
 
 pub fn stop_arrow() -> bool {
-    unsafe {
+     {
         if g_st().Ins.moved != kInsNone {
             g_st().Ins.start = curwin_mut().w_cursor;
             if g_st().Ins.start.col > g_st().Ins.start_orig.col && !g_st().Ins.need_undo {
@@ -2092,7 +2092,7 @@ pub fn stop_arrow() -> bool {
             }
             g_st().Ins.ai_col = 0;
             if (g_st().State & VREPLACE_FLAG) != 0 {
-                g_st().orig_line_count = (*g_st().curbuf).b_ml.ml_line_count;
+                g_st().orig_line_count = curbuf_mut().b_ml.ml_line_count;
                 g_st().vr_lines_changed = 1;
             }
             if jumped {
@@ -2176,7 +2176,7 @@ fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
                 && (esc != 0
                     || (vim_strchr(opt_vars().p_cpo, kCpoIndent).is_null()
                         && curwin_mut().w_cursor.lnum != (*end_insert_pos).lnum))
-                && (*end_insert_pos).lnum <= (*g_st().curbuf).b_ml.ml_line_count
+                && (*end_insert_pos).lnum <= curbuf_mut().b_ml.ml_line_count
             {
                 let mut tpos = curwin_mut().w_cursor;
                 let prev_col = (*end_insert_pos).col;
@@ -2227,9 +2227,9 @@ fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
         g_st().Ins.can_si_back = false;
 
         if !end_insert_pos.is_null() {
-            (*g_st().curbuf).b_op_start = g_st().Ins.start;
-            (*g_st().curbuf).b_op_start_orig = g_st().Ins.start_orig;
-            (*g_st().curbuf).b_op_end = *end_insert_pos;
+            curbuf_mut().b_op_start = g_st().Ins.start;
+            curbuf_mut().b_op_start_orig = g_st().Ins.start_orig;
+            curbuf_mut().b_op_end = *end_insert_pos;
         }
     }
 }
@@ -2800,17 +2800,17 @@ fn ins_ctrl_g() {
 }
 
 fn ins_ctrl_hat() {
-    unsafe {
+     {
         if map_to_exists_mode(c"", MODE_LANGMAP, false) {
             if (g_st().State & MODE_LANGMAP) != 0 {
-                (*g_st().curbuf).b_p_iminsert = B_IMODE_NONE;
+                curbuf_mut().b_p_iminsert = B_IMODE_NONE;
                 g_st().State &= !MODE_LANGMAP;
             } else {
-                (*g_st().curbuf).b_p_iminsert = B_IMODE_LMAP;
+                curbuf_mut().b_p_iminsert = B_IMODE_LMAP;
                 g_st().State |= MODE_LANGMAP;
             }
         }
-        set_iminsert_global(&mut *g_st().curbuf);
+        set_iminsert_global(curbuf_mut());
         showmode();
         status_redraw_curbuf();
     }
@@ -2868,9 +2868,9 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
         if (g_st().cmdmod.cmod_flags & CMOD_KEEPJUMPS) == 0 {
             let view = mark_view_make(curwin_mut(), curwin_mut().w_cursor);
             reset_fmark(
-                &mut (*g_st().curbuf).b_last_insert,
+                &mut curbuf_mut().b_last_insert,
                 curwin_mut().w_cursor,
-                (*g_st().curbuf).b_fnum,
+                curbuf_mut().b_fnum,
                 view,
             );
         }
@@ -2894,7 +2894,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
         g_st().State = MODE_NORMAL;
         may_trigger_modechanged();
-        if gchar_cursor() == TAB || buf_meta_total(&*g_st().curbuf, kMTMetaInline) > 0 {
+        if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), kMTMetaInline) > 0 {
             curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
         }
 
@@ -3044,7 +3044,7 @@ fn ins_shift(c: c_int, lastc: c_int) {
 }
 
 fn ins_del() {
-    unsafe {
+     {
         if !stop_arrow() {
             return;
         }
@@ -3055,8 +3055,8 @@ fn ins_del() {
             } else {
                 mc_ins_join();
                 curwin_mut().w_cursor.col = temp;
-                if (g_st().State & VREPLACE_FLAG) != 0 && g_st().orig_line_count > (*g_st().curbuf).b_ml.ml_line_count {
-                    g_st().orig_line_count = (*g_st().curbuf).b_ml.ml_line_count;
+                if (g_st().State & VREPLACE_FLAG) != 0 && g_st().orig_line_count > curbuf_mut().b_ml.ml_line_count {
+                    g_st().orig_line_count = curbuf_mut().b_ml.ml_line_count;
                 }
             }
         } else if !del_char(false) {
@@ -3077,7 +3077,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
         let mut did_backspace = false;
         let mut call_fix_indent = false;
 
-        if buf_is_empty(&mut *g_st().curbuf)
+        if buf_is_empty(curbuf_mut())
             || (!g_st().Ins.revins_on
                 && ((curwin_mut().w_cursor.lnum == 1 && curwin_mut().w_cursor.col == 0)
                     || (!can_bs(BS_START)
@@ -3144,7 +3144,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                         if len > 0 && *ptr.add((len - 1) as usize) == b' ' as c_char {
                             let new_line =
                                 std::slice::from_raw_parts(ptr, (len - 1) as usize).to_vec();
-                            ml_replace_dirty_line(&mut *g_st().curbuf, &new_line, false);
+                            ml_replace_dirty_line(curbuf_mut(), &new_line, false);
                         }
                     }
 
@@ -3175,7 +3175,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                 dec_cursor();
             }
             let mut mincol: colnr_T = 0;
-            if mode == BACKSPACE_LINE && ((*g_st().curbuf).b_p_ai != 0 || cindent_on()) && !g_st().Ins.revins_on {
+            if mode == BACKSPACE_LINE && (curbuf_mut().b_p_ai != 0 || cindent_on()) && !g_st().Ins.revins_on {
                 let save_col = curwin_mut().w_cursor.col;
                 beginline(BL_WHITE);
                 if curwin_mut().w_cursor.col < save_col {
@@ -3187,7 +3187,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
             if mode == BACKSPACE_CHAR
                 && ((opt_vars().p_sta != 0 && in_indent)
-                    || ((get_sts_value() != 0 || tabstop_count(&(*g_st().curbuf).b_p_vsts_array) != 0)
+                    || ((get_sts_value() != 0 || tabstop_count(&curbuf_mut().b_p_vsts_array) != 0)
                         && curwin_mut().w_cursor.col > 0
                         && (*get_cursor_pos_ptr().offset(-1) == TAB as c_char
                             || (*get_cursor_pos_ptr().offset(-1) == b' ' as c_char
@@ -3214,7 +3214,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                     }
                     let cli = utf_ClusterInfo(sci);
                     vcol +=
-                        charsize_nowrap(&mut *g_st().curbuf, sci.ptr, use_ts, vcol, sci.chr.value, cli.cells);
+                        charsize_nowrap(curbuf_mut(), sci.ptr, use_ts, vcol, sci.chr.value, cli.cells);
                     sci = cli.next;
                     prev_space = cur_space;
                 }
@@ -3226,14 +3226,14 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                     want_vcol = tabstop_start(
                         want_vcol,
                         get_sts_value() as c_int,
-                        &(*g_st().curbuf).b_p_vsts_array,
+                        &curbuf_mut().b_p_vsts_array,
                     );
                 }
 
                 loop {
                     let cli = utf_ClusterInfo(space_sci);
                     let size = charsize_nowrap(
-                        &mut *g_st().curbuf,
+                        curbuf_mut(),
                         space_sci.ptr,
                         use_ts,
                         space_vcol,
@@ -3419,14 +3419,14 @@ fn ins_home(c: c_int) {
 }
 
 fn ins_end(c: c_int) {
-    unsafe {
+     {
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
         let mut tpos = curwin_mut().w_cursor;
         if c == K_C_END {
-            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
         }
         coladvance(curwin_mut(), MAXCOL);
         curwin_mut().w_curswant = MAXCOL;
@@ -3477,7 +3477,7 @@ fn ins_right() {
                 g_st().Ins.revins_chars -= 1;
             }
         } else if !vim_strchr(opt_vars().p_ww, b']' as c_int).is_null()
-            && curwin_mut().w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count
+            && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
         {
             start_arrow(&raw mut (*curwin_ptr()).w_cursor, true, K_RIGHT);
             curwin_mut().w_set_curswant = true;
@@ -3491,13 +3491,13 @@ fn ins_right() {
 }
 
 fn ins_s_right() {
-    unsafe {
+     {
         let end_change = g_st().Ins.dont_sync_undo == kFalse;
         if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
-        if curwin_mut().w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count || gchar_cursor() != NUL as c_int
+        if curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count || gchar_cursor() != NUL as c_int
         {
             start_arrow_with_change(&mut curwin_mut().w_cursor, end_change, K_S_RIGHT);
             fwd_word(1, false, false);
@@ -3619,15 +3619,15 @@ fn ins_tab() -> bool {
             g_st().Ins.can_cindent = false;
         }
 
-        if (*g_st().curbuf).b_p_et == 0
+        if curbuf_mut().b_p_et == 0
             && !(opt_vars().p_sta != 0
                 && ind
-                && ((tabstop_count(&(*g_st().curbuf).b_p_vts_array) > 1)
-                    || (tabstop_count(&(*g_st().curbuf).b_p_vts_array) == 1
-                        && tabstop_first(&(*g_st().curbuf).b_p_vts_array) != get_sw_value(g_st().curbuf))
-                    || (tabstop_count(&(*g_st().curbuf).b_p_vts_array) == 0
-                        && (*g_st().curbuf).b_p_ts != i64::from(get_sw_value(g_st().curbuf)))))
-            && tabstop_count(&(*g_st().curbuf).b_p_vsts_array) == 0
+                && ((tabstop_count(&curbuf_mut().b_p_vts_array) > 1)
+                    || (tabstop_count(&curbuf_mut().b_p_vts_array) == 1
+                        && tabstop_first(&curbuf_mut().b_p_vts_array) != get_sw_value(g_st().curbuf))
+                    || (tabstop_count(&curbuf_mut().b_p_vts_array) == 0
+                        && curbuf_mut().b_p_ts != i64::from(get_sw_value(g_st().curbuf)))))
+            && tabstop_count(&curbuf_mut().b_p_vsts_array) == 0
             && get_sts_value() == 0
         {
             return true;
@@ -3646,17 +3646,17 @@ fn ins_tab() -> bool {
         let mut temp: c_int = if opt_vars().p_sta != 0 && ind {
             let sw = get_sw_value(g_st().curbuf);
             sw - (get_nolist_virtcol() % sw)
-        } else if tabstop_count(&(*g_st().curbuf).b_p_vsts_array) > 0 || (*g_st().curbuf).b_p_sts != 0 {
+        } else if tabstop_count(&curbuf_mut().b_p_vsts_array) > 0 || curbuf_mut().b_p_sts != 0 {
             tabstop_padding(
                 get_nolist_virtcol(),
                 i64::from(get_sts_value()),
-                &(*g_st().curbuf).b_p_vsts_array,
+                &curbuf_mut().b_p_vsts_array,
             )
         } else {
             tabstop_padding(
                 get_nolist_virtcol(),
-                (*g_st().curbuf).b_p_ts,
-                &(*g_st().curbuf).b_p_vts_array,
+                curbuf_mut().b_p_ts,
+                &curbuf_mut().b_p_vts_array,
             )
         };
 
@@ -3675,8 +3675,8 @@ fn ins_tab() -> bool {
             }
         }
 
-        if (*g_st().curbuf).b_p_et == 0
-            && (tabstop_count(&(*g_st().curbuf).b_p_vsts_array) > 0
+        if curbuf_mut().b_p_et == 0
+            && (tabstop_count(&curbuf_mut().b_p_vsts_array) > 0
                 || get_sts_value() > 0
                 || (opt_vars().p_sta != 0 && ind))
         {
@@ -3781,8 +3781,8 @@ fn ins_tab() -> bool {
                 let i = (*cursor).col - fpos.col;
                 if i > 0 {
                     if (g_st().State & VREPLACE_FLAG) == 0 {
-                        let newp_len = ((*g_st().curbuf).b_ml.ml_line_textlen - i) as usize;
-                        let col = ptr.offset_from((*g_st().curbuf).b_ml.ml_line_ptr) as usize;
+                        let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
+                        let col = ptr.offset_from(curbuf_mut().b_ml.ml_line_ptr) as usize;
                         let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                         if col > 0 {
                             new_line
@@ -3792,7 +3792,7 @@ fn ins_tab() -> bool {
                             ptr.offset(i as isize),
                             newp_len.saturating_sub(col + 1),
                         ));
-                        ml_replace_dirty_line(&mut *g_st().curbuf, &new_line, true);
+                        ml_replace_dirty_line(curbuf_mut(), &new_line, true);
                         inserted_bytes(
                             fpos.lnum,
                             change_col,
@@ -3926,7 +3926,7 @@ fn ins_digraph() -> c_int {
 /// Handle CTRL-E and CTRL-Y in Insert mode: copy char from other line.
 pub fn ins_copychar(lnum: linenr_T) -> c_int {
     unsafe {
-        if lnum < 1 || lnum > (*g_st().curbuf).b_ml.ml_line_count {
+        if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
             vim_beep(kOptBoFlagCopy);
             return NUL as c_int;
         }
@@ -3969,7 +3969,7 @@ pub fn ins_copychar(lnum: linenr_T) -> c_int {
 }
 
 fn ins_ctrl_ey(tc: c_int) -> c_int {
-    unsafe {
+     {
         let mut c = tc;
         if ctrl_x_mode_scroll() {
             if c == Ctrl_Y {
@@ -3984,10 +3984,10 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
                 if c < 256 && !(c as u8).is_ascii_alphanumeric() {
                     redo_append_str(c"\x16", 1);
                 }
-                let tw_save = (*g_st().curbuf).b_p_tw;
-                (*g_st().curbuf).b_p_tw = -1;
+                let tw_save = curbuf_mut().b_p_tw;
+                curbuf_mut().b_p_tw = -1;
                 insert_special(c, 1, 0);
-                (*g_st().curbuf).b_p_tw = tw_save;
+                curbuf_mut().b_p_tw = tw_save;
                 g_st().Ins.revins_chars += 1;
                 g_st().Ins.revins_legal += 1;
                 c = Ctrl_V;
@@ -4054,8 +4054,8 @@ pub fn set_can_cindent(val: bool) {
 
 /// Trigger `event` and take care of fixing undo.
 pub fn ins_apply_autocmds(event: event_T) -> c_int {
-    unsafe {
-        let tick = buf_get_changedtick(&*g_st().curbuf);
+     {
+        let tick = buf_get_changedtick(curbuf_mut());
         let r = c_int::from(apply_autocmds(
             event,
             ptr::null_mut(),
@@ -4063,7 +4063,7 @@ pub fn ins_apply_autocmds(event: event_T) -> c_int {
             false,
             g_st().curbuf,
         ));
-        if event != EVENT_INSERTLEAVE && tick != buf_get_changedtick(&*g_st().curbuf) {
+        if event != EVENT_INSERTLEAVE && tick != buf_get_changedtick(curbuf_mut()) {
             u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1);
         }
         r

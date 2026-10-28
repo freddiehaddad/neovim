@@ -355,7 +355,7 @@ impl CptFuncSource {
                 Self::Ofu => &raw mut (*g_st().curbuf).b_p_ofu,
                 Self::Cfu => &raw mut (*g_st().curbuf).b_p_cfu,
                 Self::CptCb(idx) => {
-                    let cbs = &mut (*g_st().curbuf).b_p_cpt_cb;
+                    let cbs = &mut curbuf_mut().b_p_cpt_cb;
                     if idx < cbs.len() {
                         &raw mut cbs[idx]
                     } else {
@@ -816,11 +816,11 @@ fn compl_shows_dir_backward() -> bool {
 pub fn check_compl_option(dict_opt: bool) -> bool {
     unsafe {
         let empty = if dict_opt {
-            *(*g_st().curbuf).b_p_dict == NUL && *opt_vars().p_dict == NUL && curwin_mut().w_onebuf_opt.wo_spell == 0
+            *curbuf_mut().b_p_dict == NUL && *opt_vars().p_dict == NUL && curwin_mut().w_onebuf_opt.wo_spell == 0
         } else {
-            *(*g_st().curbuf).b_p_tsr == NUL
+            *curbuf_mut().b_p_tsr == NUL
                 && *opt_vars().p_tsr == NUL
-                && (*g_st().curbuf).b_p_tsrfu.cb_type() == kCallbackNone
+                && curbuf_mut().b_p_tsrfu.cb_type() == kCallbackNone
                 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) == kCallbackNone
         };
         if empty {
@@ -1112,7 +1112,7 @@ pub fn ins_compl_add_infercase(
         let mut flags: c_int = 0;
         let mut tofree: Vec<c_char> = Vec::new();
 
-        if opt_vars().p_ic != 0 && (*g_st().curbuf).b_p_inf != 0 && len > 0 {
+        if opt_vars().p_ic != 0 && curbuf_mut().b_p_inf != 0 && len > 0 {
             let mut char_len: c_int = 0;
             {
                 let mut p = str_ptr.cast_const();
@@ -1591,9 +1591,9 @@ pub fn ins_compl_long_shown_match() -> bool {
 }
 
 pub fn get_cot_flags() -> c_uint {
-    unsafe {
-        if (*g_st().curbuf).b_cot_flags != 0 {
-            (*g_st().curbuf).b_cot_flags
+     {
+        if curbuf_mut().b_cot_flags != 0 {
+            curbuf_mut().b_cot_flags
         } else {
             opt_vars().cot_flags
         }
@@ -2124,7 +2124,7 @@ fn ins_compl_dictionaries(
         regmatch.regprog = ptr::null_mut();
 
         let save_p_scs = opt_vars().p_scs;
-        if (*g_st().curbuf).b_p_inf != 0 {
+        if curbuf_mut().b_p_inf != 0 {
             opt_vars().p_scs = 0;
         }
 
@@ -2581,9 +2581,9 @@ fn ins_compl_need_restart() -> bool {
 }
 
 pub fn ins_compl_has_autocomplete() -> bool {
-    unsafe {
-        if (*g_st().curbuf).b_p_ac >= 0 {
-            (*g_st().curbuf).b_p_ac != 0
+     {
+        if curbuf_mut().b_p_ac >= 0 {
+            curbuf_mut().b_p_ac != 0
         } else {
             opt_vars().p_ac != 0
         }
@@ -3249,7 +3249,7 @@ pub fn set_cpt_callbacks(args: &mut optset_T) -> bool {
         }
 
         if (opt_flags & OPT_GLOBAL) == 0 {
-            parse_cpt_callbacks((*g_st().curbuf).b_p_cpt, &mut (*g_st().curbuf).b_p_cpt_cb);
+            parse_cpt_callbacks(curbuf_mut().b_p_cpt, &mut curbuf_mut().b_p_cpt_cb);
         }
 
         if (opt_flags & OPT_LOCAL) != 0 {
@@ -3262,7 +3262,7 @@ pub fn set_cpt_callbacks(args: &mut optset_T) -> bool {
             return true;
         }
 
-        copy_cpt_callbacks(&mut *global_cb, &mut (*g_st().curbuf).b_p_cpt_cb);
+        copy_cpt_callbacks(&mut *global_cb, &mut curbuf_mut().b_p_cpt_cb);
         true
     }
 }
@@ -3297,7 +3297,7 @@ fn get_insert_callback(type_: c_int) -> *mut Callback {
         if type_ == CTRL_X_OMNI {
             return &raw mut (*g_st().curbuf).b_p_ofu;
         }
-        if (*g_st().curbuf).b_p_tsrfu.cb_type() != kCallbackNone {
+        if curbuf_mut().b_p_tsrfu.cb_type() != kCallbackNone {
             &raw mut (*g_st().curbuf).b_p_tsrfu
         } else {
             &raw mut opt_vars().p_tsrfu
@@ -3499,9 +3499,9 @@ fn ins_compl_add_dict(dict: &mut dict_T) {
 }
 
 fn save_orig_extmarks() {
-    unsafe {
+     {
         extmark_splice_delete(
-            &mut *g_st().curbuf,
+            curbuf_mut(),
             curwin_mut().w_cursor.lnum - 1,
             insexp().compl_col,
             curwin_mut().w_cursor.lnum - 1,
@@ -3962,9 +3962,9 @@ pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 #[inline]
 fn thesaurus_func_complete(type_: c_int) -> bool {
-    unsafe {
+     {
         type_ == CTRL_X_THESAURUS
-            && ((*g_st().curbuf).b_p_tsrfu.cb_type() != kCallbackNone
+            && (curbuf_mut().b_p_tsrfu.cb_type() != kCallbackNone
                 || crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) != kCallbackNone)
     }
 }
@@ -4003,7 +4003,7 @@ fn process_next_cpt_value(
         }
 
         if st.e_cpt_char() == b'.' as c_char
-            && !(*g_st().curbuf).b_scanned
+            && !curbuf_mut().b_scanned
             && !skip_source
             && !insexp().compl_time_slice_expired
         {
@@ -4168,15 +4168,15 @@ fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dict_f: c_
             let dict_arg = if !dict.is_null() {
                 dict
             } else if compl_type == CTRL_X_THESAURUS {
-                if *(*g_st().curbuf).b_p_tsr == NUL {
+                if *curbuf_mut().b_p_tsr == NUL {
                     opt_vars().p_tsr
                 } else {
-                    (*g_st().curbuf).b_p_tsr
+                    curbuf_mut().b_p_tsr
                 }
-            } else if *(*g_st().curbuf).b_p_dict == NUL {
+            } else if *curbuf_mut().b_p_dict == NUL {
                 opt_vars().p_dict
             } else {
-                (*g_st().curbuf).b_p_dict
+                curbuf_mut().b_p_dict
             };
             ins_compl_dictionaries(
                 dict_arg,
@@ -4189,7 +4189,7 @@ fn get_next_dict_tsr_completion(compl_type: c_int, dict: *mut c_char, dict_f: c_
 }
 
 fn get_next_tag_completion() {
-    unsafe {
+     {
         let save_p_ic = opt_vars().p_ic;
         opt_vars().p_ic = ignorecase(compl_pattern_ptr());
 
@@ -4208,7 +4208,7 @@ fn get_next_tag_completion() {
                     0
                 },
             TAG_MANY,
-            (*g_st().curbuf).b_ffname,
+            curbuf_mut().b_ffname,
         ) == OK
             && !matches.is_empty()
         {
@@ -4374,7 +4374,7 @@ fn get_next_filename_completion() {
         tilde_replace(compl_pattern_ptr(), &mut matches);
         #[cfg(windows)]
         {
-            if (*(*g_st().curbuf).b_p_csl == NUL && opt_vars().p_ssl == 0) || *(*g_st().curbuf).b_p_csl == b'b' as c_char {
+            if (*curbuf_mut().b_p_csl == NUL && opt_vars().p_ssl == 0) || *curbuf_mut().b_p_csl == b'b' as c_char {
                 for slot in &mut matches {
                     if slot.as_bytes().contains(&b'/') {
                         let bytes: Vec<u8> = slot
@@ -4870,7 +4870,7 @@ fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> CptFuncSource {
         if *p == b'F' as c_char {
             let next = *p.add(1);
             if next != b',' as c_char && next != NUL {
-                let cbs = &(*g_st().curbuf).b_p_cpt_cb;
+                let cbs = &curbuf_mut().b_p_cpt_cb;
                 if idx < 0 || (idx as usize) >= cbs.len() {
                     return CptFuncSource::None;
                 }
@@ -5015,7 +5015,7 @@ fn strip_caret_numbers_in_place(str_ptr: *mut c_char) {
 
 fn prepare_cpt_compl_funcs() {
     unsafe {
-        let mut cpt_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec((*g_st().curbuf).b_p_cpt);
+        let mut cpt_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(curbuf_mut().b_p_cpt);
         let cpt = cpt_vec.as_mut_ptr();
         strip_caret_numbers_in_place(cpt);
 
@@ -5101,7 +5101,7 @@ fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
             let src = if (insexp().compl_cont_status & CONT_LOCAL) != 0 {
                 c".".as_ptr()
             } else {
-                (*g_st().curbuf).b_p_cpt
+                curbuf_mut().b_p_cpt
             };
             let mut e_cpt_copy: Vec<c_char> = crate::memory::cstr_to_cchar_vec(src);
             strip_caret_numbers_in_place(e_cpt_copy.as_mut_ptr());
@@ -6397,12 +6397,12 @@ fn ins_compl_start() -> bool {
                 g_st().edit_submode_pre = gettext(c" Adding");
             }
             if ctrl_x_mode_line_or_eval() {
-                let old = (*g_st().curbuf).b_p_com;
-                (*g_st().curbuf).b_p_com = c"".as_ptr().cast_mut();
+                let old = curbuf_mut().b_p_com;
+                curbuf_mut().b_p_com = c"".as_ptr().cast_mut();
                 insexp().compl_startpos.lnum = curwin_mut().w_cursor.lnum;
                 insexp().compl_startpos.col = insexp().compl_col;
                 ins_eol(b'\r' as c_int);
-                (*g_st().curbuf).b_p_com = old;
+                curbuf_mut().b_p_com = old;
                 insexp().compl_length = 0;
                 insexp().compl_col = curwin_mut().w_cursor.col;
                 insexp().compl_lnum = curwin_mut().w_cursor.lnum;
@@ -6772,7 +6772,7 @@ fn setup_cpt_sources() {
     unsafe {
         cpt_sources_clear();
 
-        let count = get_cpt_sources_count((*g_st().curbuf).b_p_cpt);
+        let count = get_cpt_sources_count(curbuf_mut().b_p_cpt);
         if count == 0 {
             return;
         }
@@ -6790,7 +6790,7 @@ fn setup_cpt_sources() {
 
         let mut buf: [c_char; LSIZE] = [0; LSIZE];
         let mut idx: usize = 0;
-        let mut p = (*g_st().curbuf).b_p_cpt;
+        let mut p = curbuf_mut().b_p_cpt;
         while *p != NUL {
             while *p == b',' as c_char || *p == b' ' as c_char {
                 p = p.add(1);
@@ -6910,7 +6910,7 @@ fn get_cpt_func_completion_matches(cb: &mut Callback) {
 fn cpt_compl_refresh() {
     unsafe {
         ins_compl_make_linear();
-        let mut cpt_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec((*g_st().curbuf).b_p_cpt);
+        let mut cpt_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(curbuf_mut().b_p_cpt);
         let cpt = cpt_vec.as_mut_ptr();
         strip_caret_numbers_in_place(cpt);
 

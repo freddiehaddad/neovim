@@ -2117,13 +2117,13 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
 pub fn keymap_init() -> *mut c_char {
     unsafe {
-        (*g_st().curbuf).b_kmap_state &= !KEYMAP_INIT;
+        curbuf_mut().b_kmap_state &= !KEYMAP_INIT;
 
-        if *(*g_st().curbuf).b_p_keymap == NUL {
+        if *curbuf_mut().b_p_keymap == NUL {
             keymap_unload();
             do_cmdline_cmd(c"unlet! b:keymap_name");
         } else {
-            let kmap = crate::memory::cstr_lossy((*g_st().curbuf).b_p_keymap);
+            let kmap = crate::memory::cstr_lossy(curbuf_mut().b_p_keymap);
             let enc = crate::memory::cstr_lossy(opt_vars().p_enc);
             let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
             if !source_runtime(primary.as_ptr().cast_mut(), 0) {
@@ -2159,8 +2159,8 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
 
         keymap_unload();
 
-        (*g_st().curbuf).b_kmap_state = 0;
-        (*g_st().curbuf).b_kmap_ga.clear();
+        curbuf_mut().b_kmap_state = 0;
+        curbuf_mut().b_kmap_ga.clear();
 
         opt_vars().p_cpo = c"C".as_ptr().cast_mut();
 
@@ -2184,12 +2184,12 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
                     std::ffi::CString::new(from_slice),
                     std::ffi::CString::new(to_slice),
                 ) {
-                    (*g_st().curbuf).b_kmap_ga.push(kmap_T { from, to });
+                    curbuf_mut().b_kmap_ga.push(kmap_T { from, to });
                 }
             }
         }
 
-        for kp in &(*g_st().curbuf).b_kmap_ga {
+        for kp in &curbuf_mut().b_kmap_ga {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
@@ -2202,24 +2202,24 @@ pub fn ex_loadkeymap(eap: &mut exarg_T) {
 
         opt_vars().p_cpo = save_cpo;
 
-        (*g_st().curbuf).b_kmap_state |= KEYMAP_LOADED;
+        curbuf_mut().b_kmap_state |= KEYMAP_LOADED;
         status_redraw_curbuf();
     }
 }
 
 /// Stop using `'keymap'` (`keymap_unload`).
 fn keymap_unload() {
-    unsafe {
+     {
         let mut buf = [0 as c_char; KMAP_MAXLEN + 10];
         let save_cpo = opt_vars().p_cpo;
 
-        if ((*g_st().curbuf).b_kmap_state & KEYMAP_LOADED) == 0 {
+        if (curbuf_mut().b_kmap_state & KEYMAP_LOADED) == 0 {
             return;
         }
 
         opt_vars().p_cpo = c"C".as_ptr().cast_mut();
 
-        for entry in &(*g_st().curbuf).b_kmap_ga {
+        for entry in &curbuf_mut().b_kmap_ga {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
@@ -2228,11 +2228,11 @@ fn keymap_unload() {
             );
             do_map(MAPTYPE_UNMAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
         }
-        (*g_st().curbuf).b_kmap_ga.clear();
+        curbuf_mut().b_kmap_ga.clear();
 
         opt_vars().p_cpo = save_cpo;
 
-        (*g_st().curbuf).b_kmap_state &= !KEYMAP_LOADED;
+        curbuf_mut().b_kmap_state &= !KEYMAP_LOADED;
         status_redraw_curbuf();
     }
 }

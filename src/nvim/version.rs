@@ -4108,7 +4108,7 @@ pub fn list_version() {
 
         version_msg(if opt_vars().p_verbose > 0 {
             c"\nRun :checkhealth for more info".as_ptr()
-        } else if *starting.as_ptr() != 0 {
+        } else if starting_val() != 0 {
             c"\nRun \"nvim -V1 -v\" for more info".as_ptr()
         } else {
             c"\nRun \":verbose version\" for more info".as_ptr()
@@ -4118,10 +4118,10 @@ pub fn list_version() {
 
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub fn may_show_intro() -> bool {
-    unsafe {
-        buf_is_empty(&mut *g_st().curbuf)
-            && (*g_st().curbuf).b_fname.is_null()
-            && (*g_st().curbuf).b_fnum == 1
+     {
+        buf_is_empty(curbuf_mut())
+            && curbuf_mut().b_fname.is_null()
+            && curbuf_mut().b_fnum == 1
             && curwin_mut().handle == LOWEST_WIN_ID
             && one_window(curwin_ptr(), ptr::null_mut())
             && vim_strchr(opt_vars().p_shm, kShmIntro).is_null()

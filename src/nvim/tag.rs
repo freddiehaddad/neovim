@@ -405,7 +405,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
         let mut tagstackidx = curwin_mut().w_tagstackidx;
         let mut tagstacklen = curwin_mut().w_tagstacklen;
         let mut cur_match: c_int = 0;
-        let mut cur_fnum = (*g_st().curbuf).b_fnum;
+        let mut cur_fnum = curbuf_mut().b_fnum;
         let oldtagstackidx = tagstackidx;
         let mut prevtagstackidx = tagstackidx;
         let mut new_tag = false;
@@ -428,7 +428,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
         };
         let use_tagstack: bool;
         let mut skip_msg = false;
-        let mut buf_ffname = (*g_st().curbuf).b_ffname;
+        let mut buf_ffname = curbuf_mut().b_ffname;
         let mut use_tfu = true;
         let mut tofree: Option<std::ffi::CString> = None;
         let do_tag_matches = &raw mut tag_st().DO_TAG_MATCHES;
@@ -535,7 +535,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         }
 
                         saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
-                        if saved_fmark.fnum != (*g_st().curbuf).b_fnum {
+                        if saved_fmark.fnum != curbuf_mut().b_fnum {
                             if !buflist_getfile(
                                 saved_fmark.fnum,
                                 saved_fmark.mark.lnum,
@@ -615,7 +615,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                             ));
                             skip_msg = true;
                             cur_match = 0;
-                            cur_fnum = (*g_st().curbuf).b_fnum;
+                            cur_fnum = curbuf_mut().b_fnum;
                         }
                     }
                 }
@@ -629,7 +629,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                     saved_fmark = (*tagstack.add(tagstackidx as usize)).fmark.clone();
                     if save_pos {
                         (*tagstack.add(tagstackidx as usize)).fmark.mark = curwin_mut().w_cursor;
-                        (*tagstack.add(tagstackidx as usize)).fmark.fnum = (*g_st().curbuf).b_fnum;
+                        (*tagstack.add(tagstackidx as usize)).fmark.fnum = curbuf_mut().b_fnum;
                         (*tagstack.add(tagstackidx as usize)).fmark.view =
                             mark_view_make(curwin_mut(), curwin_mut().w_cursor);
                     }
@@ -642,7 +642,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                 }
             }
 
-            if cur_fnum != (*g_st().curbuf).b_fnum {
+            if cur_fnum != curbuf_mut().b_fnum {
                 let buf = buflist_findnr(cur_fnum);
                 if !buf.is_null() {
                     buf_ffname = (*buf).b_ffname;
@@ -1140,7 +1140,7 @@ pub fn do_tags(_eap: &mut exarg_T) {
                 msg_outtrans(iobuf_ptr, 0, false);
                 msg_outtrans(
                     name.as_ptr(),
-                    if (*entry).fmark.fnum == (*g_st().curbuf).b_fnum {
+                    if (*entry).fmark.fnum == curbuf_mut().b_fnum {
                         HLF_D
                     } else {
                         0
@@ -1275,7 +1275,7 @@ fn find_tagfunc_tags(
             }
         }
 
-        if (*g_st().curbuf).b_p_tfu.cb_type() == kCallbackNone {
+        if curbuf_mut().b_p_tfu.cb_type() == kCallbackNone {
             return FAIL;
         }
 
@@ -1588,19 +1588,19 @@ fn findtags_in_help_init(st: &mut findtags_state_T) -> bool {
             return false;
         }
 
-        let fname_len = if !(*g_st().curbuf).b_fname.is_null() {
-            crate::memory::cstr_len((*g_st().curbuf).b_fname) as c_int
+        let fname_len = if !curbuf_mut().b_fname.is_null() {
+            crate::memory::cstr_len(curbuf_mut().b_fname) as c_int
         } else {
             0
         };
         if (st.flags & TAG_KEEP_LANG) != 0
             && st.help_lang_find.is_none()
-            && !(*g_st().curbuf).b_fname.is_null()
+            && !curbuf_mut().b_fname.is_null()
             && fname_len > 4
-            && *(*g_st().curbuf).b_fname.add((fname_len - 1) as usize) == b'x' as c_char
-            && *(*g_st().curbuf).b_fname.add((fname_len - 4) as usize) == b'.' as c_char
+            && *curbuf_mut().b_fname.add((fname_len - 1) as usize) == b'x' as c_char
+            && *curbuf_mut().b_fname.add((fname_len - 4) as usize) == b'.' as c_char
             && mb_strnicmp(
-                (*g_st().curbuf).b_fname.add((fname_len - 3) as usize),
+                curbuf_mut().b_fname.add((fname_len - 3) as usize),
                 st.help_lang.as_ptr(),
                 2,
             ) == 0
@@ -1637,10 +1637,10 @@ fn findtags_apply_tfu(
     pat: *mut c_char,
     buf_ffname: *mut c_char,
 ) -> c_int {
-    unsafe {
+     {
         let use_tfu = (st.flags & TAG_NO_TAGFUNC) == 0;
 
-        if !use_tfu || tag_st().tfu_in_use || (*g_st().curbuf).b_p_tfu.cb_type() == kCallbackNone {
+        if !use_tfu || tag_st().tfu_in_use || curbuf_mut().b_p_tfu.cb_type() == kCallbackNone {
             return NOTDONE;
         }
 
@@ -2198,7 +2198,7 @@ fn findtags_get_all_tags(
 }
 
 fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: *mut c_char) {
-    unsafe {
+     {
         let mut margs = findtags_match_args_T::default();
 
         st.vimconv.vc_type = CONV_NONE;
@@ -2206,7 +2206,7 @@ fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: *mut c
         st.fp = None;
         findtags_matchargs_init(&mut margs, st.flags);
 
-        if (*g_st().curbuf).b_help && !findtags_in_help_init(st) {
+        if curbuf_mut().b_help && !findtags_in_help_init(st) {
             return;
         }
 
@@ -2302,8 +2302,8 @@ pub fn find_tags(
         let verbose = (flags & TAG_VERBOSE) != 0;
         let save_p_ic = opt_vars().p_ic;
 
-        match if (*g_st().curbuf).b_tc_flags != 0 {
-            (*g_st().curbuf).b_tc_flags
+        match if curbuf_mut().b_tc_flags != 0 {
+            curbuf_mut().b_tc_flags
         } else {
             opt_vars().tc_flags
         } {
@@ -2315,15 +2315,15 @@ pub fn find_tags(
             _ => std::process::abort(),
         }
 
-        let help_save = (*g_st().curbuf).b_help;
+        let help_save = curbuf_mut().b_help;
 
         findtags_state_init(&mut st, pat, flags, mincount);
 
         if st.help_only {
-            (*g_st().curbuf).b_help = true;
+            curbuf_mut().b_help = true;
         }
 
-        if (*g_st().curbuf).b_help
+        if curbuf_mut().b_help
             && st.orgpat.len > 3
             && *pat.add((st.orgpat.len - 3) as usize) == b'@' as c_char
             && ascii_isalpha(*pat.add((st.orgpat.len - 2) as usize))
@@ -2358,12 +2358,12 @@ pub fn find_tags(
 
                 if (flags & TAG_KEEP_LANG) != 0
                     && st.help_lang_find.is_none()
-                    && !(*g_st().curbuf).b_fname.is_null()
+                    && !curbuf_mut().b_fname.is_null()
                 {
-                    let i = crate::memory::cstr_len((*g_st().curbuf).b_fname) as c_int;
+                    let i = crate::memory::cstr_len(curbuf_mut().b_fname) as c_int;
                     if i > 4
                         && mb_strnicmp(
-                            (*g_st().curbuf).b_fname.add((i - 4) as usize),
+                            curbuf_mut().b_fname.add((i - 4) as usize),
                             c".txt",
                             MAXCOL as usize,
                         ) == 0
@@ -2414,7 +2414,7 @@ pub fn find_tags(
 
         findtags_copy_matches(&mut st, matches);
 
-        (*g_st().curbuf).b_help = help_save;
+        curbuf_mut().b_help = help_save;
         drop(saved_pat);
 
         opt_vars().p_ic = save_p_ic;
@@ -2461,7 +2461,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
             *tnp = tagname_T::new();
         }
 
-        if (*g_st().curbuf).b_help {
+        if curbuf_mut().b_help {
             let tf = &raw mut tag_st().tag_fnames;
             if first != 0 {
                 (*tf).clear();
@@ -2498,8 +2498,8 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
         }
 
         if first != 0 {
-            let src = if *(*g_st().curbuf).b_p_tags != NUL {
-                (*g_st().curbuf).b_p_tags
+            let src = if *curbuf_mut().b_p_tags != NUL {
+                curbuf_mut().b_p_tags
             } else {
                 opt_vars().p_tags
             };
@@ -2543,7 +2543,7 @@ pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> bool
                     FINDFILE_FILE,
                     tnp.tn_search_ctx.take(),
                     1,
-                    (*g_st().curbuf).b_ffname,
+                    curbuf_mut().b_ffname,
                 );
                 if tnp.tn_search_ctx.is_some() {
                     tnp.tn_did_filefind_init = 1;
@@ -2812,7 +2812,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                 if l_g_do_tagpreview != 0 {
                     g_st().keep_help_flag = bt_help((*curwin_save).w_buffer);
                 } else {
-                    g_st().keep_help_flag = (*g_st().curbuf).b_help;
+                    g_st().keep_help_flag = curbuf_mut().b_help;
                 }
             }
 
@@ -2975,7 +2975,7 @@ fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int
                 }
 
                 if retval == OK {
-                    if (*g_st().curbuf).b_help {
+                    if curbuf_mut().b_help {
                         set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
                     }
                     if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
@@ -3033,7 +3033,7 @@ fn expand_tag_fname(
             }
         }
 
-        if (opt_vars().p_tr != 0 || (*g_st().curbuf).b_help) && !vim_isAbsName(fname.as_ptr()) {
+        if (opt_vars().p_tr != 0 || curbuf_mut().b_help) && !vim_isAbsName(fname.as_ptr()) {
             let p = path_tail(tag_fname);
             if p != tag_fname {
                 let mut retval = [0 as c_char; MAXPATHL];
@@ -3144,7 +3144,7 @@ pub fn expand_tags(
                 &mut raw_matches,
                 TAG_REGEXP | extra_flag | TAG_VERBOSE,
                 TAG_MANY,
-                (*g_st().curbuf).b_ffname,
+                curbuf_mut().b_ffname,
             )
         } else {
             find_tags(
@@ -3152,7 +3152,7 @@ pub fn expand_tags(
                 &mut raw_matches,
                 TAG_REGEXP | extra_flag | TAG_VERBOSE | TAG_NOIC,
                 TAG_MANY,
-                (*g_st().curbuf).b_ffname,
+                curbuf_mut().b_ffname,
             )
         };
         file.clear();

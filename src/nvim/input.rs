@@ -2608,7 +2608,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                     if g_st().typebuf.tb_maplen != 0 {
                         line_breakcheck();
                     } else {
-                        if ((g_st().mapped_ctrl_c | (*g_st().curbuf).b_mapped_ctrl_c) & get_real_state()) != 0 {
+                        if ((g_st().mapped_ctrl_c | curbuf_mut().b_mapped_ctrl_c) & get_real_state()) != 0 {
                             g_st().ctrl_c_interrupts = false;
                         }
                         os_breakcheck();

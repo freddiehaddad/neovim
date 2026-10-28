@@ -684,7 +684,7 @@ pub fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
         if (*syn_st().syn_block).b_sst_max == 0 {
             return;
         }
-        (*syn_st().syn_block).b_sst_lasttick = *display_tick.as_ptr();
+        (*syn_st().syn_block).b_sst_lasttick = display_tick_val();
 
         if valid_state() && syn_st().current_lnum < lnum && syn_st().current_lnum < (*syn_st().syn_buf).b_ml.ml_line_count {
             syn_finish_line(false);
@@ -1362,7 +1362,7 @@ fn store_current_state() -> Option<usize> {
             }
             sp.sst_next_flags = syn_st().current_next_flags;
             sp.sst_next_list = syn_st().current_next_list.clone();
-            sp.sst_tick = *display_tick.as_ptr();
+            sp.sst_tick = display_tick_val();
             sp.sst_change_lnum = 0;
         }
         syn_st().current_state_stored = true;
@@ -2911,7 +2911,7 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
                 msg_outtrans(gettext(c"syntax iskeyword not set"), 0, false);
             }
         } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"clear") {
-            (*win_s(curwin_mut())).b_syn_chartab = (*g_st().curbuf).b_chartab;
+            (*win_s(curwin_mut())).b_syn_chartab = curbuf_mut().b_chartab;
             (*win_s(curwin_mut())).b_syn_isk = None;
         } else {
             if !check_isopt(arg) {
@@ -5122,7 +5122,7 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
             Some(crate::memory::cstr_to_cstring(raw_old))
         };
 
-        apply_autocmds(EVENT_SYNTAX, eap.arg, (*g_st().curbuf).b_fname, true, g_st().curbuf);
+        apply_autocmds(EVENT_SYNTAX, eap.arg, curbuf_mut().b_fname, true, g_st().curbuf);
 
         let new_value = get_var_value(c"b:current_syntax");
         if !new_value.is_null() {

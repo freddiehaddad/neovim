@@ -471,11 +471,11 @@ pub fn atom_cmd_spec(cap: &cmdarg_T) -> CmdSpec {
 }
 
 fn atom_origin() -> CmdOrigin {
-    unsafe {
+     {
         let mut origin = CmdOrigin {
             win: curwin_ptr(),
             pos: curwin_mut().w_cursor,
-            tick: buf_get_changedtick(&*g_st().curbuf),
+            tick: buf_get_changedtick(curbuf_mut()),
             maptick: g_st().maptick,
             mcursor: mc_mark_at(g_st().curbuf, curwin_mut().w_cursor, 0),
             ..CmdOrigin::default()
@@ -833,12 +833,12 @@ pub fn atom_push_raw(cascade: bool,atom: &mut CmdAtom) {
 }
 
 fn atom_push(cascade: bool, atom: &mut CmdAtom) {
-    unsafe {
+     {
         if atom_blocked() {
             *atom = CmdAtom::new();
             return;
         }
-        atom_push_raw(cascade && mc_buf_has_cursors(&mut *g_st().curbuf), &mut *atom);
+        atom_push_raw(cascade && mc_buf_has_cursors(curbuf_mut()), &mut *atom);
     }
 }
 
@@ -1004,7 +1004,7 @@ fn atom_capturable(consumers: bool, keytyped: bool) -> bool {
 
 #[inline]
 fn atom_buf_has_consumers() -> bool {
-    unsafe { mc_buf_has_cursors(&mut *g_st().curbuf) || has_event(EVENT_CMDATOM) }
+     mc_buf_has_cursors(curbuf_mut()) || has_event(EVENT_CMDATOM)
 }
 
 pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
@@ -1371,7 +1371,7 @@ fn atom_visual_span_flush() {
         if atom_st().vatom.done >= (*v_atoms).len()
             || !atom_visual_replayable()
             || !atom_visual_typed()
-            || !mc_buf_has_cursors(&mut *g_st().curbuf)
+            || !mc_buf_has_cursors(curbuf_mut())
         {
             return;
         }
@@ -1703,7 +1703,7 @@ pub fn atom_ins_start(
 }
 
 pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
-    unsafe {
+     {
         let visual = session.vis != kVInsNone;
         let user_input = session.typed || g_st().maptick != session.origin.maptick;
 
@@ -1730,7 +1730,7 @@ pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
             session.vsel = None;
             return;
         }
-        atom_ins_push(session, mc_buf_has_cursors(&mut *g_st().curbuf));
+        atom_ins_push(session, mc_buf_has_cursors(curbuf_mut()));
         session.vsel = None;
     }
 }

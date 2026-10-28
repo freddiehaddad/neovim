@@ -182,11 +182,11 @@ fn whitechar(cc: c_int) -> bool {
 
 /// Return true if format option `x` is in effect (`has_format_option`).
 pub fn has_format_option(x: c_int) -> bool {
-    unsafe {
+     {
         if opt_vars().p_paste != 0 {
             return false;
         }
-        !vim_strchr((*g_st().curbuf).b_p_fo, x).is_null()
+        !vim_strchr(curbuf_mut().b_p_fo, x).is_null()
     }
 }
 
@@ -214,7 +214,7 @@ pub fn internal_format(
 
         curwin_mut().w_onebuf_opt.wo_lbr = 0;
 
-        if (*g_st().curbuf).b_p_ai == 0 && (g_st().State & VREPLACE_FLAG) == 0 {
+        if curbuf_mut().b_p_ai == 0 && (g_st().State & VREPLACE_FLAG) == 0 {
             cc = gchar_cursor();
             if ascii_iswhite(cc) {
                 save_char = cc as c_char;
@@ -246,7 +246,7 @@ pub fn internal_format(
             if do_comments {
                 let line = get_cursor_line_ptr();
                 leader_len = get_leader_len(line, ptr::null_mut(), false, true);
-                if leader_len == 0 && (*g_st().curbuf).b_p_cin != 0 {
+                if leader_len == 0 && curbuf_mut().b_p_cin != 0 {
                     let comment_start = check_linecomment(line);
                     if comment_start != MAXCOL {
                         leader_len = get_leader_len(
@@ -760,8 +760,8 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         curwin_mut().w_cursor = g_st().saved_cursor;
         g_st().saved_cursor.lnum = 0;
 
-        if curwin_mut().w_cursor.lnum > (*g_st().curbuf).b_ml.ml_line_count {
-            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+        if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count {
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
             coladvance(curwin_mut(), MAXCOL);
         } else {
             check_cursor_col(curwin_mut());
@@ -811,10 +811,10 @@ pub fn check_auto_format(end_insert: bool) {
 
 /// Find out textwidth to be used for formatting (`comp_textwidth`).
 pub fn comp_textwidth(ff: bool) -> c_int {
-    unsafe {
-        let mut textwidth = (*g_st().curbuf).b_p_tw as c_int;
-        if textwidth == 0 && (*g_st().curbuf).b_p_wm != 0 {
-            textwidth = curwin_mut().w_view_width - (*g_st().curbuf).b_p_wm as c_int;
+     {
+        let mut textwidth = curbuf_mut().b_p_tw as c_int;
+        if textwidth == 0 && curbuf_mut().b_p_wm != 0 {
+            textwidth = curwin_mut().w_view_width - curbuf_mut().b_p_wm as c_int;
             textwidth -= win_fdccol_count(curwin_mut());
             textwidth -= curwin_mut().w_scwidth;
 
@@ -833,7 +833,7 @@ pub fn comp_textwidth(ff: bool) -> c_int {
 /// Implementation of the format operator `gq` (`op_format`).
 pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
     unsafe {
-        let mut old_line_count = (*g_st().curbuf).b_ml.ml_line_count;
+        let mut old_line_count = curbuf_mut().b_ml.ml_line_count;
 
         curwin_mut().w_cursor = oap.cursor_start;
 
@@ -847,7 +847,7 @@ pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
         }
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_start = oap.start;
+            curbuf_mut().b_op_start = oap.start;
         }
 
         if keep_cursor {
@@ -856,15 +856,15 @@ pub fn op_format(oap: &mut oparg_T, keep_cursor: bool) {
 
         format_lines(oap.line_count, keep_cursor);
 
-        if oap.end_adjusted && curwin_mut().w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count {
+        if oap.end_adjusted && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count {
             curwin_mut().w_cursor.lnum += 1;
         }
         beginline(BL_WHITE | BL_FIX);
-        old_line_count = (*g_st().curbuf).b_ml.ml_line_count - old_line_count;
+        old_line_count = curbuf_mut().b_ml.ml_line_count - old_line_count;
         msgmore(old_line_count);
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            (*g_st().curbuf).b_op_end = curwin_mut().w_cursor;
+            curbuf_mut().b_op_end = curwin_mut().w_cursor;
         }
 
         if keep_cursor {
@@ -902,7 +902,7 @@ pub fn op_formatexpr(oap: &mut oparg_T) {
 
 /// Evaluate `'formatexpr'` (`fex_format`).
 pub fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
-    unsafe {
+     {
         let use_sandbox = was_set_insecurely(curwin_ptr(), kOptFormatexpr, OPT_LOCAL) != 0;
         let save_sctx = g_st().current_sctx;
 
@@ -910,9 +910,9 @@ pub fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
         set_vim_var_nr(VV_COUNT, count as _);
         set_vim_var_char(c);
 
-        g_st().current_sctx = (*g_st().curbuf).b_p_script_ctx[kBufOptFormatexpr];
+        g_st().current_sctx = curbuf_mut().b_p_script_ctx[kBufOptFormatexpr];
 
-        let r = eval_expr_option_number(&mut (*g_st().curbuf).b_p_fex, use_sandbox);
+        let r = eval_expr_option_number(&mut curbuf_mut().b_p_fex, use_sandbox);
 
         set_vim_var_string(VV_CHAR, ptr::null(), -1);
         g_st().current_sctx = save_sctx;
@@ -983,7 +983,7 @@ pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                 prev_is_end_par = is_end_par;
             }
 
-            if count == 1 || curwin_mut().w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count {
+            if count == 1 || curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
                 next_is_not_par = true;
                 next_leader_len = 0;
                 next_leader_flags = ptr::null_mut();
@@ -1012,7 +1012,7 @@ pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                 if first_par_line
                     && (do_second_indent || do_number_indent)
                     && prev_is_end_par
-                    && curwin_mut().w_cursor.lnum < (*g_st().curbuf).b_ml.ml_line_count
+                    && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
                 {
                     if do_second_indent && *ml_get(curwin_mut().w_cursor.lnum + 1) != NUL {
                         if leader_len == 0 && next_leader_len == 0 {
@@ -1031,7 +1031,7 @@ pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                     }
                 }
 
-                if (curwin_mut().w_cursor.lnum >= (*g_st().curbuf).b_ml.ml_line_count
+                if (curwin_mut().w_cursor.lnum >= curbuf_mut().b_ml.ml_line_count
                     || !same_leader(
                         curwin_mut().w_cursor.lnum,
                         leader_len,
@@ -1050,10 +1050,10 @@ pub fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                     if need_set_indent {
                         let indent = if curwin_mut().w_cursor.lnum == first_line {
                             get_indent()
-                        } else if (*g_st().curbuf).b_p_lisp != 0 {
+                        } else if curbuf_mut().b_p_lisp != 0 {
                             get_lisp_indent()
                         } else if cindent_on() {
-                            if (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone {
+                            if curbuf_mut().b_p_inde.cb_type() != kCallbackNone {
                                 get_expr_indent()
                             } else {
                                 get_c_indent()

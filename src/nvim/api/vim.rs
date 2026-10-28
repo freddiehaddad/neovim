@@ -1044,9 +1044,9 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
 /// @return Current line string
 // DLLEXPORT String nvim_get_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
-    unsafe {
+     {
         buffer_get_line(
-            (*g_st().curbuf).b_fnum,
+            curbuf_mut().b_fnum,
             Integer::from(curwin_mut().w_cursor.lnum - 1),
             arena,
             err,
@@ -1065,9 +1065,9 @@ pub fn nvim_set_current_line(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    unsafe {
+     {
         buffer_set_line(
-            (*g_st().curbuf).b_fnum,
+            curbuf_mut().b_fnum,
             Integer::from(curwin_mut().w_cursor.lnum - 1),
             line,
             arena,
@@ -1081,9 +1081,9 @@ pub fn nvim_set_current_line(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
-    unsafe {
+     {
         buffer_del_line(
-            (*g_st().curbuf).b_fnum,
+            curbuf_mut().b_fnum,
             Integer::from(curwin_mut().w_cursor.lnum - 1),
             arena,
             err,
@@ -1423,7 +1423,7 @@ pub fn nvim_list_bufs(arena: &mut Arena) -> Array {
 /// @return Buffer id
 // DLLEXPORT Buffer nvim_get_current_buf(void) FUNC_API_SINCE(1);
 pub fn nvim_get_current_buf() -> Buffer {
-    unsafe { (*g_st().curbuf).b_fnum }
+     curbuf_mut().b_fnum
 }
 
 /// Sets the current window's buffer to `buf`.
@@ -1774,7 +1774,7 @@ pub fn nvim_list_tabpages(arena: &mut Arena) -> Array {
 /// @return |tab-ID|
 // DLLEXPORT Tabpage nvim_get_current_tabpage(void) FUNC_API_SINCE(1);
 pub fn nvim_get_current_tabpage() -> Tabpage {
-    unsafe { (*g_st().curtab).handle }
+     curtab_mut().handle
 }
 
 /// Sets the current tabpage.
@@ -1845,8 +1845,8 @@ pub fn nvim_paste(
         }
         if phase == -1 || phase == 1 {
             api_vim_st().PASTE_CANCELLED = false;
-            if !(*g_st().curbuf).terminal.is_null() {
-                terminal_set_streamed_paste(&mut *(*g_st().curbuf).terminal, true);
+            if !curbuf_mut().terminal.is_null() {
+                terminal_set_streamed_paste(&mut *curbuf_mut().terminal, true);
             }
         } else if api_vim_st().PASTE_CANCELLED {
             let retval = !api_vim_st().PASTE_CANCELLED;
@@ -1874,8 +1874,8 @@ pub fn nvim_paste(
         if error_set(err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean()) {
             api_vim_st().PASTE_CANCELLED = true;
         }
-        if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !(*g_st().curbuf).terminal.is_null() {
-            terminal_set_streamed_paste(&mut *(*g_st().curbuf).terminal, false);
+        if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !curbuf_mut().terminal.is_null() {
+            terminal_set_streamed_paste(&mut *curbuf_mut().terminal, false);
         }
         let null_str = NvimString {
             data: ptr::null_mut(),
@@ -3335,7 +3335,7 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
 
         let mut flush_ui = opts.flush;
         if opts.tabline {
-            if g_st().redraw_tabline && (*g_st().firstwin).w_lines_valid == 0 {
+            if g_st().redraw_tabline && firstwin_mut().w_lines_valid == 0 {
                 opts.flush = true;
             } else {
                 draw_tabline();

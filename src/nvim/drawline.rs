@@ -887,7 +887,7 @@ fn draw_statuscol(wp: &mut win_T,
     unsafe {
         let lnum = wlv.lnum - c_int::from((wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below);
 
-        let reset = dl_st().stc_prev_wp != wp || dl_st().stc_prev_tick != *display_tick.as_ptr() || lnum != dl_st().stc_prev_lnum;
+        let reset = dl_st().stc_prev_wp != wp || dl_st().stc_prev_tick != display_tick_val() || lnum != dl_st().stc_prev_lnum;
         let mut reset_virt = if lnum == wlv.lnum {
             wlv.filler_lines_skip
         } else {
@@ -919,7 +919,7 @@ fn draw_statuscol(wp: &mut win_T,
             -1
         };
 
-        dl_st().stc_prev_tick = *display_tick.as_ptr();
+        dl_st().stc_prev_tick = display_tick_val();
         dl_st().stc_prev_lnum = lnum;
         dl_st().stc_prev_wp = wp;
 

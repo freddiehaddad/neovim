@@ -207,7 +207,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                             win_setheight(opt_vars().p_hh as c_int);
                         }
 
-                        alt_fnum = (*g_st().curbuf).b_fnum;
+                        alt_fnum = curbuf_mut().b_fnum;
                         do_ecmd(
                             0,
                             ptr::null_mut(),
@@ -221,7 +221,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                         if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
                             curwin_mut().w_alt_fnum = alt_fnum;
                         }
-                        empty_fnum = (*g_st().curbuf).b_fnum;
+                        empty_fnum = curbuf_mut().b_fnum;
                     }
                 }
             }
@@ -240,7 +240,7 @@ pub fn ex_help(eap: &mut exarg_T) {
                 true,
             );
 
-            if empty_fnum != 0 && (*g_st().curbuf).b_fnum != empty_fnum {
+            if empty_fnum != 0 && curbuf_mut().b_fnum != empty_fnum {
                 let buf = buflist_findnr(empty_fnum);
                 if !buf.is_null() && (*buf).b_nwindows == 0 {
                     wipe_buffer(buf, true);
@@ -452,15 +452,15 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
 pub fn prepare_help_buffer() {
-    unsafe {
-        (*g_st().curbuf).b_help = true;
+     {
+        curbuf_mut().b_help = true;
         set_option_direct(kOptBuftype, cstr_as_obj(c"help"), OPT_LOCAL, 0);
 
         let p = c"!-~,^*,^|,^\",192-255";
-        if crate::memory::cstr_as_bytes((*g_st().curbuf).b_p_isk) != p.to_bytes() {
+        if crate::memory::cstr_as_bytes(curbuf_mut().b_p_isk) != p.to_bytes() {
             set_option_direct(kOptIskeyword, cstr_as_obj(p), OPT_LOCAL, 0);
-            check_buf_options(&mut *g_st().curbuf);
-            buf_init_isk_chartab(&mut *g_st().curbuf);
+            check_buf_options(curbuf_mut());
+            buf_init_isk_chartab(curbuf_mut());
         }
 
         set_option_direct(
@@ -470,11 +470,11 @@ pub fn prepare_help_buffer() {
             0,
         );
 
-        (*g_st().curbuf).b_p_ts = 8;
+        curbuf_mut().b_p_ts = 8;
         curwin_mut().w_onebuf_opt.wo_list = 0;
 
-        (*g_st().curbuf).b_p_ma = 0;
-        (*g_st().curbuf).b_p_bin = 0;
+        curbuf_mut().b_p_ma = 0;
+        curbuf_mut().b_p_bin = 0;
         curwin_mut().w_onebuf_opt.wo_nu = 0;
         curwin_mut().w_onebuf_opt.wo_rnu = 0;
         curwin_mut().w_onebuf_opt.wo_scb = 0;

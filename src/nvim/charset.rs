@@ -722,7 +722,7 @@ pub fn vim_isIDc(c: c_int) -> bool {
 }
 
 pub fn vim_iswordc(c: c_int) -> bool {
-    unsafe { vim_iswordc_buf(c, &mut *g_st().curbuf) }
+     vim_iswordc_buf(c, curbuf_mut())
 }
 
 pub fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {

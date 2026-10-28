@@ -598,10 +598,10 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             time_msg_if_enabled(c"waiting for UI");
             remote_ui_wait_for_attach();
             time_msg_if_enabled(c"done waiting for UI");
-            (*g_st().firstwin).w_prev_height = (*g_st().firstwin).w_height;
+            firstwin_mut().w_prev_height = firstwin_mut().w_height;
         }
 
-        *starting.as_ptr() = NO_BUFFERS;
+        set_starting(NO_BUFFERS);
         screenclear();
         win_new_screensize();
         time_msg_if_enabled(c"clear screen");
@@ -699,7 +699,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         handle_quickfix(&mut params);
 
-        *starting.as_ptr() = NO_BUFFERS;
+        set_starting(NO_BUFFERS);
         g_st().no_wait_return = 0;
         g_st().msg_scroll = 0;
 
@@ -719,7 +719,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
 
         if params.exmode {
-            curwin_mut().w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
         }
 
         apply_autocmds(
@@ -740,7 +740,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
         edit_buffers(&mut params);
 
         if params.diff_mode != 0 {
-            let mut wp = (*g_st().curtab).tp_firstwin;
+            let mut wp = curtab_mut().tp_firstwin;
             while !wp.is_null() {
                 if !(*wp).w_arg_idx_invalid {
                     diff_win_options(wp, true);
@@ -757,7 +757,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             exe_commands(&mut params);
         }
 
-        *starting.as_ptr() = 0;
+        set_starting(0);
 
         g_st().RedrawingDisabled = 0;
         redraw_all_later(UPD_NOT_VALID);
@@ -1459,8 +1459,8 @@ fn command_line_scan(parmp: &mut mparm_T) {
                         set_option_value_give_err(kOptArabic, boolean_obj(true), 0);
                     }
                     b'b' => {
-                        set_options_bin((*g_st().curbuf).b_p_bin, 1, 0);
-                        (*g_st().curbuf).b_p_bin = 1;
+                        set_options_bin(curbuf_mut().b_p_bin, 1, 0);
+                        curbuf_mut().b_p_bin = 1;
                     }
                     b'D' => {
                         parmp.use_debug_break_level = 9999;
@@ -1521,7 +1521,7 @@ fn command_line_scan(parmp: &mut mparm_T) {
                     }
                     b'R' => {
                         g_st().readonlymode = true;
-                        (*g_st().curbuf).b_p_ro = 1;
+                        curbuf_mut().b_p_ro = 1;
                         opt_vars().p_uc = 10000;
                     }
                     b'r' | b'L' => {
@@ -1970,14 +1970,14 @@ fn read_stdin() {
         g_st().no_wait_return = 1;
         let save_msg_didany = g_st().msg_didany;
 
-        if !(*g_st().curbuf).b_ffname.is_null() {
+        if !curbuf_mut().b_ffname.is_null() {
             let stdin_buf = buflist_new(ptr::null_mut(), ptr::null_mut(), 0, BLN_LISTED);
             if stdin_buf.is_null() {
                 semsg!(c"Failed to create buffer for stdin");
                 return;
             }
 
-            let initial_buf_handle: handle_T = (*g_st().curbuf).b_fnum;
+            let initial_buf_handle: handle_T = curbuf_mut().b_fnum;
             set_curbuf(stdin_buf, 0, false);
             readfile(
                 ptr::null_mut(),
@@ -1991,7 +1991,7 @@ fn read_stdin() {
             );
 
             let stdin_buf_handle: handle_T = (*stdin_buf).b_fnum;
-            let stdin_buf_empty = buf_is_empty(&mut *g_st().curbuf);
+            let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
             let mut buf = [0 as c_char; 100];
             vim_snprintf!(
@@ -2014,7 +2014,7 @@ fn read_stdin() {
         } else {
             set_buflisted(1);
             open_buffer(true, None, 0);
-            if buf_is_empty(&mut *g_st().curbuf) && !(*g_st().curbuf).b_next.is_null() {
+            if buf_is_empty(curbuf_mut()) && !curbuf_mut().b_next.is_null() {
                 do_cmdline_cmd(c"silent! bnext");
                 do_cmdline_cmd(c"silent! bwipeout 1");
             }
@@ -2042,7 +2042,7 @@ fn create_windows(parmp: &mut mparm_T) {
             if parmp.window_layout == WIN_TABS {
                 parmp.window_count = make_tabpages(parmp.window_count);
                 time_msg_if_enabled(c"making tab pages");
-            } else if (*g_st().firstwin).w_next.is_null() || (*(*g_st().firstwin).w_next).w_floating {
+            } else if firstwin_mut().w_next.is_null() || (*firstwin_mut().w_next).w_floating {
                 parmp.window_count =
                     make_windows(parmp.window_count, parmp.window_layout == WIN_VER);
                 time_msg_if_enabled(c"making windows");
@@ -2056,7 +2056,7 @@ fn create_windows(parmp: &mut mparm_T) {
         if g_st().recoverymode {
             g_st().msg_scroll = 1;
             ml_recover(true);
-            if (*g_st().curbuf).b_ml.ml_mfp.is_none() {
+            if curbuf_mut().b_ml.ml_mfp.is_none() {
                 getout(1);
             }
             do_modelines(0);
@@ -2075,7 +2075,7 @@ fn create_windows(parmp: &mut mparm_T) {
                         set_curwin(g_st().firstwin);
                     }
                 } else if parmp.window_layout == WIN_TABS {
-                    if (*g_st().curtab).tp_next.is_null() {
+                    if curtab_mut().tp_next.is_null() {
                         break;
                     }
                     goto_tabpage(0);
@@ -2087,7 +2087,7 @@ fn create_windows(parmp: &mut mparm_T) {
                 }
                 dorewind = false;
                 g_st().curbuf = curwin_mut().w_buffer;
-                if (*g_st().curbuf).b_ml.ml_mfp.is_none() {
+                if curbuf_mut().b_ml.ml_mfp.is_none() {
                     if opt_vars().p_fdls >= 0 {
                         curwin_mut().w_onebuf_opt.wo_fdl = opt_vars().p_fdls;
                     }
@@ -2154,7 +2154,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
 
             if advance {
                 if parmp.window_layout == WIN_TABS {
-                    if (*g_st().curtab).tp_next.is_null() {
+                    if curtab_mut().tp_next.is_null() {
                         break;
                     }
                     goto_tabpage(0);
@@ -2173,7 +2173,7 @@ fn edit_buffers(parmp: &mut mparm_T) {
             }
             advance = true;
 
-            if ptr::eq(g_st().curbuf, (*g_st().firstwin).w_buffer) || (*g_st().curbuf).b_ffname.is_null() {
+            if ptr::eq(g_st().curbuf, firstwin_mut().w_buffer) || curbuf_mut().b_ffname.is_null() {
                 curwin_mut().w_arg_idx = arg_idx;
                 g_st().swap_exists_did_quit = false;
                 let fname = if arg_idx < gargcount() {

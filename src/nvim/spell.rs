@@ -1310,7 +1310,7 @@ fn spell_load_lang(lang: *mut c_char) {
             sl_nobreak: 0,
         };
         crate::memory::cstr_cpy((&raw mut sl.sl_lang).cast(), lang);
-        (*g_st().curbuf).b_locked += 1;
+        curbuf_mut().b_locked += 1;
         for round in 1..=2 {
             vim_snprintf!(
                 (&raw mut fname_enc).cast(),
@@ -1344,7 +1344,7 @@ fn spell_load_lang(lang: *mut c_char) {
                     && apply_autocmds(
                         EVENT_SPELLFILEMISSING,
                         lang,
-                        (*g_st().curbuf).b_fname,
+                        curbuf_mut().b_fname,
                         false,
                         g_st().curbuf,
                     )
@@ -1356,7 +1356,7 @@ fn spell_load_lang(lang: *mut c_char) {
             break;
         }
         if r == FAIL {
-            if *starting.as_ptr() != 0 {
+            if starting_val() != 0 {
                 let mut autocmd_buf: [c_char; 512] = [0; 512];
                 vim_snprintf!(
                     (&raw mut autocmd_buf).cast(),
@@ -1381,7 +1381,7 @@ fn spell_load_lang(lang: *mut c_char) {
             crate::memory::cstr_cpy(fn_ptr.add(crate::memory::cstr_len(fn_ptr) - 3), c"add.spl");
             do_in_runtimepath(fn_ptr, DIP_ALL, &mut RuntimeCallback::SpellLoad(&mut sl));
         }
-        (*g_st().curbuf).b_locked -= 1;
+        curbuf_mut().b_locked -= 1;
     }
 }
 pub fn spell_enc() -> *mut c_char {
@@ -2790,7 +2790,7 @@ pub fn ex_spellinfo(_eap: &mut exarg_T) {
     }
 }
 pub fn ex_spelldump(eap: &mut exarg_T) {
-    unsafe {
+     {
         if no_spell_checking(curwin_mut()) {
             return;
         }
@@ -2799,7 +2799,7 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
         set_option_value_give_err(kOptSpell, boolean_obj(true), OPT_LOCAL);
         set_option_value_give_err(kOptSpelllang, spl, OPT_LOCAL);
         optval_free(spl);
-        if !buf_is_empty(&mut *g_st().curbuf) {
+        if !buf_is_empty(curbuf_mut()) {
             return;
         }
         spell_dump_compl(
@@ -2812,8 +2812,8 @@ pub fn ex_spelldump(eap: &mut exarg_T) {
                 0
             },
         );
-        if (*g_st().curbuf).b_ml.ml_line_count > 1 {
-            let _ = ml_delete((*g_st().curbuf).b_ml.ml_line_count);
+        if curbuf_mut().b_ml.ml_line_count > 1 {
+            let _ = ml_delete(curbuf_mut().b_ml.ml_line_count);
         }
         redraw_later(curwin_ptr(), UPD_NOT_VALID);
     }

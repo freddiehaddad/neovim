@@ -1521,7 +1521,7 @@ fn list_glob_vars(first: &mut c_int) {
 fn list_buf_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &mut (*(*g_st().curbuf).b_vars()).dv_hashtab,
+            &mut (*curbuf_mut().b_vars()).dv_hashtab,
             c"b:",
             true as c_int,
             &mut *first,
@@ -1543,7 +1543,7 @@ fn list_win_vars(first: &mut c_int) {
 fn list_tab_vars(first: &mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &mut (*(*g_st().curtab).tp_vars()).dv_hashtab,
+            &mut (*curtab_mut().tp_vars()).dv_hashtab,
             c"t:",
             true as c_int,
             &mut *first,
@@ -2386,7 +2386,7 @@ pub fn get_user_var_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
             return cat_prefix_varname(b'w' as c_int, (&*vars_st().HI).key_ptr());
         }
 
-        ht = &raw const (*(*g_st().curtab).tp_vars()).dv_hashtab;
+        ht = &raw const (*curtab_mut().tp_vars()).dv_hashtab;
         if vars_st().TDONE < (*ht).ht_used {
             if vars_st().TDONE == 0 {
                 vars_st().HI = (&*ht).array_ptr();
@@ -2799,11 +2799,11 @@ fn find_var_ht_dict(
         }
 
         if *name == b'b' as c_char {
-            *d = (*g_st().curbuf).b_vars();
+            *d = curbuf_mut().b_vars();
         } else if *name == b'w' as c_char {
             *d = curwin_mut().w_vars();
         } else if *name == b't' as c_char {
-            *d = (*g_st().curtab).tp_vars();
+            *d = curtab_mut().tp_vars();
         } else if *name == b'v' as c_char {
             *d = get_vimvar_dict();
         } else if *name == b'a' as c_char {

@@ -5404,7 +5404,7 @@ pub fn spell_add_word(
 fn init_spellfile() {
     unsafe {
         let mut aspath = false;
-        let mut lstart = (*g_st().curbuf).b_s.b_p_spl;
+        let mut lstart = curbuf_mut().b_s.b_p_spl;
 
         if *(*win_s(curwin_mut())).b_p_spl == NUL || (*win_s(curwin_mut())).b_langp.is_empty() {
             return;
@@ -5434,11 +5434,11 @@ fn init_spellfile() {
                 return;
             }
         } else {
-            let plen = lend.offset_from((*g_st().curbuf).b_s.b_p_spl) as usize;
+            let plen = lend.offset_from(curbuf_mut().b_s.b_p_spl) as usize;
             if plen >= buf_len {
                 return;
             }
-            crate::memory::cstr_ncpy(buf, (*g_st().curbuf).b_s.b_p_spl, plen);
+            crate::memory::cstr_ncpy(buf, curbuf_mut().b_s.b_p_spl, plen);
         }
 
         let cur_len = crate::memory::cstr_len(buf);

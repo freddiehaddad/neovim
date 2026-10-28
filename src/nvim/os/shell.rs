@@ -1157,11 +1157,11 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
 }
 
 fn read_input(buf: &mut Vec<c_char>) {
-    unsafe {
+     {
         read_buffer_into(
             g_st().curbuf,
-            (*g_st().curbuf).b_op_start.lnum,
-            (*g_st().curbuf).b_op_end.lnum,
+            curbuf_mut().b_op_start.lnum,
+            curbuf_mut().b_op_end.lnum,
             buf,
         );
     }
@@ -1178,7 +1178,7 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
             if *output.add(off) == CAR
                 && off + 1 < remaining
                 && *output.add(off + 1) == NL
-                && (*g_st().curbuf).b_p_bin == 0
+                && curbuf_mut().b_p_bin == 0
             {
                 *output.add(off) = NUL;
                 let lnum = curwin_mut().w_cursor.lnum;
@@ -1189,7 +1189,7 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 remaining -= skip;
                 off = 0;
                 continue;
-            } else if (*output.add(off) == CAR && (*g_st().curbuf).b_p_bin == 0) || *output.add(off) == NL
+            } else if (*output.add(off) == CAR && curbuf_mut().b_p_bin == 0) || *output.add(off) == NL
             {
                 *output.add(off) = NUL;
                 let lnum = curwin_mut().w_cursor.lnum;
@@ -1213,10 +1213,10 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 let lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, 0, false);
-                (*g_st().curbuf).b_no_eol_lnum = curwin_mut().w_cursor.lnum;
+                curbuf_mut().b_no_eol_lnum = curwin_mut().w_cursor.lnum;
                 output = output.add(remaining);
             } else {
-                (*g_st().curbuf).b_no_eol_lnum = 0;
+                curbuf_mut().b_no_eol_lnum = 0;
             }
         }
 

@@ -1065,10 +1065,10 @@ pub fn enc_canon_props(name: impl crate::strings::IntoCCharPtr) -> c_int {
 }
 
 pub fn bomb_size() -> c_int {
-    unsafe {
+     {
         let mut n = 0;
-        if (*g_st().curbuf).b_p_bomb != 0 && (*g_st().curbuf).b_p_bin == 0 {
-            let fenc = crate::memory::cstr_as_bytes((*g_st().curbuf).b_p_fenc);
+        if curbuf_mut().b_p_bomb != 0 && curbuf_mut().b_p_bin == 0 {
+            let fenc = crate::memory::cstr_as_bytes(curbuf_mut().b_p_fenc);
             if fenc.is_empty() || fenc == b"utf-8" {
                 n = 3;
             } else if fenc.starts_with(b"ucs-2") || fenc.starts_with(b"utf-16") {
@@ -1096,7 +1096,7 @@ pub fn remove_bom(s: *mut c_char) {
 
 pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> c_int {
     let p = p.into_c_char_ptr();
-    unsafe { mb_get_class_tab(p, (*g_st().curbuf).b_chartab.as_ptr()) }
+     mb_get_class_tab(p, curbuf_mut().b_chartab.as_ptr())
 }
 
 pub fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
@@ -1622,7 +1622,7 @@ pub fn utf_printable(c: c_int) -> bool {
 }
 
 pub fn utf_class(c: c_int) -> c_int {
-    unsafe { utf_class_tab(c, (*g_st().curbuf).b_chartab.as_ptr()) }
+     utf_class_tab(c, curbuf_mut().b_chartab.as_ptr())
 }
 
 pub fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
@@ -2684,8 +2684,8 @@ pub fn utf_find_illegal() {
         };
         let mut tofree: Option<Vec<u8>> = None;
 
-        if (enc_canon_props((*g_st().curbuf).b_p_fenc) & ENC_8BIT) != 0 {
-            convert_setup(&mut vimconv, opt_vars().p_enc, (*g_st().curbuf).b_p_fenc);
+        if (enc_canon_props(curbuf_mut().b_p_fenc) & ENC_8BIT) != 0 {
+            convert_setup(&mut vimconv, opt_vars().p_enc, curbuf_mut().b_p_fenc);
         }
 
         curwin_mut().w_cursor.coladd = 0;
@@ -2721,7 +2721,7 @@ pub fn utf_find_illegal() {
                 }
                 p = p.add(len as usize);
             }
-            if curwin_mut().w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count {
+            if curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
                 curwin_mut().w_cursor = pos;
                 beep_flush();
                 break;

@@ -251,7 +251,7 @@ fn deadly_signal(signum: c_int) -> ! {
 
 pub(crate) fn on_signal(signum: c_int) {
     debug_assert!(signum >= 0);
-    unsafe {
+     {
         #[cfg(target_os = "linux")]
         if signum == SIGPWR {
             ml_sync_all(0, 0, true);
@@ -273,7 +273,7 @@ pub(crate) fn on_signal(signum: c_int) {
             apply_autocmds(
                 EVENT_SIGNAL,
                 c"SIGUSR1",
-                (*g_st().curbuf).b_fname,
+                crate::globals::curbuf_mut().b_fname,
                 true,
                 g_st().curbuf,
             );
@@ -296,7 +296,7 @@ pub(crate) fn on_signal(signum: c_int) {
                 apply_autocmds(
                     EVENT_SIGNAL,
                     c"SIGWINCH",
-                    (*g_st().curbuf).b_fname,
+                    crate::globals::curbuf_mut().b_fname,
                     true,
                     g_st().curbuf,
                 );

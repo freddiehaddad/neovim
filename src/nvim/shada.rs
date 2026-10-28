@@ -3029,7 +3029,7 @@ fn shada_write(
                         data: ShadaEntryData::Filemark(ShadaFilemark {
                             mark: curwin_mut().w_cursor,
                             name: b'0' as c_char,
-                            fname: Some(crate::memory::cstr_to_cstring((*g_st().curbuf).b_ffname)),
+                            fname: Some(crate::memory::cstr_to_cstring(curbuf_mut().b_ffname)),
                         }),
                         additional_data: None,
                     },
@@ -4479,14 +4479,14 @@ pub fn find_shada_parameter(param_type: c_int) -> *mut c_char {
 
 /// Read marks for the current buffer from the ShaDa file (`check_marks_read`).
 pub fn check_marks_read() {
-    unsafe {
-        if !(*g_st().curbuf).b_marks_read
+     {
+        if !curbuf_mut().b_marks_read
             && get_shada_parameter(b'\'' as c_int) > 0
-            && !(*g_st().curbuf).b_ffname.is_null()
+            && !curbuf_mut().b_ffname.is_null()
         {
             shada_read_marks();
         }
-        (*g_st().curbuf).b_marks_read = true;
+        curbuf_mut().b_marks_read = true;
     }
 }
 

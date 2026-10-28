@@ -360,9 +360,9 @@ pub fn ui_schedule_refresh() {
 }
 
 pub fn ui_default_colors_set() {
-    unsafe {
+     {
         ui_state().pending_default_colors = true;
-        if *starting.as_ptr() == 0 {
+        if starting_val() == 0 {
             ui_may_set_default_colors();
         }
     }
@@ -647,7 +647,7 @@ pub fn ui_flush() {
         }
 
         let cursor_obscured = ui_cursor_is_behind_floatwin();
-        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured || ui_state().pending_mode_update) && *starting.as_ptr() == 0
+        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured || ui_state().pending_mode_update) && starting_val() == 0
         {
             let idx = if cursor_obscured {
                 SHAPE_IDX_R
@@ -715,7 +715,7 @@ pub fn ui_mouse_has(mode: c_int) -> bool {
                     return true;
                 }
             } else if *p == kMouseHelp {
-                if mode != kMouseReturn && (*g_st().curbuf).b_help {
+                if mode != kMouseReturn && curbuf_mut().b_help {
                     return true;
                 }
             } else if mode == *p as c_int {

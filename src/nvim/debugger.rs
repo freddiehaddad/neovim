@@ -505,7 +505,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
         } else if p_bytes.starts_with(b"file") {
             bp.dbg_type = DBG_FILE;
         } else if !is_prof && p_bytes.starts_with(b"here") {
-            if (*g_st().curbuf).b_ffname.is_null() {
+            if curbuf_mut().b_ffname.is_null() {
                 emsg(e_noname);
                 return None;
             }
@@ -545,10 +545,10 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             };
             bp.dbg_name = crate::memory::cstr_to_cstring(name_src);
         } else if here {
-            if (*g_st().curbuf).b_ffname.is_null() {
+            if curbuf_mut().b_ffname.is_null() {
                 return None;
             }
-            bp.dbg_name = crate::memory::cstr_to_cstring((*g_st().curbuf).b_ffname);
+            bp.dbg_name = crate::memory::cstr_to_cstring(curbuf_mut().b_ffname);
         } else if bp.dbg_type == DBG_EXPR {
             bp.dbg_name = crate::memory::cstr_to_cstring(p);
             bp.dbg_val = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());

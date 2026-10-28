@@ -3576,7 +3576,7 @@ fn ex_call_inner(
 
         for lnum in eap.line1..=eap.line2 {
             if eap.addr_count > 0 {
-                if lnum > (*g_st().curbuf).b_ml.ml_line_count {
+                if lnum > curbuf_mut().b_ml.ml_line_count {
                     emsg(gettext(e_invrange));
                     break;
                 }

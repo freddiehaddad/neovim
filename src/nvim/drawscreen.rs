@@ -263,7 +263,7 @@ pub fn screenclear() {
     unsafe {
         msg_check_for_delay(false);
 
-        if *starting.as_ptr() == NO_SCREEN || !grid_allocated(&g_st().default_grid) {
+        if starting_val() == NO_SCREEN || !grid_allocated(&g_st().default_grid) {
             return;
         }
 
@@ -349,10 +349,10 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
         g_st().Columns = width;
         check_screensize();
         if !ui_has(kUIMessages) {
-            let max_p_ch = OptInt::from(g_st().Rows - min_rows(&mut *g_st().curtab) + 1);
+            let max_p_ch = OptInt::from(g_st().Rows - min_rows(curtab_mut()) + 1);
             if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
                 opt_vars().p_ch = max_p_ch.max(1);
-                (*g_st().curtab).tp_ch_used = opt_vars().p_ch;
+                curtab_mut().tp_ch_used = opt_vars().p_ch;
             }
             let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
@@ -409,7 +409,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
             screenclear();
         }
 
-        if *starting.as_ptr() != NO_SCREEN {
+        if starting_val() != NO_SCREEN {
             maketitle();
 
             changed_line_abv_curs();
@@ -503,7 +503,7 @@ pub fn update_screen() -> bool {
         g_st().must_redraw = 0;
 
         g_st().updating_screen = true;
-        *display_tick.as_ptr() += 1;
+        inc_display_tick();
 
         if schar_cache_clear_if_full() {
             type_ = type_.max(UPD_CLEAR);
@@ -657,13 +657,13 @@ pub fn update_screen() -> bool {
 
                 let buf = (*wp).w_buffer;
                 if (*buf).b_mod_set {
-                    if (*buf).b_mod_tick_syn < *display_tick.as_ptr() && syntax_present(wp) {
+                    if (*buf).b_mod_tick_syn < display_tick_val() && syntax_present(wp) {
                         syn_stack_apply_changes(&mut *buf);
-                        (*buf).b_mod_tick_syn = *display_tick.as_ptr();
+                        (*buf).b_mod_tick_syn = display_tick_val();
                     }
-                    if (*buf).b_mod_tick_decor < *display_tick.as_ptr() {
+                    if (*buf).b_mod_tick_decor < display_tick_val() {
                         decor_providers_invoke_buf(&mut *buf);
-                        (*buf).b_mod_tick_decor = *display_tick.as_ptr();
+                        (*buf).b_mod_tick_decor = display_tick_val();
                     }
                 }
             }
@@ -897,7 +897,7 @@ pub fn skip_showmode() -> bool {
 }
 
 pub fn showmode() -> c_int {
-    unsafe {
+     {
         let mut length: c_int = 0;
 
         msg_ext_ui_flush();
@@ -978,7 +978,7 @@ pub fn showmode() -> c_int {
                         || g_st().restart_edit == c_int::from(b'a')
                         || g_st().restart_edit == c_int::from(b'A')
                     {
-                        if !(*g_st().curbuf).terminal.is_null() {
+                        if !curbuf_mut().terminal.is_null() {
                             msg_puts_hl(gettext(c" (terminal)"), hl_id, false);
                         } else {
                             msg_puts_hl(gettext(c" (insert)"), hl_id, false);
@@ -2271,7 +2271,7 @@ fn win_update(wp: &mut win_T) {
                 0
             };
             wp.w_lines_valid = wp.w_lines_valid.max(idx);
-            wp.w_display_tick = *display_tick.as_ptr();
+            wp.w_display_tick = display_tick_val();
 
             if syntax_last_parsed != 0 && syntax_present(&raw mut *wp) {
                 syntax_end_parsing(&mut *wp, syntax_last_parsed + 1);
@@ -2415,12 +2415,12 @@ fn win_update(wp: &mut win_T) {
                     curwin_mut().w_valid &= !VALID_TOPLINE;
                     update_topline(curwin_ptr());
                     if g_st().must_redraw != 0 {
-                        let mod_set = (*g_st().curbuf).b_mod_set;
-                        (*g_st().curbuf).b_mod_set = false;
+                        let mod_set = curbuf_mut().b_mod_set;
+                        curbuf_mut().b_mod_set = false;
                         curs_columns(curwin_ptr(), 1);
                         win_update(curwin_mut());
                         g_st().must_redraw = 0;
-                        (*g_st().curbuf).b_mod_set = mod_set;
+                        curbuf_mut().b_mod_set = mod_set;
                     }
                     ds_st().win_update_recursive = false;
                 }

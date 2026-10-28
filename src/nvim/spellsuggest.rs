@@ -926,7 +926,7 @@ fn spell_find_suggest(
         if need_cap {
             su.su_badflags |= WF_ONECAP;
         }
-        for lp in &(*g_st().curbuf).b_s.b_langp {
+        for lp in &curbuf_mut().b_s.b_langp {
             if !lp.lp_sallang.is_null() {
                 su.su_sallang = lp.lp_sallang;
                 break;

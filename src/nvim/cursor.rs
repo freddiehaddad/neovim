@@ -451,9 +451,9 @@ pub fn check_cursor(wp: *mut win_T) {
 
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
 pub fn check_visual_pos() {
-    unsafe {
-        if g_st().Visual.start.lnum > (*g_st().curbuf).b_ml.ml_line_count {
-            g_st().Visual.start.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+     {
+        if g_st().Visual.start.lnum > curbuf_mut().b_ml.ml_line_count {
+            g_st().Visual.start.lnum = curbuf_mut().b_ml.ml_line_count;
             g_st().Visual.start.col = 0;
             g_st().Visual.start.coladd = 0;
         } else {

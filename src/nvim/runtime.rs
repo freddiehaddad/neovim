@@ -2647,28 +2647,28 @@ fn do_source_buffer_init(
     sp: &mut source_cookie_T,eap: Option<&exarg_T>,
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
-    unsafe {
+     {
         if g_st().curbuf.is_null() {
             return None;
         }
 
         let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
-        let fname = if !(*g_st().curbuf).b_ffname.is_null() {
-            cstr_to_cstring((*g_st().curbuf).b_ffname)
+        let fname = if !curbuf_mut().b_ffname.is_null() {
+            cstr_to_cstring(curbuf_mut().b_ffname)
         } else {
             if ex_lua {
                 vim_snprintf!(
                     iobuff,
                     IOSIZE,
                     c":{range}lua buffer=%d",
-                    (*g_st().curbuf).b_fnum,
+                    curbuf_mut().b_fnum,
                 );
             } else {
                 vim_snprintf!(
                     iobuff,
                     IOSIZE,
                     c":source buffer=%d",
-                    (*g_st().curbuf).b_fnum,
+                    curbuf_mut().b_fnum,
                 );
             }
             cstr_to_cstring(iobuff)
@@ -2957,12 +2957,12 @@ fn do_source_ext(
             if fname.is_null()
                 && let Some(eap) = eap
                 && !ex_lua
-                && !(crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"lua"))
-                && !(!(*g_st().curbuf).b_fname.is_null()
-                    && path_with_extension((*g_st().curbuf).b_fname, c"lua"))
+                && !(crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
+                && !(!curbuf_mut().b_fname.is_null()
+                    && path_with_extension(curbuf_mut().b_fname, c"lua"))
             {
                 let mut args_items = [
-                    integer_obj(Integer::from((*g_st().curbuf).b_fnum)),
+                    integer_obj(Integer::from(curbuf_mut().b_fnum)),
                     integer_obj(Integer::from(eap.line1)),
                     integer_obj(Integer::from(eap.line2)),
                 ];
@@ -2992,9 +2992,9 @@ fn do_source_ext(
             if fname.is_null()
                 && (ex_lua
                     || ts_lua
-                    || (crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"lua"))
-                    || (!(*g_st().curbuf).b_fname.is_null()
-                        && path_with_extension((*g_st().curbuf).b_fname, c"lua")))
+                    || (crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
+                    || (!curbuf_mut().b_fname.is_null()
+                        && path_with_extension(curbuf_mut().b_fname, c"lua")))
             {
                 nlua_exec_lines(&cookie.buflines, fname_exp);
             } else if !si.is_null() && (*si).sn_lua {

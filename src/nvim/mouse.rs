@@ -676,7 +676,7 @@ pub fn do_mouse(
 
         let defs = &raw mut g_st().tab_page_click_defs;
         if !(*defs).is_empty() {
-            if g_st().mouse_grid <= 1 && g_st().mouse_row == 0 && (*g_st().firstwin).w_winrow > 0 {
+            if g_st().mouse_grid <= 1 && g_st().mouse_row == 0 && firstwin_mut().w_winrow > 0 {
                 if is_drag {
                     if mouse_st().in_tab_line {
                         move_tab_to_mouse();
@@ -1066,7 +1066,7 @@ pub fn do_mouse(
                 do_cmdline_cmd(c".ll");
             }
             mouse_st().got_click = false;
-        } else if (*g_st().curbuf).b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+        } else if curbuf_mut().b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
             if (g_st().State & MODE_INSERT) != 0 {
                 stuffcharReadbuff(Ctrl_O);
             }
@@ -1187,7 +1187,7 @@ pub fn do_mouse(
 }
 
 pub fn ins_mouse(c: c_int) {
-    unsafe {
+     {
         let old_curwin = curwin_ptr();
 
         undisplay_dollar();
@@ -1199,7 +1199,7 @@ pub fn ins_mouse(c: c_int) {
                 set_curwin(old_curwin);
                 g_st().curbuf = curwin_mut().w_buffer;
                 if bt_prompt(g_st().curbuf) {
-                    (*g_st().curbuf).b_prompt_insert = b'A' as c_int;
+                    curbuf_mut().b_prompt_insert = b'A' as c_int;
                 }
             }
             start_arrow(
@@ -1645,7 +1645,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
             } else if row >= curwin_mut().w_view_height {
                 let mut count = 0;
                 let mut first = true;
-                while curwin_mut().w_topline < (*g_st().curbuf).b_ml.ml_line_count {
+                while curwin_mut().w_topline < curbuf_mut().b_ml.ml_line_count {
                     if curwin_mut().w_topfill > 0 {
                         count += 1;
                     } else {
@@ -1665,7 +1665,7 @@ pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int
                             curwin_mut().w_topline,
                             None,
                             &raw mut (*curwin_ptr()).w_topline,
-                        ) && curwin_mut().w_topline == (*g_st().curbuf).b_ml.ml_line_count
+                        ) && curwin_mut().w_topline == curbuf_mut().b_ml.ml_line_count
                         {
                             break;
                         }
@@ -1938,7 +1938,7 @@ pub fn mouse_find_win_inner(
         }
 
         let mut fp = g_st().topframe;
-        *rowp -= (*g_st().firstwin).w_winrow;
+        *rowp -= firstwin_mut().w_winrow;
         loop {
             if (*fp).fr_layout == FR_LEAF {
                 break;
@@ -2107,12 +2107,12 @@ fn scroll_line_len(lnum: linenr_T) -> colnr_T {
 
 /// Find longest visible line number.
 fn find_longest_lnum() -> linenr_T {
-    unsafe {
+     {
         let mut ret: linenr_T = 0;
 
         if curwin_mut().w_topline <= curwin_mut().w_cursor.lnum
             && curwin_mut().w_botline > curwin_mut().w_cursor.lnum
-            && curwin_mut().w_botline <= (*g_st().curbuf).b_ml.ml_line_count + 1
+            && curwin_mut().w_botline <= curbuf_mut().b_ml.ml_line_count + 1
         {
             let mut max: colnr_T = 0;
 
