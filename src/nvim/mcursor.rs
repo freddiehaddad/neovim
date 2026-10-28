@@ -1437,9 +1437,9 @@ fn mc_zq_target(
     step: pos_T,
     search: bool,
     motion_type: c_int,
-    ctx: *mut Context,
+    ctx: Option<&mut Context>,
 ) -> visualinfo_T {
-    unsafe {
+     {
         let save = curbuf_mut().b_visual;
         let save_mode_eval = curbuf_mut().b_visual_mode_eval;
         if !search {
@@ -1462,9 +1462,9 @@ fn mc_zq_target(
             };
         }
         curbuf_mut().b_visual_mode_eval = curbuf_mut().b_visual.vi_mode;
-        if !ctx.is_null() {
+        if let Some(ctx) = ctx {
             curwin_mut().w_cursor = step;
-            ctx_save(&mut *ctx, kCtxVisual);
+            ctx_save(ctx, kCtxVisual);
         }
         let target = curbuf_mut().b_visual;
         curbuf_mut().b_visual = save;
@@ -1519,7 +1519,7 @@ fn mc_zq_first(
         if bof
             && (!search
                 || equalpos(
-                    mc_zq_target(start, true, motion_type, ptr::null_mut()).vi_start,
+                    mc_zq_target(start, true, motion_type, None).vi_start,
                     start,
                 ))
         {
@@ -1549,7 +1549,7 @@ fn mc_zq_run(
         let mut step = first;
         let curswant = curwin_mut().w_curswant;
         while !g_st().got_int {
-            mc_zq_target(step, search, motion_type, mc_add(curbuf_mut(), step));
+            mc_zq_target(step, search, motion_type, unsafe { (mc_add(curbuf_mut(), step)).as_mut() });
             placed += 1;
             let prev = step;
             let mut from = prev;
@@ -1667,7 +1667,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
         };
         let keys_data = keys_cstr.as_ptr().cast_mut();
         if !oap.from_visual && search {
-            first = mc_zq_target(primary, true, oap.motion_type, ptr::null_mut()).vi_start;
+            first = mc_zq_target(primary, true, oap.motion_type, None).vi_start;
             if first.lnum != 0 {
                 placed = mc_zq_run(keys_data, search, oap.motion_type, bounds[1], first);
             }
@@ -1725,7 +1725,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
                 primary = first;
                 curwin_mut().w_set_curswant = true;
             }
-            curbuf_mut().b_visual = mc_zq_target(primary, search, oap.motion_type, ptr::null_mut());
+            curbuf_mut().b_visual = mc_zq_target(primary, search, oap.motion_type, None);
             curbuf_mut().b_visual_mode_eval = curbuf_mut().b_visual.vi_mode;
             set_no_hlsearch(true);
             redraw_all_later(UPD_SOME_VALID);

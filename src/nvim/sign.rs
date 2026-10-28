@@ -485,10 +485,10 @@ pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
     }
 }
 
-pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_char) -> bool {
+pub fn init_sign_text(sp: Option<&sign_T>, sign_text: *mut schar_T, text: *mut c_char) -> bool {
     unsafe {
         let mut endp = text.add(crate::memory::cstr_len(text));
-        let mut s = if !sp.is_null() { text } else { endp };
+        let mut s = if sp.is_some() { text } else { endp };
         while s.add(1) < endp {
             if *s == b'\\' as c_char {
                 let tail_len = crate::memory::cstr_len(s.add(1)) + 1;
@@ -503,7 +503,7 @@ pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_cha
         while *ci.ptr != NUL {
             let cli = utf_ClusterInfo(ci);
             if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
-                if !sp.is_null() {
+                if sp.is_some() {
                     semsg!(gettext(c"E239: Invalid sign text: %s"), text);
                 }
                 return false;
@@ -568,7 +568,7 @@ fn sign_define_by_name(
             (*sp).sn_icon = Some(std::ffi::CString::new(icon_vec).unwrap());
         }
 
-        if !text.is_null() && !init_sign_text(sp, (*sp).sn_text.as_mut_ptr(), text) {
+        if !text.is_null() && !init_sign_text(sp.as_ref(), (*sp).sn_text.as_mut_ptr(), text) {
             return false;
         }
 
@@ -760,10 +760,10 @@ fn sign_unplace_inner(
     }
 }
 
-fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T) -> bool {
+fn sign_unplace(buf: Option<&mut buf_T>, id: c_int, group: *mut c_char, atlnum: linenr_T) -> bool {
      {
-        if !buf.is_null() {
-            sign_unplace_inner(unsafe { &mut *buf }, id, group, atlnum)
+        if let Some(buf) = buf {
+            sign_unplace_inner( buf, id, group, atlnum)
         } else {
             let mut retval = true;
             for cbuf in for_all_buffers_ptr() {
@@ -904,14 +904,14 @@ fn sign_unplace_cmd(
             buf = curwin_mut().w_buffer;
         }
 
-        if !sign_unplace(buf, id.max(0), group, lnum) && lnum > 0 {
+        if !sign_unplace(buf.as_mut(), id.max(0), group, lnum) && lnum > 0 {
             emsg(gettext(c"E159: Missing sign number"));
         }
     }
 }
 
 fn sign_jump_cmd(
-    buf: *mut buf_T,
+    buf: Option<&mut buf_T>,
     lnum: linenr_T,
     name: *const c_char,
     id: c_int,
@@ -923,12 +923,12 @@ fn sign_jump_cmd(
             return;
         }
 
-        if buf.is_null() || (!group.is_null() && *group == NUL) || lnum >= 0 || !name.is_null() {
+        if buf.is_none() || (!group.is_null() && *group == NUL) || lnum >= 0 || !name.is_null() {
             emsg(gettext(e_invarg));
             return;
         }
 
-        sign_jump(id, group,  &mut *buf);
+        sign_jump(id, group,  buf.unwrap());
     }
 }
 
@@ -1091,7 +1091,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
             } else if idx == SIGNCMD_UNPLACE {
                 sign_unplace_cmd(buf, lnum, name, id, group);
             } else if idx == SIGNCMD_JUMP {
-                sign_jump_cmd(buf, lnum, name, id, group);
+                sign_jump_cmd(buf.as_mut(), lnum, name, id, group);
             }
         }
     }
@@ -1221,15 +1221,15 @@ fn sign_get_placed_in_buf(
 }
 
 fn sign_get_placed(
-    buf: *mut buf_T,
+    buf: Option<&mut buf_T>,
     lnum: linenr_T,
     id: c_int,
     group: *const c_char,
     retlist: &mut list_T,
 ) {
     unsafe {
-        if !buf.is_null() {
-            sign_get_placed_in_buf( &mut *buf, lnum, id, group, retlist);
+        if let Some(buf) = buf {
+            sign_get_placed_in_buf( buf, lnum, id, group, retlist);
         } else {
             for cbuf in for_all_buffers_ptr() {
                 if buf_has_signs( &*cbuf) {
@@ -1426,12 +1426,12 @@ fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
     }
 }
 
-fn sign_define_multiple(l: *const list_T, retlist: &mut list_T) {
-    unsafe {
-        if l.is_null() {
+fn sign_define_multiple(l: Option<&list_T>, retlist: &mut list_T) {
+     {
+        if l.is_none() {
             return;
         }
-        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
+        for li in crate::eval::typval::list_iter_mut(l.unwrap().lv_first) {
             let mut retval: c_int = -1;
             if li.li_tv.v_type == VarType::VAR_DICT {
                 retval = sign_define_from_dict(
@@ -1453,7 +1453,7 @@ pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             && argvars[1].v_type == VarType::VAR_UNKNOWN
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
-            sign_define_multiple(argvars[0].vval.v_list(), unsafe { &mut *rettv.vval.v_list() });
+            sign_define_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
             return;
         }
 
@@ -1546,7 +1546,7 @@ pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
             }
         }
 
-        sign_get_placed(buf, lnum, sign_id, group,  &mut *rettv.vval.v_list());
+        sign_get_placed(buf.as_mut(), lnum, sign_id, group,  &mut *rettv.vval.v_list());
     }
 }
 
@@ -1736,12 +1736,12 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
     }
 }
 
-fn sign_undefine_multiple(l: *const list_T, retlist: &mut list_T) {
-    unsafe {
-        if l.is_null() {
+fn sign_undefine_multiple(l: Option<&list_T>, retlist: &mut list_T) {
+     {
+        if l.is_none() {
             return;
         }
-        for li in crate::eval::typval::list_iter_mut((*l).lv_first) {
+        for li in crate::eval::typval::list_iter_mut(l.unwrap().lv_first) {
             let mut retval: c_int = -1;
             let name = tv_get_string_chk(&li.li_tv);
             if !name.is_null() && sign_undefine_by_name(name) {
@@ -1759,7 +1759,7 @@ pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             && argvars[1].v_type == VarType::VAR_UNKNOWN
         {
             tv_list_alloc_ret(rettv, kListLenMayKnow);
-            sign_undefine_multiple(argvars[0].vval.v_list(), unsafe { &mut *rettv.vval.v_list() });
+            sign_undefine_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
             return;
         }
 
@@ -1810,7 +1810,7 @@ fn sign_unplace_from_dict(group_tv: Option<&typval_T>, dict: *mut dict_T) -> c_i
             }
         }
 
-        if sign_unplace(buf, id, group, 0) { 0 } else { -1 }
+        if sign_unplace(buf.as_mut(), id, group, 0) { 0 } else { -1 }
     }
 }
 

@@ -1078,7 +1078,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
 
         curwin_mut().w_valid = 0;
 
-        if bt_nofileread(g_st().curbuf) {
+        if bt_nofileread(Some(crate::globals::curbuf_mut())) {
             flags |= READ_NOFILE;
         }
 
@@ -1409,7 +1409,7 @@ pub fn close_buffer(
                 (*buf).b_fname,
                 false,
                 buf,
-                win,
+                win.as_ref(),
             ) && !bufref_valid(Some(&bufref))
             {
                 emsg(gettext(e_auabort));
@@ -3070,7 +3070,7 @@ pub fn buflist_getfile(
                 curwin_mut().w_set_curswant = true;
             }
             if (opt_vars().jop_flags & kOptJopFlagView) != 0 && restore_view {
-                mark_view_restore(fm);
+                mark_view_restore(fm.as_ref());
             }
             return true;
         }
@@ -3097,7 +3097,7 @@ fn buflist_getfpos() {
         }
 
         if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
-            mark_view_restore(fm);
+            mark_view_restore(fm.as_ref());
         }
     }
 }
@@ -3314,7 +3314,7 @@ pub fn ExpandBufnames(
             }
 
             let p_cstr = if (options & WILD_HOME_REPLACE) != 0 {
-                home_replace_save(buf, p)
+                home_replace_save(buf.as_ref(), p)
             } else {
                 cstr_to_cstring(p)
             };
@@ -3390,7 +3390,7 @@ fn fname_match(rmp: &mut regmatch_T, name: *mut c_char, ignore_case: bool) -> *m
         if vim_regexec(rmp, name, 0) {
             match_ = name;
         } else if !rmp.regprog.is_null() {
-            let p = home_replace_save(ptr::null_mut(), name);
+            let p = home_replace_save(None, name);
             if vim_regexec(rmp, p.as_ptr().cast_mut(), 0) {
                 match_ = name;
             }
@@ -3421,7 +3421,7 @@ pub fn buflist_nr2name(
             return None;
         }
         Some(home_replace_save(
-            if helptail != 0 { buf } else { ptr::null_mut() },
+            (if helptail != 0 { buf } else { ptr::null_mut() }).as_ref(),
             if fullname != 0 {
                 (*buf).b_ffname
             } else {
@@ -4806,22 +4806,22 @@ pub fn bt_nofilename(buf: Option<&buf_T>) -> bool {
     }
 }
 
-fn bt_nofileread(buf: *const buf_T) -> bool {
+fn bt_nofileread(buf: Option<&buf_T>) -> bool {
     unsafe {
-        !buf.is_null()
-            && ((*(*buf).b_p_bt == b'n' as c_char && *(*buf).b_p_bt.add(2) == b'f' as c_char)
-                || *(*buf).b_p_bt == b't' as c_char
-                || *(*buf).b_p_bt == b'q' as c_char
-                || *(*buf).b_p_bt == b'p' as c_char)
+        buf.is_some()
+            && ((*buf.unwrap().b_p_bt == b'n' as c_char && *buf.unwrap().b_p_bt.add(2) == b'f' as c_char)
+                || *buf.unwrap().b_p_bt == b't' as c_char
+                || *buf.unwrap().b_p_bt == b'q' as c_char
+                || *buf.unwrap().b_p_bt == b'p' as c_char)
     }
 }
 
 /// Return true if `buf` has `'buftype'` set to `"nofile"`.
-pub fn bt_nofile(buf: *const buf_T) -> bool {
+pub fn bt_nofile(buf: Option<&buf_T>) -> bool {
     unsafe {
-        !buf.is_null()
-            && *(*buf).b_p_bt == b'n' as c_char
-            && *(*buf).b_p_bt.add(2) == b'f' as c_char
+        buf.is_some()
+            && *buf.unwrap().b_p_bt == b'n' as c_char
+            && *buf.unwrap().b_p_bt.add(2) == b'f' as c_char
     }
 }
 
@@ -4835,8 +4835,8 @@ pub fn bt_dontwrite(buf: Option<&buf_T>) -> bool {
     }
 }
 
-pub fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
-    if bt_dontwrite(unsafe { buf.as_ref() }) {
+pub fn bt_dontwrite_msg(buf: Option<&buf_T>) -> bool {
+    if bt_dontwrite(buf) {
             emsg(gettext(
                 c"E382: Cannot write, 'buftype' option is set",
             ));
@@ -5030,23 +5030,23 @@ pub fn buf_set_changedtick(buf: &mut buf_T, changedtick: varnumber_T) {
 
 /// Read the given buffer contents into a string.
 pub fn read_buffer_into(
-    buf: *mut buf_T,
+    mut buf: Option<&mut buf_T>,
     start: linenr_T,
     end: linenr_T,
     sb: &mut Vec<c_char>,
 ) {
     unsafe {
-        debug_assert!(!buf.is_null());
+        debug_assert!(buf.is_some());
 
-        if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 {
+        if (buf.as_deref_mut().unwrap().b_ml.ml_flags & ML_EMPTY) != 0 {
             return;
         }
 
         let mut written = 0usize;
         let mut len: usize;
         let mut lnum = start;
-        let mut lp = ml_get_buf(&mut *buf, lnum);
-        let mut lplen = ml_get_buf_len(&mut *buf, lnum) as usize;
+        let mut lp = ml_get_buf(buf.as_deref_mut().unwrap(), lnum);
+        let mut lplen = ml_get_buf_len(buf.as_deref_mut().unwrap(), lnum) as usize;
 
         loop {
             if lplen == 0 {
@@ -5068,9 +5068,9 @@ pub fn read_buffer_into(
 
             if len == lplen - written {
                 if lnum != end
-                    || ((*buf).b_p_bin == 0 && (*buf).b_p_fixeol != 0)
-                    || (lnum != (*buf).b_no_eol_lnum
-                        && (lnum != (*buf).b_ml.ml_line_count || (*buf).b_p_eol != 0))
+                    || (buf.as_deref_mut().unwrap().b_p_bin == 0 && buf.as_deref_mut().unwrap().b_p_fixeol != 0)
+                    || (lnum != buf.as_deref_mut().unwrap().b_no_eol_lnum
+                        && (lnum != buf.as_deref_mut().unwrap().b_ml.ml_line_count || buf.as_deref_mut().unwrap().b_p_eol != 0))
                 {
                     sb.push(NL);
                 }
@@ -5078,8 +5078,8 @@ pub fn read_buffer_into(
                 if lnum > end {
                     break;
                 }
-                lp = ml_get_buf(&mut *buf, lnum);
-                lplen = ml_get_buf_len(&mut *buf, lnum) as usize;
+                lp = ml_get_buf(buf.as_deref_mut().unwrap(), lnum);
+                lplen = ml_get_buf_len(buf.as_deref_mut().unwrap(), lnum) as usize;
                 written = 0;
             } else if len > 0 {
                 written += len;
@@ -5100,7 +5100,7 @@ mod tests {
             assert!(!bt_normal(None));
             assert!(!bt_quickfix(None));
             assert!(!bt_terminal(None));
-            assert!(!bt_nofile(ptr::null()));
+            assert!(!bt_nofile(None));
             assert!(!bt_dontwrite(None));
     }
 

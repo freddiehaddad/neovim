@@ -418,9 +418,9 @@ use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 #[inline]
 fn tv_list_uidx(l: *const list_T, mut n: c_int) -> c_int {
     if n < 0 {
-            n += tv_list_len(l);
+            n += tv_list_len(unsafe { l.as_ref() });
         }
-        if n < 0 || n >= tv_list_len(l) { -1 } else { n }
+        if n < 0 || n >= tv_list_len(unsafe { l.as_ref() }) { -1 } else { n }
 }
 
 #[inline]
@@ -1903,7 +1903,7 @@ fn set_cursorpos(argvars: &mut [typval_T], rettv: &mut typval_T, charcol: bool) 
             lnum = ln;
             col = tv_get_number_chk(&argvars[1], None) as colnr_T;
             if charcol {
-                col = buf_charidx_to_byteidx(g_st().curbuf, lnum, col) + 1;
+                col = buf_charidx_to_byteidx(Some(crate::globals::curbuf_mut()), lnum, col) + 1;
             }
             if argvars[2].v_type != VarType::VAR_UNKNOWN {
                 coladd = tv_get_number_chk(&argvars[2], None) as colnr_T;
@@ -2030,7 +2030,7 @@ pub fn f_dictwatcheradd(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: 
         }
 
         tv_dict_watcher_add(
-            argvars[0].vval.v_dict(),
+            unsafe { argvars[0].vval.v_dict().as_mut() },
             key_pattern,
             key_pattern_len,
             callback,
@@ -2067,7 +2067,7 @@ pub fn f_dictwatcherdel(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: 
         }
 
         if !tv_dict_watcher_remove(
-            argvars[0].vval.v_dict(),
+            unsafe { argvars[0].vval.v_dict().as_mut() },
             key_pattern,
             crate::memory::cstr_len(key_pattern),
             &callback,
@@ -2105,7 +2105,7 @@ pub fn f_empty(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                 n = argvars[0].vval.v_float() == 0.0;
             }
             VarType::VAR_LIST => {
-                n = tv_list_len(argvars[0].vval.v_list()) == 0;
+                n = tv_list_len(argvars[0].vval.v_list().as_ref()) == 0;
             }
             VarType::VAR_DICT => {
                 n = tv_dict_len(argvars[0].vval.v_dict().as_ref()) == 0;
@@ -2252,7 +2252,7 @@ pub fn execute_common(argvars: &mut [typval_T], rettv: &mut typval_T, arg_off: c
             let list = argvars[off].vval.v_list();
             tv_list_ref(list);
             let mut cookie = GetListLineCookie {
-                li: tv_list_first(list),
+                li: tv_list_first(list.as_ref()),
             };
             do_cmdline(
                 ptr::null_mut(),
@@ -2516,7 +2516,7 @@ fn flatten_common(argvars: &mut [typval_T], rettv: &mut typval_T, make_copy: boo
         }
 
         if make_copy {
-            list = tv_list_copy(None, list, false, get_copyID());
+            list = tv_list_copy(None, unsafe { list.as_mut() }, false, get_copyID());
             rettv.vval = crate::eval::typval::TypvalVval::List(list);
             if list.is_null() {
                 return;
@@ -2535,7 +2535,7 @@ fn flatten_common(argvars: &mut [typval_T], rettv: &mut typval_T, make_copy: boo
         tv_list_flatten(
             unsafe { &mut *list },
             ptr::null_mut(),
-            i64::from(tv_list_len(list)),
+            i64::from(tv_list_len(unsafe { list.as_ref() })),
             i64::from(maxdepth),
         );
     }
@@ -2703,9 +2703,9 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                             break 'theend;
                         }
                         list = argvars[arg_idx].vval.v_list();
-                        if tv_list_len(list) == 0 {
+                        if tv_list_len(list.as_ref()) == 0 {
                             arg_idx = 0;
-                        } else if (tv_list_len(list) as usize) > MAX_FUNC_ARGS {
+                        } else if (tv_list_len(list.as_ref()) as usize) > MAX_FUNC_ARGS {
                             emsg_funcname(e_toomanyarg, s);
                             break 'theend;
                         }
@@ -2719,7 +2719,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                         } else {
                             (*arg_pt).pt_argv.len() as c_int
                         };
-                        let lv_len = tv_list_len(list);
+                        let lv_len = tv_list_len(list.as_ref());
                         let pt_argc = arg_len + lv_len;
                         (*pt).pt_argv.resize(pt_argc as usize, typval_T::new());
                         let mut i: c_int = 0;
@@ -2731,7 +2731,7 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                             i += 1;
                         }
                         if lv_len > 0 {
-                            for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
+                            for li in crate::eval::typval::list_iter_mut(tv_list_first(list.as_ref())) {
                                 tv_copy(
                                     &li.li_tv,
                                     &mut (&mut (*pt).pt_argv)[i as usize],
@@ -2755,10 +2755,10 @@ fn common_function(argvars: &mut [typval_T], rettv: &mut typval_T, is_funcref: b
                     (*pt).pt_refcount = 1;
                     if !arg_pt.is_null() && !(*arg_pt).pt_func.is_null() {
                         (*pt).pt_func = (*arg_pt).pt_func;
-                        func_ptr_ref((*pt).pt_func);
+                        func_ptr_ref(((*pt).pt_func).as_mut());
                     } else if is_funcref {
                         (*pt).pt_func = find_func(trans_name);
-                        func_ptr_ref((*pt).pt_func);
+                        func_ptr_ref(((*pt).pt_func).as_mut());
                     } else {
                         func_ref(name_cstr.as_ptr().cast_mut());
                         (*pt).pt_name = Some(name_cstr);
@@ -3011,7 +3011,7 @@ fn getpos_both(argvars: &mut [typval_T],
             }
             if !fp.is_null() && charcol {
                 pos = *fp;
-                pos.col = buf_byteidx_to_charidx((*wp).w_buffer, pos.lnum, pos.col);
+                pos.col = buf_byteidx_to_charidx(((*wp).w_buffer).as_mut(), pos.lnum, pos.col);
                 fp = &raw mut pos;
             }
         } else {
@@ -4056,7 +4056,7 @@ pub fn f_index(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
             return;
         }
 
-        let mut item = tv_list_first(l);
+        let mut item = tv_list_first(l.as_ref());
         if argvars[2].v_type != VarType::VAR_UNKNOWN {
             let mut error = false;
             idx = tv_list_uidx(
@@ -4108,14 +4108,14 @@ fn indexof_eval_expr(expr: &mut typval_T) -> varnumber_T {
 }
 
 fn indexof_blob(
-    b: *mut blob_T,
+    b: Option<&blob_T>,
     mut startidx: varnumber_T,expr: &mut typval_T,
 ) -> varnumber_T {
-    if b.is_null() {
+    if b.is_none() {
             return -1;
         }
         if startidx < 0 {
-            startidx += varnumber_T::from(tv_blob_len(unsafe { b.as_ref() }));
+            startidx += varnumber_T::from(tv_blob_len(b));
             if startidx < 0 {
                 startidx = 0;
             }
@@ -4126,9 +4126,9 @@ fn indexof_blob(
 
         let called_emsg_start = g_st().called_emsg;
         let mut idx = startidx;
-        while idx < varnumber_T::from(tv_blob_len(unsafe { b.as_ref() })) {
+        while idx < varnumber_T::from(tv_blob_len(b)) {
             set_vim_var_nr(VV_KEY, idx);
-            set_vim_var_nr(VV_VAL, varnumber_T::from(tv_blob_get(unsafe { &*b }, idx as c_int)));
+            set_vim_var_nr(VV_VAL, varnumber_T::from(tv_blob_get( b.unwrap(), idx as c_int)));
 
             if indexof_eval_expr(expr) != 0 {
                 return idx;
@@ -4149,7 +4149,7 @@ fn indexof_list(l: *mut list_T, startidx: varnumber_T,expr: &mut typval_T) -> va
         let mut item: *mut listitem_T;
         let mut idx: varnumber_T = 0;
         if startidx == 0 {
-            item = tv_list_first(l);
+            item = tv_list_first(l.as_ref());
         } else {
             idx = varnumber_T::from(tv_list_uidx(l, startidx as c_int));
             if idx == -1 {
@@ -4223,7 +4223,7 @@ pub fn f_indexof(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         g_st().did_emsg = 0;
 
         if argvars[0].v_type == VarType::VAR_BLOB {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_blob(argvars[0].vval.v_blob(), startidx, &mut argvars[1]));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_blob(argvars[0].vval.v_blob().as_ref(), startidx, &mut argvars[1]));
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_list(argvars[0].vval.v_list(), startidx, &mut argvars[1]));
         }
@@ -4261,7 +4261,7 @@ pub fn f_inputlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         msg_clr_eos();
 
         let l = argvars[0].vval.v_list();
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(l)) {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe { l.as_ref() })) {
             msg_puts(tv_get_string(&li.li_tv));
             if !ui_has(kUIMessages) || !li.li_next.is_null() {
                 msg_putchar(b'\n' as c_int);
@@ -4271,7 +4271,7 @@ pub fn f_inputlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         let mut mouse_used = false;
         let mut selected = prompt_for_input(ptr::null_mut(), 0, false, Some(&mut mouse_used));
         if mouse_used {
-            selected = tv_list_len(l) - (g_st().cmdline_row - g_st().mouse_row);
+            selected = tv_list_len(unsafe { l.as_ref() }) - (g_st().cmdline_row - g_st().mouse_row);
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(selected));
     }
@@ -4465,7 +4465,7 @@ pub fn f_jobresize(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
 /// Builds an environment dict for a child process (job).
 pub fn create_environment(
-    job_env: *const dictitem_T,
+    job_env: Option<&dictitem_T>,
     clear_env: bool,
     pty: bool,
     set_nvim_addr: bool,
@@ -4533,10 +4533,10 @@ pub fn create_environment(
             }
         }
 
-        if !job_env.is_null() {
+        if let Some(job_env) = job_env {
             #[cfg(windows)]
             {
-                let d = (*job_env).di_tv.vval.v_dict();
+                let d = job_env.di_tv.vval.v_dict();
                 if !d.is_null() {
                     let ht = &raw const (*d).dv_hashtab;
                     let mut todo = (*ht).ht_used;
@@ -4568,7 +4568,7 @@ pub fn create_environment(
             }
             #[cfg(not(windows))]
             {
-                tv_dict_extend(&mut *env, &mut *(*job_env).di_tv.vval.v_dict(), c"force");
+                tv_dict_extend(&mut *env, &mut *job_env.di_tv.vval.v_dict(), c"force");
             }
         }
 
@@ -4753,7 +4753,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
         }
 
-        let env = create_environment(job_env, clear_env, pty, true, term_name);
+        let env = create_environment(job_env.as_ref(), clear_env, pty, true, term_name);
         let chan = channel_job_start(
             argv,
             ptr::null(),
@@ -4938,12 +4938,12 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         }
 
         let args = argvars[0].vval.v_list();
-        let len = tv_list_len(args) as usize;
+        let len = tv_list_len(args.as_ref()) as usize;
         let mut jobs: Vec<*mut Channel> = vec![ptr::null_mut(); len];
         let main_loop_ptr: *mut Loop = &raw mut g_st().main_loop;
         let waiting_jobs = multiqueue_new(main_loop_ptr);
 
-        for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args)).enumerate() {
+        for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args.as_ref())).enumerate() {
             let tv = &raw const (*arg).li_tv;
             let chan = if (*tv).v_type == VarType::VAR_NUMBER {
                 find_channel((*tv).vval.v_number() as u64)
@@ -5104,7 +5104,7 @@ pub fn f_len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
                 rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_blob_len(unsafe { argvars[0].vval.v_blob().as_ref() })));
             }
             VarType::VAR_LIST => {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_list_len(argvars[0].vval.v_list())));
+                rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_list_len(unsafe { argvars[0].vval.v_list().as_ref() })));
             }
             VarType::VAR_DICT => {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(tv_dict_len(unsafe { argvars[0].vval.v_dict().as_ref() }) as varnumber_T);
@@ -5291,7 +5291,7 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
                 if l.is_null() {
                     break 'theend;
                 }
-                li = tv_list_first(l);
+                li = tv_list_first(l.as_ref());
             } else {
                 str_ = tv_get_string(&argvars[0]).cast_mut();
                 expr = str_;
@@ -5392,7 +5392,7 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
                     match type_ {
                         SomeMatchType::kSomeMatchStrPos => {
                             let ret_l = rettv.vval.v_list();
-                            let li1 = tv_list_first(ret_l);
+                            let li1 = tv_list_first(ret_l.as_ref());
                             let li2 = (*li1).li_next;
                             let li3 = (*li2).li_next;
                             let li4 = (*li3).li_next;
@@ -5457,7 +5457,7 @@ fn find_some_match(argvars: &mut [typval_T], rettv: &mut typval_T, type_: SomeMa
             && !rettv.vval.v_list().is_null()
         {
             let ret_l = rettv.vval.v_list();
-            let first = tv_list_first(ret_l);
+            let first = tv_list_first(ret_l.as_ref());
             tv_list_item_remove(&mut *ret_l, (*first).li_next);
         }
 
@@ -5693,7 +5693,7 @@ pub fn f_matchstrlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                     }
                 }
 
-                for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(l))) {
+                for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(l.as_ref()))) {
                     let li_tv = &raw const (*li).li_tv;
                     if (*li_tv).v_type == VarType::VAR_STRING && !(*li_tv).vval.v_string().is_null() {
                         get_matches_in_str(
@@ -5727,10 +5727,10 @@ fn max_min(tv: &typval_T, rettv: &mut typval_T, domax: bool) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         let mut n: varnumber_T = if domax { VARNUMBER_MIN } else { VARNUMBER_MAX };
         if tv.v_type == VarType::VAR_LIST {
-            if tv_list_len(tv.vval.v_list()) == 0 {
+            if tv_list_len(tv.vval.v_list().as_ref()) == 0 {
                 return;
             }
-            for li in crate::eval::typval::list_iter_mut(tv_list_first(tv.vval.v_list())) {
+            for li in crate::eval::typval::list_iter_mut(tv_list_first(tv.vval.v_list().as_ref())) {
                 let i = tv_get_number_chk(&li.li_tv, Some(&mut error));
                 if error {
                     return;
@@ -5858,7 +5858,7 @@ pub fn f_msgpackdump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         let mut packer: PackerBuffer = packer_string_buffer();
         let msg = gettext(c"msgpackdump() argument, index %i");
         let mut msgbuf = [0 as c_char; 31 * 4 + NUMBUFLEN];
-        for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(tv_list_first(list))) {
+        for (idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(tv_list_first(list.as_ref()))) {
             vim_snprintf!(msgbuf.as_mut_ptr(), msgbuf.len(), msg, idx);
             if !encode_vim_to_msgpack(&mut packer, &mut li.li_tv, msgbuf.as_ptr())
             {
@@ -5909,10 +5909,10 @@ fn emsg_mpack_error(status: c_int) {
 
 fn msgpackparse_unpack_list(list: *const list_T, ret_list: &mut list_T) {
     unsafe {
-        if tv_list_len(list) == 0 {
+        if tv_list_len(list.as_ref()) == 0 {
             return;
         }
-        if (*tv_list_first(list)).li_tv.v_type != VarType::VAR_STRING {
+        if (*tv_list_first(list.as_ref())).li_tv.v_type != VarType::VAR_STRING {
             semsg!(
                 gettext(e_invarg2),
                 c"List item is not a string",
@@ -5981,14 +5981,14 @@ fn msgpackparse_unpack_list(list: *const list_T, ret_list: &mut list_T) {
     }
 }
 
-fn msgpackparse_unpack_blob(blob: *const blob_T, ret_list: &mut list_T) {
-    unsafe {
-        let len = tv_blob_len(blob.as_ref());
+fn msgpackparse_unpack_blob(blob: Option<&blob_T>, ret_list: &mut list_T) {
+     {
+        let len = tv_blob_len(blob);
         if len == 0 {
             return;
         }
 
-        let mut data = (*blob).bv_ga.as_ptr().cast::<c_char>();
+        let mut data = blob.unwrap().bv_ga.as_ptr().cast::<c_char>();
         let mut remaining = len as usize;
         while remaining != 0 {
             let mut tv = tv_initial_value();
@@ -6014,7 +6014,7 @@ pub fn f_msgpackparse(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
         if argvars[0].v_type == VarType::VAR_LIST {
             msgpackparse_unpack_list(argvars[0].vval.v_list(), &mut *ret_list);
         } else {
-            msgpackparse_unpack_blob(argvars[0].vval.v_blob(), &mut *ret_list);
+            msgpackparse_unpack_blob(argvars[0].vval.v_blob().as_ref(), &mut *ret_list);
         }
     }
 }
@@ -6210,7 +6210,7 @@ pub fn f_rand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
             );
         } else if argvars[0].v_type == VarType::VAR_LIST {
             let l = argvars[0].vval.v_list();
-            if tv_list_len(l) != 4 {
+            if tv_list_len(l.as_ref()) != 4 {
                 semsg!(gettext(e_invarg2), tv_get_string(&argvars[0]));
                 rettv.v_type = VarType::VAR_NUMBER;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -6430,7 +6430,7 @@ pub fn f_reg_recorded(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
 fn list2proftime(arg: &mut typval_T, tm: &mut proftime_T) -> bool {
     {
-        if arg.v_type != VarType::VAR_LIST || tv_list_len(arg.vval.v_list()) != 2 {
+        if arg.v_type != VarType::VAR_LIST || tv_list_len(unsafe { arg.vval.v_list().as_ref() }) != 2 {
             return false;
         }
         let mut error = false;
@@ -6489,7 +6489,7 @@ pub fn f_reltimestr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 }
 
 fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
-    let slen = tv_list_len(l);
+    let slen = tv_list_len(unsafe { l.as_ref() });
         tv_list_alloc_ret(
             &mut *rettv,
             (varnumber_T::from(n > 0) * n * varnumber_T::from(slen)) as isize,
@@ -6502,7 +6502,7 @@ fn repeat_list(l: *mut list_T, mut n: varnumber_T, rettv: &mut typval_T) {
         }
         while n > 0 {
             n -= 1;
-            tv_list_extend(unsafe { &mut *rettv.vval.v_list() }, l, ptr::null_mut());
+            tv_list_extend(unsafe { &mut *rettv.vval.v_list() }, unsafe { l.as_ref() }, ptr::null_mut());
         }
 }
 
@@ -6599,19 +6599,19 @@ fn reduce_list(argvars: &mut [typval_T], rettv: &mut typval_T) {
         let initial: typval_T;
         let mut li: *const listitem_T;
         if argvars[2].v_type == VarType::VAR_UNKNOWN {
-            if tv_list_len(l) == 0 {
+            if tv_list_len(l.as_ref()) == 0 {
                 semsg!(
                     gettext(e_reduce_of_an_empty_str_with_no_initial_value),
                     c"List",
                 );
                 return;
             }
-            let first = tv_list_first(l);
+            let first = tv_list_first(l.as_ref());
             initial = (*first).li_tv;
             li = (*first).li_next;
         } else {
             initial = argvars[2];
-            li = tv_list_first(l);
+            li = tv_list_first(l.as_ref());
         }
 
         tv_copy(&initial, &mut *rettv);
@@ -7380,9 +7380,9 @@ fn searchpair_cmn(argvars: &mut [typval_T],match_pos: Option<&mut pos_T>) -> c_i
                 mpat,
                 epat,
                 dir,
-                skip,
+                unsafe { skip.as_ref() },
                 flags,
-                match_pos.map_or(ptr::null_mut(), |p| &raw mut *p),
+                unsafe { (match_pos.map_or(ptr::null_mut(), |p| &raw mut *p)).as_mut() },
                 lnum_stop,
                 time_limit,
             );
@@ -7423,9 +7423,9 @@ pub fn do_searchpair(
     mpat: impl crate::strings::IntoCCharPtr,
     epat: impl crate::strings::IntoCCharPtr,
     dir: c_int,
-    skip: *const typval_T,
+    skip: Option<&typval_T>,
     flags: c_int,
-    match_pos: *mut pos_T,
+    match_pos: Option<&mut pos_T>,
     lnum_stop: linenr_T,
     time_limit: i64,
 ) -> c_int {
@@ -7474,8 +7474,8 @@ pub fn do_searchpair(
         if (flags & SP_START) != 0 {
             options |= SEARCH_START;
         }
-        if !skip.is_null() {
-            use_skip = eval_expr_valid_arg(&*skip);
+        if let Some(skip) = skip {
+            use_skip = eval_expr_valid_arg(skip);
         }
 
         let save_cursor = curwin_mut().w_cursor;
@@ -7545,7 +7545,7 @@ pub fn do_searchpair(
                 curwin_mut().w_cursor.col = pos.col;
                 curwin_mut().w_cursor.coladd = pos.coladd;
                 let mut err = false;
-                let r = eval_expr_to_bool(&*skip, &mut err);
+                let r = eval_expr_to_bool(skip.unwrap(), &mut err);
                 curwin_mut().w_cursor = save_pos;
                 if err {
                     curwin_mut().w_cursor = save_cursor;
@@ -7586,9 +7586,9 @@ pub fn do_searchpair(
             }
         }
 
-        if !match_pos.is_null() {
-            (*match_pos).lnum = curwin_mut().w_cursor.lnum;
-            (*match_pos).col = curwin_mut().w_cursor.col + 1;
+        if let Some(match_pos) = match_pos {
+            match_pos.lnum = curwin_mut().w_cursor.lnum;
+            match_pos.col = curwin_mut().w_cursor.col + 1;
         }
 
         if (flags & SP_NOMOVE) != 0 || retval == 0 {
@@ -8010,13 +8010,13 @@ pub fn f_setreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 
         if !regcontents.is_null() && (*regcontents).v_type == VarType::VAR_LIST {
             let ll = (*regcontents).vval.v_list();
-            let len = tv_list_len(ll) as usize;
+            let len = tv_list_len(ll.as_ref()) as usize;
 
             let mut lstval: Vec<*const c_char> = Vec::with_capacity(len + 1);
             let mut allocval: Vec<std::ffi::CString> = Vec::new();
 
             'free_lstval: {
-                for li in crate::eval::typval::list_iter_mut(tv_list_first(ll)) {
+                for li in crate::eval::typval::list_iter_mut(tv_list_first(ll.as_ref())) {
                     let mut buf = [0 as c_char; NUMBUFLEN];
                     let mut val = tv_get_string_buf_chk(&li.li_tv, buf.as_mut_ptr());
                     if val.is_null() {
@@ -8449,7 +8449,7 @@ pub fn f_split(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
                     };
                     if keepempty
                         || end > str_
-                        || (tv_list_len(rettv.vval.v_list()) > 0
+                        || (tv_list_len(rettv.vval.v_list().as_ref()) > 0
                             && *str_ != NUL
                             && match_found
                             && end < regmatch.endp[0].cast_const())
@@ -9219,7 +9219,7 @@ pub fn f_windowsversion(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 /// "wordcount()" function
 pub fn f_wordcount(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     tv_dict_alloc_ret(rettv);
-        cursor_pos_info(rettv.vval.v_dict());
+        cursor_pos_info(unsafe { rettv.vval.v_dict().as_mut() });
 }
 
 /// "xor(expr, expr)" function

@@ -2552,7 +2552,7 @@ fn has_state_with_pos(
                 && sub_equal(&mut (*thread).subs.norm, &mut subs.norm)
                 && (re_st().rex.nfa_has_zsubexpr == 0
                     || sub_equal(&mut (*thread).subs.synt, &mut subs.synt))
-                && pim_equal(Some(&(*thread).pim), pim)
+                && pim_equal(Some(&(*thread).pim), pim.as_ref())
             {
                 return true;
             }
@@ -2562,25 +2562,25 @@ fn has_state_with_pos(
 }
 
 #[inline]
-fn pim_equal(one: Option<&nfa_pim_T>, two: *const nfa_pim_T) -> bool {
-    unsafe {
+fn pim_equal(one: Option<&nfa_pim_T>, two: Option<&nfa_pim_T>) -> bool {
+     {
         let one_unused = one.is_none() || one.unwrap().result == NFA_PIM_UNUSED;
-        let two_unused = two.is_null() || (*two).result == NFA_PIM_UNUSED;
+        let two_unused = two.is_none() || two.unwrap().result == NFA_PIM_UNUSED;
         if one_unused {
             return two_unused;
         }
         if two_unused {
             return false;
         }
-        if one.unwrap().state != (*two).state {
+        if one.unwrap().state != two.unwrap().state {
             return false;
         }
         if REG_MULTI() {
             let p1 = one.unwrap().end.pos();
-            let p2 = (*two).end.pos();
+            let p2 = two.unwrap().end.pos();
             p1.lnum == p2.lnum && p1.col == p2.col
         } else {
-            one.unwrap().end.ptr() == (*two).end.ptr()
+            one.unwrap().end.ptr() == two.unwrap().end.ptr()
         }
     }
 }
@@ -3251,7 +3251,7 @@ fn nfa_re_num_cmp(val: u64, op: c_int, pos: u64) -> bool {
 
 fn recursive_regmatch(
     state: usize,
-    pim: *mut nfa_pim_T,prog: &mut nfa_regprog_T,submatch: &mut regsubs_T,m: &mut regsubs_T,
+    pim: Option<&nfa_pim_T>,prog: &mut nfa_regprog_T,submatch: &mut regsubs_T,m: &mut regsubs_T,
     listids: &mut Vec<c_int>,
 ) -> c_int {
     unsafe {
@@ -3264,11 +3264,11 @@ fn recursive_regmatch(
         let mut endposp: *mut save_se_T = ptr::null_mut();
         let mut need_restore = false;
 
-        if !pim.is_null() {
+        if let Some(pim) = pim {
             if REG_MULTI() {
-                re_st().rex.input = re_st().rex.line.add((*pim).end.pos().col as usize);
+                re_st().rex.input = re_st().rex.line.add(pim.end.pos().col as usize);
             } else {
-                re_st().rex.input = (*pim).end.ptr();
+                re_st().rex.input = pim.end.ptr();
             }
         }
 
@@ -3278,19 +3278,15 @@ fn recursive_regmatch(
             || st.c == NFA_START_INVISIBLE_BEFORE_NEG
             || st.c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST
         {
-            if REG_MULTI() {
-                if pim.is_null() {
-                    endpos.se_u = crate::regexp::RegPos::Pos(lpos_T {
-                        col: re_st().rex.input.offset_from(re_st().rex.line) as colnr_T,
-                        lnum: re_st().rex.lnum,
-                    });
-                } else {
-                    endpos.se_u = (*pim).end;
-                }
-            } else if pim.is_null() {
-                endpos.se_u = crate::regexp::RegPos::Ptr(re_st().rex.input);
+            if let Some(pim) = pim {
+                endpos.se_u = pim.end;
+            } else if REG_MULTI() {
+                endpos.se_u = crate::regexp::RegPos::Pos(lpos_T {
+                    col: re_st().rex.input.offset_from(re_st().rex.line) as colnr_T,
+                    lnum: re_st().rex.lnum,
+                });
             } else {
-                endpos.se_u = (*pim).end;
+                endpos.se_u = crate::regexp::RegPos::Ptr(re_st().rex.input);
             }
             endposp = &raw mut endpos;
 
@@ -3759,7 +3755,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             }
                             let res = recursive_regmatch(
                                 t_state_idx,
-                                ptr::null_mut(),
+                                None,
                                 &mut *prog,
                                 &mut *submatch,
                                 m,
@@ -3844,7 +3840,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             }
                             let res = recursive_regmatch(
                                 t_state_idx,
-                                ptr::null_mut(),
+                                None,
                                 &mut *prog,
                                 &mut *submatch,
                                 m,
@@ -4419,7 +4415,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                         let res = if (*pim).result == NFA_PIM_TODO {
                             let r = recursive_regmatch(
                                 pim_state_idx,
-                                pim,
+                                pim.as_ref(),
                                 &mut *prog,
                                 &mut *submatch,
                                 m,

@@ -1184,7 +1184,7 @@ pub fn create_funccal(fp: *mut ufunc_T,rettv: &mut typval_T) -> *mut funccall_T 
         (*fc).fc_caller = uf_st().current_funccal;
         uf_st().current_funccal = fc;
         (*fc).fc_func = fp;
-        func_ptr_ref(fp);
+        func_ptr_ref(fp.as_mut());
         (*fc).fc_rettv = rettv;
         fc
     }
@@ -3484,10 +3484,10 @@ pub fn func_ref(name: *mut c_char) {
     }
 }
 
-pub fn func_ptr_ref(fp: *mut ufunc_T) {
-    unsafe {
-        if !fp.is_null() {
-            (*fp).uf_refcount += 1;
+pub fn func_ptr_ref(fp: Option<&mut ufunc_T>) {
+     {
+        if let Some(fp) = fp {
+            fp.uf_refcount += 1;
         }
     }
 }
@@ -3618,7 +3618,7 @@ fn ex_call_inner(
 fn ex_defer_inner(
     name: *mut c_char,
     arg: *mut *mut c_char,
-    partial: *const partial_T,
+    partial: Option<&partial_T>,
     evalarg: &mut evalarg_T,
 ) -> bool {
     unsafe {
@@ -3633,18 +3633,18 @@ fn ex_defer_inner(
             );
             return false;
         }
-        if !partial.is_null() {
-            if !(*partial).pt_dict.is_null() {
+        if let Some(partial) = partial {
+            if !partial.pt_dict.is_null() {
                 emsg(gettext(
                     E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER,
                 ));
                 return false;
             }
-            if !(*partial).pt_argv.is_empty() {
-                partial_argc = (*partial).pt_argv.len() as c_int;
+            if !partial.pt_argv.is_empty() {
+                partial_argc = partial.pt_argv.len() as c_int;
                 for i in 0..partial_argc {
                     tv_copy(
-                        &(&(*partial).pt_argv)[i as usize],
+                        &(&partial.pt_argv)[i as usize],
                         &mut argvars[i as usize],
                     );
                 }
@@ -3879,7 +3879,7 @@ pub fn ex_call(eap: &mut exarg_T) {
 
         let failed = if eap.cmdidx == cmdidx_T::CMD_defer as c_int {
             arg = startarg;
-            !ex_defer_inner(name, &raw mut arg, partial, &mut evalarg)
+            !ex_defer_inner(name, &raw mut arg, partial.as_ref(), &mut evalarg)
         } else {
             let mut funcexe = funcexe_T::new();
             funcexe.fe_partial = partial;
@@ -4108,7 +4108,7 @@ pub fn make_partial(selfdict: &mut dict_T,rettv: &mut typval_T) {
                     (*pt).pt_name = Some(ret_name.clone());
                 } else {
                     (*pt).pt_func = (*ret_pt).pt_func;
-                    func_ptr_ref((*pt).pt_func);
+                    func_ptr_ref(((*pt).pt_func).as_mut());
                 }
                 if !(*ret_pt).pt_argv.is_empty() {
                     let pt_argc = (*ret_pt).pt_argv.len();

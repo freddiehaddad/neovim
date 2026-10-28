@@ -2822,7 +2822,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
                     && *ar.source == b'@' as c_char
                     && ar.linedefined >= 0
                 {
-                    let src = home_replace_save(ptr::null_mut(), ar.source.add(1));
+                    let src = home_replace_save(None, ar.source.add(1));
                     let src_s = src.to_string_lossy();
                     let formatted = if show_ref {
                         format!("<Lua {ref_}: {src_s}:{}>", ar.linedefined)

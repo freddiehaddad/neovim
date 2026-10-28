@@ -3071,7 +3071,7 @@ fn line_count_info(
     }
 }
 
-pub fn cursor_pos_info(dict: *mut dict_T) {
+pub fn cursor_pos_info(mut dict: Option<&mut dict_T>) {
     unsafe {
         let mut buf1 = [0 as c_char; 50];
         let buf1_ptr = (&raw mut buf1).cast::<c_char>();
@@ -3100,7 +3100,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
         let l_VIsual_mode = g_st().Visual.mode;
 
         if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-            if dict.is_null() {
+            if dict.is_none() {
                 msg(tr(no_lines_msg), 0);
                 return;
             }
@@ -3229,7 +3229,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
             }
 
             let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-            if dict.is_null() {
+            if dict.is_none() {
                 if l_VIsual_active {
                     if l_VIsual_mode == Ctrl_V && curwin_mut().w_curswant < MAXCOL {
                         let mut min_col = min_pos.col;
@@ -3343,7 +3343,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
             }
 
             bom_count = varnumber_T::from(bomb_size());
-            if dict.is_null() && bom_count > 0 {
+            if dict.is_none() && bom_count > 0 {
                 let len = crate::memory::cstr_len(iobuff_ptr);
                 vim_snprintf!(
                     iobuff_ptr.add(len),
@@ -3352,7 +3352,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                     bom_count as std::ffi::c_longlong,
                 );
             }
-            if dict.is_null() {
+            if dict.is_none() {
                 let p = opt_vars().p_shm;
                 opt_vars().p_shm = c"".as_ptr().cast_mut();
                 if opt_vars().p_ch < 1 {
@@ -3364,13 +3364,13 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
             }
         }
 
-        if !dict.is_null() {
-            tv_dict_add_nr(&mut *dict, c"words", word_count);
-            tv_dict_add_nr(&mut *dict, c"chars", char_count);
-            tv_dict_add_nr(&mut *dict, c"bytes", byte_count + bom_count);
+        if dict.is_some() {
+            tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"words", word_count);
+            tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"chars", char_count);
+            tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"bytes", byte_count + bom_count);
 
             tv_dict_add_nr(
-                &mut *dict,
+                dict.as_deref_mut().unwrap(),
                 if l_VIsual_active {
                     c"visual_bytes"
                 } else {
@@ -3379,7 +3379,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                 byte_count_cursor,
             );
             tv_dict_add_nr(
-                &mut *dict,
+                dict.as_deref_mut().unwrap(),
                 if l_VIsual_active {
                     c"visual_chars"
                 } else {
@@ -3388,7 +3388,7 @@ pub fn cursor_pos_info(dict: *mut dict_T) {
                 char_count_cursor,
             );
             tv_dict_add_nr(
-                &mut *dict,
+                dict.unwrap(),
                 if l_VIsual_active {
                     c"visual_words"
                 } else {

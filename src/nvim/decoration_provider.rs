@@ -550,26 +550,26 @@ pub fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
         p_vec.last_mut().map_or(ptr::null_mut(), |p| &raw mut *p)
 }
 
-pub fn decor_provider_clear(p: *mut DecorProvider) {
-    unsafe {
-        if p.is_null() {
+pub fn decor_provider_clear(mut p: Option<&mut DecorProvider>) {
+     {
+        if p.is_none() {
             return;
         }
-        clear_ref(&mut (*p).redraw_start);
-        clear_ref(&mut (*p).redraw_buf);
-        clear_ref(&mut (*p).redraw_win);
-        clear_ref(&mut (*p).redraw_line);
-        clear_ref(&mut (*p).redraw_range);
-        clear_ref(&mut (*p).redraw_end);
-        clear_ref(&mut (*p).spell_nav);
-        clear_ref(&mut (*p).conceal_line);
-        (*p).state = kDecorProviderDisabled;
+        clear_ref(&mut p.as_deref_mut().unwrap().redraw_start);
+        clear_ref(&mut p.as_deref_mut().unwrap().redraw_buf);
+        clear_ref(&mut p.as_deref_mut().unwrap().redraw_win);
+        clear_ref(&mut p.as_deref_mut().unwrap().redraw_line);
+        clear_ref(&mut p.as_deref_mut().unwrap().redraw_range);
+        clear_ref(&mut p.as_deref_mut().unwrap().redraw_end);
+        clear_ref(&mut p.as_deref_mut().unwrap().spell_nav);
+        clear_ref(&mut p.as_deref_mut().unwrap().conceal_line);
+        p.unwrap().state = kDecorProviderDisabled;
     }
 }
 
 impl Drop for DecorProvider {
     fn drop(&mut self) {
-        decor_provider_clear(self);
+        decor_provider_clear(Some(&mut *self));
     }
 }
 

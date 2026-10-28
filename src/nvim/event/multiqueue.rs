@@ -121,7 +121,7 @@ impl Event {
                 Self::RpcInternalRead { channel, buffer } => {
                     crate::msgpack_rpc::channel::internal_read_event(&mut *channel, buffer);
                 }
-                Self::RpcClose(chan) => crate::msgpack_rpc::channel::rpc_close_event(chan),
+                Self::RpcClose(chan) => crate::msgpack_rpc::channel::rpc_close_event(chan.as_mut()),
                 Self::NluaLuvError { msg, kind } => {
                     crate::lua::executor::nlua_luv_error_event(msg, kind);
                 }

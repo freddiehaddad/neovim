@@ -588,8 +588,8 @@ fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: &mut buf_T) {
 }
 
 fn ctx_localdirs_restore(cs: &mut CtxSwitch,
-    cwp: *mut win_T,
-    tp: *mut tabpage_T,
+    cwp: Option<&win_T>,
+    mut tp: Option<&mut tabpage_T>,
     persist: bool,
 ) {
     unsafe {
@@ -614,13 +614,13 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
             cs.cs_b_localdir = None;
         }
 
-        if !tp.is_null() && !(persist && (*tp).tp_localdir.is_some()) {
-            (*tp).tp_localdir = cs.cs_tp_localdir.take();
+        if tp.is_some() && !(persist && tp.as_deref_mut().unwrap().tp_localdir.is_some()) {
+            tp.unwrap().tp_localdir = cs.cs_tp_localdir.take();
         } else {
             cs.cs_tp_localdir = None;
         }
 
-        if !cwp.is_null() && (did_chdir || (*cwp).w_localdir.is_some()) {
+        if cwp.is_some() && (did_chdir || cwp.unwrap().w_localdir.is_some()) {
             update_cwd(kCdCauseWindow);
         }
 
@@ -684,7 +684,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
                     break;
                 }
             }
-            ctx_localdirs_restore(&mut *cs, ptr::null_mut(), dirs_tab, false);
+            ctx_localdirs_restore(&mut *cs, None, dirs_tab.as_mut(), false);
         } else if cs.cs_cwd.is_some() && !ctx_st().CTX_DID_CHDIR {
             g_st().globaldir = cs.cs_globaldir.take();
         }
@@ -951,7 +951,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             vars_clear(&mut (*(*cwp).w_vars()).dv_hashtab);
 
             let free_dirs = (cs.cs_flags & kCtxKeepDirs) == 0;
-            ctx_localdirs_restore(&mut *cs, cwp, g_st().curtab, free_dirs);
+            ctx_localdirs_restore(&mut *cs, cwp.as_ref(), Some(crate::globals::curtab_mut()), free_dirs);
 
             if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
                 curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;

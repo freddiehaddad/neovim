@@ -63,7 +63,7 @@ fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> bool {
             (*l2).lv_refcount += 1;
         }
     } else {
-        tv_list_extend(unsafe { &mut *l1 }, l2, std::ptr::null_mut());
+        tv_list_extend(unsafe { &mut *l1 }, unsafe { l2.as_ref() }, std::ptr::null_mut());
     }
 
     true

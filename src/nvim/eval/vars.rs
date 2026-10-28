@@ -886,7 +886,7 @@ pub fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T {
 /// Get spell word from an entry from spellsuggest=expr:
 pub fn get_spellword(list: &mut list_T, ret_word: *mut *const c_char) -> c_int {
     unsafe {
-        if tv_list_len(list) != 2 {
+        if tv_list_len(Some(list)) != 2 {
             emsg(gettext(
                 c"E5700: Expression from 'spellsuggest' must yield lists with exactly two values",
             ));
@@ -1344,7 +1344,7 @@ pub fn ex_let_vars(
         }
         let l = tv.vval.v_list();
 
-        let len = tv_list_len(l);
+        let len = tv_list_len(l.as_ref());
         if semicolon == 0 && var_count < len {
             emsg(gettext(c"E687: Less targets than List items"));
             return false;
@@ -1355,8 +1355,8 @@ pub fn ex_let_vars(
         }
         debug_assert!(!l.is_null());
 
-        let mut item = tv_list_first(l);
-        let mut rest_len = tv_list_len(l) as usize;
+        let mut item = tv_list_first(l.as_ref());
+        let mut rest_len = tv_list_len(l.as_ref()) as usize;
         while *arg != b']' as c_char {
             arg = skipwhite(arg.add(1));
             arg = ex_let_one(
@@ -2057,7 +2057,7 @@ fn do_unlet_var(
             return false;
         } else if lp.ll_range {
             tv_list_unlet_range(
-                lp.ll_list,
+                lp.ll_list.as_mut(),
                 lp.ll_li,
                 lp.ll_n1,
                 !lp.ll_empty2,
@@ -2092,14 +2092,14 @@ fn do_unlet_var(
 
 /// Unlet one item or a range of items from a list.
 fn tv_list_unlet_range(
-    l: *mut list_T,
+    l: Option<&mut list_T>,
     li_first: *mut listitem_T,
     n1_arg: c_int,
     has_n2: bool,
     n2: c_int,
 ) {
     unsafe {
-        debug_assert!(!l.is_null());
+        debug_assert!(l.is_some());
         let mut li_last = li_first;
         let mut n1 = n1_arg;
         loop {
@@ -2110,7 +2110,7 @@ fn tv_list_unlet_range(
             }
             li_last = li;
         }
-        tv_list_remove_items( &mut *l, li_first,  &mut *li_last);
+        tv_list_remove_items( l.unwrap(), li_first,  &mut *li_last);
     }
 }
 

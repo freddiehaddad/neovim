@@ -144,10 +144,10 @@ pub fn libuv_proc_uv(proc_: &mut Proc) -> *mut uv_handle_t {
 }
 
 #[inline]
-fn loop_process_events(loop_: &mut Loop, multiqueue: *mut MultiQueue, timeout: i64) {
+fn loop_process_events(loop_: &mut Loop, multiqueue: Option<&mut MultiQueue>, timeout: i64) {
      {
-        if !multiqueue.is_null() && !multiqueue_empty(unsafe { &*multiqueue }) {
-            multiqueue_process_events(unsafe { &mut *multiqueue });
+        if let Some(multiqueue) = multiqueue && !multiqueue_empty( multiqueue) {
+            multiqueue_process_events( multiqueue);
         } else {
             loop_poll_events(loop_, timeout);
         }
@@ -164,7 +164,7 @@ fn loop_process_events_until<F: FnMut() -> bool>(
     let mut remaining = timeout;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !cond() {
-            loop_process_events(unsafe { &mut *loop_ }, multiqueue, remaining);
+            loop_process_events(unsafe { &mut *loop_ }, unsafe { multiqueue.as_mut() }, remaining);
             if remaining == 0 {
                 break;
             } else if remaining > 0 {
@@ -292,7 +292,7 @@ pub fn proc_wait(proc_: &mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_
     unsafe {
         if proc_.refcount == 0 {
             let status = proc_.status;
-            loop_process_events( &mut *proc_.loop_, proc_.events, 0);
+            loop_process_events( &mut *proc_.loop_, proc_.events.as_mut(), 0);
             return status;
         }
 
@@ -311,7 +311,7 @@ pub fn proc_wait(proc_: &mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_
             if ms == -1 {
                 loop_process_events_until(proc_.loop_, events, -1, || proc_.refcount == 1);
             } else {
-                loop_process_events( &mut *proc_.loop_, events, 0);
+                loop_process_events( &mut *proc_.loop_, events.as_mut(), 0);
             }
 
             proc_.status = -2;

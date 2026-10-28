@@ -187,7 +187,7 @@ pub fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usize) {
 
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
 pub fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
-    let first = tv_list_first(list);
+    let first = tv_list_first(unsafe { list.as_ref() });
     let li_length = if first.is_null() {
         0
     } else {
@@ -259,7 +259,7 @@ pub fn encode_read_from_list(
 /// Convert `readfile()`-style list to a `Vec<c_char>` buffer (`encode_vim_list_to_buf`).
 pub fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
     let mut len = 0usize;
-    for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
+    for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe { list.as_ref() })) {
         let tv =  { &li.li_tv };
         if tv.v_type != VarType::VAR_STRING {
             return None;
@@ -313,7 +313,7 @@ pub fn encode_check_json_key(tv: &typval_T) -> bool {
         if val_list.is_null() {
             return true;
         }
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(val_list)) {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(val_list.as_ref())) {
             if li.li_tv.v_type != VarType::VAR_STRING {
                 return false;
             }
@@ -376,11 +376,11 @@ fn conv_error(
                 }
                 MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
                     let is_list = matches!(v.data, MPConvStackData::List { .. });
-                    let first = tv_list_first(list);
+                    let first = tv_list_first(list.as_ref());
                     let idx = if li == first {
                         0
                     } else if li.is_null() {
-                        tv_list_len(list) - 1
+                        tv_list_len(list.as_ref()) - 1
                     } else {
                         tv_list_idx_of_item(list.as_ref(), (*li).li_prev)
                     };
@@ -392,12 +392,12 @@ fn conv_error(
                     if is_list
                         || prev_li.is_null()
                         || ((*prev_li).li_tv.v_type != VarType::VAR_LIST
-                            && tv_list_len((*prev_li).li_tv.vval.v_list()) <= 0)
+                            && tv_list_len(((*prev_li).li_tv.vval.v_list()).as_ref()) <= 0)
                     {
                         vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"index %i", idx);
                         buf_concat_cstr(&mut msg_ga, iobuf.as_ptr());
                     } else {
-                        let first_item = tv_list_first((*prev_li).li_tv.vval.v_list());
+                        let first_item = tv_list_first(((*prev_li).li_tv.vval.v_list()).as_ref());
                         assert!(!first_item.is_null());
                         let mut key_tv = (*first_item).li_tv;
                         let key = encode_tv2echo(&mut key_tv, None);
@@ -839,7 +839,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn conv_blob(&mut self, blob: *const blob_T, len: c_int) {
+    fn conv_blob(&mut self, blob: Option<&blob_T>, len: c_int) {
         unsafe {
             match self {
                 Self::Text {
@@ -860,7 +860,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%02X",
-                                tv_blob_get( &*blob, i) as c_int,
+                                tv_blob_get( blob.unwrap(), i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }
@@ -883,7 +883,7 @@ impl EncodeBackend<'_> {
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%d",
-                                tv_blob_get( &*blob, i) as c_int,
+                                tv_blob_get( blob.unwrap(), i) as c_int,
                             );
                             buf_concat_len(gap, numbuf.as_ptr(), nlen);
                         }
@@ -891,10 +891,9 @@ impl EncodeBackend<'_> {
                     }
                 }
                 Self::Msgpack { packer } => {
-                    let data = if blob.is_null() || (*blob).bv_ga.is_empty() {
-                        std::ptr::null_mut()
-                    } else {
-                        (*blob).bv_ga.as_ptr().cast_mut().cast::<c_char>()
+                    let data = match blob {
+                        Some(b) if !b.bv_ga.is_empty() => b.bv_ga.as_ptr().cast_mut().cast::<c_char>(),
+                        _ => std::ptr::null_mut(),
                     };
                     mpack_bin(
                         NvimString {
@@ -1189,7 +1188,7 @@ fn convert_one_value(
             }
             VarType::VAR_BLOB => {
                 let blob = tv_ref.vval.v_blob();
-                backend.conv_blob(blob, tv_blob_len(blob.as_ref()));
+                backend.conv_blob(blob.as_ref(), tv_blob_len(blob.as_ref()));
             }
             VarType::VAR_FUNC => {
                 if backend.conv_func_start(tv_ref.vval.v_string(), b"", mpstack, objname) == FAIL {
@@ -1229,7 +1228,7 @@ fn convert_one_value(
             }
             VarType::VAR_LIST => {
                 let list = tv_ref.vval.v_list();
-                if list.is_null() || tv_list_len(list) == 0 {
+                if list.is_null() || tv_list_len(list.as_ref()) == 0 {
                     backend.conv_empty_list();
                 } else {
                     let saved_copy_id = (*list).lv_copyID;
@@ -1243,13 +1242,13 @@ fn convert_one_value(
                     if csr != NOTDONE {
                         return csr;
                     }
-                    backend.conv_list_start(tv_list_len(list));
+                    backend.conv_list_start(tv_list_len(list.as_ref()));
                     mpstack.push(MPConvStackVal {
                         tv,
                         saved_copy_id,
                         data: MPConvStackData::List {
                             list,
-                            li: tv_list_first(list),
+                            li: tv_list_first(list.as_ref()),
                         },
                     });
                 }
@@ -1297,8 +1296,8 @@ fn convert_one_value(
                                     K_MP_INTEGER => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_LIST {
                                             let val_list = (*val_di).di_tv.vval.v_list();
-                                            if tv_list_len(val_list) == 4 {
-                                                let sign_li = tv_list_first(val_list);
+                                            if tv_list_len(val_list.as_ref()) == 4 {
+                                                let sign_li = tv_list_first(val_list.as_ref());
                                                 let highest_li = (*sign_li).li_next;
                                                 let high_li = (*highest_li).li_next;
                                                 let low_li = tv_list_last(val_list);
@@ -1367,13 +1366,13 @@ fn convert_one_value(
                                             if csr != NOTDONE {
                                                 return csr;
                                             }
-                                            backend.conv_list_start(tv_list_len(val_list));
+                                            backend.conv_list_start(tv_list_len(val_list.as_ref()));
                                             mpstack.push(MPConvStackVal {
                                                 tv,
                                                 saved_copy_id,
                                                 data: MPConvStackData::List {
                                                     list: val_list,
-                                                    li: tv_list_first(val_list),
+                                                    li: tv_list_first(val_list.as_ref()),
                                                 },
                                             });
                                             handled_special = true;
@@ -1382,15 +1381,15 @@ fn convert_one_value(
                                     K_MP_MAP => {
                                         if (*val_di).di_tv.v_type == VarType::VAR_LIST {
                                             let val_list = (*val_di).di_tv.vval.v_list();
-                                            if val_list.is_null() || tv_list_len(val_list) == 0 {
+                                            if val_list.is_null() || tv_list_len(val_list.as_ref()) == 0 {
                                                 backend.conv_empty_dict();
                                                 handled_special = true;
                                             } else {
                                                 let mut all_pairs = true;
-                                                let mut li = tv_list_first(val_list);
+                                                let mut li = tv_list_first(val_list.as_ref());
                                                 while !li.is_null() {
                                                     if (*li).li_tv.v_type != VarType::VAR_LIST
-                                                        || tv_list_len((*li).li_tv.vval.v_list()) != 2
+                                                        || tv_list_len(((*li).li_tv.vval.v_list()).as_ref()) != 2
                                                     {
                                                         all_pairs = false;
                                                         break;
@@ -1410,14 +1409,14 @@ fn convert_one_value(
                                                         return csr;
                                                     }
                                                     backend.conv_dict_start(
-                                                        tv_list_len(val_list) as usize
+                                                        tv_list_len(val_list.as_ref()) as usize
                                                     );
                                                     mpstack.push(MPConvStackVal {
                                                         tv,
                                                         saved_copy_id,
                                                         data: MPConvStackData::Pairs {
                                                             list: val_list,
-                                                            li: tv_list_first(val_list),
+                                                            li: tv_list_first(val_list.as_ref()),
                                                         },
                                                     });
                                                     handled_special = true;
@@ -1427,8 +1426,8 @@ fn convert_one_value(
                                     }
                                     K_MP_EXT if (*val_di).di_tv.v_type == VarType::VAR_LIST => {
                                         let val_list = (*val_di).di_tv.vval.v_list();
-                                        if tv_list_len(val_list) == 2 {
-                                            let first = tv_list_first(val_list);
+                                        if tv_list_len(val_list.as_ref()) == 2 {
+                                            let first = tv_list_first(val_list.as_ref());
                                             let last = tv_list_last(val_list);
                                             if (*first).li_tv.v_type == VarType::VAR_NUMBER
                                                 && (i8::MIN as i64..=i8::MAX as i64)
@@ -1547,7 +1546,7 @@ fn encode_vim_with_backend(
                         (*list).lv_copyID = saved_copy_id;
                         backend.conv_list_end();
                         continue;
-                    } else if cur_li != tv_list_first(list) {
+                    } else if cur_li != tv_list_first(list.as_ref()) {
                         backend.conv_list_between_items();
                     }
                     *li = (*cur_li).li_next;
@@ -1559,11 +1558,11 @@ fn encode_vim_with_backend(
                         (*list).lv_copyID = saved_copy_id;
                         backend.conv_dict_end();
                         continue;
-                    } else if li != tv_list_first(list) {
+                    } else if li != tv_list_first(list.as_ref()) {
                         backend.conv_dict_between_items();
                     }
                     let kv_pair = (*li).li_tv.vval.v_list();
-                    let first_item = tv_list_first(kv_pair);
+                    let first_item = tv_list_first(kv_pair.as_ref());
                     if !backend.special_dict_key_check(&(*first_item).li_tv) {
                         return false;
                     }

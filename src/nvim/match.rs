@@ -179,7 +179,7 @@ fn match_add(
             }
         }
 
-        let pos_len = tv_list_len(pos_list);
+        let pos_len = tv_list_len(pos_list.as_ref());
         let mut m = matchitem_T {
             mit_id: id,
             mit_priority: prio,
@@ -215,7 +215,7 @@ fn match_add(
             let mut i: usize = 0;
             let mut failed = false;
 
-            for li in crate::eval::typval::list_iter_ptr(tv_list_first(pos_list)) {
+            for li in crate::eval::typval::list_iter_ptr(tv_list_first(pos_list.as_ref())) {
                 let mut lnum: linenr_T = 0;
                 let mut col: colnr_T = 0;
                 let mut len: c_int = 1;
@@ -223,7 +223,7 @@ fn match_add(
 
                 if (*li).li_tv.v_type == VarType::VAR_LIST {
                     let subl = (*li).li_tv.vval.v_list();
-                    let mut subli = tv_list_first(subl);
+                    let mut subli = tv_list_first(subl.as_ref());
                     if subli.is_null() {
                         semsg!(
                             gettext(c"E5030: Empty list at position %d"),
@@ -445,14 +445,14 @@ fn next_search_hl(
     shl: &mut match_T,
     lnum: linenr_T,
     mincol: colnr_T,
-    cur: *mut matchitem_T,
+    mut cur: Option<&mut matchitem_T>,
 ) {
     unsafe {
         let mut matchcol: colnr_T;
         let mut nmatched: c_int = 0;
         let called_emsg_before = g_st().called_emsg;
 
-        if (lnum < g_st().Search.first_line || lnum > g_st().Search.last_line) && cur.is_null() {
+        if (lnum < g_st().Search.first_line || lnum > g_st().Search.last_line) && cur.is_none() {
             shl.lnum = 0;
             return;
         }
@@ -490,9 +490,9 @@ fn next_search_hl(
 
             shl.lnum = lnum;
             if !shl.rm.regprog.is_null() {
-                let regprog_is_copy = !cur.is_null()
-                    && ptr::eq(shl, &raw const (*cur).mit_hl)
-                    && (*cur).mit_match.regprog == (*cur).mit_hl.rm.regprog;
+                let regprog_is_copy = cur.is_some()
+                    && ptr::eq(shl, &raw const cur.as_deref_mut().unwrap().mit_hl)
+                    && cur.as_deref_mut().unwrap().mit_match.regprog == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
                 let mut timed_out: c_int = 0;
 
                 nmatched = vim_regexec_multi(
@@ -505,10 +505,10 @@ fn next_search_hl(
                     Some(&mut timed_out),
                 );
                 if regprog_is_copy {
-                    (*cur).mit_match.regprog = (*cur).mit_hl.rm.regprog;
+                    cur.as_deref_mut().unwrap().mit_match.regprog = cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
                 }
                 if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
-                    if cur.is_null() {
+                    if cur.is_none() {
                         vim_regfree(shl.rm.regprog);
                         set_no_hlsearch(true);
                     }
@@ -517,8 +517,8 @@ fn next_search_hl(
                     g_st().got_int = false;
                     break;
                 }
-            } else if !cur.is_null() {
-                nmatched = next_search_hl_pos(shl, lnum,  &mut *cur, matchcol);
+            } else if cur.is_some() {
+                nmatched = next_search_hl_pos(shl, lnum,  cur.as_deref_mut().unwrap(), matchcol);
             }
             if nmatched == 0 {
                 shl.lnum = 0;
@@ -582,11 +582,11 @@ pub fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: linenr_T
                         &mut *shl,
                         (*shl).first_lnum,
                         n,
-                        if ptr::eq(shl, (&raw mut *search_hl)) {
+                        (if ptr::eq(shl, (&raw mut *search_hl)) {
                             ptr::null_mut()
                         } else {
                             cur
-                        },
+                        }).as_mut(),
                     );
                     pos_inprogress = !cur.is_null() && (*cur).mit_pos_cur != 0;
                     if (*shl).lnum != 0 {
@@ -659,11 +659,11 @@ pub fn prepare_search_hl_line(
                 &mut *shl,
                 lnum,
                 mincol,
-                if ptr::eq(shl, (&raw mut *search_hl)) {
+                (if ptr::eq(shl, (&raw mut *search_hl)) {
                     ptr::null_mut()
                 } else {
                     cur
-                },
+                }).as_mut(),
             );
 
             *line = ml_get_buf(wp.buf_mut(), lnum);
@@ -775,11 +775,11 @@ pub fn update_search_hl(
                         &mut *shl,
                         lnum,
                         col,
-                        if ptr::eq(shl, (&raw mut *search_hl)) {
+                        (if ptr::eq(shl, (&raw mut *search_hl)) {
                             ptr::null_mut()
                         } else {
                             cur
-                        },
+                        }).as_mut(),
                     );
                     pos_inprogress = !cur.is_null() && (*cur).mit_pos_cur != 0;
 
@@ -1028,7 +1028,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         }
 
         let l = argvars[0].vval.v_list();
-        for (li_idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(tv_list_first(l))) {
+        for (li_idx, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_mut(tv_list_first(l.as_ref()))) {
             if li.li_tv.v_type != VarType::VAR_DICT || li.li_tv.vval.v_dict().is_null() {
                 semsg!(
                     gettext(
@@ -1055,7 +1055,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         clear_matches(&mut *win);
         let mut match_add_failed = false;
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(l)) {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(l.as_ref())) {
             let mut i: c_int = 0;
             let d = li.li_tv.vval.v_dict();
             let di = tv_dict_find(d, c"pattern", 7);
@@ -1178,7 +1178,7 @@ pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
         }
 
         let l = argvars[1].vval.v_list();
-        if tv_list_len(l) == 0 {
+        if tv_list_len(l.as_ref()) == 0 {
             return;
         }
 

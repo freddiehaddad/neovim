@@ -1025,13 +1025,13 @@ fn valid_filetype(val: *const c_char) -> bool {
 }
 
 /// Handle setting 'signcolumn' for value 'val'.
-pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> bool {
+pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut win_T>) -> bool {
     unsafe {
         let mut val = empty_string_option.as_ptr().cast::<c_char>();
         if !scl.is_null() {
             val = scl;
-        } else if !wp.is_null() {
-            val = (*wp).w_onebuf_opt.wo_scl;
+        } else if wp.is_some() {
+            val = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_scl;
         }
 
         if *val == NUL {
@@ -1047,30 +1047,30 @@ pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> bool {
         )
         .is_null()
         {
-            if wp.is_null() {
+            if wp.is_none() {
                 return true;
             }
             if crate::memory::cstr_prefix_bytes(val, 2) == &b"no"[..2] {
-                (*wp).w_minscwidth = SCL_NO;
-                (*wp).w_maxscwidth = SCL_NO;
+                wp.as_deref_mut().unwrap().w_minscwidth = SCL_NO;
+                wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NO;
             } else if (crate::memory::cstr_prefix_bytes(val, 2) == &b"nu"[..2])
-                && ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
+                && (wp.as_deref_mut().unwrap().w_onebuf_opt.wo_nu != 0 || wp.as_deref_mut().unwrap().w_onebuf_opt.wo_rnu != 0)
             {
-                (*wp).w_minscwidth = SCL_NUM;
-                (*wp).w_maxscwidth = SCL_NUM;
+                wp.as_deref_mut().unwrap().w_minscwidth = SCL_NUM;
+                wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NUM;
             } else if crate::memory::cstr_prefix_bytes(val, 4) == &b"yes:"[..4] {
                 let n = (*val.add(4) as c_int) - (b'0' as c_int);
-                (*wp).w_minscwidth = n;
-                (*wp).w_maxscwidth = n;
+                wp.as_deref_mut().unwrap().w_minscwidth = n;
+                wp.as_deref_mut().unwrap().w_maxscwidth = n;
             } else if *val == b'y' as c_char {
-                (*wp).w_minscwidth = 1;
-                (*wp).w_maxscwidth = 1;
+                wp.as_deref_mut().unwrap().w_minscwidth = 1;
+                wp.as_deref_mut().unwrap().w_maxscwidth = 1;
             } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
-                (*wp).w_minscwidth = 0;
-                (*wp).w_maxscwidth = (*val.add(5) as c_int) - (b'0' as c_int);
+                wp.as_deref_mut().unwrap().w_minscwidth = 0;
+                wp.as_deref_mut().unwrap().w_maxscwidth = (*val.add(5) as c_int) - (b'0' as c_int);
             } else {
-                (*wp).w_minscwidth = 0;
-                (*wp).w_maxscwidth = 1;
+                wp.as_deref_mut().unwrap().w_minscwidth = 0;
+                wp.as_deref_mut().unwrap().w_maxscwidth = 1;
             }
         } else {
             if !(crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5])
@@ -1086,19 +1086,19 @@ pub fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> bool {
             if min < 1 || max < 2 || min > 8 || min >= max {
                 return false;
             }
-            if wp.is_null() {
+            if wp.is_none() {
                 return true;
             }
-            (*wp).w_minscwidth = min;
-            (*wp).w_maxscwidth = max;
+            wp.as_deref_mut().unwrap().w_minscwidth = min;
+            wp.as_deref_mut().unwrap().w_maxscwidth = max;
         }
 
-        let scwidth = if (*wp).w_minscwidth <= 0 {
+        let scwidth = if wp.as_deref_mut().unwrap().w_minscwidth <= 0 {
             0
         } else {
-            (*wp).w_maxscwidth.min((*wp).w_scwidth)
+            wp.as_deref_mut().unwrap().w_maxscwidth.min(wp.as_deref_mut().unwrap().w_scwidth)
         };
-        (*wp).w_scwidth = (*wp).w_minscwidth.max(scwidth);
+        wp.unwrap().w_scwidth = wp.as_deref_mut().unwrap().w_minscwidth.max(scwidth);
         true
     }
 }
@@ -1616,7 +1616,7 @@ pub fn did_set_breakindentopt(args: &mut optset_T) -> *const c_char {
             args.os_varp,
             (&raw mut (*win).w_onebuf_opt.wo_briopt).cast(),
         );
-        briopt_check(if is_local { win } else { ptr::null_mut() });
+        briopt_check((if is_local { win } else { ptr::null_mut() }).as_mut());
 
         if is_local && (*win).w_briopt_list != 0 {
             redraw_all_later(UPD_NOT_VALID);
@@ -2823,7 +2823,7 @@ pub fn did_set_showcmdloc(_args: &mut optset_T) -> *const c_char {
 }
 
 pub fn validate_signcolumn(args: &mut optset_T) -> *const c_char {
-    if check_signcolumn(args.os_newval.data.string().data, ptr::null_mut()) {
+    if check_signcolumn(args.os_newval.data.string().data, None) {
             ptr::null()
         } else {
             e_invarg.as_ptr()
@@ -2838,11 +2838,11 @@ pub fn did_set_signcolumn(args: &mut optset_T) -> *const c_char {
         let oldval = args.os_oldval.data.string().data;
         if !check_signcolumn(
             *varp,
-            if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_scl) {
+            (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_scl) {
                 win
             } else {
                 ptr::null_mut()
-            },
+            }).as_mut(),
         )
         {
             return e_invarg.as_ptr();
@@ -3283,11 +3283,11 @@ pub fn did_set_winhighlight(args: &mut optset_T) -> *const c_char {
         let varp = args.os_varp.cast::<*mut c_char>();
         if !parse_winhl_opt(
             *varp,
-            if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_winhl) {
+            (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_winhl) {
                 win
             } else {
                 ptr::null_mut()
-            },
+            }).as_mut(),
         ) {
             return e_invarg.as_ptr();
         }

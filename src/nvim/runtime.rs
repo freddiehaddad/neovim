@@ -537,7 +537,7 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
 
 fn stacktrace_push_item(
     l: &mut list_T,
-    fp: *mut ufunc_T,
+    fp: Option<&mut ufunc_T>,
     event: *const c_char,
     lnum: linenr_T,
     filepath: *const c_char,
@@ -549,8 +549,8 @@ fn stacktrace_push_item(
             vval: TypvalVval::Dict(d),
         };
 
-        if !fp.is_null() {
-            tv_dict_add_func(unsafe { &mut *d }, c"funcref", unsafe { &mut *fp });
+        if let Some(fp) = fp {
+            tv_dict_add_func(unsafe { &mut *d }, c"funcref",  fp);
         }
         if !event.is_null() {
             tv_dict_add_str(unsafe { &mut *d }, c"event", event);
@@ -571,7 +571,7 @@ pub fn stacktrace_create() -> *mut list_T {
             let mut lnum = entry.es_lnum;
 
             if entry.es_type == ETYPE_SCRIPT {
-                stacktrace_push_item( &mut *l, ptr::null_mut(), ptr::null(), lnum, entry.name_ptr());
+                stacktrace_push_item( &mut *l, None, ptr::null(), lnum, entry.name_ptr());
             } else if entry.es_type == ETYPE_UFUNC {
                 let fp = entry.es_info.ufunc();
                 let sctx = (*fp).uf_script_ctx;
@@ -581,7 +581,7 @@ pub fn stacktrace_create() -> *mut list_T {
                     std::borrow::Cow::Borrowed(c"")
                 };
                 lnum += sctx.sc_lnum;
-                stacktrace_push_item( &mut *l, fp, ptr::null(), lnum, filepath.as_ptr());
+                stacktrace_push_item( &mut *l, fp.as_mut(), ptr::null(), lnum, filepath.as_ptr());
             } else if entry.es_type == ETYPE_AUCMD {
                 let sctx = entry.es_info.aucmd_sctx();
                 let filepath = if sctx.sc_sid > 0 {
@@ -592,7 +592,7 @@ pub fn stacktrace_create() -> *mut list_T {
                 lnum += sctx.sc_lnum;
                 stacktrace_push_item(
                      &mut *l,
-                    ptr::null_mut(),
+                    None,
                     entry.name_ptr(),
                     lnum,
                     filepath.as_ptr(),
@@ -2523,13 +2523,13 @@ fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut exar
             } else {
                 cmd_source_buffer(eap.as_deref(), false);
             }
-        } else if eap.is_some() && eap.as_deref_mut().unwrap().forceit != 0 {
+        } else if let Some(eap) = eap && eap.forceit != 0 {
             openscript(
                 fname,
                 g_st().global_busy != 0
                     || g_st().listcmd_busy
-                    || !eap.as_deref_mut().unwrap().nextcmd.is_null()
-                    || (*eap.unwrap().cstack.cast::<cstack_T>()).cs_idx >= 0,
+                    || !eap.nextcmd.is_null()
+                    || (*eap.cstack.cast::<cstack_T>()).cs_idx >= 0,
             );
         } else if !do_source(fname, false, DOSO_NONE, ptr::null_mut()) {
             semsg!(gettext(e_notopen), fname);
@@ -3207,7 +3207,7 @@ pub fn get_scriptname(
                     );
                     iobuff
                 } else if home_replace {
-                    return Cow::Owned(home_replace_save(ptr::null_mut(), sname));
+                    return Cow::Owned(home_replace_save(None, sname));
                 } else {
                     sname
                 }
@@ -3321,7 +3321,7 @@ pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
 
                 if sid > 0 {
                     let var_dict =
-                        tv_dict_copy(None, &mut (*si).sn_vars.sv_dict, true, get_copyID());
+                        tv_dict_copy(None, Some(&mut (*si).sn_vars.sv_dict), true, get_copyID());
                     tv_dict_add_dict(&mut *d, c"variables", var_dict);
                     tv_dict_add_list(
                         &mut *d,

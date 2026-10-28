@@ -1921,7 +1921,7 @@ fn handle_quickfix(paramp: &mut mparm_T) {
             }
             vim_snprintf!((&raw mut g_st().IObuff).cast(), IOSIZE, c"cfile %s", opt_vars().p_ef);
             if qf_init(
-                ptr::null_mut(),
+                None,
                 opt_vars().p_ef,
                 opt_vars().p_efm,
                 1,

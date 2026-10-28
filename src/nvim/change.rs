@@ -886,7 +886,7 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
         if opt_vars().p_deco != 0 && use_delcombine && utfc_ptr2len(oldp.add(col as usize)) >= count {
             let p0 = oldp.add(col as usize);
             let mut state = GRAPHEME_STATE_INIT;
-            if utf_composinglike(p0, p0.add(utf_ptr2len(p0) as usize), &raw mut state) {
+            if utf_composinglike(p0, p0.add(utf_ptr2len(p0) as usize), Some(&mut state)) {
                 let mut n = col;
                 loop {
                     col = n;
@@ -895,7 +895,7 @@ pub fn del_bytes(mut count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> 
                     if !utf_composinglike(
                         oldp.add(col as usize),
                         oldp.add(n as usize),
-                        &raw mut state,
+                        Some(&mut state),
                     ) {
                         break;
                     }
@@ -1066,7 +1066,7 @@ pub fn open_line(
                             while *p != NUL {
                                 if *p == b'/' as c_char && *p.sub(1) == b'*' as c_char {
                                     curwin_mut().w_cursor.col = p.offset_from(ptr) as colnr_T;
-                                    let pos = findmatch(ptr::null_mut(), 0);
+                                    let pos = findmatch(None, 0);
                                     if !pos.is_null() {
                                         curwin_mut().w_cursor.lnum = (*pos).lnum;
                                         newindent = get_indent();
@@ -1095,7 +1095,7 @@ pub fn open_line(
                         }
                         if *p == b')' as c_char {
                             curwin_mut().w_cursor.col = p.offset_from(ptr) as colnr_T;
-                            let pos = findmatch(ptr::null_mut(), b'(' as c_int);
+                            let pos = findmatch(None, b'(' as c_int);
                             if !pos.is_null() {
                                 curwin_mut().w_cursor.lnum = (*pos).lnum;
                                 newindent = get_indent();
@@ -1528,7 +1528,7 @@ pub fn open_line(
             {
                 let old_cursor = curwin_mut().w_cursor;
                 curwin_mut().w_cursor.col = comment_end.offset_from(saved_line) as colnr_T;
-                let pos = findmatch(ptr::null_mut(), 0);
+                let pos = findmatch(None, 0);
                 if !pos.is_null() {
                     curwin_mut().w_cursor.lnum = (*pos).lnum;
                     newindent = get_indent();

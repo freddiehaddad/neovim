@@ -276,7 +276,7 @@ pub fn input_get(
         }
 
         // If there are events, return the keys directly
-        if maxlen != 0 && pending_events(events) {
+        if maxlen != 0 && pending_events(events.as_ref()) {
             return push_event_key(buf, maxlen);
         }
 
@@ -734,11 +734,11 @@ fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
 
 /// Check if there's pending input already in typebuf or `events`
 pub fn os_input_ready(events: *mut MultiQueue) -> bool {
-    g_st().typebuf_was_filled || input_available() != 0 || pending_events(events)
+    g_st().typebuf_was_filled || input_available() != 0 || pending_events(unsafe { events.as_ref() })
 }
 
-fn pending_events(events: *mut MultiQueue) -> bool {
-    !events.is_null() && !multiqueue_empty(unsafe { &*events })
+fn pending_events(events: Option<&MultiQueue>) -> bool {
+    events.is_some() && !multiqueue_empty( events.unwrap())
 }
 
 #[cfg(test)]

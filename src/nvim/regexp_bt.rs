@@ -1661,7 +1661,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
             let mut state: GraphemeState = GRAPHEME_STATE_INIT;
             loop {
                 let l = utf_ptr2len(re_st().regparse);
-                if !utf_composinglike(re_st().regparse, re_st().regparse.add(l as usize), &raw mut state) {
+                if !utf_composinglike(re_st().regparse, re_st().regparse.add(l as usize), Some(&mut state)) {
                     break;
                 }
                 regmbc(utf_ptr2char(re_st().regparse));
@@ -3042,7 +3042,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>,mut timed_out: Option<&mut
                                     && utf_composinglike(
                                         re_st().rex.input.cast(),
                                         re_st().rex.input.add(len as usize).cast(),
-                                        ptr::null_mut(),
+                                        None,
                                     )
                                     && !re_st().rex.reg_icombine
                                     && OP(next) != RE_COMPOSING

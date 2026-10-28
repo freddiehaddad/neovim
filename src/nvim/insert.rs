@@ -3311,7 +3311,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                             has_composing = utf_composinglike(
                                 p0,
                                 p0.add(utf_ptr2len(p0) as usize),
-                                ptr::null_mut::<GraphemeState>(),
+                                (ptr::null_mut::<GraphemeState>()).as_mut(),
                             );
                         }
                         del_char(false);

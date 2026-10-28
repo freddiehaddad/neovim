@@ -2375,7 +2375,7 @@ fn score_combine(su: &mut suginfo_T) {
         }
         for stp in &mut su.su_sga {
             stp.st_altscore = spell_edit_score(
-                slang,
+                slang.as_mut(),
                 (&raw const su.su_badword).cast(),
                 stp.st_word.as_ptr(),
             );
@@ -2629,7 +2629,7 @@ fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp
                     let limit = maxscore(su.su_sfmaxscore - goodscore, score);
                     if limit > SCORE_LIMITMAX {
                         goodscore +=
-                            spell_edit_score(slang, (&raw const su.su_badword).cast(), p);
+                            spell_edit_score(Some(&mut *slang), (&raw const su.su_badword).cast(), p);
                     } else {
                         goodscore += spell_edit_score_limit(
                             slang,
@@ -3084,7 +3084,7 @@ fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
     }
 }
 fn spell_edit_score(
-    slang: *mut slang_T,
+    mut slang: Option<&mut slang_T>,
     badword: *const c_char,
     goodword: *const c_char,
 ) -> c_int {
@@ -3124,9 +3124,9 @@ fn spell_edit_score(
                     let prev_diag = cnt[(i - 1) + (j - 1) * stride];
                     let mut val = if spell_tofold(bc) == spell_tofold(gc) {
                         SCORE_ICASE + prev_diag
-                    } else if !slang.is_null()
-                        && (*slang).sl_has_map
-                        && similar_chars(&mut *slang, gc, bc)
+                    } else if slang.is_some()
+                        && slang.as_deref_mut().unwrap().sl_has_map
+                        && similar_chars(slang.as_deref_mut().unwrap(), gc, bc)
                     {
                         SCORE_SIMILAR + prev_diag
                     } else {
@@ -3157,10 +3157,10 @@ fn spell_edit_score_limit(
     goodword: *mut c_char,
     limit: c_int,
 ) -> c_int {
-    spell_edit_score_limit_w(slang, badword, goodword, limit)
+    spell_edit_score_limit_w(unsafe { slang.as_mut() }, badword, goodword, limit)
 }
 fn spell_edit_score_limit_w(
-    slang: *mut slang_T,
+    mut slang: Option<&mut slang_T>,
     badword: *const c_char,
     goodword: *const c_char,
     limit: c_int,
@@ -3273,9 +3273,9 @@ fn spell_edit_score_limit_w(
                     }
                     if spell_tofold(bc) == spell_tofold(gc) {
                         score += SCORE_ICASE;
-                    } else if !slang.is_null()
-                        && (*slang).sl_has_map
-                        && similar_chars(&mut *slang, gc, bc)
+                    } else if slang.is_some()
+                        && slang.as_deref_mut().unwrap().sl_has_map
+                        && similar_chars(slang.as_deref_mut().unwrap(), gc, bc)
                     {
                         score += SCORE_SIMILAR;
                     } else {

@@ -554,7 +554,7 @@ pub fn do_tag(eap: Option<&exarg_T>,
                         curwin_mut().w_cursor.col = saved_fmark.mark.col;
                         curwin_mut().w_set_curswant = true;
                         if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
-                            mark_view_restore(&raw mut saved_fmark);
+                            mark_view_restore(Some(&saved_fmark));
                         }
                         check_cursor(curwin_mut());
                         if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
@@ -1091,7 +1091,7 @@ fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> bool {
 
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
-        set_errorlist(curwin_ptr(), list, b' ' as c_int, iobuf_ptr, ptr::null_mut());
+        set_errorlist(curwin_ptr(), list, b' ' as c_int, iobuf_ptr, None);
 
         tv_list_free(list);
 
@@ -3447,13 +3447,9 @@ fn tagstack_push_item(
     }
 }
 
-fn tagstack_push_items(wp: &mut win_T, l: *mut list_T) {
+fn tagstack_push_items(wp: &mut win_T, l: Option<&list_T>) {
     unsafe {
-        for li in crate::eval::typval::list_iter_mut(if l.is_null() {
-            ptr::null_mut()
-        } else {
-            (*l).lv_first
-        }) {
+        for li in crate::eval::typval::list_iter_mut(l.map_or(ptr::null_mut(), |l| l.lv_first)) {
             if li.li_tv.v_type == VarType::VAR_DICT && !li.li_tv.vval.v_dict().is_null() {
                 let itemdict = li.li_tv.vval.v_dict();
                 let di = tv_dict_find(itemdict, c"from", -1);
@@ -3543,7 +3539,7 @@ pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> bool {
                 tagstack_clear(wp);
             }
 
-            tagstack_push_items(&mut *wp, l);
+            tagstack_push_items(&mut *wp, l.as_ref());
             wp.w_tagstackidx = wp.w_tagstacklen;
         }
 

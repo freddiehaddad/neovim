@@ -164,7 +164,7 @@ fn json_decoder_pop(
 
     unsafe {
         if last_container.container.v_type == VarType::VAR_LIST {
-            if tv_list_len(last_container.container.vval.v_list()) != 0 && !obj.didcomma {
+            if tv_list_len(last_container.container.vval.v_list().as_ref()) != 0 && !obj.didcomma {
                 semsg!(
                     c"E474: Expected comma before list item: %s",
                     val_location,
@@ -745,10 +745,10 @@ pub fn json_decode_string(
                                 let d = last_container.container.vval.v_dict();
                                 (*d).dv_hashtab.ht_used == 0
                             } else {
-                                tv_list_len(last_container.container.vval.v_list()) == 0
+                                tv_list_len(last_container.container.vval.v_list().as_ref()) == 0
                             }
                         } else {
-                            tv_list_len(last_container.special_val) == 0
+                            tv_list_len(last_container.special_val.as_ref()) == 0
                         };
                         if didcomma {
                             semsg!(c"E474: Duplicate comma: %.*s", len_rem, p);

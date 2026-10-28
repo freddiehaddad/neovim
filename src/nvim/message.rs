@@ -2177,7 +2177,7 @@ pub fn msg_home_replace(fname: *const c_char) {
 }
 
 fn msg_home_replace_hl(fname: *const c_char, hl_id: c_int) {
-    let name = home_replace_save(ptr::null_mut(), fname);
+    let name = home_replace_save(None, fname);
         msg_outtrans(name.as_ptr(), hl_id, false);
 }
 

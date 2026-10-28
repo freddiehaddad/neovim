@@ -765,36 +765,36 @@ pub fn rpc_close(channel: &mut Channel) {
     }
 }
 
-pub fn rpc_close_event(channel: *mut Channel) {
-    unsafe {
-        assert!(!channel.is_null());
+pub fn rpc_close_event(mut channel: Option<&mut Channel>) {
+     {
+        assert!(channel.is_some());
 
-        channel_decref( &mut *channel);
+        channel_decref( channel.as_deref_mut().unwrap());
 
         #[cfg(windows)]
-        let ui_closed = (*channel).rpc.has_ui;
+        let ui_closed = channel.as_deref_mut().unwrap().rpc.has_ui;
 
         {
-            remote_ui_disconnect((*channel).id, &mut Error::new(), false);
+            remote_ui_disconnect(channel.as_deref_mut().unwrap().id, &mut Error::new(), false);
 
-            let is_ui_client = g_st().ui_client_channel_id != 0 && (*channel).id == g_st().ui_client_channel_id;
+            let is_ui_client = g_st().ui_client_channel_id != 0 && channel.as_deref_mut().unwrap().id == g_st().ui_client_channel_id;
             if is_ui_client {
-                if !g_st().exiting && (*channel).streamtype != kChannelStreamProc {
+                if !g_st().exiting && channel.as_deref_mut().unwrap().streamtype != kChannelStreamProc {
                     ui_client_attach_to_restarted_server(false);
                 }
-                if g_st().ui_client_channel_id != (*channel).id {
+                if g_st().ui_client_channel_id != channel.as_deref_mut().unwrap().id {
                     return;
                 }
-                if (*channel).streamtype == kChannelStreamProc && g_st().ui_client_error_exit < 0 {
+                if channel.as_deref_mut().unwrap().streamtype == kChannelStreamProc && g_st().ui_client_error_exit < 0 {
                     return;
                 }
                 exit_on_closed_chan(0);
-            } else if !(*channel).detach && !has_undetached_rpc_chan() {
+            } else if !channel.as_deref_mut().unwrap().detach && !has_undetached_rpc_chan() {
                 exit_on_closed_chan(0);
             } else {
                 #[cfg(windows)]
                 if ui_closed {
-                    os_detach_ui_console((*channel).streamtype == kChannelStreamStdio);
+                    os_detach_ui_console(channel.unwrap().streamtype == kChannelStreamStdio);
                 }
             }
         }

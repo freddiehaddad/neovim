@@ -178,13 +178,13 @@ fn set_buffer_lines(
         let mut line: Option<std::ffi::CString> = None;
         if lines.v_type == VarType::VAR_LIST {
             l = lines.vval.v_list();
-            if l.is_null() || tv_list_len(l) == 0 {
+            if l.is_null() || tv_list_len(l.as_ref()) == 0 {
                 if !is_curbuf {
                     change_other_buffer_restore(&mut cob);
                 }
                 return;
             }
-            li = tv_list_first(l);
+            li = tv_list_first(l.as_ref());
         } else {
             line = Some(typval_tostring(Some(lines), false));
         }
@@ -444,8 +444,8 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
             };
             if (*lines).v_type == VarType::VAR_LIST {
                 let l = (*lines).vval.v_list();
-                if !l.is_null() && tv_list_len(l) > 0 {
-                    let li = tv_list_first(l);
+                if !l.is_null() && tv_list_len(l.as_ref()) > 0 {
+                    let li = tv_list_first(l.as_ref());
                     let str_ = tv_get_string(&(*li).li_tv);
                     let new_str = concat_str(text, str_);
                     crate::eval::typval::tv_set_string(&mut (*li).li_tv, new_str.as_ptr());
@@ -459,9 +459,9 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
         }
 
         if g_st().did_emsg == did_emsg_before {
-            if did_concat && tv_list_len((*lines).vval.v_list()) > 1 {
+            if did_concat && tv_list_len(((*lines).vval.v_list()).as_ref()) > 1 {
                 let l = (*lines).vval.v_list();
-                let li = tv_list_first(l);
+                let li = tv_list_first(l.as_ref());
                 set_buffer_lines(buf, lnum, false, &mut (*li).li_tv, &mut *rettv);
 
                 if rettv.vval.v_number() == 0 {
@@ -477,7 +477,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [typval_T], rettv: &mut typval_T,
             (*buf).b_prompt_append_new_line = false;
             if (*lines).v_type == VarType::VAR_LIST {
                 let l = (*lines).vval.v_list();
-                if !l.is_null() && tv_list_len(l) > 0 {
+                if !l.is_null() && tv_list_len(l.as_ref()) > 0 {
                     let li = tv_list_last(l);
                     let str_ = tv_get_string(&(*li).li_tv);
                     let bytes = crate::memory::cstr_as_bytes(str_);
@@ -831,7 +831,7 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// Get line or list of lines from buffer `buf` into `rettv` (`get_buffer_lines`).
 fn get_buffer_lines(
-    buf: *mut buf_T,
+    mut buf: Option<&mut buf_T>,
     mut start: linenr_T,
     mut end: linenr_T,
     retlist: bool,rettv: &mut typval_T,
@@ -844,7 +844,7 @@ fn get_buffer_lines(
         };
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() || start < 0 || end < start {
+        if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none() || start < 0 || end < start {
             if retlist {
                 tv_list_alloc_ret(&mut *rettv, 0);
             }
@@ -855,23 +855,23 @@ fn get_buffer_lines(
             if start < 1 {
                 start = 1;
             }
-            if end > (*buf).b_ml.ml_line_count {
-                end = (*buf).b_ml.ml_line_count;
+            if end > buf.as_deref_mut().unwrap().b_ml.ml_line_count {
+                end = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
             }
             tv_list_alloc_ret(&mut *rettv, (end - start + 1) as isize);
             while start <= end {
                 tv_list_append_string(
                      &mut *rettv.vval.v_list(),
-                    ml_get_buf(&mut *buf, start),
-                    ml_get_buf_len(&mut *buf, start) as isize,
+                    ml_get_buf(buf.as_deref_mut().unwrap(), start),
+                    ml_get_buf_len(buf.as_deref_mut().unwrap(), start) as isize,
                 );
                 start += 1;
             }
-        } else if start >= 1 && start <= (*buf).b_ml.ml_line_count {
+        } else if start >= 1 && start <= buf.as_deref_mut().unwrap().b_ml.ml_line_count {
             crate::eval::typval::tv_set_string_len(
                 &mut *rettv,
-                ml_get_buf(&mut *buf, start),
-                ml_get_buf_len(&mut *buf, start) as usize,
+                ml_get_buf(buf.as_deref_mut().unwrap(), start),
+                ml_get_buf_len(buf.unwrap(), start) as usize,
             );
         } else {
             rettv.v_type = VarType::VAR_STRING;
@@ -898,7 +898,7 @@ fn getbufline(argvars: &mut [typval_T],rettv: &mut typval_T, retlist: bool) {
             };
         }
 
-        get_buffer_lines(buf, lnum, end, retlist, &mut *rettv);
+        get_buffer_lines(unsafe { buf.as_mut() }, lnum, end, retlist, &mut *rettv);
     }
 }
 
@@ -923,7 +923,7 @@ pub fn f_getline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             (tv_get_lnum(&argvars[1]), true)
         };
 
-        get_buffer_lines(g_st().curbuf, lnum, end, retlist, &mut *rettv);
+        get_buffer_lines(Some(crate::globals::curbuf_mut()), lnum, end, retlist, &mut *rettv);
     }
 }
 

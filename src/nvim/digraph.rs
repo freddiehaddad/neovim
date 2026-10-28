@@ -2076,7 +2076,7 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
             return;
         }
 
-        let mut pli = tv_list_first(pl);
+        let mut pli = tv_list_first(pl.as_ref());
         while !pli.is_null() {
             let tv = &raw const (*pli).li_tv;
             if (*tv).v_type != VarType::VAR_LIST {
@@ -2087,14 +2087,14 @@ pub fn f_digraph_setlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
             }
 
             let l = (*tv).vval.v_list();
-            if l.is_null() || tv_list_len(l) != 2 {
+            if l.is_null() || tv_list_len(l.as_ref()) != 2 {
                 emsg(gettext(
                     E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
                 ));
                 return;
             }
 
-            let first = tv_list_first(l);
+            let first = tv_list_first(l.as_ref());
             let second = if ptr::eq(first, (*l).lv_last) {
                 ptr::null_mut()
             } else {

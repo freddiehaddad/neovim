@@ -167,7 +167,7 @@ pub fn win_set_minimal_style(wp: &mut win_T) {
             alloc_string_option(concat_str(old, c",EndOfBuffer:").as_ptr())
         };
         free_string_option(old);
-        parse_winhl_opt(ptr::null(), &raw mut *wp);
+        parse_winhl_opt(ptr::null(), Some(&mut *wp));
 
         // signcolumn: use 'auto'
         let scl_len = crate::memory::cstr_len(wp.w_onebuf_opt.wo_scl);

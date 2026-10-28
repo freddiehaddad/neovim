@@ -633,11 +633,11 @@ pub fn extmark_splice_delete(
     l_col: colnr_T,
     u_row: c_int,
     u_col: colnr_T,
-    uvp: *mut extmark_undo_vec_t,
+    mut uvp: Option<&mut extmark_undo_vec_t>,
     only_copy: bool,
     op: ExtmarkOp,
 ) {
-    unsafe {
+     {
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&buf.b_marktree, l_row, l_col, &mut itr);
         loop {
@@ -688,7 +688,7 @@ pub fn extmark_splice_delete(
                 }
             }
 
-            if copy && (only_copy || (!uvp.is_null() && op == kExtmarkUndo && !mt_no_undo(mark))) {
+            if copy && (only_copy || (uvp.is_some() && op == kExtmarkUndo && !mt_no_undo(mark))) {
                 let pos = ExtmarkSavePos {
                     mark: mt_lookup_key(mark),
                     invalidated,
@@ -697,7 +697,7 @@ pub fn extmark_splice_delete(
                     redo_row: -1,
                     redo_col: -1,
                 };
-                (*uvp).push(ExtmarkUndoObject::SavePos(pos));
+                uvp.as_deref_mut().unwrap().push(ExtmarkUndoObject::SavePos(pos));
             }
 
             marktree_itr_next(&buf.b_marktree, &mut itr);
@@ -899,7 +899,7 @@ pub fn extmark_splice_impl(
                 ptr::null_mut()
             };
             extmark_splice_delete(
-                buf, start_row, start_col, end_row, end_col, uvp, false, undo,
+                buf, start_row, start_col, end_row, end_col, unsafe { uvp.as_mut() }, false, undo,
             );
         }
 

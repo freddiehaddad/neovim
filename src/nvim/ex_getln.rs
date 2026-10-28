@@ -3812,7 +3812,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     break 'color_cmdline_end;
                 }
                 let mut prev_end: varnumber_T = 0;
-                for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(v_list))) {
+                for (i, li) in (0 as c_int..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(v_list.as_ref()))) {
                     let li_tv = &raw mut (*li).li_tv;
                     if (*li_tv).v_type != VarType::VAR_LIST {
                         g_st().msg_scroll = 1;
@@ -3826,20 +3826,20 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                         break 'color_cmdline_error;
                     }
                     let l = (*li_tv).vval.v_list();
-                    if tv_list_len(l) != 3 {
+                    if tv_list_len(l.as_ref()) != 3 {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
                             HLF_E,
                             gettext(c"E5402: List item %i has incorrect length: %d /= 3"),
                             i,
-                            tv_list_len(l),
+                            tv_list_len(l.as_ref()),
                         );
                         printed_errmsg = true;
                         break 'color_cmdline_error;
                     }
                     let mut error = false;
-                    let first_li = tv_list_first(l);
+                    let first_li = tv_list_first(l.as_ref());
                     let start = tv_get_number_chk(&(*first_li).li_tv, Some(&mut error));
                     if error {
                         break 'color_cmdline_error;
@@ -4670,7 +4670,7 @@ pub fn tilde_replace(orig_pat: *mut c_char, files: &mut [std::ffi::CString]) {
     unsafe {
         if *orig_pat == b'~' as c_char && vim_ispathsep((*orig_pat.add(1) as u8) as c_int) {
             for f in files {
-                *f = home_replace_save(ptr::null_mut(), f.as_ptr().cast_mut());
+                *f = home_replace_save(None, f.as_ptr().cast_mut());
             }
         }
     }
@@ -5181,7 +5181,7 @@ pub fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CStri
             Vec::new()
         };
 
-        for li in crate::eval::typval::list_iter_mut(tv_list_first(l)) {
+        for li in crate::eval::typval::list_iter_mut(tv_list_first(l.as_ref())) {
             if eap.skip == 0 {
                 let s = tv_get_string(&li.li_tv);
                 if !s.is_null() {

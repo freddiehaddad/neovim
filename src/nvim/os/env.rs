@@ -1176,14 +1176,14 @@ pub fn home_replace(
 }
 
 /// Like `home_replace`, store the replaced string in an owned `CString`.
-pub fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi::CString {
+pub fn home_replace_save(buf: Option<&buf_T>, src: *const c_char) -> std::ffi::CString {
      {
         let mut len: usize = 3;
         if !src.is_null() {
             len += crate::memory::cstr_len(src);
         }
         let mut dst = vec![0 as c_char; len];
-        let _ = home_replace(unsafe { buf.as_ref() }, src, dst.as_mut_ptr(), len, true);
+        let _ = home_replace(buf, src, dst.as_mut_ptr(), len, true);
         cstr_to_cstring(dst.as_ptr())
     }
 }

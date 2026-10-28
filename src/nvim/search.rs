@@ -1799,8 +1799,8 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> bool {
     }
 }
 
-pub fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T {
-    findmatchlimit(unsafe { oap.as_mut() }, initc, 0, 0)
+pub fn findmatch(oap: Option<&mut oparg_T>, initc: c_int) -> *mut pos_T {
+    findmatchlimit(oap, initc, 0, 0)
 }
 
 fn check_prevcol(
@@ -2495,7 +2495,7 @@ pub fn showmatch(c: c_int) {
             return;
         }
 
-        let lpos = findmatch(ptr::null_mut(), c_int::from(NUL));
+        let lpos = findmatch(None, c_int::from(NUL));
         if lpos.is_null() {
             vim_beep(kOptBoFlagShowmatch);
             return;
@@ -3078,7 +3078,7 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
                     semsg!(tr(e_invarg2), c"pos");
                     return;
                 }
-                if tv_list_len((*di).di_tv.vval.v_list()) != 3 {
+                if tv_list_len(((*di).di_tv.vval.v_list()).as_ref()) != 3 {
                     semsg!(
                         tr(e_invarg2),
                         c"List format should be [lnum, col, off]",

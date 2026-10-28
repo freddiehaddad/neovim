@@ -236,7 +236,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
         *uv.cast::<*mut Proc>() = proc_;
 
         if !(*proc_).env.is_null() {
-            uvproc.env_vec = tv_dict_to_env((*proc_).env);
+            uvproc.env_vec = tv_dict_to_env(((*proc_).env).as_ref());
             uvproc.env_ptrs = uvproc
                 .env_vec
                 .iter()

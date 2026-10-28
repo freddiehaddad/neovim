@@ -3847,7 +3847,7 @@ fn do_autocmd_winclosed(win: &mut win_T) {
             winid.as_mut_ptr(),
             false,
             win.w_buffer,
-            (&raw mut *win),
+            Some(win),
         );
         win_st().winclosed_recursive = false;
     }
@@ -4957,7 +4957,7 @@ pub fn use_tabpage(tp: *mut tabpage_T) {
 
 pub fn win_alloc_first() {
     unsafe {
-        if !win_alloc_firstwin(ptr::null_mut()) {
+        if !win_alloc_firstwin(None) {
             std::process::abort();
         }
 
@@ -4984,10 +4984,13 @@ pub fn win_alloc_ctx_win(idx: c_int) {
     }
 }
 
-fn win_alloc_firstwin(oldwin: *mut win_T) -> bool {
+fn win_alloc_firstwin(oldwin: Option<&mut win_T>) -> bool {
     unsafe {
         set_curwin(win_alloc(ptr::null_mut(), false));
-        if oldwin.is_null() {
+        if let Some(oldwin) = oldwin {
+            win_init(curwin_mut(), oldwin, 0);
+            reset_binding(curwin_mut());
+        } else {
             g_st().curbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_LISTED);
             if g_st().curbuf.is_null() {
                 return false;
@@ -4997,9 +5000,6 @@ fn win_alloc_firstwin(oldwin: *mut win_T) -> bool {
             curbuf_mut().b_nwindows = 1;
             curwin_mut().w_alist = None;
             curwin_init();
-        } else {
-            win_init(curwin_mut(), &mut *oldwin, 0);
-            reset_binding(curwin_mut());
         }
 
         new_frame(curwin_mut());
@@ -5109,7 +5109,7 @@ pub fn win_new_tabpage(
 
         g_st().curtab = newtp;
 
-        let result = win_alloc_firstwin((*old_curtab).tp_curwin);
+        let result = win_alloc_firstwin(((*old_curtab).tp_curwin).as_mut());
         debug_assert!(result);
         if !first.is_null() {
             *first = curwin_ptr();
@@ -6492,8 +6492,8 @@ fn check_window_scroll_resize(
     mut size_count: Option<&mut c_int>,
     first_scroll_win: *mut *mut win_T,
     first_size_win: *mut *mut win_T,
-    winlist: *mut list_T,
-    v_event: *mut dict_T,
+    mut winlist: Option<&mut list_T>,
+    mut v_event: Option<&mut dict_T>,
 ) {
     unsafe {
         let mut tot_width: c_int = 0;
@@ -6518,13 +6518,13 @@ fn check_window_scroll_resize(
             let size_changed = !event_ignored(EVENT_WINRESIZED, (*wp).w_onebuf_opt.wo_eiw)
                 && ((*wp).w_last_width != (*wp).w_width || (*wp).w_last_height != (*wp).w_height);
             if size_changed {
-                if !winlist.is_null() {
+                if winlist.is_some() {
                     let tv = typval_T {
                         v_type: VarType::VAR_NUMBER,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(i64::from((*wp).handle)),
                     };
-                    tv_list_append_owned_tv( &mut *winlist, tv);
+                    tv_list_append_owned_tv( winlist.as_deref_mut().unwrap(), tv);
                 } else if let Some(ref mut size_count) = size_count {
                     debug_assert!(!first_size_win.is_null() && !first_scroll_win.is_null());
                     **size_count += 1;
@@ -6546,7 +6546,7 @@ fn check_window_scroll_resize(
                 *first_scroll_win = wp;
             }
 
-            if (size_changed || scroll_changed) && !v_event.is_null() {
+            if (size_changed || scroll_changed) && v_event.is_some() {
                 let width = (*wp).w_width - (*wp).w_last_width;
                 let height = (*wp).w_height - (*wp).w_last_height;
                 let topline = (*wp).w_topline - (*wp).w_last_topline;
@@ -6565,7 +6565,7 @@ fn check_window_scroll_resize(
                     (*wp).handle,
                 );
                 let _ = key_len;
-                if !tv_dict_add_dict(&mut *v_event, winid.as_ptr(), d) {
+                if !tv_dict_add_dict(v_event.as_deref_mut().unwrap(), winid.as_ptr(), d) {
                     tv_dict_unref(d);
                     break;
                 }
@@ -6581,7 +6581,7 @@ fn check_window_scroll_resize(
 
         }
 
-        if !v_event.is_null() {
+        if let Some(v_event) = v_event {
             let alldict = make_win_info_dict(
                 tot_width,
                 tot_height,
@@ -6591,7 +6591,7 @@ fn check_window_scroll_resize(
                 tot_skipcol,
             );
             if !alldict.is_null() {
-                if !tv_dict_add_dict(&mut *v_event, c"all", alldict) {
+                if !tv_dict_add_dict(v_event, c"all", alldict) {
                     tv_dict_unref(alldict);
                 } else {
                     (*alldict).dv_refcount -= 1;
@@ -6620,8 +6620,8 @@ pub fn may_trigger_win_scrolled_resized() {
             Some(&mut size_count),
             &raw mut first_scroll_win,
             &raw mut first_size_win,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
         );
         let trigger_resize = do_resize && size_count > 0;
         let trigger_scroll = do_scroll && !first_scroll_win.is_null();
@@ -6636,8 +6636,8 @@ pub fn may_trigger_win_scrolled_resized() {
                 None,
                 ptr::null_mut(),
                 ptr::null_mut(),
-                windows_list,
-                ptr::null_mut(),
+                windows_list.as_mut(),
+                None,
             );
         }
 
@@ -6649,8 +6649,8 @@ pub fn may_trigger_win_scrolled_resized() {
                 None,
                 ptr::null_mut(),
                 ptr::null_mut(),
-                ptr::null_mut(),
-                scroll_dict,
+                None,
+                scroll_dict.as_mut(),
             );
         }
 
@@ -6708,7 +6708,7 @@ pub fn may_trigger_win_scrolled_resized() {
                     resize_winid.as_mut_ptr(),
                     false,
                     buf,
-                    win,
+                    win.as_ref(),
                 );
             }
             restore_v_event(&mut *v_event, &mut save_v_event);
@@ -6738,7 +6738,7 @@ pub fn may_trigger_win_scrolled_resized() {
                 scroll_winid.as_mut_ptr(),
                 false,
                 buf,
-                win,
+                win.as_ref(),
             );
 
             restore_v_event(&mut *v_event, &mut save_v_event);

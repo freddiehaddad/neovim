@@ -475,7 +475,7 @@ pub fn nvim_set_hl(
             base = &mut base_attrs;
         }
 
-        let attrs = dict2hlattrs(val, true, Some(&mut link_id), base, err);
+        let attrs = dict2hlattrs(val, true, Some(&mut link_id), unsafe { base.as_ref() }, err);
         if !error_set(err) {
             let save_current_sctx = api_set_sctx(channel_id);
             ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
@@ -1679,7 +1679,7 @@ pub fn nvim_open_term(
 
         let mut contents: Vec<c_char> = Vec::new();
         if may_read_buffer {
-            read_buffer_into(b, 1, (*b).b_ml.ml_line_count, &mut contents);
+            read_buffer_into(b.as_mut(), 1, (*b).b_ml.ml_line_count, &mut contents);
         }
 
         channel_incref(&mut *chan);

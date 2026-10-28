@@ -603,16 +603,16 @@ pub fn mf_set_fnames(mfp: &mut memfile_T, fname: std::ffi::CString) {
 }
 
 /// Make name of memfile's swapfile a full path.
-pub fn mf_fullname(mfp: *mut memfile_T) {
-    if mfp.is_null() {
+pub fn mf_fullname(mut mfp: Option<&mut memfile_T>) {
+    if mfp.is_none() {
         return;
     }
-    unsafe {
-        if (*mfp).mf_fname.is_none() || (*mfp).mf_ffname.is_none() {
+     {
+        if mfp.as_deref_mut().unwrap().mf_fname.is_none() || mfp.as_deref_mut().unwrap().mf_ffname.is_none() {
             return;
         }
 
-        (*mfp).mf_fname = (*mfp).mf_ffname.take();
+        mfp.unwrap().mf_fname = mfp.as_deref_mut().unwrap().mf_ffname.take();
     }
 }
 

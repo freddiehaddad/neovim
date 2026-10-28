@@ -5402,7 +5402,7 @@ fn ExpandUserDefined(
 }
 
 pub fn expand_process_user_list(
-    retlist: *mut list_T,
+    retlist: Option<&list_T>,
     matches: &mut Vec<CString>,
     xp: &mut expand_T,
 ) {
@@ -5414,8 +5414,8 @@ pub fn expand_process_user_list(
         let mut ga_info: Vec<Option<std::ffi::CString>> = Vec::new();
         let mut have_extra = false;
 
-        if !retlist.is_null() {
-            for li in crate::eval::typval::list_iter_ptr((*retlist).lv_first) {
+        if let Some(retlist) = retlist {
+            for li in crate::eval::typval::list_iter_ptr(retlist.lv_first) {
                 let tv = &raw const (*li).li_tv;
                 let p: CString;
                 let mut abbr: Option<std::ffi::CString> = None;
@@ -5472,7 +5472,7 @@ fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> bool {
             return false;
         }
 
-        expand_process_user_list(retlist, matches, xp);
+        expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
         tv_list_unref(retlist);
         true
 }
@@ -5486,7 +5486,7 @@ fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> bool {
         }
 
         let retlist = rettv.vval.v_list();
-        expand_process_user_list(retlist, matches, xp);
+        expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
         tv_list_unref(retlist);
         true
 }

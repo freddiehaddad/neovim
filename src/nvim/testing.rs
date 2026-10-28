@@ -646,20 +646,20 @@ pub fn f_assert_fails(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
                 }
             } else if arg1.v_type == VarType::VAR_LIST {
                 let list = arg1.vval.v_list();
-                if list.is_null() || tv_list_len(list) < 1 || tv_list_len(list) > 2 {
+                if list.is_null() || tv_list_len(list.as_ref()) < 1 || tv_list_len(list.as_ref()) > 2 {
                     wrong_arg_msg =
                         c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings"
                             .as_ptr();
                     valid_args = false;
                 } else {
-                    let first_tv = &(*tv_list_first(list)).li_tv;
+                    let first_tv = &(*tv_list_first(list.as_ref())).li_tv;
                     let expected = tv_get_string_buf_chk(first_tv, buf.as_mut_ptr());
                     if expected.is_null() {
                         valid_args = false;
                     } else if pattern_match(expected, actual, false) == 0 {
                         error_found = true;
                         expected_str = expected;
-                    } else if tv_list_len(list) == 2 {
+                    } else if tv_list_len(list.as_ref()) == 2 {
                         let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
                         actual = s.as_ptr().cast_mut();
                         tofree = Some(s);

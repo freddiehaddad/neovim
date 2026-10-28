@@ -1051,7 +1051,7 @@ pub fn nvim_buf_set_extmark(
             if has_key(mask, KEYSET_OPTIDX_set_extmark__sign_text) {
                 sign.text[0] = 0;
                 if !init_sign_text(
-                    ptr::null_mut(),
+                    None,
                     sign.text.as_mut_ptr(),
                     opts.sign_text.data,
                 )
@@ -1484,7 +1484,7 @@ pub fn nvim_set_decoration_provider(
     unsafe {
         let p = get_decor_provider(ns_id as NS, true);
         assert!(!p.is_null());
-        decor_provider_clear(p);
+        decor_provider_clear(p.as_mut());
 
         redraw_all_later(UPD_NOT_VALID);
 

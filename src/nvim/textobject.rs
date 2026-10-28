@@ -965,14 +965,14 @@ pub fn current_block(
         } else {
             c"%".as_ptr().cast_mut()
         };
-        pos = findmatch(ptr::null_mut(), what);
+        pos = findmatch(None, what);
         if !pos.is_null() {
             while {
                 let old = count;
                 count -= 1;
                 old > 0
             } {
-                pos = findmatch(ptr::null_mut(), what);
+                pos = findmatch(None, what);
                 if pos.is_null() {
                     break;
                 }
@@ -996,7 +996,7 @@ pub fn current_block(
         opt_vars().p_cpo = save_cpo;
 
         if pos.is_null() || {
-            end_pos = findmatch(ptr::null_mut(), other);
+            end_pos = findmatch(None, other);
             end_pos.is_null()
         } {
             curwin_mut().w_cursor = old_pos;
@@ -1028,14 +1028,14 @@ pub fn current_block(
                 {
                     curwin_mut().w_cursor = old_start;
                     decl(&mut curwin_mut().w_cursor);
-                    pos = findmatch(ptr::null_mut(), what);
+                    pos = findmatch(None, what);
                     if pos.is_null() {
                         curwin_mut().w_cursor = old_pos;
                         return false;
                     }
                     start_pos = *pos;
                     curwin_mut().w_cursor = *pos;
-                    end_pos = findmatch(ptr::null_mut(), other);
+                    end_pos = findmatch(None, other);
                     if end_pos.is_null() {
                         curwin_mut().w_cursor = old_pos;
                         return false;
@@ -1181,9 +1181,9 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
                     c"",
                     c"</[^>]*>",
                     BACKWARD,
-                    ptr::null(),
+                    None,
                     0,
-                    ptr::null_mut(),
+                    None,
                     0,
                     0,
                 ) <= 0
@@ -1224,9 +1224,9 @@ pub fn current_tagblock(oap: &mut oparg_T, count_arg: c_int, include: bool) -> b
                 c"",
                 epat.as_ptr().cast::<c_char>(),
                 FORWARD,
-                ptr::null(),
+                None,
                 0,
-                ptr::null_mut(),
+                None,
                 0,
                 0,
             );

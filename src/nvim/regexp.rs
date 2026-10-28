@@ -2526,7 +2526,7 @@ pub(crate) fn fill_submatch_list(
 
         tv_list_init_static10(&mut *(*listarg).vval.v_list().cast::<staticList10_T>());
 
-        let mut li = tv_list_first((*listarg).vval.v_list());
+        let mut li = tv_list_first(((*listarg).vval.v_list()).as_ref());
         for i in 0..10 {
             let s = (*re_st().rsm.sm_match).startp[i];
             if s.is_null() || (*re_st().rsm.sm_match).endp[i].is_null() {
@@ -2563,7 +2563,7 @@ pub fn vim_regsub(
         re_st().rex.reg_maxline = 0;
         re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_line_lbr = true;
-        let result = vim_regsub_both(source, expr, dest, destlen, flags);
+        let result = vim_regsub_both(source, unsafe { expr.as_ref() }, dest, destlen, flags);
 
         re_st().rex_in_use = rex_in_use_save;
         if re_st().rex_in_use {
@@ -2596,7 +2596,7 @@ pub fn vim_regsub_multi(
         re_st().rex.reg_firstlnum = lnum;
         re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
         re_st().rex.reg_line_lbr = false;
-        let result = vim_regsub_both(source, ptr::null_mut(), dest, destlen, flags);
+        let result = vim_regsub_both(source, None, dest, destlen, flags);
 
         re_st().rex_in_use = rex_in_use_save;
         if re_st().rex_in_use {
@@ -2609,7 +2609,7 @@ pub fn vim_regsub_multi(
 
 fn vim_regsub_both(
     source: *mut c_char,
-    expr: *mut typval_T,
+    expr: Option<&typval_T>,
     dest: *mut c_char,
     destlen: c_int,
     flags: c_int,
@@ -2622,7 +2622,7 @@ fn vim_regsub_both(
         let mut len: c_int = 0;
         let copy = (flags & REGSUB_COPY) != 0;
 
-        if (source.is_null() && expr.is_null()) || dest.is_null() {
+        if (source.is_null() && expr.is_none()) || dest.is_null() {
             emsg(tr(e_null));
             return 0;
         }
@@ -2638,7 +2638,7 @@ fn vim_regsub_both(
         let mut src = source;
         let mut dst = dest;
 
-        if !expr.is_null() || (*source == b'\\' as c_char && *source.add(1) == b'=' as c_char) {
+        if expr.is_some() || (*source == b'\\' as c_char && *source.add(1) == b'=' as c_char) {
             if copy {
                 if let Some(ref eval_cstr) = *eval_slot {
                     let eval_len = eval_cstr.to_bytes().len();
@@ -2666,7 +2666,7 @@ fn vim_regsub_both(
 
                 re_st().regsub_nesting += 1;
 
-                if !expr.is_null() {
+                if let Some(expr) = expr {
                     let mut argv: [typval_T; 2] = [typval_T::new(); 2];
                     let mut rettv: typval_T = typval_T::new();
                     let mut matchList = staticList10_T::new();
@@ -2685,8 +2685,8 @@ fn vim_regsub_both(
                         fe_basetv: ptr::null_mut(),
                         fe_found_var: false,
                     };
-                    if (*expr).v_type == VarType::VAR_FUNC {
-                        let s = (*expr).vval.v_string();
+                    if expr.v_type == VarType::VAR_FUNC {
+                        let s = expr.vval.v_string();
                         call_func(
                             s,
                             -1,
@@ -2695,8 +2695,8 @@ fn vim_regsub_both(
                             argv.as_mut_ptr(),
                             &mut funcexe,
                         );
-                    } else if (*expr).v_type == VarType::VAR_PARTIAL {
-                        let partial = (*expr).vval.v_partial();
+                    } else if expr.v_type == VarType::VAR_PARTIAL {
+                        let partial = expr.vval.v_partial();
                         let s = partial_name(partial.as_ref());
                         funcexe.fe_partial = partial;
                         call_func(

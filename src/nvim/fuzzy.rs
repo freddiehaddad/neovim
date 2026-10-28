@@ -424,7 +424,7 @@ fn fuzzy_match_in_list(
     max_matches: c_int,
 ) {
     unsafe {
-        let mut len = tv_list_len(l);
+        let mut len = tv_list_len(l.as_ref());
         if len == 0 {
             return;
         }

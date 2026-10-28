@@ -303,7 +303,7 @@ fn ses_fname(fd: *mut FILE, buf: &mut buf_T, flagp: &mut c_uint, add_eol: bool) 
 
 fn ses_escape_fname(name: *mut c_char) -> CString {
     unsafe {
-        let mut sname_vec: Vec<c_char> = home_replace_save(ptr::null_mut(), name)
+        let mut sname_vec: Vec<c_char> = home_replace_save(None, name)
             .into_bytes_with_nul()
             .into_iter()
             .map(|b| b as c_char)
@@ -648,7 +648,7 @@ fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> bool {
             }
         } else if (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0 {
             let sname = home_replace_save(
-                ptr::null_mut(),
+                None,
                 (&raw const g_st().globaldir)
                     .as_ref()
                     .unwrap()
@@ -1191,7 +1191,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
             emsg(gettext(e_noname));
             return None;
         }
-        let sname_cstr = home_replace_save(ptr::null_mut(), curbuf_mut().b_ffname);
+        let sname_cstr = home_replace_save(None, curbuf_mut().b_ffname);
         let sname = sname_cstr.as_ptr();
 
         let mut len: usize = 0;

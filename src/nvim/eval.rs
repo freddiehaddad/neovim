@@ -703,8 +703,8 @@ fn typval2string(tv: &mut typval_T, join_list: bool) -> Option<std::ffi::CString
         if join_list && tv.v_type == VarType::VAR_LIST {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
             if !tv.vval.v_list().is_null() {
-                tv_list_join(&mut out, tv.vval.v_list(), c"\n");
-                if tv_list_len(tv.vval.v_list()) > 0 {
+                tv_list_join(&mut out, tv.vval.v_list().as_mut(), c"\n");
+                if tv_list_len(tv.vval.v_list().as_ref()) > 0 {
                     out.push(NL as c_char);
                 }
             }
@@ -970,7 +970,7 @@ pub fn eval_expr_option_tv(
 pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
     unsafe {
         let saved_sctx = g_st().current_sctx;
-        let use_sandbox = was_set_insecurely(&raw mut *wp, kOptFoldexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(&mut *wp), kOptFoldexpr, OPT_LOCAL) != 0;
 
         g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[kWinOptFoldexpr];
 
@@ -1021,7 +1021,7 @@ pub fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
 pub fn eval_foldtext(wp: &mut win_T) -> Object {
     unsafe {
-        let use_sandbox = was_set_insecurely((&raw mut *wp), kOptFoldtext, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(&mut *wp), kOptFoldtext, OPT_LOCAL) != 0;
         let mut tv = tv_initial_value();
         let retval: Object;
         if !eval_expr_option_tv(
@@ -1102,7 +1102,7 @@ fn get_lval_dict_item(
 
         lp.ll_di = tv_dict_find(lp.ll_dict, key, len as isize);
 
-        if rettv.is_some() && (*lp.ll_dict).dv_scope != 0 {
+        if let Some(rettv) = rettv.as_deref() && (*lp.ll_dict).dv_scope != 0 {
             let prevval = if len != -1 {
                 let pv = *key.add(len as usize);
                 *key.add(len as usize) = NUL;
@@ -1111,7 +1111,7 @@ fn get_lval_dict_item(
                 0
             };
             let wrong = ((*lp.ll_dict).dv_scope == VAR_DEF_SCOPE
-                && tv_is_func(rettv.as_deref().unwrap())
+                && tv_is_func(rettv)
                 && var_wrong_func_name(key, lp.ll_di.is_null()))
                 || !valid_varname(key);
             if len != -1 {
@@ -1652,7 +1652,7 @@ pub fn set_var_lval(
 
             tv_list_assign_range(
                  &mut *lp.ll_list,
-                rettv.vval.v_list(),
+                rettv.vval.v_list().as_ref(),
                 lp.ll_n1,
                 lp.ll_n2,
                 lp.ll_empty2,
@@ -1774,7 +1774,7 @@ pub fn eval_for_line(
                         tv_clear(&mut tv);
                     } else {
                         let lw = std::rc::Rc::new(listwatch_T {
-                            lw_item: std::cell::Cell::new(tv_list_first(l)),
+                            lw_item: std::cell::Cell::new(tv_list_first(l.as_ref())),
                         });
                         tv_list_watch_add(&mut *l, lw.clone());
                         fi.fi_source = ForSource::List { list: l, lw };
@@ -3355,16 +3355,16 @@ fn eval_index(
             let res = eval_index_inner(
                 rettv,
                 range,
-                if empty1 {
+                (if empty1 {
                     ptr::null_mut()
                 } else {
                     &raw mut var1
-                },
-                if empty2 {
+                }).as_ref(),
+                (if empty2 {
                     ptr::null_mut()
                 } else {
                     &raw mut var2
-                },
+                }).as_ref(),
                 false,
                 key,
                 keylen,
@@ -3424,19 +3424,22 @@ fn check_can_index(rettv: &mut typval_T, evaluate: bool, verbose: bool) -> bool 
 pub fn f_slice(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
 
      {
-        if !check_can_index(&mut argvars[0], true, false) {
+        let [arg0, arg1, arg2, ..] = argvars else {
+            unreachable!()
+        };
+        if !check_can_index(arg0, true, false) {
             return;
         }
 
-        tv_copy(&argvars[0], rettv);
+        tv_copy(arg0, rettv);
         eval_index_inner(
             &mut *rettv,
             true,
-            (&raw mut argvars[1]),
-            if argvars[2].v_type == VarType::VAR_UNKNOWN {
-                ptr::null_mut()
+            Some(arg1),
+            if arg2.v_type == VarType::VAR_UNKNOWN {
+                None
             } else {
-                (&raw mut argvars[2])
+                Some(&*arg2)
             },
             true,
             ptr::null(),
@@ -3449,8 +3452,8 @@ pub fn f_slice(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
 /// Apply index or range to "rettv".
 fn eval_index_inner(rettv: &mut typval_T,
     is_range: bool,
-    var1: *mut typval_T,
-    var2: *mut typval_T,
+    var1: Option<&typval_T>,
+    var2: Option<&typval_T>,
     exclusive: bool,
     mut key: *const c_char,
     keylen: isize,
@@ -3459,8 +3462,8 @@ fn eval_index_inner(rettv: &mut typval_T,
     unsafe {
         let mut n1: varnumber_T = 0;
         let mut n2: varnumber_T = 0;
-        if !var1.is_null() && rettv.v_type != VarType::VAR_DICT {
-            n1 = tv_get_number(&*var1);
+        if let Some(var1) = var1 && rettv.v_type != VarType::VAR_DICT {
+            n1 = tv_get_number(var1);
         }
 
         if is_range {
@@ -3470,8 +3473,8 @@ fn eval_index_inner(rettv: &mut typval_T,
                 }
                 return false;
             }
-            if !var2.is_null() {
-                n2 = tv_get_number(&*var2);
+            if let Some(var2) = var2 {
+                n2 = tv_get_number(var2);
             } else {
                 n2 = VARNUMBER_MAX;
             }
@@ -3533,10 +3536,10 @@ fn eval_index_inner(rettv: &mut typval_T,
                 tv_blob_slice_or_index(is_range, n1, n2, exclusive, rettv);
             }
             VarType::VAR_LIST => {
-                if var1.is_null() {
+                if var1.is_none() {
                     n1 = 0;
                 }
-                if var2.is_null() {
+                if var2.is_none() {
                     n2 = VARNUMBER_MAX;
                 }
                 if !tv_list_slice_or_index(
@@ -3553,7 +3556,7 @@ fn eval_index_inner(rettv: &mut typval_T,
             }
             VarType::VAR_DICT => {
                 if key.is_null() {
-                    key = tv_get_string_chk(&*var1);
+                    key = tv_get_string_chk(var1.unwrap());
                     if key.is_null() {
                         return false;
                     }
@@ -3616,7 +3619,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluat
                 }
 
                 ret = false;
-            } else if rettv.is_some() {
+            } else if let Some(rettv) = rettv {
                 let value = if is_tty_opt {
                     get_tty_option(*arg)
                 } else {
@@ -3624,7 +3627,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut typval_T>, evaluat
                 };
                 debug_assert!(value.obj_type != ObjectType::kObjectTypeNil);
 
-                *rettv.unwrap() = opt_to_tv(value, true);
+                *rettv = opt_to_tv(value, true);
                 optval_free(value);
             } else if working && !is_tty_opt && is_option_hidden(opt_idx) {
                 ret = false;
@@ -4546,24 +4549,24 @@ pub fn set_ref_in_list_items(
 }
 
 fn set_ref_in_item_dict(
-    dd: *mut dict_T,
+    mut dd: Option<&mut dict_T>,
     copyID: c_int,
     ht_stack: *mut ht_stack_T,
     list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
-        if dd.is_null() || (*dd).dv_copyID == copyID {
+        if dd.is_none() || dd.as_deref_mut().unwrap().dv_copyID == copyID {
             return false;
         }
 
-        (*dd).dv_copyID = copyID;
+        dd.as_deref_mut().unwrap().dv_copyID = copyID;
         if ht_stack.is_null() {
-            return set_ref_in_ht(&raw mut (*dd).dv_hashtab, copyID, list_stack);
+            return set_ref_in_ht(&raw mut dd.as_deref_mut().unwrap().dv_hashtab, copyID, list_stack);
         }
 
-        (*ht_stack).push(&raw mut (*dd).dv_hashtab);
+        (*ht_stack).push(&raw mut dd.as_deref_mut().unwrap().dv_hashtab);
 
-        for watcher in &mut (*dd).watchers {
+        for watcher in &mut dd.unwrap().watchers {
             set_ref_in_callback(&mut watcher.callback, copyID, ht_stack, list_stack);
         }
 
@@ -4575,7 +4578,7 @@ fn set_ref_in_item_list(
     ll: *mut list_T,
     copyID: c_int,
     ht_stack: *mut ht_stack_T,
-    list_stack: *mut list_stack_T,
+    list_stack: Option<&mut list_stack_T>,
 ) -> bool {
     unsafe {
         if ll.is_null() || (*ll).lv_copyID == copyID {
@@ -4583,13 +4586,12 @@ fn set_ref_in_item_list(
         }
 
         (*ll).lv_copyID = copyID;
-        if list_stack.is_null() {
-            return set_ref_in_list_items(ll, copyID, ht_stack);
+        if let Some(list_stack) = list_stack {
+            list_stack.push(ll);
+            false
+        } else {
+            set_ref_in_list_items(ll, copyID, ht_stack)
         }
-
-        (*list_stack).push(ll);
-
-        false
     }
 }
 
@@ -4641,10 +4643,10 @@ pub fn set_ref_in_item(
 ) -> bool {
     match tv.v_type {
             VarType::VAR_DICT => {
-                set_ref_in_item_dict(tv.vval.v_dict(), copyID, ht_stack, list_stack)
+                set_ref_in_item_dict(unsafe { tv.vval.v_dict().as_mut() }, copyID, ht_stack, list_stack)
             }
             VarType::VAR_LIST => {
-                set_ref_in_item_list(tv.vval.v_list(), copyID, ht_stack, list_stack)
+                set_ref_in_item_list(tv.vval.v_list(), copyID, ht_stack, unsafe { list_stack.as_mut() })
             }
             VarType::VAR_FUNC => set_ref_in_func(tv.vval.v_string(), ptr::null_mut(), copyID),
             VarType::VAR_PARTIAL => {
@@ -4917,13 +4919,13 @@ pub fn tv_to_argv(
         }
 
         let argl = cmd_tv.vval.v_list();
-        let argc = tv_list_len(argl);
+        let argc = tv_list_len(argl.as_ref());
         if argc == 0 {
             emsg(gettext(e_invarg));
             return Vec::new();
         }
 
-        let arg0 = tv_get_string_chk(&*tv_list_item_tv(&mut *tv_list_first(argl)));
+        let arg0 = tv_get_string_chk(&*tv_list_item_tv(&mut *tv_list_first(argl.as_ref())));
         let mut exe_resolved: Option<std::ffi::CString> = None;
         if arg0.is_null() || !os_can_exe(arg0, Some(&mut exe_resolved), true) {
             if !arg0.is_null()
@@ -5585,17 +5587,17 @@ pub fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<V
 
 /// Convert the specified byte index of line 'lnum' in buffer 'buf' to a
 /// character index.
-pub fn buf_byteidx_to_charidx(buf: *mut buf_T, mut lnum: linenr_T, byteidx: c_int) -> c_int {
+pub fn buf_byteidx_to_charidx(mut buf: Option<&mut buf_T>, mut lnum: linenr_T, byteidx: c_int) -> c_int {
     unsafe {
-        if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
+        if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none() {
             return -1;
         }
 
-        if lnum > (*buf).b_ml.ml_line_count {
-            lnum = (*buf).b_ml.ml_line_count;
+        if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count {
+            lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
         }
 
-        let str_ptr = ml_get_buf(&mut *buf, lnum);
+        let str_ptr = ml_get_buf(buf.unwrap(), lnum);
 
         if *str_ptr == NUL {
             return 0;
@@ -5620,20 +5622,20 @@ pub fn buf_byteidx_to_charidx(buf: *mut buf_T, mut lnum: linenr_T, byteidx: c_in
 /// Convert the specified character index of line 'lnum' in buffer 'buf' to a
 /// byte index.
 pub fn buf_charidx_to_byteidx(
-    buf: *mut buf_T,
+    mut buf: Option<&mut buf_T>,
     mut lnum: linenr_T,
     mut charidx: c_int,
 ) -> c_int {
     unsafe {
-        if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
+        if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none() {
             return -1;
         }
 
-        if lnum > (*buf).b_ml.ml_line_count {
-            lnum = (*buf).b_ml.ml_line_count;
+        if lnum > buf.as_deref_mut().unwrap().b_ml.ml_line_count {
+            lnum = buf.as_deref_mut().unwrap().b_ml.ml_line_count;
         }
 
-        let str_ptr = ml_get_buf(&mut *buf, lnum);
+        let str_ptr = ml_get_buf(buf.unwrap(), lnum);
 
         let mut t = str_ptr;
         while *t != NUL {
@@ -5743,7 +5745,7 @@ pub fn var2fpos(
         }
         if eval_st().VAR2FPOS_POS.lnum != 0 {
             if charcol {
-                eval_st().VAR2FPOS_POS.col = buf_byteidx_to_charidx(bp, eval_st().VAR2FPOS_POS.lnum, eval_st().VAR2FPOS_POS.col);
+                eval_st().VAR2FPOS_POS.col = buf_byteidx_to_charidx(bp.as_mut(), eval_st().VAR2FPOS_POS.lnum, eval_st().VAR2FPOS_POS.col);
             }
             return &raw mut eval_st().VAR2FPOS_POS;
         }
@@ -5801,8 +5803,8 @@ pub fn list2fpos(
         }
         let l = arg.vval.v_list();
         if l.is_null()
-            || tv_list_len(l) < if fnump.is_none() { 2 } else { 3 }
-            || tv_list_len(l) > if fnump.is_none() { 4 } else { 5 }
+            || tv_list_len(l.as_ref()) < if fnump.is_none() { 2 } else { 3 }
+            || tv_list_len(l.as_ref()) > if fnump.is_none() { 4 } else { 5 }
         {
             return false;
         }
@@ -5846,7 +5848,7 @@ pub fn list2fpos(
             }
             let cur_lnum = curwin_mut().w_cursor.lnum;
             n = buf_charidx_to_byteidx(
-                buf,
+                buf.as_mut(),
                 if posp.lnum == 0 {
                     cur_lnum
                 } else {
@@ -6446,14 +6448,14 @@ pub fn var_item_copy(
                     to.vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy(&*from.vval.v_list()));
                     tv_list_ref(to.vval.v_list());
                 } else {
-                    to.vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, from.vval.v_list(), deep, copyID));
+                    to.vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, from.vval.v_list().as_mut(), deep, copyID));
                 }
                 if to.vval.v_list().is_null() && !from.vval.v_list().is_null() {
                     ret = false;
                 }
             }
             VarType::VAR_BLOB => {
-                tv_blob_copy(from.vval.v_blob(), to);
+                tv_blob_copy(from.vval.v_blob().as_ref(), to);
             }
             VarType::VAR_DICT => {
                 to.v_type = VarType::VAR_DICT;
@@ -6464,7 +6466,7 @@ pub fn var_item_copy(
                     to.vval = crate::eval::typval::TypvalVval::Dict((*from.vval.v_dict()).dv_copydict);
                     (*to.vval.v_dict()).dv_refcount += 1;
                 } else {
-                    to.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_copy(conv, from.vval.v_dict(), deep, copyID));
+                    to.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_copy(conv, from.vval.v_dict().as_mut(), deep, copyID));
                 }
                 if to.vval.v_dict().is_null() && !from.vval.v_dict().is_null() {
                     ret = false;

@@ -255,13 +255,13 @@ fn pum_compute_size() {
 /// Calculate vertical placement for popup menu (`pum_compute_vertical_placement`).
 fn pum_compute_vertical_placement(
     size: c_int,
-    target_win: *mut win_T,
+    mut target_win: Option<&mut win_T>,
     pum_win_row: c_int,
     above_row: c_int,
     below_row: c_int,
     pum_border_size: c_int,
 ) {
-    unsafe {
+     {
         let context_lines: c_int;
 
         pum().height = size.min(PUM_DEF_HEIGHT);
@@ -274,10 +274,10 @@ fn pum_compute_vertical_placement(
         {
             pum().above = true;
 
-            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_null() {
+            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_none() {
                 context_lines = 0;
             } else {
-                context_lines = 2.min((*target_win).w_wrow - (*target_win).w_cline_row);
+                context_lines = 2.min(target_win.as_deref_mut().unwrap().w_wrow - target_win.as_deref_mut().unwrap().w_cline_row);
             }
 
             if pum_win_row >= size + context_lines {
@@ -302,12 +302,12 @@ fn pum_compute_vertical_placement(
         } else {
             pum().above = false;
 
-            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_null() {
+            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_none() {
                 context_lines = 0;
             } else {
-                validate_cheight( &mut *target_win);
+                validate_cheight( target_win.as_deref_mut().unwrap());
                 let cline_visible_offset =
-                    (*target_win).w_cline_row + (*target_win).w_cline_height - (*target_win).w_wrow;
+                    target_win.as_deref_mut().unwrap().w_cline_row + target_win.as_deref_mut().unwrap().w_cline_height - target_win.unwrap().w_wrow;
                 context_lines = 3.min(cline_visible_offset);
             }
 
@@ -353,13 +353,13 @@ fn set_pum_width_aligned_with_cursor(mut width: c_int, available_width: c_int) -
 
 /// Calculate horizontal placement for popup menu (`pum_compute_horizontal_placement`).
 fn pum_compute_horizontal_placement(
-    target_win: *mut win_T,
+    target_win: Option<&win_T>,
     cursor_col: c_int,
     border_width: c_int,
 ) {
-    unsafe {
-        let max_col = g_st().Columns.max(if !target_win.is_null() {
-            (*target_win).w_wincol + (*target_win).w_view_width
+     {
+        let max_col = g_st().Columns.max(if let Some(target_win) = target_win {
+            target_win.w_wincol + target_win.w_view_width
         } else {
             0
         });
@@ -561,7 +561,7 @@ pub fn pum_display(
 
             pum_compute_vertical_placement(
                 size,
-                target_win,
+                target_win.as_mut(),
                 pum_win_row,
                 above_row,
                 below_row,
@@ -583,7 +583,7 @@ pub fn pum_display(
 
             pum().scrollbar = if pum().height < size { 1 } else { 0 };
 
-            pum_compute_horizontal_placement(target_win, cursor_col, border_width);
+            pum_compute_horizontal_placement(target_win.as_ref(), cursor_col, border_width);
 
             if !(pum_set_selected(selected, redo_count) && {
                 redo_count += 1;
@@ -1417,7 +1417,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                     if !resized
                         && curbuf_mut().b_nwindows == 1
                         && curbuf_mut().b_fname.is_null()
-                        && bt_nofile(g_st().curbuf)
+                        && bt_nofile(Some(crate::globals::curbuf_mut()))
                         && crate::memory::cstr_first_byte(curbuf_mut().b_p_bh) == b'w'
                     {
                         buf_clear();

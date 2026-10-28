@@ -475,7 +475,7 @@ pub fn nvim_open_win(
                     ptr::null_mut(),
                     false,
                     g_st().curbuf,
-                    wp,
+                    wp.as_ref(),
                 ) {
                     tp = win_find_tabpage(wp);
                 }
@@ -1383,7 +1383,7 @@ pub fn parse_bordertext(
 }
 
 fn parse_bordertext_pos(
-    wp: *mut win_T,
+    wp: Option<&win_T>,
     bordertext_pos: NvimString,
     bordertext_type: BorderTextType,
     fconfig: &mut WinConfig,
@@ -1396,7 +1396,7 @@ fn parse_bordertext_pos(
         };
 
         if bordertext_pos.size == 0 {
-            if wp.is_null() {
+            if wp.is_none() {
                 *align = kAlignLeft;
             }
             return true;
@@ -1576,14 +1576,14 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
     }
 }
 
-fn generate_api_error(wp: *mut win_T, attribute: &std::ffi::CStr, err: &mut Error) {
+fn generate_api_error(wp: Option<&win_T>, attribute: &std::ffi::CStr, err: &mut Error) {
     unsafe {
-        if !wp.is_null() && (*wp).w_floating {
+        if let Some(wp) = wp && wp.w_floating {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Required: 'relative' when reconfiguring floating window %d",
-                (*wp).handle,
+                wp.handle,
             );
         } else {
             api_err_conflict(err, attribute.as_ptr(), c"non-float window");
@@ -1709,7 +1709,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__row) {
                 if !has_relative || is_split {
-                    generate_api_error(wp, c"row", err);
+                    generate_api_error(wp.as_ref(), c"row", err);
                     break 'fail;
                 }
                 fconfig.row = config.row;
@@ -1717,7 +1717,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__col) {
                 if !has_relative || is_split {
-                    generate_api_error(wp, c"col", err);
+                    generate_api_error(wp.as_ref(), c"col", err);
                     break 'fail;
                 }
                 fconfig.col = config.col;
@@ -1725,7 +1725,7 @@ fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__bufpos) {
                 if !has_relative || is_split {
-                    generate_api_error(wp, c"bufpos", err);
+                    generate_api_error(wp.as_ref(), c"bufpos", err);
                     break 'fail;
                 } else {
                     if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
@@ -1876,7 +1876,7 @@ fn parse_win_config(
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp, config.title_pos, kBorderTextTitle, fconfig, err) {
+                if !parse_bordertext_pos(wp.as_ref(), config.title_pos, kBorderTextTitle, fconfig, err) {
                     break 'fail;
                 }
             } else if has_key(mask, KEYSET_OPTIDX_win_config__title_pos) {
@@ -1895,7 +1895,7 @@ fn parse_win_config(
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp, config.footer_pos, kBorderTextFooter, fconfig, err)
+                if !parse_bordertext_pos(wp.as_ref(), config.footer_pos, kBorderTextFooter, fconfig, err)
                 {
                     break 'fail;
                 }

@@ -409,7 +409,7 @@ fn insert_seq(root: &mut TrieNode, seq: &[u8], info: keyinfo) {
 
 fn try_load_terminfo_key(
     ti: Option<&TerminfoEntry>,
-    input: *mut crate::tui::input::TermInput,
+    input: Option<&mut crate::tui::input::TermInput>,
     root: &mut TrieNode,
     fn_nr: bool,
     key: usize,
@@ -433,8 +433,8 @@ fn try_load_terminfo_key(
             }
         }
 
-        if !input.is_null() {
-            value = crate::tui::tui::tui_tk_ti_getstr(name, value, &mut *input);
+        if let Some(input) = input {
+            value = crate::tui::tui::tui_tk_ti_getstr(name, value, input);
         }
 
         if value.is_null() || value == (-1isize as *const c_char) || *value == 0 {
@@ -470,7 +470,7 @@ fn load_terminfo(
             };
             if !try_load_terminfo_key(
                 ti,
-                input,
+                input.as_mut(),
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -497,7 +497,7 @@ fn load_terminfo(
             };
             try_load_terminfo_key(
                 ti,
-                input,
+                input.as_mut(),
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -521,7 +521,7 @@ fn load_terminfo(
             };
             if !try_load_terminfo_key(
                 ti,
-                input,
+                input.as_mut(),
                 &mut root,
                 true,
                 i - 1,

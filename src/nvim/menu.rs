@@ -721,45 +721,45 @@ fn remove_menu(
 }
 
 /// Export menus recursively (`menu_get_recursive`).
-fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
+fn menu_get_recursive(menu: Option<&vimmenu_T>, modes: c_int) -> *mut dict_T {
     unsafe {
-        if menu.is_null() || ((*menu).modes & modes) == 0 {
+        if menu.is_none() || (menu.unwrap().modes & modes) == 0 {
             return ptr::null_mut();
         }
 
         let dict = tv_dict_alloc();
-        tv_dict_add_str(&mut *dict, c"name", (*menu).dname.as_ptr());
-        tv_dict_add_nr(&mut *dict, c"priority", i64::from((*menu).priority));
+        tv_dict_add_str(&mut *dict, c"name", menu.unwrap().dname.as_ptr());
+        tv_dict_add_nr(&mut *dict, c"priority", i64::from(menu.unwrap().priority));
         tv_dict_add_nr(
             &mut *dict,
             c"hidden",
-            i64::from(menu_is_hidden((*menu).dname.as_ptr().cast_mut())),
+            i64::from(menu_is_hidden(menu.unwrap().dname.as_ptr().cast_mut())),
         );
 
-        if (*menu).mnemonic != 0 {
+        if menu.unwrap().mnemonic != 0 {
             let mut buf = [0 as c_char; MB_MAXCHAR + 1];
-            let buflen = utf_char2bytes((*menu).mnemonic, buf.as_mut_ptr());
+            let buflen = utf_char2bytes(menu.unwrap().mnemonic, buf.as_mut_ptr());
             tv_dict_add_str_len(&mut *dict, c"shortcut", buf.as_ptr(), buflen);
         }
 
-        if let Some(ref actext) = (*menu).actext {
+        if let Some(ref actext) = menu.unwrap().actext {
             tv_dict_add_str(&mut *dict, c"actext", actext.as_ptr());
         }
 
-        if ((*menu).modes & MENU_TIP_MODE) != 0
-            && let Some(ref tip) = (*menu).strings[MENU_INDEX_TIP as usize]
+        if (menu.unwrap().modes & MENU_TIP_MODE) != 0
+            && let Some(ref tip) = menu.unwrap().strings[MENU_INDEX_TIP as usize]
         {
             tv_dict_add_str(&mut *dict, c"tooltip", tip.as_ptr());
         }
 
-        if (*menu).children.is_empty() {
+        if menu.unwrap().children.is_empty() {
             let commands = tv_dict_alloc();
             tv_dict_add_dict(&mut *dict, c"mappings", commands);
 
             for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
-                if ((*menu).modes & modes & (1 << bit)) != 0 {
+                if (menu.unwrap().modes & modes & (1 << bit)) != 0 {
                     let impl_dict = tv_dict_alloc();
-                    let s_ptr = (*menu).strings[bit]
+                    let s_ptr = menu.unwrap().strings[bit]
                         .as_ref()
                         .map_or(c"".as_ptr(), |s| s.as_ptr());
                     tv_dict_add_str(
@@ -770,12 +770,12 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
                     tv_dict_add_nr(
                         &mut *impl_dict,
                         c"silent",
-                        i64::from((*menu).silent[bit]),
+                        i64::from(menu.unwrap().silent[bit]),
                     );
                     tv_dict_add_nr(
                         &mut *impl_dict,
                         c"enabled",
-                        if ((*menu).enabled & (1 << bit)) != 0 {
+                        if (menu.unwrap().enabled & (1 << bit)) != 0 {
                             1
                         } else {
                             0
@@ -784,7 +784,7 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
                     tv_dict_add_nr(
                         &mut *impl_dict,
                         c"noremap",
-                        if (*menu).noremap[bit] == REMAP_NONE {
+                        if menu.unwrap().noremap[bit] == REMAP_NONE {
                             1
                         } else {
                             0
@@ -793,7 +793,7 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
                     tv_dict_add_nr(
                         &mut *impl_dict,
                         c"sid",
-                        if (*menu).noremap[bit] == REMAP_SCRIPT {
+                        if menu.unwrap().noremap[bit] == REMAP_SCRIPT {
                             1
                         } else {
                             0
@@ -808,8 +808,8 @@ fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
             }
         } else {
             let children_list = tv_list_alloc(kListLenMayKnow);
-            for child in &(*menu).children {
-                let d = menu_get_recursive(child, modes);
+            for child in &menu.unwrap().children {
+                let d = menu_get_recursive(Some(child), modes);
                 if tv_dict_len(d.as_ref()) > 0 {
                     tv_list_append_dict( &mut *children_list, d);
                 }
@@ -829,14 +829,14 @@ pub fn menu_get(path_name: *mut c_char, modes: c_int, list: &mut list_T) -> bool
             if menu.is_null() {
                 return false;
             }
-            let d = menu_get_recursive(menu, modes);
+            let d = menu_get_recursive(menu.as_ref(), modes);
             if !d.is_null() && tv_dict_len(d.as_ref()) > 0 {
                 tv_list_append_dict(list, d);
             }
             return true;
         }
         for menu in &*root {
-            let d = menu_get_recursive(menu, modes);
+            let d = menu_get_recursive(Some(menu), modes);
             if !d.is_null() && tv_dict_len(d.as_ref()) > 0 {
                 tv_list_append_dict(list, d);
             }
@@ -902,20 +902,20 @@ fn show_menus(path_name: *mut c_char, modes: c_int) -> bool {
 
         menu_st().MENUS_LOCKED += 1;
         msg_puts_title(gettext(c"\n--- Menus ---"));
-        show_menus_recursive(menu, modes, 0);
+        show_menus_recursive(menu.as_mut(), modes, 0);
         menu_st().MENUS_LOCKED -= 1;
         true
     }
 }
 
 /// Recursively show the mappings associated with the menus under the given one (`show_menus_recursive`).
-fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
-    unsafe {
-        if !menu.is_null() && ((*menu).modes & modes) == 0 {
+fn show_menus_recursive(mut menu: Option<&mut vimmenu_T>, modes: c_int, mut depth: c_int) {
+     {
+        if menu.is_some() && (menu.as_deref_mut().unwrap().modes & modes) == 0 {
             return;
         }
 
-        if !menu.is_null() {
+        if menu.is_some() {
             msg_putchar(b'\n' as c_int);
             if g_st().got_int {
                 return;
@@ -923,16 +923,16 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
             for _ in 0..depth {
                 msg_puts(c"  ");
             }
-            if (*menu).priority != 0 {
-                msg_outnum((*menu).priority);
+            if menu.as_deref_mut().unwrap().priority != 0 {
+                msg_outnum(menu.as_deref_mut().unwrap().priority);
                 msg_puts(c" ");
             }
-            msg_outtrans((*menu).name.as_ptr(), HLF_D, false);
+            msg_outtrans(menu.as_deref_mut().unwrap().name.as_ptr(), HLF_D, false);
         }
 
-        if !menu.is_null() && (*menu).children.is_empty() {
+        if menu.is_some() && menu.as_deref_mut().unwrap().children.is_empty() {
             for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
-                if ((*menu).modes & modes & (1 << bit)) != 0 {
+                if (menu.as_deref_mut().unwrap().modes & modes & (1 << bit)) != 0 {
                     msg_putchar(b'\n' as c_int);
                     if g_st().got_int {
                         return;
@@ -941,32 +941,32 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
                         msg_puts(c"  ");
                     }
                     msg_puts(mode_cstr.as_ptr());
-                    if (*menu).noremap[bit] == REMAP_NONE {
+                    if menu.as_deref_mut().unwrap().noremap[bit] == REMAP_NONE {
                         msg_putchar(b'*' as c_int);
-                    } else if (*menu).noremap[bit] == REMAP_SCRIPT {
+                    } else if menu.as_deref_mut().unwrap().noremap[bit] == REMAP_SCRIPT {
                         msg_putchar(b'&' as c_int);
                     } else {
                         msg_putchar(b' ' as c_int);
                     }
-                    if (*menu).silent[bit] {
+                    if menu.as_deref_mut().unwrap().silent[bit] {
                         msg_putchar(b's' as c_int);
                     } else {
                         msg_putchar(b' ' as c_int);
                     }
-                    if ((*menu).modes & (*menu).enabled & (1 << bit)) == 0 {
+                    if (menu.as_deref_mut().unwrap().modes & menu.as_deref_mut().unwrap().enabled & (1 << bit)) == 0 {
                         msg_putchar(b'-' as c_int);
                     } else {
                         msg_putchar(b' ' as c_int);
                     }
                     msg_puts(c" ");
-                    let s_bytes = (*menu).strings[bit]
+                    let s_bytes = menu.as_deref_mut().unwrap().strings[bit]
                         .as_ref()
                         .map_or(&[][..], |s| s.as_bytes());
                     if s_bytes.is_empty() {
                         msg_puts_hl(c"<Nop>", HLF_8, false);
                     } else {
                         msg_outtrans_special(
-                            (*menu).strings[bit].as_ref().unwrap().as_ptr(),
+                            menu.as_deref_mut().unwrap().strings[bit].as_ref().unwrap().as_ptr(),
                             false,
                             0,
                         );
@@ -974,11 +974,11 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
                 }
             }
         } else {
-            let children = if menu.is_null() {
+            let children = if let Some(menu) = menu {
+                menu.children.as_mut_slice()
+            } else {
                 depth -= 1;
                 g_st().root_menu.as_mut_slice()
-            } else {
-                (*menu).children.as_mut_slice()
             };
 
             for child in children {
@@ -986,7 +986,7 @@ fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
                     break;
                 }
                 if !menu_is_hidden(child.dname.as_ptr().cast_mut()) {
-                    show_menus_recursive(child, modes, depth + 1);
+                    show_menus_recursive(Some(&mut *child), modes, depth + 1);
                 }
             }
         }

@@ -789,12 +789,8 @@ fn tv_list_set_ret_inline(tv: &mut typval_T, l: *mut list_T) {
 }
 
 #[inline]
-fn tv_list_locked_inline(l: *const list_T) -> VarLockStatus {
-    if l.is_null() {
-        VAR_FIXED
-    } else {
-        unsafe { (*l).lv_lock }
-    }
+fn tv_list_locked_inline(l: Option<&list_T>) -> VarLockStatus {
+    l.map_or(VAR_FIXED, |l| l.lv_lock)
 }
 
 #[inline]
@@ -856,7 +852,7 @@ pub fn list_iter_ptr(start: *const listitem_T) -> ListPtrIter {
 
 #[inline]
 pub fn tv_list_set_lock(l: *mut list_T, lock: VarLockStatus) {
-    tv_list_set_lock_inline(l, lock)
+    tv_list_set_lock_inline(unsafe { l.as_mut() }, lock)
 }
 
 #[inline]
@@ -865,19 +861,19 @@ pub fn tv_blob_len(b: Option<&blob_T>) -> c_int {
 }
 
 #[inline]
-fn tv_list_set_lock_inline(l: *mut list_T, lock: VarLockStatus) {
-    if l.is_null() {
+fn tv_list_set_lock_inline(l: Option<&mut list_T>, lock: VarLockStatus) {
+    if l.is_none() {
         debug_assert_eq!(lock, VAR_FIXED);
         return;
     }
-    unsafe {
-        (*l).lv_lock = lock;
+     {
+        l.unwrap().lv_lock = lock;
     }
 }
 
 #[inline]
-pub fn tv_list_len(l: *const list_T) -> c_int {
-    tv_list_len_inline(unsafe { l.as_ref() })
+pub fn tv_list_len(l: Option<&list_T>) -> c_int {
+    tv_list_len_inline(l)
 }
 
 #[inline]
@@ -886,13 +882,13 @@ pub fn tv_dict_len(d: Option<&dict_T>) -> i64 {
 }
 
 #[inline]
-pub fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    tv_list_first_inline(unsafe { l.as_ref() })
+pub fn tv_list_first(l: Option<&list_T>) -> *mut listitem_T {
+    tv_list_first_inline(l)
 }
 
 #[inline]
 pub fn tv_list_last(l: *const list_T) -> *mut listitem_T {
-    tv_list_last_inline(l)
+    tv_list_last_inline(unsafe { l.as_ref() })
 }
 
 #[inline]
@@ -901,8 +897,8 @@ fn tv_list_len_inline(l: Option<&list_T>) -> c_int {
 }
 
 #[inline]
-fn tv_list_uidx_inline(l: *const list_T, mut n: c_int) -> c_int {
-    let len = tv_list_len_inline(unsafe { l.as_ref() });
+fn tv_list_uidx_inline(l: Option<&list_T>, mut n: c_int) -> c_int {
+    let len = tv_list_len_inline(l);
         if n < 0 {
             n += len;
         }
@@ -915,12 +911,8 @@ fn tv_list_first_inline(l: Option<&list_T>) -> *mut listitem_T {
 }
 
 #[inline]
-fn tv_list_last_inline(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_last }
-    }
+fn tv_list_last_inline(l: Option<&list_T>) -> *mut listitem_T {
+    l.map_or(ptr::null_mut(), |l| l.lv_last)
 }
 
 #[inline]
@@ -940,8 +932,8 @@ fn tv_dict_len_inline(d: Option<&dict_T>) -> isize {
 }
 
 #[inline]
-fn tv_dict_is_watched_inline(d: *const dict_T) -> bool {
-    !d.is_null() && unsafe { !(*d).watchers.is_empty() }
+fn tv_dict_is_watched_inline(d: Option<&dict_T>) -> bool {
+    d.is_some() &&  { !d.unwrap().watchers.is_empty() }
 }
 
 #[inline]
@@ -1067,7 +1059,7 @@ pub fn tv_list_init_static10(sl: &mut staticList10_T) {
         (*l).lv_first = items;
         (*l).lv_last = items.add(SL_SIZE - 1);
         (*l).lv_refcount = DO_NOT_FREE_CNT;
-        tv_list_set_lock_inline(l, VAR_FIXED);
+        tv_list_set_lock_inline(l.as_mut(), VAR_FIXED);
         (*l).lv_len = 10;
 
         (*items).li_prev = ptr::null_mut();
@@ -1329,22 +1321,22 @@ pub fn tv_list_append_number(l: &mut list_T, n: varnumber_T) {
 /// Make a copy of list.
 pub fn tv_list_copy(
     conv: Option<&vimconv_T>,
-    orig: *mut list_T,
+    mut orig: Option<&mut list_T>,
     deep: bool,
     copyID: c_int,
 ) -> *mut list_T {
     unsafe {
-        if orig.is_null() {
+        if orig.is_none() {
             return ptr::null_mut();
         }
 
-        let copy = tv_list_alloc(tv_list_len_inline(orig.as_ref()) as isize);
+        let copy = tv_list_alloc(tv_list_len_inline(orig.as_deref()) as isize);
         tv_list_ref_inline(copy.as_mut());
         if copyID != 0 {
-            (*orig).lv_copyID = copyID;
-            (*orig).lv_copylist = copy;
+            orig.as_deref_mut().unwrap().lv_copyID = copyID;
+            orig.as_deref_mut().unwrap().lv_copylist = copy;
         }
-        for item in crate::eval::typval::list_iter_mut((*orig).lv_first) {
+        for item in crate::eval::typval::list_iter_mut(orig.unwrap().lv_first) {
             if g_st().got_int {
                 break;
             }
@@ -1424,7 +1416,7 @@ pub fn tv_list_check_range_index_two(
 /// Assign values from list "src" into a range of "dest".
 pub fn tv_list_assign_range(
     dest: &mut list_T,
-    src: *mut list_T,
+    src: Option<&list_T>,
     idx1_arg: c_int,
     idx2: c_int,
     empty_idx2: bool,
@@ -1438,7 +1430,7 @@ pub fn tv_list_assign_range(
 
         let mut idx = idx1;
         let mut dest_li = first_li;
-        src_li = tv_list_first_inline(src.as_ref());
+        src_li = tv_list_first_inline(src);
         while !src_li.is_null() && !dest_li.is_null() {
             if value_check_lock((*dest_li).li_tv.v_lock, varname, TV_CSTRING) {
                 return false;
@@ -1453,7 +1445,7 @@ pub fn tv_list_assign_range(
 
         idx = idx1;
         dest_li = first_li;
-        src_li = tv_list_first_inline(src.as_ref());
+        src_li = tv_list_first_inline(src);
         while !src_li.is_null() {
             debug_assert!(!dest_li.is_null());
             if !op.is_null() && *op != b'=' as c_char {
@@ -1468,7 +1460,7 @@ pub fn tv_list_assign_range(
             }
             if (*dest_li).li_next.is_null() {
                 tv_list_append_number(dest, 0);
-                dest_li = tv_list_last_inline(&raw mut *dest);
+                dest_li = tv_list_last_inline(Some(dest));
             } else {
                 dest_li = (*dest_li).li_next;
             }
@@ -1520,7 +1512,7 @@ pub fn tv_list_flatten(
                 let itemlist = (*item).li_tv.vval.v_list();
 
                 tv_list_drop_items( list, item,  &mut *item);
-                tv_list_extend(list, itemlist, next);
+                tv_list_extend(list, itemlist.as_ref(), next);
 
                 if maxdepth > 0 {
                     let sub_first = if (*item).li_prev.is_null() {
@@ -1606,9 +1598,9 @@ fn tv_string2items(argvars: &mut [typval_T], rettv: &mut typval_T) {
 }
 
 /// Extend first list with the second.
-pub fn tv_list_extend(l1: &mut list_T, l2: *mut list_T, bef: *mut listitem_T) {
+pub fn tv_list_extend(l1: &mut list_T, l2: Option<&list_T>, bef: *mut listitem_T) {
     unsafe {
-        let mut todo = tv_list_len_inline(l2.as_ref());
+        let mut todo = tv_list_len_inline(l2);
         if todo == 0 {
             return;
         }
@@ -1623,7 +1615,7 @@ pub fn tv_list_extend(l1: &mut list_T, l2: *mut list_T, bef: *mut listitem_T) {
         } else {
             (*befbef).li_next
         };
-        let mut item = tv_list_first_inline(l2.as_ref());
+        let mut item = tv_list_first_inline(l2);
         while !item.is_null() && todo > 0 {
             todo -= 1;
             tv_list_insert_tv(l1, &mut (*item).li_tv, bef);
@@ -1643,11 +1635,11 @@ pub fn tv_list_concat(l1: *mut list_T, l2: *mut list_T, tv: &mut typval_T) -> bo
         let l = if l1.is_null() && l2.is_null() {
             ptr::null_mut()
         } else if l1.is_null() {
-            tv_list_copy(None, l2, false, 0)
+            tv_list_copy(None, unsafe { l2.as_mut() }, false, 0)
         } else {
-            let copy = tv_list_copy(None, l1, false, 0);
+            let copy = tv_list_copy(None, unsafe { l1.as_mut() }, false, 0);
             if !copy.is_null() && !l2.is_null() {
-                tv_list_extend(unsafe { &mut *copy }, l2, ptr::null_mut());
+                tv_list_extend(unsafe { &mut *copy }, unsafe { l2.as_ref() }, ptr::null_mut());
             }
             copy
         };
@@ -1776,16 +1768,16 @@ fn list_join_inner(
 }
 
 /// Join list into a string using given separator.
-pub fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: impl crate::strings::IntoCCharPtr) -> bool {
+pub fn tv_list_join(gap: &mut Vec<c_char>, l: Option<&mut list_T>, sep: impl crate::strings::IntoCCharPtr) -> bool {
     let sep = sep.into_c_char_ptr();
-    unsafe {
-        let len = tv_list_len_inline(l.as_ref());
+     {
+        let len = tv_list_len_inline(l.as_deref());
         if len == 0 {
             return true;
         }
 
         let mut join_vec: Vec<std::ffi::CString> = Vec::with_capacity(len as usize);
-        list_join_inner(gap, &mut *l, sep, &mut join_vec)
+        list_join_inner(gap, l.unwrap(), sep, &mut join_vec)
     }
 }
 
@@ -1807,7 +1799,7 @@ pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 
         if !sep.is_null() {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
-            tv_list_join(&mut out, argvars[0].vval.v_list(), sep);
+            tv_list_join(&mut out, unsafe { argvars[0].vval.v_list().as_mut() }, sep);
             tv_set_string_len(rettv, out.as_ptr(), out.len());
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -1851,7 +1843,7 @@ pub fn tv_list_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
 ) {
     unsafe {
         let l = argvars[0].vval.v_list();
-        if value_check_lock(tv_list_locked_inline(l), arg_errmsg, TV_TRANSLATE) {
+        if value_check_lock(tv_list_locked_inline(l.as_ref()), arg_errmsg, TV_TRANSLATE) {
             return;
         }
 
@@ -2183,13 +2175,13 @@ fn do_sort(l: &mut list_T, info: &mut sortinfo_T) {
     }
 }
 
-fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
+fn do_uniq(mut l: Option<&mut list_T>, info: &mut sortinfo_T) {
     unsafe {
         info.item_compare_func_err = false;
         info.item_compare_keys_ready = false;
         let use_custom = info.item_compare_func.is_some() || !info.item_compare_partial.is_null();
 
-        let first = tv_list_first_inline(l.as_ref());
+        let first = tv_list_first_inline(l.as_deref());
         let mut li = if first.is_null() {
             ptr::null_mut()
         } else {
@@ -2213,7 +2205,7 @@ fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
                 item_compare2(&prev_si, &cur_si, true, info)
             };
             if cmp == 0 {
-                li = tv_list_item_remove(&mut *l, li);
+                li = tv_list_item_remove(l.as_deref_mut().unwrap(), li);
             } else {
                 li = (*li).li_next;
             }
@@ -2326,7 +2318,7 @@ fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
             c"uniq() argument".as_ptr()
         };
         let l = argvars[0].vval.v_list();
-        if !value_check_lock(tv_list_locked_inline(l), arg_errmsg, TV_TRANSLATE) {
+        if !value_check_lock(tv_list_locked_inline(unsafe { l.as_ref() }), arg_errmsg, TV_TRANSLATE) {
             tv_list_set_ret_inline(rettv, l);
 
             let len = tv_list_len_inline(unsafe { l.as_ref() });
@@ -2334,7 +2326,7 @@ fn do_sort_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, sort: bool) {
                 if sort {
                     do_sort(unsafe { &mut *l }, &mut info);
                 } else {
-                    do_uniq(l, &mut info);
+                    do_uniq(unsafe { l.as_mut() }, &mut info);
                 }
             }
         }
@@ -2404,7 +2396,7 @@ pub fn tv_list_find(l: *mut list_T, mut n: c_int) -> *mut listitem_T {
             return ptr::null_mut();
         }
 
-        n = tv_list_uidx_inline(l, n);
+        n = tv_list_uidx_inline(l.as_ref(), n);
         if n == -1 {
             return ptr::null_mut();
         }
@@ -2506,16 +2498,16 @@ pub fn tv_list_idx_of_item(l: Option<&list_T>, item: *const listitem_T) -> c_int
 
 /// Add watcher to a dictionary.
 pub fn tv_dict_watcher_add(
-    dict: *mut dict_T,
+    dict: Option<&mut dict_T>,
     key_pattern: *const c_char,
     key_pattern_len: usize,
     callback: Callback,
 ) {
     unsafe {
-        if dict.is_null() {
+        if dict.is_none() {
             return;
         }
-        (*dict).watchers.push(DictWatcher {
+        dict.unwrap().watchers.push(DictWatcher {
             key_pattern: crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
                 key_pattern.cast::<u8>(),
                 key_pattern_len,
@@ -2657,19 +2649,19 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
 
 /// Remove watcher from a dictionary.
 pub fn tv_dict_watcher_remove(
-    dict: *mut dict_T,
+    mut dict: Option<&mut dict_T>,
     key_pattern: *const c_char,
     key_pattern_len: usize,
     callback: &Callback,
 ) -> bool {
     unsafe {
-        if dict.is_null() {
+        if dict.is_none() {
             return false;
         }
 
         let mut matched_idx: Option<usize> = None;
         let mut queue_is_busy = false;
-        for (idx, w) in (*dict).watchers.iter().enumerate() {
+        for (idx, w) in dict.as_deref_mut().unwrap().watchers.iter().enumerate() {
             if w.busy {
                 queue_is_busy = true;
             }
@@ -2691,9 +2683,9 @@ pub fn tv_dict_watcher_remove(
         };
 
         if queue_is_busy {
-            (&mut (*dict).watchers)[idx].needs_free = true;
+            (&mut dict.as_deref_mut().unwrap().watchers)[idx].needs_free = true;
         } else {
-            (*dict).watchers.remove(idx);
+            dict.unwrap().watchers.remove(idx);
         }
         true
     }
@@ -2982,14 +2974,14 @@ pub fn tv_dict_get_bool(d: *const dict_T, key: &std::ffi::CStr, def: c_int) -> v
 }
 
 /// Converts a dict to an environment.
-pub fn tv_dict_to_env(denv: *mut dict_T) -> Vec<std::ffi::CString> {
+pub fn tv_dict_to_env(denv: Option<&dict_T>) -> Vec<std::ffi::CString> {
     unsafe {
-        let env_size = tv_dict_len_inline(denv.as_ref()) as usize;
+        let env_size = tv_dict_len_inline(denv) as usize;
         let mut env = Vec::with_capacity(env_size);
 
-        if !denv.is_null() {
-            let mut todo = (*denv).dv_hashtab.ht_used;
-            let mut hi = (*denv).dv_hashtab.array_ptr();
+        if let Some(denv) = denv {
+            let mut todo = denv.dv_hashtab.ht_used;
+            let mut hi = denv.dv_hashtab.array_ptr();
             while todo > 0 {
                 if !hashitem_empty(&*hi) {
                     todo -= 1;
@@ -3318,7 +3310,7 @@ pub fn tv_dict_clear(d: &mut dict_T) {
 pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::strings::IntoCCharPtr) {
     let action = action.into_c_char_ptr();
     unsafe {
-        let watched = tv_dict_is_watched_inline(&raw mut *d1);
+        let watched = tv_dict_is_watched_inline(Some(d1));
         let arg_errmsg = tr(c"extend() argument");
         let arg_errmsg_len = crate::memory::cstr_len(arg_errmsg);
 
@@ -3443,22 +3435,22 @@ pub fn tv_dict_equal(d1: *mut dict_T, d2: *mut dict_T, ic: bool) -> bool {
 /// Make a copy of dictionary.
 pub fn tv_dict_copy(
     conv: Option<&vimconv_T>,
-    orig: *mut dict_T,
+    mut orig: Option<&mut dict_T>,
     deep: bool,
     copyID: c_int,
 ) -> *mut dict_T {
     unsafe {
-        if orig.is_null() {
+        if orig.is_none() {
             return ptr::null_mut();
         }
 
         let mut copy = tv_dict_alloc();
         if copyID != 0 {
-            (*orig).dv_copyID = copyID;
-            (*orig).dv_copydict = copy;
+            orig.as_deref_mut().unwrap().dv_copyID = copyID;
+            orig.as_deref_mut().unwrap().dv_copydict = copy;
         }
-        let mut todo = (*orig).dv_hashtab.ht_used;
-        let mut hi = (*orig).dv_hashtab.array_ptr();
+        let mut todo = orig.as_deref_mut().unwrap().dv_hashtab.ht_used;
+        let mut hi = orig.unwrap().dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -3955,7 +3947,7 @@ pub fn tv_dict_remove(argvars: &mut [typval_T],rettv: &mut typval_T,
                         *rettv = (*di).di_tv;
                         (*di).di_tv = tv_initial_value();
                         tv_dict_item_remove(&mut *d,  &mut *di);
-                        if tv_dict_is_watched_inline(d) {
+                        if tv_dict_is_watched_inline(d.as_ref()) {
                             tv_dict_watcher_notify(&mut *d, key, None, Some(&*rettv));
                         }
                     }
@@ -3973,15 +3965,15 @@ pub fn tv_blob_alloc_ret(ret_tv: &mut typval_T) -> *mut blob_T {
 }
 
 /// Copy a blob typval to a different typval.
-pub fn tv_blob_copy(from: *mut blob_T, to: &mut typval_T) {
+pub fn tv_blob_copy(from: Option<&blob_T>, to: &mut typval_T) {
     unsafe {
         to.v_type = VarType::VAR_BLOB;
         to.v_lock = VAR_UNLOCKED;
-        if from.is_null() {
-            to.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
-        } else {
+        if let Some(from) = from {
             let dst_blob = &mut *tv_blob_alloc_ret(to);
-            dst_blob.bv_ga.extend_from_slice(&(*from).bv_ga);
+            dst_blob.bv_ga.extend_from_slice(&from.bv_ga);
+        } else {
+            to.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
         }
     }
 }
@@ -4060,15 +4052,15 @@ fn nothing_conv_real_list_after_start(
 }
 
 #[inline]
-fn nothing_conv_list_end(tv: *mut typval_T) {
-    unsafe {
-        if tv.is_null() {
+fn nothing_conv_list_end(mut tv: Option<&mut typval_T>) {
+     {
+        if tv.is_none() {
             return;
         }
-        debug_assert_eq!((*tv).v_type, VarType::VAR_LIST);
-        let list = (*tv).vval.v_list();
+        debug_assert_eq!(tv.as_deref_mut().unwrap().v_type, VarType::VAR_LIST);
+        let list = tv.as_deref_mut().unwrap().vval.v_list();
         tv_list_unref(list);
-        (*tv).vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
+        tv.unwrap().vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
     }
 }
 
@@ -4255,7 +4247,7 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> bool {
                     if cur_li.is_null() {
                         mpstack.pop();
                         (*list).lv_copyID = saved_copy_id;
-                        nothing_conv_list_end(cur_tv);
+                        nothing_conv_list_end(cur_tv.as_mut());
                         continue;
                     }
                     *li = (*cur_li).li_next;
@@ -4340,7 +4332,7 @@ fn encode_vim_to_nothing(top_tv: &mut typval_T) -> bool {
                     let cur_arg = *arg;
                     if *todo == 0 {
                         mpstack.pop();
-                        nothing_conv_list_end(cur_tv);
+                        nothing_conv_list_end(cur_tv.as_mut());
                         continue;
                     }
                     *arg = cur_arg.add(1);
@@ -4492,7 +4484,7 @@ pub fn tv_islocked(tv: &typval_T) -> bool {
     unsafe {
         tv.v_lock == VAR_LOCKED
             || (tv.v_type == VarType::VAR_LIST
-                && tv_list_locked_inline(tv.vval.v_list()) == VAR_LOCKED)
+                && tv_list_locked_inline(tv.vval.v_list().as_ref()) == VAR_LOCKED)
             || (tv.v_type == VarType::VAR_DICT
                 && !tv.vval.v_dict().is_null()
                 && (*tv.vval.v_dict()).dv_lock == VAR_LOCKED)
@@ -5265,14 +5257,14 @@ mod tests {
             assert_eq!(crate::memory::cstr_as_bytes(tv_list_find_str(l2, 2)), b"world");
 
             // copy, extend, concat, join, equal
-            let l2_copy = tv_list_copy(None, l2, true, 0);
+            let l2_copy = tv_list_copy(None, l2.as_mut(), true, 0);
             (*l2_copy).lv_refcount = 1;
             assert!(tv_list_equal(l2, l2_copy, false));
             assert!(tv_list_equal(ptr::null_mut(), ptr::null_mut(), false));
             assert!(!tv_list_equal(l2, ptr::null_mut(), false));
 
             let mut joined: Vec<c_char> = Vec::new();
-            assert!(tv_list_join(&mut joined, l2, c", "));
+            assert!(tv_list_join(&mut joined, l2.as_mut(), c", "));
             assert_eq!(
                 std::slice::from_raw_parts(joined.as_ptr().cast::<u8>(), joined.len()),
                 b"99, hello, world"
@@ -5283,7 +5275,7 @@ mod tests {
             assert_eq!(tv_list_len_inline(cat_tv.vval.v_list().as_ref()), 6);
             tv_clear(&mut cat_tv);
 
-            tv_list_extend(&mut *l2, l2_copy, ptr::null_mut());
+            tv_list_extend(&mut *l2, l2_copy.as_ref(), ptr::null_mut());
             assert_eq!(tv_list_len_inline(l2.as_ref()), 6);
 
             // remove_items range
@@ -5339,7 +5331,7 @@ mod tests {
             );
 
             // Copy, equal, extend, readonly, clear
-            let d_copy = tv_dict_copy(None, d, true, 0);
+            let d_copy = tv_dict_copy(None, d.as_mut(), true, 0);
             (*d_copy).dv_refcount = 1;
             assert!(tv_dict_equal(d, d_copy, false));
             assert!(tv_dict_equal(ptr::null_mut(), ptr::null_mut(), false));

@@ -3307,7 +3307,7 @@ pub fn shorten_fnames(force: c_int) {
         os_dirname(dirname.as_mut_ptr(), MAXPATHL);
         for buf in for_all_buffers_mut() {
             changed |= shorten_buf_fname(buf, dirname.as_mut_ptr(), force);
-            mf_fullname(buf.b_ml.mfp_ptr());
+            mf_fullname(unsafe { buf.b_ml.mfp_ptr().as_mut() });
         }
         if changed {
             status_redraw_all();
@@ -3899,7 +3899,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
         }
 
         if !mesg.is_null() {
-            let path = home_replace_save(&raw mut *buf, buf.b_fname);
+            let path = home_replace_save(Some(buf), buf.b_fname);
             if !helpmesg {
                 mesg2 = c"".as_ptr().cast_mut();
             }
@@ -4285,7 +4285,7 @@ fn vim_mktempdir() {
 pub fn readdir_core(
     entries: &mut Vec<std::ffi::CString>,
     path: *const c_char,
-    context: *mut crate::eval::typval::typval_T,
+    mut context: Option<&mut crate::eval::typval::typval_T>,
 ) -> bool {
     unsafe {
         entries.clear();
@@ -4304,8 +4304,8 @@ pub fn readdir_core(
 
             let mut ignore = *p == b'.' as c_char
                 && (*p.add(1) == NUL || (*p.add(1) == b'.' as c_char && *p.add(2) == NUL));
-            if !ignore && !context.is_null() {
-                let r = crate::eval::fs::readdir_checkitem(&mut *context, p);
+            if !ignore && context.is_some() {
+                let r = crate::eval::fs::readdir_checkitem(context.as_deref_mut().unwrap(), p);
                 if r < 0 {
                     break;
                 }
@@ -4335,7 +4335,7 @@ pub fn delete_recursive(name: *const c_char) -> c_int {
         if os_isrealdir(name) {
             let exp = crate::memory::cstr_to_cstring(name);
             let mut entries: Vec<std::ffi::CString> = Vec::new();
-            if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut()) {
+            if readdir_core(&mut entries, exp.as_ptr(), None) {
                 let namebuff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/", exp.as_ptr());
 

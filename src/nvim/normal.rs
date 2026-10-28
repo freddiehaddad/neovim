@@ -1654,13 +1654,13 @@ fn find_command(mut cmdchar: c_int) -> c_int {
     }
 }
 
-fn check_text_locked(oap: *mut oparg_T) -> bool {
-    unsafe {
+fn check_text_locked(oap: Option<&mut oparg_T>) -> bool {
+     {
         if !text_locked() {
             return false;
         }
-        if !oap.is_null() {
-            clearopbeep(&mut *oap);
+        if let Some(oap) = oap {
+            clearopbeep(oap);
         }
         text_locked_msg();
         true
@@ -1669,7 +1669,7 @@ fn check_text_locked(oap: *mut oparg_T) -> bool {
 
 pub fn check_text_or_curbuf_locked(oap: *mut oparg_T) -> bool {
     unsafe {
-        if check_text_locked(oap) {
+        if check_text_locked(oap.as_mut()) {
             return true;
         }
         if !curbuf_locked() {
@@ -6668,7 +6668,7 @@ fn nv_g_cmd(cap: &mut cmdarg_T) {
                 }
             }
             Ctrl_G => {
-                cursor_pos_info(ptr::null_mut());
+                cursor_pos_info(None);
             }
             c if c == b'i' as c_int => {
                 nv_gi_cmd(cap);

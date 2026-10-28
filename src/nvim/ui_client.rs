@@ -375,7 +375,7 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
             &mut dict,
             rgb,
             None,
-            ptr::null_mut(),
+            None,
             &mut err,
         );
         if (dict.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {

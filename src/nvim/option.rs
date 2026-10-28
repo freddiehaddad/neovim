@@ -2430,10 +2430,10 @@ pub fn check_options() {
 }
 
 /// Check if option was set insecurely.
-pub fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int {
+pub fn was_set_insecurely(wp: Option<&mut win_T>, opt_idx: OptIndex, opt_flags: c_int) -> c_int {
     unsafe {
         assert!(opt_idx != kOptInvalid);
-        let flagp = insecure_flag(wp.as_mut(), opt_idx, opt_flags);
+        let flagp = insecure_flag(wp, opt_idx, opt_flags);
         c_int::from((*flagp & kOptFlagInsecure) != 0)
     }
 }
@@ -2493,37 +2493,37 @@ pub fn check_blending(wp: &mut win_T) {
 }
 
 /// Handle setting 'winhighlight' in window "wp".
-pub fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
+pub fn parse_winhl_opt(winhl: *const c_char, mut wp: Option<&mut win_T>) -> bool {
     unsafe {
         let mut p: *const c_char = empty_string_option.as_ptr().cast();
         if !winhl.is_null() {
             p = winhl;
-        } else if !wp.is_null() {
-            p = (*wp).w_onebuf_opt.wo_winhl;
+        } else if wp.is_some() {
+            p = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_winhl;
         }
 
         if *p == NUL {
-            if !wp.is_null() && (*wp).w_ns_hl_winhl > 0 && (*wp).w_ns_hl == (*wp).w_ns_hl_winhl {
-                (*wp).w_ns_hl = 0;
-                (*wp).w_hl_needs_update = 1;
+            if wp.is_some() && wp.as_deref_mut().unwrap().w_ns_hl_winhl > 0 && wp.as_deref_mut().unwrap().w_ns_hl == wp.as_deref_mut().unwrap().w_ns_hl_winhl {
+                wp.as_deref_mut().unwrap().w_ns_hl = 0;
+                wp.as_deref_mut().unwrap().w_hl_needs_update = 1;
             }
             return true;
         }
 
         let mut ns_hl: c_int = 0;
-        if !wp.is_null() {
-            if (*wp).w_ns_hl_winhl == 0 {
-                (*wp).w_ns_hl_winhl = nvim_create_namespace(NvimString {
+        if wp.is_some() {
+            if wp.as_deref_mut().unwrap().w_ns_hl_winhl == 0 {
+                wp.as_deref_mut().unwrap().w_ns_hl_winhl = nvim_create_namespace(NvimString {
                     data: ptr::null_mut(),
                     size: 0,
                 }) as c_int;
             } else {
-                let dp = get_decor_provider((*wp).w_ns_hl_winhl, true);
+                let dp = get_decor_provider(wp.as_deref_mut().unwrap().w_ns_hl_winhl, true);
                 (*dp).hl_valid += 1;
             }
-            ns_hl = (*wp).w_ns_hl_winhl;
-            if (*wp).w_ns_hl <= 0 {
-                (*wp).w_ns_hl = (*wp).w_ns_hl_winhl;
+            ns_hl = wp.as_deref_mut().unwrap().w_ns_hl_winhl;
+            if wp.as_deref_mut().unwrap().w_ns_hl <= 0 {
+                wp.as_deref_mut().unwrap().w_ns_hl = wp.as_deref_mut().unwrap().w_ns_hl_winhl;
             }
         }
 
@@ -2558,7 +2558,7 @@ pub fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
                 return false;
             }
 
-            if !wp.is_null() {
+            if wp.is_some() {
                 let attrs = HlAttrs {
                     rgb_ae_attr: HL_GLOBAL,
                     cterm_ae_attr: 0,
@@ -2575,8 +2575,8 @@ pub fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
             }
         }
 
-        if !wp.is_null() {
-            (*wp).w_hl_needs_update = 1;
+        if let Some(wp) = wp {
+            wp.w_hl_needs_update = 1;
         }
         true
     }
@@ -3053,7 +3053,7 @@ pub fn did_set_number_relativenumber(args: &mut optset_T) -> *const c_char {
         if *(*win).w_onebuf_opt.wo_stc != NUL {
             (*win).w_nrwidth_line_count = 0;
         }
-        check_signcolumn(ptr::null_mut(), win);
+        check_signcolumn(ptr::null_mut(), win.as_mut());
         ptr::null()
     }
 }
@@ -5915,7 +5915,7 @@ fn set_option(
         let value_untrusted = g_st().secure != 0
             || g_st().sandbox != 0
             || (opt_flags & OPT_MODELINE) != 0
-            || (!value_replaced && was_set_insecurely(curwin_ptr(), opt_idx, opt_flags) != 0);
+            || (!value_replaced && was_set_insecurely(Some(crate::globals::curwin_mut()), opt_idx, opt_flags) != 0);
         if g_st().secure == 0 && value_untrusted {
             g_st().secure = 1;
         }
@@ -7316,7 +7316,7 @@ pub fn didset_window_options(wp: &mut win_T, valid_cursor: bool) {
             wp.w_skipcol = 0;
         }
         check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
-        briopt_check(&raw mut *wp);
+        briopt_check(Some(&mut *wp));
         let mut culopt_flags: c_uint = 0;
         if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt, &mut culopt_flags) {
             wp.w_p_culopt_flags = culopt_flags as u8;
@@ -7335,10 +7335,10 @@ pub fn didset_window_options(wp: &mut win_T, valid_cursor: bool) {
             true,
             None,
         );
-        parse_winhl_opt(ptr::null(), (&raw mut *wp));
+        parse_winhl_opt(ptr::null(), Some(&mut *wp));
         check_blending(wp);
         set_winbar_win( wp, false, valid_cursor);
-        check_signcolumn(ptr::null_mut(), (&raw mut *wp));
+        check_signcolumn(ptr::null_mut(), Some(&mut *wp));
         wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl > 0;
     }
 }
@@ -7441,7 +7441,7 @@ pub fn buf_copy_options(buf: &mut buf_T, flags: c_int) {
                 buf.b_p_cpt = alloc_string_option(opt_vars().p_cpt);
                 copy_opt_sctx(buf, kBufOptComplete);
                 buf.b_p_cpt_flags = copy_opt_insecure(kBufOptComplete);
-                set_buflocal_cpt_callbacks(&raw mut *buf);
+                set_buflocal_cpt_callbacks(Some(&mut *buf));
                 #[cfg(windows)]
                 {
                     buf.b_p_csl = alloc_string_option(opt_vars().p_csl);

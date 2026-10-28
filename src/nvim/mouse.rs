@@ -1132,7 +1132,7 @@ pub fn do_mouse(
                         && !vim_iswordc(gchar_pos(&mut end_visual))
                         && equalpos(curwin_mut().w_cursor, g_st().Visual.start)
                     {
-                        pos = findmatch(oap, 0);
+                        pos = findmatch(oap.as_mut(), 0);
                         if !pos.is_null() {
                             curwin_mut().w_cursor = *pos;
                             if (*oap).motion_type == kMTLineWise {

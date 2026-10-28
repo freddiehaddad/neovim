@@ -3195,13 +3195,13 @@ fn copy_cpt_callbacks(dest: &mut Vec<Callback>, src: &mut [Callback]) {
         }
 }
 
-pub fn set_buflocal_cpt_callbacks(buf: *mut buf_T) {
+pub fn set_buflocal_cpt_callbacks(buf: Option<&mut buf_T>) {
     unsafe {
-        if buf.is_null() {
+        if buf.is_none() {
             return;
         }
         let global_cb = &raw mut insexp().cpt_cb;
-        copy_cpt_callbacks(&mut (*buf).b_p_cpt_cb, &mut *global_cb);
+        copy_cpt_callbacks(&mut buf.unwrap().b_p_cpt_cb, &mut *global_cb);
     }
 }
 
@@ -3316,7 +3316,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
 
         let is_cpt_function = !cb.is_null();
         let use_sandbox =
-            is_cpt_function && was_set_insecurely(curwin_ptr(), kOptComplete, OPT_LOCAL) != 0;
+            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), kOptComplete, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(type_);
             if (*cb).cb_type() == kCallbackNone {
@@ -3366,7 +3366,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         if !equalpos(curwin_mut().w_cursor, pos) {
             emsg(gettext(E_COMPLDEL));
         } else if !matchlist.is_null() {
-            ins_compl_add_list(matchlist);
+            ins_compl_add_list(matchlist.as_ref());
         } else if !matchdict.is_null() {
             ins_compl_add_dict(&mut *matchdict);
         }
@@ -3461,14 +3461,14 @@ fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
     }
 }
 
-fn ins_compl_add_list(list: *mut list_T) {
-    unsafe {
+fn ins_compl_add_list(list: Option<&list_T>) {
+     {
         let mut dir = insexp().compl_direction;
 
-        if list.is_null() {
+        if list.is_none() {
             return;
         }
-        for li in crate::eval::typval::list_iter_mut((*list).lv_first) {
+        for li in crate::eval::typval::list_iter_mut(list.unwrap().lv_first) {
             if ins_compl_add_tv(&mut li.li_tv, dir, true) != FAIL {
                 dir = FORWARD;
             } else if g_st().did_emsg != 0 {
@@ -3491,7 +3491,7 @@ fn ins_compl_add_dict(dict: &mut dict_T) {
 
         let di_words = tv_dict_find(dict, c"words", 5);
         if !di_words.is_null() && (*di_words).di_tv.v_type == VAR_LIST {
-            ins_compl_add_list((*di_words).di_tv.vval.v_list());
+            ins_compl_add_list(((*di_words).di_tv.vval.v_list()).as_ref());
         }
     }
 }
@@ -3504,7 +3504,7 @@ fn save_orig_extmarks() {
             insexp().compl_col,
             curwin_mut().w_cursor.lnum - 1,
             insexp().compl_col + insexp().compl_length,
-            &raw mut insexp().compl_orig_extmarks,
+            Some(&mut insexp().compl_orig_extmarks),
             true,
             kExtmarkUndo,
         );
@@ -3570,7 +3570,7 @@ fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
 
         insexp().ctrl_x_mode = CTRL_X_EVAL;
 
-        ins_compl_add_list(list);
+        ins_compl_add_list(list.as_ref());
         insexp().compl_matches = ins_compl_make_cyclic();
         insexp().compl_started = true;
         insexp().compl_used_match = true;
@@ -3796,15 +3796,13 @@ fn fill_complete_info_dict(di: &mut dict_T, match_: *mut compl_T, add_match: boo
     }
 }
 
-fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
+fn get_complete_info(what_list: Option<&list_T>, retdict: &mut dict_T) {
     unsafe {
         let mut what_flag: c_int;
 
-        if what_list.is_null() {
-            what_flag = CI_WHAT_ALL & !(CI_WHAT_MATCHES | CI_WHAT_COMPLETED | CI_WHAT_AUTO);
-        } else {
+        if let Some(what_list) = what_list {
             what_flag = 0;
-            for item in crate::eval::typval::list_iter_mut((*what_list).lv_first) {
+            for item in crate::eval::typval::list_iter_mut(what_list.lv_first) {
                 let what = tv_get_string(&item.li_tv);
                 if crate::memory::cstr_as_bytes(what) == b"mode" {
                     what_flag |= CI_WHAT_MODE;
@@ -3824,6 +3822,8 @@ fn get_complete_info(what_list: *mut list_T, retdict: &mut dict_T) {
                     what_flag |= CI_WHAT_AUTO;
                 }
             }
+        } else {
+            what_flag = CI_WHAT_ALL & !(CI_WHAT_MATCHES | CI_WHAT_COMPLETED | CI_WHAT_AUTO);
         }
 
         let mut ret = true;
@@ -3952,7 +3952,7 @@ pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
             }
             what_list = argvars[0].vval.v_list();
         }
-        get_complete_info(what_list, &mut *rettv.vval.v_dict());
+        get_complete_info(what_list.as_ref(), &mut *rettv.vval.v_dict());
     }
 }
 
@@ -6164,7 +6164,7 @@ fn get_userdefined_compl_info(
 
         let is_cpt_function = !cb.is_null();
         let use_sandbox =
-            is_cpt_function && was_set_insecurely(curwin_ptr(), kOptComplete, OPT_LOCAL) != 0;
+            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), kOptComplete, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(insexp().ctrl_x_mode);
             if (*cb).cb_type() == kCallbackNone {

@@ -1159,7 +1159,7 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
 fn read_input(buf: &mut Vec<c_char>) {
      {
         read_buffer_into(
-            g_st().curbuf,
+            Some(crate::globals::curbuf_mut()),
             curbuf_mut().b_op_start.lnum,
             curbuf_mut().b_op_end.lnum,
             buf,

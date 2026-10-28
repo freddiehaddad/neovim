@@ -604,7 +604,7 @@ pub fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
             *charbuf_ptr.add(i) = c as u8;
             *charbuf_ptr.add(i + 1) = 0;
         } else if c <= 0xFF {
-            transchar_nonprint(buf, charbuf_ptr.add(i).cast::<c_char>(), c);
+            transchar_nonprint(buf.as_ref(), charbuf_ptr.add(i).cast::<c_char>(), c);
         } else {
             transchar_hex(charbuf_ptr.add(i).cast::<c_char>(), c);
         }
@@ -619,17 +619,17 @@ pub fn transchar_byte(c: c_int) -> *mut c_char {
 pub fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
     if c >= 0x80 {
             let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<c_char>();
-            transchar_nonprint(buf, charbuf_ptr, c);
+            transchar_nonprint(unsafe { buf.as_ref() }, charbuf_ptr, c);
             return charbuf_ptr;
         }
         transchar_buf(buf, c)
 }
 
-pub fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_char, mut c: c_int) {
+pub fn transchar_nonprint(buf: Option<&buf_T>, charbuf: *mut c_char, mut c: c_int) {
     unsafe {
         if c == c_int::from(NL) {
             c = 0;
-        } else if !buf.is_null() && c == CAR && get_fileformat(&*buf) == EOL_MAC {
+        } else if buf.is_some() && c == CAR && get_fileformat(buf.unwrap()) == EOL_MAC {
             c = c_int::from(NL);
         }
         assert!(c <= 0xff);

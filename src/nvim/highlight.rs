@@ -542,7 +542,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
                         &mut dict,
                         true,
                         Some(&mut it.link_id),
-                        ptr::null_mut(),
+                        None,
                         &mut err,
                     );
                     fallback =
@@ -1442,60 +1442,60 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
 pub fn dict2hlattrs(
     dict: &mut KeyDict_highlight,
     use_rgb: bool,mut link_id: Option<&mut c_int>,
-    base: *mut HlAttrs,
+    base: Option<&HlAttrs>,
     err: &mut Error,
 ) -> HlAttrs {
     unsafe {
         let mut hlattrs = HLATTRS_INIT;
-        let mut fg: i32 = if !base.is_null() {
-            (*base).rgb_fg_color
+        let mut fg: i32 = if let Some(base) = base {
+            base.rgb_fg_color
         } else {
             -1
         };
-        let mut bg: i32 = if !base.is_null() {
-            (*base).rgb_bg_color
+        let mut bg: i32 = if let Some(base) = base {
+            base.rgb_bg_color
         } else {
             -1
         };
-        let mut ctermfg: i32 = if !base.is_null() {
-            if (*base).cterm_fg_color == 0 {
+        let mut ctermfg: i32 = if let Some(base) = base {
+            if base.cterm_fg_color == 0 {
                 -1
             } else {
-                i32::from((*base).cterm_fg_color) - 1
+                i32::from(base.cterm_fg_color) - 1
             }
         } else {
             -1
         };
-        let mut ctermbg: i32 = if !base.is_null() {
-            if (*base).cterm_bg_color == 0 {
+        let mut ctermbg: i32 = if let Some(base) = base {
+            if base.cterm_bg_color == 0 {
                 -1
             } else {
-                i32::from((*base).cterm_bg_color) - 1
+                i32::from(base.cterm_bg_color) - 1
             }
         } else {
             -1
         };
-        let mut sp: i32 = if !base.is_null() {
-            (*base).rgb_sp_color
+        let mut sp: i32 = if let Some(base) = base {
+            base.rgb_sp_color
         } else {
             -1
         };
-        let mut blend: i32 = if !base.is_null() {
-            (*base).hl_blend
+        let mut blend: i32 = if let Some(base) = base {
+            base.hl_blend
         } else {
             -1
         };
-        let mut mask: i32 = if !base.is_null() {
-            (*base).rgb_ae_attr
+        let mut mask: i32 = if let Some(base) = base {
+            base.rgb_ae_attr
         } else {
             0
         };
-        let mut cterm_mask: i32 = if !base.is_null() {
-            (*base).cterm_ae_attr
+        let mut cterm_mask: i32 = if let Some(base) = base {
+            base.cterm_ae_attr
         } else {
             0
         };
-        let mut font: i32 = if !base.is_null() { (*base).font } else { -1 };
+        let mut font: i32 = if let Some(base) = base { base.font } else { -1 };
         let mut cterm_mask_provided = false;
 
         let is_set = dict.is_set__highlight_;

@@ -758,35 +758,35 @@ pub fn get_number_indent(lnum: linenr_T) -> c_int {
 }
 
 /// Check `briopt` as `'breakindentopt'` and update the members of `wp` (`briopt_check`).
-pub fn briopt_check(wp: *mut win_T) {
+pub fn briopt_check(mut wp: Option<&mut win_T>) {
     unsafe {
-        if wp.is_null() {
+        if wp.is_none() {
             return;
         }
         let v = opt_keyset(
-            (*wp).w_onebuf_opt.wo_briopt,
+            wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt,
             kOptBreakindentopt,
             ptr::null_mut(),
         )
         .cast::<OptKeyDict_briopt>();
         let vr = &*v;
-        (*wp).w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__shift) {
+        wp.as_deref_mut().unwrap().w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__shift) {
             vr.shift as c_int
         } else {
             0
         };
-        (*wp).w_briopt_min = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__min) {
+        wp.as_deref_mut().unwrap().w_briopt_min = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__min) {
             vr.min as c_int
         } else {
             20
         };
-        (*wp).w_briopt_sbr = has_briopt_key(vr, KEYSET_OPTIDX_briopt__sbr);
-        (*wp).w_briopt_list = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__list) {
+        wp.as_deref_mut().unwrap().w_briopt_sbr = has_briopt_key(vr, KEYSET_OPTIDX_briopt__sbr);
+        wp.as_deref_mut().unwrap().w_briopt_list = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__list) {
             vr.list as c_int
         } else {
             0
         };
-        (*wp).w_briopt_vcol = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__column) {
+        wp.unwrap().w_briopt_vcol = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__column) {
             vr.column as c_int
         } else {
             0
@@ -1063,7 +1063,7 @@ pub fn ins_try_si(c: c_int) {
             || (g_st().Ins.can_si && c == b'}' as c_int && inindent(0))
         {
             let pos = if c == b'}' as c_int {
-                findmatch(ptr::null_mut(), b'{' as c_int)
+                findmatch(None, b'{' as c_int)
             } else {
                 ptr::null_mut()
             };
@@ -1080,7 +1080,7 @@ pub fn ins_try_si(c: c_int) {
                 curwin_mut().w_cursor.lnum = (*pos).lnum;
                 curwin_mut().w_cursor.col = i;
                 if *ptr.add(i as usize) == b')' as c_char {
-                    let p2 = findmatch(ptr::null_mut(), b'(' as c_int);
+                    let p2 = findmatch(None, b'(' as c_int);
                     if !p2.is_null() {
                         curwin_mut().w_cursor = *p2;
                     }
@@ -1610,7 +1610,7 @@ pub fn ex_retab(eap: &mut exarg_T) {
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
 pub fn get_expr_indent() -> c_int {
      {
-        let use_sandbox = was_set_insecurely(curwin_ptr(), kOptIndentexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), kOptIndentexpr, OPT_LOCAL) != 0;
         let save_sctx = g_st().current_sctx;
 
         let save_pos = curwin_mut().w_cursor;
@@ -1656,12 +1656,12 @@ pub fn get_lisp_indent() -> c_int {
         let realpos = curwin_mut().w_cursor;
         curwin_mut().w_cursor.col = 0;
 
-        let mut pos = findmatch(ptr::null_mut(), b'(' as c_int);
+        let mut pos = findmatch(None, b'(' as c_int);
         if pos.is_null() {
-            pos = findmatch(ptr::null_mut(), b'[' as c_int);
+            pos = findmatch(None, b'[' as c_int);
         } else {
             paren = *pos;
-            pos = findmatch(ptr::null_mut(), b'[' as c_int);
+            pos = findmatch(None, b'[' as c_int);
             if pos.is_null() || lt(*pos, paren) {
                 pos = &raw mut paren;
             }

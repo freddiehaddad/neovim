@@ -1420,7 +1420,7 @@ pub fn f_readdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         let path = tv_get_string(&argvars[0]);
         let expr = (&raw mut argvars[1]);
         let mut entries: Vec<std::ffi::CString> = Vec::new();
-        let ret = readdir_core(&mut entries, path, expr);
+        let ret = readdir_core(&mut entries, path, unsafe { expr.as_mut() });
         if ret {
             for entry in &entries {
                 tv_list_append_string(unsafe { &mut *rettv.vval.v_list() }, entry.as_ptr(), -1);
@@ -1550,7 +1550,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
         let l = rettv.vval.v_list();
         let buf_ptr = buf.as_mut_ptr();
 
-        while maxline < 0 || i64::from(tv_list_len(l)) < maxline {
+        while maxline < 0 || i64::from(tv_list_len(l.as_ref())) < maxline {
             let mut readlen = fread(buf_ptr.cast(), 1, io_size, fd) as isize;
 
             let mut p = buf_ptr; // Position in buf.
@@ -1584,12 +1584,12 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
 
                     start = p.add(1); // Step over newline.
                     if maxline < 0 {
-                        if i64::from(tv_list_len(l)) > -maxline {
-                            debug_assert_eq!(i64::from(tv_list_len(l)), 1 + (-maxline));
-                            tv_list_item_remove(&mut *l, tv_list_first(l));
+                        if i64::from(tv_list_len(l.as_ref())) > -maxline {
+                            debug_assert_eq!(i64::from(tv_list_len(l.as_ref())), 1 + (-maxline));
+                            tv_list_item_remove(&mut *l, tv_list_first(l.as_ref()));
                         }
-                    } else if i64::from(tv_list_len(l)) >= maxline {
-                        debug_assert_eq!(i64::from(tv_list_len(l)), maxline);
+                    } else if i64::from(tv_list_len(l.as_ref())) >= maxline {
+                        debug_assert_eq!(i64::from(tv_list_len(l.as_ref())), maxline);
                         break;
                     }
                     if readlen <= 0 {
@@ -1644,7 +1644,7 @@ fn read_file_or_blob(argvars: &mut [typval_T], rettv: &mut typval_T, always_blob
                 p = p.add(1);
             }
 
-            if (maxline >= 0 && i64::from(tv_list_len(l)) >= maxline) || readlen <= 0 {
+            if (maxline >= 0 && i64::from(tv_list_len(l.as_ref())) >= maxline) || readlen <= 0 {
                 break;
             }
             if (start as usize) < (p as usize) {
@@ -1904,7 +1904,7 @@ pub fn f_tempname(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 fn write_list(fp: &mut FileDescriptor, list: *const list_T, binary: bool) -> bool {
     unsafe {
         let mut error: c_int = 0;
-        let mut li = tv_list_first(list);
+        let mut li = tv_list_first(list.as_ref());
         'outer: while !li.is_null() {
             let s = tv_get_string_chk(&(*li).li_tv);
             if s.is_null() {
@@ -2012,7 +2012,7 @@ pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
         }
 
         if argvars[0].v_type == VarType::VAR_LIST {
-            for li in crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list())) {
+            for li in crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list().as_ref())) {
                 if !tv_check_str_or_nr(&li.li_tv) {
                     return;
                 }

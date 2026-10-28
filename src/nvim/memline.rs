@@ -425,7 +425,7 @@ pub fn ml_open(buf: &mut buf_T) -> bool {
         let mut hp = mf_new(&mut *mfp, false, 1);
         if (*hp).bh_bnum != 0 {
             iemsg(tr(c"E298: Didn't get block nr 0?"));
-            return ml_open_error(buf, mfp, hp);
+            return ml_open_error(buf, mfp.as_mut(), hp);
         }
         let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
 
@@ -464,7 +464,7 @@ pub fn ml_open(buf: &mut buf_T) -> bool {
         assert!(!hp.is_null());
         if (*hp).bh_bnum != 1 {
             iemsg(tr(c"E298: Didn't get block nr 1?"));
-            return ml_open_error(buf, mfp, hp);
+            return ml_open_error(buf, mfp.as_mut(), hp);
         }
         let pp = (*hp).data_ptr().cast::<PointerBlock>();
         (*pp).pb_count = 1;
@@ -478,7 +478,7 @@ pub fn ml_open(buf: &mut buf_T) -> bool {
         hp = ml_new_data(&mut *mfp, false, 1);
         if (*hp).bh_bnum != 2 {
             iemsg(tr(c"E298: Didn't get block nr 2?"));
-            return ml_open_error(buf, mfp, hp);
+            return ml_open_error(buf, mfp.as_mut(), hp);
         }
 
         let dp = (*hp).data_ptr().cast::<DataBlock>();
@@ -492,10 +492,10 @@ pub fn ml_open(buf: &mut buf_T) -> bool {
     }
 }
 
-fn ml_open_error(buf: &mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -> bool {
-    if !mfp.is_null() {
+fn ml_open_error(buf: &mut buf_T, mfp: Option<&mut memfile_T>, hp: *mut bhdr_T) -> bool {
+    if let Some(mfp) = mfp {
             if !hp.is_null() {
-                mf_put(unsafe { &mut *mfp }, hp, false, false);
+                mf_put( mfp, hp, false, false);
             }
             mf_close(buf.b_ml.ml_mfp.take(), true);
         }
@@ -883,7 +883,7 @@ pub fn ml_recover(checkext: bool) {
             let mut items_tv = typval_T::new();
             tv_list_alloc_ret(&mut items_tv, 0);
             recover_names(fname, true,  &mut *items_tv.vval.v_list());
-            let n_swaps = tv_list_len(items_tv.vval.v_list());
+            let n_swaps = tv_list_len(items_tv.vval.v_list().as_ref());
 
             if n_swaps == 0 {
                 tv_clear(&mut items_tv);
@@ -903,7 +903,7 @@ pub fn ml_recover(checkext: bool) {
                 ml_recover_theend(mfp.as_mut(), hp, buf_box, serious_error, called_from_main);
                 return;
             }
-            let first_str = (*tv_list_first(items_tv.vval.v_list())).li_tv.vval.v_string();
+            let first_str = (*tv_list_first(items_tv.vval.v_list().as_ref())).li_tv.vval.v_string();
             fname_used = (!first_str.is_null()).then(|| crate::memory::cstr_to_cstring(first_str));
             tv_clear(&mut items_tv);
         }
@@ -1583,7 +1583,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut list_
             }
 
             if *dirp == NUL
-                && tv_list_len(&raw mut *ret_list) == 0
+                && tv_list_len(Some(ret_list)) == 0
                 && files.is_empty()
                 && !fname.is_null()
                 && let Some(swapname) = modname(fname_res, c".swp", true)
@@ -3660,7 +3660,7 @@ fn findswapname(
                     if choice == SEA_CHOICE_NONE {
                         g_st().no_wait_return += 1;
                         let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
-                        let fhname = home_replace_save(ptr::null_mut(), fname);
+                        let fhname = home_replace_save(None, fname);
                         let fhname_ptr = fhname.as_ptr().cast_mut();
                         attention_message(buf, fname, fhname_ptr, &mut msg_sb);
 

@@ -2649,7 +2649,7 @@ pub fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
 pub fn aucmd_defer_modified(buf: &mut buf_T, new_val: bool) {
     unsafe {
         if !has_event(EVENT_OPTIONSET)
-            || (bt_nofile(&raw mut *buf) && buf.b_p_bl == 0)
+            || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
             || *get_vim_var_str(VV_OPTION_TYPE) != NUL
         {
             return;
@@ -2693,7 +2693,7 @@ pub fn apply_autocmds_win(
     fname_io: *mut c_char,
     force: bool,
     buf: *mut buf_T,
-    win: *mut win_T,
+    win: Option<&win_T>,
 ) -> bool {
     apply_autocmds_group(
             event,
@@ -2702,7 +2702,7 @@ pub fn apply_autocmds_win(
             force,
             AUGROUP_ALL,
             buf,
-            unsafe { win.as_ref() },
+            win,
             None,
             ptr::null_mut(),
             false,

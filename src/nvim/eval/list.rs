@@ -91,7 +91,7 @@ fn filter_map_one(
 }
 
 fn filter_map_dict(
-    d: *mut dict_T,
+    mut d: Option<&mut dict_T>,
     filtermap: FilterMap,
     arg_errmsg: *const c_char,
     expr: &mut typval_T,
@@ -102,9 +102,9 @@ fn filter_map_dict(
             rettv.v_type = VarType::VAR_DICT;
             rettv.vval = crate::eval::typval::TypvalVval::Dict(std::ptr::null_mut());
         }
-        if d.is_null()
+        if d.is_none()
             || (filtermap == FilterMap::Filter
-                && value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE))
+                && value_check_lock(d.as_deref_mut().unwrap().dv_lock, arg_errmsg, TV_TRANSLATE))
         {
             return;
         }
@@ -115,14 +115,14 @@ fn filter_map_dict(
             d_ret = rettv.vval.v_dict();
         }
 
-        let prev_lock = (*d).dv_lock;
-        if (*d).dv_lock == VAR_UNLOCKED {
-            (*d).dv_lock = VAR_LOCKED;
+        let prev_lock = d.as_deref_mut().unwrap().dv_lock;
+        if d.as_deref_mut().unwrap().dv_lock == VAR_UNLOCKED {
+            d.as_deref_mut().unwrap().dv_lock = VAR_LOCKED;
         }
-        hash_lock(&mut (*d).dv_hashtab);
+        hash_lock(&mut d.as_deref_mut().unwrap().dv_hashtab);
 
-        let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.array_ptr();
+        let mut todo = d.as_deref_mut().unwrap().dv_hashtab.ht_used;
+        let mut hi = d.as_deref_mut().unwrap().dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -164,14 +164,14 @@ fn filter_map_dict(
                     {
                         break;
                     }
-                    tv_dict_item_remove(&mut *d,  &mut *di);
+                    tv_dict_item_remove(d.as_deref_mut().unwrap(),  &mut *di);
                 }
             }
             hi = hi.add(1);
         }
 
-        hash_unlock(&mut (*d).dv_hashtab);
-        (*d).dv_lock = prev_lock;
+        hash_unlock(&mut d.as_deref_mut().unwrap().dv_hashtab);
+        d.unwrap().dv_lock = prev_lock;
     }
 }
 
@@ -197,7 +197,7 @@ fn filter_map_blob(
 
         let mut b_ret = b;
         if filtermap == FilterMap::MapNew {
-            tv_blob_copy(b, &mut *rettv);
+            tv_blob_copy(b.as_ref(), &mut *rettv);
             b_ret = rettv.vval.v_blob();
         }
 
@@ -342,7 +342,7 @@ fn filter_map_list(
         }
 
         let mut idx: i64 = 0;
-        let mut li = tv_list_first(l);
+        let mut li = tv_list_first(l.as_ref());
         while !li.is_null() {
             if filtermap == FilterMap::Map
                 && value_check_lock((*li).li_tv.v_lock, arg_errmsg, TV_TRANSLATE)
@@ -431,7 +431,7 @@ fn filter_map(argvars: &mut [typval_T],rettv: &mut typval_T, filtermap: FilterMa
 
         match arg0.v_type {
             VarType::VAR_DICT => {
-                filter_map_dict(arg0.vval.v_dict(), filtermap, arg_errmsg, expr, rettv);
+                filter_map_dict(unsafe { arg0.vval.v_dict().as_mut() }, filtermap, arg_errmsg, expr, rettv);
             }
             VarType::VAR_BLOB => {
                 filter_map_blob(arg0.vval.v_blob(), filtermap, expr, arg_errmsg, rettv);
@@ -543,7 +543,7 @@ fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64
 
 fn count_list(l: *mut list_T, needle: &typval_T, idx: i64, ic: bool) -> i64 {
     unsafe {
-        if tv_list_len(l) == 0 {
+        if tv_list_len(l.as_ref()) == 0 {
             return 0;
         }
         let mut li = tv_list_find(l, idx as c_int);
@@ -562,14 +562,14 @@ fn count_list(l: *mut list_T, needle: &typval_T, idx: i64, ic: bool) -> i64 {
     }
 }
 
-fn count_dict(d: *mut dict_T, needle: &typval_T, ic: bool) -> i64 {
+fn count_dict(d: Option<&dict_T>, needle: &typval_T, ic: bool) -> i64 {
     unsafe {
-        if d.is_null() {
+        if d.is_none() {
             return 0;
         }
         let mut n: i64 = 0;
-        let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.array_ptr();
+        let mut todo = d.unwrap().dv_hashtab.ht_used;
+        let mut hi = d.unwrap().dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -615,7 +615,7 @@ pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
             if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
                 emsg(e_invarg);
             } else {
-                n = count_dict(d, arg1, ic);
+                n = count_dict(unsafe { d.as_ref() }, arg1, ic);
             }
         }
     } else if !error {
@@ -645,7 +645,7 @@ fn extend_dict(argvars: &mut [typval_T],
         }
 
         if is_new {
-            d1 = tv_dict_copy(None, d1, false, get_copyID());
+            d1 = tv_dict_copy(None, d1.as_mut(), false, get_copyID());
             if d1.is_null() {
                 return;
             }
@@ -701,7 +701,7 @@ fn extend_list(argvars: &mut [typval_T],
         }
 
         if is_new {
-            l1 = tv_list_copy(None, l1, false, get_copyID());
+            l1 = tv_list_copy(None, unsafe { l1.as_mut() }, false, get_copyID());
             if l1.is_null() {
                 return;
             }
@@ -719,7 +719,7 @@ fn extend_list(argvars: &mut [typval_T],
                     }
                     return;
                 }
-                if before != tv_list_len(l1) {
+                if before != tv_list_len(unsafe { l1.as_ref() }) {
                     item = tv_list_find(l1, before);
                     if item.is_null() {
                         semsg!(e_list_index_out_of_range_nr, before as i64);
@@ -730,7 +730,7 @@ fn extend_list(argvars: &mut [typval_T],
                     }
                 }
             }
-            tv_list_extend(unsafe { &mut *l1 }, l2, item);
+            tv_list_extend(unsafe { &mut *l1 }, unsafe { l2.as_ref() }, item);
         }
 
         if is_new {
@@ -844,7 +844,7 @@ pub fn f_insert(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             }
 
             let mut item: *mut listitem_T = std::ptr::null_mut();
-            if before != (tv_list_len(l) as i64) {
+            if before != (tv_list_len(l.as_ref()) as i64) {
                 item = tv_list_find(l, before as c_int);
                 if item.is_null() {
                     semsg!(e_list_index_out_of_range_nr, before);
@@ -924,8 +924,8 @@ mod tests {
     #[test]
     fn list_lock_and_len_helpers_handle_null() {
         assert_eq!(tv_list_locked(None), VAR_FIXED);
-            assert_eq!(tv_list_len(std::ptr::null()), 0);
-            assert!(tv_list_first(std::ptr::null()).is_null());
+            assert_eq!(tv_list_len(None), 0);
+            assert!(tv_list_first(None).is_null());
             assert_eq!(tv_blob_len(None), 0);
     }
 }

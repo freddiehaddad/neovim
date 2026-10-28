@@ -355,7 +355,7 @@ pub fn do_ascii(_eap: &mut exarg_T) {
             let mut buf1: [c_char; 20] = [0; 20];
             if vim_isprintc(c) && (c < b' ' as c_int || c > b'~' as c_int) {
                 let mut buf3: [c_char; 7] = [0; 7];
-                transchar_nonprint(g_st().curbuf, buf3.as_mut_ptr(), c);
+                transchar_nonprint(Some(crate::globals::curbuf_mut()), buf3.as_mut_ptr(), c);
                 vim_snprintf!(buf1.as_mut_ptr(), 20, c"  <%s>", buf3.as_ptr());
             } else {
                 buf1[0] = NUL;
@@ -2210,7 +2210,7 @@ pub fn do_write(eap: &mut exarg_T) -> bool {
             }
 
             if !other {
-                if bt_dontwrite_msg(g_st().curbuf) || !check_fname() {
+                if bt_dontwrite_msg(Some(crate::globals::curbuf_mut())) || !check_fname() {
                     break 'theend;
                 }
                 #[cfg(unix)]

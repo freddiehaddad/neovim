@@ -1294,7 +1294,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
         let mut oldfiles_list = get_vim_var_list(VV_OLDFILES);
         let force = (flags & kShaDaForceit) != 0;
         let get_old_files =
-            (flags & kShaDaGetOldfiles) != 0 && (force || tv_list_len(oldfiles_list) == 0);
+            (flags & kShaDaGetOldfiles) != 0 && (force || tv_list_len(oldfiles_list.as_ref()) == 0);
         let want_marks = (flags & kShaDaWantMarks) != 0;
         let no_opt = (flags & kShaDaNoOpt) != 0;
         let argcount = crate::arglist::argcount();
@@ -2603,7 +2603,7 @@ fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
 
 fn shada_write(
     sd_writer: &mut FileDescriptor,
-    sd_reader: *mut FileDescriptor,
+    sd_reader: Option<&mut FileDescriptor>,
 ) -> ShaDaWriteResult {
     unsafe {
         let mut ret = ShaDaWriteResult::kSDWriteSuccessful;
@@ -2643,7 +2643,7 @@ fn shada_write(
                     &mut (*wms).hms[i],
                     i as u8,
                     num_saved as usize,
-                    !sd_reader.is_null(),
+                    sd_reader.is_some(),
                     false,
                 );
             } else {
@@ -2981,9 +2981,9 @@ fn shada_write(
                 }
             }
 
-            if !sd_reader.is_null() {
+            if let Some(sd_reader) = sd_reader {
                 let srww_ret =
-                    shada_read_when_writing( &mut *sd_reader, srni_flags, max_kbyte,  &mut *wms, &mut packer);
+                    shada_read_when_writing( sd_reader, srni_flags, max_kbyte,  &mut *wms, &mut packer);
                 if srww_ret != ShaDaWriteResult::kSDWriteSuccessful {
                     ret = srww_ret;
                 }
@@ -3277,11 +3277,11 @@ pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> bool {
 
         let sw_ret = shada_write(
             &mut sd_writer,
-            if nomerge {
+            (if nomerge {
                 ptr::null_mut()
             } else {
                 &mut sd_reader
-            },
+            }).as_mut(),
         );
         assert!(sw_ret != ShaDaWriteResult::kSDWriteIgnError);
         if !nomerge {
@@ -4199,7 +4199,7 @@ fn shada_removable(name: *const c_char) -> bool {
     unsafe {
         let mut part = [0 as c_char; MAXPATHL + 1];
         let mut retval = false;
-        let new_name = home_replace_save(ptr::null_mut(), name);
+        let new_name = home_replace_save(None, name);
         let mut p = opt_vars().p_shada;
         while *p != 0 {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ");

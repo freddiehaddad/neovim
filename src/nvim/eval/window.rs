@@ -269,9 +269,9 @@ pub fn find_tabwin(wvp: &typval_T, tvp: &typval_T) -> *mut win_T {
 }
 
 /// Get the layout of the given tab page for `winlayout()` (`get_framelayout`).
-fn get_framelayout(fr: *const frame_T, l: &mut list_T, outer: bool) {
+fn get_framelayout(fr: Option<&frame_T>, l: &mut list_T, outer: bool) {
     unsafe {
-        if fr.is_null() {
+        if fr.is_none() {
             return;
         }
 
@@ -283,13 +283,13 @@ fn get_framelayout(fr: *const frame_T, l: &mut list_T, outer: bool) {
             sub
         };
 
-        if (*fr).fr_layout == FR_LEAF {
-            if !(*fr).fr_win.is_null() {
+        if fr.unwrap().fr_layout == FR_LEAF {
+            if !fr.unwrap().fr_win.is_null() {
                 tv_list_append_string( &mut *fr_list, c"leaf", 4);
-                tv_list_append_number( &mut *fr_list, (*(*fr).fr_win).handle as varnumber_T);
+                tv_list_append_number( &mut *fr_list, (*fr.unwrap().fr_win).handle as varnumber_T);
             }
         } else {
-            if (*fr).fr_layout == FR_ROW {
+            if fr.unwrap().fr_layout == FR_ROW {
                 tv_list_append_string( &mut *fr_list, c"row", 3);
             } else {
                 tv_list_append_string( &mut *fr_list, c"col", 3);
@@ -297,8 +297,8 @@ fn get_framelayout(fr: *const frame_T, l: &mut list_T, outer: bool) {
 
             let win_list = tv_list_alloc(kListLenUnknown);
             tv_list_append_list( &mut *fr_list, win_list);
-            for child in frame_iter_ptr((*fr).fr_child) {
-                get_framelayout(child,  &mut *win_list, false);
+            for child in frame_iter_ptr(fr.unwrap().fr_child) {
+                get_framelayout(child.as_ref(),  &mut *win_list, false);
             }
         }
     }
@@ -916,7 +916,7 @@ pub fn f_winlayout(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             found
         };
 
-        get_framelayout((*tp).tp_topframe.cast(),  &mut *rettv.vval.v_list(), true);
+        get_framelayout((*tp).tp_topframe.as_ref(), &mut *rettv.vval.v_list(), true);
     }
 }
 

@@ -305,7 +305,7 @@ mod unix_impl {
             uv_disable_stdio_inheritance();
             let prog = proc_get_exepath(&mut *proc_);
             debug_assert!(!(*hdr).env.is_null());
-            let new_env = tv_dict_to_env((*hdr).env);
+            let new_env = tv_dict_to_env(((*hdr).env).as_ref());
             let mut new_env_ptrs: Vec<*mut c_char> = new_env
                 .iter()
                 .map(|s| s.as_ptr().cast_mut())

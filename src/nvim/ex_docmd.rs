@@ -7281,12 +7281,12 @@ pub fn parse_cmd_address(
                         eap.cmd = eap.cmd.add(1);
                         if eap.skip == 0 {
                             let fm1 = mark_get_visual(curbuf_mut(), b'<' as c_int);
-                            if !mark_check(fm1, errormsg) {
+                            if !mark_check(fm1.as_mut(), errormsg) {
                                 break 'theend;
                             }
                             eap.line1 = (*fm1).mark.lnum;
                             let fm2 = mark_get_visual(curbuf_mut(), b'>' as c_int);
-                            if !mark_check(fm2, errormsg) {
+                            if !mark_check(fm2.as_mut(), errormsg) {
                                 break 'theend;
                             }
                             eap.line2 = (*fm2).mark.lnum;
@@ -7806,7 +7806,7 @@ pub fn get_address(
                                 mark_move_to(fm, 0);
                                 lnum = curwin_mut().w_cursor.lnum;
                             } else {
-                                if !mark_check(fm, errormsg) {
+                                if !mark_check(fm.as_mut(), errormsg) {
                                     cmd = ptr::null_mut();
                                     break 'error;
                                 }
@@ -8990,7 +8990,7 @@ pub fn before_quit_autocmds(wp: &mut win_T, quit_all: bool, forceit: bool) -> bo
             ptr::null_mut(),
             false,
             wp.w_buffer,
-            (&raw mut *wp),
+            Some(wp),
         );
 
         if !win_valid(&raw mut *wp)
@@ -9298,7 +9298,7 @@ fn ex_restart(eap: &mut exarg_T) {
             false
         };
 
-        let env = create_environment(ptr::null(), false, false, false, ptr::null());
+        let env = create_environment(None, false, false, false, ptr::null());
         tv_dict_add_str(
             &mut *env,
             ENV_STARTREASON,
@@ -9957,7 +9957,7 @@ fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut list_T {
         let mut retlist: *mut list_T = ptr::null_mut();
         if retval {
             if rettv.v_type == VarType::VAR_LIST {
-                retlist = tv_list_copy(None, rettv.vval.v_list(), false, get_copyID());
+                retlist = tv_list_copy(None, rettv.vval.v_list().as_mut(), false, get_copyID());
             } else {
                 let _ = emsg(gettext(e_invalid_return_type_from_findfunc));
             }
@@ -9987,7 +9987,7 @@ pub fn expand_findfunc(
             return false;
         }
 
-        crate::cmdexpand::expand_process_user_list(l, files, xp);
+        crate::cmdexpand::expand_process_user_list(l.as_ref(), files, xp);
         tv_list_free(l);
 
         true

@@ -1428,7 +1428,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         let use_sandbox = if opt_idx != kOptInvalid {
-            was_set_insecurely(wp, opt_idx, opt_scope) != 0
+            was_set_insecurely(wp.as_mut(), opt_idx, opt_scope) != 0
         } else {
             false
         };

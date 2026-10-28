@@ -1372,7 +1372,7 @@ pub fn utf_iscomposing_first(c: c_int) -> bool {
 pub fn utf_composinglike(
     p1: *const c_char,
     p2: *const c_char,
-    state: *mut GraphemeState,
+    state: Option<&mut GraphemeState>,
 ) -> bool {
     unsafe {
         if *p2.cast::<u8>() < 128 {
@@ -1380,7 +1380,7 @@ pub fn utf_composinglike(
         }
         let first = utf_ptr2char(p1);
         let second = utf_ptr2char(p2);
-        if !utf8proc_grapheme_break_stateful(first, second, state.as_mut()) {
+        if !utf8proc_grapheme_break_stateful(first, second, state) {
             return true;
         }
         arabic_combine(first, second)
@@ -1448,7 +1448,7 @@ pub fn utfc_ptr2len(p: *const c_char) -> c_int {
         loop {
             let next_ptr = p.add(len as usize);
             if *next_ptr.cast::<u8>() < 0x80
-                || !utf_composinglike(p.add(prevlen), next_ptr, &raw mut state)
+                || !utf_composinglike(p.add(prevlen), next_ptr, Some(&mut state))
             {
                 return len;
             }
@@ -1484,7 +1484,7 @@ pub fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
             if len_next_char > size - len {
                 break;
             }
-            if !utf_composinglike(p.add(prevlen), next_ptr, &raw mut state) {
+            if !utf_composinglike(p.add(prevlen), next_ptr, Some(&mut state)) {
                 break;
             }
             prevlen = len as usize;
@@ -3386,7 +3386,7 @@ fn cw_value(c: c_int) -> c_int {
 
 fn first_list_number(l: &list_T) -> varnumber_T {
     unsafe {
-        let li = tv_list_first(l);
+        let li = tv_list_first(Some(l));
         (*li).li_tv.vval.v_number()
     }
 }
@@ -3400,7 +3400,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
         }
 
         let l = argvars[0].vval.v_list();
-        let table_size = tv_list_len(l) as usize;
+        let table_size = tv_list_len(l.as_ref()) as usize;
         let mut table: Vec<cw_interval_T> = Vec::with_capacity(table_size);
         if table_size != 0 {
             let mut ptrs: Vec<*const list_T> = Vec::with_capacity(table_size);
@@ -3413,7 +3413,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
 
                 let li_l = li_tv.vval.v_list();
                 ptrs.push(li_l);
-                let mut lili: *const listitem_T = tv_list_first(li_l);
+                let mut lili: *const listitem_T = tv_list_first(li_l.as_ref());
                 let mut i = 0;
                 let mut n1: varnumber_T = 0;
                 while !lili.is_null() {
@@ -3447,7 +3447,7 @@ pub fn f_setcellwidths(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: E
             ptrs.sort_by_key(|&a| first_list_number(&*a));
 
             for (idx, &li_l) in ptrs.iter().enumerate() {
-                let lili0 = tv_list_first(li_l);
+                let lili0 = tv_list_first(li_l.as_ref());
                 let n1 = (*lili0).li_tv.vval.v_number();
                 if idx > 0 && n1 <= table[idx - 1].last {
                     semsg!(E_OVERLAPPING_RANGES_FOR_NR, n1 as usize);

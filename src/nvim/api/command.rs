@@ -1803,14 +1803,14 @@ pub fn nvim_buf_get_commands(
                 );
                 return Dict::new();
             }
-            return commands_array(ptr::null_mut(), arena);
+            return commands_array(None, arena);
         }
 
         let b = find_buffer_by_handle(buf, err);
         if opts.builtin || b.is_null() {
             return Dict::new();
         }
-        commands_array(b, arena)
+        commands_array(unsafe { b.as_ref() }, arena)
     }
 }
 

@@ -779,7 +779,7 @@ pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
     unsafe {
         let mut res: MarkMoveRes = kMarkMoveSuccess;
         let mut errormsg: *const c_char = ptr::null();
-        if !mark_check(fm, &mut errormsg) {
+        if !mark_check(fm.as_mut(), &mut errormsg) {
             if !errormsg.is_null() {
                 emsg(errormsg);
             }
@@ -793,7 +793,7 @@ pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
             if (res & kMarkMoveFailed) != 0 {
                 return res;
             }
-            if !mark_check_line_bounds(g_st().curbuf,  &mut *fm, &mut errormsg) {
+            if !mark_check_line_bounds(Some(crate::globals::curbuf_mut()),  &mut *fm, &mut errormsg) {
                 if !errormsg.is_null() {
                     emsg(errormsg);
                 }
@@ -817,7 +817,7 @@ pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
             res |= kMarkChangedCol | kMarkChangedCursor;
         }
         if (flags & kMarkSetView) != 0 {
-            mark_view_restore(fm);
+            mark_view_restore(fm.as_ref());
         }
 
         if (res & kMarkSwitchedBuf) != 0 || (res & kMarkChangedCursor) != 0 {
@@ -828,17 +828,17 @@ pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
 }
 
 /// Restore the mark view (`mark_view_restore`).
-pub fn mark_view_restore(fm: *mut fmark_T) {
-    unsafe {
-        if !fm.is_null() && (*fm).view.topline_offset >= 0 {
-            let topline = (*fm).mark.lnum - (*fm).view.topline_offset;
+pub fn mark_view_restore(fm: Option<&fmark_T>) {
+     {
+        if let Some(fm) = fm && fm.view.topline_offset >= 0 {
+            let topline = fm.mark.lnum - fm.view.topline_offset;
             if topline >= 1 {
                 set_topline(curwin_mut(), topline);
-                curwin_mut().w_skipcol = if (*fm).view.skipcol > 0
+                curwin_mut().w_skipcol = if fm.view.skipcol > 0
                     && !hasFolding(curwin_ptr(), topline, None, ptr::null_mut())
-                    && (*fm).view.skipcol < linetabsize_eol(curwin_mut(), topline)
+                    && fm.view.skipcol < linetabsize_eol(curwin_mut(), topline)
                 {
-                    (*fm).view.skipcol
+                    fm.view.skipcol
                 } else {
                     0
                 };
@@ -951,18 +951,18 @@ fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: &mut buf_T) {
 }
 
 /// Check the position in `fm` is valid (`mark_check`).
-pub fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool {
+pub fn mark_check(mut fm: Option<&mut fmark_T>, errormsg: *mut *const c_char) -> bool {
     unsafe {
-        if fm.is_null() {
+        if fm.is_none() {
             *errormsg = gettext(e_umark);
             return false;
-        } else if (*fm).mark.lnum <= 0 {
-            if (*fm).mark.lnum == 0 {
+        } else if fm.as_deref_mut().unwrap().mark.lnum <= 0 {
+            if fm.as_deref_mut().unwrap().mark.lnum == 0 {
                 *errormsg = gettext(e_marknotset);
             }
             return false;
         }
-        if (*fm).fnum == curbuf_mut().b_fnum && !mark_check_line_bounds(g_st().curbuf,  &mut *fm, errormsg) {
+        if fm.as_deref_mut().unwrap().fnum == curbuf_mut().b_fnum && !mark_check_line_bounds(Some(crate::globals::curbuf_mut()),  fm.unwrap(), errormsg) {
             return false;
         }
         true
@@ -971,12 +971,12 @@ pub fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool {
 
 /// Check if a mark line number is greater than the buffer line count (`mark_check_line_bounds`).
 pub fn mark_check_line_bounds(
-    buf: *mut buf_T,
+    buf: Option<&buf_T>,
     fm: &mut fmark_T,
     errormsg: *mut *const c_char,
 ) -> bool {
     unsafe {
-        if !buf.is_null() && fm.mark.lnum > (*buf).b_ml.ml_line_count {
+        if let Some(buf) = buf && fm.mark.lnum > buf.b_ml.ml_line_count {
             *errormsg = gettext(e_markinval);
             return false;
         }
@@ -1541,13 +1541,13 @@ pub fn mark_adjust_buf(
                 amount_after,
             );
 
-            if !qf_mark_adjust(buf, ptr::null_mut(), line1, line2, amount, amount_after) {
+            if !qf_mark_adjust(buf, None, line1, line2, amount, amount_after) {
                 buf.b_has_qf_entry &= !BUF_HAS_QF_ENTRY;
             }
             let mut found_one = false;
             for tab in for_all_tabpages_ptr() {
                 for win in win_iter_ptr(first_win_in_tab( &mut *tab)) {
-                    found_one |= qf_mark_adjust(buf, win, line1, line2, amount, amount_after);
+                    found_one |= qf_mark_adjust(buf, win.as_ref(), line1, line2, amount, amount_after);
                 }
             }
             if !found_one {

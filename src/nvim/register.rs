@@ -1347,19 +1347,19 @@ pub fn format_reg_type(
 }
 
 fn add_regtype_to_dict(
-    reg: *mut yankreg_T,
+    reg: Option<&yankreg_T>,
     dict: &mut dict_T,
     buf: *mut c_char,
     bufsize: usize,
 ) {
-    unsafe {
+     {
         let len = format_reg_type(
-            if !reg.is_null() {
-                (*reg).y_type
+            if let Some(reg) = reg {
+                reg.y_type
             } else {
                 MotionType::kMTCharWise
             },
-            if !reg.is_null() { (*reg).y_width } else { 0 },
+            if let Some(reg) = reg { reg.y_width } else { 0 },
             buf,
             bufsize,
         );
@@ -1386,7 +1386,7 @@ pub fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
         tv_dict_add_list(&mut *dict, c"regcontents", list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
-        add_regtype_to_dict(&raw mut *reg, &mut *dict, buf.as_mut_ptr(), buf.len());
+        add_regtype_to_dict(Some(reg), &mut *dict, buf.as_mut_ptr(), buf.len());
 
         buf[0] = oap.regname as u8 as c_char;
         buf[1] = NUL;
@@ -1483,7 +1483,7 @@ fn put_do_autocmd(
         buf[1] = NUL;
         tv_dict_add_str_len(&mut *v_event, c"operator", buf.as_ptr(), 1);
 
-        add_regtype_to_dict(reg, &mut *v_event, buf.as_mut_ptr(), buf.len());
+        add_regtype_to_dict(reg.as_ref(), &mut *v_event, buf.as_mut_ptr(), buf.len());
 
         tv_dict_add_bool(
             &mut *v_event,
