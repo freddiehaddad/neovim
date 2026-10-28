@@ -320,62 +320,62 @@ unsafe extern "C-unwind" {
 }
 
 #[inline]
-pub unsafe fn lua_pushstring<S: crate::strings::IntoCCharPtr>(L: *mut lua_State, s: S) {
-    unsafe { c_lua_pushstring(L, s.into_c_char_ptr()) }
+pub unsafe fn lua_pushstring<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, s: S) {
+    unsafe { c_lua_pushstring(lstate, s.into_c_char_ptr()) }
 }
 
 #[inline]
-pub unsafe fn lua_getfield<S: crate::strings::IntoCCharPtr>(L: *mut lua_State, idx: c_int, k: S) {
-    unsafe { c_lua_getfield(L, idx, k.into_c_char_ptr()) }
+pub unsafe fn lua_getfield<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, idx: c_int, k: S) {
+    unsafe { c_lua_getfield(lstate, idx, k.into_c_char_ptr()) }
 }
 
 #[inline]
-pub unsafe fn lua_setfield<S: crate::strings::IntoCCharPtr>(L: *mut lua_State, idx: c_int, k: S) {
-    unsafe { c_lua_setfield(L, idx, k.into_c_char_ptr()) }
+pub unsafe fn lua_setfield<S: crate::strings::IntoCCharPtr>(lstate: *mut lua_State, idx: c_int, k: S) {
+    unsafe { c_lua_setfield(lstate, idx, k.into_c_char_ptr()) }
 }
 
 #[inline]
 pub unsafe fn luaL_newmetatable<S: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     tname: S,
 ) -> c_int {
-    unsafe { c_luaL_newmetatable(L, tname.into_c_char_ptr()) }
+    unsafe { c_luaL_newmetatable(lstate, tname.into_c_char_ptr()) }
 }
 
 #[inline]
 pub unsafe fn luaL_getmetafield<S: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     obj: c_int,
     e: S,
 ) -> c_int {
-    unsafe { c_luaL_getmetafield(L, obj, e.into_c_char_ptr()) }
+    unsafe { c_luaL_getmetafield(lstate, obj, e.into_c_char_ptr()) }
 }
 
 #[inline]
 pub unsafe fn luaL_checkudata<S: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     ud: c_int,
     tname: S,
 ) -> *mut c_void {
-    unsafe { c_luaL_checkudata(L, ud, tname.into_c_char_ptr()) }
+    unsafe { c_luaL_checkudata(lstate, ud, tname.into_c_char_ptr()) }
 }
 
 #[inline]
 pub unsafe fn luaL_register<S: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     libname: S,
     l: *const luaL_Reg,
 ) {
-    unsafe { c_luaL_register(L, libname.into_c_char_ptr(), l) }
+    unsafe { c_luaL_register(lstate, libname.into_c_char_ptr(), l) }
 }
 
 #[inline]
 pub unsafe fn luaL_checkstack<S: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     sz: c_int,
     msg: S,
 ) {
-    unsafe { c_luaL_checkstack(L, sz, msg.into_c_char_ptr()) }
+    unsafe { c_luaL_checkstack(lstate, sz, msg.into_c_char_ptr()) }
 }
 
 #[cfg(feature = "vendor-bit")]
@@ -390,30 +390,30 @@ pub unsafe fn luaL_typerror<S: crate::strings::IntoCCharPtr>(
 
 #[inline]
 pub unsafe fn luaL_argerror<S: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     numarg: c_int,
     extramsg: S,
 ) -> c_int {
-    unsafe { c_luaL_argerror(L, numarg, extramsg.into_c_char_ptr()) }
+    unsafe { c_luaL_argerror(lstate, numarg, extramsg.into_c_char_ptr()) }
 }
 
 #[inline]
 pub unsafe fn luaL_loadbuffer<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     buff: S1,
     sz: usize,
     name: S2,
 ) -> c_int {
-    unsafe { c_luaL_loadbuffer(L, buff.into_c_char_ptr(), sz, name.into_c_char_ptr()) }
+    unsafe { c_luaL_loadbuffer(lstate, buff.into_c_char_ptr(), sz, name.into_c_char_ptr()) }
 }
 
 #[inline]
 pub unsafe fn lua_getinfo<S: crate::strings::IntoCCharPtr>(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     what: S,
     ar: *mut lua_Debug,
 ) -> c_int {
-    unsafe { c_lua_getinfo(L, what.into_c_char_ptr(), ar) }
+    unsafe { c_lua_getinfo(lstate, what.into_c_char_ptr(), ar) }
 }
 
 #[inline]
@@ -2263,18 +2263,18 @@ pub unsafe extern "C-unwind" fn nlua_init_types(lstate: *mut lua_State) {
 
 /// Lua-specific variant of `api_dict_to_keydict` (`nlua_pop_keydict`).
 pub fn nlua_pop_keydict(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
     err_opt: &mut Option<&'static std::ffi::CStr>,
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    nlua_pop_keydict_opt(L, retval, hashy, err_opt, Some(arena), err);
+    nlua_pop_keydict_opt(lstate, retval, hashy, err_opt, Some(arena), err);
 }
 
 pub fn nlua_pop_keydict_opt(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
     err_opt: &mut Option<&'static std::ffi::CStr>,
@@ -2282,22 +2282,22 @@ pub fn nlua_pop_keydict_opt(
     err: &mut Error,
 ) {
     unsafe {
-        if lua_type(L, -1) != LUA_TTABLE {
+        if lua_type(lstate, -1) != LUA_TTABLE {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Expected Lua table",
             );
-            lua_pop(L, 1);
+            lua_pop(lstate, 1);
             return;
         }
 
         let mut dummy_arena = Arena::default();
         let hashy_fn = hashy.unwrap();
-        lua_pushnil(L);
-        while lua_next(L, -2) != 0 {
+        lua_pushnil(lstate);
+        while lua_next(lstate, -2) != 0 {
             let mut len = 0usize;
-            let s = lua_tolstring(L, -2, &mut len);
+            let s = lua_tolstring(lstate, -2, &mut len);
             let key_bytes = if s.is_null() || len == 0 { &[][..] } else { crate::memory::cstr_slice(s, len) };
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
@@ -2307,7 +2307,7 @@ pub fn nlua_pop_keydict_opt(
                     len as c_int,
                     s,
                 );
-                lua_pop(L, 3);
+                lua_pop(lstate, 3);
                 return;
             };
             if field.opt_index >= 0 {
@@ -2316,37 +2316,37 @@ pub fn nlua_pop_keydict_opt(
             let mem = retval.cast::<u8>().add(field.ptr_off);
 
             if field.key_type == (ObjectType::ObjectTypeNil as c_int) {
-                *mem.cast::<Object>() = nlua_pop_Object_opt(L, true, arena.as_deref_mut(), err);
+                *mem.cast::<Object>() = nlua_pop_Object_opt(lstate, true, arena.as_deref_mut(), err);
             } else if field.key_type == (ObjectType::ObjectTypeInteger as c_int) {
-                if field.is_hlgroup && lua_type(L, -1) == LUA_TSTRING {
+                if field.is_hlgroup && lua_type(lstate, -1) == LUA_TSTRING {
                     let mut name_len = 0usize;
-                    let name = lua_tolstring(L, -1, &mut name_len);
-                    lua_pop(L, 1);
+                    let name = lua_tolstring(lstate, -1, &mut name_len);
+                    lua_pop(lstate, 1);
                     *mem.cast::<Integer>() = if name_len > 0 {
                         syn_check_group(name, name_len) as Integer
                     } else {
                         0
                     };
                 } else {
-                    *mem.cast::<Integer>() = nlua_pop_Integer(L, &mut dummy_arena, err);
+                    *mem.cast::<Integer>() = nlua_pop_Integer(lstate, &mut dummy_arena, err);
                 }
             } else if field.key_type == (ObjectType::ObjectTypeBoolean as c_int) {
-                *mem.cast::<Boolean>() = nlua_pop_Boolean_strict(L, err);
+                *mem.cast::<Boolean>() = nlua_pop_Boolean_strict(lstate, err);
             } else if field.key_type == (ObjectType::ObjectTypeString as c_int) {
-                *mem.cast::<NvimString>() = nlua_pop_String_opt(L, arena.as_deref_mut(), err);
+                *mem.cast::<NvimString>() = nlua_pop_String_opt(lstate, arena.as_deref_mut(), err);
             } else if field.key_type == (ObjectType::ObjectTypeFloat as c_int) {
-                *mem.cast::<Float>() = nlua_pop_Float(L, &mut dummy_arena, err);
+                *mem.cast::<Float>() = nlua_pop_Float(lstate, &mut dummy_arena, err);
             } else if field.key_type == (ObjectType::ObjectTypeBuffer as c_int)
                 || field.key_type == (ObjectType::ObjectTypeWindow as c_int)
                 || field.key_type == (ObjectType::ObjectTypeTabpage as c_int)
             {
-                *mem.cast::<ObjHandle>() = nlua_pop_handle(L, &mut dummy_arena, err);
+                *mem.cast::<ObjHandle>() = nlua_pop_handle(lstate, &mut dummy_arena, err);
             } else if field.key_type == (ObjectType::ObjectTypeArray as c_int) {
-                *mem.cast::<Array>() = nlua_pop_Array_opt(L, arena.as_deref_mut(), err);
+                *mem.cast::<Array>() = nlua_pop_Array_opt(lstate, arena.as_deref_mut(), err);
             } else if field.key_type == (ObjectType::ObjectTypeDict as c_int) {
-                *mem.cast::<Dict>() = nlua_pop_Dict_opt(L, false, arena.as_deref_mut(), err);
+                *mem.cast::<Dict>() = nlua_pop_Dict_opt(lstate, false, arena.as_deref_mut(), err);
             } else if field.key_type == (ObjectType::ObjectTypeLuaRef as c_int) {
-                *mem.cast::<LuaRef>() = nlua_pop_LuaRef(L, &mut dummy_arena, err);
+                *mem.cast::<LuaRef>() = nlua_pop_LuaRef(lstate, &mut dummy_arena, err);
             } else {
                 std::process::abort();
             }
@@ -2356,7 +2356,7 @@ pub fn nlua_pop_keydict_opt(
                 break;
             }
         }
-        lua_pop(L, 1);
+        lua_pop(lstate, 1);
     }
 }
 

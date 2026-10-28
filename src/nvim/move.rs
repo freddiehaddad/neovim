@@ -2675,8 +2675,8 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
         let set_curswant = curwin_mut().w_set_curswant;
         let old_curwin = curwin_ptr();
         let old_curbuf = g_st().curbuf;
-        let old_VIsual_select = g_st().Visual.select;
-        let old_VIsual_active = g_st().Visual.active;
+        let old_visual_select = g_st().Visual.select;
+        let old_visual_active = g_st().Visual.active;
 
         g_st().Visual.select = false;
         g_st().Visual.active = false;
@@ -2715,8 +2715,8 @@ fn move_cb_st() -> &'static mut MoveCursorbindState {
             }
         }
 
-        g_st().Visual.select = old_VIsual_select;
-        g_st().Visual.active = old_VIsual_active;
+        g_st().Visual.select = old_visual_select;
+        g_st().Visual.active = old_visual_active;
         set_curwin(old_curwin);
         g_st().curbuf = old_curbuf;
     }

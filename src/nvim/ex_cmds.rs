@@ -3294,7 +3294,7 @@ fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
             eap.nextcmd = p;
             Some(theline)
         } else {
-            let getline_State = g_st().State;
+            let getline_state = g_st().State;
             g_st().State = MODE_CMDLINE;
             let cstack = eap.cstack.cast::<Cstack>();
             let raw_line = eap.ea_getline.call(
@@ -3306,7 +3306,7 @@ fn get_append_line(eap: &mut Exarg, indent: c_int) -> Option<Vec<c_char>> {
                 indent,
                 true,
             );
-            g_st().State = getline_State;
+            g_st().State = getline_state;
             raw_line.map(|s| {
                 s.into_bytes_with_nul()
                     .into_iter()
@@ -3350,7 +3350,7 @@ pub fn ex_append(eap: &mut Exarg) {
             lnum = 0;
         }
 
-        let save_State = g_st().State;
+        let save_state = g_st().State;
         g_st().State = MODE_INSERT;
         if curbuf_mut().b_p_iminsert == B_IMODE_LMAP {
             g_st().State |= MODE_LANGMAP;
@@ -3411,7 +3411,7 @@ pub fn ex_append(eap: &mut Exarg) {
                 empty = false;
             }
         }
-        g_st().State = save_State;
+        g_st().State = save_state;
         ui_cursor_shape();
 
         if eap.forceit != 0 {
@@ -4191,7 +4191,7 @@ fn do_sub(
 
                         if excmds_st().subflags.do_ask && cmdpreview_ns <= 0 {
                             let mut typed: c_int = 0;
-                            let save_State = g_st().State;
+                            let save_state = g_st().State;
                             curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
                             if curwin_mut().w_onebuf_opt.wo_crb != 0 {
@@ -4306,7 +4306,7 @@ fn do_sub(
                                     scrolldown_clamp();
                                 }
                             }
-                            g_st().State = save_State;
+                            g_st().State = save_state;
                             setmouse();
                             if !vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
                                 g_st().no_u_sync -= 1;

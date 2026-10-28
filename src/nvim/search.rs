@@ -2560,7 +2560,7 @@ pub fn showmatch(c: c_int) {
 pub fn current_search(count: c_int, forward: bool) -> bool {
      {
         let old_p_ws = opt_vars().p_ws;
-        let save_VIsual = g_st().Visual.start;
+        let save_visual = g_st().Visual.start;
 
         if g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && lt(g_st().Visual.start, curwin_mut().w_cursor) {
             dec_cursor();
@@ -2632,7 +2632,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             if i == 1 && result == 0 {
                 curwin_mut().w_cursor = orig_pos;
                 if g_st().Visual.active {
-                    g_st().Visual.start = save_VIsual;
+                    g_st().Visual.start = save_visual;
                 }
                 return false;
             } else if i == 0 && result == 0 {

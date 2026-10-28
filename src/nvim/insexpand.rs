@@ -3267,24 +3267,24 @@ pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
     }
 }
 
-pub fn set_ref_in_cpt_callbacks(callbacks: &mut [Callback], copyID: c_int) -> bool {
+pub fn set_ref_in_cpt_callbacks(callbacks: &mut [Callback], copy_id: c_int) -> bool {
     let mut abort = false;
         for cb in callbacks {
-            abort = abort || set_ref_in_callback(cb, copyID, ptr::null_mut(), ptr::null_mut());
+            abort = abort || set_ref_in_callback(cb, copy_id, ptr::null_mut(), ptr::null_mut());
         }
         abort
 }
 
-pub fn set_ref_in_insexpand_funcs(copyID: c_int) -> bool {
+pub fn set_ref_in_insexpand_funcs(copy_id: c_int) -> bool {
      {
         let mut abort =
-            set_ref_in_callback(&mut opt_vars().p_cfu, copyID, ptr::null_mut(), ptr::null_mut());
+            set_ref_in_callback(&mut opt_vars().p_cfu, copy_id, ptr::null_mut(), ptr::null_mut());
         abort =
-            abort || set_ref_in_callback(&mut opt_vars().p_ofu, copyID, ptr::null_mut(), ptr::null_mut());
+            abort || set_ref_in_callback(&mut opt_vars().p_ofu, copy_id, ptr::null_mut(), ptr::null_mut());
         abort = abort
-            || set_ref_in_callback(&mut opt_vars().p_tsrfu, copyID, ptr::null_mut(), ptr::null_mut());
+            || set_ref_in_callback(&mut opt_vars().p_tsrfu, copy_id, ptr::null_mut(), ptr::null_mut());
         let global_cb = &mut insexp().cpt_cb;
-        abort = abort || set_ref_in_cpt_callbacks(global_cb, copyID);
+        abort = abort || set_ref_in_cpt_callbacks(global_cb, copy_id);
         abort
     }
 }
@@ -3310,7 +3310,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         let mut matchlist: *mut TvList = ptr::null_mut();
         let mut matchdict: *mut TvDict = ptr::null_mut();
         let mut rettv: TypVal = TypVal::new();
-        let save_State = g_st().State;
+        let save_state = g_st().State;
 
         debug_assert!(!g_st().curbuf.is_null());
 
@@ -3371,7 +3371,7 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
             ins_compl_add_dict(&mut *matchdict);
         }
 
-        g_st().State = save_State;
+        g_st().State = save_state;
 
         if !matchdict.is_null() {
             tv_dict_unref(matchdict);
@@ -6160,7 +6160,7 @@ fn get_userdefined_compl_info(
     startcol: Option<&mut c_int>,
 ) -> bool {
     unsafe {
-        let save_State = g_st().State;
+        let save_state = g_st().State;
 
         let is_cpt_function = !cb.is_null();
         let use_sandbox =
@@ -6198,7 +6198,7 @@ fn get_userdefined_compl_info(
         }
         g_st().textlock -= 1;
 
-        g_st().State = save_State;
+        g_st().State = save_state;
         curwin_mut().w_cursor = pos;
         check_cursor(curwin_mut());
         validate_cursor(curwin_mut());

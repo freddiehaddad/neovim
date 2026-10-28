@@ -4250,80 +4250,80 @@ pub fn garbage_collect(testing: bool) -> bool {
             rt_st().exestack.shrink_to(keep);
         }
 
-        let copyID = get_copyID();
+        let copy_id = get_copyID();
 
-        abort = abort || set_ref_in_previous_funccal(copyID);
-        abort = abort || garbage_collect_scriptvars(copyID);
+        abort = abort || set_ref_in_previous_funccal(copy_id);
+        abort = abort || garbage_collect_scriptvars(copy_id);
 
         {
             for buf in for_all_buffers_mut() {
                 abort = abort
                     || set_ref_in_item(
                         &mut buf.b_bufvar.di_tv,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
                         &mut buf.b_prompt_callback,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
                         &mut buf.b_prompt_interrupt,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
                         &mut buf.b_p_cfu,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
                         &mut buf.b_p_ofu,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
                         &mut buf.b_p_tsrfu,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
                         &mut buf.b_p_tfu,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
                         &mut buf.b_p_ffu,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 if !abort && !buf.b_p_cpt_cb.is_empty() {
-                    abort = abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb, copyID);
+                    abort = abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb, copy_id);
                 }
             }
         }
 
-        abort = abort || set_ref_in_insexpand_funcs(copyID);
-        abort = abort || set_ref_in_opfunc(copyID);
-        abort = abort || set_ref_in_tagfunc(copyID);
+        abort = abort || set_ref_in_insexpand_funcs(copy_id);
+        abort = abort || set_ref_in_opfunc(copy_id);
+        abort = abort || set_ref_in_tagfunc(copy_id);
         {
-            abort = abort || set_ref_in_findfunc(copyID);
+            abort = abort || set_ref_in_findfunc(copy_id);
         }
 
         {
@@ -4332,7 +4332,7 @@ pub fn garbage_collect(testing: bool) -> bool {
                     abort = abort
                         || set_ref_in_item(
                             &mut wp.w_winvar.di_tv,
-                            copyID,
+                            copy_id,
                             ptr::null_mut(),
                             ptr::null_mut(),
                         );
@@ -4345,7 +4345,7 @@ pub fn garbage_collect(testing: bool) -> bool {
                     abort = abort
                         || set_ref_in_item(
                             &mut (*cw_win).w_winvar.di_tv,
-                            copyID,
+                            copy_id,
                             ptr::null_mut(),
                             ptr::null_mut(),
                         );
@@ -4358,35 +4358,35 @@ pub fn garbage_collect(testing: bool) -> bool {
                 abort = abort
                     || set_ref_in_item(
                         &mut tp.tp_winvar.di_tv,
-                        copyID,
+                        copy_id,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
             }
         }
 
-        abort = abort || garbage_collect_globvars(copyID) != 0;
-        abort = abort || set_ref_in_call_stack(copyID);
-        abort = abort || set_ref_in_functions(copyID);
+        abort = abort || garbage_collect_globvars(copy_id) != 0;
+        abort = abort || set_ref_in_call_stack(copy_id);
+        abort = abort || set_ref_in_functions(copy_id);
 
         {
             for &data in g_st().channels.values() {
                 let ct = data;
                 set_ref_in_callback_reader(
                     &mut (*ct).on_data,
-                    copyID,
+                    copy_id,
                     None,
                     None,
                 );
                 set_ref_in_callback_reader(
                     &mut (*ct).on_stderr,
-                    copyID,
+                    copy_id,
                     None,
                     None,
                 );
                 set_ref_in_callback(
                     &mut (*ct).on_exit,
-                    copyID,
+                    copy_id,
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
@@ -4396,22 +4396,22 @@ pub fn garbage_collect(testing: bool) -> bool {
         for &timer in eval_st().timers.values() {
             set_ref_in_callback(
                 &mut (*timer).callback,
-                copyID,
+                copy_id,
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
         }
 
-        abort = abort || set_ref_in_func_args(copyID);
-        abort = abort || garbage_collect_vimvars(copyID);
+        abort = abort || set_ref_in_func_args(copy_id);
+        abort = abort || garbage_collect_vimvars(copy_id);
         {
-            abort = abort || set_ref_in_quickfix(copyID);
+            abort = abort || set_ref_in_quickfix(copy_id);
         }
 
         let mut did_free = false;
         if !abort {
-            did_free = free_unref_items(copyID) != 0;
-            did_free = free_unref_funccal(copyID, c_int::from(testing)) || did_free;
+            did_free = free_unref_items(copy_id) != 0;
+            did_free = free_unref_funccal(copy_id, c_int::from(testing)) || did_free;
         } else {
             if opt_vars().p_verbose > 0 {
                 verb_msg(gettext(
@@ -4424,21 +4424,21 @@ pub fn garbage_collect(testing: bool) -> bool {
 }
 
 /// Free lists and dictionaries that are no longer referenced.
-fn free_unref_items(copyID: c_int) -> c_int {
+fn free_unref_items(copy_id: c_int) -> c_int {
     unsafe {
         let mut did_free = false;
 
         tv_st().tv_in_free_unref_items = true;
 
         for &dd in gc_dicts_slice().iter().rev() {
-            if ((*dd).dv_copyID & COPYID_MASK) != (copyID & COPYID_MASK) {
+            if ((*dd).dv_copyID & COPYID_MASK) != (copy_id & COPYID_MASK) {
                 tv_dict_free_contents(&mut *dd);
                 did_free = true;
             }
         }
 
         for &ll in gc_lists_slice().iter().rev() {
-            if (tv_list_copyid(&*ll) & COPYID_MASK) != (copyID & COPYID_MASK)
+            if (tv_list_copyid(&*ll) & COPYID_MASK) != (copy_id & COPYID_MASK)
                 && !tv_list_has_watchers(&*ll)
             {
                 tv_list_free_contents(&mut *ll);
@@ -4450,7 +4450,7 @@ fn free_unref_items(copyID: c_int) -> c_int {
         while i > 0 {
             i -= 1;
             let dd_cur = gc_dicts_slice()[i];
-            if ((*dd_cur).dv_copyID & COPYID_MASK) != (copyID & COPYID_MASK) {
+            if ((*dd_cur).dv_copyID & COPYID_MASK) != (copy_id & COPYID_MASK) {
                 drop(Box::from_raw(dd_cur));
             }
         }
@@ -4459,7 +4459,7 @@ fn free_unref_items(copyID: c_int) -> c_int {
         while j > 0 {
             j -= 1;
             let ll_cur = gc_lists_slice()[j];
-            if ((*ll_cur).lv_copyID & COPYID_MASK) != (copyID & COPYID_MASK)
+            if ((*ll_cur).lv_copyID & COPYID_MASK) != (copy_id & COPYID_MASK)
                 && !tv_list_has_watchers(&*ll_cur)
             {
                 drop(Box::from_raw(ll_cur));
@@ -4474,7 +4474,7 @@ fn free_unref_items(copyID: c_int) -> c_int {
 /// Mark all lists and dicts referenced through hashtab "ht" with "copyID".
 pub fn set_ref_in_ht(
     ht: *mut Hashtab,
-    copyID: c_int,
+    copy_id: c_int,
     list_stack: *mut ListStack,
 ) -> bool {
     unsafe {
@@ -4493,7 +4493,7 @@ pub fn set_ref_in_ht(
                         abort = abort
                             || set_ref_in_item(
                                 &mut (*di).di_tv,
-                                copyID,
+                                copy_id,
                                 &raw mut ht_stack,
                                 list_stack,
                             );
@@ -4515,7 +4515,7 @@ pub fn set_ref_in_ht(
 /// Mark all lists and dicts referenced through list "l" with "copyID".
 pub fn set_ref_in_list_items(
     l: *mut TvList,
-    copyID: c_int,
+    copy_id: c_int,
     ht_stack: *mut HtStack,
 ) -> bool {
     unsafe {
@@ -4530,7 +4530,7 @@ pub fn set_ref_in_list_items(
                         break;
                     }
                     abort =
-                        set_ref_in_item(&mut *tv_list_item_tv(li), copyID, ht_stack, &raw mut list_stack);
+                        set_ref_in_item(&mut *tv_list_item_tv(li), copy_id, ht_stack, &raw mut list_stack);
                 }
             }
 
@@ -4546,24 +4546,24 @@ pub fn set_ref_in_list_items(
 
 fn set_ref_in_item_dict(
     mut dd: Option<&mut TvDict>,
-    copyID: c_int,
+    copy_id: c_int,
     ht_stack: *mut HtStack,
     list_stack: *mut ListStack,
 ) -> bool {
     unsafe {
-        if dd.is_none() || dd.as_deref_mut().unwrap().dv_copyID == copyID {
+        if dd.is_none() || dd.as_deref_mut().unwrap().dv_copyID == copy_id {
             return false;
         }
 
-        dd.as_deref_mut().unwrap().dv_copyID = copyID;
+        dd.as_deref_mut().unwrap().dv_copyID = copy_id;
         if ht_stack.is_null() {
-            return set_ref_in_ht(&raw mut dd.as_deref_mut().unwrap().dv_hashtab, copyID, list_stack);
+            return set_ref_in_ht(&raw mut dd.as_deref_mut().unwrap().dv_hashtab, copy_id, list_stack);
         }
 
         (*ht_stack).push(&raw mut dd.as_deref_mut().unwrap().dv_hashtab);
 
         for watcher in &mut dd.unwrap().watchers {
-            set_ref_in_callback(&mut watcher.callback, copyID, ht_stack, list_stack);
+            set_ref_in_callback(&mut watcher.callback, copy_id, ht_stack, list_stack);
         }
 
         false
@@ -4572,37 +4572,37 @@ fn set_ref_in_item_dict(
 
 fn set_ref_in_item_list(
     ll: *mut TvList,
-    copyID: c_int,
+    copy_id: c_int,
     ht_stack: *mut HtStack,
     list_stack: Option<&mut ListStack>,
 ) -> bool {
     unsafe {
-        if ll.is_null() || (*ll).lv_copyID == copyID {
+        if ll.is_null() || (*ll).lv_copyID == copy_id {
             return false;
         }
 
-        (*ll).lv_copyID = copyID;
+        (*ll).lv_copyID = copy_id;
         if let Some(list_stack) = list_stack {
             list_stack.push(ll);
             false
         } else {
-            set_ref_in_list_items(ll, copyID, ht_stack)
+            set_ref_in_list_items(ll, copy_id, ht_stack)
         }
     }
 }
 
 fn set_ref_in_item_partial(
     pt: *mut TvPartial,
-    copyID: c_int,
+    copy_id: c_int,
     ht_stack: *mut HtStack,
     list_stack: *mut ListStack,
 ) -> bool {
     unsafe {
-        if pt.is_null() || (*pt).pt_copyID == copyID {
+        if pt.is_null() || (*pt).pt_copyID == copy_id {
             return false;
         }
 
-        (*pt).pt_copyID = copyID;
+        (*pt).pt_copyID = copy_id;
 
         let mut abort = set_ref_in_func(
             (*pt)
@@ -4610,7 +4610,7 @@ fn set_ref_in_item_partial(
                 .as_ref()
                 .map_or(ptr::null_mut(), |n| n.as_ptr().cast_mut()),
             (*pt).pt_func.cast(),
-            copyID,
+            copy_id,
         );
 
         if !(*pt).pt_dict.is_null() {
@@ -4619,11 +4619,11 @@ fn set_ref_in_item_partial(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict((*pt).pt_dict),
             };
-            abort = abort || set_ref_in_item(&mut dtv, copyID, ht_stack, list_stack);
+            abort = abort || set_ref_in_item(&mut dtv, copy_id, ht_stack, list_stack);
         }
 
         for arg in &mut (*pt).pt_argv {
-            abort = abort || set_ref_in_item(arg, copyID, ht_stack, list_stack);
+            abort = abort || set_ref_in_item(arg, copy_id, ht_stack, list_stack);
         }
 
         abort
@@ -4633,20 +4633,20 @@ fn set_ref_in_item_partial(
 /// Mark all lists and dicts referenced through typval "tv" with "copyID".
 pub fn set_ref_in_item(
     tv: &mut TypVal,
-    copyID: c_int,
+    copy_id: c_int,
     ht_stack: *mut HtStack,
     list_stack: *mut ListStack,
 ) -> bool {
     match tv.v_type {
             VarType::VarDict => {
-                set_ref_in_item_dict(unsafe { tv.vval.v_dict().as_mut() }, copyID, ht_stack, list_stack)
+                set_ref_in_item_dict(unsafe { tv.vval.v_dict().as_mut() }, copy_id, ht_stack, list_stack)
             }
             VarType::VarList => {
-                set_ref_in_item_list(tv.vval.v_list(), copyID, ht_stack, unsafe { list_stack.as_mut() })
+                set_ref_in_item_list(tv.vval.v_list(), copy_id, ht_stack, unsafe { list_stack.as_mut() })
             }
-            VarType::VarFunc => set_ref_in_func(tv.vval.v_string(), ptr::null_mut(), copyID),
+            VarType::VarFunc => set_ref_in_func(tv.vval.v_string(), ptr::null_mut(), copy_id),
             VarType::VarPartial => {
-                set_ref_in_item_partial(tv_partial(&*tv), copyID, ht_stack, list_stack)
+                set_ref_in_item_partial(tv_partial(&*tv), copy_id, ht_stack, list_stack)
             }
             VarType::VarUnknown
             | VarType::VarBool
@@ -5261,7 +5261,7 @@ pub fn callback_call(
 
 pub fn set_ref_in_callback(
     callback: &mut Callback,
-    copyID: c_int,
+    copy_id: c_int,
     ht_stack: *mut HtStack,
     list_stack: *mut ListStack,
 ) -> bool {
@@ -5271,20 +5271,20 @@ pub fn set_ref_in_callback(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Partial(callback.data.as_partial()),
             };
-            return set_ref_in_item(&mut tv, copyID, ht_stack, list_stack);
+            return set_ref_in_item(&mut tv, copy_id, ht_stack, list_stack);
         }
         false
 }
 
 fn set_ref_in_callback_reader(
     reader: &mut CallbackReader,
-    copyID: c_int,
+    copy_id: c_int,
     ht_stack: Option<&mut HtStack>,
     list_stack: Option<&mut ListStack>,
 ) -> bool {
     let ht_ptr = ht_stack.map_or(ptr::null_mut(), |p| &raw mut *p);
     let list_ptr = list_stack.map_or(ptr::null_mut(), |p| &raw mut *p);
-    if set_ref_in_callback(&mut reader.cb, copyID, ht_ptr, list_ptr) {
+    if set_ref_in_callback(&mut reader.cb, copy_id, ht_ptr, list_ptr) {
         return true;
     }
 
@@ -5294,7 +5294,7 @@ fn set_ref_in_callback_reader(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Dict(reader.self_dict),
         };
-        return set_ref_in_item(&mut tv, copyID, ht_ptr, list_ptr);
+        return set_ref_in_item(&mut tv, copy_id, ht_ptr, list_ptr);
     }
     false
 }
@@ -6387,7 +6387,7 @@ pub fn var_item_copy(
     from: &mut TypVal,
     to: &mut TypVal,
     deep: bool,
-    copyID: c_int,
+    copy_id: c_int,
 ) -> bool {
     unsafe {
         let mut ret = true;
@@ -6431,11 +6431,11 @@ pub fn var_item_copy(
                 to.v_lock = VAR_UNLOCKED;
                 if from.vval.v_list().is_null() {
                     to.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
-                } else if copyID != 0 && tv_list_copyid(&*from.vval.v_list()) == copyID {
+                } else if copy_id != 0 && tv_list_copyid(&*from.vval.v_list()) == copy_id {
                     to.vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy(&*from.vval.v_list()));
                     tv_list_ref(to.vval.v_list().as_mut());
                 } else {
-                    to.vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, from.vval.v_list().as_mut(), deep, copyID));
+                    to.vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, from.vval.v_list().as_mut(), deep, copy_id));
                 }
                 if to.vval.v_list().is_null() && !from.vval.v_list().is_null() {
                     ret = false;
@@ -6449,11 +6449,11 @@ pub fn var_item_copy(
                 to.v_lock = VAR_UNLOCKED;
                 if from.vval.v_dict().is_null() {
                     to.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
-                } else if copyID != 0 && (*from.vval.v_dict()).dv_copyID == copyID {
+                } else if copy_id != 0 && (*from.vval.v_dict()).dv_copyID == copy_id {
                     to.vval = crate::eval::typval::TypvalVval::Dict((*from.vval.v_dict()).dv_copydict);
                     (*to.vval.v_dict()).dv_refcount += 1;
                 } else {
-                    to.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_copy(conv, from.vval.v_dict().as_mut(), deep, copyID));
+                    to.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_copy(conv, from.vval.v_dict().as_mut(), deep, copy_id));
                 }
                 if to.vval.v_dict().is_null() && !from.vval.v_dict().is_null() {
                     ret = false;

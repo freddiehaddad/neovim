@@ -2516,11 +2516,11 @@ pub fn charwise_block_prep(
     }
 }
 
-pub fn op_addsub(oap: &mut Oparg, Prenum1: Linenr, g_cmd: bool) {
+pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
      {
         let mut bd = BlockDef::new();
         let mut change_cnt: isize = 0;
-        let mut amount = Prenum1;
+        let mut amount = prenum1;
 
         g_st().disable_fold_update += 1;
 
@@ -2583,7 +2583,7 @@ pub fn op_addsub(oap: &mut Oparg, Prenum1: Linenr, g_cmd: bool) {
                 }
 
                 if g_cmd && one_change {
-                    amount += Prenum1;
+                    amount += prenum1;
                 }
                 pos.lnum += 1;
             }
@@ -2620,7 +2620,7 @@ pub fn do_addsub(
     op_type: c_int,
     pos: &mut CursorPos,
     mut length: c_int,
-    Prenum1: Linenr,
+    prenum1: Linenr,
 ) -> bool {
     unsafe {
         let mut pre: c_int = 0;
@@ -2775,23 +2775,23 @@ pub fn do_addsub(
 
         if do_alpha && ascii_isalpha(firstdigit) {
             if op_type == OP_NR_SUB {
-                if char_ord(firstdigit) < Prenum1 {
+                if char_ord(firstdigit) < prenum1 {
                     firstdigit = if ascii_isupper(firstdigit) {
                         b'A' as c_int
                     } else {
                         b'a' as c_int
                     };
                 } else {
-                    firstdigit -= Prenum1;
+                    firstdigit -= prenum1;
                 }
-            } else if 26 - char_ord(firstdigit) - 1 < Prenum1 {
+            } else if 26 - char_ord(firstdigit) - 1 < prenum1 {
                 firstdigit = if ascii_isupper(firstdigit) {
                     b'Z' as c_int
                 } else {
                     b'z' as c_int
                 };
             } else {
-                firstdigit += Prenum1;
+                firstdigit += prenum1;
             }
             curwin_mut().w_cursor.col = col;
             startpos = curwin_mut().w_cursor;
@@ -2859,9 +2859,9 @@ pub fn do_addsub(
 
             if !overflow {
                 n = if subtract {
-                    n.wrapping_sub(Prenum1 as Uvarnumber)
+                    n.wrapping_sub(prenum1 as Uvarnumber)
                 } else {
-                    n.wrapping_add(Prenum1 as Uvarnumber)
+                    n.wrapping_add(prenum1 as Uvarnumber)
                 };
             }
 
@@ -3096,8 +3096,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
         };
         let mut oparg = Oparg::new();
         let mut bd = BlockDef::new();
-        let l_VIsual_active = g_st().Visual.active;
-        let l_VIsual_mode = g_st().Visual.mode;
+        let l_visual_active = g_st().Visual.active;
+        let l_visual_mode = g_st().Visual.mode;
 
         if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
             if dict.is_none() {
@@ -3113,7 +3113,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 1
             };
 
-            if l_VIsual_active {
+            if l_visual_active {
                 if lt(g_st().Visual.start, curwin_mut().w_cursor) {
                     min_pos = g_st().Visual.start;
                     max_pos = curwin_mut().w_cursor;
@@ -3125,7 +3125,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     max_pos.col -= 1;
                 }
 
-                if l_VIsual_mode == CTRL_V_CONST {
+                if l_visual_mode == CTRL_V_CONST {
                     let saved_sbr = opt_vars().p_sbr;
                     let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr;
 
@@ -3163,20 +3163,20 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     last_check = byte_count + 100000;
                 }
 
-                if l_VIsual_active && lnum >= min_pos.lnum && lnum <= max_pos.lnum {
+                if l_visual_active && lnum >= min_pos.lnum && lnum <= max_pos.lnum {
                     let mut s: *mut c_char = ptr::null_mut();
                     let mut len: c_int = 0;
 
-                    if l_VIsual_mode == CTRL_V_CONST {
+                    if l_visual_mode == CTRL_V_CONST {
                         g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
                         block_prep(&mut oparg, &mut bd, lnum, false);
                         g_st().virtual_op = K_NONE;
                         s = bd.textstart;
                         len = bd.textlen;
-                    } else if l_VIsual_mode == b'V' as c_int {
+                    } else if l_visual_mode == b'V' as c_int {
                         s = ml_get(lnum);
                         len = MAXCOL;
-                    } else if l_VIsual_mode == b'v' as c_int {
+                    } else if l_visual_mode == b'v' as c_int {
                         let start_col = if lnum == min_pos.lnum { min_pos.col } else { 0 };
                         let end_col = if lnum == max_pos.lnum {
                             max_pos.col - start_col + 1
@@ -3230,8 +3230,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
 
             let iobuff_ptr = g_st().IObuff.as_mut_ptr();
             if dict.is_none() {
-                if l_VIsual_active {
-                    if l_VIsual_mode == CTRL_V_CONST && curwin_mut().w_curswant < MAXCOL {
+                if l_visual_active {
+                    if l_visual_mode == CTRL_V_CONST && curwin_mut().w_curswant < MAXCOL {
                         let mut min_col = min_pos.col;
                         let mut max_col = max_pos.col;
                         getvcols(
@@ -3371,7 +3371,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
 
             tv_dict_add_nr(
                 dict.as_deref_mut().unwrap(),
-                if l_VIsual_active {
+                if l_visual_active {
                     c"visual_bytes"
                 } else {
                     c"cursor_bytes"
@@ -3380,7 +3380,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             );
             tv_dict_add_nr(
                 dict.as_deref_mut().unwrap(),
-                if l_VIsual_active {
+                if l_visual_active {
                     c"visual_chars"
                 } else {
                     c"cursor_chars"
@@ -3389,7 +3389,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             );
             tv_dict_add_nr(
                 dict.unwrap(),
-                if l_VIsual_active {
+                if l_visual_active {
                     c"visual_words"
                 } else {
                     c"cursor_words"
@@ -3411,14 +3411,14 @@ fn op_colon(oap: &mut Oparg) {
                 stuffnumReadbuff(oap.start.lnum);
             }
 
-            let mut endOfStartFold = oap.start.lnum;
+            let mut end_of_start_fold = oap.start.lnum;
             hasFolding(
                 curwin_ptr(),
                 oap.start.lnum,
                 None,
-                &raw mut endOfStartFold,
+                &raw mut end_of_start_fold,
             );
-            if oap.end.lnum != oap.start.lnum && oap.end.lnum != endOfStartFold {
+            if oap.end.lnum != oap.start.lnum && oap.end.lnum != end_of_start_fold {
                 stuffcharReadbuff(b',' as c_int);
                 if oap.end.lnum == curwin_mut().w_cursor.lnum {
                     stuffcharReadbuff(b'.' as c_int);
@@ -3462,8 +3462,8 @@ pub fn free_operatorfunc_option() {
     callback_free(&mut opt_vars().p_opfunc);
 }
 
-pub fn set_ref_in_opfunc(copyID: c_int) -> bool {
-    set_ref_in_callback(&mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut())
+pub fn set_ref_in_opfunc(copy_id: c_int) -> bool {
+    set_ref_in_callback(&mut opt_vars().p_opfunc, copy_id, ptr::null_mut(), ptr::null_mut())
 }
 
 fn op_function(oap: &Oparg) {

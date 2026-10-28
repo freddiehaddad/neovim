@@ -118,7 +118,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
 
                 // remember the line where the search started
                 let startlnum = pos.lnum;
-                let cpo_J = !vim_strchr(opt_vars().p_cpo, K_CPO_ENDOFSENT).is_null();
+                let cpo_j = !vim_strchr(opt_vars().p_cpo, K_CPO_ENDOFSENT).is_null();
 
                 loop {
                     c = gchar_pos(&mut pos);
@@ -143,9 +143,9 @@ pub fn findsent(dir: Direction, mut count: c_int) -> bool {
                             }
                         }
                         if c == -1
-                            || (!cpo_J && (c == b' ' as c_int || c == b'\t' as c_int))
+                            || (!cpo_j && (c == b' ' as c_int || c == b'\t' as c_int))
                             || c == c_int::from(NUL)
-                            || (cpo_J
+                            || (cpo_j
                                 && c == b' ' as c_int
                                 && inc(&mut tpos) >= 0
                                 && gchar_pos(&mut tpos) == b' ' as c_int)

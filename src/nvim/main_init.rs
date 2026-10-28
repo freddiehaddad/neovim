@@ -2453,16 +2453,16 @@ fn do_user_initialization() -> bool {
 
 fn do_exrc_initialization() {
     unsafe {
-        let L = get_global_lstate();
-        assert!(!L.is_null());
+        let lstate = get_global_lstate();
+        assert!(!lstate.is_null());
 
-        lua_getfield(L, LUA_GLOBALSINDEX, c"require");
-        lua_pushstring(L, c"vim._core.exrc");
-        if nlua_pcall(L, 1, 0) != 0 {
+        lua_getfield(lstate, LUA_GLOBALSINDEX, c"require");
+        lua_pushstring(lstate, c"vim._core.exrc");
+        if nlua_pcall(lstate, 1, 0) != 0 {
             fprintf!(
                 log_get_stderr(),
                 c"%s\n",
-                lua_tolstring(L, -1, ptr::null_mut()),
+                lua_tolstring(lstate, -1, ptr::null_mut()),
             );
         }
     }

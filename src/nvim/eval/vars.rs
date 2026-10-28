@@ -710,23 +710,23 @@ pub fn evalvars_clear() {
     }
 }
 
-pub fn garbage_collect_globvars(copyID: c_int) -> c_int {
+pub fn garbage_collect_globvars(copy_id: c_int) -> c_int {
     c_int::from(set_ref_in_ht(
             &raw mut vars_st().globvardict.dv_hashtab,
-            copyID,
+            copy_id,
             ptr::null_mut(),
         ))
 }
 
-pub fn garbage_collect_vimvars(copyID: c_int) -> bool {
-    set_ref_in_ht(&raw mut vars_st().vimvardict.dv_hashtab, copyID, ptr::null_mut())
+pub fn garbage_collect_vimvars(copy_id: c_int) -> bool {
+    set_ref_in_ht(&raw mut vars_st().vimvardict.dv_hashtab, copy_id, ptr::null_mut())
 }
 
-pub fn garbage_collect_scriptvars(copyID: c_int) -> bool {
+pub fn garbage_collect_scriptvars(copy_id: c_int) -> bool {
     let mut abort = false;
 
         for i in 1..=crate::runtime::script_items_len() {
-            abort = abort || set_ref_in_ht(script_vars_ht(i), copyID, ptr::null_mut());
+            abort = abort || set_ref_in_ht(script_vars_ht(i), copy_id, ptr::null_mut());
         }
 
         abort

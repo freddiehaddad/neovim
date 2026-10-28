@@ -1801,7 +1801,7 @@ fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
 }
 
 fn normal_redraw_mode_message(_s: &mut NormalState) {
-    let save_State = g_st().State;
+    let save_state = g_st().State;
 
         if g_st().restart_edit != 0 {
             g_st().State = MODE_INSERT;
@@ -1827,7 +1827,7 @@ fn normal_redraw_mode_message(_s: &mut NormalState) {
             msg_delay(1003, true);
         }
         msg_delay(3003, false);
-        g_st().State = save_State;
+        g_st().State = save_state;
 
         g_st().msg_scroll = 0;
         g_st().emsg_on_display = false;
@@ -3153,8 +3153,8 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: c_int) {
     unsafe {
         let old_curwin = curwin_ptr();
         let old_curbuf = g_st().curbuf;
-        let old_VIsual_select = g_st().Visual.select;
-        let old_VIsual_active = g_st().Visual.active;
+        let old_visual_select = g_st().Visual.select;
+        let old_visual_active = g_st().Visual.active;
         let tgt_leftcol = curwin_mut().w_leftcol;
 
         let want_ver = (*old_curwin).w_onebuf_opt.wo_diff != 0
@@ -3203,8 +3203,8 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: c_int) {
             }
         }
 
-        g_st().Visual.select = old_VIsual_select;
-        g_st().Visual.active = old_VIsual_active;
+        g_st().Visual.select = old_visual_select;
+        g_st().Visual.active = old_visual_active;
         set_curwin(old_curwin);
         g_st().curbuf = old_curbuf;
     }
@@ -5754,7 +5754,7 @@ fn nv_replace(cap: &mut Cmdarg) {
             }
 
             curbuf_mut().b_op_start = curwin_mut().w_cursor;
-            let old_State = g_st().State;
+            let old_state = g_st().State;
 
             if cap.nchar_len > 0 {
                 redo_append_str(cap.nchar_composing.as_ptr(), -1);
@@ -5782,7 +5782,7 @@ fn nv_replace(cap: &mut Cmdarg) {
                 } else {
                     ins_char(cap.nchar);
                 }
-                g_st().State = old_State;
+                g_st().State = old_state;
                 n -= 1;
             }
             curwin_mut().w_cursor.col -= 1;
@@ -6065,7 +6065,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
         if cap.oap_mut().op_type != OP_NOP {
             flags = 0;
         }
-        let old_KeyTyped = g_st().KeyTyped;
+        let old_key_typed = g_st().KeyTyped;
 
         let name = if cap.cmdchar == b'g' as c_int {
             flags |= KMARK_NO_CONTEXT;
@@ -6092,7 +6092,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
             && (move_res & K_MARK_MOVE_SUCCESS) != 0
             && ((move_res & K_MARK_SWITCHED_BUF) != 0 || (move_res & K_MARK_CHANGED_CURSOR) != 0)
             && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_MARK) != 0
-            && old_KeyTyped
+            && old_key_typed
         {
             foldOpenCursor();
         }
@@ -6107,7 +6107,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
             0
         };
         let mut move_res: MarkMoveRes = 0;
-        let old_KeyTyped = g_st().KeyTyped;
+        let old_key_typed = g_st().KeyTyped;
 
         if checkclearopq(cap.oap_mut()) {
             return;
@@ -6144,7 +6144,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
         if cap.oap_mut().op_type == OP_NOP
             && ((move_res & K_MARK_SWITCHED_BUF) != 0 || (move_res & K_MARK_CHANGED_LINE) != 0)
             && (opt_vars().fdo_flags & K_OPT_FDO_FLAG_MARK) != 0
-            && old_KeyTyped
+            && old_key_typed
         {
             foldOpenCursor();
         }
@@ -7222,10 +7222,10 @@ pub fn set_cursor_for_append_to_line() {
      {
         curwin_mut().w_set_curswant = true;
         if get_ve_flags(curwin_mut()) == K_OPT_VE_FLAG_ALL {
-            let save_State = g_st().State;
+            let save_state = g_st().State;
             g_st().State = MODE_INSERT;
             coladvance(curwin_mut(), MAXCOL);
-            g_st().State = save_State;
+            g_st().State = save_state;
         } else {
             curwin_mut().w_cursor.col += crate::memory::cstr_len(get_cursor_pos_ptr()) as Colnr;
         }
@@ -7270,10 +7270,10 @@ fn nv_edit(cap: &mut Cmdarg) {
             }
 
             if curwin_mut().w_cursor.coladd != 0 && cap.cmdchar != b'A' as c_int {
-                let save_State = g_st().State;
+                let save_state = g_st().State;
                 g_st().State = MODE_INSERT;
                 coladvance(curwin_mut(), getviscol());
-                g_st().State = save_State;
+                g_st().State = save_state;
             }
 
             invoke_edit(cap, 0, cap.cmdchar, 0);

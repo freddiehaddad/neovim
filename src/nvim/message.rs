@@ -1800,7 +1800,7 @@ pub fn wait_return(redraw: c_int) {
         }
 
         g_st().redir_off = true; // don't redirect this message
-        let oldState = g_st().State;
+        let old_state = g_st().State;
         if g_st().quit_more {
             c = CAR; // just pretend CR was hit
             g_st().quit_more = false;
@@ -1928,8 +1928,8 @@ pub fn wait_return(redraw: c_int) {
             g_st().do_redraw = false;
         }
 
-        let tmpState = g_st().State;
-        g_st().State = oldState;
+        let tmp_state = g_st().State;
+        g_st().State = old_state;
         setmouse();
         msg_check();
         g_st().need_wait_return = false;
@@ -1943,7 +1943,7 @@ pub fn wait_return(redraw: c_int) {
             g_st().keep_msg = None;
         }
 
-        if tmpState == MODE_SETWSIZE {
+        if tmp_state == MODE_SETWSIZE {
             ui_refresh();
         } else if !g_st().skip_redraw && (redraw == 1 || (g_st().msg_scrolled != 0 && redraw != -1)) {
             redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
@@ -3394,7 +3394,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) { let
 fn do_more_prompt(typed_char: c_int) -> bool {
     unsafe {
         let mut used_typed_char = typed_char;
-        let oldState = g_st().State;
+        let old_state = g_st().State;
         let mut retval = false;
         let mut to_redraw = false;
         let mut mp_last: Option<usize> = None;
@@ -3623,7 +3623,7 @@ fn do_more_prompt(typed_char: c_int) -> bool {
         g_st().clear_cmdline = false;
         g_st().mode_displayed = false;
 
-        g_st().State = oldState;
+        g_st().State = old_state;
         setmouse();
         if g_st().quit_more {
             g_st().msg_row = g_st().Rows - 1;

@@ -3855,7 +3855,7 @@ fn tree_add_word(
     root: Option<usize>,
     flags: c_int,
     region: c_int,
-    affixID: c_int,
+    affix_id: c_int,
 ) -> bool { let word = word.into_c_char_ptr();
      {
                 let mut node = root;
@@ -3902,14 +3902,14 @@ fn tree_add_word(
                 let advance = n.wn_byte < wb
                     || (n.wn_byte == 0
                         && if flags < 0 {
-                            (n.wn_affixID as c_uint) < (affixID as c_uint)
+                            (n.wn_affixID as c_uint) < (affix_id as c_uint)
                         } else {
                             (n.wn_flags as c_uint) < ((flags & WN_MASK) as c_uint)
                                 || (n.wn_flags as c_int == (flags & WN_MASK)
                                     && if spin.si_sugtree != 0 {
                                         (n.wn_region as c_int & 0xffff) < region
                                     } else {
-                                        (n.wn_affixID as c_uint) < (affixID as c_uint)
+                                        (n.wn_affixID as c_uint) < (affix_id as c_uint)
                                     })
                         });
                 if !advance {
@@ -3928,7 +3928,7 @@ fn tree_add_word(
                             && (flags < 0
                                 || spin.si_sugtree != 0
                                 || n.wn_flags as c_int != (flags & WN_MASK)
-                                || n.wn_affixID as c_int != affixID))
+                                || n.wn_affixID as c_int != affix_id))
                 }
             };
             if need_new {
@@ -3952,7 +3952,7 @@ fn tree_add_word(
             if wb == 0 {
                 spin.si_nodes[node_idx].wn_flags = flags as u16;
                 spin.si_nodes[node_idx].wn_region |= region as i16;
-                spin.si_nodes[node_idx].wn_affixID = affixID as u8;
+                spin.si_nodes[node_idx].wn_affixID = affix_id as u8;
                 break;
             }
             prev = Some(NodeSlot::Child(node_idx));
@@ -3989,7 +3989,7 @@ fn tree_add_word(
 
             let foldroot = spin.si_foldroot;
             wordtree_compress(spin, foldroot, c"case-folded");
-            if affixID >= 0 {
+            if affix_id >= 0 {
                 let keeproot = spin.si_keeproot;
                 wordtree_compress(spin, keeproot, c"keep-case");
             }

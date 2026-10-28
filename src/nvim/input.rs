@@ -1437,7 +1437,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
 
         if directly {
             let mut oa = Oparg::new();
-            let save_State = g_st().State;
+            let save_state = g_st().State;
             let save_restart_edit = g_st().restart_edit;
             let save_finish_op = g_st().finish_op;
             let save_msg_scroll = g_st().msg_scroll;
@@ -1457,7 +1457,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
                 }
             }
 
-            g_st().State = save_State;
+            g_st().State = save_state;
             g_st().msg_scroll = save_msg_scroll;
             g_st().restart_edit = save_restart_edit;
             g_st().finish_op = save_finish_op;
@@ -2198,7 +2198,7 @@ fn handle_mapping(
         let mut tb_match_len: c_int = 0;
         let mut max_mlen: c_int = 0;
         let mut keylen = *keylenp;
-        let local_State = get_real_state();
+        let local_state = get_real_state();
         let mut is_plug_map = false;
 
         let tb_start = tb_buf_ptr().add(g_st().typebuf.tb_off as usize);
@@ -2253,14 +2253,14 @@ fn handle_mapping(
             }
 
             mp = None;
-            for cand in get_buf_maphash_list(local_State, tb_b1)
+            for cand in get_buf_maphash_list(local_state, tb_b1)
                 .iter()
-                .chain(get_maphash_list(local_State, tb_b1))
+                .chain(get_maphash_list(local_state, tb_b1))
             {
                 let mut key_iter: *const u8 = cand.m_keys.as_ptr().cast::<u8>();
 
                 if char_iter(&raw mut key_iter, 0) == tb_c1
-                    && (cand.m_mode & local_State) != 0
+                    && (cand.m_mode & local_state) != 0
                     && ((cand.m_mode & MODE_LANGMAP) == 0 || g_st().typebuf.tb_maplen == 0)
                 {
                     let mut nomap = nolmaplen;

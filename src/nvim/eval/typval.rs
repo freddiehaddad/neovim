@@ -1321,7 +1321,7 @@ pub fn tv_list_copy(
     conv: Option<&Vimconv>,
     mut orig: Option<&mut TvList>,
     deep: bool,
-    copyID: c_int,
+    copy_id: c_int,
 ) -> *mut TvList {
     unsafe {
         if orig.is_none() {
@@ -1330,8 +1330,8 @@ pub fn tv_list_copy(
 
         let copy = tv_list_alloc(tv_list_len_inline(orig.as_deref()) as isize);
         tv_list_ref_inline(copy.as_mut());
-        if copyID != 0 {
-            orig.as_deref_mut().unwrap().lv_copyID = copyID;
+        if copy_id != 0 {
+            orig.as_deref_mut().unwrap().lv_copyID = copy_id;
             orig.as_deref_mut().unwrap().lv_copylist = copy;
         }
         for item in crate::eval::typval::list_iter_mut(orig.unwrap().lv_first) {
@@ -1345,7 +1345,7 @@ pub fn tv_list_copy(
                     &mut item.li_tv,
                     &mut (*ni).li_tv,
                     deep,
-                    copyID,
+                    copy_id,
                 )
                 {
                     drop(Box::from_raw(ni));
@@ -3434,7 +3434,7 @@ pub fn tv_dict_copy(
     conv: Option<&Vimconv>,
     mut orig: Option<&mut TvDict>,
     deep: bool,
-    copyID: c_int,
+    copy_id: c_int,
 ) -> *mut TvDict {
     unsafe {
         if orig.is_none() {
@@ -3442,8 +3442,8 @@ pub fn tv_dict_copy(
         }
 
         let mut copy = tv_dict_alloc();
-        if copyID != 0 {
-            orig.as_deref_mut().unwrap().dv_copyID = copyID;
+        if copy_id != 0 {
+            orig.as_deref_mut().unwrap().dv_copyID = copy_id;
             orig.as_deref_mut().unwrap().dv_copydict = copy;
         }
         let mut todo = orig.as_deref_mut().unwrap().dv_hashtab.ht_used;
@@ -3472,7 +3472,7 @@ pub fn tv_dict_copy(
                         &mut (*di).di_tv,
                         &mut (*new_di).di_tv,
                         deep,
-                        copyID,
+                        copy_id,
                     )
                     {
                         tv_dict_item_free(new_di);

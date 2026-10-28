@@ -2374,7 +2374,7 @@ pub fn highlight_attr_set_all() {
 
 fn combine_stl_hlt(
     id: c_int,
-    id_S: c_int,
+    id_s: c_int,
     id_alt: c_int,
     hlcnt: c_int,
     i: c_int,
@@ -2385,7 +2385,7 @@ fn combine_stl_hlt(
         let hlt = hl_table();
         let dst = (hlcnt + i) as usize;
         let u_idx = (id - 1) as usize;
-        let s_idx = (id_S - 1) as usize;
+        let s_idx = (id_s - 1) as usize;
 
         if id_alt == 0 {
             *hlt.add(dst) = HlGroup::new();
@@ -2421,8 +2421,8 @@ fn combine_stl_hlt(
 pub fn highlight_changed() {
     unsafe {
         let mut userhl = [0 as c_char; 30];
-        let mut id_S: c_int = -1;
-        let mut id_SNC: c_int = 0;
+        let mut id_s: c_int = -1;
+        let mut id_snc: c_int = 0;
 
         g_st().need_highlight_changed = false;
 
@@ -2438,9 +2438,9 @@ pub fn highlight_changed() {
             let mut final_id = id;
             syn_ns_get_final_id(&mut ns_id, &mut final_id);
             if hlf == HLF_SNC {
-                id_SNC = final_id;
+                id_snc = final_id;
             } else if hlf == HLF_S {
-                id_S = final_id;
+                id_s = final_id;
             }
 
             g_st().highlight_attr[hlf] =
@@ -2462,9 +2462,9 @@ pub fn highlight_changed() {
 
         let hlcnt = hl_len();
         hlg_st().highlight_ga.resize((hlcnt + 10) as usize, HlGroup::new());
-        if id_S == -1 {
+        if id_s == -1 {
             *hl_table().add((hlcnt + 9) as usize) = HlGroup::new();
-            id_S = hlcnt + 10;
+            id_s = hlcnt + 10;
         }
         for i in 0..9 {
             userhl[0] = b'U' as c_char;
@@ -2481,8 +2481,8 @@ pub fn highlight_changed() {
                 g_st().highlight_user[i] = syn_id2attr(id);
                 combine_stl_hlt(
                     id,
-                    id_S,
-                    id_SNC,
+                    id_s,
+                    id_snc,
                     hlcnt,
                     i as c_int,
                     HLF_SNC,

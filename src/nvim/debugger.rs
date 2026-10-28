@@ -195,8 +195,8 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into
 
         let slnum = sourcing_lnum();
         if slnum != 0 {
-            let LINE_MSG = format!("line {slnum}: %s\0");
-            smsg!(0, LINE_MSG.as_ptr().cast::<c_char>(), cmd);
+            let line_msg = format!("line {slnum}: %s\0");
+            smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
         } else {
             smsg!(0, c"cmd: %s", cmd);
         }
@@ -246,8 +246,8 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
         }
         let slnum = sourcing_lnum();
         if slnum != 0 {
-            let LINE_MSG = format!("line {slnum}: %s\0");
-            smsg!(0, LINE_MSG.as_ptr().cast::<c_char>(), cmd);
+            let line_msg = format!("line {slnum}: %s\0");
+            smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
         } else {
             smsg!(0, c"cmd: %s", cmd);
         }

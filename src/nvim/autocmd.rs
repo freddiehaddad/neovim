@@ -2795,7 +2795,7 @@ pub fn apply_autocmds_group(
         let mut wait_time: Proftime = 0;
         let mut did_save_redobuff = false;
         let mut save_redo = RedoState::new();
-        let save_KeyTyped = g_st().KeyTyped;
+        let save_key_typed = g_st().KeyTyped;
         let mut aco: CtxSwitch = CtxSwitch::new();
 
         'bypass_au: {
@@ -3087,7 +3087,7 @@ pub fn apply_autocmds_group(
             if g_st().do_profiling == PROF_YES {
                 prof_child_exit(&mut wait_time);
             }
-            g_st().KeyTyped = save_KeyTyped;
+            g_st().KeyTyped = save_key_typed;
             drop(patcmd);
             au_st().apply_autocmds_nesting -= 1;
 

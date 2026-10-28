@@ -2666,11 +2666,11 @@ fn vim_regsub_both(
                 if let Some(expr) = expr {
                     let mut argv: [TypVal; 2] = [TypVal::new(); 2];
                     let mut rettv: TypVal = TypVal::new();
-                    let mut matchList = StaticList10::new();
+                    let mut match_list = StaticList10::new();
                     rettv.v_type = VarType::VarString;
                     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                     argv[0].v_type = VarType::VarList;
-                    argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut matchList.sl_list);
+                    argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut match_list.sl_list);
                     let mut funcexe = Funcexe {
                         fe_fill_submatch: true,
                         fe_firstline: 0,

@@ -1455,12 +1455,12 @@ fn find_match_paren_after_brace(ind_maxparen: c_int) -> *mut CursorPos {
         if trypos.is_null() {
             return ptr::null_mut();
         }
-        let tryposBrace = find_start_brace();
-        if !tryposBrace.is_null()
-            && (if (*trypos).lnum != (*tryposBrace).lnum {
-                (*trypos).lnum < (*tryposBrace).lnum
+        let trypos_brace = find_start_brace();
+        if !trypos_brace.is_null()
+            && (if (*trypos).lnum != (*trypos_brace).lnum {
+                (*trypos).lnum < (*trypos_brace).lnum
             } else {
-                (*trypos).col < (*tryposBrace).col
+                (*trypos).col < (*trypos_brace).col
             })
         {
             trypos = ptr::null_mut();
@@ -1639,8 +1639,8 @@ pub fn get_c_indent() -> c_int {
         let mut col: Colnr = 0;
         let mut trypos: *mut CursorPos;
         let mut comment_pos: *mut CursorPos;
-        let mut tryposBrace: *mut CursorPos = ptr::null_mut();
-        let mut tryposCopy: CursorPos;
+        let mut trypos_brace: *mut CursorPos = ptr::null_mut();
+        let mut trypos_copy: CursorPos;
         let mut our_paren_pos: CursorPos;
         let start: *mut c_char;
         let start_brace: c_int;
@@ -1683,8 +1683,8 @@ pub fn get_c_indent() -> c_int {
         let original_line_islabel = cin_islabel();
         comment_pos = ind_find_start_comment();
         if !comment_pos.is_null() {
-            tryposCopy = *comment_pos;
-            comment_pos = &raw mut tryposCopy;
+            trypos_copy = *comment_pos;
+            comment_pos = &raw mut trypos_copy;
         }
         trypos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
         'laterend: {
@@ -1889,19 +1889,19 @@ pub fn get_c_indent() -> c_int {
                     trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
                     !trypos.is_null() && curbuf_mut().b_ind_java == 0
                 }) || ({
-                    tryposBrace = find_start_brace();
-                    !tryposBrace.is_null()
+                    trypos_brace = find_start_brace();
+                    !trypos_brace.is_null()
                 }) || !trypos.is_null()
                 {
-                    if !trypos.is_null() && !tryposBrace.is_null() {
-                        if if (*trypos).lnum != (*tryposBrace).lnum {
-                            (*trypos).lnum < (*tryposBrace).lnum
+                    if !trypos.is_null() && !trypos_brace.is_null() {
+                        if if (*trypos).lnum != (*trypos_brace).lnum {
+                            (*trypos).lnum < (*trypos_brace).lnum
                         } else {
-                            (*trypos).col < (*tryposBrace).col
+                            (*trypos).col < (*trypos_brace).col
                         } {
                             trypos = ptr::null_mut();
                         } else {
-                            tryposBrace = ptr::null_mut();
+                            trypos_brace = ptr::null_mut();
                         }
                     }
                     if !trypos.is_null() {
@@ -2090,9 +2090,9 @@ pub fn get_c_indent() -> c_int {
                             amount += curbuf_mut().b_ind_comment;
                         }
                     } else {
-                        tryposCopy = *tryposBrace;
-                        tryposBrace = &raw mut tryposCopy;
-                        trypos = tryposBrace;
+                        trypos_copy = *trypos_brace;
+                        trypos_brace = &raw mut trypos_copy;
+                        trypos = trypos_brace;
                         ourscope = (*trypos).lnum;
                         start = ml_get(ourscope);
                         look = skipwhite(start);
@@ -2457,8 +2457,8 @@ pub fn get_c_indent() -> c_int {
                                     break;
                                 }
                                 if lookfor == LOOKFOR_COMMA {
-                                    if !tryposBrace.is_null()
-                                        && (*tryposBrace).lnum >= curwin_mut().w_cursor.lnum
+                                    if !trypos_brace.is_null()
+                                        && (*trypos_brace).lnum >= curwin_mut().w_cursor.lnum
                                     {
                                         break;
                                     }
@@ -2484,9 +2484,9 @@ pub fn get_c_indent() -> c_int {
                                     trypos =
                                         find_match_paren(corr_ind_maxparen(&cur_curpos));
                                     if !trypos.is_null()
-                                        && ((*trypos).lnum < (*tryposBrace).lnum
-                                            || ((*trypos).lnum == (*tryposBrace).lnum
-                                                && (*trypos).col < (*tryposBrace).col))
+                                        && ((*trypos).lnum < (*trypos_brace).lnum
+                                            || ((*trypos).lnum == (*trypos_brace).lnum
+                                                && (*trypos).col < (*trypos_brace).col))
                                     {
                                         trypos = ptr::null_mut();
                                     }

@@ -937,7 +937,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         let mut need_set_indent = true;
         let first_line = curwin_mut().w_cursor.lnum;
         let mut force_format = false;
-        let old_State = g_st().State;
+        let old_state = g_st().State;
 
         let max_len = comp_textwidth(true) * 3;
 
@@ -1085,7 +1085,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                         second_indent,
                     );
 
-                    g_st().State = old_State;
+                    g_st().State = old_state;
                     opt_vars().p_smd = smd_save;
                     ui_cursor_shape();
 

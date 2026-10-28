@@ -3422,7 +3422,7 @@ fn qf_jump_newwin(
     unsafe {
         let old_swb = opt_vars().p_swb;
         let old_swb_flags = opt_vars().swb_flags;
-        let old_KeyTyped = g_st().KeyTyped;
+        let old_key_typed = g_st().KeyTyped;
 
         if qi.is_null() {
                 qi = ql_info_ptr();
@@ -3459,7 +3459,7 @@ fn qf_jump_newwin(
                     forceit,
                     prev_winid,
                     &mut opened_window,
-                    c_int::from(old_KeyTyped),
+                    c_int::from(old_key_typed),
                     print_message,
                 );
                 if retval == QF_ABORT {
@@ -4499,7 +4499,7 @@ fn call_qftf_func(
 
 fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize, qf_winid: c_int) {
     unsafe {
-        let old_KeyTyped = g_st().KeyTyped;
+        let old_key_typed = g_st().KeyTyped;
 
         if old_count == 0 {
             if !ptr::eq(buf, g_st().curbuf) {
@@ -4607,7 +4607,7 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
             redraw_curbuf_later(UPD_NOT_VALID);
         }
 
-        g_st().KeyTyped = old_KeyTyped;
+        g_st().KeyTyped = old_key_typed;
     }
 }
 
@@ -7169,7 +7169,7 @@ pub fn set_errorlist(
     }
 }
 
-fn mark_quickfix_user_data(qi: &mut QfInfo, copyID: c_int) -> bool {
+fn mark_quickfix_user_data(qi: &mut QfInfo, copy_id: c_int) -> bool {
      {
         let mut abort = false;
         let mut i: c_int = 0;
@@ -7186,7 +7186,7 @@ fn mark_quickfix_user_data(qi: &mut QfInfo, copyID: c_int) -> bool {
                         && user_data.v_type != VarType::VarFloat
                     {
                         abort = abort
-                            || set_ref_in_item(user_data, copyID, ptr::null_mut(), ptr::null_mut());
+                            || set_ref_in_item(user_data, copy_id, ptr::null_mut(), ptr::null_mut());
                     }
                 }
             }
@@ -7196,7 +7196,7 @@ fn mark_quickfix_user_data(qi: &mut QfInfo, copyID: c_int) -> bool {
     }
 }
 
-fn mark_quickfix_ctx(qi: &mut QfInfo, copyID: c_int) -> bool {
+fn mark_quickfix_ctx(qi: &mut QfInfo, copy_id: c_int) -> bool {
      {
         let mut abort = false;
         let mut i: c_int = 0;
@@ -7207,22 +7207,22 @@ fn mark_quickfix_ctx(qi: &mut QfInfo, copyID: c_int) -> bool {
                 && ctx.v_type != VarType::VarString
                 && ctx.v_type != VarType::VarFloat
             {
-                abort = set_ref_in_item(ctx, copyID, ptr::null_mut(), ptr::null_mut());
+                abort = set_ref_in_item(ctx, copy_id, ptr::null_mut(), ptr::null_mut());
             }
 
             let cb = &mut qfl.qf_qftf_cb;
-            abort = abort || set_ref_in_callback(cb, copyID, ptr::null_mut(), ptr::null_mut());
+            abort = abort || set_ref_in_callback(cb, copy_id, ptr::null_mut(), ptr::null_mut());
             i += 1;
         }
         abort
     }
 }
 
-pub fn set_ref_in_quickfix(copyID: c_int) -> bool {
+pub fn set_ref_in_quickfix(copy_id: c_int) -> bool {
     unsafe {
-        if mark_quickfix_ctx(&mut *ql_info_ptr(), copyID)
-            || mark_quickfix_user_data(&mut *ql_info_ptr(), copyID)
-            || set_ref_in_callback(&mut opt_vars().p_qftf, copyID, ptr::null_mut(), ptr::null_mut())
+        if mark_quickfix_ctx(&mut *ql_info_ptr(), copy_id)
+            || mark_quickfix_user_data(&mut *ql_info_ptr(), copy_id)
+            || set_ref_in_callback(&mut opt_vars().p_qftf, copy_id, ptr::null_mut(), ptr::null_mut())
         {
             return true;
         }
@@ -7231,7 +7231,7 @@ pub fn set_ref_in_quickfix(copyID: c_int) -> bool {
             for win in win_iter_mut(tab_firstwin(tp)) {
                 if !win.w_llist.is_null() {
                     let ll = win.w_llist;
-                    if mark_quickfix_ctx(&mut *ll, copyID) || mark_quickfix_user_data(&mut *ll, copyID) {
+                    if mark_quickfix_ctx(&mut *ll, copy_id) || mark_quickfix_user_data(&mut *ll, copy_id) {
                         return true;
                     }
                 }
@@ -7239,8 +7239,8 @@ pub fn set_ref_in_quickfix(copyID: c_int) -> bool {
                 if is_ll_window(win) {
                     let ll_ref = win.w_llist_ref;
                     if (*ll_ref).qf_refcount == 1
-                        && (mark_quickfix_ctx(&mut *ll_ref, copyID)
-                            || mark_quickfix_user_data(&mut *ll_ref, copyID))
+                        && (mark_quickfix_ctx(&mut *ll_ref, copy_id)
+                            || mark_quickfix_user_data(&mut *ll_ref, copy_id))
                     {
                         return true;
                     }

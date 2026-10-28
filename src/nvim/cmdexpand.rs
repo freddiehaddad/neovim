@@ -2709,10 +2709,10 @@ fn showmatches_oneline(
     maxlen: c_int,
     showtail: bool,
 ) {
-    let numMatches = matches.len() as c_int;
+    let num_matches = matches.len() as c_int;
         let mut lastlen: c_int = 999;
         let mut j = linenr;
-        while j < numMatches {
+        while j < num_matches {
             if xp.xp_context == EXPAND_TAGS_LISTFILES {
                 let m = matches[j as usize].as_ptr();
                 msg_outtrans(m, HLF_D, false);
@@ -2837,7 +2837,7 @@ pub fn showmatches(
         } else if display_wildmenu && !display_list {
             redraw_wildmenu(xp, matches, if noselect { -1 } else { 0 }, showtail);
         } else if display_list {
-            let numMatches = matches.len() as c_int;
+            let num_matches = matches.len() as c_int;
             let mut maxlen: c_int = 0;
             for (i, match_i) in matches.iter().enumerate() {
                 let len = if !showtail
@@ -2855,14 +2855,14 @@ pub fn showmatches(
             }
 
             let lines = if xp.xp_context == EXPAND_TAGS_LISTFILES {
-                numMatches
+                num_matches
             } else {
                 maxlen += 2;
                 let mut columns = (g_st().Columns + 2) / maxlen;
                 if columns < 1 {
                     columns = 1;
                 }
-                (numMatches + columns - 1) / columns
+                (num_matches + columns - 1) / columns
             };
 
             if xp.xp_context == EXPAND_TAGS_LISTFILES {
@@ -5757,7 +5757,7 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
         }
 
         let skt = g_st().KeyTyped;
-        let old_RedrawingDisabled = g_st().RedrawingDisabled;
+        let old_redrawing_disabled = g_st().RedrawingDisabled;
 
         if cclp.input_fn != 0 {
             g_st().RedrawingDisabled = 0;
@@ -5784,7 +5784,7 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
         }
         g_st().KeyTyped = skt;
         if cclp.input_fn != 0 {
-            g_st().RedrawingDisabled = old_RedrawingDisabled;
+            g_st().RedrawingDisabled = old_redrawing_disabled;
         }
 }
 

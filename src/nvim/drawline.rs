@@ -332,7 +332,7 @@ fn draw_virt_text(
 
         let end = g_st().decor_state.current_end;
 
-        let mut totalWidthOfEolRightAlignedVirtText: c_int = 0;
+        let mut total_width_of_eol_right_aligned_virt_text: c_int = 0;
 
         for i in 0..end {
             let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
@@ -351,40 +351,40 @@ fn draw_virt_text(
                 let pos = decor_virt_pos_kind(&*item);
 
                 if do_eol && pos == K_VPOS_END_OF_LINE_RIGHT_ALIGN {
-                    let mut eolOffset: c_int = 0;
-                    if totalWidthOfEolRightAlignedVirtText == 0 {
+                    let mut eol_offset: c_int = 0;
+                    if total_width_of_eol_right_aligned_virt_text == 0 {
                         for j in i..end {
                             let lookahead_idx = (&g_st().decor_state.ranges_i)[j as usize] as usize;
-                            let lookaheadItem: *mut DecorRange =
+                            let lookahead_item: *mut DecorRange =
                                 (&mut g_st().decor_state.slots)[lookahead_idx].range_mut();
 
-                            if (*lookaheadItem).start_row != g_st().decor_state.row
-                                || !decor_virt_pos(&*lookaheadItem)
-                                || (*lookaheadItem).draw_col != -1
+                            if (*lookahead_item).start_row != g_st().decor_state.row
+                                || !decor_virt_pos(&*lookahead_item)
+                                || (*lookahead_item).draw_col != -1
                             {
                                 continue;
                             }
 
-                            let mut lookaheadVt: *mut DecorVirtText = ptr::null_mut();
-                            if (*lookaheadItem).data.is_vt() {
-                                debug_assert!(!(*lookaheadItem).data.vt().is_null());
-                                lookaheadVt = (*lookaheadItem).data.vt();
+                            let mut lookahead_vt: *mut DecorVirtText = ptr::null_mut();
+                            if (*lookahead_item).data.is_vt() {
+                                debug_assert!(!(*lookahead_item).data.vt().is_null());
+                                lookahead_vt = (*lookahead_item).data.vt();
                             }
 
-                            if decor_virt_pos_kind(&*lookaheadItem) == K_VPOS_END_OF_LINE_RIGHT_ALIGN {
-                                totalWidthOfEolRightAlignedVirtText += (*lookaheadVt).width + 1;
+                            if decor_virt_pos_kind(&*lookahead_item) == K_VPOS_END_OF_LINE_RIGHT_ALIGN {
+                                total_width_of_eol_right_aligned_virt_text += (*lookahead_vt).width + 1;
                             }
                         }
 
-                        totalWidthOfEolRightAlignedVirtText -= 1;
+                        total_width_of_eol_right_aligned_virt_text -= 1;
 
-                        if totalWidthOfEolRightAlignedVirtText <= (right_pos - g_st().decor_state.eol_col) {
-                            eolOffset =
-                                right_pos - totalWidthOfEolRightAlignedVirtText - g_st().decor_state.eol_col;
+                        if total_width_of_eol_right_aligned_virt_text <= (right_pos - g_st().decor_state.eol_col) {
+                            eol_offset =
+                                right_pos - total_width_of_eol_right_aligned_virt_text - g_st().decor_state.eol_col;
                         }
                     }
 
-                    (*item).draw_col = g_st().decor_state.eol_col + eolOffset;
+                    (*item).draw_col = g_st().decor_state.eol_col + eol_offset;
                 } else if pos == K_VPOS_RIGHT_ALIGN {
                     right_pos -= (*vt).width;
                     (*item).draw_col = right_pos;

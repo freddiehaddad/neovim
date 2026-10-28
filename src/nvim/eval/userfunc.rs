@@ -3472,11 +3472,11 @@ fn fc_referenced(fc: &Funccall) -> bool {
     }
 }
 
-fn can_free_funccal(fc: &Funccall, copyID: c_int) -> bool {
-    fc.fc_l_varlist.lv_copyID != copyID
-            && fc.fc_l_vars.dv_copyID != copyID
-            && fc.fc_l_avars.dv_copyID != copyID
-            && fc.fc_copyID != copyID
+fn can_free_funccal(fc: &Funccall, copy_id: c_int) -> bool {
+    fc.fc_l_varlist.lv_copyID != copy_id
+            && fc.fc_l_vars.dv_copyID != copy_id
+            && fc.fc_l_avars.dv_copyID != copy_id
+            && fc.fc_copyID != copy_id
 }
 
 /// `:return [expr]`
@@ -4114,7 +4114,7 @@ pub fn current_func_returned() -> c_int {
     unsafe { (*uf_st().current_funccal).fc_returned }
 }
 
-pub fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
+pub fn free_unref_funccal(copy_id: c_int, testing: c_int) -> bool {
      {
         let mut did_free = false;
         let mut did_free_funccal = false;
@@ -4122,7 +4122,7 @@ pub fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
         let mut i = 0usize;
         while i < uf_st().previous_funccal.len() {
             let fc = &*uf_st().previous_funccal.as_slice()[i].0;
-            if can_free_funccal(fc, copyID) {
+            if can_free_funccal(fc, copy_id) {
                 uf_st().previous_funccal.remove(i);
                 did_free = true;
                 did_free_funccal = true;
@@ -4331,20 +4331,20 @@ pub fn find_var_in_scoped_ht(
     }
 }
 
-pub fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
+pub fn set_ref_in_previous_funccal(copy_id: c_int) -> bool {
      {
         for item in uf_st().previous_funccal.as_mut_slice() {
             let fc = &mut *item.0;
-            fc.fc_copyID = copyID + 1;
+            fc.fc_copyID = copy_id + 1;
             if set_ref_in_ht(
                 &raw mut fc.fc_l_vars.dv_hashtab,
-                copyID + 1,
+                copy_id + 1,
                 ptr::null_mut(),
             ) || set_ref_in_ht(
                 &raw mut fc.fc_l_avars.dv_hashtab,
-                copyID + 1,
+                copy_id + 1,
                 ptr::null_mut(),
-            ) || set_ref_in_list_items(&raw mut fc.fc_l_varlist, copyID + 1, ptr::null_mut())
+            ) || set_ref_in_list_items(&raw mut fc.fc_l_varlist, copy_id + 1, ptr::null_mut())
             {
                 return true;
             }
@@ -4353,17 +4353,17 @@ pub fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     }
 }
 
-fn set_ref_in_funccal(fc: &mut Funccall, copyID: c_int) -> bool {
-    if fc.fc_copyID != copyID {
-            fc.fc_copyID = copyID;
-            if set_ref_in_ht(&raw mut fc.fc_l_vars.dv_hashtab, copyID, ptr::null_mut())
+fn set_ref_in_funccal(fc: &mut Funccall, copy_id: c_int) -> bool {
+    if fc.fc_copyID != copy_id {
+            fc.fc_copyID = copy_id;
+            if set_ref_in_ht(&raw mut fc.fc_l_vars.dv_hashtab, copy_id, ptr::null_mut())
                 || set_ref_in_ht(
                     &raw mut fc.fc_l_avars.dv_hashtab,
-                    copyID,
+                    copy_id,
                     ptr::null_mut(),
                 )
-                || set_ref_in_list_items(&raw mut fc.fc_l_varlist, copyID, ptr::null_mut())
-                || set_ref_in_func(ptr::null_mut(), fc.fc_func, copyID)
+                || set_ref_in_list_items(&raw mut fc.fc_l_varlist, copy_id, ptr::null_mut())
+                || set_ref_in_func(ptr::null_mut(), fc.fc_func, copy_id)
             {
                 return true;
             }
@@ -4371,16 +4371,16 @@ fn set_ref_in_funccal(fc: &mut Funccall, copyID: c_int) -> bool {
         false
 }
 
-pub fn set_ref_in_call_stack(copyID: c_int) -> bool {
+pub fn set_ref_in_call_stack(copy_id: c_int) -> bool {
     for fc in FunccalCallerMutIter(uf_st().current_funccal) {
-        if set_ref_in_funccal(fc, copyID) {
+        if set_ref_in_funccal(fc, copy_id) {
             return true;
         }
     }
 
     for &top in  uf_st().funccal_stack.iter().rev() {
         for fc2 in FunccalCallerMutIter(top) {
-            if set_ref_in_funccal(fc2, copyID) {
+            if set_ref_in_funccal(fc2, copy_id) {
                 return true;
             }
         }
@@ -4389,13 +4389,13 @@ pub fn set_ref_in_call_stack(copyID: c_int) -> bool {
     false
 }
 
-pub fn set_ref_in_functions(copyID: c_int) -> bool {
+pub fn set_ref_in_functions(copy_id: c_int) -> bool {
     unsafe {
         for &fp in uf_st().func_hashtab.values() {
             if g_st().got_int {
                 break;
             }
-            if !func_name_refcount(uf2hikey(&*fp)) && set_ref_in_func(ptr::null_mut(), fp, copyID) {
+            if !func_name_refcount(uf2hikey(&*fp)) && set_ref_in_func(ptr::null_mut(), fp, copy_id) {
                 return true;
             }
         }
@@ -4403,10 +4403,10 @@ pub fn set_ref_in_functions(copyID: c_int) -> bool {
     }
 }
 
-pub fn set_ref_in_func_args(copyID: c_int) -> bool {
+pub fn set_ref_in_func_args(copy_id: c_int) -> bool {
     unsafe {
         for &tv in &uf_st().funcargs {
-            if set_ref_in_item(&mut *tv, copyID, ptr::null_mut(), ptr::null_mut()) {
+            if set_ref_in_item(&mut *tv, copy_id, ptr::null_mut(), ptr::null_mut()) {
                 return true;
             }
         }
@@ -4414,7 +4414,7 @@ pub fn set_ref_in_func_args(copyID: c_int) -> bool {
     }
 }
 
-pub fn set_ref_in_func(name: impl crate::strings::IntoCCharPtr, fp_in: *mut UserFunc, copyID: c_int) -> bool { let name = name.into_c_char_ptr();
+pub fn set_ref_in_func(name: impl crate::strings::IntoCCharPtr, fp_in: *mut UserFunc, copy_id: c_int) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         let mut fp = fp_in;
         let mut error = FCERR_NONE;
@@ -4436,7 +4436,7 @@ pub fn set_ref_in_func(name: impl crate::strings::IntoCCharPtr, fp_in: *mut User
         }
         if !fp.is_null() {
             for fc in FunccalScopedMutIter((*fp).uf_scoped) {
-                abort = abort || set_ref_in_funccal(fc, copyID);
+                abort = abort || set_ref_in_funccal(fc, copy_id);
             }
         }
         drop(tofree);

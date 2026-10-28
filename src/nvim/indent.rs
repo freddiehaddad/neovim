@@ -1162,7 +1162,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
         if type_ == INDENT_SET {
             set_indent(amount, if call_changed_bytes { SIN_CHANGED } else { 0 });
         } else {
-            let save_State = g_st().State;
+            let save_state = g_st().State;
             if (g_st().State & VREPLACE_FLAG) != 0 {
                 g_st().State = MODE_INSERT;
             }
@@ -1172,7 +1172,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
                 1,
                 c_int::from(call_changed_bytes),
             );
-            g_st().State = save_State;
+            g_st().State = save_state;
         }
         insstart_less -= curwin_mut().w_cursor.col;
 
@@ -1623,13 +1623,13 @@ pub fn get_expr_indent() -> c_int {
         g_st().textlock -= 1;
         g_st().current_sctx = save_sctx;
 
-        let save_State = g_st().State;
+        let save_state = g_st().State;
         g_st().State = MODE_INSERT;
         curwin_mut().w_cursor = save_pos;
         curwin_mut().w_curswant = save_curswant;
         curwin_mut().w_set_curswant = save_set_curswant;
         check_cursor(curwin_mut());
-        g_st().State = save_State;
+        g_st().State = save_state;
 
         if g_st().did_throw && (vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() || g_st().trylevel == 0) {
             handle_did_throw();

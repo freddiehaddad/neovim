@@ -1131,14 +1131,14 @@ fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
     }
 }
 
-fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
+fn do_window_gotofile(nchar: c_int, prenum1: c_int) {
     unsafe {
         if check_text_or_curbuf_locked(None) {
             return;
         }
 
         let mut lnum: Linenr = -1;
-        if let Some(fname_cstr) = grab_file_name(Prenum1, &mut lnum) {
+        if let Some(fname_cstr) = grab_file_name(prenum1, &mut lnum) {
             let ptr = fname_cstr.as_ptr().cast_mut();
             let oldtab = g_st().curtab;
             let oldwin = curwin_ptr();
@@ -1183,53 +1183,53 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
 }
 
 /// All CTRL-W window commands are handled here, called from normal_cmd().
-pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
+pub fn do_window(mut nchar: c_int, mut prenum: c_int, mut xchar: c_int) {
     unsafe {
         let mut type_ = FIND_DEFINE;
         let mut cbuf = [0 as c_char; 40];
-        let Prenum1 = if Prenum == 0 { 1 } else { Prenum };
+        let prenum1 = if prenum == 0 { 1 } else { prenum };
 
         match nchar {
             c if c == b'S' as c_int || c == CTRL_S_CONST || c == b's' as c_int => {
                 reset_VIsual_and_resel();
                 if bt_quickfix(Some(crate::globals::curbuf_mut())) {
-                    do_window_newwindow(nchar, Prenum, &mut cbuf);
+                    do_window_newwindow(nchar, prenum, &mut cbuf);
                 } else {
-                    win_split(Prenum, 0);
+                    win_split(prenum, 0);
                 }
             }
             c if c == CTRL_V_CONST || c == b'v' as c_int => {
                 reset_VIsual_and_resel();
                 if bt_quickfix(Some(crate::globals::curbuf_mut())) {
-                    do_window_newwindow(nchar, Prenum, &mut cbuf);
+                    do_window_newwindow(nchar, prenum, &mut cbuf);
                 } else {
-                    win_split(Prenum, WSP_VERT);
+                    win_split(prenum, WSP_VERT);
                 }
             }
             c if c == CTRL_HAT_CONST || c == b'^' as c_int => {
                 reset_VIsual_and_resel();
 
-                if buflist_findnr(if Prenum == 0 {
+                if buflist_findnr(if prenum == 0 {
                     curwin_mut().w_alt_fnum
                 } else {
-                    Prenum
+                    prenum
                 })
                 .is_null()
                 {
-                    if Prenum == 0 {
+                    if prenum == 0 {
                         emsg(gettext(E_NOALT));
                     } else {
-                        semsg!(gettext(E_BUFFER_NR_NOT_FOUND), i64::from(Prenum));
+                        semsg!(gettext(E_BUFFER_NR_NOT_FOUND), i64::from(prenum));
                     }
                     return;
                 }
 
                 if !curbuf_locked() && win_split(0, 0) {
                     buflist_getfile(
-                        if Prenum == 0 {
+                        if prenum == 0 {
                             curwin_mut().w_alt_fnum
                         } else {
-                            Prenum
+                            prenum
                         },
                         0,
                         GETF_ALT,
@@ -1239,7 +1239,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             }
             c if c == CTRL_N || c == b'n' as c_int => {
                 reset_VIsual_and_resel();
-                do_window_newwindow(nchar, Prenum, &mut cbuf);
+                do_window_newwindow(nchar, prenum, &mut cbuf);
             }
             c if c == CTRL_Q_CONST || c == b'q' as c_int => {
                 reset_VIsual_and_resel();
@@ -1247,7 +1247,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     c"quit",
                     cbuf.as_mut_ptr(),
                     cbuf.len(),
-                    i64::from(Prenum),
+                    i64::from(prenum),
                 );
                 do_cmdline_cmd(cbuf.as_ptr());
             }
@@ -1257,7 +1257,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     c"close",
                     cbuf.as_mut_ptr(),
                     cbuf.len(),
-                    i64::from(Prenum),
+                    i64::from(prenum),
                 );
                 do_cmdline_cmd(cbuf.as_ptr());
             }
@@ -1285,21 +1285,21 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     c"only",
                     cbuf.as_mut_ptr(),
                     cbuf.len(),
-                    i64::from(Prenum),
+                    i64::from(prenum),
                 );
                 do_cmdline_cmd(cbuf.as_ptr());
             }
             c if c == CTRL_W_CONST || c == b'w' as c_int || c == b'W' as c_int => {
-                if one_window_macro() && Prenum != 1 {
+                if one_window_macro() && prenum != 1 {
                     beep_flush();
                 } else {
                     let mut wp: *mut WinInfoInfo;
-                    if Prenum != 0 {
+                    if prenum != 0 {
                         let mut last_focusable = g_st().firstwin;
                         wp = g_st().firstwin;
                         while {
-                            Prenum -= 1;
-                            Prenum > 0
+                            prenum -= 1;
+                            prenum > 0
                         } {
                             if !(*wp).w_floating
                                 || (!(*wp).w_config.hide && (*wp).w_config.focusable)
@@ -1347,16 +1347,16 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 }
             }
             c if c == b'j' as c_int || c == K_DOWN || c == CTRL_J_CONST => {
-                win_goto_ver(false, Prenum1);
+                win_goto_ver(false, prenum1);
             }
             c if c == b'k' as c_int || c == K_UP || c == CTRL_K_CONST => {
-                win_goto_ver(true, Prenum1);
+                win_goto_ver(true, prenum1);
             }
             c if c == b'h' as c_int || c == K_LEFT || c == CTRL_H_CONST || c == K_BS => {
-                win_goto_hor(true, Prenum1);
+                win_goto_hor(true, prenum1);
             }
             c if c == b'l' as c_int || c == K_RIGHT || c == CTRL_L_CONST => {
-                win_goto_hor(false, Prenum1);
+                win_goto_hor(false, prenum1);
             }
             c if c == b'T' as c_int => {
                 if one_window(curwin_mut(), ptr::null_mut()) {
@@ -1364,7 +1364,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 } else {
                     let oldtab = g_st().curtab;
                     let wp = curwin_ptr();
-                    if !win_new_tabpage(Prenum, ptr::null_mut(), true, ptr::null_mut()).is_null()
+                    if !win_new_tabpage(prenum, ptr::null_mut(), true, ptr::null_mut()).is_null()
                         && valid_tabpage(oldtab)
                     {
                         let newtab = g_st().curtab;
@@ -1400,15 +1400,15 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 }
             }
             c if c == b'x' as c_int || c == CTRL_X_CONST => {
-                win_exchange(Prenum);
+                win_exchange(prenum);
             }
             c if c == CTRL_R_CONST || c == b'r' as c_int => {
                 reset_VIsual_and_resel();
-                win_rotate(false, Prenum1);
+                win_rotate(false, prenum1);
             }
             c if c == b'R' as c_int => {
                 reset_VIsual_and_resel();
-                win_rotate(true, Prenum1);
+                win_rotate(true, prenum1);
             }
             c if c == b'K' as c_int
                 || c == b'J' as c_int
@@ -1427,7 +1427,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     } else {
                         WSP_BOT
                     });
-                    win_splitmove(curwin_mut(), Prenum, dir);
+                    win_splitmove(curwin_mut(), prenum, dir);
                 }
             }
             c if c == b'=' as c_int => {
@@ -1445,31 +1445,31 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 );
             }
             c if c == b'+' as c_int => {
-                win_setheight(curwin_mut().w_height + Prenum1);
+                win_setheight(curwin_mut().w_height + prenum1);
             }
             c if c == b'-' as c_int => {
-                win_setheight(curwin_mut().w_height - Prenum1);
+                win_setheight(curwin_mut().w_height - prenum1);
             }
             c if c == CTRL_CONST_CONST || c == b'_' as c_int => {
-                win_setheight(if Prenum != 0 {
-                    Prenum
+                win_setheight(if prenum != 0 {
+                    prenum
                 } else {
                     g_st().Rows - win_st().min_set_ch as c_int
                 });
             }
             c if c == b'>' as c_int => {
-                win_setwidth(curwin_mut().w_width + Prenum1);
+                win_setwidth(curwin_mut().w_width + prenum1);
             }
             c if c == b'<' as c_int => {
-                win_setwidth(curwin_mut().w_width - Prenum1);
+                win_setwidth(curwin_mut().w_width - prenum1);
             }
             c if c == b'|' as c_int => {
-                win_setwidth(if Prenum != 0 { Prenum } else { g_st().Columns });
+                win_setwidth(if prenum != 0 { prenum } else { g_st().Columns });
             }
             c if c == b'}' as c_int || c == b']' as c_int || c == CTRL_RSB_CONST => {
                 if nchar == b'}' as c_int {
-                    if Prenum != 0 {
-                        g_st().g_do_tagpreview = Prenum;
+                    if prenum != 0 {
+                        g_st().g_do_tagpreview = prenum;
                     } else {
                         g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
                     }
@@ -1477,8 +1477,8 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     g_st().g_do_tagpreview = 0;
                 }
 
-                if Prenum != 0 {
-                    g_st().postponed_split = Prenum;
+                if prenum != 0 {
+                    g_st().postponed_split = prenum;
                 } else {
                     g_st().postponed_split = -1;
                 }
@@ -1487,7 +1487,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 g_st().postponed_split = 0;
             }
             c if c == b'f' as c_int || c == b'F' as c_int || c == CTRL_F_CONST => {
-                do_window_gotofile(nchar, Prenum1);
+                do_window_gotofile(nchar, prenum1);
             }
             c if c == b'i' as c_int || c == CTRL_I_CONST || c == b'd' as c_int || c == CTRL_D_CONST => {
                 if nchar == b'i' as c_int || nchar == CTRL_I_CONST {
@@ -1505,9 +1505,9 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     0,
                     len,
                     true,
-                    Prenum == 0,
+                    prenum == 0,
                     type_,
-                    Prenum1,
+                    prenum1,
                     ACTION_SPLIT,
                     1,
                     MAXLNUM,
@@ -1536,14 +1536,14 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     xc if xc == b'}' as c_int || xc == b']' as c_int || xc == CTRL_RSB_CONST => {
                         if xchar == b'}' as c_int {
                             xchar = CTRL_RSB_CONST;
-                            if Prenum != 0 {
-                                g_st().g_do_tagpreview = Prenum;
+                            if prenum != 0 {
+                                g_st().g_do_tagpreview = prenum;
                             } else {
                                 g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
                             }
                         }
-                        if Prenum != 0 {
-                            g_st().postponed_split = Prenum;
+                        if prenum != 0 {
+                            g_st().postponed_split = prenum;
                         } else {
                             g_st().postponed_split = -1;
                         }
@@ -1553,13 +1553,13 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     xc if xc == b'f' as c_int || xc == b'F' as c_int => {
                         g_st().cmdmod.cmod_tab = tabpage_index(g_st().curtab) + 1;
                         nchar = xchar;
-                        do_window_gotofile(nchar, Prenum1);
+                        do_window_gotofile(nchar, prenum1);
                     }
                     xc if xc == b't' as c_int => {
-                        goto_tabpage(Prenum);
+                        goto_tabpage(prenum);
                     }
                     xc if xc == b'T' as c_int => {
-                        goto_tabpage(-Prenum1);
+                        goto_tabpage(-prenum1);
                     }
                     xc if xc == TAB => {
                         if !goto_tabpage_lastused() {
@@ -1594,11 +1594,11 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
     }
 }
 
-fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, Prenum: i64) {
+fn cmd_with_count(cmd: &std::ffi::CStr, bufp: *mut c_char, bufsize: usize, prenum: i64) {
     unsafe {
         let len = xstrlcpy(bufp, cmd.as_ptr(), bufsize);
-        if Prenum > 0 && len < bufsize {
-            vim_snprintf!(bufp.add(len), bufsize - len, c"%lld", Prenum);
+        if prenum > 0 && len < bufsize {
+            vim_snprintf!(bufp.add(len), bufsize - len, c"%lld", prenum);
         }
     }
 }
@@ -2662,7 +2662,7 @@ pub fn make_windows(mut count: c_int, vertical: bool) -> c_int {
     }
 }
 
-fn win_exchange(mut Prenum: c_int) {
+fn win_exchange(mut prenum: c_int) {
     unsafe {
         if curwin_mut().w_floating {
             emsg(E_FLOATEXCHANGE);
@@ -2679,11 +2679,11 @@ fn win_exchange(mut Prenum: c_int) {
         }
 
         let mut frp: *mut Frame;
-        if Prenum != 0 {
+        if prenum != 0 {
             frp = (*(*curwin_mut().w_frame).fr_parent).fr_child;
             while !frp.is_null() && {
-                Prenum -= 1;
-                Prenum > 0
+                prenum -= 1;
+                prenum > 0
             } {
                 frp = (*frp).fr_next;
             }

@@ -52,7 +52,7 @@ pub fn ex_help(eap: &mut Exarg) {
         let mut wp: *mut WinInfoInfo;
         let mut empty_fnum: c_int = 0;
         let mut alt_fnum: c_int = 0;
-        let old_KeyTyped = g_st().KeyTyped;
+        let old_key_typed = g_st().KeyTyped;
 
         if !eap.arg.is_null() {
             arg = eap.arg;
@@ -227,7 +227,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
         if !early_ret {
             g_st().restart_edit = 0;
-            g_st().KeyTyped = old_KeyTyped;
+            g_st().KeyTyped = old_key_typed;
 
             do_tag(
                 None,

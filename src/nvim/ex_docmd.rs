@@ -10031,8 +10031,8 @@ pub fn free_findfunc_option() {
     callback_free(&mut opt_vars().p_ffu);
 }
 
-pub fn set_ref_in_findfunc(copyID: c_int) -> bool {
-    set_ref_in_callback(&mut opt_vars().p_ffu, copyID, ptr::null_mut(), ptr::null_mut())
+pub fn set_ref_in_findfunc(copy_id: c_int) -> bool {
+    set_ref_in_callback(&mut opt_vars().p_ffu, copy_id, ptr::null_mut(), ptr::null_mut())
 }
 
 fn set_browse_edit_arg(eap: &mut Exarg) {

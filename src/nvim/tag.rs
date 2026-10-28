@@ -387,8 +387,8 @@ pub fn free_tagfunc_option() {
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
-pub fn set_ref_in_tagfunc(copyID: c_int) -> bool {
-    set_ref_in_callback(&mut opt_vars().p_tfu, copyID, ptr::null_mut(), ptr::null_mut())
+pub fn set_ref_in_tagfunc(copy_id: c_int) -> bool {
+    set_ref_in_callback(&mut opt_vars().p_tfu, copy_id, ptr::null_mut(), ptr::null_mut())
 }
 
 /// Jump to tag; handling of tag commands and tag stack.
@@ -518,7 +518,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                     }
 
                     if type_ == DT_POP {
-                        let old_KeyTyped = g_st().KeyTyped;
+                        let old_key_typed = g_st().KeyTyped;
                         tagstackidx -= count;
                         if tagstackidx < 0 {
                             emsg(gettext(E_AT_BOTTOM_OF_TAG_STACK));
@@ -555,7 +555,7 @@ pub fn do_tag(eap: Option<&Exarg>,
                             mark_view_restore(Some(&saved_fmark));
                         }
                         check_cursor(curwin_mut());
-                        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_KeyTyped {
+                        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
                             foldOpenCursor();
                         }
 
@@ -1259,7 +1259,7 @@ fn find_tagfunc_tags(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         };
-        let mut flagString = [0 as c_char; 4];
+        let mut flag_string = [0 as c_char; 4];
         let mut tag: *mut Taggy = ptr::null_mut();
 
         if curwin_mut().w_tagstacklen > 0 {
@@ -1278,7 +1278,7 @@ fn find_tagfunc_tags(
         args[0].v_type = VarType::VarString;
         args[0].vval = crate::eval::typval::TypvalVval::String(pat);
         args[1].v_type = VarType::VarString;
-        args[1].vval = crate::eval::typval::TypvalVval::String(flagString.as_mut_ptr());
+        args[1].vval = crate::eval::typval::TypvalVval::String(flag_string.as_mut_ptr());
 
         let d = tv_dict_alloc_lock(VAR_FIXED);
         if (flags & TAG_INS_COMP) == 0
@@ -1297,8 +1297,8 @@ fn find_tagfunc_tags(
         args[3].v_type = VarType::VarUnknown;
 
         vim_snprintf!(
-            flagString.as_mut_ptr(),
-            flagString.len(),
+            flag_string.as_mut_ptr(),
+            flag_string.len(),
             c"%s%s%s",
             if g_st().g_tag_at_cursor {
                 c"c".as_ptr()
@@ -2701,7 +2701,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
         let mut getfile_result = GETFILE_UNUSED;
         let mut curwin_save: *mut WinInfoInfo = ptr::null_mut();
         let mut full_fname: Option<std::ffi::CString> = None;
-        let old_KeyTyped = g_st().KeyTyped;
+        let old_key_typed = g_st().KeyTyped;
         let l_g_do_tagpreview = g_st().g_do_tagpreview;
         let len = matching_line_len(lbuf_arg) + 1;
         let mut lbuf_vec = vec![0 as c_char; len];
@@ -2968,7 +2968,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                     if curbuf_mut().b_help {
                         set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
                     }
-                    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_KeyTyped {
+                    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_key_typed {
                         foldOpenCursor();
                     }
                 }

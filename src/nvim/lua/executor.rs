@@ -843,27 +843,27 @@ unsafe extern "C-unwind" fn nlua_thr_api_nvim__get_runtime(lstate: *mut lua_Stat
 }
 
 fn nlua_init_argv(
-    L: *mut lua_State,
+    lstate: *mut lua_State,
     argv: *mut *mut c_char,
     argc: c_int,
     lua_arg0: c_int,
 ) -> c_int {
     unsafe {
         let mut i: c_int = 0;
-        lua_newtable(L);
+        lua_newtable(lstate);
 
         if lua_arg0 > 0 {
-            lua_pushstring(L, *argv.add((lua_arg0 - 1) as usize));
-            lua_rawseti(L, -2, 0);
+            lua_pushstring(lstate, *argv.add((lua_arg0 - 1) as usize));
+            lua_rawseti(lstate, -2, 0);
 
             while i + lua_arg0 < argc {
-                lua_pushstring(L, *argv.add((i + lua_arg0) as usize));
-                lua_rawseti(L, -2, i + 1);
+                lua_pushstring(lstate, *argv.add((i + lua_arg0) as usize));
+                lua_rawseti(lstate, -2, i + 1);
                 i += 1;
             }
         }
 
-        lua_setglobal(L, c"arg");
+        lua_setglobal(lstate, c"arg");
         i
     }
 }
@@ -2845,13 +2845,13 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
 
 pub fn nlua_init_defaults() {
     unsafe {
-        let L = nlua_st().GLOBAL_LSTATE;
-        assert!(!L.is_null());
+        let lstate = nlua_st().GLOBAL_LSTATE;
+        assert!(!lstate.is_null());
 
-        lua_getglobal(L, c"require");
-        lua_pushstring(L, c"vim._core.defaults");
-        if nlua_pcall(L, 1, 0) != 0 {
-            fprintf!(log_get_stderr(), c"%s\n", lua_tostring(L, -1));
+        lua_getglobal(lstate, c"require");
+        lua_pushstring(lstate, c"vim._core.defaults");
+        if nlua_pcall(lstate, 1, 0) != 0 {
+            fprintf!(log_get_stderr(), c"%s\n", lua_tostring(lstate, -1));
         }
     }
 }
