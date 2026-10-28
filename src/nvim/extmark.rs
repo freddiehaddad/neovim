@@ -452,7 +452,7 @@ pub fn extmark_clear(
         }
 
         if marks_cleared_any {
-            decor_state_invalidate(&raw mut *buf);
+            decor_state_invalidate(buf);
             mc_ns_cleared(buf, ns_id);
         }
 

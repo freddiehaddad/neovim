@@ -1358,11 +1358,9 @@ use crate::eval::userfunc::call_func;
 use crate::strings::{vim_strchr, vim_strsave_escaped};
 
 #[inline]
-pub(super) fn tv_list_ref(l: *mut list_T) {
-    unsafe {
-        if !l.is_null() {
-            (*l).lv_refcount += 1;
-        }
+pub(super) fn tv_list_ref(l: Option<&mut list_T>) {
+    if let Some(l) = l {
+        l.lv_refcount += 1;
     }
 }
 
@@ -3151,7 +3149,7 @@ pub fn reg_submatch_list(no: c_int) -> *mut list_T {
             tv_list_append_string( &mut *list, s, (*re_st().rsm.sm_match).endp[no].offset_from(s));
         }
 
-        tv_list_ref(list);
+        tv_list_ref(list.as_mut());
         list
     }
 }

@@ -1062,7 +1062,7 @@ pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
             if di.is_null() {
                 if s.is_null() {
                     s = tv_list_alloc(9);
-                    tv_list_ref(s);
+                    tv_list_ref(s.as_mut());
                 }
 
                 i = 1;

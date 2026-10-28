@@ -3262,7 +3262,7 @@ fn qf_jump_print_msg(
     qi: &mut qf_info_T,
     qf_index: c_int,
     qf_ptr: &mut qfline_T,
-    old_curbuf: *mut buf_T,
+    old_curbuf: &mut buf_T,
     old_lnum: linenr_T,
 ) {
      {
@@ -3294,7 +3294,7 @@ fn qf_jump_print_msg(
         gap.push(NUL);
 
         let i = g_st().msg_scroll;
-        if g_st().curbuf == old_curbuf && curwin_mut().w_cursor.lnum == old_lnum {
+        if std::ptr::eq(g_st().curbuf, old_curbuf) && curwin_mut().w_cursor.lnum == old_lnum {
             g_st().msg_scroll = 1;
         } else if (g_st().msg_scrolled == 0 || (opt_vars().p_ch == 0 && g_st().msg_scrolled == 1)) && shortmess(kShmOverall)
         {
@@ -3406,7 +3406,7 @@ fn qf_jump_to_buffer(
             foldOpenCursor();
         }
         if print_message {
-            qf_jump_print_msg(qi, qf_index, &mut *qf_ptr, old_curbuf, old_lnum);
+            qf_jump_print_msg(qi, qf_index, &mut *qf_ptr, &mut *old_curbuf, old_lnum);
         }
 
         retval
@@ -4489,7 +4489,7 @@ fn call_qftf_func(
             if callback_call( &mut *cb, 1, args.as_mut_ptr(), &mut rettv) {
                 if rettv.v_type == VarType::VAR_LIST {
                     qftf_list = rettv.vval.v_list();
-                    tv_list_ref(qftf_list);
+                    tv_list_ref(qftf_list.as_mut());
                 }
                 tv_clear(&mut rettv);
             }
@@ -5634,7 +5634,7 @@ fn vgr_jump_to_match(
     qi: &mut qf_info_T,
     forceit: c_int,
     redraw_for_dummy: &mut bool,
-    first_match_buf: *mut buf_T,
+    first_match_buf: &mut buf_T,
     target_dir: *mut c_char,
 ) {
     let buf = g_st().curbuf;
@@ -5643,7 +5643,7 @@ fn vgr_jump_to_match(
             *redraw_for_dummy = false;
         }
 
-        if g_st().curbuf == first_match_buf && !target_dir.is_null() {
+        if std::ptr::eq(g_st().curbuf, first_match_buf) && !target_dir.is_null() {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = target_dir;
             ea.cmdidx = CMD_lcd;
@@ -5911,7 +5911,7 @@ pub fn ex_vimgrep(eap: &mut exarg_T) {
                                 &mut *qi,
                                 eap.forceit,
                                 &mut redraw_for_dummy,
-                                first_match_buf,
+                                &mut *first_match_buf,
                                 target_dir
                                     .as_ref()
                                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),

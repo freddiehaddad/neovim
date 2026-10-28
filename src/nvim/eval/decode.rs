@@ -61,7 +61,7 @@ fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
         (*type_di).di_tv.v_type = VarType::VAR_LIST;
         (*type_di).di_tv.v_lock = VAR_UNLOCKED;
         (*type_di).di_tv.vval = crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
-        tv_list_ref((*type_di).di_tv.vval.v_list());
+        tv_list_ref((*type_di).di_tv.vval.v_list().as_mut());
         tv_dict_add(&mut *dict, type_di);
 
         let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
@@ -80,7 +80,7 @@ fn create_special_dict(rettv: &mut typval_T, mp_type: usize, val: typval_T) {
 pub fn decode_create_map_special_dict(ret_tv: &mut typval_T, len: isize) -> *mut list_T {
     unsafe {
         let list = tv_list_alloc(len);
-        tv_list_ref(list);
+        tv_list_ref(list.as_mut());
         create_special_dict(
             ret_tv,
             K_MP_MAP,
@@ -948,7 +948,7 @@ pub fn json_decode_string(
                     }
                     b'[' => {
                         let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-                        tv_list_ref(list);
+                        tv_list_ref(list.as_mut());
                         let tv = typval_T {
                             v_type: VarType::VAR_LIST,
                             v_lock: VAR_UNLOCKED,
@@ -1049,7 +1049,7 @@ fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
             };
         } else {
             let list = tv_list_alloc(4);
-            tv_list_ref(list);
+            tv_list_ref(list.as_mut());
             create_special_dict(
                 rettv,
                 K_MP_INTEGER,
@@ -1155,7 +1155,7 @@ fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
             }
             mpack_token_type_t::MPACK_TOKEN_ARRAY => {
                 let list = tv_list_alloc(node.tok.length as isize);
-                tv_list_ref(list);
+                tv_list_ref(list.as_mut());
                 *result = typval_T {
                     v_type: VarType::VAR_LIST,
                     v_lock: VAR_UNLOCKED,
@@ -1205,7 +1205,7 @@ fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
             mpack_token_type_t::MPACK_TOKEN_EXT => {
                 let bytes = node.data[1].take_owned_bytes();
                 let list = tv_list_alloc(2);
-                tv_list_ref(list);
+                tv_list_ref(list.as_mut());
                 tv_list_append_number( &mut *list, i64::from(node.tok.data.ext_type()));
                 let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
                 tv_list_append_list( &mut *list, ext_val_list);

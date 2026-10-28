@@ -609,7 +609,7 @@ pub fn evalvars_init() {
         for (i, type_name) in MSGPACK_TYPE_NAMES.iter().enumerate() {
             let type_list = tv_list_alloc(0);
             tv_list_set_lock(type_list.as_mut(), VAR_FIXED);
-            tv_list_ref(type_list);
+            tv_list_ref(type_list.as_mut());
             let di = tv_dict_item_alloc(type_name.as_ptr());
             (*di).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             (*di).di_tv = typval_T {
@@ -1384,7 +1384,7 @@ pub fn ex_let_vars(
                 ltv.v_type = VarType::VAR_LIST;
                 ltv.v_lock = VAR_UNLOCKED;
                 ltv.vval = crate::eval::typval::TypvalVval::List(rest_list);
-                tv_list_ref(rest_list);
+                tv_list_ref(rest_list.as_mut());
 
                 arg = ex_let_one(
                     skipwhite(arg.add(1)),
@@ -2466,7 +2466,7 @@ pub fn set_vim_var_list(idx: VimVarIndex, val: *mut list_T) {
         tv.v_type = VarType::VAR_LIST;
         tv.vval = crate::eval::typval::TypvalVval::List(val);
         if !val.is_null() {
-            tv_list_ref(val);
+            tv_list_ref(unsafe { val.as_mut() });
         }
     }
 }

@@ -794,11 +794,9 @@ fn tv_list_locked_inline(l: Option<&list_T>) -> VarLockStatus {
 }
 
 #[inline]
-pub fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
-        }
+pub fn tv_list_ref(l: Option<&mut list_T>) {
+    if let Some(l) = l {
+        l.lv_refcount += 1;
     }
 }
 
@@ -2344,23 +2342,23 @@ pub fn f_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDat
 }
 
 /// Check whether two lists are equal.
-pub fn tv_list_equal(l1: *mut list_T, l2: *mut list_T, ic: bool) -> bool {
+pub fn tv_list_equal(l1: Option<&list_T>, l2: Option<&list_T>, ic: bool) -> bool {
     unsafe {
-        if l1 == l2 {
-            return true;
-        }
-        if tv_list_len_inline(l1.as_ref()) != tv_list_len_inline(l2.as_ref()) {
+        if tv_list_len_inline(l1) != tv_list_len_inline(l2) {
             return false;
         }
-        if tv_list_len_inline(l1.as_ref()) == 0 {
+        if tv_list_len_inline(l1) == 0 {
             return true;
         }
-        if l1.is_null() || l2.is_null() {
+        let (Some(l1), Some(l2)) = (l1, l2) else {
             return false;
+        };
+        if ptr::eq(l1, l2) {
+            return true;
         }
 
-        let mut item1 = tv_list_first_inline(l1.as_ref());
-        let mut item2 = tv_list_first_inline(l2.as_ref());
+        let mut item1 = tv_list_first_inline(Some(l1));
+        let mut item2 = tv_list_first_inline(Some(l2));
         while !item1.is_null() && !item2.is_null() {
             if !tv_equal(&(*item1).li_tv, &(*item2).li_tv, ic) {
                 return false;
@@ -3396,29 +3394,29 @@ pub fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: impl crate::stri
 }
 
 /// Compare two dictionaries.
-pub fn tv_dict_equal(d1: *mut dict_T, d2: *mut dict_T, ic: bool) -> bool {
+pub fn tv_dict_equal(d1: Option<&dict_T>, d2: Option<&dict_T>, ic: bool) -> bool {
     unsafe {
-        if d1 == d2 {
-            return true;
-        }
-        if tv_dict_len_inline(d1.as_ref()) != tv_dict_len_inline(d2.as_ref()) {
+        if tv_dict_len_inline(d1) != tv_dict_len_inline(d2) {
             return false;
         }
-        if tv_dict_len_inline(d1.as_ref()) == 0 {
+        if tv_dict_len_inline(d1) == 0 {
             return true;
         }
-        if d1.is_null() || d2.is_null() {
+        let (Some(d1), Some(d2)) = (d1, d2) else {
             return false;
+        };
+        if ptr::eq(d1, d2) {
+            return true;
         }
 
-        let mut todo = (*d1).dv_hashtab.ht_used;
-        let mut hi = (*d1).dv_hashtab.array_ptr();
+        let mut todo = d1.dv_hashtab.ht_used;
+        let mut hi = d1.dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di1 = tv_dict_hi2di(hi);
                 let key1 = (*di1).di_key.as_ptr();
-                let di2 = tv_dict_find(d2.as_ref(), key1, -1);
+                let di2 = tv_dict_find(Some(d2), key1, -1);
                 if di2.is_null() {
                     return false;
                 }
@@ -3540,24 +3538,18 @@ pub fn tv_blob_unref(b: *mut blob_T) {
 }
 
 /// Check whether two blobs are equal.
-pub fn tv_blob_equal(b1: *const blob_T, b2: *const blob_T) -> bool {
-    unsafe {
-        let len1 = tv_blob_len_inline(b1.as_ref());
-        let len2 = tv_blob_len_inline(b2.as_ref());
-
-        if len1 == 0 && len2 == 0 {
-            return true;
-        }
-        if b1 == b2 {
-            return true;
-        }
-        if len1 != len2 {
-            return false;
-        }
-
-        let s1 = &(*b1).bv_ga;
-        let s2 = &(*b2).bv_ga;
-        s1 == s2
+pub fn tv_blob_equal(b1: Option<&blob_T>, b2: Option<&blob_T>) -> bool {
+    let len1 = tv_blob_len_inline(b1);
+    let len2 = tv_blob_len_inline(b2);
+    if len1 == 0 && len2 == 0 {
+        return true;
+    }
+    if len1 != len2 {
+        return false;
+    }
+    match (b1, b2) {
+        (Some(b1), Some(b2)) => ptr::eq(b1, b2) || b1.bv_ga == b2.bv_ga,
+        _ => false,
     }
 }
 
@@ -4589,13 +4581,13 @@ pub fn tv_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
         match tv1.v_type {
             VarType::VAR_LIST => {
                 RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let r = tv_list_equal(tv1.vval.v_list(), tv2.vval.v_list(), ic);
+                let r = tv_list_equal(unsafe { tv1.vval.v_list().as_ref() }, unsafe { tv2.vval.v_list().as_ref() }, ic);
                 RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
             VarType::VAR_DICT => {
                 RECURSIVE_CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let r = tv_dict_equal(tv1.vval.v_dict(), tv2.vval.v_dict(), ic);
+                let r = tv_dict_equal(unsafe { tv1.vval.v_dict().as_ref() }, unsafe { tv2.vval.v_dict().as_ref() }, ic);
                 RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
@@ -4610,7 +4602,7 @@ pub fn tv_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
                 RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 r
             }
-            VarType::VAR_BLOB => tv_blob_equal(tv1.vval.v_blob(), tv2.vval.v_blob()),
+            VarType::VAR_BLOB => tv_blob_equal(unsafe { tv1.vval.v_blob().as_ref() }, unsafe { tv2.vval.v_blob().as_ref() }),
             VarType::VAR_NUMBER => tv1.vval.v_number() == tv2.vval.v_number(),
             VarType::VAR_FLOAT => tv1.vval.v_float() == tv2.vval.v_float(),
             VarType::VAR_STRING => {
@@ -5259,9 +5251,9 @@ mod tests {
             // copy, extend, concat, join, equal
             let l2_copy = tv_list_copy(None, l2.as_mut(), true, 0);
             (*l2_copy).lv_refcount = 1;
-            assert!(tv_list_equal(l2, l2_copy, false));
-            assert!(tv_list_equal(ptr::null_mut(), ptr::null_mut(), false));
-            assert!(!tv_list_equal(l2, ptr::null_mut(), false));
+            assert!(tv_list_equal(l2.as_ref(), l2_copy.as_ref(), false));
+            assert!(tv_list_equal(None, None, false));
+            assert!(!tv_list_equal(l2.as_ref(), None, false));
 
             let mut joined: Vec<c_char> = Vec::new();
             assert!(tv_list_join(&mut joined, l2.as_mut(), c", "));
@@ -5333,16 +5325,16 @@ mod tests {
             // Copy, equal, extend, readonly, clear
             let d_copy = tv_dict_copy(None, d.as_mut(), true, 0);
             (*d_copy).dv_refcount = 1;
-            assert!(tv_dict_equal(d, d_copy, false));
-            assert!(tv_dict_equal(ptr::null_mut(), ptr::null_mut(), false));
-            assert!(!tv_dict_equal(d, ptr::null_mut(), false));
+            assert!(tv_dict_equal(d.as_ref(), d_copy.as_ref(), false));
+            assert!(tv_dict_equal(None, None, false));
+            assert!(!tv_dict_equal(d.as_ref(), None, false));
 
             let d2 = tv_dict_alloc();
             (*d2).dv_refcount = 1;
             assert!(tv_dict_add_nr(&mut *d2, c"extra", 7));
             tv_dict_extend(&mut *d, &mut *d2, c"force");
             assert_eq!(tv_dict_get_number(d.as_ref(), c"extra"), 7);
-            assert!(!tv_dict_equal(d, d_copy, false));
+            assert!(!tv_dict_equal(d.as_ref(), d_copy.as_ref(), false));
 
             tv_dict_set_keys_readonly(&mut *d2);
             let di_extra = tv_dict_find(d2.as_ref(), c"extra", -1);

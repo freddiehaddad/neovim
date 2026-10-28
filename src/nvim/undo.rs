@@ -2099,7 +2099,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             {
                 unblock_autocmds();
                 iemsg(gettext(c"E438: u_undo: line numbers wrong"));
-                changed(g_st().curbuf);
+                changed(crate::globals::curbuf_mut());
                 return;
             }
 
@@ -2225,7 +2225,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             curbuf_mut().b_ml.ml_flags |= ML_EMPTY;
         }
         if (old_flags & UH_CHANGED) != 0 {
-            changed(g_st().curbuf);
+            changed(crate::globals::curbuf_mut());
         } else {
             unchanged(curbuf_mut(), false, true);
         }

@@ -475,7 +475,7 @@ fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> bool {
         };
 
         let stacktrace = stacktrace_create();
-        tv_list_ref(stacktrace);
+        tv_list_ref(stacktrace.as_mut());
 
         let excp = std::rc::Rc::new(except_T {
             r#type,

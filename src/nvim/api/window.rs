@@ -774,12 +774,12 @@ pub fn nvim_win_resize(
         }
         if height >= 0 {
             try_wrap(err, || {
-                win_setheight_win(height as c_int, w, from_top);
+                win_setheight_win(height as c_int, unsafe { &mut *w }, from_top);
             });
         }
         if !error_set(err) && width >= 0 {
             try_wrap(err, || {
-                win_setwidth_win(width as c_int, w, from_left);
+                win_setwidth_win(width as c_int, unsafe { &mut *w }, from_left);
             });
         }
     }

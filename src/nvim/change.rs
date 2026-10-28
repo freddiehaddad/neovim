@@ -166,18 +166,18 @@ pub fn change_warning(buf: &mut buf_T, col: c_int) {
 }
 
 /// Call this function when something in a buffer is changed.
-pub fn changed(buf: *mut buf_T) {
-    unsafe {
-        if (*buf).b_changed == 0 {
+pub fn changed(buf: &mut buf_T) {
+     {
+        if buf.b_changed == 0 {
             let save_msg_scroll = g_st().msg_scroll;
 
-            change_warning( &mut *buf, 0);
+            change_warning( buf, 0);
 
-            if (*buf).b_may_swap && !bt_dontwrite(buf.as_ref()) {
+            if buf.b_may_swap && !bt_dontwrite(Some(&*buf)) {
                 let save_need_wait_return = g_st().need_wait_return;
 
                 g_st().need_wait_return = false;
-                ml_open_file(&mut *buf);
+                ml_open_file(buf);
 
                 if g_st().need_wait_return && g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(kUIMessages)
                 {
@@ -188,11 +188,11 @@ pub fn changed(buf: *mut buf_T) {
                     g_st().need_wait_return = save_need_wait_return;
                 }
             }
-            changed_internal(&mut *buf);
+            changed_internal(buf);
         }
-        buf_inc_changedtick( &mut *buf);
+        buf_inc_changedtick( buf);
 
-        if buf == g_st().curbuf {
+        if std::ptr::eq(buf, g_st().curbuf) {
             g_st().Search.hl_match = false;
         }
     }
@@ -292,7 +292,7 @@ fn changed_common(
     xtra: linenr_T,
 ) {
     unsafe {
-        changed(&raw mut *buf);
+        changed(buf);
 
         for win in for_all_windows_mut() {
             if win.w_buffer == (&raw mut *buf) {

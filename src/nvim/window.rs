@@ -2086,7 +2086,7 @@ pub fn win_split_ins(
             }
 
             if (*oldwin).w_onebuf_opt.wo_wfw != 0 {
-                win_setwidth_win((*oldwin).w_width + new_size + 1, oldwin, true);
+                win_setwidth_win((*oldwin).w_width + new_size + 1, &mut *oldwin, true);
             }
 
             if !do_equal
@@ -2168,7 +2168,7 @@ pub fn win_split_ins(
                 set_fraction( &mut *oldwin);
                 did_set_fraction = true;
 
-                win_setheight_win((*oldwin).w_height + new_size + STATUS_HEIGHT, oldwin, true);
+                win_setheight_win((*oldwin).w_height + new_size + STATUS_HEIGHT, &mut *oldwin, true);
                 oldwin_height = (*oldwin).w_height;
             }
 
@@ -2851,7 +2851,7 @@ pub fn win_splitmove(wp: &mut win_T, size: c_int, flags: c_int) -> bool {
         }
 
         if size == 0 && (flags & WSP_VERT) == 0 && win_valid(&raw mut *wp) && !wp.w_floating {
-            win_setheight_win(height, (&raw mut *wp), true);
+            win_setheight_win(height, wp, true);
             if opt_vars().p_ea != 0 {
                 win_equal(curwin_ptr(), ptr::eq(curwin_ptr(), (&raw mut *wp)), b'v' as c_int);
             }
@@ -3573,7 +3573,7 @@ pub fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> bool {
             leaving_window(curwin_mut());
 
             let wp = if (*win).w_floating {
-                win_float_find_altwin(win, ptr::null())
+                win_float_find_altwin(&*win, None)
             } else {
                 frame2win(win_altframe( &mut *win, ptr::null_mut()))
             };
@@ -4053,7 +4053,7 @@ fn win_free_mem(win: *mut win_T, dirp: &mut c_int, tp: *mut tabpage_T) -> *mut w
             drop(Box::from_raw(frp));
         } else {
             *dirp = b'h' as c_int;
-            wp = win_float_find_altwin(win, tp);
+            wp = win_float_find_altwin(&*win, tp.as_ref());
         }
         win_free(win, tp);
 
@@ -5390,7 +5390,7 @@ fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) -> bool {
 
 fn enter_tabpage(
     tp: &mut tabpage_T,
-    old_curbuf: *mut buf_T,
+    old_curbuf: &mut buf_T,
     trigger_enter_autocmds: bool,
     trigger_leave_autocmds: bool,
 ) {
@@ -5557,11 +5557,11 @@ pub fn goto_tabpage_tp(
             && leave_tabpage((*(*tp).tp_curwin).w_buffer, trigger_leave_autocmds)
         {
             if valid_tabpage(tp) {
-                enter_tabpage( &mut *tp, g_st().curbuf, trigger_enter_autocmds, trigger_leave_autocmds);
+                enter_tabpage( &mut *tp, crate::globals::curbuf_mut(), trigger_enter_autocmds, trigger_leave_autocmds);
             } else {
                 enter_tabpage(
                     curtab_mut(),
-                    g_st().curbuf,
+                    crate::globals::curbuf_mut(),
                     trigger_enter_autocmds,
                     trigger_leave_autocmds,
                 );
@@ -6774,7 +6774,7 @@ pub fn win_size_restore(gap: &[c_int]) {
                     i += 2;
                     if !(*wp).w_floating {
                         frame_setwidth(&mut *(*wp).w_frame, width, true);
-                        win_setheight_win(height, wp, true);
+                        win_setheight_win(height, &mut *wp, true);
                     }
                 }
             }
@@ -6837,27 +6837,27 @@ fn frame_comp_pos(topfrp: &mut frame_T, row: &mut c_int, col: &mut c_int) {
 
 pub fn win_setheight(height: c_int) {
      {
-        win_setheight_win(height, curwin_ptr(), true);
+        win_setheight_win(height, crate::globals::curwin_mut(), true);
     }
 }
 
-pub fn win_setheight_win(mut height: c_int, win: *mut win_T, from_top: bool) {
+pub fn win_setheight_win(mut height: c_int, win: &mut win_T, from_top: bool) {
     unsafe {
         let min_wmh = if ptr::eq(win, curwin_ptr()) {
             opt_vars().p_wmh.max(1)
         } else {
             opt_vars().p_wmh
         } as c_int;
-        height = height.max(min_wmh + (*win).w_winbar_height);
+        height = height.max(min_wmh + win.w_winbar_height);
 
-        if (*win).w_floating {
-            (*win).w_config.height = height.max(1);
-            win_config_float(&mut *win, (*win).w_config.clone());
-            redraw_later(win.as_mut(), UPD_VALID);
+        if win.w_floating {
+            win.w_config.height = height.max(1);
+            win_config_float(win, win.w_config.clone());
+            redraw_later(Some(&mut *win), UPD_VALID);
         } else {
             frame_setheight(
-                &mut *(*win).w_frame,
-                height + (*win).w_hsep_height + (*win).w_status_height,
+                &mut *win.w_frame,
+                height + win.w_hsep_height + win.w_status_height,
                 from_top,
             );
 
@@ -6993,23 +6993,23 @@ fn frame_setheight(curfrp: &mut frame_T, mut height: c_int, from_top: bool) {
 
 pub fn win_setwidth(width: c_int) {
      {
-        win_setwidth_win(width, curwin_ptr(), true);
+        win_setwidth_win(width, crate::globals::curwin_mut(), true);
     }
 }
 
-pub fn win_setwidth_win(mut width: c_int, wp: *mut win_T, from_left: bool) {
+pub fn win_setwidth_win(mut width: c_int, wp: &mut win_T, from_left: bool) {
     unsafe {
         if ptr::eq(wp, curwin_ptr()) {
             width = width.max(opt_vars().p_wmw as c_int).max(1);
         } else if width < 0 {
             width = 0;
         }
-        if (*wp).w_floating {
-            (*wp).w_config.width = width;
-            win_config_float(&mut *wp, (*wp).w_config.clone());
-            redraw_later(wp.as_mut(), UPD_NOT_VALID);
+        if wp.w_floating {
+            wp.w_config.width = width;
+            win_config_float(wp, wp.w_config.clone());
+            redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         } else {
-            frame_setwidth(&mut *(*wp).w_frame, width + (*wp).w_vsep_width, from_left);
+            frame_setwidth(&mut *wp.w_frame, width + wp.w_vsep_width, from_left);
 
             win_comp_pos();
             redraw_all_later(UPD_NOT_VALID);

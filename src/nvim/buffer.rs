@@ -986,7 +986,7 @@ fn read_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags: c_int) -> bool {
 
         if read_stdin {
             if !g_st().readonlymode && !buf_is_empty(curbuf_mut()) {
-                changed(g_st().curbuf);
+                changed(crate::globals::curbuf_mut());
             } else if retval == OK {
                 unchanged(curbuf_mut(), false, true);
             }
@@ -1176,7 +1176,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&exarg_T>, flags_arg: c_int) -> 
             || curbuf_mut().b_modified_was_set
             || (aborting() && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
         {
-            changed(g_st().curbuf);
+            changed(crate::globals::curbuf_mut());
         } else if retval != FAIL && !read_stdin && !read_fifo {
             unchanged(curbuf_mut(), false, true);
         }

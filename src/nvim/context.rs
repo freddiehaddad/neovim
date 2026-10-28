@@ -706,11 +706,8 @@ pub fn ctx_did_chdir() {
     ctx_st().CTX_DID_CHDIR = true;
 }
 
-pub fn is_ctx_win(win: *mut win_T) -> bool {
-    unsafe {
-        let vec = &raw const g_st().ctx_win_vec;
-        (*vec).iter().any(|item| item.cw_used && item.cw_win == win)
-    }
+pub fn is_ctx_win(win: *const win_T) -> bool {
+    g_st().ctx_win_vec.iter().any(|item| item.cw_used && ptr::eq(item.cw_win, win))
 }
 
 fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut buf_T) -> *mut win_T {

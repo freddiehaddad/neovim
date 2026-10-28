@@ -423,10 +423,10 @@ pub fn win_float_find(kind: WinKind) -> *mut win_T {
 }
 
 /// Select an alternative window to `win` (assumed floating) in tabpage `tp` (`win_float_find_altwin`).
-pub fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> *mut win_T {
+pub fn win_float_find_altwin(win: &win_T, tp: Option<&tabpage_T>) -> *mut win_T {
     unsafe {
         let mut wp = g_st().prevwin;
-        if tp.is_null() {
+        let Some(tp) = tp else {
             return if win_valid(wp)
                 && !ptr::eq(wp, win)
                 && (*wp).w_config.focusable
@@ -436,18 +436,18 @@ pub fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> *mut wi
             } else {
                 g_st().firstwin
             };
-        }
+        };
 
         debug_assert!(!ptr::eq(tp, g_st().curtab));
-        wp = if tabpage_win_valid(tp, (*tp).tp_prevwin) {
-            (*tp).tp_prevwin
+        wp = if tabpage_win_valid(tp, tp.tp_prevwin) {
+            tp.tp_prevwin
         } else {
-            (*tp).tp_firstwin
+            tp.tp_firstwin
         };
         if !ptr::eq(wp, win) && (*wp).w_config.focusable && !(*wp).w_config.hide {
             wp
         } else {
-            (*tp).tp_firstwin
+            tp.tp_firstwin
         }
     }
 }

@@ -4198,7 +4198,7 @@ pub fn func_equal(tv1: &typval_T, tv2: &typval_T, ic: bool) -> bool {
             if d1 != d2 {
                 return false;
             }
-        } else if !tv_dict_equal(d1, d2, ic) {
+        } else if !tv_dict_equal(d1.as_ref(), d2.as_ref(), ic) {
             return false;
         }
 
@@ -5064,7 +5064,7 @@ fn get_system_output_as_rettv(argvars: &mut [typval_T], rettv: &mut typval_T, re
                 keepempty = tv_get_number(&argvars[2]) as c_int;
             }
             rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(res.as_ptr(), res.len(), keepempty != 0));
-            tv_list_ref(rettv.vval.v_list());
+            tv_list_ref(rettv.vval.v_list().as_mut());
             rettv.v_type = VarType::VAR_LIST;
         } else {
             let nread = res.len();
@@ -6446,7 +6446,7 @@ pub fn var_item_copy(
                     to.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
                 } else if copyID != 0 && tv_list_copyid(&*from.vval.v_list()) == copyID {
                     to.vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy(&*from.vval.v_list()));
-                    tv_list_ref(to.vval.v_list());
+                    tv_list_ref(to.vval.v_list().as_mut());
                 } else {
                     to.vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, from.vval.v_list().as_mut(), deep, copyID));
                 }
@@ -6959,7 +6959,7 @@ pub fn eval_call_provider(
             tv_initial_value(),
         ];
         let mut rettv = tv_initial_value();
-        tv_list_ref(arguments);
+        tv_list_ref(Some(&mut *arguments));
 
         let lnum = curwin_mut().w_cursor.lnum;
         let mut funcexe = funcexe_T {
@@ -7143,7 +7143,7 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 tv_clear(typ1);
                 return false;
             } else {
-                let mut eq = tv_blob_equal(typ1.vval.v_blob(), typ2.vval.v_blob());
+                let mut eq = tv_blob_equal(unsafe { typ1.vval.v_blob().as_ref() }, unsafe { typ2.vval.v_blob().as_ref() });
                 if expr_type == EXPR_NEQUAL {
                     eq = !eq;
                 }
@@ -7168,7 +7168,7 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 tv_clear(typ1);
                 return false;
             } else {
-                let mut eq = tv_list_equal(typ1.vval.v_list(), typ2.vval.v_list(), ic);
+                let mut eq = tv_list_equal(unsafe { typ1.vval.v_list().as_ref() }, unsafe { typ2.vval.v_list().as_ref() }, ic);
                 if expr_type == EXPR_NEQUAL {
                     eq = !eq;
                 }
@@ -7195,7 +7195,7 @@ pub fn typval_compare(typ1: &mut typval_T,typ2: &mut typval_T,
                 tv_clear(typ1);
                 return false;
             } else {
-                let mut eq = tv_dict_equal(typ1.vval.v_dict(), typ2.vval.v_dict(), ic);
+                let mut eq = tv_dict_equal(unsafe { typ1.vval.v_dict().as_ref() }, unsafe { typ2.vval.v_dict().as_ref() }, ic);
                 if expr_type == EXPR_NEQUAL {
                     eq = !eq;
                 }

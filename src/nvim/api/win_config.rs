@@ -427,9 +427,9 @@ pub fn nvim_open_win(
                     (*wp).w_config = fconfig.clone();
                     if size > 0 {
                         if (flags & WSP_VERT) != 0 && (*wp).w_width != size {
-                            win_setwidth_win(size, wp, true);
+                            win_setwidth_win(size, &mut *wp, true);
                         } else if (flags & WSP_VERT) == 0 && (*wp).w_height != size {
-                            win_setheight_win(size, wp, true);
+                            win_setheight_win(size, &mut *wp, true);
                         }
                     }
                 }
@@ -607,7 +607,7 @@ fn win_find_altwin(win: *mut win_T, tp: &mut tabpage_T) -> *mut win_T {
     unsafe {
         let tp_arg = if ptr::eq(tp, g_st().curtab) { ptr::null_mut() } else { &raw mut *tp };
         if (*win).w_floating {
-            win_float_find_altwin(win, tp_arg)
+            win_float_find_altwin(&*win, tp_arg.as_ref())
         } else {
             let mut dir: c_int = 0;
             winframe_find_altwin( &mut *win, &mut dir, tp_arg, ptr::null_mut())
@@ -797,12 +797,8 @@ fn win_config_split(
                     }
                 } else {
                     altwin = win_float_find_altwin(
-                        (&raw mut *win),
-                        if win_tp == g_st().curtab {
-                            ptr::null_mut()
-                        } else {
-                            win_tp
-                        },
+                        win,
+                        (win_tp != g_st().curtab).then(|| &*win_tp),
                     );
                 }
 
@@ -883,10 +879,10 @@ fn win_config_split(
         }
 
         if has_key(mask, KEYSET_OPTIDX_win_config__width) {
-            win_setwidth_win(fconfig.width, (&raw mut *win), true);
+            win_setwidth_win(fconfig.width, win, true);
         }
         if has_key(mask, KEYSET_OPTIDX_win_config__height) {
-            win_setheight_win(fconfig.height, (&raw mut *win), true);
+            win_setheight_win(fconfig.height, win, true);
         }
 
         if !was_split {

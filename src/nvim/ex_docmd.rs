@@ -10433,14 +10433,14 @@ fn ex_resize(eap: &mut exarg_T) {
             } else if n == 0 && *eap.arg == NUL {
                 n = g_st().Columns;
             }
-            win_setwidth_win(n, wp, true);
+            win_setwidth_win(n, &mut *wp, true);
         } else {
             if *eap.arg == b'-' as c_char || *eap.arg == b'+' as c_char {
                 n += (*wp).w_height;
             } else if n == 0 && *eap.arg == NUL {
                 n = g_st().Rows - 1;
             }
-            win_setheight_win(n, wp, true);
+            win_setheight_win(n, &mut *wp, true);
         }
     }
 }

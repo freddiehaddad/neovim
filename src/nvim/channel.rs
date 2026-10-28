@@ -996,7 +996,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         argv[1].v_type = VarType::VAR_LIST;
         argv[1].v_lock = VAR_UNLOCKED;
         argv[1].vval = TypvalVval::List(l);
-        tv_list_ref(l);
+        tv_list_ref(unsafe { l.as_mut() });
         reader.buffer = Vec::new();
         argv[2].vval = TypvalVval::String(
             reader

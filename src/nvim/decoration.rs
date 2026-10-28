@@ -800,9 +800,9 @@ fn decor_free_sh(first_idx: u32) {
     }
 }
 
-pub fn decor_state_invalidate(buf: *mut buf_T) {
+pub fn decor_state_invalidate(buf: &mut buf_T) {
     unsafe {
-        if !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == buf {
+        if !g_st().decor_state.win.is_null() && std::ptr::eq((*g_st().decor_state.win).w_buffer, buf) {
             g_st().decor_state.itr_valid = false;
         }
     }

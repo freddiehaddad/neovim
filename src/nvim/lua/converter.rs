@@ -856,7 +856,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                             ObjectType::kObjectTypeArray => {
                                 let l = tv_list_alloc(table_props.maxidx as isize);
                                 (*l).lua_table_ref = table_ref;
-                                tv_list_ref(l);
+                                tv_list_ref(l.as_mut());
                                 (*cur.tv).v_type = VarType::VAR_LIST;
                                 (*cur.tv).vval = crate::eval::typval::TypvalVval::List(l);
                                 cur.list_len = table_props.maxidx;

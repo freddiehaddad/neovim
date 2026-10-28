@@ -2250,7 +2250,7 @@ pub fn execute_common(argvars: &mut [typval_T], rettv: &mut typval_T, arg_off: c
             do_cmdline_cmd(tv_get_string(&argvars[off]));
         } else if !argvars[off].vval.v_list().is_null() {
             let list = argvars[off].vval.v_list();
-            tv_list_ref(list);
+            tv_list_ref(list.as_mut());
             let mut cookie = GetListLineCookie {
                 li: tv_list_first(list.as_ref()),
             };
@@ -2529,7 +2529,7 @@ fn flatten_common(argvars: &mut [typval_T], rettv: &mut typval_T, make_copy: boo
             ) {
                 return;
             }
-            tv_list_ref(list);
+            tv_list_ref(unsafe { list.as_mut() });
         }
 
         tv_list_flatten(
@@ -3606,7 +3606,7 @@ pub fn f_getreg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
             if rettv.vval.v_list().is_null() {
                 rettv.vval = crate::eval::typval::TypvalVval::List(tv_list_alloc(0));
             }
-            tv_list_ref(rettv.vval.v_list());
+            tv_list_ref(rettv.vval.v_list().as_mut());
         } else {
             let reg_str = get_reg_contents_str(regname, if arg2 != 0 { kGRegExprSrc } else { 0 });
             crate::eval::typval::tv_set_string(
@@ -5019,7 +5019,7 @@ pub fn f_jobwait(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         if busy {
             ui_busy_stop();
         }
-        tv_list_ref(rv);
+        tv_list_ref(rv.as_mut());
         rettv.v_type = VarType::VAR_LIST;
         rettv.vval = crate::eval::typval::TypvalVval::List(rv);
     }
@@ -8479,7 +8479,7 @@ fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut typval_T) {
         let list = tv_list_alloc(kListLenShouldKnow);
         rettv.v_type = VarType::VAR_LIST;
         rettv.vval = crate::eval::typval::TypvalVval::List(list);
-        tv_list_ref(list);
+        tv_list_ref(list.as_mut());
         let Some(dirs) = stdpaths_get_xdg_var(xdg) else {
             return;
         };

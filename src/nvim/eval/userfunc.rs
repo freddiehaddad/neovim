@@ -490,7 +490,7 @@ fn register_closure(fp: &mut ufunc_T) {
         if fp.uf_scoped == uf_st().current_funccal {
             return;
         }
-        funccal_unref(fp.uf_scoped, &raw mut *fp, false);
+        funccal_unref(fp.uf_scoped, fp, false);
         fp.uf_scoped = uf_st().current_funccal;
         (*uf_st().current_funccal).fc_refcount += 1;
         (*uf_st().current_funccal).fc_ufuncs.push(fp);
@@ -1088,7 +1088,7 @@ fn cleanup_function_call(fc: &mut funccall_T) {
 
 /// Unreference `fc`: decrement the reference count and free it when it
 /// becomes zero. `fp` is detached from `fc`.
-fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
+fn funccal_unref(fc: *mut funccall_T, fp: &mut ufunc_T, force: bool) {
     unsafe {
         if fc.is_null() {
             return;
@@ -1110,7 +1110,7 @@ fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
             }
         }
         for slot in &mut (*fc).fc_ufuncs {
-            if *slot == fp {
+            if std::ptr::eq(*slot, fp) {
                 *slot = ptr::null_mut();
             }
         }
@@ -1154,7 +1154,7 @@ fn func_clear(fp: &mut ufunc_T, force: bool) {
         fp.uf_cleared = true;
 
         func_clear_items(fp);
-        funccal_unref(fp.uf_scoped, (&raw mut *fp), force);
+        funccal_unref(fp.uf_scoped, fp, force);
     }
 }
 

@@ -1288,7 +1288,7 @@ pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
             return;
         }
         try_wrap(err, || {
-            win_setheight_win(height as c_int, w, true);
+            win_setheight_win(height as c_int, unsafe { &mut *w }, true);
         });
     }
 }
@@ -1313,7 +1313,7 @@ pub fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
             return;
         }
         try_wrap(err, || {
-            win_setwidth_win(width as c_int, w, true);
+            win_setwidth_win(width as c_int, unsafe { &mut *w }, true);
         });
     }
 }
