@@ -489,29 +489,29 @@ pub fn channel_job_start(
                 *status_out = 0;
                 return ptr::null_mut();
             }
-            (*proc_ptr).r#type = K_PROC_TYPE_PTY;
-            (*proc_ptr).data = chan;
+            chan.uv.proc_.r#type = K_PROC_TYPE_PTY;
+            chan.uv.proc_.data = chan;
             {
-                (*proc_ptr).loop_ = (&raw mut g_st().main_loop).cast();
+                chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
             }
-            (*proc_ptr).status = -1;
-            (*proc_ptr).out.s.fd = STDOUT_FILENO;
-            (*proc_ptr).err.s.fd = STDERR_FILENO;
-            (*proc_ptr).width = if pty_width > 0 { pty_width } else { 80 };
-            (*proc_ptr).height = if pty_height > 0 { pty_height } else { 24 };
+            chan.uv.proc_.status = -1;
+            chan.uv.proc_.out.s.fd = STDOUT_FILENO;
+            chan.uv.proc_.err.s.fd = STDERR_FILENO;
+            chan.uv.proc_.width = if pty_width > 0 { pty_width } else { 80 };
+            chan.uv.proc_.height = if pty_height > 0 { pty_height } else { 24 };
             #[cfg(not(windows))]
             {
-                (*proc_ptr).tty_fd = -1;
+                chan.uv.proc_.tty_fd = -1;
             }
         } else {
-            (*proc_ptr).r#type = K_PROC_TYPE_UV;
-            (*proc_ptr).data = chan;
+            chan.uv.proc_.r#type = K_PROC_TYPE_UV;
+            chan.uv.proc_.data = chan;
             {
-                (*proc_ptr).loop_ = (&raw mut g_st().main_loop).cast();
+                chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
             }
-            (*proc_ptr).status = -1;
-            (*proc_ptr).out.s.fd = STDOUT_FILENO;
-            (*proc_ptr).err.s.fd = STDERR_FILENO;
+            chan.uv.proc_.status = -1;
+            chan.uv.proc_.out.s.fd = STDOUT_FILENO;
+            chan.uv.proc_.err.s.fd = STDERR_FILENO;
         }
 
         let ph = proc_ptr;
@@ -579,10 +579,10 @@ pub fn channel_job_start(
         }
 
         if has_in {
-            wstream_init(&mut (*proc_ptr).r#in, 0);
+            wstream_init(&mut chan.uv.proc_.r#in, 0);
         }
         if has_out {
-            rstream_init(&mut (*proc_ptr).out);
+            rstream_init(&mut chan.uv.proc_.out);
         }
 
         if rpc {
@@ -594,7 +594,7 @@ pub fn channel_job_start(
 
         if has_err {
             callback_reader_start(&mut chan.on_stderr, c"stderr");
-            rstream_init(&mut (*proc_ptr).err);
+            rstream_init(&mut chan.uv.proc_.err);
             rstream_start(&mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
         }
 

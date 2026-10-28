@@ -377,6 +377,23 @@ fn pb_count_max(mfp: &Memfile) -> u16 {
         / size_of::<PointerEntry>()) as u16
 }
 
+impl DataBlock {
+    #[inline]
+    fn as_char_ptr(&mut self) -> *mut c_char {
+        (self as *mut Self).cast::<c_char>()
+    }
+}
+
+#[inline]
+fn hp_data_block(hp: *mut Bhdr) -> &'static mut DataBlock {
+    unsafe { &mut *(*hp).data_ptr().cast::<DataBlock>() }
+}
+
+#[inline]
+fn hp_ptr_block(hp: *mut Bhdr) -> &'static mut PointerBlock {
+    unsafe { &mut *(*hp).data_ptr().cast::<PointerBlock>() }
+}
+
 #[inline]
 fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
     unsafe { &mut *(&raw mut pp.pb_pointer).cast::<PointerEntry>().add(idx) }
@@ -466,8 +483,8 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
             iemsg(tr(c"E298: Didn't get block nr 1?"));
             return ml_open_error(buf, mfp.as_mut(), hp);
         }
-        let pp = (*hp).data_ptr().cast::<PointerBlock>();
-        (*pp).pb_count = 1;
+        let pp = hp_ptr_block(hp);
+        pp.pb_count = 1;
         let pe0 = pb_ptr(&mut *pp, 0);
         pe0.pe_bnum = 2;
         pe0.pe_page_count = 1;
@@ -481,12 +498,12 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
             return ml_open_error(buf, mfp.as_mut(), hp);
         }
 
-        let dp = (*hp).data_ptr().cast::<DataBlock>();
-        (*dp).db_txt_start -= 1;
-        *db_idx_ptr(&mut *dp, 0) = (*dp).db_txt_start;
-        (*dp).db_free -= 1 + INDEX_SIZE as c_uint;
-        (*dp).db_line_count = 1;
-        *dp.cast::<c_char>().add((*dp).db_txt_start as usize) = NUL;
+        let dp = hp_data_block(hp);
+        dp.db_txt_start -= 1;
+        *db_idx_ptr(&mut *dp, 0) = dp.db_txt_start;
+        dp.db_free -= 1 + INDEX_SIZE as c_uint;
+        dp.db_line_count = 1;
+        *dp.as_char_ptr().add(dp.db_txt_start as usize) = NUL;
 
         true
     }
@@ -1164,24 +1181,24 @@ pub fn ml_recover(checkext: bool) {
                 ml_append(lnum, tr(c"???MANY LINES MISSING"), 0, true);
                 lnum += 1;
             } else {
-                let pp = (*hp).data_ptr().cast::<PointerBlock>();
-                if (*pp).pb_id == PTR_ID {
+                let pp = hp_ptr_block(hp);
+                if pp.pb_id == PTR_ID {
                     let mut ptr_block_error = false;
                     let max_cnt = pb_count_max(&*mfp);
-                    if (*pp).pb_count_max != max_cnt {
+                    if pp.pb_count_max != max_cnt {
                         ptr_block_error = true;
-                        (*pp).pb_count_max = max_cnt;
+                        pp.pb_count_max = max_cnt;
                     }
-                    if (*pp).pb_count > (*pp).pb_count_max {
+                    if pp.pb_count > pp.pb_count_max {
                         ptr_block_error = true;
-                        (*pp).pb_count = (*pp).pb_count_max;
+                        pp.pb_count = pp.pb_count_max;
                     }
                     if ptr_block_error {
                         emsg(tr(E_WARNING_POINTER_BLOCK_CORRUPTED));
                     }
 
                     if idx == 0 && line_count != 0 {
-                        for i in 0..((*pp).pb_count as usize) {
+                        for i in 0..(pp.pb_count as usize) {
                             line_count -= pb_ptr(&mut *pp, i).pe_line_count;
                         }
                         if line_count != 0 {
@@ -1191,11 +1208,11 @@ pub fn ml_recover(checkext: bool) {
                         }
                     }
 
-                    if (*pp).pb_count == 0 {
+                    if pp.pb_count == 0 {
                         ml_append(lnum, tr(c"???EMPTY BLOCK"), 0, true);
                         lnum += 1;
                         error += 1;
-                    } else if idx < c_int::from((*pp).pb_count) {
+                    } else if idx < c_int::from(pp.pb_count) {
                         let pe = pb_ptr(&mut *pp, idx as usize);
                         if pe.pe_bnum < 0 {
                             if !cannot_open {
@@ -1256,8 +1273,8 @@ pub fn ml_recover(checkext: bool) {
                         continue;
                     }
                 } else {
-                    let dp = (*hp).data_ptr().cast::<DataBlock>();
-                    if (*dp).db_id != DATA_ID {
+                    let dp = hp_data_block(hp);
+                    if dp.db_id != DATA_ID {
                         if bnum == 1 {
                             semsg!(
                                 tr(c"E310: Block 1 ID wrong (%s not a .swp file?)"),
@@ -1287,7 +1304,7 @@ pub fn ml_recover(checkext: bool) {
                             page_count = (*hp).bh_page_count;
                         }
 
-                        if page_count.wrapping_mul((*mfp).mf_page_size) != (*dp).db_txt_end {
+                        if page_count.wrapping_mul((*mfp).mf_page_size) != dp.db_txt_end {
                             ml_append(
                                 lnum,
                                 tr(c"??? from here until ???END lines may be messed up"),
@@ -1297,21 +1314,21 @@ pub fn ml_recover(checkext: bool) {
                             lnum += 1;
                             error += 1;
                             has_error = true;
-                            (*dp).db_txt_end = page_count.wrapping_mul((*mfp).mf_page_size);
+                            dp.db_txt_end = page_count.wrapping_mul((*mfp).mf_page_size);
                         }
 
-                        if ((*dp).db_txt_start as usize) < HEADER_SIZE
-                            || (*dp).db_txt_start > (*dp).db_txt_end
+                        if (dp.db_txt_start as usize) < HEADER_SIZE
+                            || dp.db_txt_start > dp.db_txt_end
                         {
                             ml_append(lnum, tr(c"??? block header corrupted"), 0, true);
                             lnum += 1;
                             error += 1;
                             has_error = true;
-                            (*dp).db_txt_start = (*dp).db_txt_end;
+                            dp.db_txt_start = dp.db_txt_end;
                         }
-                        *dp.cast::<c_char>().add((*dp).db_txt_end as usize - 1) = NUL;
+                        *dp.as_char_ptr().add(dp.db_txt_end as usize - 1) = NUL;
 
-                        if c_long::from(line_count) != (*dp).db_line_count {
+                        if c_long::from(line_count) != dp.db_line_count {
                             ml_append(
                                 lnum,
                                 tr(c"??? from here until ???END lines may have been inserted/deleted"),
@@ -1324,10 +1341,10 @@ pub fn ml_recover(checkext: bool) {
                         }
 
                         let mut did_questions = false;
-                        for i in 0..((*dp).db_line_count as isize) {
+                        for i in 0..(dp.db_line_count as isize) {
                             let idx_ptr = db_idx_ptr(&mut *dp, i as usize);
                             if (&raw mut *idx_ptr).cast::<c_char>()
-                                >= dp.cast::<c_char>().add((*dp).db_txt_start as usize)
+                                >= dp.as_char_ptr().add(dp.db_txt_start as usize)
                             {
                                 error += 1;
                                 ml_append(lnum, tr(c"??? lines may be missing"), 0, true);
@@ -1338,7 +1355,7 @@ pub fn ml_recover(checkext: bool) {
                             let txt_start = (*idx_ptr & DB_INDEX_MASK) as c_int;
                             let line_p: *mut c_char;
                             if txt_start <= HEADER_SIZE as c_int
-                                || txt_start >= (*dp).db_txt_end as c_int
+                                || txt_start >= dp.db_txt_end as c_int
                             {
                                 error += 1;
                                 if did_questions {
@@ -1348,7 +1365,7 @@ pub fn ml_recover(checkext: bool) {
                                 line_p = c"???".as_ptr().cast_mut();
                             } else {
                                 did_questions = false;
-                                line_p = dp.cast::<c_char>().add(txt_start as usize);
+                                line_p = dp.as_char_ptr().add(txt_start as usize);
                             }
                             ml_append(lnum, line_p, 0, true);
                             lnum += 1;
@@ -2129,16 +2146,16 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *m
             }
             let hp = { &mut *hp };
 
-            let dp = (*hp).data_ptr().cast::<DataBlock>();
+            let dp = hp_data_block(hp);
             let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
             let start = *db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK;
             let end = if idx == 0 {
-                (*dp).db_txt_end
+                dp.db_txt_end
             } else {
                 *db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK
             };
 
-            buf.b_ml.ml_line_ptr = dp.cast::<c_char>().add(start as usize);
+            buf.b_ml.ml_line_ptr = dp.as_char_ptr().add(start as usize);
             buf.b_ml.ml_line_textlen = (end - start) as Colnr;
             buf.b_ml.ml_line_lnum = lnum;
             buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
@@ -2212,9 +2229,9 @@ fn ml_append_int(
         };
         let mut line_count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low;
 
-        let mut dp = (*hp).data_ptr().cast::<DataBlock>();
+        let mut dp = hp_data_block(hp);
 
-        if i64::from((*dp).db_free) < space_needed
+        if i64::from(dp.db_free) < space_needed
             && db_idx == line_count - 1
             && lnum < buf.b_ml.ml_line_count
         {
@@ -2227,7 +2244,7 @@ fn ml_append_int(
 
             db_idx = -1;
             line_count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low;
-            dp = (*hp).data_ptr().cast::<DataBlock>();
+            dp = hp_data_block(hp);
         }
 
         if buf.b_prev_line_count == 0 {
@@ -2235,22 +2252,22 @@ fn ml_append_int(
         }
         buf.b_ml.ml_line_count += 1;
 
-        if i64::from((*dp).db_free) >= space_needed {
-            (*dp).db_txt_start -= len as c_uint;
-            (*dp).db_free -= space_needed as c_uint;
-            (*dp).db_line_count += 1;
+        if i64::from(dp.db_free) >= space_needed {
+            dp.db_txt_start -= len as c_uint;
+            dp.db_free -= space_needed as c_uint;
+            dp.db_line_count += 1;
 
             if line_count > db_idx + 1 {
                 let offset = if db_idx < 0 {
-                    (*dp).db_txt_end as c_int
+                    dp.db_txt_end as c_int
                 } else {
                     (*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK) as c_int
                 };
                 ptr::copy(
-                    dp.cast::<c_char>()
-                        .add((*dp).db_txt_start as usize + len as usize),
-                    dp.cast::<c_char>().add((*dp).db_txt_start as usize),
-                    offset as usize - ((*dp).db_txt_start as usize + len as usize),
+                    dp.as_char_ptr()
+                        .add(dp.db_txt_start as usize + len as usize),
+                    dp.as_char_ptr().add(dp.db_txt_start as usize),
+                    offset as usize - (dp.db_txt_start as usize + len as usize),
                 );
                 let mut i = line_count - 1;
                 while i > db_idx {
@@ -2260,11 +2277,11 @@ fn ml_append_int(
                 }
                 *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = (offset - len) as c_uint;
             } else {
-                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = (*dp).db_txt_start;
+                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = dp.db_txt_start;
             }
 
             let dst_off = *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) as usize;
-            ptr::copy(line, dp.cast::<c_char>().add(dst_off), len as usize);
+            ptr::copy(line, dp.as_char_ptr().add(dst_off), len as usize);
             if (flags & ML_APPEND_MARK) != 0 {
                 *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) |= DB_MARKED;
             }
@@ -2288,9 +2305,9 @@ fn ml_append_int(
                     in_left = false;
                 } else {
                     data_moved = ((*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK)
-                        - (*dp).db_txt_start) as c_int;
+                        - dp.db_txt_start) as c_int;
                     total_moved = data_moved + lines_moved * (INDEX_SIZE as c_int);
-                    if i64::from((*dp).db_free) + i64::from(total_moved) >= space_needed {
+                    if i64::from(dp.db_free) + i64::from(total_moved) >= space_needed {
                         in_left = true;
                         space_needed = i64::from(total_moved);
                     } else {
@@ -2424,21 +2441,21 @@ fn ml_append_int(
                 if hp.is_null() {
                     return false;
                 }
-                let mut pp = (*hp).data_ptr().cast::<PointerBlock>();
-                if (*pp).pb_id != PTR_ID {
+                let mut pp = hp_ptr_block(hp);
+                if pp.pb_id != PTR_ID {
                     iemsg(tr(E_POINTER_BLOCK_ID_WRONG_THREE));
                     mf_put(&mut *mfp, hp, false, false);
                     return false;
                 }
-                if (*pp).pb_count < (*pp).pb_count_max {
-                    if pb_idx + 1 < (*pp).pb_count as usize {
+                if pp.pb_count < pp.pb_count_max {
+                    if pb_idx + 1 < pp.pb_count as usize {
                         ptr::copy(
                             pb_ptr(&mut *pp, pb_idx + 1),
                             pb_ptr(&mut *pp, pb_idx + 2),
-                            (*pp).pb_count as usize - pb_idx - 1,
+                            pp.pb_count as usize - pb_idx - 1,
                         );
                     }
-                    (*pp).pb_count += 1;
+                    pp.pb_count += 1;
                     let pe_cur = pb_ptr(&mut *pp, pb_idx);
                     pe_cur.pe_line_count = line_count_left;
                     pe_cur.pe_bnum = bnum_left;
@@ -2485,8 +2502,12 @@ fn ml_append_int(
                         break;
                     }
 
-                    ptr::copy(pp.cast::<u8>(), pp_new.cast::<u8>(), page_size as usize);
-                    (*pp).pb_count = 1;
+                    ptr::copy(
+                        (pp as *mut PointerBlock).cast::<u8>(),
+                        pp_new.cast::<u8>(),
+                        page_size as usize,
+                    );
+                    pp.pb_count = 1;
                     let pe0 = pb_ptr(&mut *pp, 0);
                     pe0.pe_bnum = (*hp_new).bh_bnum;
                     pe0.pe_line_count = buf.b_ml.ml_line_count;
@@ -2494,12 +2515,12 @@ fn ml_append_int(
                     pe0.pe_page_count = 1;
                     mf_put(&mut *mfp, hp, true, false);
                     hp = hp_new;
-                    pp = pp_new;
+                    pp = &mut *pp_new;
                     ip.ip_index = 0;
                     stack_idx += 1;
                 }
 
-                total_moved = c_int::from((*pp).pb_count) - (pb_idx as c_int) - 1;
+                total_moved = c_int::from(pp.pb_count) - (pb_idx as c_int) - 1;
                 if total_moved != 0 {
                     ptr::copy(
                         pb_ptr(&mut *pp, pb_idx + 1),
@@ -2507,7 +2528,7 @@ fn ml_append_int(
                         total_moved as usize,
                     );
                     (*pp_new).pb_count = total_moved as u16;
-                    (*pp).pb_count = (c_int::from((*pp).pb_count) - (total_moved - 1)) as u16;
+                    pp.pb_count = (c_int::from(pp.pb_count) - (total_moved - 1)) as u16;
                     let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
                     pe_next.pe_bnum = bnum_right;
                     pe_next.pe_line_count = line_count_right;
@@ -2538,7 +2559,7 @@ fn ml_append_int(
                     line_count_right += pb_ptr(&mut *pp_new, i).pe_line_count;
                 }
                 line_count_left = 0;
-                for i in 0..((*pp).pb_count as usize) {
+                for i in 0..(pp.pb_count as usize) {
                     line_count_left += pb_ptr(&mut *pp, i).pe_line_count;
                 }
 
@@ -2800,7 +2821,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
             return false;
         }
 
-        let dp = (*hp).data_ptr().cast::<DataBlock>();
+        let dp = hp_data_block(hp);
         let mut count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 2;
         let mut idx = lnum - buf.b_ml.ml_locked_low;
 
@@ -2811,7 +2832,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
 
         let line_start = (*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as c_int;
         let line_size: c_int = if idx == 0 {
-            ((*dp).db_txt_end as c_int) - line_start
+            (dp.db_txt_end as c_int) - line_start
         } else {
             ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int) - line_start
         };
@@ -2819,7 +2840,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
         assert!(line_size >= 1);
         ml_add_deleted_len_buf(
             buf,
-            dp.cast::<c_char>().add(line_start as usize),
+            dp.as_char_ptr().add(line_start as usize),
             (line_size - 1) as isize,
         );
 
@@ -2836,14 +2857,14 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
                 if hp.is_null() {
                     return false;
                 }
-                let pp = (*hp).data_ptr().cast::<PointerBlock>();
-                if (*pp).pb_id != PTR_ID {
+                let pp = hp_ptr_block(hp);
+                if pp.pb_id != PTR_ID {
                     iemsg(tr(E_POINTER_BLOCK_ID_WRONG_FOUR));
                     mf_put(&mut *mfp, hp, false, false);
                     return false;
                 }
-                (*pp).pb_count -= 1;
-                count = c_int::from((*pp).pb_count);
+                pp.pb_count -= 1;
+                count = c_int::from(pp.pb_count);
                 if count == 0 {
                     mf_free(&mut *mfp, &mut *hp);
                 } else {
@@ -2872,10 +2893,10 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
                 stack_idx -= 1;
             }
         } else {
-            let text_start = (*dp).db_txt_start as c_int;
+            let text_start = dp.db_txt_start as c_int;
             ptr::copy(
-                dp.cast::<c_char>().add(text_start as usize),
-                dp.cast::<c_char>().add((text_start + line_size) as usize),
+                dp.as_char_ptr().add(text_start as usize),
+                dp.as_char_ptr().add((text_start + line_size) as usize),
                 (line_start - text_start) as usize,
             );
 
@@ -2884,9 +2905,9 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
                     *db_idx_ptr(&mut *dp, (i + 1) as usize) + (line_size as c_uint);
             }
 
-            (*dp).db_free += (line_size as c_uint) + (INDEX_SIZE as c_uint);
-            (*dp).db_txt_start += line_size as c_uint;
-            (*dp).db_line_count -= 1;
+            dp.db_free += (line_size as c_uint) + (INDEX_SIZE as c_uint);
+            dp.db_txt_start += line_size as c_uint;
+            dp.db_line_count -= 1;
 
             buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
         }
@@ -2928,7 +2949,7 @@ pub fn ml_setmarked(lnum: Linenr) {
             return;
         }
         let hp = { &mut *hp };
-        let dp = (*hp).data_ptr().cast::<DataBlock>();
+        let dp = hp_data_block(hp);
         *db_idx_ptr(&mut *dp, (lnum - curbuf_mut().b_ml.ml_locked_low) as usize) |= DB_MARKED;
         curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
     }
@@ -2948,10 +2969,10 @@ pub fn ml_firstmarked() -> Linenr {
                 return 0;
             }
             let hp = { &mut *hp };
-            let dp = (*hp).data_ptr().cast::<DataBlock>();
+            let dp = hp_data_block(hp);
             let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
             while lnum <= curbuf_mut().b_ml.ml_locked_high {
-                let idx_p = (&raw mut (*dp).db_index).cast::<c_uint>().offset(i);
+                let idx_p = (&raw mut dp.db_index).cast::<c_uint>().offset(i);
                 if (*idx_p & DB_MARKED) != 0 {
                     *idx_p &= DB_INDEX_MASK;
                     curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
@@ -2981,10 +3002,10 @@ pub fn ml_clearmarked() {
                 return;
             }
             let hp = { &mut *hp };
-            let dp = (*hp).data_ptr().cast::<DataBlock>();
+            let dp = hp_data_block(hp);
             let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
             while lnum <= curbuf_mut().b_ml.ml_locked_high {
-                let idx_p = (&raw mut (*dp).db_index).cast::<c_uint>().offset(i);
+                let idx_p = (&raw mut dp.db_index).cast::<c_uint>().offset(i);
                 if (*idx_p & DB_MARKED) != 0 {
                     *idx_p &= DB_INDEX_MASK;
                     curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
@@ -3041,26 +3062,26 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
             if hp.is_null() {
                 siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
             } else {
-                let dp = (*hp).data_ptr().cast::<DataBlock>();
+                let dp = hp_data_block(hp);
                 let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
                 let start = (*db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK) as c_int;
-                let old_line = dp.cast::<c_char>().add(start as usize);
+                let old_line = dp.as_char_ptr().add(start as usize);
                 let old_len: c_int = if idx == 0 {
-                    ((*dp).db_txt_end as c_int) - start
+                    (dp.db_txt_end as c_int) - start
                 } else {
                     ((*db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK) as c_int) - start
                 };
                 let new_len = buf.b_ml.ml_line_textlen;
                 let extra = new_len - old_len;
 
-                if ((*dp).db_free as c_int) >= extra {
+                if (dp.db_free as c_int) >= extra {
                     let count = (buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1) as usize;
                     if extra != 0 && idx < count - 1 {
-                        let txt_start = (*dp).db_txt_start as isize;
+                        let txt_start = dp.db_txt_start as isize;
                         ptr::copy(
-                            dp.cast::<c_char>().offset(txt_start),
-                            dp.cast::<c_char>().offset(txt_start - extra as isize),
-                            (start - (*dp).db_txt_start as c_int) as usize,
+                            dp.as_char_ptr().offset(txt_start),
+                            dp.as_char_ptr().offset(txt_start - extra as isize),
+                            (start - dp.db_txt_start as c_int) as usize,
                         );
                         for i in (idx + 1)..count {
                             *db_idx_ptr(&mut *dp, i) =
@@ -3070,8 +3091,8 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
                     *db_idx_ptr(&mut *dp, idx) =
                         (*db_idx_ptr(&mut *dp, idx)).wrapping_sub(extra as c_uint);
 
-                    (*dp).db_free = (*dp).db_free.wrapping_sub(extra as c_uint);
-                    (*dp).db_txt_start = (*dp).db_txt_start.wrapping_sub(extra as c_uint);
+                    dp.db_free = dp.db_free.wrapping_sub(extra as c_uint);
+                    dp.db_txt_start = dp.db_txt_start.wrapping_sub(extra as c_uint);
 
                     ptr::copy(
                         new_line,
@@ -3104,26 +3125,26 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
 }
 
 fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> *mut Bhdr {
-    unsafe {
+    {
         assert!(page_count >= 0);
         let hp = mf_new(mfp, negative, page_count as c_uint);
-        let dp = (*hp).data_ptr().cast::<DataBlock>();
-        (*dp).db_id = DATA_ID;
-        (*dp).db_txt_end = (page_count as c_uint).wrapping_mul(mfp.mf_page_size);
-        (*dp).db_txt_start = (*dp).db_txt_end;
-        (*dp).db_free = (*dp).db_txt_start - (HEADER_SIZE as c_uint);
-        (*dp).db_line_count = 0;
+        let dp = hp_data_block(hp);
+        dp.db_id = DATA_ID;
+        dp.db_txt_end = (page_count as c_uint).wrapping_mul(mfp.mf_page_size);
+        dp.db_txt_start = dp.db_txt_end;
+        dp.db_free = dp.db_txt_start - (HEADER_SIZE as c_uint);
+        dp.db_line_count = 0;
         hp
     }
 }
 
 fn ml_new_ptr(mfp: &mut Memfile) -> *mut Bhdr {
-    unsafe {
+    {
         let hp = mf_new(mfp, false, 1);
-        let pp = (*hp).data_ptr().cast::<PointerBlock>();
-        (*pp).pb_id = PTR_ID;
-        (*pp).pb_count = 0;
-        (*pp).pb_count_max = pb_count_max(mfp);
+        let pp = hp_ptr_block(hp);
+        pp.pb_id = PTR_ID;
+        pp.pb_count = 0;
+        pp.pb_count_max = pb_count_max(mfp);
         hp
     }
 }
@@ -3201,8 +3222,8 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
                 high -= 1;
             }
 
-            let dp = (*hp).data_ptr().cast::<DataBlock>();
-            if (*dp).db_id == DATA_ID {
+            let dp = hp_data_block(hp);
+            if dp.db_id == DATA_ID {
                 buf.b_ml.ml_locked = hp.cast();
                 buf.b_ml.ml_locked_low = low;
                 buf.b_ml.ml_locked_high = high;
@@ -3211,8 +3232,8 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
                 return hp;
             }
 
-            let pp = dp.cast::<PointerBlock>();
-            if (*pp).pb_id != PTR_ID {
+            let pp = &mut *(dp as *mut DataBlock).cast::<PointerBlock>();
+            if pp.pb_id != PTR_ID {
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
                 mf_put(&mut *mfp, hp, false, false);
                 return ml_find_line_error_noblock(buf, action);
@@ -3227,7 +3248,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
 
             let mut dirty = false;
             let mut idx: c_int = 0;
-            while idx < c_int::from((*pp).pb_count) {
+            while idx < c_int::from(pp.pb_count) {
                 let pe = pb_ptr(&mut *pp, idx as usize);
                 let t = pe.pe_line_count;
                 low += t;
@@ -3250,7 +3271,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
                 }
                 idx += 1;
             }
-            if idx >= c_int::from((*pp).pb_count) {
+            if idx >= c_int::from(pp.pb_count) {
                 if lnum > buf.b_ml.ml_line_count {
                     siemsg!(
                         tr(E_LINE_NUMBER_OUT_OF_RANGE_NR_PAST_THE_END),
@@ -3308,8 +3329,8 @@ fn ml_lineadd(buf: &mut FileBuf, count: c_int) {
             if hp.is_null() {
                 break;
             }
-            let pp = (*hp).data_ptr().cast::<PointerBlock>();
-            if (*pp).pb_id != PTR_ID {
+            let pp = hp_ptr_block(hp);
+            if pp.pb_id != PTR_ID {
                 mf_put(&mut *mfp, hp, false, false);
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG_TWO));
                 break;
@@ -3974,7 +3995,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: c_int, updtype: c_in
                         return;
                     }
                     let hp = { &mut *hp };
-                    let dp = (*hp).data_ptr().cast::<DataBlock>();
+                    let dp = hp_data_block(hp);
                     let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
                     let idx = curline - buf.b_ml.ml_locked_low;
                     curline = buf.b_ml.ml_locked_high + 1;
@@ -3988,7 +4009,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: c_int, updtype: c_in
                         count - 1
                     };
                     let text_end = if idx == 0 {
-                        (*dp).db_txt_end as c_int
+                        dp.db_txt_end as c_int
                     } else {
                         (*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int
                     };
@@ -4017,13 +4038,13 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: c_int, updtype: c_in
                         buf.b_ml.ml_usedchunks = -1;
                         return;
                     }
-                    let dp = (*hp).data_ptr().cast::<DataBlock>();
-                    let rest = if (*dp).db_line_count == 1 {
-                        ((*dp).db_txt_end - (*dp).db_txt_start) as c_int
+                    let dp = hp_data_block(hp);
+                    let rest = if dp.db_line_count == 1 {
+                        (dp.db_txt_end - dp.db_txt_start) as c_int
                     } else {
-                        ((*db_idx_ptr(&mut *dp, ((*dp).db_line_count - 2) as usize) & DB_INDEX_MASK)
+                        ((*db_idx_ptr(dp, (dp.db_line_count - 2) as usize) & DB_INDEX_MASK)
                             as c_int)
-                            - ((*dp).db_txt_start as c_int)
+                            - (dp.db_txt_start as c_int)
                     };
                     (*curchnk).mlcs_totalsize = rest;
                     (*curchnk).mlcs_numlines = 1;
@@ -4137,12 +4158,12 @@ pub fn ml_find_line_or_offset(
             if hp.is_null() {
                 return -1;
             }
-            let dp = (*hp).data_ptr().cast::<DataBlock>();
+            let dp = hp_data_block(hp);
             let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
             let start_idx = curline - buf.b_ml.ml_locked_low;
             let mut idx = start_idx;
             let text_end = if idx == 0 {
-                (*dp).db_txt_end as c_int
+                dp.db_txt_end as c_int
             } else {
                 (*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as c_int
             };

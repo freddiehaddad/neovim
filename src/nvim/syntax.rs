@@ -1961,20 +1961,21 @@ fn syn_current_attr(
             let mut idx = cur_state_len() - 1;
             while idx >= 0 {
                 sip = cur_state_at(idx);
-                if (syn_st().current_lnum > (*sip).si_h_startpos.lnum
-                    || (syn_st().current_lnum == (*sip).si_h_startpos.lnum
-                        && syn_st().current_col >= (*sip).si_h_startpos.col))
-                    && ((*sip).si_h_endpos.lnum == 0
-                        || syn_st().current_lnum < (*sip).si_h_endpos.lnum
-                        || (syn_st().current_lnum == (*sip).si_h_endpos.lnum
-                            && syn_st().current_col < (*sip).si_h_endpos.col))
+                let sip = &mut *sip;
+                if (syn_st().current_lnum > sip.si_h_startpos.lnum
+                    || (syn_st().current_lnum == sip.si_h_startpos.lnum
+                        && syn_st().current_col >= sip.si_h_startpos.col))
+                    && (sip.si_h_endpos.lnum == 0
+                        || syn_st().current_lnum < sip.si_h_endpos.lnum
+                        || (syn_st().current_lnum == sip.si_h_endpos.lnum
+                            && syn_st().current_col < sip.si_h_endpos.col))
                 {
-                    syn_st().current_attr = (*sip).si_attr;
-                    syn_st().current_id = (*sip).si_id;
-                    syn_st().current_trans_id = (*sip).si_trans_id;
-                    syn_st().current_flags = (*sip).si_flags;
-                    syn_st().current_seqnr = (*sip).si_seqnr;
-                    syn_st().current_sub_char = (*sip).si_cchar;
+                    syn_st().current_attr = sip.si_attr;
+                    syn_st().current_id = sip.si_id;
+                    syn_st().current_trans_id = sip.si_trans_id;
+                    syn_st().current_flags = sip.si_flags;
+                    syn_st().current_seqnr = sip.si_seqnr;
+                    syn_st().current_sub_char = sip.si_cchar;
                     break;
                 }
                 idx -= 1;

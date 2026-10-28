@@ -3643,9 +3643,11 @@ pub fn buflist_list(eap: &mut Exarg) {
             buf = buflist.first().copied().unwrap_or(ptr::null_mut());
         }
 
-        while !buf.is_null() && !g_st().got_int {
-            let is_terminal = !(*buf).terminal.is_null();
-            let job_running = is_terminal && terminal_running(&*(*buf).terminal);
+        let mut buf_ptr = buf;
+        while !buf_ptr.is_null() && !g_st().got_int {
+            let buf = &mut *buf_ptr;
+            let is_terminal = !buf.terminal.is_null();
+            let job_running = is_terminal && terminal_running(&*buf.terminal);
 
             let mut next_buf = |b: *mut FileBuf| {
                 if use_buflist {
@@ -3656,27 +3658,26 @@ pub fn buflist_list(eap: &mut Exarg) {
                 }
             };
 
-            if ((*buf).b_p_bl == 0
-                && eap.forceit == 0
-                && vim_strchr(eap.arg, b'u' as c_int).is_null())
-                || (!vim_strchr(eap.arg, b'u' as c_int).is_null() && (*buf).b_p_bl != 0)
+            if (buf.b_p_bl == 0 && eap.forceit == 0 && vim_strchr(eap.arg, b'u' as c_int).is_null())
+                || (!vim_strchr(eap.arg, b'u' as c_int).is_null() && buf.b_p_bl != 0)
                 || (!vim_strchr(eap.arg, b'+' as c_int).is_null()
-                    && (((*buf).b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
+                    && ((buf.b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
                 || (!vim_strchr(eap.arg, b'a' as c_int).is_null()
-                    && ((*buf).b_ml.ml_mfp.is_none() || (*buf).b_nwindows == 0))
+                    && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows == 0))
                 || (!vim_strchr(eap.arg, b'h' as c_int).is_null()
-                    && ((*buf).b_ml.ml_mfp.is_none() || (*buf).b_nwindows != 0))
+                    && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows != 0))
                 || (!vim_strchr(eap.arg, b'R' as c_int).is_null() && (!is_terminal || !job_running))
                 || (!vim_strchr(eap.arg, b'F' as c_int).is_null() && (!is_terminal || job_running))
-                || (!vim_strchr(eap.arg, b'-' as c_int).is_null() && (*buf).b_p_ma != 0)
-                || (!vim_strchr(eap.arg, b'=' as c_int).is_null() && (*buf).b_p_ro == 0)
+                || (!vim_strchr(eap.arg, b'-' as c_int).is_null() && buf.b_p_ma != 0)
+                || (!vim_strchr(eap.arg, b'=' as c_int).is_null() && buf.b_p_ro == 0)
                 || (!vim_strchr(eap.arg, b'x' as c_int).is_null()
-                    && ((*buf).b_flags & BF_READERR) == 0)
-                || (!vim_strchr(eap.arg, b'%' as c_int).is_null() && buf != g_st().curbuf)
+                    && (buf.b_flags & BF_READERR) == 0)
+                || (!vim_strchr(eap.arg, b'%' as c_int).is_null()
+                    && !std::ptr::eq(buf, g_st().curbuf))
                 || (!vim_strchr(eap.arg, b'#' as c_int).is_null()
-                    && (buf == g_st().curbuf || curwin_mut().w_alt_fnum != (*buf).b_fnum))
+                    && (std::ptr::eq(buf, g_st().curbuf) || curwin_mut().w_alt_fnum != buf.b_fnum))
             {
-                buf = next_buf(buf);
+                buf_ptr = next_buf(buf_ptr);
                 continue;
             }
 
@@ -3685,30 +3686,30 @@ pub fn buflist_list(eap: &mut Exarg) {
             if !name.is_null() {
                 xstrlcpy(namebuff_ptr, name, MAXPATHL);
             } else {
-                home_replace(buf.as_ref(), (*buf).b_fname, namebuff_ptr, MAXPATHL, true);
+                home_replace(Some(&*buf), buf.b_fname, namebuff_ptr, MAXPATHL, true);
             }
 
             if message_filtered(namebuff_ptr) {
-                buf = next_buf(buf);
+                buf_ptr = next_buf(buf_ptr);
                 continue;
             }
 
-            let changed_char = if ((*buf).b_flags & BF_READERR) != 0 {
+            let changed_char = if (buf.b_flags & BF_READERR) != 0 {
                 b'x' as c_int
             } else if buf_is_changed(&mut *buf) {
                 b'+' as c_int
             } else {
                 b' ' as c_int
             };
-            let mut ro_char = if (*buf).b_p_ma == 0 {
+            let mut ro_char = if buf.b_p_ma == 0 {
                 b'-' as c_int
-            } else if (*buf).b_p_ro != 0 {
+            } else if buf.b_p_ro != 0 {
                 b'=' as c_int
             } else {
                 b' ' as c_int
             };
             if is_terminal {
-                ro_char = if terminal_running(&*(*buf).terminal) {
+                ro_char = if terminal_running(&*buf.terminal) {
                     b'R' as c_int
                 } else {
                     b'F' as c_int
@@ -3723,22 +3724,22 @@ pub fn buflist_list(eap: &mut Exarg) {
                 iobuff_ptr,
                 IOSIZE - 20,
                 c"%3d%c%c%c%c%c \"%s\"",
-                (*buf).b_fnum,
-                if (*buf).b_p_bl != 0 {
+                buf.b_fnum,
+                if buf.b_p_bl != 0 {
                     b' ' as c_int
                 } else {
                     b'u' as c_int
                 },
-                if buf == g_st().curbuf {
+                if std::ptr::eq(buf, g_st().curbuf) {
                     b'%' as c_int
-                } else if curwin_mut().w_alt_fnum == (*buf).b_fnum {
+                } else if curwin_mut().w_alt_fnum == buf.b_fnum {
                     b'#' as c_int
                 } else {
                     b' ' as c_int
                 },
-                if (*buf).b_ml.ml_mfp.is_none() {
+                if buf.b_ml.ml_mfp.is_none() {
                     b' ' as c_int
-                } else if (*buf).b_nwindows == 0 {
+                } else if buf.b_nwindows == 0 {
                     b'h' as c_int
                 } else {
                     b'a' as c_int
@@ -3758,14 +3759,14 @@ pub fn buflist_list(eap: &mut Exarg) {
                     break;
                 }
             }
-            if !vim_strchr(eap.arg, b't' as c_int).is_null() && (*buf).b_last_used != 0 {
-                undo_fmt_time(iobuff_ptr.add(len), IOSIZE - len, (*buf).b_last_used);
+            if !vim_strchr(eap.arg, b't' as c_int).is_null() && buf.b_last_used != 0 {
+                undo_fmt_time(iobuff_ptr.add(len), IOSIZE - len, buf.b_last_used);
             } else {
                 vim_snprintf!(
                     iobuff_ptr.add(len),
                     IOSIZE - len,
                     gettext(c"line %lld"),
-                    if buf == g_st().curbuf {
+                    if std::ptr::eq(buf, g_st().curbuf) {
                         i64::from(curwin_mut().w_cursor.lnum)
                     } else {
                         i64::from(buflist_findlnum(&mut *buf))
@@ -3775,7 +3776,7 @@ pub fn buflist_list(eap: &mut Exarg) {
 
             msg_outtrans(iobuff_ptr, 0, false);
             line_breakcheck();
-            buf = next_buf(buf);
+            buf_ptr = next_buf(buf_ptr);
         }
     }
 }
