@@ -2583,10 +2583,10 @@ const fn hist_type2char(hist_type: c_int) -> c_int {
 pub(crate) fn flush_file_buffer(buffer: &mut PackerBuffer) {
     unsafe {
         let fd = buffer.anydata.as_file();
-        let base = (&*fd).buffer.as_ptr();
-        (*fd).write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
+        let base = fd.buffer.as_ptr();
+        fd.write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
         buffer.anyint = i64::from(file_flush(fd));
-        buffer.ptr = (&mut *fd).buffer.as_mut_ptr().add((*fd).write_pos);
+        buffer.ptr = fd.buffer.as_mut_ptr().add(fd.write_pos);
     }
 }
 

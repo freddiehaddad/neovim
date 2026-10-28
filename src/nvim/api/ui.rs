@@ -867,7 +867,7 @@ pub fn push_call(ui: &mut RemoteUI, name: &'static CStr, args: Array) {
 }
 
 pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
-    unsafe {
+    {
         let ui = &mut *packer.anydata.as_ui();
         ui_flush_buf(ui, true);
         ui_alloc_buf(ui);

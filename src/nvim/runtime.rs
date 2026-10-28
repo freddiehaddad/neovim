@@ -391,38 +391,31 @@ pub fn estack_push(
     type_: Etype,
     name: impl crate::strings::IntoCCharPtr,
     lnum: Linenr,
-) -> *mut Estack {
+) -> &'static mut Estack {
     let name = name.into_c_char_ptr();
-    {
-        rt_st().exestack.push(Estack {
-            es_type: type_,
-            es_name: if name.is_null() {
-                None
-            } else {
-                Some(crate::memory::cstr_to_cstring(name))
-            },
-            es_lnum: lnum,
-            es_info: crate::profile::EStackInfo::None,
-        });
-        rt_st()
-            .exestack
-            .last_mut()
-            .map_or(ptr::null_mut(), ptr::from_mut)
-    }
+    rt_st().exestack.push(Estack {
+        es_type: type_,
+        es_name: if name.is_null() {
+            None
+        } else {
+            Some(crate::memory::cstr_to_cstring(name))
+        },
+        es_lnum: lnum,
+        es_info: crate::profile::EStackInfo::None,
+    });
+    rt_st().exestack.last_mut().unwrap()
 }
 
 /// Add a user function to the execution stack.
 pub fn estack_push_ufunc(ufunc: &mut UserFunc, lnum: Linenr) {
-    unsafe {
+    {
         let name = if let Some(ref exp) = ufunc.uf_name_exp {
             exp.as_ptr()
         } else {
             ufunc.uf_name.as_ptr()
         };
         let entry = estack_push(ETYPE_UFUNC, name, lnum);
-        if !entry.is_null() {
-            (*entry).es_info = crate::profile::EStackInfo::Ufunc(ufunc);
-        }
+        entry.es_info = crate::profile::EStackInfo::Ufunc(ufunc);
     }
 }
 

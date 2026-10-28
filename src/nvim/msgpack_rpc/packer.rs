@@ -22,18 +22,18 @@ pub enum PackerData {
 
 impl PackerData {
     #[inline]
-    pub const fn as_ui(self) -> *mut crate::msgpack_rpc::channel::RemoteUI {
+    pub fn as_ui(self) -> &'static mut crate::msgpack_rpc::channel::RemoteUI {
         match self {
-            Self::Ui(p) => p,
-            _ => std::ptr::null_mut(),
+            Self::Ui(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 
     #[inline]
-    pub const fn as_file(self) -> *mut crate::os::fileio::FileDescriptor {
+    pub fn as_file(self) -> &'static mut crate::os::fileio::FileDescriptor {
         match self {
-            Self::File(p) => p,
-            _ => std::ptr::null_mut(),
+            Self::File(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 

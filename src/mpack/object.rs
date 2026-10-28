@@ -58,18 +58,18 @@ impl MpackData {
     }
 
     #[inline]
-    pub const fn typval(&self) -> *mut crate::eval::typval::TypVal {
+    pub fn typval(&self) -> &'static mut crate::eval::typval::TypVal {
         match *self {
-            Self::Typval(p) => p,
-            _ => ptr::null_mut(),
+            Self::Typval(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 
     #[inline]
-    pub const fn list(&self) -> *mut crate::eval::typval::TvList {
+    pub fn list(&self) -> &'static mut crate::eval::typval::TvList {
         match *self {
-            Self::List(p) => p,
-            _ => ptr::null_mut(),
+            Self::List(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 
@@ -114,18 +114,18 @@ impl MpackData {
     }
 
     #[inline]
-    pub const fn unpacker(&self) -> *mut crate::msgpack_rpc::unpacker::Unpacker {
+    pub fn unpacker(&self) -> &'static mut crate::msgpack_rpc::unpacker::Unpacker {
         match *self {
-            Self::Unpacker(p) => p,
-            _ => ptr::null_mut(),
+            Self::Unpacker(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 
     #[inline]
-    pub const fn object(&self) -> *mut crate::api::private::validate::Object {
+    pub fn object(&self) -> &'static mut crate::api::private::validate::Object {
         match *self {
-            Self::Object(p) => p,
-            _ => ptr::null_mut(),
+            Self::Object(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 }

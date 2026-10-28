@@ -126,11 +126,11 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             match parent.tok.r#type {
                 MpackTokenType::MpackTokenArray => {
                     let obj = parent.data[0].object();
-                    result = (*obj).data.array().items.add(parent.pos);
+                    result = obj.data.array().items.add(parent.pos);
                 }
                 MpackTokenType::MpackTokenMap => {
                     let obj = parent.data[0].object();
-                    let kv = &mut *(*obj).data.dict().items.add(parent.pos);
+                    let kv = &mut *obj.data.dict().items.add(parent.pos);
                     if parent.key_visited == 0 {
                         kv.key = NvimString {
                             data: std::ptr::null_mut(),
@@ -148,7 +148,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 _ => std::process::abort(),
             }
         } else {
-            result = &mut (*p).result;
+            result = &mut p.result;
         }
 
         let tok = node.tok;
@@ -182,7 +182,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             }
             MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
                 let len = tok.length as usize;
-                let mem = arena_alloc(&mut (*p).arena, len + 1, false).cast::<c_char>();
+                let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<c_char>();
                 *mem.add(len) = 0;
                 let s = NvimString {
                     data: mem,
@@ -225,14 +225,14 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     if chunk_len > 0 {
                         std::ptr::copy_nonoverlapping(
                             tok.data.chunk_ptr().cast::<u8>(),
-                            (*p).ext_buf.as_mut_ptr().cast::<u8>().add((*parent).pos),
+                            p.ext_buf.as_mut_ptr().cast::<u8>().add((*parent).pos),
                             chunk_len,
                         );
                     }
                     if endlen < ((*parent).tok.length as usize) {
                         return;
                     }
-                    let mut buf: *const c_char = (*p).ext_buf.as_ptr();
+                    let mut buf: *const c_char = p.ext_buf.as_ptr();
                     let mut size = (*parent).tok.length as usize;
                     let mut ext_tok = MpackToken::new();
                     let status = mpack_rtoken(&mut buf, &mut size, &mut ext_tok);
@@ -245,8 +245,8 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                         && let Some(obj_type) =
                             ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
                     {
-                        (*res).obj_type = obj_type;
-                        (*res).data = ObjectData::Integer(mpack_unpack_uint(ext_tok) as i64);
+                        res.obj_type = obj_type;
+                        res.data = ObjectData::Integer(mpack_unpack_uint(ext_tok) as i64);
                     } else {
                         *res = nil_obj();
                     }
@@ -254,7 +254,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             }
             MpackTokenType::MpackTokenArray => {
                 let len = tok.length as usize;
-                let items = arena_alloc(&mut (*p).arena, std::mem::size_of::<Object>() * len, true)
+                let items = arena_alloc(&mut p.arena, std::mem::size_of::<Object>() * len, true)
                     .cast::<Object>();
                 *result = Object {
                     obj_type: ObjectType::ObjectTypeArray,
@@ -269,7 +269,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             MpackTokenType::MpackTokenMap => {
                 let len = tok.length as usize;
                 let items = arena_alloc(
-                    &mut (*p).arena,
+                    &mut p.arena,
                     std::mem::size_of::<KeyValuePair>() * len,
                     true,
                 )

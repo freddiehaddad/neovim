@@ -383,8 +383,8 @@ fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
 }
 
 #[inline]
-fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> *mut c_uint {
-    unsafe { (&raw mut dp.db_index).cast::<c_uint>().add(idx) }
+fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> &'static mut c_uint {
+    unsafe { &mut *(&raw mut dp.db_index).cast::<c_uint>().add(idx) }
 }
 
 #[inline]
@@ -1326,7 +1326,7 @@ pub fn ml_recover(checkext: bool) {
                         let mut did_questions = false;
                         for i in 0..((*dp).db_line_count as isize) {
                             let idx_ptr = db_idx_ptr(&mut *dp, i as usize);
-                            if idx_ptr.cast::<c_char>()
+                            if (&raw mut *idx_ptr).cast::<c_char>()
                                 >= dp.cast::<c_char>().add((*dp).db_txt_start as usize)
                             {
                                 error += 1;

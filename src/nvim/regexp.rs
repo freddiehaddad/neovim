@@ -3681,6 +3681,20 @@ pub fn vim_regexec_multi(
     }
 }
 
+impl Regmmatch {
+    #[inline]
+    pub fn prog_mut(&self) -> &'static mut Regprog {
+        unsafe { &mut *self.regprog }
+    }
+}
+
+impl Regmatch {
+    #[inline]
+    pub fn prog_mut(&self) -> &'static mut Regprog {
+        unsafe { &mut *self.regprog }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3726,19 +3740,5 @@ mod tests {
             );
             assert!(newl);
         }
-    }
-}
-
-impl Regmmatch {
-    #[inline]
-    pub fn prog_mut(&self) -> &'static mut Regprog {
-        unsafe { &mut *self.regprog }
-    }
-}
-
-impl Regmatch {
-    #[inline]
-    pub fn prog_mut(&self) -> &'static mut Regprog {
-        unsafe { &mut *self.regprog }
     }
 }

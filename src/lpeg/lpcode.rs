@@ -375,16 +375,16 @@ fn nextinstruction(compst: &mut CompileState, n: c_int) -> c_int {
 }
 
 #[inline]
-fn getinstr(cs: &mut CompileState, i: c_int) -> *mut Instruction {
-    unsafe { (*cs.p).code.as_mut_ptr().add(i as usize) }
+fn getinstr(cs: &mut CompileState, i: c_int) -> &'static mut Instruction {
+    unsafe { &mut *(*cs.p).code.as_mut_ptr().add(i as usize) }
 }
 
 fn addinstruction(compst: &mut CompileState, op: Opcode, aux: c_int) -> c_int {
-    unsafe {
+    {
         let i = nextinstruction(compst, 1);
         let inst = getinstr(compst, i);
-        (*inst).i.code = op;
-        (*inst).i.aux1 = aux as LpegByte;
+        inst.i.code = op;
+        inst.i.aux1 = aux as LpegByte;
         i
     }
 }
@@ -392,14 +392,14 @@ fn addinstruction(compst: &mut CompileState, op: Opcode, aux: c_int) -> c_int {
 fn addoffsetinst(compst: &mut CompileState, op: Opcode) -> c_int {
     let i = addinstruction(compst, op, 0);
     addinstruction(compst, 0, 0);
-    debug_assert!(op == ITEST_SET || sizei(unsafe { &*(getinstr(compst, i)) }) == 2);
+    debug_assert!(op == ITEST_SET || sizei(&*(getinstr(compst, i))) == 2);
     i
 }
 
 #[inline]
 fn setoffset(compst: &mut CompileState, instruction: c_int, offset: c_int) {
-    unsafe {
-        (*getinstr(compst, instruction + 1)).offset = offset;
+    {
+        getinstr(compst, instruction + 1).offset = offset;
     }
 }
 
@@ -408,17 +408,17 @@ fn codeutfr(compst: &mut CompileState, tree: &mut TTree) {
         let i = addoffsetinst(compst, IUTFR);
         let to = (*sib1(&raw mut *tree)).u.n;
         debug_assert_eq!((*sib1(&raw mut *tree)).tag, TXINFO);
-        (*getinstr(compst, i + 1)).offset = tree.u.n;
+        getinstr(compst, i + 1).offset = tree.u.n;
         let inst = getinstr(compst, i);
-        (*inst).i.aux1 = (to & 0xff) as LpegByte;
-        (*inst).i.aux2.key = (to >> 8) as c_short;
+        inst.i.aux1 = (to & 0xff) as LpegByte;
+        inst.i.aux2.key = (to >> 8) as c_short;
     }
 }
 
 fn addinstcap(compst: &mut CompileState, op: Opcode, cap: c_int, key: c_int, aux: c_int) -> c_int {
-    unsafe {
+    {
         let i = addinstruction(compst, op, joinkindoff(cap, aux));
-        (*getinstr(compst, i)).i.aux2.key = key as c_short;
+        getinstr(compst, i).i.aux2.key = key as c_short;
         i
     }
 }
@@ -444,8 +444,8 @@ fn jumptohere(compst: &mut CompileState, instruction: c_int) {
 fn codechar(compst: &mut CompileState, c: c_int, tt: c_int) {
     unsafe {
         if tt >= 0
-            && (*getinstr(compst, tt)).i.code == ITEST_CHAR
-            && c_int::from((*getinstr(compst, tt)).i.aux1) == c
+            && getinstr(compst, tt).i.code == ITEST_CHAR
+            && c_int::from(getinstr(compst, tt).i.aux1) == c
         {
             addinstruction(compst, IANY, 0);
         } else {
@@ -465,7 +465,7 @@ fn addcharset(compst: &mut CompileState, inst: c_int, info: &CharsetInfo) {
             i_ptr.i.aux1 = info.deflt as LpegByte;
         }
         let p = nextinstruction(compst, isize);
-        let charset = getinstr(compst, p).cast::<LpegByte>();
+        let charset = (&raw mut *getinstr(compst, p)).cast::<LpegByte>();
         for i in 0..((isize as usize) * size_of::<Instruction>()) {
             *charset.add(i) = getbytefromcharset(info, i as c_int);
         }
@@ -497,7 +497,7 @@ fn cs_equal(p: &Instruction, info: &CharsetInfo) -> bool {
 fn codecharset(compst: &mut CompileState, tree: &mut TTree, tt: c_int) {
     let mut info = CharsetInfo::new();
     tree2cset(tree, &mut info);
-    if tt >= 0 && cs_equal(unsafe { &*(getinstr(compst, tt)) }, &info) {
+    if tt >= 0 && cs_equal(&*(getinstr(compst, tt)), &info) {
         addinstruction(compst, IANY, 0);
     } else {
         let i = addinstruction(compst, ISET, 0);
@@ -509,7 +509,7 @@ fn codetestset(compst: &mut CompileState, cs: &Charset, e: c_int) -> c_int {
     if e != 0 {
         NOINST
     } else {
-        unsafe {
+        {
             let mut info = CharsetInfo::new();
             let op = charsettype(&cs.cs, &mut info);
             match op {
@@ -517,7 +517,7 @@ fn codetestset(compst: &mut CompileState, cs: &Charset, e: c_int) -> c_int {
                 IANY => addoffsetinst(compst, ITEST_ANY),
                 ICHAR => {
                     let i = addoffsetinst(compst, ITEST_CHAR);
-                    (*getinstr(compst, i)).i.aux1 = info.offset as LpegByte;
+                    getinstr(compst, i).i.aux1 = info.offset as LpegByte;
                     i
                 }
                 _ => {
@@ -666,7 +666,7 @@ fn coderepcharset(compst: &mut CompileState, tree: &mut TTree) -> bool {
             }
             TCHAR => {
                 let test = addoffsetinst(compst, ITEST_CHAR);
-                (*getinstr(compst, test)).i.aux1 = tree.u.n as LpegByte;
+                getinstr(compst, test).i.aux1 = tree.u.n as LpegByte;
                 addinstruction(compst, IANY, 0);
                 closeloop(compst, test);
                 true
@@ -778,7 +778,7 @@ fn codecall(compst: &mut CompileState, call: *mut TTree) {
     unsafe {
         let c = addoffsetinst(compst, IOPEN_CALL);
         debug_assert_eq!((*sib1(sib2(call))).tag, TXINFO);
-        (*getinstr(compst, c)).i.aux2.key = (*sib1(sib2(call))).u.n as c_short;
+        getinstr(compst, c).i.aux2.key = (*sib1(sib2(call))).u.n as c_short;
     }
 }
 

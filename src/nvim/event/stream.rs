@@ -120,10 +120,10 @@ impl StreamInternalData {
 
     #[cfg(windows)]
     #[inline]
-    pub const fn as_proc(self) -> *mut crate::event::proc::Proc {
+    pub fn as_proc(self) -> &'static mut crate::event::proc::Proc {
         match self {
-            Self::Proc(p) => p,
-            _ => ptr::null_mut(),
+            Self::Proc(p) => unsafe { &mut *p },
+            _ => unreachable!(),
         }
     }
 }
