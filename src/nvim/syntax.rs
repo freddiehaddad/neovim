@@ -5036,26 +5036,26 @@ fn in_id_list(
 
 type SubcmdFn = fn(&mut exarg_T, c_int);
 
-const SUBCOMMANDS: [(*const c_char, SubcmdFn); 19] = [
-    (c"case".as_ptr(), syn_cmd_case),
-    (c"clear".as_ptr(), syn_cmd_clear),
-    (c"cluster".as_ptr(), syn_cmd_cluster),
-    (c"conceal".as_ptr(), syn_cmd_conceal),
-    (c"enable".as_ptr(), syn_cmd_on),
-    (c"foldlevel".as_ptr(), syn_cmd_foldlevel),
-    (c"include".as_ptr(), syn_cmd_include),
-    (c"iskeyword".as_ptr(), syn_cmd_iskeyword),
-    (c"keyword".as_ptr(), syn_cmd_keyword),
-    (c"list".as_ptr(), syn_cmd_list),
-    (c"manual".as_ptr(), syn_cmd_manual),
-    (c"match".as_ptr(), syn_cmd_match),
-    (c"on".as_ptr(), syn_cmd_on),
-    (c"off".as_ptr(), syn_cmd_off),
-    (c"region".as_ptr(), syn_cmd_region),
-    (c"reset".as_ptr(), syn_cmd_reset),
-    (c"spell".as_ptr(), syn_cmd_spell),
-    (c"sync".as_ptr(), syn_cmd_sync),
-    (c"".as_ptr(), syn_cmd_list),
+const SUBCOMMANDS: [(&std::ffi::CStr, SubcmdFn); 19] = [
+    (c"case", syn_cmd_case),
+    (c"clear", syn_cmd_clear),
+    (c"cluster", syn_cmd_cluster),
+    (c"conceal", syn_cmd_conceal),
+    (c"enable", syn_cmd_on),
+    (c"foldlevel", syn_cmd_foldlevel),
+    (c"include", syn_cmd_include),
+    (c"iskeyword", syn_cmd_iskeyword),
+    (c"keyword", syn_cmd_keyword),
+    (c"list", syn_cmd_list),
+    (c"manual", syn_cmd_manual),
+    (c"match", syn_cmd_match),
+    (c"on", syn_cmd_on),
+    (c"off", syn_cmd_off),
+    (c"region", syn_cmd_region),
+    (c"reset", syn_cmd_reset),
+    (c"spell", syn_cmd_spell),
+    (c"sync", syn_cmd_sync),
+    (c"", syn_cmd_list),
 ];
 
 /// ":syntax".
@@ -5075,7 +5075,7 @@ pub fn ex_syntax(eap: &mut exarg_T) {
         }
         let mut found = false;
         for &(name, func) in &SUBCOMMANDS {
-            if crate::memory::cstr_as_bytes(subcmd_name.as_ptr()) == crate::memory::cstr_as_bytes(name) {
+            if subcmd_slice == name.to_bytes() {
                 eap.arg = skipwhite(subcmd_end);
                 func(eap, 0);
                 found = true;
@@ -5212,7 +5212,7 @@ pub fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
                 if u >= SUBCOMMANDS.len() {
                     ptr::null_mut()
                 } else {
-                    SUBCOMMANDS[u].0.cast_mut()
+                    SUBCOMMANDS[u].0.as_ptr().cast_mut()
                 }
             }
             EXP_CASE => {

@@ -273,38 +273,38 @@ unsafe extern "C-unwind" fn lmpack_unpacker_delete(l: *mut lua_State) -> c_int {
     }
 }
 
-fn lmpack_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn lmpack_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
-        let unpacker = (*parser).data.lmpack_unpacker();
+        let unpacker = parser.data.lmpack_unpacker();
         let l = (*unpacker).L;
 
-        match (*node).tok.r#type {
+        match node.tok.r#type {
             MPACK_TOKEN_NIL => {
                 lmpack_pushnil(l);
             }
             MPACK_TOKEN_BOOLEAN => {
-                lua_pushboolean(l, c_int::from(mpack_unpack_boolean((*node).tok)));
+                lua_pushboolean(l, c_int::from(mpack_unpack_boolean(node.tok)));
             }
             MPACK_TOKEN_UINT | MPACK_TOKEN_SINT | MPACK_TOKEN_FLOAT => {
-                lua_pushnumber(l, mpack_unpack_number((*node).tok));
+                lua_pushnumber(l, mpack_unpack_number(node.tok));
             }
             MPACK_TOKEN_CHUNK => {
-                let parent = mpack_parent_node(node);
+                let parent = mpack_parent_node(&raw mut *node);
                 ptr::copy_nonoverlapping(
-                    (*node).tok.data.chunk_ptr(),
+                    node.tok.data.chunk_ptr(),
                     (*unpacker).string_buffer.as_mut_ptr().add((*parent).pos),
-                    (*node).tok.length as usize,
+                    node.tok.length as usize,
                 );
             }
             MPACK_TOKEN_BIN | MPACK_TOKEN_STR | MPACK_TOKEN_EXT => {
                 (*unpacker).string_buffer.clear();
                 (*unpacker)
                     .string_buffer
-                    .resize((*node).tok.length as usize, 0);
+                    .resize(node.tok.length as usize, 0);
             }
             MPACK_TOKEN_ARRAY | MPACK_TOKEN_MAP => {
                 lua_newtable(l);
-                (*node).data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(
+                node.data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(
                     lmpack_ref(l, (*unpacker).reg),
                 ));
             }
@@ -313,25 +313,25 @@ fn lmpack_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     }
 }
 
-fn lmpack_parse_exit(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn lmpack_parse_exit(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
-        let unpacker = (*parser).data.lmpack_unpacker();
+        let unpacker = parser.data.lmpack_unpacker();
         let l = (*unpacker).L;
-        let parent = mpack_parent_node(node);
+        let parent = mpack_parent_node(&raw mut *node);
 
-        match (*node).tok.r#type {
+        match node.tok.r#type {
             MPACK_TOKEN_BIN | MPACK_TOKEN_STR | MPACK_TOKEN_EXT => {
                 lua_pushlstring(
                     l,
                     (*unpacker).string_buffer.as_ptr(),
-                    (*node).tok.length as usize,
+                    node.tok.length as usize,
                 );
                 (*unpacker).string_buffer.clear();
-                if (*node).tok.r#type == MPACK_TOKEN_EXT && (*unpacker).ext != LUA_NOREF {
+                if node.tok.r#type == MPACK_TOKEN_EXT && (*unpacker).ext != LUA_NOREF {
                     lmpack_geti(l, (*unpacker).reg, (*unpacker).ext);
-                    lua_rawgeti(l, -1, (*node).tok.data.ext_type());
+                    lua_rawgeti(l, -1, node.tok.data.ext_type());
                     if lua_isfunction(l, -1) {
-                        lua_pushinteger(l, (*node).tok.data.ext_type() as lua_Integer);
+                        lua_pushinteger(l, node.tok.data.ext_type() as lua_Integer);
                         lua_pushvalue(l, -4);
                         lua_call(l, 2, 1);
                         lua_replace(l, -3);
@@ -342,10 +342,10 @@ fn lmpack_parse_exit(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                 }
             }
             MPACK_TOKEN_ARRAY | MPACK_TOKEN_MAP => {
-                let ref_id = (*node).data[0].i() as c_int;
+                let ref_id = node.data[0].i() as c_int;
                 lmpack_geti(l, (*unpacker).reg, ref_id);
                 lmpack_unref(l, (*unpacker).reg, ref_id);
-                if (*node).key_visited == 0 && (*node).tok.r#type == MPACK_TOKEN_MAP {
+                if node.key_visited == 0 && node.tok.r#type == MPACK_TOKEN_MAP {
                     lmpack_geti(l, (*unpacker).reg, (*unpacker).mtdict);
                     lua_setmetatable(l, -2);
                 }
@@ -552,18 +552,18 @@ unsafe extern "C-unwind" fn lmpack_packer_delete(l: *mut lua_State) -> c_int {
     }
 }
 
-fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn lmpack_unparse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
-        let packer = (*parser).data.lmpack_packer();
+        let packer = parser.data.lmpack_packer();
         let l = (*packer).L;
-        let parent = mpack_parent_node(node);
+        let parent = mpack_parent_node(&raw mut *node);
 
         if !parent.is_null() {
             lmpack_geti(l, (*packer).reg, (*parent).data[0].i() as c_int);
 
             if (*parent).tok.r#type > MPACK_TOKEN_MAP {
                 let str_ptr = lua_tolstring(l, -1, ptr::null_mut());
-                (*node).tok = mpack_pack_chunk(str_ptr, (*parent).tok.length);
+                node.tok = mpack_pack_chunk(str_ptr, (*parent).tok.length);
                 lua_pop(l, 1);
                 return;
             }
@@ -596,10 +596,10 @@ fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
         'done: {
             match r#type {
                 LUA_TBOOLEAN => {
-                    (*node).tok = mpack_pack_boolean(lua_toboolean(l, -1) as c_uint);
+                    node.tok = mpack_pack_boolean(lua_toboolean(l, -1) as c_uint);
                 }
                 LUA_TNUMBER => {
-                    (*node).tok = mpack_pack_number(lua_tonumber(l, -1));
+                    node.tok = mpack_pack_number(lua_tonumber(l, -1));
                 }
                 LUA_TSTRING => {
                     let mut is_bin = (*packer).is_bin;
@@ -611,9 +611,9 @@ fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                         lua_pop(l, 1);
                     }
                     if is_bin != 0 {
-                        (*node).tok = mpack_pack_bin(lmpack_objlen(l, None));
+                        node.tok = mpack_pack_bin(lmpack_objlen(l, None));
                     } else {
-                        (*node).tok = mpack_pack_str(lmpack_objlen(l, None));
+                        node.tok = mpack_pack_str(lmpack_objlen(l, None));
                     }
                 }
                 LUA_TTABLE => {
@@ -650,7 +650,7 @@ fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                                     c"the second result from ext packer must be a string".as_ptr(),
                                 );
                             }
-                            (*node).tok =
+                            node.tok =
                                 mpack_pack_ext(ext as c_int, lmpack_objlen(l, None));
                             lua_replace(l, -5);
                             lua_pop(l, 3);
@@ -664,11 +664,11 @@ fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                         lua_pop(l, 1);
                     }
 
-                    let mut n = mpack_parent_node(node);
+                    let mut n = mpack_parent_node(&raw mut *node);
                     while !n.is_null() {
                         lmpack_geti(l, (*packer).reg, (*n).data[0].i() as c_int);
                         if lua_rawequal(l, -1, -2) != 0 {
-                            (*node).tok = mpack_pack_nil();
+                            node.tok = mpack_pack_nil();
                             lua_pop(l, 2);
                             lmpack_pushnil(l);
                             break 'done;
@@ -680,16 +680,16 @@ fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
                     let mut is_array = c_int::from(!has_mtdict);
                     let len = lmpack_objlen(l, Some(&mut is_array));
                     if is_array != 0 {
-                        (*node).tok = mpack_pack_array(len);
+                        node.tok = mpack_pack_array(len);
                     } else {
-                        (*node).tok = mpack_pack_map(len);
-                        (*node).data[1] = crate::mpack::object::mpack_data_t::Int(
+                        node.tok = mpack_pack_map(len);
+                        node.data[1] = crate::mpack::object::mpack_data_t::Int(
                             mpack_sintmax_t::from(LUA_REFNIL),
                         );
                     }
                 }
                 LUA_TUSERDATA if lmpack_isnil(l, -1) => {
-                    (*node).tok = mpack_pack_nil();
+                    node.tok = mpack_pack_nil();
                 }
                 _ => {
                     let mut errmsg = [0 as c_char; 50];
@@ -704,20 +704,20 @@ fn lmpack_unparse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
             }
         }
 
-        (*node).data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(
+        node.data[0] = crate::mpack::object::mpack_data_t::Int(mpack_sintmax_t::from(
             lmpack_ref(l, (*packer).reg),
         ));
     }
 }
 
-fn lmpack_unparse_exit(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn lmpack_unparse_exit(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
-        let packer = (*parser).data.lmpack_packer();
+        let packer = parser.data.lmpack_packer();
         let l = (*packer).L;
-        if (*node).tok.r#type != MPACK_TOKEN_CHUNK {
-            lmpack_unref(l, (*packer).reg, (*node).data[0].i() as c_int);
-            if (*node).tok.r#type == MPACK_TOKEN_MAP {
-                lmpack_unref(l, (*packer).reg, (*node).data[1].i() as c_int);
+        if node.tok.r#type != MPACK_TOKEN_CHUNK {
+            lmpack_unref(l, (*packer).reg, node.data[0].i() as c_int);
+            if node.tok.r#type == MPACK_TOKEN_MAP {
+                lmpack_unref(l, (*packer).reg, node.data[1].i() as c_int);
             }
         }
     }

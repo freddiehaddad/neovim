@@ -114,7 +114,7 @@ const fn empty_arena() -> Arena {
     }
 }
 
-fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn api_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
         let parser = &mut *parser;
         let node = &mut *node;
@@ -122,7 +122,7 @@ fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
         let mut result: *mut Object = std::ptr::null_mut();
         let mut key_location: *mut NvimString = std::ptr::null_mut();
 
-        let parent = mpack_parent_node(node);
+        let parent = mpack_parent_node(&raw mut *node);
         if !parent.is_null() {
             match (*parent).tok.r#type {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
@@ -290,9 +290,9 @@ fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     }
 }
 
-fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
+fn api_parse_exit(_parser: &mut mpack_parser_t, _node: &mut mpack_node_t) {}
 
-fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
+fn parse_nop(_parser: &mut mpack_parser_t, _node: &mut mpack_node_t) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
 pub fn unpack(

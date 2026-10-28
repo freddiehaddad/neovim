@@ -366,9 +366,9 @@ pub struct VTermScreenCallbacks {
     pub resize: Option<fn(rows: c_int, cols: c_int, user: *mut Terminal) -> c_int>,
     pub theme: Option<fn(dark: &mut bool, user: *mut Terminal) -> c_int>,
     pub sb_pushline:
-        Option<fn(cols: c_int, cells: *const VTermScreenCell, user: *mut Terminal) -> c_int>,
+        Option<fn(cells: &[VTermScreenCell], user: *mut Terminal) -> c_int>,
     pub sb_popline:
-        Option<fn(cols: c_int, cells: *mut VTermScreenCell, user: *mut Terminal) -> c_int>,
+        Option<fn(cells: &mut [VTermScreenCell], user: *mut Terminal) -> c_int>,
     pub sb_clear: Option<fn(user: *mut Terminal) -> c_int>,
 }
 
@@ -544,19 +544,19 @@ fn putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermScreen) 
 }
 
 fn sb_pushline_from_row(screen: &mut VTermScreen, row: c_int) {
-    unsafe {
-        let mut pos = VTermPos { row, col: 0 };
-        let sb_buf_ptr = screen.sb_buffer.as_mut_ptr();
-        while pos.col < screen.cols {
-            vterm_screen_get_cell(screen, pos, &mut *sb_buf_ptr.add(pos.col as usize));
-            pos.col += 1;
-        }
+    let mut pos = VTermPos { row, col: 0 };
+    while pos.col < screen.cols {
+        let col_idx = pos.col as usize;
+        let mut cell = screen.sb_buffer[col_idx];
+        vterm_screen_get_cell(screen, pos, &mut cell);
+        screen.sb_buffer[col_idx] = cell;
+        pos.col += 1;
+    }
 
-        if let Some(callbacks) = screen.callbacks
-            && let Some(cb) = callbacks.sb_pushline
-        {
-            cb(screen.cols, sb_buf_ptr, screen.term_ptr());
-        }
+    if let Some(callbacks) = screen.callbacks
+        && let Some(cb) = callbacks.sb_pushline
+    {
+        cb(&screen.sb_buffer[..screen.cols as usize], screen.term_ptr());
     }
 }
 
@@ -1117,8 +1117,8 @@ fn resize_buffer(
             && let Some(sb_popline) = callbacks.sb_popline
         {
             while new_row >= 0 {
-                let sb_buf_ptr = screen.sb_buffer.as_mut_ptr();
-                if sb_popline(old_cols, sb_buf_ptr, screen.term_ptr()) == 0 {
+                let term_ptr = screen.term_ptr();
+                if sb_popline(&mut screen.sb_buffer[..old_cols as usize], term_ptr) == 0 {
                     break;
                 }
 

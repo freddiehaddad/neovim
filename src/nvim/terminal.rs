@@ -724,10 +724,10 @@ pub fn terminal_teardown() {
     }
 }
 
-fn term_output_callback(s: *const c_char, len: usize, term: *mut Terminal) {
+fn term_output_callback(s: &[u8], term: *mut Terminal) {
     unsafe {
         let term = &mut *term;
-        terminal_send(term, s, len);
+        terminal_send(term, s.as_ptr().cast::<c_char>(), s.len());
     }
 }
 
@@ -1949,7 +1949,7 @@ fn term_theme(dark: &mut bool, _data: *mut Terminal) -> c_int {
     1
 }
 
-fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, term: *mut Terminal) -> c_int {
+fn term_sb_push(cells: &[VTermScreenCell], term: *mut Terminal) -> c_int {
     unsafe {
         let term = &mut *term;
         if !term_may_alloc_scrollback(term, ptr::null_mut()) {
@@ -1957,7 +1957,7 @@ fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, term: *mut Terminal)
         }
         debug_assert!(term.sb_size > 0);
 
-        let c = cols as usize;
+        let c = cells.len();
         let mut sbrow = if term.sb_buffer.len() == term.sb_size {
             term.sb_deleted += 1;
             term.sb_buffer.pop().unwrap_or_default()
@@ -1966,7 +1966,7 @@ fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, term: *mut Terminal)
         };
 
         sbrow.clear();
-        sbrow.extend_from_slice(std::slice::from_raw_parts(cells, c));
+        sbrow.extend_from_slice(cells);
         term.sb_buffer.insert(0, sbrow);
 
         if term.sb_pending < term.sb_size as c_int {
@@ -1981,7 +1981,7 @@ fn term_sb_push(cols: c_int, cells: *const VTermScreenCell, term: *mut Terminal)
     }
 }
 
-fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, term: *mut Terminal) -> c_int {
+fn term_sb_pop(cells: &mut [VTermScreenCell], term: *mut Terminal) -> c_int {
     unsafe {
         let term = &mut *term;
         if term.sb_buffer.is_empty() {
@@ -1996,14 +1996,13 @@ fn term_sb_pop(cols: c_int, cells: *mut VTermScreenCell, term: *mut Terminal) ->
 
         let sbrow = term.sb_buffer.remove(0);
 
-        let cols_usize = cols as usize;
+        let cols_usize = cells.len();
         let cols_to_copy = cols_usize.min(sbrow.len());
 
-        ptr::copy_nonoverlapping(sbrow.as_ptr(), cells, cols_to_copy);
-        for col in cols_to_copy..cols_usize {
-            let cell = cells.add(col);
-            (*cell).schar = 0;
-            (*cell).width = 1;
+        cells[..cols_to_copy].copy_from_slice(&sbrow[..cols_to_copy]);
+        for cell in &mut cells[cols_to_copy..cols_usize] {
+            cell.schar = 0;
+            cell.width = 1;
         }
 
         if !term.synchronized_output {

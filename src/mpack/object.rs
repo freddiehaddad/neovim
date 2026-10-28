@@ -186,7 +186,7 @@ impl mpack_parser_t {
     }
 }
 
-pub type mpack_walk_cb = Option<fn(w: *mut mpack_parser_t, n: *mut mpack_node_t)>;
+pub type mpack_walk_cb = Option<fn(w: &mut mpack_parser_t, n: &mut mpack_node_t)>;
 
 #[inline]
 pub fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
@@ -243,7 +243,7 @@ pub fn mpack_parse_tok(
             let n = mpack_parser_push(parser);
             (*n).tok = tok;
             if let Some(cb) = enter_cb {
-                cb(&raw mut *parser, n);
+                cb(parser, &mut *n);
             }
             if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
@@ -259,7 +259,7 @@ pub fn mpack_parse_tok(
                 break;
             }
             if let Some(cb) = exit_cb {
-                cb(&raw mut *parser, n);
+                cb(parser, &mut *n);
             }
             if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
@@ -290,7 +290,7 @@ pub fn mpack_unparse_tok(
             }
             let n = mpack_parser_push(parser);
             if let Some(cb) = enter_cb {
-                cb(&raw mut *parser, n);
+                cb(parser, &mut *n);
             }
             *tok = (*n).tok;
             if parser.status == MPACK_EXCEPTION {
@@ -307,7 +307,7 @@ pub fn mpack_unparse_tok(
                 break;
             }
             if let Some(cb) = exit_cb {
-                cb(&raw mut *parser, n);
+                cb(parser, &mut *n);
             }
             if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;

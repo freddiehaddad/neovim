@@ -1067,12 +1067,12 @@ fn positive_integer_to_special_typval(rettv: &mut typval_T, val: u64) {
     }
 }
 
-fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn typval_parse_enter(parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
         let parser = &mut *parser;
         let node = &mut *node;
         let mut result: *mut typval_T = std::ptr::null_mut();
-        let parent = mpack_parent_node(node);
+        let parent = mpack_parent_node(&raw mut *node);
         if !parent.is_null() {
             match (*parent).tok.r#type {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
@@ -1188,7 +1188,7 @@ pub fn typval_parser_error_free(p: &mut mpack_parser_t) {
     }
 }
 
-fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn typval_parse_exit(_parser: &mut mpack_parser_t, node: &mut mpack_node_t) {
     unsafe {
         let node = &mut *node;
         let result = node.data[0].typval();

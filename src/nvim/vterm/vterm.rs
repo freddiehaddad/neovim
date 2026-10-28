@@ -16,7 +16,7 @@ use crate::vterm::pen::{
 use crate::vterm::screen::VTermScreen;
 use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 
-pub type VTermOutputCallback = Option<fn(s: *const c_char, len: usize, user: *mut Terminal)>;
+pub type VTermOutputCallback = Option<fn(s: &[u8], user: *mut Terminal)>;
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
@@ -70,12 +70,19 @@ pub fn vterm_output_set_callback(
 
 pub fn vterm_push_output_bytes(vt: &mut VTerm, bytes: *const c_char, len: usize) {
     if let Some(func) = vt.outfunc {
-            func(bytes, len, vt.outdata);
-        }
+        let slice = if len == 0 || bytes.is_null() {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(bytes.cast::<u8>(), len) }
+        };
+        func(slice, vt.outdata);
+    }
 }
 
 pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
-    vterm_push_output_bytes(vt, payload.as_ptr().cast::<c_char>(), payload.len());
+    if let Some(func) = vt.outfunc {
+        func(payload, vt.outdata);
+    }
 }
 
 pub fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {

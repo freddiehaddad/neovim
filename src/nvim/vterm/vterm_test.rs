@@ -570,53 +570,48 @@ pub fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
 }
 
 pub fn screen_sb_pushline(
-    cols: c_int,
-    cells: *const VTermScreenCell,
+    cells: &[VTermScreenCell],
     _user: *mut Terminal,
 ) -> c_int {
-    unsafe {
-        if !vtt_st().want_screen_scrollback {
-            return 1;
-        }
-        let mut eol = cols as usize;
-        while eol > 0 && (*cells.add(eol - 1)).schar == 0 {
-            eol -= 1;
-        }
-        let mut out = Vec::new();
-        let _ = write!(out, "sb_pushline {cols} =");
-        for c in 0..eol {
-            out.push(b' ');
-            format_schar(&mut out, (*cells.add(c)).schar);
-        }
-        out.push(b'\n');
-        append_test_output(&out);
-        1
+    if !vtt_st().want_screen_scrollback {
+        return 1;
     }
+    let cols = cells.len() as c_int;
+    let mut eol = cells.len();
+    while eol > 0 && cells[eol - 1].schar == 0 {
+        eol -= 1;
+    }
+    let mut out = Vec::new();
+    let _ = write!(out, "sb_pushline {cols} =");
+    for cell in &cells[..eol] {
+        out.push(b' ');
+        format_schar(&mut out, cell.schar);
+    }
+    out.push(b'\n');
+    append_test_output(&out);
+    1
 }
 
 pub fn screen_sb_popline(
-    cols: c_int,
-    cells: *mut VTermScreenCell,
+    cells: &mut [VTermScreenCell],
     _user: *mut Terminal,
 ) -> c_int {
-    unsafe {
-        if !vtt_st().want_screen_scrollback {
-            return 0;
-        }
-        for col in 0..(cols as usize) {
-            let cell = cells.add(col);
-            (*cell).schar = if col < 5 {
-                (b'A' + col as u8) as schar_T
-            } else {
-                0
-            };
-            (*cell).width = 1;
-        }
-        let mut out = Vec::new();
-        let _ = writeln!(out, "sb_popline {cols}");
-        append_test_output(&out);
-        1
+    if !vtt_st().want_screen_scrollback {
+        return 0;
     }
+    let cols = cells.len() as c_int;
+    for (col, cell) in cells.iter_mut().enumerate() {
+        cell.schar = if col < 5 {
+            (b'A' + col as u8) as schar_T
+        } else {
+            0
+        };
+        cell.width = 1;
+    }
+    let mut out = Vec::new();
+    let _ = writeln!(out, "sb_popline {cols}");
+    append_test_output(&out);
+    1
 }
 
 pub fn screen_sb_clear(_user: *mut Terminal) -> c_int {
@@ -627,14 +622,11 @@ pub fn screen_sb_clear(_user: *mut Terminal) -> c_int {
         0
 }
 
-pub fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
+pub fn term_output(s: &[u8], _user: *mut Terminal) {
     let mut out = b"output ".to_vec();
-    unsafe {
-        for i in 0..len {
-            let b = *s.add(i) as u8;
-            let sep = if i + 1 < len { "," } else { "\n" };
-            let _ = write!(out, "{b:x}{sep}");
-        }
+    for (i, &b) in s.iter().enumerate() {
+        let sep = if i + 1 < s.len() { "," } else { "\n" };
+        let _ = write!(out, "{b:x}{sep}");
     }
     append_test_output(&out);
 }
