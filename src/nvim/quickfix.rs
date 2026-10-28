@@ -5777,7 +5777,6 @@ fn vgr_process_files(
 
                     if !buf.is_null() {
                         let buf = { &mut *buf };
-                        let buf = { &mut *buf };
                         buf.b_flags &= !BF_DUMMY;
 
                         if std::ptr::eq(buf, *first_match_buf)
@@ -6166,7 +6165,6 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
     let efm_di = tv_dict_find(Some(what), c"efm", 3);
     if !efm_di.is_null() {
         let efm_di = unsafe { &mut *efm_di };
-        let efm_di = { &mut *efm_di };
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
             return false;
         }
@@ -6299,7 +6297,6 @@ fn qf_getprop_qfidx(qi: &mut QfInfo, what: &mut TvDict) -> i32 {
     di = tv_dict_find(Some(what), c"id", 2);
     if !di.is_null() {
         let di = unsafe { &mut *di };
-        let di = { &mut *di };
         if di.di_tv.v_type == VarType::VarNumber {
             if di.di_tv.vval.v_number() != 0 {
                 qf_idx = qf_id2nr(qi, di.di_tv.vval.v_number() as u32);
@@ -6690,7 +6687,6 @@ fn qf_add_entries(
         let cur_entry = qfl.cur_entry();
         if !cur_entry.is_null() {
             let cur_entry = { unsafe { &mut *cur_entry } };
-            let cur_entry = { &mut *cur_entry };
             prev_fnum = cur_entry.qf_fnum;
             prev_lnum = cur_entry.qf_lnum;
             prev_col = cur_entry.qf_col;
@@ -6871,7 +6867,6 @@ fn qf_setprop_items_from_lines(
     let efm_di = tv_dict_find(Some(what), c"efm", 3);
     if !efm_di.is_null() {
         let efm_di = unsafe { &mut *efm_di };
-        let efm_di = { &mut *efm_di };
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
             return false;
         }

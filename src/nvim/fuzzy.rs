@@ -609,7 +609,6 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         let di_key = tv_dict_find(unsafe { d.as_ref() }, c"key", -1);
         if !di_key.is_null() {
             let di_key = { unsafe { &mut *di_key } };
-            let di_key = { &mut *di_key };
             if di_key.di_tv.v_type != VarType::VarString
                 || di_key.di_tv.vval.v_string().is_null()
                 || unsafe { *di_key.di_tv.vval.v_string() } == 0

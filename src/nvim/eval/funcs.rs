@@ -8735,7 +8735,6 @@ pub fn f_timer_pause(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFu
     let timer = find_timer_by_nr(tv_get_number(&argvars[0]));
     if !timer.is_null() {
         let timer = unsafe { &mut *timer };
-        let timer = { &mut *timer };
         if !timer.paused && paused {
             time_watcher_stop(&mut timer.watcher);
         } else if timer.paused && !paused {

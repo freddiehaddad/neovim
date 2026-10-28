@@ -1884,7 +1884,6 @@ pub fn call_func(
         let mut skip_eval = false;
         if !partial.is_null() {
             let partial = { unsafe { &mut *partial } };
-            let partial = { &mut *partial };
             if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
                 selfdict = partial.pt_dict;
             }
@@ -3532,7 +3531,6 @@ pub fn func_unref(name: impl crate::strings::IntoCCharPtr) {
 pub fn func_ptr_unref(fp: *mut UserFunc) {
     if !fp.is_null() {
         let fp = unsafe { &mut *fp };
-        let fp = { &mut *fp };
         fp.uf_refcount -= 1;
         if fp.uf_refcount <= 0 && fp.uf_calls == 0 {
             func_clear_free(fp, false);

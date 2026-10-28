@@ -1808,7 +1808,6 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 
     if !virt_text.is_null() {
         let virt_text = unsafe { &mut *virt_text };
-        let virt_text = { &mut *virt_text };
         if virt_text.hl_mode != 0 {
             let mode_str = HL_MODE_STR[virt_text.hl_mode as usize].as_ptr();
             put_c(dict, c"hl_mode", cstr_as_obj(mode_str));
@@ -1840,7 +1839,6 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 
     if !virt_lines.is_null() {
         let virt_lines = unsafe { &mut *virt_lines };
-        let virt_lines = { &mut *virt_lines };
         let vl_vec = virt_lines.data.virt_lines();
         let mut all_chunks = arena_array(arena, vl_vec.len());
         let mut virt_lines_flags: i32 = 0;

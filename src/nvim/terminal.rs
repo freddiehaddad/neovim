@@ -1139,7 +1139,6 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 
             if !winopts.is_null() {
                 let winopts = { &mut *winopts };
-                let winopts = { &mut *winopts };
                 if let Some(saved) = s.save_w_p_culopt.take() {
                     free_string_option(winopts.wo_culopt);
                     winopts.wo_culopt = alloc_string_option(saved.as_ptr());

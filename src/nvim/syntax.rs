@@ -2405,7 +2405,6 @@ fn find_endpos(
 
         if !spp_skip.is_null() {
             let spp_skip = unsafe { &mut *spp_skip };
-            let spp_skip = { &mut *spp_skip };
             let mut lc_col = matchcol - spp_skip.sp_offsets[SPO_LC_OFF];
             if lc_col < 0 {
                 lc_col = 0;

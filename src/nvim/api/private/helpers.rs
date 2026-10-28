@@ -496,7 +496,6 @@ pub fn dict_check_writable(
     let di = tv_dict_find(Some(dict), key.data, key.size as isize);
     if !di.is_null() {
         let di = unsafe { &mut *di };
-        let di = { &mut *di };
         if (di.di_flags & DI_FLAGS_RO) != 0 {
             api_set_error!(
                 err,

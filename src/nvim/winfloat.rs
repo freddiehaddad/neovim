@@ -297,7 +297,6 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
         if !parent.is_null() {
             let parent = { unsafe { &mut *parent } };
-            let parent = { &mut *parent };
             row += parent.w_winrow;
             col += parent.w_wincol;
             grid_adjust(&mut parent.w_grid, &mut row, &mut col);

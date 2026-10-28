@@ -1335,7 +1335,6 @@ fn convert_one_value(
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
                             let val_di = { &mut *val_di };
-                            let val_di = { &mut *val_di };
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in
                                 { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()
@@ -1703,7 +1702,6 @@ fn encode_vim_with_backend(
                                 (*pt).pt_dict
                             };
                             if !dict.is_null() {
-                                let dict = { &mut *dict };
                                 let dict = { &mut *dict };
                                 backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
                                 if dict.dv_hashtab.ht_used == 0 {

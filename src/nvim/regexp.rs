@@ -2106,7 +2106,6 @@ pub(super) fn reg_match_visual() -> bool {
         re_st().rex.reg_win
     };
     let wp = { unsafe { &mut *wp } };
-    let wp = { &mut *wp };
     if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
     {
         return false;

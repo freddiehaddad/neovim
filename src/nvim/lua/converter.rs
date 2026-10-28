@@ -1159,7 +1159,6 @@ fn lua_convert_one_value(
                         let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
                         if !val_di.is_null() {
                             let val_di = { &mut *val_di };
-                            let val_di = { &mut *val_di };
                             let mut mp_idx = NUM_MSGPACK_TYPES;
                             for (i, tl) in
                                 { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()

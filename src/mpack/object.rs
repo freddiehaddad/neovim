@@ -439,7 +439,6 @@ fn mpack_parser_pop(parser: &mut MpackParser) -> *mut MpackNode {
     let parent = mpack_parent_node(top);
     if !parent.is_null() {
         let parent = unsafe { &mut *parent };
-        let parent = { &mut *parent };
         if top.tok.r#type == MpackTokenChunk {
             parent.pos += top.tok.length as usize;
         } else if parent.tok.r#type == MpackTokenMap {

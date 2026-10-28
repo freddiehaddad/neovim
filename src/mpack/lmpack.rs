@@ -555,7 +555,6 @@ fn lmpack_unparse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
 
         if !parent.is_null() {
             let parent = { &mut *parent };
-            let parent = { &mut *parent };
             lmpack_geti(l, packer.reg, parent.data[0].i() as i32);
 
             if parent.tok.r#type > MpackTokenMap {

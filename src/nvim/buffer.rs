@@ -1765,37 +1765,36 @@ impl Drop for FileBuf {
 }
 
 fn free_buffer(buf: *mut FileBuf) {
-    let buf = unsafe { &mut *buf };
-    g_st().buffer_handles.remove(&buf.b_fnum);
-    buf_st().buf_free_count += 1;
-    free_buffer_stuff(&mut *buf, K_BFF_CLEAR_WIN_INFO);
-    if (*buf).b_vars().dv_refcount > DO_NOT_FREE_CNT {
-        tv_dict_add(
-            &mut *(*buf).b_vars(),
-            tv_dict_item_copy(unsafe { &mut *(&raw mut buf.changedtick_di).cast() }),
-        );
-    }
-    unref_var_dict(&mut *(*buf).b_vars());
-    aubuflocal_remove(&mut *buf);
-    if g_st().autocmd_busy {
-        buf.additional_data = None;
-        buf.b_prompt_text = None;
-        callback_free(&mut buf.b_prompt_callback);
-        callback_free(&mut buf.b_prompt_interrupt);
-        clear_fmark(&mut buf.b_last_cursor, 0);
-        clear_fmark(&mut buf.b_last_insert, 0);
-        clear_fmark(&mut buf.b_last_change, 0);
-        clear_fmark(&mut buf.b_prompt_start, 0);
-        buf.b_changelistlen = 0;
-        buf.b_namedm.fill(Fmark::new());
-        buf.b_changelist.fill(Fmark::new());
-        g_st()
-            .au_pending_free_buf
-            .push(unsafe { Box::from_raw(buf) });
-    } else {
-        drop(unsafe { Box::from_raw(buf) });
-        if g_st().curbuf == buf {
-            g_st().curbuf = ptr::null_mut();
+    unsafe {
+        g_st().buffer_handles.remove(&(*buf).b_fnum);
+        buf_st().buf_free_count += 1;
+        free_buffer_stuff(&mut *buf, K_BFF_CLEAR_WIN_INFO);
+        if (*buf).b_vars().dv_refcount > DO_NOT_FREE_CNT {
+            tv_dict_add(
+                &mut *(*buf).b_vars(),
+                tv_dict_item_copy(&mut *(&raw mut (*buf).changedtick_di).cast()),
+            );
+        }
+        unref_var_dict(&mut *(*buf).b_vars());
+        aubuflocal_remove(&mut *buf);
+        if g_st().autocmd_busy {
+            (*buf).additional_data = None;
+            (*buf).b_prompt_text = None;
+            callback_free(&mut (*buf).b_prompt_callback);
+            callback_free(&mut (*buf).b_prompt_interrupt);
+            clear_fmark(&mut (*buf).b_last_cursor, 0);
+            clear_fmark(&mut (*buf).b_last_insert, 0);
+            clear_fmark(&mut (*buf).b_last_change, 0);
+            clear_fmark(&mut (*buf).b_prompt_start, 0);
+            (*buf).b_changelistlen = 0;
+            (*buf).b_namedm.fill(Fmark::new());
+            (*buf).b_changelist.fill(Fmark::new());
+            g_st().au_pending_free_buf.push(Box::from_raw(buf));
+        } else {
+            drop(Box::from_raw(buf));
+            if g_st().curbuf == buf {
+                g_st().curbuf = ptr::null_mut();
+            }
         }
     }
 }
@@ -2742,7 +2741,6 @@ pub fn buflist_new(
         if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
             buf = buflist_findname_file_id(ffname, &mut file_id, file_id_valid);
             if !buf.is_null() {
-                let buf = { &mut *buf };
                 let buf = { &mut *buf };
                 drop(ffname_cstr);
                 if lnum != 0 {

@@ -2185,7 +2185,6 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
     if !wp.is_null() {
         let wp = unsafe { &mut *wp };
-        let wp = { &mut *wp };
         let height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
         if row < height + wp.w_border_adj[2] {
             winid = Varnumber::from(wp.handle);

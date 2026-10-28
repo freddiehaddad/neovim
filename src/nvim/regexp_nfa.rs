@@ -2493,8 +2493,6 @@ fn has_state_with_pos(
     for i in 0..l.n as usize {
         let thread = tp.wrapping_add(i);
         let thread = unsafe { &mut *thread };
-        let thread = { &mut *thread };
-        let thread = { &mut *thread };
         if thread.state == Some(state)
             && sub_equal(&mut thread.subs.norm, &mut subs.norm)
             && (re_st().rex.nfa_has_zsubexpr == 0
@@ -2636,8 +2634,6 @@ fn addstate_idx(
         }
 
         let st_ptr = states.wrapping_add(state_idx);
-        let st_ptr = { &mut *st_ptr };
-        let st_ptr = { &mut *st_ptr };
         let st_ptr = { &mut *st_ptr };
         let st_c = st_ptr.c;
         match st_c {
@@ -3619,8 +3615,6 @@ fn nfa_regmatch(
             flag ^= 1;
             let next_idx = flag;
             let thislist = (&raw mut list).cast::<NfaList>().wrapping_add(this_idx);
-            let thislist = { &mut *thislist };
-            let thislist = { &mut *thislist };
             let thislist = { &mut *thislist };
             let nextlist = &mut *(&raw mut list).cast::<NfaList>().wrapping_add(next_idx);
             nextlist.n = 0;

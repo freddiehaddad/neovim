@@ -563,7 +563,6 @@ pub fn pum_display(
 
             if !pvwin.is_null() {
                 let pvwin = { &mut *pvwin };
-                let pvwin = { &mut *pvwin };
                 if pvwin.w_winrow < curwin_mut().w_winrow {
                     above_row = pvwin.w_winrow + pvwin.w_height;
                 } else if pvwin.w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
@@ -1700,7 +1699,6 @@ fn pum_position_at_mouse(min_width: i32) {
         let wp = get_win_by_grid_handle(grid);
         if !wp.is_null() {
             let wp = unsafe { &mut *wp };
-            let wp = { &mut *wp };
             row += wp.w_winrow;
             col += wp.w_wincol;
             pum().win_row_offset = wp.w_winrow;

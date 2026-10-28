@@ -625,7 +625,10 @@ fn erase_internal(rect: VTermRect, selective: i32, screen: *mut VTermScreen) -> 
 
         for col in rect.start_col..rect.end_col {
             let cell = getcell(screen, row, col);
-            let cell = { unsafe { &mut *cell } };
+            if cell.is_null() {
+                continue;
+            }
+            let cell = unsafe { &mut *cell };
 
             if selective != 0 && cell.pen.protected_cell() != 0 {
                 continue;

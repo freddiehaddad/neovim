@@ -1231,8 +1231,6 @@ pub fn buf_write(
             }
             buf = g_st().curbuf;
         }
-        let buf = &mut *buf;
-
         if sfname.is_null() {
             sfname = fname;
         }
@@ -1244,20 +1242,20 @@ pub fn buf_write(
         }
 
         let overwriting =
-            !buf.b_ffname.is_null() && path_equal(ffname, buf.b_ffname, K_PATH_CMP_LITERAL);
+            !(*buf).b_ffname.is_null() && path_equal(ffname, (*buf).b_ffname, K_PATH_CMP_LITERAL);
 
         g_st().no_wait_return += 1;
 
-        let orig_start = buf.b_op_start;
-        let orig_end = buf.b_op_end;
+        let orig_start = (*buf).b_op_start;
+        let orig_end = (*buf).b_op_end;
 
-        buf.b_op_start.lnum = start;
-        buf.b_op_start.col = 0;
-        buf.b_op_end.lnum = end;
-        buf.b_op_end.col = 0;
+        (*buf).b_op_start.lnum = start;
+        (*buf).b_op_start.col = 0;
+        (*buf).b_op_end.lnum = end;
+        (*buf).b_op_end.col = 0;
 
         let res = buf_write_do_autocmds(
-            buf,
+            &mut *buf,
             &raw mut fname,
             &raw mut sfname,
             &raw mut ffname,
@@ -1275,6 +1273,7 @@ pub fn buf_write(
         if res != NOTDONE {
             return res;
         }
+        let buf = &mut *buf;
 
         let fname_copy = (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
         let sfname_copy = (!sfname.is_null()).then(|| crate::memory::cstr_to_cstring(sfname));

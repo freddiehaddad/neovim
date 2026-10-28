@@ -1672,8 +1672,6 @@ pub fn get_lisp_indent() -> i32 {
 
     if !pos.is_null() {
         let pos = { unsafe { &mut *pos } };
-        let pos = { &mut *pos };
-        let pos = { &mut *pos };
         amount = -1;
         let mut parencount: i32 = 0;
 
